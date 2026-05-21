@@ -10,6 +10,7 @@ import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListVisitantes extends StatefulWidget {
@@ -47,6 +48,354 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> loadList() async {
+    try {
+      setState(() => _isLoading = true);
+      list = await apiGetAllVisitantes(txtSearch.text, allCondos: widget.allCondos);
+    } catch (e) {
+      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showVisitanteDetails(BuildContext context, dynamic item) {
+    final isInside = item['data_entrada'] != null && item['data_saida'] == null;
+    final canAdd = (getUserType() != 'funcionario') || getUserPermission('cadastrar_visitante') == 1;
+    
+    bool isAuthorized = false;
+    if (!isInside && item['data_saida'] == null) {
+      final startStr = item['data_hora_inicio'];
+      final endStr = item['data_hora_termino'];
+      if (startStr != null && endStr != null) {
+        final start = DateTime.tryParse(startStr);
+        final end = DateTime.tryParse(endStr);
+        if (start != null && end != null) {
+          isAuthorized = DateTime.now().isAfter(start) && DateTime.now().isBefore(end);
+        }
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.background(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.textTertiary(context).withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    child: Text(
+                      (item['nome'] ?? 'V').substring(0, 1).toUpperCase(),
+                      style: AppTypography.h3(context).copyWith(color: AppColors.primary),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item['nome'] ?? '',
+                          style: AppTypography.h3(context),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (isInside)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'NO LOCAL',
+                                  style: AppTypography.tiny(context).copyWith(
+                                    color: AppColors.success,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
+                            else if (isAuthorized)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'AUTORIZADO',
+                                  style: AppTypography.tiny(context).copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.textSecondary(context).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'AGENDADO',
+                                  style: AppTypography.tiny(context).copyWith(
+                                    color: AppColors.textSecondary(context),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(width: 8),
+                            Text(
+                              item['is_prestador'] == 1 ? 'Prestador' : 'Visitante',
+                              style: AppTypography.caption(context),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              
+              _buildDetailRow(
+                context,
+                icon: PhosphorIcons.houseLine,
+                label: 'Unidade',
+                value: '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto'] ?? ''}',
+              ),
+              if (item['doc_identificacao'] != null && item['doc_identificacao'].toString().trim().isNotEmpty)
+                _buildDetailRow(
+                  context,
+                  icon: PhosphorIcons.identificationCard,
+                  label: 'Documento',
+                  value: item['doc_identificacao'].toString(),
+                ),
+              
+              _buildDetailRow(
+                context,
+                icon: PhosphorIcons.calendarBlank,
+                label: 'Período Autorizado',
+                value: _formatPeriod(item['data_hora_inicio'], item['data_hora_termino']),
+              ),
+
+              if (item['data_entrada'] != null)
+                _buildDetailRow(
+                  context,
+                  icon: PhosphorIcons.signIn,
+                  label: 'Entrada Registrada',
+                  value: _formatDateTimeString(item['data_entrada']),
+                ),
+
+              if (item['data_saida'] != null)
+                _buildDetailRow(
+                  context,
+                  icon: PhosphorIcons.signOut,
+                  label: 'Saída Registrada',
+                  value: _formatDateTimeString(item['data_saida']),
+                ),
+
+              if (item['codigo_acesso'] != null && item['data_saida'] == null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary.withOpacity(0.15),
+                        AppColors.primary.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(PhosphorIcons.key, color: AppColors.primary, size: 24),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Código PIN (Acesso)',
+                              style: AppTypography.tiny(context).copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item['codigo_acesso'].toString().length == 6
+                                  ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}"
+                                  : item['codigo_acesso'].toString(),
+                              style: AppTypography.h2(context).copyWith(
+                                color: AppColors.primary,
+                                letterSpacing: 2,
+                                fontWeight: FontWeight.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(PhosphorIcons.copy, color: AppColors.primary),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: item['codigo_acesso'].toString())).then((_) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Código PIN copiado para a área de transferência!'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              const SizedBox(height: AppSpacing.xl),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: AppColors.textTertiary(context).withOpacity(0.3)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text('Fechar', style: AppTypography.body(context)),
+                    ),
+                  ),
+                  if (canAdd) ...[
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => NewVisitante(
+                                isEdit: true,
+                                myId: item['id'],
+                              ),
+                            ),
+                          ).then((_) => loadList());
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: Text(
+                          'Editar',
+                          style: AppTypography.body(context).copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(BuildContext context, {required IconData icon, required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: AppColors.textSecondary(context)),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppTypography.caption(context).copyWith(
+                    color: AppColors.textTertiary(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: AppTypography.bodyMedium(context),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatPeriod(dynamic start, dynamic end) {
+    if (start == null) return 'Qualquer data';
+    final s = DateTime.tryParse(start.toString());
+    final e = end != null ? DateTime.tryParse(end.toString()) : null;
+    
+    if (s == null) return 'Qualquer data';
+    
+    final pad = (int n) => n.toString().padLeft(2, '0');
+    final format = (DateTime d) => '${pad(d.day)}/${pad(d.month)}/${d.year} ${pad(d.hour)}:${pad(d.minute)}';
+    
+    if (e == null) {
+      return 'A partir de ${format(s)}';
+    }
+    return '${format(s)} até ${format(e)}';
+  }
+
+  String _formatDateTimeString(dynamic val) {
+    if (val == null) return '';
+    final d = DateTime.tryParse(val.toString());
+    if (d == null) return val.toString();
+    final pad = (int n) => n.toString().padLeft(2, '0');
+    return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
   }
 
   @override
@@ -188,11 +537,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                                   separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                                   itemBuilder: (_, i) => _VisitanteCard(
                                     item: listInside[i],
-                                    onTap: canAdd
-                                        ? () => Navigator.push(context,
-                                                MaterialPageRoute(builder: (_) => NewVisitante(isEdit: true, myId: listInside[i]['id'])))
-                                            .then((_) => loadList())
-                                        : null,
+                                    onTap: () => _showVisitanteDetails(context, listInside[i]),
                                   ),
                                 ),
                         ),
@@ -207,11 +552,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                                   separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                                   itemBuilder: (_, i) => _VisitanteCard(
                                     item: listCadastrados[i],
-                                    onTap: canAdd
-                                        ? () => Navigator.push(context,
-                                                MaterialPageRoute(builder: (_) => NewVisitante(isEdit: true, myId: listCadastrados[i]['id'])))
-                                            .then((_) => loadList())
-                                        : null,
+                                    onTap: () => _showVisitanteDetails(context, listCadastrados[i]),
                                     onQuickRelease: canAdd
                                         ? () => Navigator.push(
                                               context,
@@ -380,8 +721,11 @@ class _VisitanteCard extends StatelessWidget {
                   tooltip: 'Liberar Novamente',
                 ),
               ),
-            ] else if (onTap != null)
+            ],
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
               Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+            ],
           ],
         ),
       ),
