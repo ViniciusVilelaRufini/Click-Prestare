@@ -138,7 +138,7 @@ validateGenericDate(String date) {
 
 convertStringToDateTime(String date) {
   try {
-    return DateFormat("dd/MM/yyyy hh:mm").parseStrict(date).toString();
+    return DateFormat("dd/MM/yyyy HH:mm").parseStrict(date).toString();
   } catch (e) {
     throw getText('invalid_data');
   }
@@ -178,7 +178,7 @@ convertStringToDate(String date) {
 
 convertStringToTime(String date) {
   try {
-    return DateFormat("hh:mm").parseStrict(date).toString();
+    return DateFormat("HH:mm").parseStrict(date).toString();
   } catch (e) {
     throw getText('invalid_hora');
   }
