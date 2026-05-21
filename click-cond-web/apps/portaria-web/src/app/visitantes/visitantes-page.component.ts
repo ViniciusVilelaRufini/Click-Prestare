@@ -26,6 +26,13 @@ export class VisitantesPageComponent implements OnInit {
   readonly search = signal('');
   readonly viewFilter = signal<'todos' | 'ativos' | 'historico'>('todos');
 
+  readonly showValidationModal = signal(false);
+  readonly pinCode = signal('');
+  readonly validationResult = signal<any | null>(null);
+  readonly validationError = signal<string | null>(null);
+  readonly validating = signal(false);
+  readonly checkingIn = signal(false);
+
   readonly visitantesAtivos = computed(() =>
     this.visitantes().filter((v) => !v.data_hora_termino),
   );
@@ -149,6 +156,58 @@ export class VisitantesPageComponent implements OnInit {
     const h = Math.floor(min / 60);
     const m = min % 60;
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+
+  abrirValidador() {
+    this.pinCode.set('');
+    this.validationResult.set(null);
+    this.validationError.set(null);
+    this.showValidationModal.set(true);
+  }
+
+  fecharValidador() {
+    this.showValidationModal.set(false);
+  }
+
+  validarPIN() {
+    const code = this.pinCode().trim().replace('-', '');
+    if (!code) {
+      this.validationError.set('Por favor, informe o código PIN.');
+      return;
+    }
+    
+    this.validating.set(true);
+    this.validationError.set(null);
+    this.validationResult.set(null);
+    
+    this.service.validarCodigo(code).subscribe({
+      next: (res) => {
+        this.validationResult.set(res);
+        this.validating.set(false);
+      },
+      error: (err) => {
+        this.validationError.set(err?.error?.message || 'Código inválido ou visita não agendada.');
+        this.validating.set(false);
+      }
+    });
+  }
+
+  confirmarEntradaPIN() {
+    const res = this.validationResult();
+    if (!res || !res.id) return;
+    
+    this.checkingIn.set(true);
+    this.service.checkIn(res.id).subscribe({
+      next: () => {
+        this.checkingIn.set(false);
+        this.fecharValidador();
+        this.carregar();
+      },
+      error: (err) => {
+        this.validationError.set(err?.error?.message || 'Erro ao registrar entrada.');
+        this.checkingIn.set(false);
+      }
+    });
   }
 
   private estadoInicial(): CreateVisitante {

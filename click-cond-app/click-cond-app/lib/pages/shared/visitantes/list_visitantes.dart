@@ -52,113 +52,185 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
   @override
   Widget build(BuildContext context) {
     final canAdd = (getUserType() != 'funcionario') || getUserPermission('cadastrar_visitante') == 1;
-    return AppScaffold(
-      title: getText('visitantes_list'),
-      floatingActionButton: canAdd
-          ? FloatingActionButton(
-              onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)))
-                  .then((_) => loadList()),
-              backgroundColor: AppColors.primary,
-              child: const Icon(PhosphorIcons.plus, color: Colors.white),
-            )
-          : null,
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
-            child: TextField(
-              controller: txtSearch,
-              onChanged: (v) {
-                _timerSearch?.cancel();
-                _timerSearch = Timer(const Duration(milliseconds: 600), loadList);
-              },
-              style: AppTypography.body(context),
-              cursorColor: AppColors.primary,
-              decoration: InputDecoration(
-                hintText: getText('lb_buscar'),
-                hintStyle: AppTypography.body(context).copyWith(color: AppColors.textTertiary(context)),
-                prefixIcon: Icon(PhosphorIcons.magnifyingGlass, size: 20, color: AppColors.textSecondary(context)),
-                filled: true,
-                fillColor: AppColors.surface(context),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
+
+    // Filtrar quem está no condomínio atualmente OU possui liberação ativa para hoje
+    final now = DateTime.now();
+    final listInside = list.where((e) {
+      // 1. Está no local fisicamente
+      final isInside = e['data_entrada'] != null && e['data_saida'] == null;
+      if (isInside) return true;
+
+      // 2. Liberação ativa agendada (período atual e sem registro de saída)
+      final startStr = e['data_hora_inicio'];
+      final endStr = e['data_hora_termino'];
+      if (startStr != null && endStr != null && e['data_saida'] == null) {
+        final start = DateTime.tryParse(startStr);
+        final end = DateTime.tryParse(endStr);
+        if (start != null && end != null) {
+          return now.isAfter(start) && now.isBefore(end);
+        }
+      }
+      return false;
+    }).toList();
+
+    // Filtrar visitantes cadastrados únicos para histórico e liberação rápida
+    final Map<String, Map<String, dynamic>> uniqueVisitors = {};
+    for (var item in list) {
+      final String key = (item['doc_identificacao'] != null && item['doc_identificacao'].toString().trim().isNotEmpty)
+          ? item['doc_identificacao'].toString().trim()
+          : item['nome'].toString().trim();
+      
+      if (key.isNotEmpty && !uniqueVisitors.containsKey(key)) {
+        uniqueVisitors[key] = Map<String, dynamic>.from(item);
+      }
+    }
+    final listCadastrados = uniqueVisitors.values.toList();
+
+    return DefaultTabController(
+      length: 2,
+      child: AppScaffold(
+        title: getText('visitantes_list'),
+        floatingActionButton: canAdd
+            ? FloatingActionButton(
+                onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)))
+                    .then((_) => loadList()),
+                backgroundColor: AppColors.primary,
+                child: const Icon(PhosphorIcons.plus, color: Colors.white),
+              )
+            : null,
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
+              child: TextField(
+                controller: txtSearch,
+                onChanged: (v) {
+                  _timerSearch?.cancel();
+                  _timerSearch = Timer(const Duration(milliseconds: 600), loadList);
+                },
+                style: AppTypography.body(context),
+                cursorColor: AppColors.primary,
+                decoration: InputDecoration(
+                  hintText: getText('lb_buscar'),
+                  hintStyle: AppTypography.body(context).copyWith(color: AppColors.textTertiary(context)),
+                  prefixIcon: Icon(PhosphorIcons.magnifyingGlass, size: 20, color: AppColors.textSecondary(context)),
+                  filled: true,
+                  fillColor: AppColors.surface(context),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: _isLoading
-                ? ListView.separated(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    itemCount: 8,
-                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                    itemBuilder: (_, __) => AppSkeleton.listTile(context),
-                  )
-                : list.isEmpty
-                    ? _EmptyState(getText('alert_list_empty_generic'), PhosphorIcons.identificationCard)
-                    : RefreshIndicator(
-                        onRefresh: loadList,
-                        child: CustomScrollView(
-                          slivers: [
-                            if (list.any((e) => e['data_entrada'] != null && e['data_saida'] == null)) ...[
-                              SliverPadding(
-                                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
-                                sliver: SliverToBoxAdapter(
-                                  child: Row(
-                                    children: [
-                                      Icon(PhosphorIcons.houseLine, size: 18, color: AppColors.success),
-                                      const SizedBox(width: 8),
-                                      Text('No Condomínio', style: AppTypography.caption(context).copyWith(fontWeight: FontWeight.bold, color: AppColors.success)),
-                                    ],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: TabBar(
+                  dividerColor: Colors.transparent,
+                  unselectedLabelColor: AppColors.textSecondary(context),
+                  labelColor: Colors.white,
+                  labelStyle: AppTypography.caption(context).copyWith(fontWeight: FontWeight.bold),
+                  unselectedLabelStyle: AppTypography.caption(context),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicator: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  tabs: [
+                    Tab(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(PhosphorIcons.houseLine, size: 16),
+                          const SizedBox(width: 6),
+                          Text('No Local / Ativos (${listInside.length})'),
+                        ],
+                      ),
+                    ),
+                    Tab(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(PhosphorIcons.identificationCard, size: 16),
+                          const SizedBox(width: 6),
+                          Text('Cadastrados (${listCadastrados.length})'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: _isLoading
+                  ? ListView.separated(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      itemCount: 8,
+                      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                      itemBuilder: (_, __) => AppSkeleton.listTile(context),
+                    )
+                  : TabBarView(
+                      children: [
+                        // ABA 1: No Condomínio
+                        RefreshIndicator(
+                          onRefresh: loadList,
+                          child: listInside.isEmpty
+                              ? _EmptyState('Nenhum visitante no local no momento.', PhosphorIcons.houseLine)
+                              : ListView.separated(
+                                  padding: const EdgeInsets.all(AppSpacing.lg),
+                                  itemCount: listInside.length,
+                                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                                  itemBuilder: (_, i) => _VisitanteCard(
+                                    item: listInside[i],
+                                    onTap: canAdd
+                                        ? () => Navigator.push(context,
+                                                MaterialPageRoute(builder: (_) => NewVisitante(isEdit: true, myId: listInside[i]['id'])))
+                                            .then((_) => loadList())
+                                        : null,
                                   ),
                                 ),
-                              ),
-                              SliverPadding(
-                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                                sliver: SliverList.separated(
-                                  itemCount: list.where((e) => e['data_entrada'] != null && e['data_saida'] == null).length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                                  itemBuilder: (_, i) {
-                                    final inside = list.where((e) => e['data_entrada'] != null && e['data_saida'] == null).toList();
-                                    return _VisitanteCard(
-                                      item: inside[i],
-                                      onTap: canAdd
-                                          ? () => Navigator.push(context,
-                                                  MaterialPageRoute(builder: (_) => NewVisitante(isEdit: true, myId: inside[i]['id'])))
-                                              .then((_) => loadList())
-                                          : null,
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
-                              SliverPadding(
-                                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
-                                sliver: SliverToBoxAdapter(
-                                  child: Text('Todos os Visitantes', style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context))),
-                                ),
-                              ),
-                            ],
-                            SliverPadding(
-                              padding: const EdgeInsets.all(AppSpacing.lg),
-                              sliver: SliverList.separated(
-                                itemCount: list.length,
-                                separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                                itemBuilder: (_, i) => _VisitanteCard(
-                                  item: list[i],
-                                  onTap: canAdd
-                                      ? () => Navigator.push(context,
-                                              MaterialPageRoute(builder: (_) => NewVisitante(isEdit: true, myId: list[i]['id'])))
-                                          .then((_) => loadList())
-                                      : null,
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
-                      ),
-          ),
-        ],
+                        // ABA 2: Cadastrados (Histórico / Liberar Novamente)
+                        RefreshIndicator(
+                          onRefresh: loadList,
+                          child: listCadastrados.isEmpty
+                              ? _EmptyState('Nenhum visitante cadastrado.', PhosphorIcons.identificationCard)
+                              : ListView.separated(
+                                  padding: const EdgeInsets.all(AppSpacing.lg),
+                                  itemCount: listCadastrados.length,
+                                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                                  itemBuilder: (_, i) => _VisitanteCard(
+                                    item: listCadastrados[i],
+                                    onTap: canAdd
+                                        ? () => Navigator.push(context,
+                                                MaterialPageRoute(builder: (_) => NewVisitante(isEdit: true, myId: listCadastrados[i]['id'])))
+                                            .then((_) => loadList())
+                                        : null,
+                                    onQuickRelease: canAdd
+                                        ? () => Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => NewVisitante(
+                                                  isEdit: false,
+                                                  reUseData: listCadastrados[i],
+                                                ),
+                                              ),
+                                            ).then((_) => loadList())
+                                        : null,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -167,11 +239,26 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
 class _VisitanteCard extends StatelessWidget {
   final dynamic item;
   final VoidCallback? onTap;
-  const _VisitanteCard({required this.item, this.onTap});
+  final VoidCallback? onQuickRelease;
+  const _VisitanteCard({required this.item, this.onTap, this.onQuickRelease});
 
   @override
   Widget build(BuildContext context) {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
+    
+    // Verificar se é agendado (está ativo no período, mas não entrou ainda)
+    bool isAuthorized = false;
+    if (!isInside && item['data_saida'] == null) {
+      final startStr = item['data_hora_inicio'];
+      final endStr = item['data_hora_termino'];
+      if (startStr != null && endStr != null) {
+        final start = DateTime.tryParse(startStr);
+        final end = DateTime.tryParse(endStr);
+        if (start != null && end != null) {
+          isAuthorized = DateTime.now().isAfter(start) && DateTime.now().isBefore(end);
+        }
+      }
+    }
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -234,9 +321,32 @@ class _VisitanteCard extends StatelessWidget {
                           decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
                           child: Text('NO LOCAL', style: AppTypography.tiny(context).copyWith(color: AppColors.success, fontWeight: FontWeight.bold)),
                         ),
+                      ] else if (isAuthorized) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                          child: Text('AUTORIZADO', style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                        ),
                       ],
                     ],
                   ),
+                  if (item['codigo_acesso'] != null && item['data_saida'] == null) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(PhosphorIcons.key, size: 12, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'PIN: ${item['codigo_acesso'].toString().length == 6 ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}" : item['codigo_acesso']}',
+                          style: AppTypography.tiny(context).copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   Row(
                     children: [
                       if (item['data_hora'] != null)
@@ -258,7 +368,19 @@ class _VisitanteCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (onTap != null)
+            if (onQuickRelease != null) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Material(
+                color: Colors.transparent,
+                child: IconButton(
+                  icon: const Icon(PhosphorIcons.paperPlaneTilt, size: 20),
+                  color: AppColors.primary,
+                  onPressed: onQuickRelease,
+                  splashRadius: 20,
+                  tooltip: 'Liberar Novamente',
+                ),
+              ),
+            ] else if (onTap != null)
               Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
           ],
         ),

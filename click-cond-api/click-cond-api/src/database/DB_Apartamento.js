@@ -57,7 +57,8 @@ module.exports = {
                     from Moradores m
                     inner join Users u on m.id_user = u.id
                     inner join Apartamentos_Users au on au.id_user = u.id
-                      where au.tipo='${tipo}' and au.id_apto=${id_apto}`;
+                    inner join Apartamentos a on a.id = au.id_apto
+                      where au.tipo='${tipo}' and au.id_apto=${id_apto} and m.id_condominio = a.id_condominio`;
 
     const { results } = await db.query(query);
     return results;

@@ -11,6 +11,7 @@ router.post('/update', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }
 router.get('/get', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }), controller.get);
 router.post('/check-in', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }), controller.checkIn);
 router.post('/check-out', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }), controller.checkOut);
+router.get('/validar/:codigo', jwt({ typeAccess: ['Sindico', 'Funcionario'] }), controller.validarCodigo);
 
 
 module.exports = router;

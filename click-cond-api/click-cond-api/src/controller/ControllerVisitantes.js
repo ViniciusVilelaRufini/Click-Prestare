@@ -15,8 +15,8 @@ module.exports = {
         }
       }
 
-      await db.insert(id_condominio, visitante, user.id);
-      return res.json();
+      const saved = await db.insert(id_condominio, visitante, user.id);
+      return res.json(saved);
     } catch (err) {
       return res.status(500).json({ message: err.message });
     }
@@ -102,13 +102,20 @@ module.exports = {
   async get(req, res) {
     try {
       const user = req.session.user;
-      const result = await db.get(req.query.id_condominio, req.query.id);
+      const id = req.query.id;
+
+      // Buscar o visitante pelo ID primeiro para descobrir o condomínio real dele
+      const existing = await db.getById(id);
+      if (!existing) return res.status(404).json({ message: "Visitante não encontrado." });
+
+      const realCondId = existing.id_condominio;
+      const result = await db.get(realCondId, id);
 
       if (!result) return res.status(404).json({ message: "Visitante não encontrado." });
 
       if (user.typeAccess === 'Morador') {
-        const userAptos = await dbAptos.getApartmentsByUser(user.id, req.query.id_condominio);
-        if (!userAptos.includes(result.id_apartamento)) {
+        const userAptos = await dbAptos.getApartmentsByUser(user.id, realCondId);
+        if (!userAptos.includes(existing.id_apartamento)) {
           return res.status(403).json({ message: "Acesso negado." });
         }
       }
@@ -132,6 +139,42 @@ module.exports = {
     try {
       await db.checkOut(req.body.id);
       return res.json();
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  async validarCodigo(req, res) {
+    try {
+      const { codigo } = req.params;
+      const user = req.session.user;
+      
+      const id_condominio = req.query.id_condominio || user.id_condominio; 
+      
+      if (!id_condominio) {
+        return res.status(400).json({ message: "Condomínio não especificado." });
+      }
+
+      const visitante = await db.getByCode(id_condominio, codigo);
+      if (!visitante) {
+        return res.status(404).json({ message: "Código inválido ou visita não agendada/já encerrada." });
+      }
+
+      const now = new Date();
+      const inicio = new Date(visitante.data_hora_inicio);
+      const termino = new Date(visitante.data_hora_termino);
+      
+      let status = "ATIVO";
+      if (now < inicio) {
+        status = "FUTURO";
+      } else if (now > termino) {
+        status = "EXPIRADO";
+      }
+
+      return res.status(200).json({
+        ...visitante,
+        status_vigencia: status
+      });
     } catch (err) {
       return res.status(500).json({ message: err.message });
     }

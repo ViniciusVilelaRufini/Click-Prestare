@@ -1,4 +1,5 @@
 import 'package:click/controllers/controller_generic.dart';
+import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -12,13 +13,16 @@ import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../singleton.dart';
 
 class NewVisitante extends StatefulWidget {
-  const NewVisitante({Key? key, required this.isEdit, this.myId}) : super(key: key);
+  const NewVisitante({Key? key, required this.isEdit, this.myId, this.reUseData}) : super(key: key);
   final bool isEdit;
   final int? myId;
+  final Map<String, dynamic>? reUseData;
 
   @override
   _NewVisitantePageState createState() => _NewVisitantePageState();
@@ -54,6 +58,15 @@ class _NewVisitantePageState extends State<NewVisitante> {
       load();
     } else {
       currentTipo = 'visitante';
+      if (widget.reUseData != null) {
+        txtNome.text = widget.reUseData!["nome"] ?? "";
+        txtDocumento.text = widget.reUseData!["doc_identificacao"]?.toString() ?? "";
+        txtApto.text = widget.reUseData!["apto"] ?? "";
+        txtBloco.text = widget.reUseData!["apto_bloco"] ?? "";
+        txtObs.text = widget.reUseData!["observacoes"] ?? "";
+        currentTipo = widget.reUseData!["is_visitante"] == 1 ? 'visitante' : 'prestador';
+        idMyApartment = widget.reUseData!["apto_id"];
+      }
     }
     if (getUserType() == 'morador') {
       txtBloco.text = Singleton.instance.bloco;
@@ -114,17 +127,144 @@ class _NewVisitantePageState extends State<NewVisitante> {
         is_prestador: currentTipo == 'prestador',
       );
       setState(() => _isSaving = true);
-      var message = await apiSaveObject('visitantes', 'visitante', visitante, widget.isEdit);
-      if (message == "") {
-        if (mounted) Navigator.pop(context);
+      final result = await apiSaveVisitante(visitante, widget.isEdit);
+      if (result is Map) {
+        final code = result['codigo_acesso']?.toString();
+        if (!widget.isEdit && code != null) {
+          if (mounted) _showSuccessDialog(code);
+        } else {
+          if (mounted) Navigator.pop(context);
+        }
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), message);
+        if (mounted) displayMessage(context, getText('alert_error'), result.toString());
       }
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), e.toString());
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  void _showSuccessDialog(String code) {
+    final moradorName = getUsername();
+    final blocoText = txtBloco.text;
+    final aptoText = txtApto.text;
+    
+    final formattedCode = code.length == 6 ? "${code.substring(0, 3)}-${code.substring(3, 6)}" : code;
+    
+    final inviteText = 
+      "🔑 *Convite de Acesso - Click Portaria*\n\n"
+      "Olá! Sua liberação de acesso foi cadastrada.\n\n"
+      "📍 *Destino:* Bloco $blocoText, Apto $aptoText\n"
+      "👤 *Autorizado por:* ${moradorName.isNotEmpty ? moradorName : 'Morador'}\n"
+      "🔑 *Código de Acesso (PIN):* $formattedCode\n\n"
+      "Apresente este código ao chegar na portaria para liberação da sua entrada.";
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: AppColors.surface(context),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    PhosphorIcons.circleWavyCheck,
+                    color: AppColors.success,
+                    size: 54,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  "Liberação Gerada!",
+                  style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  "Compartilhe o código abaixo com o seu visitante para agilizar a entrada na portaria.",
+                  textAlign: TextAlign.center,
+                  style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context)),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                
+                // Container do PIN
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated(context),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        formattedCode,
+                        style: AppTypography.title(context).copyWith(
+                          fontSize: 32,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      IconButton(
+                        icon: Icon(PhosphorIcons.copy, color: AppColors.primary),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: code));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Código copiado para a área de transferência!')),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                
+                // Botão Compartilhar via WhatsApp
+                AppButton(
+                  label: "Enviar via WhatsApp",
+                  icon: PhosphorIcons.whatsappLogo,
+                  onPressed: () async {
+                    final url = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(inviteText)}");
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                
+                // Botão Fechar / Concluir
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context); // fecha o dialog
+                    Navigator.pop(this.context); // fecha a tela de cadastro
+                  },
+                  child: Text(
+                    "Concluir",
+                    style: AppTypography.bodyMedium(context).copyWith(
+                      color: AppColors.textSecondary(context),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> delete() async {

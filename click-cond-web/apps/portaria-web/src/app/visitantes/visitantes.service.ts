@@ -33,4 +33,15 @@ export class VisitantesService {
   remove(id: number): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
   }
+
+  validarCodigo(codigo: string): Observable<any> {
+    const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
+    return this.http.get<any>(`${API_BASE}/visitantes/validar/${codigo}`, {
+      params: new HttpParams().set('id_condominio', cid.toString())
+    });
+  }
+
+  checkIn(id: number): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/visitantes/check-in`, { id });
+  }
 }

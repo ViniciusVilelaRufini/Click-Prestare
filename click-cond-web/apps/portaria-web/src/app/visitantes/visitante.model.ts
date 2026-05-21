@@ -10,6 +10,7 @@ export interface Visitante {
   id_condominio: number;
   apto?: string;
   apto_bloco?: string;
+  codigo_acesso?: string | null;
   created_at: string;
 }
 

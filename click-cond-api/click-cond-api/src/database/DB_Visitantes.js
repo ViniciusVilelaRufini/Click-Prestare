@@ -4,10 +4,22 @@ module.exports = {
   insert: async function (id_condominio, visitante, user_id) {
     visitante.nome = visitante.nome.replaceAll("'","''");
     
-    const query = `insert into Visitantes (nome, doc_identificacao, data_hora_inicio, data_hora_termino, is_visitante, is_prestador, user, id_apartamento, id_condominio, avisar, foto_documento, foto_pessoa)
-						values ('${visitante.nome}','${visitante.doc_identificacao}','${visitante.data_inicio}','${visitante.data_termino}',${visitante.is_visitante}, ${visitante.is_prestador}, ${user_id}, ${visitante.id_apartamento}, ${id_condominio}, 1, '${visitante.foto_documento || ''}', '${visitante.foto_pessoa || ''}')`;
+    // Gerar PIN único e ativo
+    let pin = '';
+    let isUnique = false;
+    while (!isUnique) {
+      pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const check = await db.query(`select id from Visitantes where codigo_acesso='${pin}' and data_saida is null limit 1`);
+      if (!check.results || check.results.length === 0) {
+        isUnique = true;
+      }
+    }
+    
+    const query = `insert into Visitantes (nome, doc_identificacao, data_hora_inicio, data_hora_termino, is_visitante, is_prestador, user, id_apartamento, id_condominio, avisar, foto_documento, foto_pessoa, codigo_acesso)
+						values ('${visitante.nome}','${visitante.doc_identificacao}','${visitante.data_inicio}','${visitante.data_termino}',${visitante.is_visitante}, ${visitante.is_prestador}, ${user_id}, ${visitante.id_apartamento}, ${id_condominio}, 1, '${visitante.foto_documento || ''}', '${visitante.foto_pessoa || ''}', '${pin}')`;
             console.log(query);
-    await db.query(query);
+    const result = await db.query(query);
+    return { id: result.results.insertId, codigo_acesso: pin };
   },
 
   getAll: async function (id_cond, offset, id_apto, search, userId) {
@@ -16,9 +28,11 @@ module.exports = {
                     DATE_FORMAT(v.data_entrada, '%H:%i') as hora_entrada,
                     DATE_FORMAT(v.data_saida, '%H:%i') as hora_saida,
                     v.data_entrada, v.data_saida,
+                    v.data_hora_inicio, v.data_hora_termino,
                     v.is_visitante, v.is_prestador, u.login,
                     apto.apto, apto.bloco as apto_bloco, apto.id as apto_id,
-                    v.foto_documento, v.foto_pessoa, c.nome as condominio_nome
+                    v.foto_documento, v.foto_pessoa, c.nome as condominio_nome,
+                    v.codigo_acesso
                     from Visitantes v
                     inner join Apartamentos apto on apto.id=v.id_apartamento
                     left join Users u on u.id=v.user
@@ -74,7 +88,8 @@ module.exports = {
                       DATE_FORMAT(v.data_hora_termino, '%d/%m/%Y %H:%i') as data_termino, 
                       v.is_visitante, v.is_prestador,
                       v.foto_documento, v.foto_pessoa,
-                      apto.apto, apto.bloco as apto_bloco, apto.id as apto_id
+                      apto.apto, apto.bloco as apto_bloco, apto.id as apto_id,
+                      v.codigo_acesso
                     from Visitantes v
                     inner join Apartamentos apto on apto.id=v.id_apartamento
                       where v.id_condominio=${id_cond} and v.id=${id}`;
@@ -96,5 +111,26 @@ module.exports = {
   checkOut: async function (id) {
     const query = `update Visitantes set data_saida=NOW() where id=${id}`;
     await db.query(query);
+  },
+
+  getByCode: async function (id_cond, codigo) {
+    const query = `select v.id, v.nome, v.doc_identificacao, 
+                      DATE_FORMAT(v.data_hora_inicio, '%d/%m/%Y %H:%i') as data_inicio, 
+                      DATE_FORMAT(v.data_hora_termino, '%d/%m/%Y %H:%i') as data_termino, 
+                      v.data_hora_inicio, v.data_hora_termino,
+                      v.data_entrada, v.data_saida, v.is_visitante, v.is_prestador,
+                      v.foto_documento, v.foto_pessoa,
+                      apto.apto, apto.bloco as apto_bloco, apto.id as apto_id,
+                      u.name as morador_nome
+                    from Visitantes v
+                    inner join Apartamentos apto on apto.id=v.id_apartamento
+                    left join Users u on u.id=v.user
+                      where v.id_condominio=${id_cond} 
+                        and v.codigo_acesso='${codigo}'
+                        and v.data_saida is null
+                      order by v.data_hora_inicio desc
+                      limit 1`;
+    const { results } = await db.query(query);
+    return results[0];
   }
 };

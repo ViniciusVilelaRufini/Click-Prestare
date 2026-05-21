@@ -32,3 +32,36 @@ apiGetAllVisitantes(String search, {bool allCondos = false}) async {
     return "Houve um erro, tente novamente!";
   }
 }
+
+apiSaveVisitante(dynamic obj, bool isEdit) async {
+  final Map<String, String> headers = {
+    "Authorization": getToken(),
+    "Content-Type": "application/json; charset=utf-8"
+  };
+  final endUri = isEdit ? 'update' : 'insert';
+  final url = ApiConfig.buildUri('/visitantes/$endUri');
+  final body = json.encode({
+    'id_condominio': Singleton.instance.id_condominio.toString(),
+    'visitante': obj is Map ? obj : obj.toJson()
+  });
+
+  try {
+    final response = await http.post(
+      url,
+      headers: headers,
+      body: body,
+      encoding: utf8,
+    ).timeout(ApiConfig.timeout);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isNotEmpty) {
+        return jsonDecode(response.body);
+      }
+      return {};
+    }
+    final parsed = jsonDecode(response.body);
+    return parsed['message'] ?? "Erro ao salvar visitante";
+  } catch (e) {
+    return "Falha de comunicação com o servidor.";
+  }
+}
