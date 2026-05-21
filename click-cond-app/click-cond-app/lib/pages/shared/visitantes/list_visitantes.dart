@@ -50,17 +50,6 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
     }
   }
 
-  Future<void> loadList() async {
-    try {
-      setState(() => _isLoading = true);
-      list = await apiGetAllVisitantes(txtSearch.text, allCondos: widget.allCondos);
-    } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
   void _showVisitanteDetails(BuildContext context, dynamic item) {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
     final canAdd = (getUserType() != 'funcionario') || getUserPermission('cadastrar_visitante') == 1;
@@ -85,7 +74,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
       builder: (context) {
         return Container(
           decoration: BoxDecoration(
-            color: AppColors.background(context),
+            color: AppColors.bg(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
@@ -111,7 +100,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                     backgroundColor: AppColors.primary.withOpacity(0.1),
                     child: Text(
                       (item['nome'] ?? 'V').substring(0, 1).toUpperCase(),
-                      style: AppTypography.h3(context).copyWith(color: AppColors.primary),
+                      style: AppTypography.headline(context).copyWith(color: AppColors.primary),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -121,7 +110,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                       children: [
                         Text(
                           item['nome'] ?? '',
-                          style: AppTypography.h3(context),
+                          style: AppTypography.headline(context),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -259,10 +248,10 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                               item['codigo_acesso'].toString().length == 6
                                   ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}"
                                   : item['codigo_acesso'].toString(),
-                              style: AppTypography.h2(context).copyWith(
+                              style: AppTypography.title(context).copyWith(
                                 color: AppColors.primary,
                                 letterSpacing: 2,
-                                fontWeight: FontWeight.black,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
                           ],
