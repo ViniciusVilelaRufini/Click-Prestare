@@ -87,6 +87,14 @@ export class VisitantesGlobalController {
     return this.service.checkOut(id);
   }
 
+  @Get('get')
+  async getDetails(
+    @Query('id', ParseIntPipe) id: number,
+  ) {
+    const v = await this.service.findOne(id);
+    return this.flatten(v);
+  }
+
   @Get('get-all')
   async getAll(
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
