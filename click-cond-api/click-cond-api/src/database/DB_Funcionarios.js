@@ -87,11 +87,29 @@ module.exports = {
   },
 
   getAll: async function (id_cond, offset) {
-    const query = `select u.id, u.photo, f.nome, f.ch, f.funcao
-                    from Funcionarios f
-                      inner join Users u on f.id_user = u.id
-                      where f.id_condominio=${id_cond}
-                    order by f.created_at desc`;
+    // Main employees from Funcionarios table
+    // Also include portaria-only employees (those not in Funcionarios but in Funcionarios_Portaria)
+    const query = `
+      SELECT u.id, 
+             CONVERT(u.photo USING utf8mb4) COLLATE utf8mb4_unicode_ci as photo, 
+             CONVERT(f.nome USING utf8mb4) COLLATE utf8mb4_unicode_ci as nome, 
+             CONVERT(f.ch USING utf8mb4) COLLATE utf8mb4_unicode_ci as ch, 
+             CONVERT(f.funcao USING utf8mb4) COLLATE utf8mb4_unicode_ci as funcao
+      FROM Funcionarios f
+        INNER JOIN Users u ON f.id_user = u.id
+        WHERE f.id_condominio = ${id_cond}
+      UNION
+      SELECT NULL as id, NULL as photo, fp.nome, NULL as ch, 'Portaria' as funcao
+      FROM Funcionarios_Portaria fp
+      WHERE fp.id_condominio = ${id_cond}
+        AND fp.ativo = 1
+        AND fp.login NOT IN (
+          SELECT CONVERT(u2.login USING utf8mb4) COLLATE utf8mb4_unicode_ci 
+          FROM Funcionarios f2 INNER JOIN Users u2 ON u2.id = f2.id_user 
+          WHERE f2.id_condominio = ${id_cond}
+        )
+      ORDER BY nome ASC
+    `;
     const { results } = await db.query(query);
     return results;
   },
