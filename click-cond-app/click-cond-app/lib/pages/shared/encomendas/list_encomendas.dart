@@ -146,53 +146,85 @@ class _EncomendaCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                 ],
+                Text(
+                  encomenda.descricao ?? 'Encomenda sem descrição',
+                  style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
                 Row(
                   children: [
+                    Icon(PhosphorIcons.truck, size: 14, color: AppColors.textTertiary(context)),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        encomenda.descricao ?? 'Encomenda sem descrição',
-                        style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
+                        'Recebido de: ${encomenda.recebidoDe ?? "N/A"}',
+                        style: AppTypography.caption(context),
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (encomenda.destinatarioApto != null)
-                      Text(
-                        '${encomenda.destinatarioBloco ?? ''} - ${encomenda.destinatarioApto}',
-                        style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
-                      ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Recebido de: ${encomenda.recebidoDe ?? "N/A"}',
-                  style: AppTypography.caption(context),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(PhosphorIcons.calendar, size: 14, color: AppColors.textTertiary(context)),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Em: $dataFormatada',
+                      style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
+                    ),
+                  ],
                 ),
-                Text(
-                  'Em: $dataFormatada',
-                  style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
-                ),
-                if (isRetirado && encomenda.retiradoPor != null)
-                   Padding(
-                     padding: const EdgeInsets.only(top: 4),
-                     child: Text(
-                      'Retirado por: ${encomenda.retiradoPor}',
-                      style: AppTypography.caption(context).copyWith(color: Colors.green),
-                                       ),
-                   ),
+                if (isRetirado && encomenda.retiradoPor != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(PhosphorIcons.checkCircle, size: 14, color: Colors.green),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Retirado por: ${encomenda.retiradoPor}',
+                        style: AppTypography.caption(context).copyWith(color: Colors.green, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: statusColor.withOpacity(0.3)),
-            ),
-            child: Text(
-              encomenda.status?.toUpperCase() ?? 'PENDENTE',
-              style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-            ),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusColor.withOpacity(0.3)),
+                ),
+                child: Text(
+                  encomenda.status?.toUpperCase() ?? 'PENDENTE',
+                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (encomenda.destinatarioApto != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? encomenda.destinatarioBloco! + ' - ' : ''}${encomenda.destinatarioApto}',
+                    style: AppTypography.tiny(context).copyWith(
+                      color: AppColors.primary, 
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
