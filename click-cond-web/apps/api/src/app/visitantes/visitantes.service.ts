@@ -325,4 +325,27 @@ export class VisitantesService {
     });
     return { ok: true };
   }
+
+  async findAllMobile(idCondominio: number, idApto?: number, search?: string, offset = 0) {
+    return this.prisma.visitantes.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        ...(idApto ? { id_apartamento: Number(idApto) } : {}),
+        ...(search
+          ? {
+              OR: [
+                { nome: { contains: search } },
+                { doc_identificacao: { contains: search } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+      orderBy: [{ data_hora_inicio: 'desc' }, { created_at: 'desc' }],
+      take: 30,
+      skip: offset,
+    });
+  }
 }
