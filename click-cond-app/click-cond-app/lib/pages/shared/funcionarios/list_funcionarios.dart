@@ -120,8 +120,13 @@ class _FuncionarioCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if (item['cargo'] != null)
-                    Text(item['cargo'], style: AppTypography.caption(context)),
+                  if (item['funcao'] != null && item['funcao'].toString().isNotEmpty)
+                    Text(
+                      item['funcao'].toString(),
+                      style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ),
             ),
