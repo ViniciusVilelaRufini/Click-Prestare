@@ -121,8 +121,8 @@ module.exports = {
                              INNER JOIN Apartamentos apto ON apto.id = au.id_apto
                              WHERE au.id_user = ?
                            ) user_apto ON e.id_condominio = user_apto.id_condominio 
-                                       AND e.destinatario_bloco = user_apto.bloco 
-                                       AND e.destinatario_apto = user_apto.apto
+                                       AND e.destinatario_bloco = user_apto.bloco COLLATE utf8mb4_unicode_ci
+                                       AND e.destinatario_apto = user_apto.apto COLLATE utf8mb4_unicode_ci
                            WHERE e.status = 'Aguardando'`;
 
     const [visits, packages] = await Promise.all([
