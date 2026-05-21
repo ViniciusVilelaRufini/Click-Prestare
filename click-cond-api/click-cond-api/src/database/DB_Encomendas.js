@@ -6,18 +6,19 @@ module.exports = {
    * Filtros opcionais por bloco e apartamento para o morador ver as suas.
    */
   getAll: async function (id_cond, status, bloco, apto) {
-    let query = `select id, descricao, destinatario_apto, destinatario_bloco, recebido_de, 
-                    DATE_FORMAT(recebido_em, '%d/%m/%Y %H:%i') as recebido_em,
-                    DATE_FORMAT(retirado_em, '%d/%m/%Y %H:%i') as retirado_em,
-                    retirado_por, status, foto_volume
-                    from Encomendas
-                    where id_condominio=${id_cond}`;
+    let query = `select e.id, e.descricao, e.destinatario_apto, e.destinatario_bloco, e.recebido_de, 
+                    DATE_FORMAT(e.recebido_em, '%d/%m/%Y %H:%i') as recebido_em,
+                    DATE_FORMAT(e.retirado_em, '%d/%m/%Y %H:%i') as retirado_em,
+                    e.retirado_por, e.status, e.foto_volume, e.id_condominio, c.nome as condominio_nome
+                    from Encomendas e
+                    left join Condominios c on e.id_condominio = c.id
+                    where e.id_condominio=${id_cond}`;
     
-    if (status) query += ` and status='${status}'`;
-    if (bloco) query += ` and destinatario_bloco='${bloco}'`;
-    if (apto) query += ` and destinatario_apto='${apto}'`;
+    if (status) query += ` and e.status='${status}'`;
+    if (bloco) query += ` and e.destinatario_bloco='${bloco}'`;
+    if (apto) query += ` and e.destinatario_apto='${apto}'`;
     
-    query += ` order by recebido_em desc`;
+    query += ` order by e.recebido_em desc`;
     
     const { results } = await db.query(query);
     return results;

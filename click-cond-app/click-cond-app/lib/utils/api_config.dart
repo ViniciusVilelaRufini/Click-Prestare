@@ -9,8 +9,8 @@ class ApiConfig {
   /// Host dinâmico
   static String get host {
     if (isProduction) return "click-prestare-production.up.railway.app";
-    if (kIsWeb) return "localhost:3000";
-    return "192.168.3.74:3000";
+    if (kIsWeb) return "localhost:3003";
+    return "192.168.3.74:3003";
   }
 
   /// HTTPS é obrigatório no Railway (Produção)
@@ -21,7 +21,17 @@ class ApiConfig {
 
   /// Constrói uma Uri completa para o endpoint.
   static Uri buildUri(String path, [Map<String, String>? params]) {
-    final cleanPath = path.startsWith('/api') ? path : '/api$path';
+    String cleanPath = path;
+    if (isProduction) {
+      cleanPath = path.startsWith('/api') ? path : '/api$path';
+    } else {
+      if (cleanPath.startsWith('/api')) {
+        cleanPath = cleanPath.substring(4);
+      }
+      if (!cleanPath.startsWith('/')) {
+        cleanPath = '/$cleanPath';
+      }
+    }
     return useHttps
         ? Uri.https(host, cleanPath, params)
         : Uri.http(host, cleanPath, params);

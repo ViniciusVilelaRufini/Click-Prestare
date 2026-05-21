@@ -135,6 +135,17 @@ class _EncomendaCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (encomenda.condominioNome != null && encomenda.condominioNome!.isNotEmpty) ...[
+                  Text(
+                    encomenda.condominioNome!.toUpperCase(),
+                    style: AppTypography.tiny(context).copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                ],
                 Row(
                   children: [
                     Expanded(

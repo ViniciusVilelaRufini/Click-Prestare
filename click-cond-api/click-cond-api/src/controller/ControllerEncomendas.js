@@ -14,11 +14,6 @@ module.exports = {
 
       // Enforce data isolation for residents
       if (user.typeAccess === 'Morador') {
-        const userAptos = await dbAptos.getMoradoresApartamentos(user.id, id_condominio); 
-        // Wait! Let me check if getMoradoresApartamentos exists or if I should use getApartmentsByUser
-        // I added getApartmentsByUser previously.
-        
-        // Actually, getApartmentsByUser returns IDs. I need the actual apto/bloco strings.
         const dbMoradores = require('../database/DB_Moradores');
         const conds = await dbMoradores.listCondominios(user.id);
         const currentCond = conds.find(c => c.id == id_condominio) || conds[0];

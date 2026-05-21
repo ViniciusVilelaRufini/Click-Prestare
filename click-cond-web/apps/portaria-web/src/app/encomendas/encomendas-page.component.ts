@@ -5,6 +5,7 @@ import {
   CreateEncomenda, Encomenda, EncomendasApi,
 } from './encomendas.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { Apartamento, ApartamentosApi } from '../apartamentos/apartamentos.service';
 
 @Component({
   selector: 'app-encomendas-page',
@@ -14,9 +15,11 @@ import { ConfirmService } from '../shared/confirm.service';
 })
 export class EncomendasPageComponent implements OnInit {
   private api = inject(EncomendasApi);
+  private aptosApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
 
   readonly encomendas = signal<Encomenda[]>([]);
+  readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly filtro = signal<string>('');
@@ -32,9 +35,13 @@ export class EncomendasPageComponent implements OnInit {
   readonly retiradas = computed(() => this.encomendas().filter((e) => e.status === 'Retirada').length);
 
   novo: CreateEncomenda = this.estadoInicial();
+  selectedApto: Apartamento | null = null;
   showForm = false;
 
-  ngOnInit() { this.carregar(); }
+  ngOnInit() { 
+    this.carregar(); 
+    this.carregarApartamentos();
+  }
 
   carregar() {
     this.loading.set(true);
@@ -44,13 +51,35 @@ export class EncomendasPageComponent implements OnInit {
     });
   }
 
+  carregarApartamentos() {
+    this.aptosApi.list().subscribe({
+      next: (data) => {
+        // Ordenar os apartamentos para ficar bonitinho
+        data.sort((a, b) => {
+          if (a.bloco === b.bloco) return a.apto.localeCompare(b.apto);
+          return (a.bloco ?? '').localeCompare(b.bloco ?? '');
+        });
+        this.apartamentos.set(data);
+      }
+    });
+  }
+
   registrar() {
-    if (!this.novo.descricao?.trim() || !this.novo.destinatario_apto?.trim()) {
+    if (!this.novo.descricao?.trim() || !this.selectedApto) {
       this.error.set('Descrição e apto destinatário são obrigatórios.');
       return;
     }
+    
+    this.novo.destinatario_bloco = this.selectedApto.bloco || '';
+    this.novo.destinatario_apto = this.selectedApto.apto;
+
     this.api.create(this.novo).subscribe({
-      next: () => { this.showForm = false; this.novo = this.estadoInicial(); this.carregar(); },
+      next: () => { 
+        this.showForm = false; 
+        this.novo = this.estadoInicial(); 
+        this.selectedApto = null;
+        this.carregar(); 
+      },
       error: (e) => this.error.set(e?.message ?? 'Erro'),
     });
   }

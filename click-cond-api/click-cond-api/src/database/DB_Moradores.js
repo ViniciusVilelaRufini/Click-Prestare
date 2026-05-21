@@ -2,15 +2,37 @@ const db = require('./MySQL.js');
 
 module.exports = {
   login: async function (login, password) {
-    const query = `select u.id, s.nome, u.photo                           
+    const query = `select u.id, s.nome, u.photo, u.password                           
                     from Moradores s 
                     inner join Users u on u.id = s.id_user
-                    where u.login='${login}' and u.password=MD5('${password}')`;
-    const result = await db.query(query);
-    if (!result.results[0]) {
+                    where u.login=?`;
+    const result = await db.queryParam(query, [login]);
+    if (!result.results || result.results.length === 0) {
       throw new Error('Login ou Senha incorretos');
     }
-    return result.results[0];
+    
+    const user = result.results[0];
+    const bcrypt = require('bcrypt');
+    const crypto = require('crypto');
+    const md5Password = crypto.createHash('md5').update(password).digest("hex");
+    
+    let isMatch = false;
+    if (user.password && user.password.startsWith('$2')) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      isMatch = (user.password === md5Password);
+      if (isMatch) {
+        const newHash = await bcrypt.hash(password, 10);
+        await db.queryParam(`UPDATE Users SET password=? WHERE id=?`, [newHash, user.id]);
+      }
+    }
+
+    if (!isMatch) {
+      throw new Error('Login ou Senha incorretos');
+    }
+
+    delete user.password;
+    return user;
   },
 
   internalLogin: async function (login) {

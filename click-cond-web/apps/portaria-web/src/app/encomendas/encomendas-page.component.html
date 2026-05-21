@@ -74,15 +74,15 @@
           <input [(ngModel)]="novo.descricao" placeholder="Ex: Caixa pequena Mercado Livre"
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
         </label>
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Bloco</span>
-          <input [(ngModel)]="novo.destinatario_bloco" placeholder="A"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
-        </label>
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Apto destinatário *</span>
-          <input [(ngModel)]="novo.destinatario_apto" placeholder="101"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+        <label class="block md:col-span-2">
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Destinatário (Bloco / Apto) *</span>
+          <select [(ngModel)]="selectedApto"
+            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60">
+            <option [ngValue]="null">Selecione o destinatário...</option>
+            @for (a of apartamentos(); track a.id) {
+              <option [ngValue]="a">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
+            }
+          </select>
         </label>
         <label class="block md:col-span-2">
           <span class="text-xs font-medium text-slate-400 mb-1.5 block">Recebido de (transportadora)</span>
