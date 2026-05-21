@@ -224,7 +224,7 @@ class _VisitanteCard extends StatelessWidget {
                       Expanded(child: Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis)),
                       if (item['apto'] != null)
                         Text(
-                          '${item['apto_bloco'] ?? item['bloco'] ?? ''} - ${item['apto']}',
+                          '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto']}',
                           style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
                         ),
                       if (isInside) ...[
