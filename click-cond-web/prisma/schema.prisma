@@ -473,6 +473,8 @@ model Visitantes {
   updated_at        DateTime     @default(now()) @updatedAt @db.DateTime(0)
   foto_documento    String?      @db.VarChar(500)
   foto_pessoa       String?      @db.VarChar(500)
+  data_entrada      DateTime?    @db.DateTime(0)
+  data_saida        DateTime?    @db.DateTime(0)
   apartamento       Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_vis_apto")
   condominio        Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_vis_cond")
   criadoPor         Users?       @relation("VisitanteUser", fields: [user], references: [id], map: "fk_vis_user")

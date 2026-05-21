@@ -36,3 +36,12 @@
 
 # Manter classes do projeto (model classes serializadas)
 -keep class com.thefixt.click.** { *; }
+
+# Evita remoção de métodos nativos (JNI)
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Google Play In-App Review
+-keep class com.google.android.play.core.** { *; }
+-dontwarn com.google.android.play.core.**

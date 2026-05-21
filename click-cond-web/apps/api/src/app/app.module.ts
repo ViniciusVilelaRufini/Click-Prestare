@@ -26,10 +26,18 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100, // 100 requests per minute
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,
+        limit: 20, // 20 req/s por IP — protege contra burst
+      },
+      {
+        name: 'medium',
+        ttl: 60000,
+        limit: 600, // 600 req/min por IP — uso normal do app
+      },
+    ]),
     MailModule,
     StorageModule,
     PrismaModule,
