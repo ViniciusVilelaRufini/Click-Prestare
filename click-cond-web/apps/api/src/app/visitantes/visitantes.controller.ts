@@ -55,3 +55,26 @@ export class VisitantesController {
     return { ok: true };
   }
 }
+
+@Controller('visitantes')
+export class VisitantesGlobalController {
+  constructor(private readonly service: VisitantesService) {}
+
+  @Get('validar/:codigo')
+  async validarCodigo(
+    @Param('codigo') codigo: string,
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+  ) {
+    return this.service.validarCodigo(idCondominio, codigo);
+  }
+
+  @Post('check-in')
+  async checkIn(@Body('id', ParseIntPipe) id: number) {
+    return this.service.checkIn(id);
+  }
+
+  @Post('check-out')
+  async checkOut(@Body('id', ParseIntPipe) id: number) {
+    return this.service.checkOut(id);
+  }
+}

@@ -157,18 +157,32 @@ export class VisitantesService {
     const fotoDoc = await this.resolveFoto(dto.foto_documento);
     const fotoPes = await this.resolveFoto(dto.foto_pessoa);
 
+    // Gerar PIN único e ativo
+    let pin = '';
+    let isUnique = false;
+    while (!isUnique) {
+      pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const check = await this.prisma.visitantes.findFirst({
+        where: { codigo_acesso: pin, data_saida: null },
+      });
+      if (!check) {
+        isUnique = true;
+      }
+    }
+
     const visitante = await this.prisma.visitantes.create({
       data: {
         nome: dto.nome,
         doc_identificacao: dto.doc_identificacao ?? null,
         data_hora_inicio: dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : new Date(),
-        data_hora_termino: dto.data_hora_termino ? new Date(dto.data_hora_termino) : null,
+        data_hora_termino: dto.data_hora_termino ? dto.data_hora_termino ? new Date(dto.data_hora_termino) : null : null,
         is_visitante: dto.is_visitante ?? 1,
         is_prestador: dto.is_prestador ?? 0,
         id_apartamento: dto.id_apartamento,
         id_condominio: dto.id_condominio,
         foto_documento: fotoDoc,
         foto_pessoa: fotoPes,
+        codigo_acesso: pin,
       },
     });
 
@@ -243,5 +257,72 @@ export class VisitantesService {
     } catch {
       throw new NotFoundException(`Visitante ${id} não encontrado`);
     }
+  }
+
+  async validarCodigo(idCondominio: number, codigo: string) {
+    const v = await this.prisma.visitantes.findFirst({
+      where: {
+        id_condominio: Number(idCondominio),
+        codigo_acesso: codigo,
+        data_saida: null,
+      },
+      include: {
+        apartamento: { select: { bloco: true, apto: true } },
+        criadoPor: { select: { name: true } },
+      },
+    });
+
+    if (!v) {
+      throw new NotFoundException('Código inválido ou visita não agendada/já encerrada.');
+    }
+
+    const now = new Date();
+    const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
+    const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
+
+    let status = 'ATIVO';
+    if (now < inicio) {
+      status = 'FUTURO';
+    } else if (now > termino) {
+      status = 'EXPIRADO';
+    }
+
+    const formatarData = (d: Date | null) => {
+      if (!d) return '';
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    return {
+      id: v.id,
+      nome: v.nome,
+      doc_identificacao: v.doc_identificacao,
+      data_inicio: formatarData(v.data_hora_inicio),
+      data_termino: formatarData(v.data_hora_termino),
+      is_visitante: v.is_visitante,
+      is_prestador: v.is_prestador,
+      foto_documento: v.foto_documento,
+      foto_pessoa: v.foto_pessoa,
+      apto: v.apartamento?.apto ?? null,
+      apto_bloco: v.apartamento?.bloco ?? null,
+      morador_nome: v.criadoPor?.name ?? 'Morador',
+      status_vigencia: status,
+    };
+  }
+
+  async checkIn(id: number) {
+    await this.prisma.visitantes.update({
+      where: { id: Number(id) },
+      data: { data_entrada: new Date(), data_saida: null },
+    });
+    return { ok: true };
+  }
+
+  async checkOut(id: number) {
+    await this.prisma.visitantes.update({
+      where: { id: Number(id) },
+      data: { data_saida: new Date() },
+    });
+    return { ok: true };
   }
 }
