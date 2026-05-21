@@ -98,16 +98,15 @@ module.exports = {
       const user = req.session.user;
       const { agendamento } = req.body;
 
-      // Enforce isolation for residents
+      // Enforce isolation for residents: validate apartment belongs to user
       if (user.typeAccess === 'Morador') {
         const dbAptos = require('../database/DB_Apartamento.js');
-        const userAptos = await dbAptos.getApartmentsByUser(user.id, agendamento.id_condominio); // Wait, need condo ID. 
-        // Agendamento might not have condo ID, but we can get it from the Area Social.
-        const area = await db.get(null, agendamento.id_area_social); // pass null for id_cond if we don't have it yet, or better, get it.
+        // Get the area social to know the condominium
+        const area = await db.get(null, agendamento.id_area_social);
 
         if (area) {
-          const userAptosReal = await dbAptos.getApartmentsByUser(user.id, area.id_condominio);
-          if (!userAptosReal.includes(parseInt(agendamento.id_apartamento))) {
+          const userAptos = await dbAptos.getApartmentsByUser(user.id, area.id_condominio);
+          if (!userAptos.includes(parseInt(agendamento.id_apartamento))) {
             return res.status(403).json({ message: "Acesso negado: Você só pode agendar para o seu próprio apartamento." });
           }
         }

@@ -106,33 +106,33 @@ module.exports = {
   },
 
   getResidentSummary: async function (userId) {
-    // Visits for today across all linked condos
-    const queryVisits = `SELECT count(*) as count 
-                         FROM Visitantes 
-                         WHERE user = ? AND DATE(data_hora_inicio) = CURDATE()`;
+    // Visits for today across all linked apartments/condos
+    const queryVisits = `SELECT count(distinct v.id) as count 
+                         FROM Visitantes v
+                         INNER JOIN Apartamentos_Users au ON au.id_apto = v.id_apartamento
+                         WHERE au.id_user = ? AND DATE(v.data_hora_inicio) = CURDATE()`;
     
-    // Pending packages linked to the resident
-    // Note: We'll match by the email or user link if available, but Encomendas matches by apto/bloco.
-    // We need to fetch the resident's apto/bloco first.
-    const residentInfo = await db.queryParam(`SELECT id_condominio, bloco, apartamento FROM Moradores WHERE id_user = ?`, [userId]);
-    
-    let packageCount = 0;
-    if (residentInfo.results.length > 0) {
-      const info = residentInfo.results[0];
-      const queryPackages = `SELECT count(*) as count 
-                             FROM Encomendas 
-                             WHERE id_condominio = ? AND destinatario_bloco = ? AND destinatario_apto = ? AND status = 'Aguardando'`;
-      const packages = await db.queryParam(queryPackages, [info.id_condominio, info.bloco, info.apartamento]);
-      packageCount = packages.results[0].count;
-    }
+    // Pending packages linked to the resident across all linked apartments
+    const queryPackages = `SELECT count(*) as count 
+                           FROM Encomendas e
+                           INNER JOIN (
+                             SELECT apto.id_condominio, apto.bloco, apto.apto 
+                             FROM Apartamentos_Users au
+                             INNER JOIN Apartamentos apto ON apto.id = au.id_apto
+                             WHERE au.id_user = ?
+                           ) user_apto ON e.id_condominio = user_apto.id_condominio 
+                                       AND e.destinatario_bloco = user_apto.bloco 
+                                       AND e.destinatario_apto = user_apto.apto
+                           WHERE e.status = 'Aguardando'`;
 
-    const [visits] = await Promise.all([
-      db.queryParam(queryVisits, [userId])
+    const [visits, packages] = await Promise.all([
+      db.queryParam(queryVisits, [userId]),
+      db.queryParam(queryPackages, [userId])
     ]);
 
     return {
       visits: visits.results[0].count || 0,
-      packages: packageCount
+      packages: packages.results[0].count || 0
     };
   },
 

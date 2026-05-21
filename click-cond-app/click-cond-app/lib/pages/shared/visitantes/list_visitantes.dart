@@ -13,7 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListVisitantes extends StatefulWidget {
-  const ListVisitantes({Key? key}) : super(key: key);
+  final bool allCondos;
+  const ListVisitantes({Key? key, this.allCondos = false}) : super(key: key);
   @override
   _ListVisitantesPageState createState() => _ListVisitantesPageState();
 }
@@ -40,7 +41,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
   Future<void> loadList() async {
     try {
       setState(() => _isLoading = true);
-      list = await apiGetAllVisitantes(txtSearch.text);
+      list = await apiGetAllVisitantes(txtSearch.text, allCondos: widget.allCondos);
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
@@ -207,12 +208,23 @@ class _VisitanteCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (item['condominio_nome'] != null && item['condominio_nome'].toString().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2.0),
+                      child: Text(
+                        item['condominio_nome'].toString().toUpperCase(),
+                        style: AppTypography.tiny(context).copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   Row(
                     children: [
                       Expanded(child: Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis)),
                       if (item['apto'] != null)
                         Text(
-                          '${item['bloco'] ?? ''} - ${item['apto']}',
+                          '${item['apto_bloco'] ?? item['bloco'] ?? ''} - ${item['apto']}',
                           style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
                         ),
                       if (isInside) ...[

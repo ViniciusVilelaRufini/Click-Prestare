@@ -111,8 +111,19 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   void _onDashboardTap(String module) {
     if (_list.isEmpty) return;
     
-    final cond = _list.first;
     final type = getUserType();
+    
+    if (module == 'visits' && type == 'morador') {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const ListVisitantes(allCondos: true)))
+          .then((_) { if (mounted) _loadList(); });
+      return;
+    }
+    
+    if (module == 'packages' && type == 'morador') {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const ListEncomendas(allCondos: true)))
+          .then((_) { if (mounted) _loadList(); });
+      return;
+    }
     
     Widget? page;
     if (module == 'debts') {
@@ -125,9 +136,139 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       page = const ListEncomendas();
     }
     
-    if (page != null) {
-      _goToNext(cond, directPage: page);
+    if (page == null) return;
+
+    if (_list.length == 1) {
+      _goToNext(_list.first, directPage: page);
+    } else {
+      _showCondominiumSelectionSheet(context, page);
     }
+  }
+
+  void _showCondominiumSelectionSheet(BuildContext context, Widget targetPage) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final bg = AppColors.surfaceElevated(context);
+        final textColor = AppColors.textPrimary(context);
+        final textSecondary = AppColors.textSecondary(context);
+        
+        return Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border(top: BorderSide(color: AppColors.border(context))),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.textTertiary(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Selecione o Condomínio',
+                style: AppTypography.headline(context).copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Escolha um condomínio para ver os detalhes.',
+                style: AppTypography.caption(context).copyWith(
+                  color: textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _list.length,
+                  itemBuilder: (context, index) {
+                    final cond = _list[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.pop(context);
+                          _goToNext(cond, directPage: targetPage);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border(context)),
+                            color: AppColors.surface(context),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.business,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      cond['nome'] ?? '',
+                                      style: AppTypography.body(context).copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: textColor,
+                                      ),
+                                    ),
+                                    if (cond['apto'] != null) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${cond['apto_bloco'] != null ? "${cond['apto_bloco']} / " : ""}${cond['apto']}',
+                                        style: AppTypography.caption(context).copyWith(
+                                          color: textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: textSecondary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _editProfile() {

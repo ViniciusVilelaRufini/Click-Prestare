@@ -54,5 +54,32 @@ module.exports = {
                     retirado_por='${retirado_por}'
                     where id=${id}`;
     await db.query(query);
+  },
+
+  /**
+   * Lista as encomendas de todos os condomínios/apartamentos vinculados ao morador.
+   */
+  getAllForResident: async function (userId, status) {
+    let query = `select e.id, e.descricao, e.destinatario_apto, e.destinatario_bloco, e.recebido_de, 
+                    DATE_FORMAT(e.recebido_em, '%d/%m/%Y %H:%i') as recebido_em,
+                    DATE_FORMAT(e.retirado_em, '%d/%m/%Y %H:%i') as retirado_em,
+                    e.retirado_por, e.status, e.foto_volume, e.id_condominio, c.nome as condominio_nome
+                    from Encomendas e
+                    left join Condominios c on e.id_condominio = c.id
+                    inner join (
+                      select apto.id_condominio, apto.bloco, apto.apto 
+                      from Apartamentos_Users au
+                      inner join Apartamentos apto on apto.id = au.id_apto
+                      where au.id_user = ${userId}
+                    ) user_apto on e.id_condominio = user_apto.id_condominio 
+                                and e.destinatario_bloco = user_apto.bloco COLLATE utf8mb4_unicode_ci
+                                and e.destinatario_apto = user_apto.apto COLLATE utf8mb4_unicode_ci
+                    where 1=1`;
+                    
+    if (status) query += ` and e.status='${status}'`;
+    query += ` order by e.recebido_em desc`;
+    
+    const { results } = await db.query(query);
+    return results;
   }
 };

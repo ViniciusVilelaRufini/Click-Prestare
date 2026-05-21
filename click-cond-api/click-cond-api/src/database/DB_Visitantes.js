@@ -10,23 +10,37 @@ module.exports = {
     await db.query(query);
   },
 
-  getAll: async function (id_cond, offset, id_apto, search) {
-    const query = `select v.id, v.nome, v.doc_identificacao, 
+  getAll: async function (id_cond, offset, id_apto, search, userId) {
+    let query = `select v.id, v.nome, v.doc_identificacao, 
                     DATE_FORMAT(v.data_hora_inicio, '%d/%m/%Y') as data_hora,
                     DATE_FORMAT(v.data_entrada, '%H:%i') as hora_entrada,
                     DATE_FORMAT(v.data_saida, '%H:%i') as hora_saida,
                     v.data_entrada, v.data_saida,
                     v.is_visitante, v.is_prestador, u.login,
                     apto.apto, apto.bloco as apto_bloco, apto.id as apto_id,
-                    v.foto_documento, v.foto_pessoa
+                    v.foto_documento, v.foto_pessoa, c.nome as condominio_nome
                     from Visitantes v
                     inner join Apartamentos apto on apto.id=v.id_apartamento
                     left join Users u on u.id=v.user
-                    where v.id_condominio=${id_cond}
-                      ${id_apto ? ` and v.id_apartamento=${id_apto}` : ''}    
-                      ${search ? ` and (v.nome like '%${search}%' or v.doc_identificacao like '%${search}%' or apto.apto like '%${search}%')` : ''}                   
-                    order by data_hora_inicio desc
-                    limit 30 offset ${offset}`;
+                    left join Condominios c on c.id=v.id_condominio
+                    where 1=1`;
+    
+    if (id_cond) {
+      query += ` and v.id_condominio=${id_cond}`;
+    }
+    if (id_apto) {
+      query += ` and v.id_apartamento=${id_apto}`;
+    }
+    if (userId) {
+      query += ` and (v.id_apartamento in (select id_apto from Apartamentos_Users where id_user=${userId}) or v.user=${userId})`;
+    }
+    if (search) {
+      query += ` and (v.nome like '%${search}%' or v.doc_identificacao like '%${search}%' or apto.apto like '%${search}%')`;
+    }
+    
+    query += ` order by data_hora_inicio desc
+              limit 30 offset ${offset}`;
+              
     const { results } = await db.query(query);
     return results;
   },

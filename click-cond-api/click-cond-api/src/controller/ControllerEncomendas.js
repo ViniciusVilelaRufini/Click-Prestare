@@ -16,13 +16,18 @@ module.exports = {
       if (user.typeAccess === 'Morador') {
         const dbMoradores = require('../database/DB_Moradores');
         const conds = await dbMoradores.listCondominios(user.id);
-        const currentCond = conds.find(c => c.id == id_condominio) || conds[0];
         
-        if (!currentCond) return res.status(200).json([]);
-
-        // Force filtering to their registered unit
-        bloco = currentCond.apto_bloco;
-        apto = currentCond.apto;
+        if (id_condominio) {
+          const currentCond = conds.find(c => c.id == id_condominio);
+          if (!currentCond) return res.status(200).json([]);
+          
+          bloco = currentCond.apto_bloco;
+          apto = currentCond.apto;
+        } else {
+          // If no specific condo, get packages across all linked condos
+          const result = await db.getAllForResident(user.id, status);
+          return res.status(200).json(result);
+        }
       }
 
       const result = await db.getAll(id_condominio, status, bloco, apto);

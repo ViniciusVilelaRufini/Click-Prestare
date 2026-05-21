@@ -28,23 +28,27 @@ module.exports = {
       const id_condominio = req.query.id_condominio;
       const user = req.session.user;
 
+      let filterUserId = null;
+
       // Enforce data isolation for residents
       if (user.typeAccess === 'Morador') {
-        const userAptos = await dbAptos.getApartmentsByUser(user.id, id_condominio);
-        
-        if (id_apto && !userAptos.includes(parseInt(id_apto))) {
-          console.warn(`[SECURITY] Resident ${user.id} attempted to access Apto ${id_apto} without permission.`);
-          return res.status(403).json({ message: "Acesso negado: Este apartamento não pertence a você." });
-        }
+        filterUserId = user.id;
 
-        if (!id_apto) {
-          if (userAptos.length === 0) return res.status(200).json([]);
-          // If no apto requested, default to their first one or handle appropriately
-          id_apto = userAptos[0];
+        if (id_condominio) {
+          const userAptos = await dbAptos.getApartmentsByUser(user.id, id_condominio);
+          
+          if (id_apto && !userAptos.includes(parseInt(id_apto))) {
+            console.warn(`[SECURITY] Resident ${user.id} attempted to access Apto ${id_apto} without permission.`);
+            return res.status(403).json({ message: "Acesso negado: Este apartamento não pertence a você." });
+          }
+
+          if (!id_apto && userAptos.length > 0) {
+            id_apto = userAptos[0];
+          }
         }
       }
 
-      const result = await db.getAll(id_condominio, req.query.offset, id_apto, req.query.search);
+      const result = await db.getAll(id_condominio, req.query.offset || 0, id_apto, req.query.search, filterUserId);
       return res.status(200).json(result);
     } catch (err) {
       return res.status(500).json({ message: err.message });

@@ -13,7 +13,8 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 
 class ListEncomendas extends StatefulWidget {
-  const ListEncomendas({Key? key}) : super(key: key);
+  final bool allCondos;
+  const ListEncomendas({Key? key, this.allCondos = false}) : super(key: key);
 
   @override
   _ListEncomendasState createState() => _ListEncomendasState();
@@ -32,7 +33,7 @@ class _ListEncomendasState extends State<ListEncomendas> {
   Future<void> _loadList() async {
     setState(() => _isLoading = true);
     try {
-      final List<dynamic> result = await apiGetAllEncomendas();
+      final List<dynamic> result = await apiGetAllEncomendas(allCondos: widget.allCondos);
       if (mounted) {
         setState(() {
           _encomendas = result.map((e) => EncomendaModel.fromJson(e)).toList();

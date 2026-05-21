@@ -4,10 +4,11 @@ import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:click/utils/api_config.dart';
 
-apiGetAllEncomendas({String? status}) async {
-  var params = {
-    'id_condominio': Singleton.instance.id_condominio.toString(),
-  };
+apiGetAllEncomendas({String? status, bool allCondos = false}) async {
+  final Map<String, String> params = {};
+  if (!allCondos && Singleton.instance.id_condominio != 0) {
+    params['id_condominio'] = Singleton.instance.id_condominio.toString();
+  }
   if (status != null) {
     params['status'] = status;
   }

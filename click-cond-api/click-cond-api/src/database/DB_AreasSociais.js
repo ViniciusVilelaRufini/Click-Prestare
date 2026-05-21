@@ -44,8 +44,18 @@ module.exports = {
   },
 
   insertAgendamento: async function (agendamento, userId) {
+    // Convert DD/MM/YYYY to YYYY-MM-DD for MySQL DATE column
+    let dataFormatted = agendamento.data;
+    if (agendamento.data && agendamento.data.includes('/')) {
+      const parts = agendamento.data.split('/');
+      dataFormatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    // Ensure hora_de and hora_ate are in HH:MM:SS format
+    const horaDeFormatted = agendamento.horaDe && agendamento.horaDe.length === 5 ? `${agendamento.horaDe}:00` : agendamento.horaDe;
+    const horaAteFormatted = agendamento.horaAte && agendamento.horaAte.length === 5 ? `${agendamento.horaAte}:00` : agendamento.horaAte;
+
     const query = `insert into Areas_Sociais_Agendamentos (id_area_social, id_user, id_apartamento, data, hora_de, hora_ate)
-						values ('${agendamento.id_area_social}','${userId}','${agendamento.id_apartamento}','${agendamento.data}','${agendamento.horaDe}','${agendamento.horaAte}')`;
+				values ('${agendamento.id_area_social}','${userId}','${agendamento.id_apartamento}','${dataFormatted}','${horaDeFormatted}','${horaAteFormatted}')`;
     await db.query(query);
   },
 
