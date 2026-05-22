@@ -98,6 +98,36 @@ export class FinanceiroController {
     return this.service.getByUser(targetUserId, Number(idCondominio));
   }
 
+  @Post('morador/insert')
+  @HttpCode(200)
+  insertMoradorConta(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id_condominio: string | number; data: any }
+  ) {
+    const userId = payload.user.id;
+    return this.service.insertMoradorConta(Number(userId), Number(body.id_condominio), body.data);
+  }
+
+  @Post('morador/update')
+  @HttpCode(200)
+  updateMoradorConta(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id_condominio: string | number; data: any }
+  ) {
+    const userId = payload.user.id;
+    return this.service.updateMoradorConta(Number(userId), Number(body.id_condominio), body.data);
+  }
+
+  @Post('morador/remove')
+  @HttpCode(200)
+  removeMoradorConta(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id: string | number }
+  ) {
+    const userId = payload.user.id;
+    return this.service.removeMoradorConta(Number(userId), Number(body.id));
+  }
+
   @Post('upload-shared-file')
   @HttpCode(200)
   uploadSharedFile(@Body() body: { id: string | number; file: string; type: string }) {

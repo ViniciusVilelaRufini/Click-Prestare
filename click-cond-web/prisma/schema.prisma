@@ -102,6 +102,7 @@ model Users {
   endereco            Addresses?                   @relation(fields: [address], references: [id], map: "fk_users_address")
   visitantes          Visitantes[]                 @relation("VisitanteUser")
   votacoesUsuarios    Votacoes_Usuarios[]
+  financeiros         Financeiro[]
 
   @@index([address], map: "fk_users_address")
 }
@@ -563,9 +564,12 @@ model Financeiro {
   status          String?     @db.VarChar(50)
   linha_digitavel String?     @db.VarChar(255)
   pix_copia_cola  String?     @db.Text
+  id_usuario      Int?
+  usuario         Users?      @relation(fields: [id_usuario], references: [id], onDelete: Cascade, map: "fk_fin_user")
   condominio      Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_fin_cond")
 
   @@index([id_condominio, pago])
+  @@index([id_usuario])
 }
 
 model Encomendas {

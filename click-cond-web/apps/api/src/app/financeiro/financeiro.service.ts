@@ -656,6 +656,7 @@ export class FinanceiroService implements OnModuleInit {
           id: 1, nome: 'Taxa de Condomínio - Maio', tipo: 'C', valorReal: 'R$ 650,00',
           data_vencimento: '10/05/2026', data: '10/05/2026', pago: 1,
           url_boleto: 'https://example.com/boleto.pdf', url_comprovante: '', status: '1',
+          id_usuario: null, categoria: 'Condomínio'
         },
       ];
     }
@@ -668,13 +669,19 @@ export class FinanceiroService implements OnModuleInit {
     const list = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
+        OR: [
+          { id_usuario: Number(idUser) },
+          { id_usuario: null }
+        ]
       },
       orderBy: { data_vencimento: 'desc' },
     });
 
     // Filtra as cobranças: despesas gerais (D) são públicas para transparência,
-    // cobranças (C) só aparecem se forem destinadas ao bloco e apartamento do morador
+    // cobranças (C) só aparecem se forem destinadas ao bloco e apartamento do morador.
+    // As contas privadas do próprio morador (id_usuario == idUser) sempre passam.
     const filteredList = list.filter(item => {
+      if (item.id_usuario === idUser) return true;
       if (item.tipo === 'D') return true;
       return moradoresList.some(m => 
         item.nome?.includes(`Apto ${m.apartamento}`) && 
@@ -696,6 +703,8 @@ export class FinanceiroService implements OnModuleInit {
       status: item.status ?? '0',
       linha_digitavel: item.linha_digitavel ?? '',
       pix_copia_cola: item.pix_copia_cola ?? '',
+      id_usuario: item.id_usuario,
+      categoria: item.categoria ?? 'Outros',
     }));
   }
 
@@ -997,5 +1006,109 @@ export class FinanceiroService implements OnModuleInit {
       }
     }
     this.logger.log('Job de Lembretes de Cobrança concluído.');
+  }
+
+  // ==========================================
+  // MÉTODOS DE CONTAS INDIVIDUAIS DO MORADOR
+  // ==========================================
+  async insertMoradorConta(idUser: number, idCondominio: number, data: any) {
+    if (!this.prisma.isConnected) return { success: true };
+
+    let valor = parseFloat(String(data.valor || '0').replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+    if (isNaN(valor)) valor = 0;
+
+    const parseDate = (dStr?: string) => {
+      if (!dStr) return null;
+      let d: Date;
+      if (dStr.includes('/')) {
+        const parts = dStr.split('/');
+        d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      } else {
+        d = new Date(dStr);
+      }
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    const dVenc = parseDate(data.data_vencimento);
+
+    await this.prisma.financeiro.create({
+      data: {
+        nome: data.nome || `${data.categoria} Individual`,
+        tipo: 'D',
+        valor: valor,
+        data_vencimento: dVenc,
+        categoria: data.categoria || 'Outros',
+        pago: data.pago ? Number(data.pago) : 0,
+        status: data.pago ? '1' : '0',
+        id_condominio: Number(idCondominio),
+        id_usuario: Number(idUser),
+      },
+    });
+
+    return { success: true };
+  }
+
+  async updateMoradorConta(idUser: number, idCondominio: number, data: any) {
+    if (!this.prisma.isConnected) return { success: true };
+
+    const record = await this.prisma.financeiro.findFirst({
+      where: {
+        id: Number(data.id),
+        id_usuario: Number(idUser),
+      },
+    });
+
+    if (!record) throw new NotFoundException('Conta não encontrada ou sem permissão.');
+
+    let valor = parseFloat(String(data.valor || '0').replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+    if (isNaN(valor)) valor = 0;
+
+    const parseDate = (dStr?: string) => {
+      if (!dStr) return null;
+      let d: Date;
+      if (dStr.includes('/')) {
+        const parts = dStr.split('/');
+        d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      } else {
+        d = new Date(dStr);
+      }
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    const dVenc = parseDate(data.data_vencimento);
+    const isPago = data.pago ? Number(data.pago) : 0;
+
+    await this.prisma.financeiro.update({
+      where: { id: Number(data.id) },
+      data: {
+        nome: data.nome,
+        valor: valor,
+        data_vencimento: dVenc,
+        categoria: data.categoria,
+        pago: isPago,
+        status: isPago === 1 ? '1' : '0',
+      },
+    });
+
+    return { success: true };
+  }
+
+  async removeMoradorConta(idUser: number, id: number) {
+    if (!this.prisma.isConnected) return { success: true };
+
+    const record = await this.prisma.financeiro.findFirst({
+      where: {
+        id: Number(id),
+        id_usuario: Number(idUser),
+      },
+    });
+
+    if (!record) throw new NotFoundException('Conta não encontrada ou sem permissão.');
+
+    await this.prisma.financeiro.delete({
+      where: { id: Number(id) },
+    });
+
+    return { success: true };
   }
 }

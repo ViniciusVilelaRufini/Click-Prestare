@@ -104,3 +104,51 @@ apiGetFinanceiroByUser() async {
   }
 }
 
+apiInsertMoradorFinanceiro(Map<String, dynamic> data) async {
+  var url = ApiConfig.buildUri('/financeiro/morador/insert');
+  try {
+    var response = await http.post(
+      url,
+      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
+      body: jsonEncode({
+        "id_condominio": Singleton.instance.id_condominio.toString(),
+        "data": data
+      })
+    );
+    return response.statusCode == 200;
+  } catch(e) {
+    return false;
+  }
+}
+
+apiUpdateMoradorFinanceiro(Map<String, dynamic> data) async {
+  var url = ApiConfig.buildUri('/financeiro/morador/update');
+  try {
+    var response = await http.post(
+      url,
+      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
+      body: jsonEncode({
+        "id_condominio": Singleton.instance.id_condominio.toString(),
+        "data": data
+      })
+    );
+    return response.statusCode == 200;
+  } catch(e) {
+    return false;
+  }
+}
+
+apiRemoveMoradorFinanceiro(int id) async {
+  var url = ApiConfig.buildUri('/financeiro/morador/remove');
+  try {
+    var response = await http.post(
+      url,
+      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
+      body: jsonEncode({ "id": id })
+    );
+    return response.statusCode == 200;
+  } catch(e) {
+    return false;
+  }
+}
+
