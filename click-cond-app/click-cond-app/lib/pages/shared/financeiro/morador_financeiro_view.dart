@@ -249,11 +249,11 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item['nome'], style: AppTypography.bodyMedium(context)),
-                  Text("Vencimento: ${item['data_vencimento']}", style: AppTypography.caption(context)),
+                  Text(item['nome'] ?? 'Despesa', style: AppTypography.bodyMedium(context)),
+                  Text("Vencimento: ${item['data_vencimento'] ?? item['data'] ?? '—'}", style: AppTypography.caption(context)),
                 ],
               ),
-              Text(item['valorReal'], style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: isPago ? Colors.green : AppColors.textPrimary(context))),
+              Text(item['valorReal'] ?? item['valorString'] ?? 'R$ 0,00', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: isPago ? Colors.green : AppColors.textPrimary(context))),
             ],
           ),
           if (!isPago) ...[
