@@ -88,6 +88,21 @@
           <span class="text-xs font-medium text-slate-400 mb-1.5 block">Recebido de (transportadora)</span>
           <input [(ngModel)]="novo.recebido_de" placeholder="Ex: Correios, Mercado Livre, Amazon..."
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+          <div class="flex flex-wrap gap-1.5 mt-2">
+            @for (t of ['Correios', 'Mercado Livre', 'Amazon', 'Loggi', 'Jadlog', 'Shopee', 'FedEx', 'DHL']; track t) {
+              <button type="button" (click)="novo.recebido_de = (novo.recebido_de === t ? '' : t)"
+                class="px-2.5 py-1 text-xs rounded-lg border transition duration-150"
+                [class.bg-emerald-500/10]="novo.recebido_de === t"
+                [class.border-emerald-400/30]="novo.recebido_de === t"
+                [class.text-emerald-400]="novo.recebido_de === t"
+                [class.bg-white/5]="novo.recebido_de !== t"
+                [class.border-white/10]="novo.recebido_de !== t"
+                [class.text-slate-300]="novo.recebido_de !== t"
+                [class.hover:bg-white/10]="novo.recebido_de !== t">
+                {{ t }}
+              </button>
+            }
+          </div>
         </label>
       </div>
       <div class="mt-5 flex justify-end gap-2">
