@@ -147,6 +147,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     ..._condoItems.map((item) => _buildFinanceiroCard(item)).toList(),
                 ],
               ],
+            ),
           ),
       floatingActionButton: _viewMode == FinanceiroViewMode.morador
         ? FloatingActionButton.extended(
@@ -279,7 +280,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   Text("Vencimento: ${item['data_vencimento'] ?? item['data'] ?? '—'}", style: AppTypography.caption(context)),
                 ],
               ),
-              Text(item['valorReal'] ?? item['valorString'] ?? 'R$ 0,00', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: isPago ? Colors.green : AppColors.textPrimary(context))),
+              Text(item['valorReal'] ?? item['valorString'] ?? 'R\$ 0,00', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: isPago ? Colors.green : AppColors.textPrimary(context))),
             ],
           ),
           if (!isPago) ...[
