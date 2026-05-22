@@ -378,7 +378,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(PhosphorIcons.lockKeyhole, color: AppColors.textSecondary(context), size: 18),
+                      Icon(PhosphorIcons.lock, color: AppColors.textSecondary(context), size: 18),
                       const SizedBox(width: 8),
                       Text(
                         item['data_saida'] != null
