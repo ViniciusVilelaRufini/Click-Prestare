@@ -48,9 +48,11 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       obj = await apiGetDetails("ocorrencias", widget.id);
       currentStatus = obj['status'];
       list.clear();
-      for (var item in obj['anexos'].split(';')) {
-        if (item.toString().isNotEmpty) {
-          list.add(await fileFromImageUrl(item));
+      if (obj['anexos'] != null && obj['anexos'].toString().isNotEmpty) {
+        for (var item in obj['anexos'].split(';')) {
+          if (item.toString().isNotEmpty) {
+            list.add(await fileFromImageUrl(item));
+          }
         }
       }
       if (mounted) setState(() {});
