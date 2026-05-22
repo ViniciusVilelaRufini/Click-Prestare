@@ -147,15 +147,40 @@ export class VisitantesPageComponent implements OnInit {
   }
 
   duracao(v: Visitante): string {
-    if (!v.data_hora_inicio) return '—';
-    const inicio = new Date(v.data_hora_inicio).getTime();
-    const fim = v.data_hora_termino ? new Date(v.data_hora_termino).getTime() : Date.now();
+    // Usa a entrada/saída real se disponível, senão usa o período agendado
+    const inicio = v.data_entrada
+      ? new Date(v.data_entrada).getTime()
+      : v.data_hora_inicio
+      ? new Date(v.data_hora_inicio).getTime()
+      : null;
+    if (!inicio) return '—';
+    const fim = v.data_saida
+      ? new Date(v.data_saida).getTime()
+      : v.data_hora_termino
+      ? new Date(v.data_hora_termino).getTime()
+      : Date.now();
     const min = Math.floor((fim - inicio) / 60000);
     if (min < 1) return 'agora';
     if (min < 60) return `${min} min`;
     const h = Math.floor(min / 60);
     const m = min % 60;
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+
+  getStatusVisitante(v: Visitante): 'presente' | 'autorizado' | 'agendado' | 'saiu' {
+    const now = Date.now();
+    // 1. Entrou e ainda está dentro (saida não registrada)
+    if (v.data_entrada && !v.data_saida) return 'presente';
+    // 2. Saída real registrada
+    if (v.data_saida) return 'saiu';
+    // 3. Dentro do período de liberação (ainda não entrou)
+    if (v.data_hora_inicio && v.data_hora_termino) {
+      const inicio = new Date(v.data_hora_inicio).getTime();
+      const fim = new Date(v.data_hora_termino).getTime();
+      if (now >= inicio && now <= fim) return 'autorizado';
+    }
+    // 4. Agendado (ainda não chegou o horário)
+    return 'agendado';
   }
 
   abrirValidador() {

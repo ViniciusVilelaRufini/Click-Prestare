@@ -4,6 +4,8 @@ export interface Visitante {
   doc_identificacao: string | null;
   data_hora_inicio: string | null;
   data_hora_termino: string | null;
+  data_entrada: string | null;
+  data_saida: string | null;
   is_visitante: number;
   is_prestador: number;
   id_apartamento: number;
