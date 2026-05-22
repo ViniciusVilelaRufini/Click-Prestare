@@ -682,11 +682,13 @@ export class FinanceiroService implements OnModuleInit {
     // As contas privadas do próprio morador (id_usuario == idUser) sempre passam.
     const filteredList = list.filter(item => {
       if (item.id_usuario === idUser) return true;
-      if (item.tipo === 'D') return true;
-      return moradoresList.some(m => 
-        item.nome?.includes(`Apto ${m.apartamento}`) && 
-        item.nome?.includes(`Bloco ${m.bloco}`)
-      );
+      if (item.tipo === 'C') {
+        return moradoresList.some(m => 
+          item.nome?.includes(`Apto ${m.apartamento}`) && 
+          item.nome?.includes(`Bloco ${m.bloco}`)
+        );
+      }
+      return false;
     });
 
     return filteredList.map(item => ({
