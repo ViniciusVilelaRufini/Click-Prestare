@@ -5,6 +5,9 @@ import {
   Apartamento, ApartamentosApi, CreateApartamento,
 } from './apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
+import { HttpClient } from '@angular/common/http';
+import { API_BASE } from '../shared/api.config';
+import { AuthService } from '../auth/auth.service';
 
 declare var require: any;
 
@@ -17,6 +20,15 @@ declare var require: any;
 export class ApartamentosPageComponent implements OnInit {
   private api = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
+  private http = inject(HttpClient);
+  private auth = inject(AuthService);
+
+  // Painel de moradores
+  showMoradoresPanel = false;
+  moradoresBlocoNome = '';
+  moradoresApto: Apartamento | null = null;
+  readonly moradores = signal<any[]>([]);
+  readonly loadingMoradores = signal(false);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -102,6 +114,50 @@ export class ApartamentosPageComponent implements OnInit {
     });
     if (!ok) return;
     this.api.remove(a.id).subscribe({ next: () => this.carregar() });
+  }
+
+  abrirMoradoresBloco(blocoNome: string) {
+    this.moradoresBlocoNome = blocoNome;
+    this.moradoresApto = null;
+    this.showMoradoresPanel = true;
+    this.carregarMoradores(blocoNome);
+  }
+
+  abrirMoradoresApto(a: Apartamento) {
+    this.moradoresApto = a;
+    this.moradoresBlocoNome = a.bloco ?? '';
+    this.showMoradoresPanel = true;
+    this.carregarMoradores(a.bloco ?? '', a.id);
+  }
+
+  fecharMoradores() {
+    this.showMoradoresPanel = false;
+    this.moradores.set([]);
+  }
+
+  private carregarMoradores(bloco?: string, aptoId?: number) {
+    const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
+    this.loadingMoradores.set(true);
+    let url = `${API_BASE}/condominios/${cid}/moradores`;
+    const params: any = {};
+    if (aptoId) params['id_apto'] = aptoId;
+    this.http.get<any[]>(url, { params }).subscribe({
+      next: (data) => {
+        if (aptoId) {
+          this.moradores.set(data);
+        } else {
+          // Filtrar por bloco usando a lista de aptos do bloco
+          const aptosBloco = this.apartamentos()
+            .filter(a => (a.bloco ?? 'Sem bloco') === bloco)
+            .map(a => a.id);
+          this.moradores.set(data.filter((m: any) =>
+            aptosBloco.includes(m.id_apartamento)
+          ));
+        }
+        this.loadingMoradores.set(false);
+      },
+      error: () => this.loadingMoradores.set(false),
+    });
   }
 
   // Controle de Importação em Lote (Excel/CSV)
