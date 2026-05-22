@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as xlsx from 'xlsx';
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
 
-const PdfPrinter = require('pdfmake');
+const pdfmake = require('pdfmake');
 
 const formatDateTime = (d: Date | null | undefined): string => {
   if (!d) return '-';
@@ -443,16 +443,9 @@ export class RelatoriosService {
       pageMargins: [40, 40, 40, 60],
     };
 
-    const printer = new PdfPrinter(fonts);
-    const pdfDoc = printer.createPdfKitDocument(docDefinition);
-
-    return new Promise<Buffer>((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      pdfDoc.on('data', (chunk) => chunks.push(chunk));
-      pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-      pdfDoc.on('error', (err) => reject(err));
-      pdfDoc.end();
-    });
+    pdfmake.setFonts(fonts);
+    const doc = pdfmake.createPdf(docDefinition);
+    return await doc.getBuffer();
   }
 
   private formatPeriod(start?: string, end?: string): string {
