@@ -21,6 +21,39 @@ class ListDocs extends StatefulWidget {
 class _ListDocsPageState extends State<ListDocs> {
   List<dynamic> list = [];
   bool _isLoading = false;
+  DateTime? _selectedMonth;
+
+  // Helper para gerar os últimos 12 meses em português
+  List<Map<String, dynamic>> _getMonths() {
+    final monthsPt = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    List<Map<String, dynamic>> res = [];
+    final now = DateTime.now();
+    for (int i = 0; i < 12; i++) {
+      final date = DateTime(now.year, now.month - i, 1);
+      res.add({
+        'month': date.month,
+        'year': date.year,
+        'label': "${monthsPt[date.month - 1]} / ${date.year}",
+      });
+    }
+    return res;
+  }
+
+  List<dynamic> _getFilteredList() {
+    if (_selectedMonth == null) return list;
+    return list.where((item) {
+      if (item['created_at'] == null) return false;
+      try {
+        final date = DateTime.parse(item['created_at'].toString());
+        return date.month == _selectedMonth!.month && date.year == _selectedMonth!.year;
+      } catch (_) {
+        return false;
+      }
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -55,6 +88,9 @@ class _ListDocsPageState extends State<ListDocs> {
   @override
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
+    final filteredList = _getFilteredList();
+    final months = _getMonths();
+
     return AppScaffold(
       title: getText('docs_nav'),
       floatingActionButton: isSindico
@@ -73,44 +109,130 @@ class _ListDocsPageState extends State<ListDocs> {
               separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
               itemBuilder: (_, __) => AppSkeleton.listTile(context),
             )
-          : RefreshIndicator(
-              onRefresh: loadList,
-              child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                children: [
-                  if (list.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                        child: Column(children: [
-                          Icon(PhosphorIcons.folder, size: 56, color: AppColors.textTertiary(context)),
-                          const SizedBox(height: AppSpacing.md),
-                          Text(getText('alert_list_empty_generic'), style: AppTypography.caption(context)),
-                        ]),
+          : Column(
+              children: [
+                // Seletor de Meses Premium
+                Container(
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: AppColors.textTertiary(context).withOpacity(0.08),
+                        width: 1,
                       ),
-                    ),
-                  for (var item in list)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _DocCard(
-                        item: item,
-                        onTap: () => launchInBrowser(item['link_doc'], context),
-                        onDelete: isSindico ? () => delete(item['id']) : null,
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: _DocCard(
-                      item: {'nome': 'ATAS'},
-                      showArrow: true,
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListAtas())),
                     ),
                   ),
-                ],
-              ),
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                    children: [
+                      // Chip "Todos"
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: const Text('Todos os Meses'),
+                          selected: _selectedMonth == null,
+                          onSelected: (val) {
+                            setState(() => _selectedMonth = null);
+                          },
+                          selectedColor: AppColors.primary,
+                          backgroundColor: AppColors.surface(context),
+                          labelStyle: AppTypography.captionMedium(context).copyWith(
+                            color: _selectedMonth == null ? Colors.white : AppColors.textSecondary(context),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          side: BorderSide(
+                            color: _selectedMonth == null 
+                                ? AppColors.primary 
+                                : AppColors.textTertiary(context).withOpacity(0.15),
+                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      ...months.map((m) {
+                        final isSelected = _selectedMonth != null && 
+                                           _selectedMonth!.month == m['month'] && 
+                                           _selectedMonth!.year == m['year'];
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: ChoiceChip(
+                            label: Text(m['label']),
+                            selected: isSelected,
+                            onSelected: (val) {
+                              setState(() {
+                                _selectedMonth = val ? DateTime(m['year'], m['month']) : null;
+                              });
+                            },
+                            selectedColor: AppColors.primary,
+                            backgroundColor: AppColors.surface(context),
+                            labelStyle: AppTypography.captionMedium(context).copyWith(
+                              color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            side: BorderSide(
+                              color: isSelected 
+                                  ? AppColors.primary 
+                                  : AppColors.textTertiary(context).withOpacity(0.15),
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+
+                // Lista de Documentos
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: loadList,
+                    child: ListView(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      children: [
+                        if (filteredList.isEmpty)
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                              child: Column(children: [
+                                Icon(PhosphorIcons.folder, size: 56, color: AppColors.textTertiary(context)),
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  _selectedMonth == null 
+                                      ? getText('alert_list_empty_generic')
+                                      : 'Nenhum documento encontrado neste mês.', 
+                                  style: AppTypography.caption(context),
+                                ),
+                              ]),
+                            ),
+                          ),
+                        for (var item in filteredList)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: _DocCard(
+                              item: item,
+                              onTap: () => launchInBrowser(item['link_doc'], context),
+                              onDelete: isSindico ? () => delete(item['id']) : null,
+                            ),
+                          ),
+                        if (_selectedMonth == null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: _DocCard(
+                              item: {'nome': 'ATAS'},
+                              showArrow: true,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListAtas())),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
     );
   }
+
 }
 
 class _DocCard extends StatelessWidget {

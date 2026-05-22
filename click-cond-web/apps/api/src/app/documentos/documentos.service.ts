@@ -61,6 +61,7 @@ export class DocumentosService {
         id: true,
         nome: true,
         link_doc: true,
+        created_at: true,
       },
       orderBy: { created_at: 'desc' },
     });
