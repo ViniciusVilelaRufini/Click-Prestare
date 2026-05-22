@@ -70,12 +70,15 @@ class _MyCondominiumState extends State<MyCondominium> {
       all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral()));
     }
     if (getUserType() == 'funcionario') {
-      return all.where((i) =>
+      final list = all.where((i) =>
           i.label != getText('lb_financeiro') &&
           i.label != getText('lb_assembleia_votacoes') &&
           i.label != getText('lb_enquetes') &&
           i.label != getText('lb_funcionarios_condominio')).toList();
+      list.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+      return list;
     }
+    all.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
     return all;
   }
 
