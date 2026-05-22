@@ -187,7 +187,16 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   Widget _buildSummaryCard() {
     double totalPendente = 0;
     for(var item in _items) {
-      if(item['pago'] == 0) totalPendente += (item['valor'] as num).toDouble();
+      int intPago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+      if(intPago == 0) {
+        double val = 0;
+        if (item['valor'] is num) {
+          val = (item['valor'] as num).toDouble();
+        } else if (item['valor'] != null) {
+          val = double.tryParse(item['valor'].toString()) ?? 0;
+        }
+        totalPendente += val;
+      }
     }
 
     return Container(
@@ -239,8 +248,10 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   }
 
   Widget _buildFinanceiroCard(dynamic item) {
-    bool isPago = item['pago'] == 1;
-    bool isVerifying = item['status'] == 2;
+    int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+    int status = item['status'] is int ? item['status'] : (int.tryParse(item['status']?.toString() ?? '') ?? 0);
+    bool isPago = pago == 1;
+    bool isVerifying = status == 2;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -434,14 +445,17 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
-  Widget _buildStatusBadge(int status, int pago) {
+  Widget _buildStatusBadge(dynamic status, dynamic pago) {
     Color color = Colors.orange;
     String text = "Pendente";
 
-    if (pago == 1) {
+    int intStatus = status is int ? status : (int.tryParse(status?.toString() ?? '') ?? 0);
+    int intPago = pago is int ? pago : (int.tryParse(pago?.toString() ?? '') ?? 0);
+
+    if (intPago == 1) {
       color = Colors.green;
       text = "Pago";
-    } else if (status == 2) {
+    } else if (intStatus == 2) {
       color = Colors.blue;
       text = "Verificando";
     }
