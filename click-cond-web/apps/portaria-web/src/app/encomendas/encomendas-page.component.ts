@@ -24,6 +24,61 @@ export class EncomendasPageComponent implements OnInit {
   readonly error = signal<string | null>(null);
   readonly filtro = signal<string>('');
 
+  readonly pagina = signal(1);
+  readonly itensPorPagina = 20;
+
+  readonly totalPaginas = computed(() => {
+    const total = this.encomendasFiltradas().length;
+    return Math.max(1, Math.ceil(total / this.itensPorPagina));
+  });
+
+  readonly encomendasPaginadas = computed(() => {
+    const list = this.encomendasFiltradas();
+    const p = this.pagina();
+    const start = (p - 1) * this.itensPorPagina;
+    const end = start + this.itensPorPagina;
+    return list.slice(start, end);
+  });
+
+  readonly exibindoInicio = computed(() => {
+    if (this.encomendasFiltradas().length === 0) return 0;
+    return (this.pagina() - 1) * this.itensPorPagina + 1;
+  });
+
+  readonly exibindoFim = computed(() => {
+    return Math.min(this.pagina() * this.itensPorPagina, this.encomendasFiltradas().length);
+  });
+
+  readonly paginasLista = computed(() => {
+    const current = this.pagina();
+    const total = this.totalPaginas();
+    const list: number[] = [];
+    
+    if (total <= 5) {
+      for (let i = 1; i <= total; i++) list.push(i);
+    } else {
+      list.push(1);
+      
+      if (current > 3) {
+        list.push(-1);
+      }
+      
+      const start = Math.max(2, current - 1);
+      const end = Math.min(total - 1, current + 1);
+      
+      for (let i = start; i <= end; i++) {
+        if (!list.includes(i)) list.push(i);
+      }
+      
+      if (current < total - 2) {
+        list.push(-1);
+      }
+      
+      if (!list.includes(total)) list.push(total);
+    }
+    return list;
+  });
+
   readonly encomendasFiltradas = computed(() => {
     const list = this.encomendas();
     const f = this.filtro();
@@ -46,7 +101,11 @@ export class EncomendasPageComponent implements OnInit {
   carregar() {
     this.loading.set(true);
     this.api.list().subscribe({
-      next: (data) => { this.encomendas.set(data); this.loading.set(false); },
+      next: (data) => { 
+        this.encomendas.set(data); 
+        this.pagina.set(1);
+        this.loading.set(false); 
+      },
       error: (e) => { this.error.set(e?.message ?? 'Erro'); this.loading.set(false); },
     });
   }
