@@ -6,6 +6,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_conta.dart';
+import 'package:click/widgets/alerts/bottom_sheet_aptos.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
@@ -44,6 +45,8 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
 
   String _selectedCategoria = 'Condomínio';
   String? _urlBoleto;
+  var list = [];
+  var listBlocos = [];
 
   @override
   void dispose() {
@@ -75,6 +78,33 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
     } else if (widget.id != null) {
       load();
     }
+    loadListAptos();
+  }
+
+  Future<void> loadListAptos() async {
+    try {
+      setState(() => _isLoading = true);
+      var aptos = await apiGetAll("apartamentos");
+      list = aptos;
+      listBlocos.clear();
+      for (var item in list) {
+        if (!listBlocos.contains(item['bloco'])) listBlocos.add(item['bloco']);
+      }
+    } catch (e) {
+      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List getListAptos() {
+    var listAptos = [];
+    for (var item in list) {
+      if (item['bloco'] == txtBloco.text && !listAptos.contains(item["apto"])) {
+        listAptos.add(item["apto"]);
+      }
+    }
+    return listAptos;
   }
 
   Future<void> load() async {
@@ -106,6 +136,14 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
   }
 
   Future<void> save() async {
+    if (txtBloco.text.trim().isEmpty) {
+      displayMessage(context, getText('alert'), 'Selecione o bloco.');
+      return;
+    }
+    if (txtApto.text.trim().isEmpty) {
+      displayMessage(context, getText('alert'), 'Selecione o apartamento.');
+      return;
+    }
     try {
       setState(() => _isSaving = true);
       var dtPag = txtPagamento.text.isNotEmpty ? convertStringToDate(txtPagamento.text) : null;
@@ -164,9 +202,48 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
                   _section(getText('lb_infos_apto')),
                   Row(
                     children: [
-                      Expanded(child: AppInput(label: getText('lb_bloco'), controller: txtBloco, readOnly: true, prefixIcon: PhosphorIcons.buildings)),
+                      Expanded(
+                        child: AppInput(
+                          label: getText('lb_bloco'),
+                          controller: txtBloco,
+                          prefixIcon: PhosphorIcons.buildings,
+                          readOnly: true,
+                          onTap: id != -1 ? null : () {
+                            if (listBlocos.isEmpty) {
+                              displayMessage(context, getText('alert_ops'), getText('alert_nenhum_bloco'));
+                              return;
+                            }
+                            bottomSheetAptos(context, listBlocos, txtBloco.text, (s) {
+                              if (txtBloco.text != s) txtApto.text = '';
+                              txtBloco.text = s;
+                              Navigator.of(context).pop();
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              setState(() {});
+                            });
+                          },
+                        ),
+                      ),
                       const SizedBox(width: AppSpacing.md),
-                      Expanded(child: AppInput(label: getText('lb_apartamento'), controller: txtApto, readOnly: true, prefixIcon: PhosphorIcons.door)),
+                      Expanded(
+                        child: AppInput(
+                          label: getText('lb_apartamento'),
+                          controller: txtApto,
+                          prefixIcon: PhosphorIcons.door,
+                          readOnly: true,
+                          onTap: id != -1 ? null : () {
+                            if (getListAptos().isEmpty) {
+                              displayMessage(context, getText('alert_ops'), getText('visitante_erro_bloco'));
+                              return;
+                            }
+                            bottomSheetAptos(context, getListAptos(), txtApto.text, (s) {
+                              txtApto.text = s;
+                              Navigator.of(context).pop();
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              setState(() {});
+                            });
+                          },
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xl),
