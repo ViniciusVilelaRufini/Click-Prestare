@@ -1,180 +1,221 @@
 <div class="min-h-screen p-6 lg:p-8 space-y-6">
 
   <!-- Header -->
-  <div class="flex items-start justify-between">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/50 dark:border-white/5 pb-5">
     <div>
-      <h1 class="text-2xl font-semibold text-white tracking-tight">Dashboard</h1>
-      <p class="text-sm text-slate-400 mt-0.5">
-        Visão geral do condomínio em tempo real
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white font-display">Dashboard</h1>
+        <span class="px-2 py-0.5 text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 rounded-full tracking-wider uppercase">
+          Operação Ativa
+        </span>
+      </div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+        Visão geral das atividades e controle operacional do condomínio em tempo real
       </p>
     </div>
-    <div class="text-right">
-      <p class="text-2xl font-mono font-semibold text-white tabular-nums">
-        {{ agora() | date:'HH:mm:ss' }}
-      </p>
-      <p class="text-xs text-slate-400 mt-0.5 capitalize">
-        {{ agora() | date:"EEEE, d 'de' MMMM":'':'pt' }}
-      </p>
-      @if (auth.porteiroInfo(); as info) {
-        <p class="text-xs text-accent mt-1">
-          {{ info.nome }} &middot; {{ info.turno ?? 'Sem turno' }}
+    
+    <div class="flex items-center gap-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 rounded-xl px-4 py-2.5 self-start sm:self-auto">
+      <div class="text-left sm:text-right border-r border-slate-200 dark:border-white/10 pr-4">
+        <p class="text-lg font-mono font-bold text-slate-800 dark:text-white tabular-nums leading-none">
+          {{ agora() | date:'HH:mm:ss' }}
         </p>
-      }
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 capitalize leading-none font-medium">
+          {{ agora() | date:"EEEE, d 'de' MMMM":'':'pt' }}
+        </p>
+      </div>
+      <div class="flex flex-col justify-center">
+        @if (auth.porteiroInfo(); as info) {
+          <span class="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-none">
+            {{ info.nome }}
+          </span>
+          <span class="text-[10px] text-accent font-bold uppercase tracking-wider mt-1 leading-none">
+            {{ info.turno ?? 'Sem turno' }}
+          </span>
+        } @else {
+          <span class="text-xs font-medium text-slate-400">Sem operador</span>
+        }
+      </div>
     </div>
   </div>
 
   @if (loading()) {
     <!-- Skeleton loading -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       @for (_ of [1,2,3,4]; track $index) {
-        <div class="h-28 rounded-2xl bg-graphite-200 border border-white/5 animate-pulse"></div>
+        <div class="h-28 rounded-2xl bg-graphite-200 border border-slate-200/60 dark:border-white/5 animate-pulse"></div>
       }
     </div>
   } @else if (data(); as d) {
 
     <!-- KPI Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
       <!-- Visitantes -->
       <a routerLink="/visitantes"
-         class="group p-5 rounded-2xl bg-graphite-200 border border-white/10
-                hover:border-accent/40 hover:bg-graphite-100 transition-all cursor-pointer">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
+         class="group p-5 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5
+                hover:border-accent/40 dark:hover:border-accent/40 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[135px]">
+        <div class="flex items-start justify-between">
+          <div class="w-9 h-9 rounded-xl bg-accent/10 border border-accent/25 flex items-center justify-center shrink-0">
             <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                 d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
           </div>
-          <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-350 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
         </div>
-        <p class="text-3xl font-bold text-white tabular-nums">{{ d.visitantesAtivos }}</p>
-        <p class="text-xs text-slate-400 mt-1">Visitantes no condomínio</p>
-        @if (d.visitantesAtivos > 0) {
-          <div class="mt-2 flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span class="text-[11px] text-emerald-400">presentes agora</span>
+        <div class="mt-4">
+          <p class="text-3xl font-bold text-slate-800 dark:text-white tabular-nums tracking-tight font-display">{{ d.visitantesAtivos }}</p>
+          <div class="flex items-center justify-between mt-1">
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Visitantes no condomínio</p>
+            @if (d.visitantesAtivos > 0) {
+              <div class="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-[9px] text-emerald-500 dark:text-emerald-400 font-bold uppercase tracking-wider">presentes</span>
+              </div>
+            }
           </div>
-        }
+        </div>
       </a>
 
       <!-- Encomendas -->
       <a routerLink="/encomendas"
-         class="group p-5 rounded-2xl bg-graphite-200 border border-white/10
-                hover:border-emerald-400/40 hover:bg-graphite-100 transition-all cursor-pointer">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-9 h-9 rounded-xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center">
-            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+         class="group p-5 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5
+                hover:border-emerald-500/40 dark:hover:border-emerald-500/40 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[135px]">
+        <div class="flex items-start justify-between">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                 d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
             </svg>
           </div>
-          <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-350 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
         </div>
-        <p class="text-3xl font-bold text-white tabular-nums">{{ d.encomendasAguardando }}</p>
-        <p class="text-xs text-slate-400 mt-1">Encomendas aguardando</p>
-        @if (d.encomendasAguardando > 0) {
-          <div class="mt-2 flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            <span class="text-[11px] text-amber-400">retirada pendente</span>
+        <div class="mt-4">
+          <p class="text-3xl font-bold text-slate-800 dark:text-white tabular-nums tracking-tight font-display">{{ d.encomendasAguardando }}</p>
+          <div class="flex items-center justify-between mt-1">
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Encomendas aguardando</p>
+            @if (d.encomendasAguardando > 0) {
+              <div class="flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span class="text-[9px] text-amber-650 dark:text-amber-400 font-bold uppercase tracking-wider">pendente</span>
+              </div>
+            }
           </div>
-        }
+        </div>
       </a>
 
       <!-- Ocorrências -->
       <a routerLink="/ocorrencias"
-         class="group p-5 rounded-2xl bg-graphite-200 border border-white/10
-                hover:border-amber-400/40 hover:bg-graphite-100 transition-all cursor-pointer"
-         [class.border-amber-400/30]="d.ocorrenciasPendentes > 0">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-9 h-9 rounded-xl flex items-center justify-center"
-               [class.bg-amber-400/10]="d.ocorrenciasPendentes > 0"
-               [class.border-amber-400/20]="d.ocorrenciasPendentes > 0"
+         class="group p-5 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5
+                hover:border-amber-500/40 dark:hover:border-amber-500/40 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[135px]"
+         [class.border-amber-500/30]="d.ocorrenciasPendentes > 0">
+        <div class="flex items-start justify-between">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+               [class.bg-amber-500/10]="d.ocorrenciasPendentes > 0"
+               [class.border-amber-500/25]="d.ocorrenciasPendentes > 0"
                [class.border]="d.ocorrenciasPendentes > 0"
-               [class.bg-white/5]="d.ocorrenciasPendentes === 0"
-               [class.border-white/10]="d.ocorrenciasPendentes === 0"
-               [class.border-solid]="true">
+               [class.bg-slate-100]="d.ocorrenciasPendentes === 0"
+               [class.dark:bg-white/5]="d.ocorrenciasPendentes === 0"
+               [class.border-transparent]="d.ocorrenciasPendentes === 0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                 [class.text-amber-400]="d.ocorrenciasPendentes > 0"
-                 [class.text-slate-500]="d.ocorrenciasPendentes === 0">
+                 [class.text-amber-500]="d.ocorrenciasPendentes > 0"
+                 [class.text-slate-500]="d.ocorrenciasPendentes === 0"
+                 [class.dark:text-slate-400]="d.ocorrenciasPendentes === 0">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
           </div>
-          <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-350 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
         </div>
-        <p class="text-3xl font-bold tabular-nums"
-           [class.text-amber-400]="d.ocorrenciasPendentes > 0"
-           [class.text-white]="d.ocorrenciasPendentes === 0">{{ d.ocorrenciasPendentes }}</p>
-        <p class="text-xs text-slate-400 mt-1">Ocorrências pendentes</p>
-        @if (d.ocorrenciasPendentes > 0) {
-          <div class="mt-2 flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-            <span class="text-[11px] text-amber-400">requer atenção</span>
+        <div class="mt-4">
+          <p class="text-3xl font-bold tabular-nums tracking-tight font-display"
+             [class.text-amber-500]="d.ocorrenciasPendentes > 0"
+             [class.text-slate-800]="d.ocorrenciasPendentes === 0"
+             [class.dark:text-white]="d.ocorrenciasPendentes === 0">{{ d.ocorrenciasPendentes }}</p>
+          <div class="flex items-center justify-between mt-1">
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Ocorrências pendentes</p>
+            @if (d.ocorrenciasPendentes > 0) {
+              <div class="flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <span class="text-[9px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">urgente</span>
+              </div>
+            }
           </div>
-        }
+        </div>
       </a>
 
       <!-- Prestadores -->
       <a routerLink="/prestadores"
-         class="group p-5 rounded-2xl bg-graphite-200 border border-white/10
-                hover:border-slate-400/40 hover:bg-graphite-100 transition-all cursor-pointer">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+         class="group p-5 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5
+                hover:border-slate-400/40 dark:hover:border-white/20 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[135px]">
+        <div class="flex items-start justify-between">
+          <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-250 dark:border-white/10 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-slate-600 dark:text-slate-350" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                 d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
             </svg>
           </div>
-          <svg class="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-350 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
         </div>
-        <p class="text-3xl font-bold text-white tabular-nums">{{ d.prestadoresAtivos }}</p>
-        <p class="text-xs text-slate-400 mt-1">Prestadores cadastrados</p>
+        <div class="mt-4">
+          <p class="text-3xl font-bold text-slate-800 dark:text-white tabular-nums tracking-tight font-display">{{ d.prestadoresAtivos }}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium font-medium">Prestadores cadastrados</p>
+        </div>
       </a>
 
     </div>
 
     <!-- Segunda linha -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
       <!-- Últimos eventos -->
-      <div class="lg:col-span-2 rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden">
-        <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-white">Últimos eventos</h2>
-          <span class="text-xs text-slate-500">hoje</span>
+      <div class="lg:col-span-2 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm flex flex-col">
+        <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 flex items-center justify-between bg-slate-50/[0.3] dark:bg-white/[0.01]">
+          <div class="flex items-center gap-2">
+            <span class="w-1.5 h-3.5 bg-accent rounded-full"></span>
+            <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Últimos eventos</h2>
+          </div>
+          <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">
+            Hoje
+          </span>
         </div>
-        <div class="p-5 max-h-[420px] overflow-y-auto pr-2">
+        <div class="p-4 flex-1 max-h-[420px] overflow-y-auto custom-scrollbar">
           @if (d.ultimosEventos.length === 0) {
-            <div class="flex flex-col items-center justify-center py-8 text-center">
-              <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mb-3">
-                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex flex-col items-center justify-center py-16 text-center">
+              <div class="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-center mb-3 border border-slate-100 dark:border-white/5">
+                <svg class="w-6 h-6 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                 </svg>
               </div>
-              <p class="text-sm text-slate-400">Nenhum evento registrado</p>
-              <p class="text-xs text-slate-600 mt-1">Movimentações aparecerão aqui</p>
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-400">Nenhum evento registrado</p>
+              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">As movimentações da portaria aparecerão aqui</p>
             </div>
           } @else {
-            <ul class="space-y-1.5">
+            <ul class="space-y-2">
               @for (e of d.ultimosEventos; track $index) {
                 <li (click)="abrirDetalhes(e)"
-                    class="flex items-center gap-3 cursor-pointer hover:bg-white/5 active:bg-white/10 transition p-2.5 rounded-xl border border-transparent hover:border-white/5">
-                  <span class="text-[11px] font-medium px-2 py-1 rounded-md border {{ tipoColor(e.tipo) }}">
+                    class="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase shrink-0 {{ tipoColor(e.tipo) }}">
                     {{ e.tipo }}
                   </span>
-                  <span class="flex-1 text-sm text-slate-200 truncate">{{ e.descricao }}</span>
-                  <span class="text-xs text-slate-500 shrink-0 font-mono">
-                    {{ e.quando | date:'HH:mm' }}
-                  </span>
+                  <span class="flex-1 text-sm text-slate-750 dark:text-slate-250 truncate font-medium">{{ e.descricao }}</span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 dark:text-slate-500 shrink-0 font-mono font-medium">
+                      {{ e.quando | date:'HH:mm' }}
+                    </span>
+                    <svg class="w-4 h-4 text-slate-300 dark:text-slate-650 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </div>
                 </li>
               }
             </ul>
@@ -183,100 +224,111 @@
       </div>
 
       <!-- Painel direito -->
-      <div class="space-y-4">
+      <div class="space-y-6">
 
         <!-- Totais do condomínio -->
-        <div class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden">
-          <div class="px-5 py-4 border-b border-white/10">
-            <h2 class="text-sm font-semibold text-white">Condomínio</h2>
+        <div class="rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.3] dark:bg-white/[0.01]">
+            <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Informações Gerais</h2>
           </div>
           <div class="p-5 space-y-4">
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent">
+                  <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                       d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                   </svg>
                 </div>
-                <span class="text-sm text-slate-400">Apartamentos</span>
+                <span class="text-sm font-medium text-slate-600 dark:text-slate-400">Apartamentos</span>
               </div>
-              <span class="text-lg font-semibold text-white tabular-nums">{{ d.totalApartamentos }}</span>
+              <span class="text-lg font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.totalApartamentos }}</span>
             </div>
-            <div class="h-px bg-white/5"></div>
+            
+            <div class="h-px bg-slate-200/50 dark:bg-white/5"></div>
+            
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-550 dark:text-slate-300">
+                  <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                   </svg>
                 </div>
-                <span class="text-sm text-slate-400">Moradores</span>
+                <span class="text-sm font-medium text-slate-600 dark:text-slate-400">Moradores</span>
               </div>
-              <span class="text-lg font-semibold text-white tabular-nums">{{ d.totalMoradores }}</span>
+              <span class="text-lg font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.totalMoradores }}</span>
             </div>
-            <div class="h-px bg-white/5"></div>
+            
+            <div class="h-px bg-slate-200/50 dark:bg-white/5"></div>
+            
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
-                  <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-550 dark:text-slate-300">
+                  <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                       d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
                   </svg>
                 </div>
-                <span class="text-sm text-slate-400">Comunicados</span>
+                <span class="text-sm font-medium text-slate-600 dark:text-slate-400">Comunicados</span>
               </div>
-              <span class="text-lg font-semibold text-white tabular-nums">{{ d.comunicadosRecentes }}</span>
+              <span class="text-lg font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.comunicadosRecentes }}</span>
             </div>
           </div>
         </div>
 
         <!-- Acesso rápido -->
-        <div class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden">
-          <div class="px-5 py-4 border-b border-white/10">
-            <h2 class="text-sm font-semibold text-white">Acesso rápido</h2>
+        <div class="rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.3] dark:bg-white/[0.01]">
+            <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Acesso Rápido</h2>
           </div>
-          <div class="p-3 grid grid-cols-2 gap-2">
+          <div class="p-4 grid grid-cols-2 gap-3">
             <a routerLink="/visitantes"
-               class="flex flex-col items-center gap-1.5 p-3 rounded-xl
-                      bg-white/5 hover:bg-accent/10 hover:border-accent/20
-                      border border-transparent transition text-center">
-              <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+               class="flex flex-col items-center gap-2 p-3 rounded-xl
+                      bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10 
+                      border border-slate-200/60 hover:border-accent/30 dark:border-transparent dark:hover:border-accent/20 
+                      transition-all text-center group active:scale-95 duration-150">
+              <svg class="w-5 h-5 text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                   d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
               </svg>
-              <span class="text-[11px] text-slate-300">Novo visitante</span>
+              <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-350">Novo Visitante</span>
             </a>
+            
             <a routerLink="/encomendas"
-               class="flex flex-col items-center gap-1.5 p-3 rounded-xl
-                      bg-white/5 hover:bg-emerald-400/10 hover:border-emerald-400/20
-                      border border-transparent transition text-center">
-              <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+               class="flex flex-col items-center gap-2 p-3 rounded-xl
+                      bg-slate-50 hover:bg-emerald-500/5 dark:bg-white/5 dark:hover:bg-emerald-500/10 
+                      border border-slate-200/60 hover:border-emerald-500/30 dark:border-transparent dark:hover:border-emerald-500/20 
+                      transition-all text-center group active:scale-95 duration-150">
+              <svg class="w-5 h-5 text-emerald-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                   d="M12 4v16m8-8H4"/>
               </svg>
-              <span class="text-[11px] text-slate-300">Nova encomenda</span>
+              <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-350">Nova Encomenda</span>
             </a>
+            
             <a routerLink="/ocorrencias"
-               class="flex flex-col items-center gap-1.5 p-3 rounded-xl
-                      bg-white/5 hover:bg-amber-400/10 hover:border-amber-400/20
-                      border border-transparent transition text-center">
-              <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+               class="flex flex-col items-center gap-2 p-3 rounded-xl
+                      bg-slate-50 hover:bg-amber-500/5 dark:bg-white/5 dark:hover:bg-amber-500/10 
+                      border border-slate-200/60 hover:border-amber-500/30 dark:border-transparent dark:hover:border-amber-500/20 
+                      transition-all text-center group active:scale-95 duration-150">
+              <svg class="w-5 h-5 text-amber-550 dark:text-amber-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                   d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
               </svg>
-              <span class="text-[11px] text-slate-300">Ocorrência</span>
+              <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-350">Ocorrência</span>
             </a>
+            
             <a routerLink="/comunicados"
-               class="flex flex-col items-center gap-1.5 p-3 rounded-xl
-                      bg-white/5 hover:bg-slate-400/10 hover:border-slate-400/20
-                      border border-transparent transition text-center">
-              <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+               class="flex flex-col items-center gap-2 p-3 rounded-xl
+                      bg-slate-50 hover:bg-slate-200/50 dark:bg-white/5 dark:hover:bg-white/10 
+                      border border-slate-200/60 hover:border-slate-350 dark:border-transparent dark:hover:border-white/20 
+                      transition-all text-center group active:scale-95 duration-150">
+              <svg class="w-5 h-5 text-slate-500 dark:text-slate-300 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                   d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
               </svg>
-              <span class="text-[11px] text-slate-300">Comunicados</span>
+              <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-350">Comunicados</span>
             </a>
           </div>
         </div>
@@ -288,69 +340,69 @@
 
   <!-- Modal de Detalhes do Evento -->
   @if (eventoSelecionado(); as ev) {
-    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    <div class="fixed inset-0 bg-slate-900/60 dark:bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
          (click)="fecharDetalhes()">
       
-      <div class="relative w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      <div class="relative w-full max-w-lg rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/80 dark:border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
            (click)="$event.stopPropagation()">
         
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+        <div class="px-6 py-4 border-b border-slate-200/60 dark:border-white/5 flex items-center justify-between bg-slate-50/[0.3] dark:bg-white/[0.01]">
           <div class="flex items-center gap-2">
-            <span class="text-xs font-semibold px-2 py-1 rounded-md border {{ tipoColor(ev.tipo) }}">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase {{ tipoColor(ev.tipo) }}">
               {{ ev.tipo }}
             </span>
-            <h3 class="text-base font-semibold text-white">Detalhes do Evento</h3>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Detalhes do Evento</h3>
           </div>
-          <button (click)="fecharDetalhes()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button (click)="fecharDetalhes()" class="p-1.5 rounded-lg text-slate-450 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
         </div>
 
         <!-- Conteúdo -->
-        <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
           
           <!-- Evento tipo: Visitante -->
           @if (ev.tipo === 'Visitante') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent font-bold text-lg">
+              <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
+                <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-base shadow-sm">
                   {{ (ev.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
                 </div>
                 <div>
-                  <h4 class="font-semibold text-white text-base">{{ ev.detalhes.nome }}</h4>
-                  <p class="text-xs text-slate-400">Visitante Cadastrado</p>
+                  <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
+                  <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Visitante Cadastrado</p>
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Apartamento</span>
-                  <span class="text-sm font-medium text-white">{{ ev.detalhes.blocoApto }}</span>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Apartamento</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.blocoApto }}</span>
                 </div>
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Documento</span>
-                  <span class="text-sm font-medium text-white">{{ ev.detalhes.documento }}</span>
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Documento</span>
+                  <span class="text-sm font-mono font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.documento || '—' }}</span>
                 </div>
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Data/Hora Entrada</span>
-                  <span class="text-sm font-medium text-white">
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Data/Hora Entrada</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ ev.detalhes.dataEntrada ? (ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm') : 'Pendente' }}
                   </span>
                 </div>
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Data/Hora Saída</span>
-                  <span class="text-sm font-medium text-white">
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Data/Hora Saída</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ ev.detalhes.dataSaida ? (ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm') : 'No local' }}
                   </span>
                 </div>
               </div>
 
-              <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                <span class="text-xs text-slate-400 block mb-0.5">Autorizado Por</span>
-                <span class="text-sm font-medium text-white">{{ ev.detalhes.autorizadoPor }}</span>
+              <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Autorizado Por</span>
+                <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.autorizadoPor || 'Não informado' }}</span>
               </div>
             </div>
           }
@@ -358,52 +410,54 @@
           <!-- Evento tipo: Encomenda -->
           @if (ev.tipo === 'Encomenda') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
-                <div class="w-10 h-10 rounded-xl bg-emerald-400/10 flex items-center justify-center text-emerald-400">
+              <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-500 shadow-sm">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <h4 class="font-semibold text-white text-base truncate">{{ ev.detalhes.nome }}</h4>
-                  <p class="text-xs text-slate-400">Encomenda / Correspondência</p>
+                  <h4 class="font-bold text-slate-800 dark:text-white text-base truncate leading-tight">{{ ev.detalhes.nome }}</h4>
+                  <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Encomenda / Correspondência</p>
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Destinatário</span>
-                  <span class="text-sm font-medium text-white">{{ ev.detalhes.blocoApto }}</span>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Destinatário</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.blocoApto }}</span>
                 </div>
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Recebido de</span>
-                  <span class="text-sm font-medium text-white">{{ ev.detalhes.recebidoDe }}</span>
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Recebido de</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.recebidoDe }}</span>
                 </div>
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Recebido em</span>
-                  <span class="text-sm font-medium text-white">
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Recebido em</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm' }}
                   </span>
                 </div>
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Status</span>
-                  <span [class]="ev.detalhes.status === 'Entregue'
-                                  ? 'text-sm font-medium px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-400/10 text-emerald-400'
-                                  : 'text-sm font-medium px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-400'">
-                    {{ ev.detalhes.status }}
-                  </span>
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Status</span>
+                  <div>
+                    <span [class]="ev.detalhes.status === 'Entregue'
+                                    ? 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-450 border border-emerald-500/20'
+                                    : 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-450 border border-amber-500/20'">
+                      {{ ev.detalhes.status }}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Recebido Por</span>
-                  <span class="text-sm font-medium text-white">{{ ev.detalhes.recebidoPor }}</span>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Recebido Por</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.recebidoPor }}</span>
                 </div>
                 @if (ev.detalhes.status === 'Entregue') {
-                  <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                    <span class="text-xs text-slate-400 block mb-0.5">Retirado Por</span>
-                    <span class="text-sm font-medium text-white">{{ ev.detalhes.retiradoPor || 'Não informado' }}</span>
+                  <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                    <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Retirado Por</span>
+                    <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.retiradoPor || 'Não informado' }}</span>
                   </div>
                 }
               </div>
@@ -413,46 +467,48 @@
           <!-- Evento tipo: Ocorrência -->
           @if (ev.tipo === 'Ocorrência') {
             <div class="space-y-4">
-              <div class="flex items-center gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
-                <div class="w-10 h-10 rounded-xl bg-amber-400/10 flex items-center justify-center text-amber-400">
+              <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-500 shadow-sm">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                   </svg>
                 </div>
                 <div>
-                  <h4 class="font-semibold text-white text-base">{{ ev.detalhes.nome }}</h4>
-                  <p class="text-xs text-slate-400">Registro de Ocorrência</p>
+                  <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
+                  <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Registro de Ocorrência</p>
                 </div>
               </div>
 
-              <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                <span class="text-xs text-slate-400 block mb-0.5">Descrição da Ocorrência</span>
-                <span class="text-sm text-slate-200 block whitespace-pre-line">{{ ev.detalhes.descricao }}</span>
+              <div class="bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200/40 dark:border-white/5">
+                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Descrição da Ocorrência</span>
+                <span class="text-sm text-slate-700 dark:text-slate-200 block whitespace-pre-line leading-relaxed">{{ ev.detalhes.descricao }}</span>
               </div>
 
-              <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Criado em</span>
-                  <span class="text-sm font-medium text-white">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Criado em</span>
+                  <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">
                     {{ ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm' }}
                   </span>
                 </div>
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Status</span>
-                  <span [class]="ev.detalhes.status === 'Resolvido'
-                                  ? 'text-sm font-medium px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-400/10 text-emerald-400'
-                                  : 'text-sm font-medium px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-400'">
-                    {{ ev.detalhes.status }}
-                  </span>
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Status</span>
+                  <div>
+                    <span [class]="ev.detalhes.status === 'Resolvido'
+                                    ? 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-450 border border-emerald-500/20'
+                                    : 'inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-450 border border-amber-500/20'">
+                      {{ ev.detalhes.status }}
+                    </span>
+                  </div>
                 </div>
               </div>
 
               @if (ev.detalhes.resposta) {
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span class="text-xs text-slate-400 block mb-0.5">Resposta da Administração</span>
-                  <span class="text-sm text-slate-200 block whitespace-pre-line">{{ ev.detalhes.resposta }}</span>
+                <div class="bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Resposta da Administração</span>
+                  <span class="text-sm text-slate-700 dark:text-slate-200 block whitespace-pre-line leading-relaxed">{{ ev.detalhes.resposta }}</span>
                   @if (ev.detalhes.dataSaida) {
-                    <span class="text-[10px] text-slate-500 mt-1 block">Respondido em: {{ ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm' }}</span>
+                    <span class="text-[9px] text-slate-450 dark:text-slate-500 mt-2 block font-medium">Respondido em: {{ ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm' }}</span>
                   }
                 </div>
               }
@@ -462,25 +518,25 @@
         </div>
 
         <!-- Footer Actions -->
-        <div class="px-6 py-4 border-t border-white/10 flex items-center justify-end gap-3 bg-white/[0.02]">
+        <div class="px-6 py-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end gap-2 bg-slate-50/[0.3] dark:bg-white/[0.01]">
           <button (click)="fecharDetalhes()"
-                  class="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition">
+                  class="px-4 py-2 text-xs font-bold text-slate-650 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors">
             Fechar
           </button>
           
           @if (ev.tipo === 'Visitante') {
             <a routerLink="/visitantes" (click)="fecharDetalhes()"
-               class="px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent/80 rounded-xl transition">
+               class="px-4 py-2 text-xs font-bold text-white bg-accent hover:bg-accent/90 rounded-xl shadow-md shadow-accent/15 transition-all active:scale-95 flex items-center">
               Ver Visitantes
             </a>
           } @else if (ev.tipo === 'Encomenda') {
             <a routerLink="/encomendas" (click)="fecharDetalhes()"
-               class="px-4 py-2 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl transition">
+               class="px-4 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-md shadow-emerald-500/15 transition-all active:scale-95 flex items-center">
               Ver Encomendas
             </a>
           } @else if (ev.tipo === 'Ocorrência') {
             <a routerLink="/ocorrencias" (click)="fecharDetalhes()"
-               class="px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition">
+               class="px-4 py-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-md shadow-amber-500/15 transition-all active:scale-95 flex items-center">
               Ver Ocorrências
             </a>
           }
