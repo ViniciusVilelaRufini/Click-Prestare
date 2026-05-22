@@ -110,6 +110,13 @@ export const appRoutes: Route[] = [
             (m) => m.ConfiguracoesPageComponent,
           ),
       },
+      {
+        path: 'relatorios',
+        loadComponent: () =>
+          import('./relatorios/relatorios-page.component').then(
+            (m) => m.RelatoriosPageComponent,
+          ),
+      },
     ],
   },
 ];

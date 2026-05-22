@@ -59,6 +59,7 @@ export class SidebarComponent {
     { label: 'Assembleias',  path: '/assembleias',   icon: '⚖' },
     { label: 'Financeiro',   path: '/financeiro',    icon: '💲' },
     { label: 'Documentos',   path: '/documentos',    icon: '📄' },
+    { label: 'Relatórios',   path: '/relatorios',    icon: '📊' },
     { label: 'Configurações', path: '/configuracoes', icon: '⚙' },
   ];
 }
