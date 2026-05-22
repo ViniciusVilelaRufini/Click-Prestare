@@ -280,6 +280,11 @@ export class OcorrenciasMobileController {
     const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador';
     return this.service.listOcorrenciasPendentes(Number(idCond), Number(idUser), typeAccess);
   }
+
+  @Get('get')
+  get(@Query('id') id: string) {
+    return this.service.getOcorrenciaById(Number(id));
+  }
 }
 
 // ==========================================

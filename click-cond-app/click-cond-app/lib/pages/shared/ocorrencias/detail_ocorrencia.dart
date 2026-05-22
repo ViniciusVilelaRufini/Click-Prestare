@@ -57,6 +57,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       }
       if (mounted) setState(() {});
     } catch (e) {
+      print('[DetailOcorrencia] Erro no load: $e');
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);

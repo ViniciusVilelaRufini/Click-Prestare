@@ -1451,7 +1451,18 @@ export class MobileAuthService {
       criado_por: o.criadoPor?.name ?? '',
       created_at: o.created_at,
       updated_at: o.updated_at,
+      anexos: o.anexos ?? '',
     };
+  }
+
+  async getOcorrenciaById(id: number) {
+    if (!this.prisma.isConnected) return null;
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id },
+      include: { categoria: true, criadoPor: { select: { name: true } } },
+    });
+    if (!o) return null;
+    return this.mapOcorrencia(o);
   }
 
   // ==========================================
