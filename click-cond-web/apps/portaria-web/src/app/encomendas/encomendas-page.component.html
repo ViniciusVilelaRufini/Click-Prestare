@@ -47,18 +47,66 @@
     </div>
   </div>
 
-  <!-- Filtros -->
-  <div class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10 w-fit">
-    @for (s of [{key:'',label:'Todas'},{key:'Aguardando',label:'Aguardando'},{key:'Retirada',label:'Retiradas'}]; track s.key) {
-      <button (click)="filtro.set(s.key); pagina.set(1)"
-              class="px-3 py-1.5 text-xs rounded-lg transition"
-              [class.bg-emerald-500]="filtro() === s.key"
-              [class.text-white]="filtro() === s.key"
-              [class.text-slate-400]="filtro() !== s.key"
-              [class.hover:text-slate-200]="filtro() !== s.key">
-        {{ s.label }}
-      </button>
-    }
+  <!-- Filtros e Busca -->
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <!-- Status Tabs -->
+    <div class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10 shrink-0">
+      @for (s of [{key:'',label:'Todas'},{key:'Aguardando',label:'Aguardando'},{key:'Retirada',label:'Retiradas'}]; track s.key) {
+        <button (click)="filtro.set(s.key)"
+                class="px-3 py-1.5 text-xs rounded-lg transition"
+                [class.bg-emerald-500]="filtro() === s.key"
+                [class.text-white]="filtro() === s.key"
+                [class.text-slate-400]="filtro() !== s.key"
+                [class.hover:text-slate-200]="filtro() !== s.key">
+          {{ s.label }}
+        </button>
+      }
+    </div>
+
+    <!-- Search & Dropdown Filters -->
+    <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+      <!-- Search Input -->
+      <div class="relative flex-1 min-w-[240px] lg:w-72">
+        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+        </span>
+        <input [ngModel]="busca()" (ngModelChange)="busca.set($event)"
+          placeholder="Buscar por volume, apto, bloco..."
+          class="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+      </div>
+
+      <!-- Transportadora Dropdown -->
+      <div class="relative min-w-[160px]">
+        <select [ngModel]="filtroTransportadora()" (ngModelChange)="filtroTransportadora.set($event)"
+          class="w-full pl-3 pr-8 py-2 text-xs rounded-xl bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60 appearance-none">
+          <option value="">Todas transportadoras</option>
+          @for (t of transportadorasDisponiveis(); track t) {
+            <option [value]="t">{{ t }}</option>
+          }
+        </select>
+        <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </span>
+      </div>
+
+      <!-- Bloco Dropdown -->
+      @if (blocosDisponiveis().length > 0) {
+        <div class="relative min-w-[120px]">
+          <select [ngModel]="filtroBloco()" (ngModelChange)="filtroBloco.set($event)"
+            class="w-full pl-3 pr-8 py-2 text-xs rounded-xl bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60 appearance-none">
+            <option value="">Todos os blocos</option>
+            @for (b of blocosDisponiveis(); track b) {
+              <option [value]="b">Bloco {{ b }}</option>
+            }
+          </select>
+          <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </span>
+        </div>
+      }
+    </div>
   </div>
 
   <!-- Form -->

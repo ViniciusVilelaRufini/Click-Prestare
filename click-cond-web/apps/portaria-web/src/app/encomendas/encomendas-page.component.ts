@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -18,11 +18,27 @@ export class EncomendasPageComponent implements OnInit {
   private aptosApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
 
+  constructor() {
+    effect(() => {
+      this.filtro();
+      this.busca();
+      this.filtroTransportadora();
+      this.filtroBloco();
+      untracked(() => {
+        this.pagina.set(1);
+      });
+    });
+  }
+
   readonly encomendas = signal<Encomenda[]>([]);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly filtro = signal<string>('');
+
+  readonly busca = signal<string>('');
+  readonly filtroTransportadora = signal<string>('');
+  readonly filtroBloco = signal<string>('');
 
   readonly pagina = signal(1);
   readonly itensPorPagina = 20;
@@ -79,11 +95,59 @@ export class EncomendasPageComponent implements OnInit {
     return list;
   });
 
-  readonly encomendasFiltradas = computed(() => {
+  readonly transportadorasDisponiveis = computed(() => {
     const list = this.encomendas();
+    const set = new Set<string>();
+    list.forEach(e => {
+      if (e.recebido_de?.trim()) set.add(e.recebido_de.trim());
+    });
+    return Array.from(set).sort();
+  });
+
+  readonly blocosDisponiveis = computed(() => {
+    const list = this.encomendas();
+    const set = new Set<string>();
+    list.forEach(e => {
+      if (e.destinatario_bloco?.trim()) set.add(e.destinatario_bloco.trim());
+    });
+    return Array.from(set).sort();
+  });
+
+  readonly encomendasFiltradas = computed(() => {
+    let list = this.encomendas();
+    
+    // 1. Status
     const f = this.filtro();
-    if (!f) return list;
-    return list.filter(e => e.status === f);
+    if (f) {
+      list = list.filter(e => e.status === f);
+    }
+
+    // 2. Busca
+    const text = this.busca().toLowerCase().trim();
+    if (text) {
+      list = list.filter(e => 
+        e.descricao?.toLowerCase().includes(text) ||
+        (e.recebido_de && e.recebido_de.toLowerCase().includes(text)) ||
+        e.destinatario_apto?.toLowerCase().includes(text) ||
+        (e.destinatario_bloco && e.destinatario_bloco.toLowerCase().includes(text)) ||
+        (e.retirado_por && e.retirado_por.toLowerCase().includes(text)) ||
+        `#${e.id}`.includes(text)
+      );
+    }
+
+    // 3. Transportadora
+    const fTransp = this.filtroTransportadora();
+    if (fTransp) {
+      list = list.filter(e => e.recebido_de?.trim() === fTransp);
+    }
+
+    // 4. Bloco
+    const fBloco = this.filtroBloco();
+    if (fBloco) {
+      list = list.filter(e => e.destinatario_bloco?.trim() === fBloco);
+    }
+
+    return list;
   });
 
   readonly aguardando = computed(() => this.encomendas().filter((e) => e.status === 'Aguardando').length);
