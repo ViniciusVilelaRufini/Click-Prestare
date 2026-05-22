@@ -327,7 +327,7 @@ export class VisitantesService {
   }
 
   async findAllMobile(idCondominio: number, idApto?: number, search?: string, offset = 0) {
-    return this.prisma.visitantes.findMany({
+    const list = await this.prisma.visitantes.findMany({
       where: {
         id_condominio: Number(idCondominio),
         ...(idApto ? { id_apartamento: Number(idApto) } : {}),
@@ -347,5 +347,36 @@ export class VisitantesService {
       take: 30,
       skip: offset,
     });
+
+    // Auto-gerar PIN para visitantes sem código e que ainda não saíram
+    const updated: typeof list = [];
+    for (const v of list) {
+      if (!v.codigo_acesso && !v.data_saida) {
+        const pin = await this.gerarPinUnico();
+        const novo = await this.prisma.visitantes.update({
+          where: { id: v.id },
+          data: { codigo_acesso: pin },
+          include: { apartamento: { select: { bloco: true, apto: true } } },
+        });
+        updated.push(novo as any);
+      } else {
+        updated.push(v);
+      }
+    }
+
+    return updated;
   }
-}
+
+  private async gerarPinUnico(): Promise<string> {
+    let pin = '';
+    let isUnique = false;
+    while (!isUnique) {
+      pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const check = await this.prisma.visitantes.findFirst({
+        where: { codigo_acesso: pin, data_saida: null },
+      });
+      if (!check) isUnique = true;
+    }
+    return pin;
+  }
+}

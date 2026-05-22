@@ -12,6 +12,7 @@ import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class ListVisitantes extends StatefulWidget {
   final bool allCondos;
@@ -213,69 +214,151 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                   value: _formatDateTimeString(item['data_saida']),
                 ),
 
-              if (item['codigo_acesso'] != null && item['data_saida'] == null) ...[
+              if (item['data_saida'] == null) ...[
                 const SizedBox(height: AppSpacing.lg),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                       colors: [
                         AppColors.primary.withOpacity(0.15),
                         AppColors.primary.withOpacity(0.05),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      const Icon(PhosphorIcons.key, color: AppColors.primary, size: 24),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+                        child: Row(
                           children: [
+                            const Icon(PhosphorIcons.shieldCheck, color: AppColors.primary, size: 18),
+                            const SizedBox(width: 8),
                             Text(
-                              'Código PIN (Acesso)',
+                              'Código de Acesso para Portaria',
                               style: AppTypography.tiny(context).copyWith(
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              item['codigo_acesso'].toString().length == 6
-                                  ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}"
-                                  : item['codigo_acesso'].toString(),
-                              style: AppTypography.title(context).copyWith(
-                                color: AppColors.primary,
-                                letterSpacing: 2,
-                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(PhosphorIcons.copy, color: AppColors.primary),
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: item['codigo_acesso'].toString())).then((_) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Código PIN copiado para a área de transferência!'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            }
-                          });
-                        },
-                      ),
+                      if (item['codigo_acesso'] != null) ...[
+                        // QR Code
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: QrImageView(
+                            data: item['codigo_acesso'].toString(),
+                            version: QrVersions.auto,
+                            size: 180,
+                            backgroundColor: Colors.white,
+                            eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.square,
+                              color: Color(0xFF0A1628),
+                            ),
+                            dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.square,
+                              color: Color(0xFF0A1628),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        // PIN numérico
+                        Text(
+                          'PIN',
+                          style: AppTypography.tiny(context).copyWith(
+                            color: AppColors.textTertiary(context),
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item['codigo_acesso'].toString().length == 6
+                              ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}"
+                              : item['codigo_acesso'].toString(),
+                          style: AppTypography.title(context).copyWith(
+                            color: AppColors.primary,
+                            letterSpacing: 6,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 32,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        // Botão copiar
+                        SizedBox(
+                          width: double.infinity,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                            child: OutlinedButton.icon(
+                              icon: const Icon(PhosphorIcons.copy, size: 16),
+                              label: const Text('Copiar código'),
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: item['codigo_acesso'].toString())).then((_) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text('Código PIN copiado!'),
+                                        backgroundColor: AppColors.primary.withOpacity(0.9),
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                });
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          'Apresente o QR Code ou informe o PIN ao porteiro.',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.tiny(context).copyWith(
+                            color: AppColors.textTertiary(context),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                      ] else ...[
+                        Padding(
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          child: Column(
+                            children: [
+                              const Icon(PhosphorIcons.spinnerGap, color: AppColors.primary, size: 32),
+                              const SizedBox(height: AppSpacing.sm),
+                              Text(
+                                'Gerando código de acesso...',
+                                style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Reabra este visitante em alguns instantes.',
+                                style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ],
+
               
               const SizedBox(height: AppSpacing.xl),
               Row(
