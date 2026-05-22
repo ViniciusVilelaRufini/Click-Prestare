@@ -12,7 +12,26 @@ export interface DashboardSummary {
   comunicadosRecentes: number;
   totalApartamentos: number;
   totalMoradores: number;
-  ultimosEventos: { tipo: string; descricao: string; quando: string }[];
+  ultimosEventos: {
+    tipo: string;
+    descricao: string;
+    quando: string;
+    detalhes: {
+      id: number;
+      nome?: string;
+      documento?: string;
+      blocoApto?: string;
+      dataEntrada?: string;
+      dataSaida?: string;
+      autorizadoPor?: string;
+      status?: string;
+      recebidoDe?: string;
+      retiradoPor?: string;
+      recebidoPor?: string;
+      descricao?: string;
+      resposta?: string;
+    };
+  }[];
 }
 
 @Injectable({ providedIn: 'root' })

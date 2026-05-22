@@ -9,7 +9,26 @@ export interface DashboardSummary {
   comunicadosRecentes: number;
   totalApartamentos: number;
   totalMoradores: number;
-  ultimosEventos: { tipo: string; descricao: string; quando: string }[];
+  ultimosEventos: {
+    tipo: string;
+    descricao: string;
+    quando: string;
+    detalhes: {
+      id: number;
+      nome?: string;
+      documento?: string;
+      blocoApto?: string;
+      dataEntrada?: string;
+      dataSaida?: string;
+      autorizadoPor?: string;
+      status?: string;
+      recebidoDe?: string;
+      retiradoPor?: string;
+      recebidoPor?: string;
+      descricao?: string;
+      resposta?: string;
+    };
+  }[];
 }
 
 @Injectable()
@@ -28,9 +47,9 @@ export class DashboardService {
       comunicadosRecentes,
       totalApartamentos,
       totalMoradores,
-      ultVisitante,
-      ultEncomenda,
-      ultOcorrencia,
+      ultVisitantes,
+      ultEncomendas,
+      ultOcorrencias,
     ] = await Promise.all([
       // Visitantes ainda no condomínio (sem data_hora_termino, ou termino > now)
       this.prisma.visitantes.count({
@@ -53,49 +72,99 @@ export class DashboardService {
       }),
       this.prisma.apartamentos.count({ where: { id_condominio: idCondominio } }),
       this.prisma.moradores.count({ where: { id_condominio: idCondominio } }),
-      this.prisma.visitantes.findFirst({
+      this.prisma.visitantes.findMany({
         where: { id_condominio: idCondominio },
         orderBy: { created_at: 'desc' },
-        include: { apartamento: { select: { bloco: true, apto: true } } },
+        take: 5,
+        include: {
+          apartamento: { select: { bloco: true, apto: true } },
+          criadoPor: { select: { name: true } },
+        },
       }),
-      this.prisma.encomendas.findFirst({
+      this.prisma.encomendas.findMany({
         where: { id_condominio: idCondominio },
         orderBy: { recebido_em: 'desc' },
+        take: 5,
+        include: {
+          recebidoPor: { select: { name: true } },
+          entreguePor: { select: { name: true } },
+        },
       }),
-      this.prisma.ocorrencias.findFirst({
+      this.prisma.ocorrencias.findMany({
         where: { id_condominio: idCondominio },
         orderBy: { created_at: 'desc' },
+        take: 5,
+        include: {
+          criadoPor: { select: { name: true } },
+          categoria: { select: { nome: true } },
+        },
       }),
     ]);
 
     const ultimosEventos: DashboardSummary['ultimosEventos'] = [];
-    if (ultVisitante) {
-      const aptoStr = ultVisitante.apartamento
-        ? `Apto ${ultVisitante.apartamento.apto}${ultVisitante.apartamento.bloco ?? ''}`
+    for (const v of ultVisitantes) {
+      const aptoStr = v.apartamento
+        ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
         : '';
       ultimosEventos.push({
         tipo: 'Visitante',
-        descricao: `${ultVisitante.nome} entrou — ${aptoStr}`.trim(),
-        quando: ultVisitante.created_at.toISOString(),
+        descricao: `${v.nome} entrou — ${aptoStr}`.trim(),
+        quando: v.created_at.toISOString(),
+        detalhes: {
+          id: v.id,
+          nome: v.nome,
+          documento: v.doc_identificacao || 'Não informado',
+          blocoApto: aptoStr || 'Não informado',
+          dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
+          dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
+          status: v.data_saida ? 'Saída registrada' : (v.data_entrada ? 'No local' : 'Autorizado'),
+          autorizadoPor: v.criadoPor?.name || 'Morador',
+        },
       });
     }
-    if (ultEncomenda) {
+
+    for (const e of ultEncomendas) {
+      const aptoStr = `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`;
       ultimosEventos.push({
         tipo: 'Encomenda',
-        descricao: `${ultEncomenda.descricao} — Apto ${ultEncomenda.destinatario_apto}${ultEncomenda.destinatario_bloco ?? ''}`,
-        quando: ultEncomenda.recebido_em.toISOString(),
+        descricao: `${e.descricao} — ${aptoStr}`,
+        quando: e.recebido_em.toISOString(),
+        detalhes: {
+          id: e.id,
+          nome: e.descricao,
+          blocoApto: aptoStr,
+          recebidoDe: e.recebido_de || 'Não informado',
+          status: e.status,
+          dataEntrada: e.recebido_em.toISOString(),
+          dataSaida: e.retirado_em ? e.retirado_em.toISOString() : undefined,
+          retiradoPor: e.retirado_por || undefined,
+          recebidoPor: e.recebidoPor?.name || 'Sistema',
+          autorizadoPor: e.entreguePor?.name || undefined,
+        },
       });
     }
-    if (ultOcorrencia) {
+
+    for (const o of ultOcorrencias) {
       ultimosEventos.push({
         tipo: 'Ocorrência',
-        descricao: ultOcorrencia.descricao ?? '—',
-        quando: ultOcorrencia.created_at.toISOString(),
+        descricao: o.descricao ?? '—',
+        quando: o.created_at.toISOString(),
+        detalhes: {
+          id: o.id,
+          nome: o.categoria?.nome || 'Geral',
+          descricao: o.descricao || 'Sem descrição',
+          status: o.status,
+          dataEntrada: o.created_at.toISOString(),
+          autorizadoPor: o.criadoPor?.name || 'Morador',
+          resposta: o.resposta || undefined,
+          dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
+        },
       });
     }
-    ultimosEventos.sort(
-      (a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime(),
-    );
+
+    const sortedEvents = ultimosEventos
+      .sort((a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime())
+      .slice(0, 10);
 
     return {
       visitantesAtivos,
@@ -105,7 +174,7 @@ export class DashboardService {
       comunicadosRecentes,
       totalApartamentos,
       totalMoradores,
-      ultimosEventos,
+      ultimosEventos: sortedEvents,
     };
   }
 }

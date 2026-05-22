@@ -17,6 +17,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly data = signal<DashboardSummary | null>(null);
   readonly loading = signal(true);
   readonly agora = signal(new Date());
+  readonly eventoSelecionado = signal<any | null>(null);
 
   private clockInterval?: ReturnType<typeof setInterval>;
   private refreshInterval?: ReturnType<typeof setInterval>;
@@ -43,5 +44,13 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return tipo === 'Visitante' ? 'text-accent bg-accent/10 border-accent/20'
       : tipo === 'Encomenda'   ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
       : 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+  }
+
+  abrirDetalhes(evento: any) {
+    this.eventoSelecionado.set(evento);
+  }
+
+  fecharDetalhes() {
+    this.eventoSelecionado.set(null);
   }
 }

@@ -164,9 +164,10 @@
               <p class="text-xs text-slate-600 mt-1">Movimentações aparecerão aqui</p>
             </div>
           } @else {
-            <ul class="space-y-3">
+            <ul class="space-y-1.5">
               @for (e of d.ultimosEventos; track $index) {
-                <li class="flex items-center gap-3">
+                <li (click)="abrirDetalhes(e)"
+                    class="flex items-center gap-3 cursor-pointer hover:bg-white/5 active:bg-white/10 transition p-2.5 rounded-xl border border-transparent hover:border-white/5">
                   <span class="text-[11px] font-medium px-2 py-1 rounded-md border {{ tipoColor(e.tipo) }}">
                     {{ e.tipo }}
                   </span>
@@ -285,4 +286,207 @@
 
   }
 
+  <!-- Modal de Detalhes do Evento -->
+  @if (eventoSelecionado(); as ev) {
+    <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+         (click)="fecharDetalhes()">
+      
+      <div class="relative w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+           (click)="$event.stopPropagation()">
+        
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold px-2 py-1 rounded-md border {{ tipoColor(ev.tipo) }}">
+              {{ ev.tipo }}
+            </span>
+            <h3 class="text-base font-semibold text-white">Detalhes do Evento</h3>
+          </div>
+          <button (click)="fecharDetalhes()" class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Conteúdo -->
+        <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+          
+          <!-- Evento tipo: Visitante -->
+          @if (ev.tipo === 'Visitante') {
+            <div class="space-y-4">
+              <div class="flex items-center gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent font-bold text-lg">
+                  {{ (ev.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
+                </div>
+                <div>
+                  <h4 class="font-semibold text-white text-base">{{ ev.detalhes.nome }}</h4>
+                  <p class="text-xs text-slate-400">Visitante Cadastrado</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Apartamento</span>
+                  <span class="text-sm font-medium text-white">{{ ev.detalhes.blocoApto }}</span>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Documento</span>
+                  <span class="text-sm font-medium text-white">{{ ev.detalhes.documento }}</span>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Data/Hora Entrada</span>
+                  <span class="text-sm font-medium text-white">
+                    {{ ev.detalhes.dataEntrada ? (ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm') : 'Pendente' }}
+                  </span>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Data/Hora Saída</span>
+                  <span class="text-sm font-medium text-white">
+                    {{ ev.detalhes.dataSaida ? (ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm') : 'No local' }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                <span class="text-xs text-slate-400 block mb-0.5">Autorizado Por</span>
+                <span class="text-sm font-medium text-white">{{ ev.detalhes.autorizadoPor }}</span>
+              </div>
+            </div>
+          }
+
+          <!-- Evento tipo: Encomenda -->
+          @if (ev.tipo === 'Encomenda') {
+            <div class="space-y-4">
+              <div class="flex items-center gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
+                <div class="w-10 h-10 rounded-xl bg-emerald-400/10 flex items-center justify-center text-emerald-400">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h4 class="font-semibold text-white text-base truncate">{{ ev.detalhes.nome }}</h4>
+                  <p class="text-xs text-slate-400">Encomenda / Correspondência</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Destinatário</span>
+                  <span class="text-sm font-medium text-white">{{ ev.detalhes.blocoApto }}</span>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Recebido de</span>
+                  <span class="text-sm font-medium text-white">{{ ev.detalhes.recebidoDe }}</span>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Recebido em</span>
+                  <span class="text-sm font-medium text-white">
+                    {{ ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm' }}
+                  </span>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Status</span>
+                  <span [class]="ev.detalhes.status === 'Entregue'
+                                  ? 'text-sm font-medium px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-400/10 text-emerald-400'
+                                  : 'text-sm font-medium px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-400'">
+                    {{ ev.detalhes.status }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Recebido Por</span>
+                  <span class="text-sm font-medium text-white">{{ ev.detalhes.recebidoPor }}</span>
+                </div>
+                @if (ev.detalhes.status === 'Entregue') {
+                  <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                    <span class="text-xs text-slate-400 block mb-0.5">Retirado Por</span>
+                    <span class="text-sm font-medium text-white">{{ ev.detalhes.retiradoPor || 'Não informado' }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
+          <!-- Evento tipo: Ocorrência -->
+          @if (ev.tipo === 'Ocorrência') {
+            <div class="space-y-4">
+              <div class="flex items-center gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
+                <div class="w-10 h-10 rounded-xl bg-amber-400/10 flex items-center justify-center text-amber-400">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-white text-base">{{ ev.detalhes.nome }}</h4>
+                  <p class="text-xs text-slate-400">Registro de Ocorrência</p>
+                </div>
+              </div>
+
+              <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                <span class="text-xs text-slate-400 block mb-0.5">Descrição da Ocorrência</span>
+                <span class="text-sm text-slate-200 block whitespace-pre-line">{{ ev.detalhes.descricao }}</span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Criado em</span>
+                  <span class="text-sm font-medium text-white">
+                    {{ ev.detalhes.dataEntrada | date:'dd/MM/yyyy HH:mm' }}
+                  </span>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Status</span>
+                  <span [class]="ev.detalhes.status === 'Resolvido'
+                                  ? 'text-sm font-medium px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-400/10 text-emerald-400'
+                                  : 'text-sm font-medium px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400/10 text-amber-400'">
+                    {{ ev.detalhes.status }}
+                  </span>
+                </div>
+              </div>
+
+              @if (ev.detalhes.resposta) {
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                  <span class="text-xs text-slate-400 block mb-0.5">Resposta da Administração</span>
+                  <span class="text-sm text-slate-200 block whitespace-pre-line">{{ ev.detalhes.resposta }}</span>
+                  @if (ev.detalhes.dataSaida) {
+                    <span class="text-[10px] text-slate-500 mt-1 block">Respondido em: {{ ev.detalhes.dataSaida | date:'dd/MM/yyyy HH:mm' }}</span>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="px-6 py-4 border-t border-white/10 flex items-center justify-end gap-3 bg-white/[0.02]">
+          <button (click)="fecharDetalhes()"
+                  class="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition">
+            Fechar
+          </button>
+          
+          @if (ev.tipo === 'Visitante') {
+            <a routerLink="/visitantes" (click)="fecharDetalhes()"
+               class="px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent/80 rounded-xl transition">
+              Ver Visitantes
+            </a>
+          } @else if (ev.tipo === 'Encomenda') {
+            <a routerLink="/encomendas" (click)="fecharDetalhes()"
+               class="px-4 py-2 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl transition">
+              Ver Encomendas
+            </a>
+          } @else if (ev.tipo === 'Ocorrência') {
+            <a routerLink="/ocorrencias" (click)="fecharDetalhes()"
+               class="px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition">
+              Ver Ocorrências
+            </a>
+          }
+        </div>
+
+      </div>
+    </div>
+  }
 </div>
