@@ -18,6 +18,39 @@ class ListOcorrenciasPendentes extends StatefulWidget {
 class _ListOcorrenciasPendentesPageState extends State<ListOcorrenciasPendentes> {
   List<dynamic> list = [];
   bool _isLoading = false;
+  DateTime? _selectedMonth;
+
+  // Helper para gerar os últimos 12 meses em português
+  List<Map<String, dynamic>> _getMonths() {
+    final monthsPt = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    List<Map<String, dynamic>> res = [];
+    final now = DateTime.now();
+    for (int i = 0; i < 12; i++) {
+      final date = DateTime(now.year, now.month - i, 1);
+      res.add({
+        'month': date.month,
+        'year': date.year,
+        'label': "${monthsPt[date.month - 1]} / ${date.year}",
+      });
+    }
+    return res;
+  }
+
+  List<dynamic> _getFilteredList() {
+    if (_selectedMonth == null) return list;
+    return list.where((item) {
+      if (item['created_at'] == null) return false;
+      try {
+        final date = DateTime.parse(item['created_at'].toString());
+        return date.month == _selectedMonth!.month && date.year == _selectedMonth!.year;
+      } catch (_) {
+        return false;
+      }
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -46,28 +79,119 @@ class _ListOcorrenciasPendentesPageState extends State<ListOcorrenciasPendentes>
         itemBuilder: (_, __) => AppSkeleton.listTile(context),
       );
     }
-    if (list.isEmpty) {
-      return Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(PhosphorIcons.checkCircle, size: 48, color: const Color(0xFF22C55E)),
-          const SizedBox(height: AppSpacing.md),
-          Text(getText('alert_list_empty_generic'), style: AppTypography.caption(context)),
-        ]),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: loadList,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        itemCount: list.length,
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-        itemBuilder: (_, i) => _OcorrenciaCard(
-          item: list[i],
-          onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => DetailOcorrencia(id: list[i]['id'])))
-              .then((_) => loadList()),
+
+    final filteredList = _getFilteredList();
+    final months = _getMonths();
+
+    return Column(
+      children: [
+        // Seletor de Meses Premium
+        Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.textTertiary(context).withOpacity(0.08),
+                width: 1,
+              ),
+            ),
+          ),
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            children: [
+              // Chip "Todos"
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: ChoiceChip(
+                  label: const Text('Todos os Meses'),
+                  selected: _selectedMonth == null,
+                  onSelected: (val) {
+                    setState(() => _selectedMonth = null);
+                  },
+                  selectedColor: AppColors.primary,
+                  backgroundColor: AppColors.surface(context),
+                  labelStyle: AppTypography.captionMedium(context).copyWith(
+                    color: _selectedMonth == null ? Colors.white : AppColors.textSecondary(context),
+                    fontWeight: FontWeight.w600,
+                  ),
+                  side: BorderSide(
+                    color: _selectedMonth == null 
+                        ? AppColors.primary 
+                        : AppColors.textTertiary(context).withOpacity(0.15),
+                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              ...months.map((m) {
+                final isSelected = _selectedMonth != null && 
+                                   _selectedMonth!.month == m['month'] && 
+                                   _selectedMonth!.year == m['year'];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ChoiceChip(
+                    label: Text(m['label']),
+                    selected: isSelected,
+                    onSelected: (val) {
+                      setState(() {
+                        _selectedMonth = val ? DateTime(m['year'], m['month']) : null;
+                      });
+                    },
+                    selectedColor: AppColors.primary,
+                    backgroundColor: AppColors.surface(context),
+                    labelStyle: AppTypography.captionMedium(context).copyWith(
+                      color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    side: BorderSide(
+                      color: isSelected 
+                          ? AppColors.primary 
+                          : AppColors.textTertiary(context).withOpacity(0.15),
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }),
+            ],
+          ),
         ),
-      ),
+        
+        // Lista
+        Expanded(
+          child: filteredList.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(PhosphorIcons.checkCircle, size: 48, color: const Color(0xFF22C55E)),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        _selectedMonth == null 
+                            ? getText('alert_list_empty_generic')
+                            : 'Nenhuma ocorrência pendente neste mês.',
+                        style: AppTypography.caption(context),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: loadList,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    itemCount: filteredList.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                    itemBuilder: (_, i) => _OcorrenciaCard(
+                      item: filteredList[i],
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => DetailOcorrencia(id: filteredList[i]['id'])),
+                      ).then((_) => loadList()),
+                    ),
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }
