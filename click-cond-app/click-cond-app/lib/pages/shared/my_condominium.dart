@@ -12,6 +12,7 @@ import 'package:click/pages/shared/morador/list_moradores.dart';
 import 'package:click/pages/shared/morador/list_moradores_geral.dart';
 import 'package:click/pages/shared/mudancas/list_mudancas.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
+import 'package:click/pages/sindico/relatorios_page.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
@@ -68,6 +69,7 @@ class _MyCondominiumState extends State<MyCondominium> {
     ];
     if (getUserType() == 'sindico') {
       all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral()));
+      all.add(_MenuItem('Relatórios', PhosphorIcons.filePdf, const RelatoriosPage()));
     }
     if (getUserType() == 'funcionario') {
       final list = all.where((i) =>
