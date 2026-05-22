@@ -664,6 +664,7 @@ export class FinanceiroService implements OnModuleInit {
     // Busca os vínculos de apartamento do morador
     const moradoresList = await this.prisma.moradores.findMany({
       where: { id_user: Number(idUser) },
+      include: { apartamento: true }
     });
 
     const list = await this.prisma.financeiro.findMany({
@@ -684,8 +685,9 @@ export class FinanceiroService implements OnModuleInit {
       if (item.id_usuario === idUser) return true;
       if (item.tipo === 'C') {
         return moradoresList.some(m => 
-          item.nome?.includes(`Apto ${m.apartamento}`) && 
-          item.nome?.includes(`Bloco ${m.bloco}`)
+          m.apartamento &&
+          item.nome?.includes(`Apto ${m.apartamento.apto}`) && 
+          item.nome?.includes(`Bloco ${m.apartamento.bloco}`)
         );
       }
       return false;
