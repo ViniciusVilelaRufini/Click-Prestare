@@ -51,6 +51,14 @@ export class SindicoMobileController {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.updateSindico(Number(idUser), body);
   }
+
+  @Post('new-password')
+  @HttpCode(200)
+  newPassword(@ReqUser() payload: JwtPayload, @Body() body: { senha?: string; password?: string }) {
+    const idUser = payload.user?.id ?? payload.sub;
+    const pwd = body.password ?? body.senha ?? '';
+    return this.service.updatePassword(Number(idUser), pwd, 'Sindico');
+  }
 }
 
 // ==========================================
@@ -109,6 +117,14 @@ export class MoradoresMobileController {
   removeMorador(@Body() body: { id: number }) {
     return this.service.removeMorador(Number(body.id));
   }
+
+  @Post('new-password')
+  @HttpCode(200)
+  newPassword(@ReqUser() payload: JwtPayload, @Body() body: { senha?: string; password?: string }) {
+    const idUser = payload.user?.id ?? payload.sub;
+    const pwd = body.password ?? body.senha ?? '';
+    return this.service.updatePassword(Number(idUser), pwd, 'Morador');
+  }
 }
 
 // ==========================================
@@ -165,6 +181,14 @@ export class FuncionariosMobileController {
   @HttpCode(200)
   removeFuncionario(@Body() body: { id: number }) {
     return this.service.removeFuncionario(Number(body.id));
+  }
+
+  @Post('new-password')
+  @HttpCode(200)
+  newPassword(@ReqUser() payload: JwtPayload, @Body() body: { senha?: string; password?: string }) {
+    const idUser = payload.user?.id ?? payload.sub;
+    const pwd = body.password ?? body.senha ?? '';
+    return this.service.updatePassword(Number(idUser), pwd, 'Funcionario');
   }
 }
 

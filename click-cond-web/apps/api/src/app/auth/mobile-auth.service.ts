@@ -1536,4 +1536,67 @@ export class MobileAuthService {
     } catch (e) {}
     return [];
   }
+
+  async updatePassword(idUser: number, newPasswordPlana: string, typeAccess: string) {
+    if (!this.prisma.isConnected) {
+      throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
+    }
+    const hash = await bcrypt.hash(newPasswordPlana, 10);
+    const user = await this.prisma.users.update({
+      where: { id: idUser },
+      data: { password: hash },
+      include: {
+        sindicos: true,
+        moradores: true,
+        funcionarios: true,
+      },
+    });
+
+    if (typeAccess.toLowerCase() === 'sindico') {
+      const sindico = user.sindicos[0];
+      const payload: JwtPayload = { sub: user.id, nome: sindico?.nome || '', typeAccess: 'Sindico' };
+      return {
+        access_token: this.jwt.sign(payload),
+        id: user.id,
+        nome: sindico?.nome || '',
+        user: {
+          id: user.id,
+          login: user.login,
+          photo: user.photo,
+          id_condominio: sindico?.id_condominio ?? 1,
+          sindico,
+        },
+      };
+    } else if (typeAccess.toLowerCase() === 'morador') {
+      const morador = user.moradores[0];
+      const payload: JwtPayload = { sub: user.id, nome: morador?.nome || '', typeAccess: 'Morador' };
+      return {
+        access_token: this.jwt.sign(payload),
+        id: user.id,
+        nome: morador?.nome || '',
+        user: {
+          id: user.id,
+          login: user.login,
+          photo: user.photo,
+          id_condominio: morador?.id_condominio ?? 1,
+          morador,
+        },
+      };
+    } else {
+      const func = user.funcionarios[0];
+      const payload: JwtPayload = { sub: user.id, nome: func?.nome || '', typeAccess: 'Funcionario' };
+      return {
+        access_token: this.jwt.sign(payload),
+        id: user.id,
+        nome: func?.nome || '',
+        user: {
+          id: user.id,
+          login: user.login,
+          photo: user.photo,
+          id_condominio: func?.id_condominio ?? 1,
+          funcionario: func,
+        },
+      };
+    }
+  }
 }

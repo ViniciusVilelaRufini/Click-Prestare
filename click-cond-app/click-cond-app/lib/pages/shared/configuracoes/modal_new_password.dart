@@ -47,9 +47,9 @@ class _ModalNewPasswordState extends State<ModalNewPassword> {
       if (txtNewPassword.text.length < 6) {
         throw getText('senha_minimo_caracteres');
       }
-      if (getUserType() == 'sindico') updatePasswordSindicoApi(txtNewPassword.text);
-      if (getUserType() == 'morador') updatePasswordMoradorApi(txtNewPassword.text);
-      if (getUserType() == 'funcionario') updatePasswordFuncionarioApi(txtNewPassword.text);
+      if (getUserType() == 'sindico') await updatePasswordSindicoApi(txtNewPassword.text);
+      if (getUserType() == 'morador') await updatePasswordMoradorApi(txtNewPassword.text);
+      if (getUserType() == 'funcionario') await updatePasswordFuncionarioApi(txtNewPassword.text);
       await displayMessage(context, getText('alert_success'), getText('config_alt_senha_sucesso'));
       if (mounted) Navigator.pop(context);
     } catch (e) {
