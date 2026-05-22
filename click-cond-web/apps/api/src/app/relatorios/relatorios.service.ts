@@ -351,7 +351,7 @@ export class RelatoriosService {
         { text: params.headerText, style: 'header' },
         { text: `Período: ${params.periodo}`, style: 'subheader' },
         { text: `Gerado em: ${getGeradoEmStr()}`, style: 'meta' },
-        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1.5, color: '#E2E8F0' }] },
+        { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1.5, lineColor: '#E2E8F0' }] },
         { text: '', margin: [0, 15] },
 
         // Cards de métricas

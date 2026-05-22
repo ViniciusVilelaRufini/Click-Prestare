@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
 import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { JwtPayload } from './jwt-payload.interface';
 
 @Injectable()
 export class MobileAuthService {
@@ -1549,21 +1550,22 @@ export class MobileAuthService {
         sindicos: true,
         moradores: true,
         funcionarios: true,
+        sindicosCondominios: true,
       },
     });
 
     if (typeAccess.toLowerCase() === 'sindico') {
       const sindico = user.sindicos[0];
-      const payload: JwtPayload = { sub: user.id, nome: sindico?.nome || '', typeAccess: 'Sindico' };
+      const payload: JwtPayload = { sub: user.id, nome: sindico?.name || '', typeAccess: 'Sindico' };
       return {
         access_token: this.jwt.sign(payload),
         id: user.id,
-        nome: sindico?.nome || '',
+        nome: sindico?.name || '',
         user: {
           id: user.id,
           login: user.login,
           photo: user.photo,
-          id_condominio: sindico?.id_condominio ?? 1,
+          id_condominio: user.sindicosCondominios[0]?.id_condominio ?? 1,
           sindico,
         },
       };
