@@ -474,9 +474,12 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
   Widget build(BuildContext context) {
     final canAdd = (getUserType() != 'funcionario') || getUserPermission('cadastrar_visitante') == 1;
 
+    // Filtrar apenas visitantes (onde is_prestador não é 1)
+    final visitorsOnlyList = list.where((e) => e['is_prestador'] != 1).toList();
+
     // Filtrar quem está no condomínio atualmente OU possui liberação ativa para hoje
     final now = DateTime.now();
-    final listInside = list.where((e) {
+    final listInside = visitorsOnlyList.where((e) {
       // 1. Está no local fisicamente
       final isInside = e['data_entrada'] != null && e['data_saida'] == null;
       if (isInside) return true;
@@ -496,7 +499,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
 
     // Filtrar visitantes cadastrados únicos para histórico e liberação rápida
     final Map<String, Map<String, dynamic>> uniqueVisitors = {};
-    for (var item in list) {
+    for (var item in visitorsOnlyList) {
       final String key = (item['doc_identificacao'] != null && item['doc_identificacao'].toString().trim().isNotEmpty)
           ? item['doc_identificacao'].toString().trim()
           : item['nome'].toString().trim();

@@ -19,10 +19,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../singleton.dart';
 
 class NewVisitante extends StatefulWidget {
-  const NewVisitante({Key? key, required this.isEdit, this.myId, this.reUseData}) : super(key: key);
   final bool isEdit;
   final int? myId;
   final Map<String, dynamic>? reUseData;
+  final String? defaultType;
+
+  const NewVisitante({Key? key, required this.isEdit, this.myId, this.reUseData, this.defaultType}) : super(key: key);
 
   @override
   _NewVisitantePageState createState() => _NewVisitantePageState();
@@ -57,7 +59,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
     if (widget.isEdit) {
       load();
     } else {
-      currentTipo = 'visitante';
+      currentTipo = widget.defaultType ?? 'visitante';
       if (widget.reUseData != null) {
         txtNome.text = widget.reUseData!["nome"] ?? "";
         txtDocumento.text = widget.reUseData!["doc_identificacao"]?.toString() ?? "";
