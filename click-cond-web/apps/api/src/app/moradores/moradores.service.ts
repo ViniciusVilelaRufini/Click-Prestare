@@ -47,7 +47,7 @@ export class MoradoresService {
    * e juntamos foto via Users. Quando o app legado popular Apartamentos_Users
    * podemos cruzar pelo apartamento.
    */
-  async findAll(idCondominio: number, search?: string) {
+  async findAll(idCondominio: number, search?: string, idApto?: number) {
     if (!this.prisma.isConnected) {
       return MoradoresService.mockMoradores.filter(m => 
         !search || m.nome.toLowerCase().includes(search.toLowerCase()) || (m.documento || '').includes(search)
@@ -56,6 +56,17 @@ export class MoradoresService {
     const list = await this.prisma.moradores.findMany({
       where: {
         id_condominio: idCondominio,
+        ...(idApto
+          ? {
+              user: {
+                apartamentosUsers: {
+                  some: {
+                    id_apto: idApto,
+                  },
+                },
+              },
+            }
+          : {}),
         ...(search
           ? {
               OR: [
@@ -67,24 +78,38 @@ export class MoradoresService {
             }
           : {}),
       },
-      include: { user: { select: { photo: true } } },
+      include: {
+        user: {
+          select: {
+            photo: true,
+            apartamentosUsers: {
+              select: {
+                id_apto: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { nome: 'asc' },
     });
 
-    return list.map((m) => ({
-      id: m.id,
-      nome: m.nome,
-      documento: m.documento,
-      email: m.email,
-      telefone: m.telefone,
-      data_nascimento: m.data_nascimento,
-      tipo: m.tipo,
-      bloco: m.bloco,
-      apartamento: m.apartamento,
-      id_apartamento: 0, // legado não armazena direto na tabela Moradores
-      id_condominio: m.id_condominio,
-      photo: m.user?.photo ?? null,
-    }));
+    return list.map((m) => {
+      const idAptoMapped = m.user?.apartamentosUsers?.[0]?.id_apto ?? 0;
+      return {
+        id: m.id,
+        nome: m.nome,
+        documento: m.documento,
+        email: m.email,
+        telefone: m.telefone,
+        data_nascimento: m.data_nascimento,
+        tipo: m.tipo,
+        bloco: m.bloco,
+        apartamento: m.apartamento,
+        id_apartamento: idAptoMapped,
+        id_condominio: m.id_condominio,
+        photo: m.user?.photo ?? null,
+      };
+    });
   }
 
   async findOne(id: number) {

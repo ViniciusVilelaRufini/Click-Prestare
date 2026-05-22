@@ -11,8 +11,9 @@ export class MoradoresController {
   list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Query('search') search?: string,
+    @Query('id_apto') idApto?: string,
   ) {
-    return this.service.findAll(idCondominio, search);
+    return this.service.findAll(idCondominio, search, idApto ? Number(idApto) : undefined);
   }
 
   @Get('export-excel')
