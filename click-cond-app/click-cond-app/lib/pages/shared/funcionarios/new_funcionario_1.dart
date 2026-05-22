@@ -62,6 +62,9 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
   void initState() {
     super.initState();
     if (widget.isEdit) load();
+    txtFuncao.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> load() async {
@@ -188,6 +191,51 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('funcionario_infos_funcao')),
                   AppInput(label: getText('funcionario_funcao'), controller: txtFuncao, prefixIcon: PhosphorIcons.briefcase),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (var funcOption in [
+                        "Porteiro",
+                        "Zelador",
+                        "Faxineiro",
+                        "Segurança",
+                        "Síndico",
+                        "Administrador",
+                        "Recepcionista"
+                      ])
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              txtFuncao.text = funcOption;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                            decoration: BoxDecoration(
+                              color: txtFuncao.text.trim().toLowerCase() == funcOption.toLowerCase()
+                                  ? AppColors.primary
+                                  : AppColors.surface(context),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: txtFuncao.text.trim().toLowerCase() == funcOption.toLowerCase()
+                                    ? AppColors.primary
+                                    : AppColors.border(context),
+                              ),
+                            ),
+                            child: Text(
+                              funcOption,
+                              style: AppTypography.captionMedium(context).copyWith(
+                                color: txtFuncao.text.trim().toLowerCase() == funcOption.toLowerCase()
+                                    ? Colors.white
+                                    : AppColors.textSecondary(context),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.md),
                   AppInput(label: getText('funcionario_horario_trabalho'), controller: txtCH, prefixIcon: PhosphorIcons.clock, maxLines: 3),
                   const SizedBox(height: AppSpacing.xl),
