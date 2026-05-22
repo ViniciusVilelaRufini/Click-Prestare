@@ -51,6 +51,18 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
   }
 
   Future<void> _deleteCondominio() async {
+    final liberado = widget.condominio?['liberado_exclusao'] == 1;
+    if (!liberado) {
+      await showAppDialog(
+        context,
+        title: 'Ação não permitida',
+        message: 'A exclusão do condomínio não está liberada. Entre em contato com a Prestare para solicitar a liberação.',
+        icon: PhosphorIcons.lock,
+        iconColor: AppColors.error,
+      );
+      return;
+    }
+
     final ok = await showAppConfirmDialog(
       context,
       title: 'Remover condomínio',

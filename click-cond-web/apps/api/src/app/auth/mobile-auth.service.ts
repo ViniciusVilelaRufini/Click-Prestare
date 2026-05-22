@@ -616,6 +616,7 @@ export class MobileAuthService {
       moeda: 'R$',
       identificacao: '12.345.678/0001-90',
       subsindico_nome: 'Subsíndico Demo',
+      liberado_exclusao: 0,
     };
 
     if (!this.prisma.isConnected) {
@@ -646,6 +647,7 @@ export class MobileAuthService {
         moeda: c.moeda ?? 'R$',
         identificacao: c.identificacao ?? '',
         subsindico_nome: c.subsindico_nome ?? '',
+        liberado_exclusao: c.liberado_exclusao ?? 0,
       };
     } catch (e) {
       return mockCond;
