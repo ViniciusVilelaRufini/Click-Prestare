@@ -59,8 +59,21 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         }
       }
 
+      List<dynamic> filteredItems = [];
+      if (data is List) {
+        for (var item in data) {
+          if (item is Map) {
+            final idUsuario = item['id_usuario'];
+            final tipo = item['tipo'];
+            if (idUsuario != null || tipo == 'C') {
+              filteredItems.add(item);
+            }
+          }
+        }
+      }
+
       setState(() {
-        _items = data is List ? data : [];
+        _items = filteredItems;
         _condoItems = condoItems;
         _isLoading = false;
       });
@@ -414,17 +427,18 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             DialogButton(
                               child: const Text("Excluir", style: TextStyle(color: Colors.white)),
                               onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
                                 Navigator.pop(context);
                                 setState(() => _isLoading = true);
                                 bool success = await apiRemoveMoradorFinanceiro(item['id']);
                                 if (success) {
                                   _loadData();
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     const SnackBar(content: Text("Conta removida com sucesso!")),
                                   );
                                 } else {
                                   setState(() => _isLoading = false);
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     const SnackBar(content: Text("Erro ao remover conta.")),
                                   );
                                 }
@@ -677,7 +691,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             return;
                           }
 
-                          Navigator.pop(context);
+                          final messenger = ScaffoldMessenger.of(context);
                           setState(() => _isLoading = true);
 
                           final bodyData = {
@@ -697,13 +711,14 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           }
 
                           if (success) {
+                            if (mounted) Navigator.pop(context);
                             _loadData();
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!")),
                             );
                           } else {
-                            setState(() => _isLoading = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            if (mounted) setState(() => _isLoading = false);
+                            messenger.showSnackBar(
                               const SnackBar(content: Text("Erro ao salvar conta.")),
                             );
                           }

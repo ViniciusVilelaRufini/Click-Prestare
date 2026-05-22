@@ -93,8 +93,10 @@ export class FinanceiroController {
 
   @Get('get-by-user')
   getByUser(@Query('id_user') idUser: string, @Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
-    const isMorador = payload?.user?.typeAccess === 'Morador';
-    const targetUserId = isMorador ? (payload?.user?.id ?? Number(idUser)) : Number(idUser);
+    const typeAccess = payload?.typeAccess ?? payload?.user?.typeAccess;
+    const isMorador = typeAccess === 'Morador';
+    const currentUserId = payload?.user?.id ?? payload?.sub;
+    const targetUserId = isMorador ? (currentUserId ?? Number(idUser)) : Number(idUser);
     return this.service.getByUser(targetUserId, Number(idCondominio));
   }
 
@@ -104,7 +106,7 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
     @Body() body: { id_condominio: string | number; data: any }
   ) {
-    const userId = payload.user.id;
+    const userId = payload?.user?.id ?? payload?.sub;
     return this.service.insertMoradorConta(Number(userId), Number(body.id_condominio), body.data);
   }
 
@@ -114,7 +116,7 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
     @Body() body: { id_condominio: string | number; data: any }
   ) {
-    const userId = payload.user.id;
+    const userId = payload?.user?.id ?? payload?.sub;
     return this.service.updateMoradorConta(Number(userId), Number(body.id_condominio), body.data);
   }
 
@@ -124,7 +126,7 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
     @Body() body: { id: string | number }
   ) {
-    const userId = payload.user.id;
+    const userId = payload?.user?.id ?? payload?.sub;
     return this.service.removeMoradorConta(Number(userId), Number(body.id));
   }
 
