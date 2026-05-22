@@ -39,7 +39,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
       'label': 'Encomendas',
       'desc': 'Entradas, entregas e pendências de mercadorias no condomínio.',
       'icon': PhosphorIcons.package,
-      'color': Colors.emerald,
+      'color': AppColors.success,
     },
     'ocorrencias': {
       'label': 'Ocorrências',

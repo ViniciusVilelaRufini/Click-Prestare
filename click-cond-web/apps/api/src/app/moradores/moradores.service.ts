@@ -338,7 +338,18 @@ export class MoradoresService {
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
     }
-    this.fireWelcomeEmail(m.email, m.nome, m.documento || '123456');
+    const senhaInicial = m.documento || '123456';
+    if (this.prisma.isConnected && m.id_user) {
+      const md5Password = crypto.createHash('md5').update(senhaInicial).digest('hex');
+      await this.prisma.users.update({
+        where: { id: m.id_user },
+        data: {
+          login: m.email,
+          password: md5Password,
+        },
+      });
+    }
+    this.fireWelcomeEmail(m.email, m.nome, senhaInicial);
     return { ok: true };
   }
 
