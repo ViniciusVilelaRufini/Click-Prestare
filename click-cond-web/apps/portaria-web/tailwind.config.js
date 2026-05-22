@@ -11,37 +11,38 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Tons de superfície — Azul Marinho Escuro (AppColors.darkBg)
+        // Tons de superfície — Slate/Navy Escuro Corporativo
         graphite: {
-          DEFAULT: '#0A1628', // Background principal do app
+          DEFAULT: '#090D16', // Background principal do app (Dark)
           50:  '#252A33',
-          100: '#1B2638',     // darkSurfaceElevated
-          200: '#131D2E',     // surface principal do app
+          100: '#1F2937',     // darkSurfaceElevated (Gray 800)
+          200: '#111827',     // surface principal do app (Gray 900)
           300: '#1F2A3D',     // border
           400: '#13171D',
           900: '#060D18',
         },
-        // Acento corporativo (Azul Click - AppColors.primary)
+        // Acento corporativo moderno (Royal Blue em vez de Ciano Neon)
         accent: {
-          DEFAULT: '#1AAEEB',
-          400: '#5BC6F2',
-          500: '#1AAEEB',
-          600: '#0E8FC4',
-          700: '#0B729D',
+          DEFAULT: '#2563EB',
+          400: '#60A5FA',
+          500: '#2563EB',
+          600: '#1D4ED8',
+          700: '#1E40AF',
         },
-        // Alerta (AppColors.warning)
+        // Alerta corporativo sóbrio
         warn: {
-          DEFAULT: '#FFB020',
-          500: '#FFB020',
-          600: '#E69B19',
+          DEFAULT: '#D97706',
+          500: '#D97706',
+          600: '#B45309',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        display: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        soft: '0 1px 2px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.25)',
+        soft: '0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08)',
+        card: '0 1px 3px rgba(0,0,0,0.02), 0 4px 16px rgba(0,0,0,0.04)',
       },
     },
   },

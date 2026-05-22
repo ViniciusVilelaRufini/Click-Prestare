@@ -14,6 +14,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; financeiro: any },
     @ReqUser() payload: JwtPayload,
   ) {
+    console.log("INSERT PAYLOAD:", JSON.stringify(body, null, 2));
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? 'Administrador';
     return this.service.insert(Number(body.id_condominio), body.financeiro, operatorName);
   }
@@ -24,6 +25,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; financeiro: any },
     @ReqUser() payload: JwtPayload,
   ) {
+    console.log("UPDATE PAYLOAD:", JSON.stringify(body, null, 2));
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? 'Administrador';
     return this.service.update(Number(body.id_condominio), body.financeiro, operatorName);
   }

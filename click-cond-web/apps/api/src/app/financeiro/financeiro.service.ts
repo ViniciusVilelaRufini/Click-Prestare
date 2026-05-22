@@ -27,13 +27,16 @@ export class FinanceiroService implements OnModuleInit {
   async insert(idCondominio: number, financeiro: any, operatorName: string) {
     if (!this.prisma.isConnected) return { success: true };
 
-    // Sanitize valor
-    let rawValor = String(financeiro.valor || '0')
-      .replace('R$', '')
-      .replace(/\./g, '')
-      .replace(',', '.')
-      .trim();
-    let valor = parseFloat(rawValor);
+    let valor = 0;
+    if (typeof financeiro.valor === 'number') {
+      valor = financeiro.valor;
+    } else {
+      let str = String(financeiro.valor || '0').replace('R$', '').trim();
+      if (str.includes(',')) {
+        str = str.replace(/\./g, '').replace(',', '.');
+      }
+      valor = parseFloat(str);
+    }
     if (isNaN(valor)) valor = 0;
 
     if (financeiro.tipo === 'D') {
@@ -93,7 +96,17 @@ export class FinanceiroService implements OnModuleInit {
   async update(idCondominio: number, financeiro: any, operatorName: string) {
     if (!this.prisma.isConnected) return { success: true };
 
-    let valor = parseFloat(financeiro.valor || 0);
+    let valor = 0;
+    if (typeof financeiro.valor === 'number') {
+      valor = financeiro.valor;
+    } else {
+      let str = String(financeiro.valor || '0').replace('R$', '').trim();
+      if (str.includes(',')) {
+        str = str.replace(/\./g, '').replace(',', '.');
+      }
+      valor = parseFloat(str);
+    }
+    if (isNaN(valor)) valor = 0;
     if (financeiro.tipo === 'D') {
       valor = Math.abs(valor) * -1;
     }
@@ -115,6 +128,7 @@ export class FinanceiroService implements OnModuleInit {
 
     const dLanc = parseDate(financeiro.data);
     const dVenc = parseDate(financeiro.data_vencimento);
+    const isPago = financeiro.pago !== undefined ? Number(financeiro.pago) : ((!financeiro.data || financeiro.data === '') ? 0 : 1);
 
     await this.prisma.financeiro.updateMany({
       where: {
@@ -125,7 +139,8 @@ export class FinanceiroService implements OnModuleInit {
         nome: financeiro.nome,
         tipo: financeiro.tipo,
         valor,
-        ...(dLanc !== null ? { data: dLanc } : {}),
+        data: dLanc,
+        pago: isPago,
         ...(dVenc !== null ? { data_vencimento: dVenc } : {}),
         categoria: financeiro.categoria,
         conta: financeiro.conta,
@@ -135,7 +150,6 @@ export class FinanceiroService implements OnModuleInit {
         parcelas: financeiro.parcelas,
         nome_operador: operatorName,
         ...(photoUrl !== undefined ? { photo: photoUrl } : {}),
-        ...(financeiro.pago !== undefined ? { pago: Number(financeiro.pago) } : {}),
         ...(financeiro.status !== undefined ? { status: String(financeiro.status) } : {}),
         ...(financeiro.linha_digitavel !== undefined ? { linha_digitavel: financeiro.linha_digitavel } : {}),
         ...(financeiro.pix_copia_cola !== undefined ? { pix_copia_cola: financeiro.pix_copia_cola } : {}),
@@ -324,16 +338,29 @@ export class FinanceiroService implements OnModuleInit {
       orderBy: [{ bloco: 'asc' }, { apto: 'asc' }],
     });
 
+    const financeiroRecords = await this.prisma.financeiro.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        nome: {
+          contains: `- Ref. ${mesStr}/${anoStr}`
+        }
+      }
+    });
+
+    const finMap = new Map<string, any>();
+    for (const fin of financeiroRecords) {
+      if (fin.nome) {
+        finMap.set(fin.nome.trim(), fin);
+      }
+    }
+
     const blocosMap: Record<string, any[]> = {};
+
+    const fmtDate = (d?: Date | null) => d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
     for (const a of aptos) {
       const matchName = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${mesStr}/${anoStr}`;
-      const fin = await this.prisma.financeiro.findFirst({
-        where: {
-          id_condominio: Number(idCondominio),
-          nome: matchName,
-        },
-      });
+      const fin = finMap.get(matchName);
 
       const val = fin?.valor ? Number(fin.valor) : 0;
       const fmt = val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -346,8 +373,16 @@ export class FinanceiroService implements OnModuleInit {
         valorReal: fmt,
         financeiro_id: fin?.id ?? null,
         pago: fin?.pago ?? 0,
+        data: fmtDate(fin?.data),
+        data_vencimento: fmtDate(fin?.data_vencimento),
         conta: fin?.conta ?? '',
         descricao: fin?.descricao ?? '',
+        categoria: fin?.categoria ?? 'Condomínio',
+        linha_digitavel: fin?.linha_digitavel ?? '',
+        pix_copia_cola: fin?.pix_copia_cola ?? '',
+        url_boleto: fin?.url_boleto ?? '',
+        mes: mesStr,
+        ano: anoStr,
       };
 
       const blocoKey = a.bloco || 'Sem Bloco';
@@ -664,7 +699,6 @@ export class FinanceiroService implements OnModuleInit {
     // Busca os vínculos de apartamento do morador
     const moradoresList = await this.prisma.moradores.findMany({
       where: { id_user: Number(idUser) },
-      include: { apartamento: true }
     });
 
     const list = await this.prisma.financeiro.findMany({
@@ -685,9 +719,8 @@ export class FinanceiroService implements OnModuleInit {
       if (item.id_usuario === idUser) return true;
       if (item.tipo === 'C') {
         return moradoresList.some(m => 
-          m.apartamento &&
-          item.nome?.includes(`Apto ${m.apartamento.apto}`) && 
-          item.nome?.includes(`Bloco ${m.apartamento.bloco}`)
+          item.nome?.includes(`Apto ${m.apartamento}`) && 
+          item.nome?.includes(`Bloco ${m.bloco}`)
         );
       }
       return false;

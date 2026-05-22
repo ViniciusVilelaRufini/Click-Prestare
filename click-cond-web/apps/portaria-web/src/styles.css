@@ -1,43 +1,43 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* Cores padronizadas para o Dark Mode (Padrão original) */
-  --bg-base: #0A1628;
-  --bg-surface: #131D2E;
-  --bg-elevated: #1B2638;
-  --border-color: rgba(255, 255, 255, 0.1);
-  --text-main: #F7F8FA;
-  --text-sub: #98A2B3;
-  --text-muted: #5A6677;
-  --scrollbar-track: #0A1628;
-  --scrollbar-thumb: rgba(255, 255, 255, 0.08);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.15);
+  /* Cores padronizadas para o Dark Mode (Design Corporativo Moderno) */
+  --bg-base: #090D16;
+  --bg-surface: #111827;
+  --bg-elevated: #1F2937;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --text-main: #F9FAFB;
+  --text-sub: #9CA3AF;
+  --text-muted: #6B7280;
+  --scrollbar-track: #090D16;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.05);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.12);
 }
 
 /* Quando a classe light estiver ativa no html ou body */
 html.light, body.light, .light {
-  /* Cores baseadas perfeitamente no AppColors.dart do modo Claro */
-  --bg-base: #FFFFFF;
-  --bg-surface: #F7F8FA;
+  /* Cores do modo Claro sutil e avançado */
+  --bg-base: #F8FAFC;
+  --bg-surface: #FFFFFF;
   --bg-elevated: #FFFFFF;
-  --border-color: #EAECEF;
-  --text-main: #0A1628;
-  --text-sub: #5A6677;
-  --text-muted: #98A2B3;
-  --scrollbar-track: #FFFFFF;
-  --scrollbar-thumb: rgba(10, 22, 40, 0.12);
-  --scrollbar-thumb-hover: rgba(10, 22, 40, 0.22);
+  --border-color: #E2E8F0;
+  --text-main: #0F172A;
+  --text-sub: #475569;
+  --text-muted: #94A3B8;
+  --scrollbar-track: #F8FAFC;
+  --scrollbar-thumb: rgba(15, 23, 42, 0.08);
+  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.15);
 }
 
 html, body {
   height: 100%;
   background: var(--bg-base);
   color: var(--text-main);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -189,6 +189,57 @@ html, body {
   background-color: #FFFFFF !important;
   border-color: rgba(10, 22, 40, 0.15) !important;
   box-shadow: 0 4px 12px rgba(10, 22, 40, 0.05) !important;
+}
+
+/* ==========================================================================
+   Diretrizes do Redesign Corporativo (Soft Rounding & Visual Hierarchy)
+   ========================================================================== */
+
+/* 1. Suavização de Cantos Arredondados (Soft Cornering) */
+.rounded-xl {
+  border-radius: 8px !important; /* Perfeito para botões, badges, inputs e mini-menus */
+}
+.rounded-2xl {
+  border-radius: 12px !important; /* Ideal para painéis, cards e modais */
+}
+.rounded-3xl {
+  border-radius: 16px !important;
+}
+
+/* 2. Hierarquia e Estilização de Tabelas Corporativas */
+table th {
+  letter-spacing: 0.05em;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+}
+table tr {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* 3. Micro-interações seguras e suaves */
+button {
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/* 4. Foco de Inputs Corporativo e Sutil */
+input:focus, select:focus, textarea:focus {
+  outline: none !important;
+  border-color: #2563EB !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
+.light input:focus, .light select:focus, .light textarea:focus {
+  border-color: #2563EB !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08) !important;
+}
+
+/* 5. Scrollbar minimalista */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
 /* Vercel trigger */

@@ -311,19 +311,6 @@ export class OcorrenciasMobileController {
   }
 }
 
-// ==========================================
-// FINANCEIRO MOBILE
-// ==========================================
-@Controller('financeiro')
-export class FinanceiroMobileController {
-  constructor(private readonly service: MobileAuthService) {}
-
-  @Get('get-by-user')
-  listByUser(@ReqUser() payload: JwtPayload) {
-    const idUser = payload.user?.id ?? payload.sub;
-    return this.service.listFinanceiroByUser(Number(idUser));
-  }
-}
 
 // ==========================================
 // ENCOMENDAS MOBILE

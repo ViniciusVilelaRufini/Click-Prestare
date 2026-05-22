@@ -272,7 +272,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white10)
+        border: Border.all(color: AppColors.border(context))
       ),
       child: Column(
         children: [
@@ -386,22 +386,21 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               ],
             ),
           ],
-          const Divider(height: 24, color: Colors.white10),
+          Divider(height: 24, color: AppColors.border(context)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildStatusBadge(item['status'], item['pago']),
               Row(
                 children: [
-                  if (!isPago && !isVerifying &&
-                      (item['pix_copia_cola'] == null || item['pix_copia_cola'].toString().trim().isEmpty) &&
-                      (item['linha_digitavel'] == null || item['linha_digitavel'].toString().trim().isEmpty))
+                  if (!isPago && !isVerifying)
                     ElevatedButton.icon(
                       onPressed: () => _uploadComprovante(item['id']),
                       icon: const Icon(PhosphorIcons.uploadSimple, size: 16),
                       label: const Text("Comprovante"),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
                       ),
                     ),
@@ -509,7 +508,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   topLeft: Radius.circular(24),
                   topRight: Radius.circular(24),
                 ),
-                border: const Border(top: BorderSide(color: Colors.white10)),
+                border: Border(top: BorderSide(color: AppColors.border(context))),
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -527,7 +526,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white70),
+                          icon: Icon(Icons.close, color: AppColors.textSecondary(context)),
                           onPressed: () => Navigator.pop(context),
                         ),
                       ],
@@ -540,7 +539,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       decoration: BoxDecoration(
                         color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white10),
+                        border: Border.all(color: AppColors.border(context)),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
@@ -570,16 +569,16 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       style: AppTypography.bodyMedium(context),
                       decoration: InputDecoration(
                         hintText: "Ex: Conta de Luz - Maio",
-                        hintStyle: const TextStyle(color: Colors.white38),
+                        hintStyle: TextStyle(color: AppColors.textTertiary(context)),
                         fillColor: AppColors.surface(context),
                         filled: true,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white10),
+                          borderSide: BorderSide(color: AppColors.border(context)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white10),
+                          borderSide: BorderSide(color: AppColors.border(context)),
                         ),
                       ),
                     ),
@@ -598,16 +597,16 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                 style: AppTypography.bodyMedium(context),
                                 decoration: InputDecoration(
                                   hintText: "0.00",
-                                  hintStyle: const TextStyle(color: Colors.white38),
+                                  hintStyle: TextStyle(color: AppColors.textTertiary(context)),
                                   fillColor: AppColors.surface(context),
                                   filled: true,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white10),
+                                    borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white10),
+                                    borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                 ),
                               ),
@@ -627,17 +626,17 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                 style: AppTypography.bodyMedium(context),
                                 decoration: InputDecoration(
                                   hintText: "DD/MM/AAAA",
-                                  hintStyle: const TextStyle(color: Colors.white38),
+                                  hintStyle: TextStyle(color: AppColors.textTertiary(context)),
                                   fillColor: AppColors.surface(context),
                                   filled: true,
-                                  suffixIcon: const Icon(Icons.calendar_today, size: 18, color: Colors.white54),
+                                  suffixIcon: Icon(Icons.calendar_today, size: 18, color: AppColors.textSecondary(context)),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white10),
+                                    borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white10),
+                                    borderSide: BorderSide(color: AppColors.border(context)),
                                   ),
                                 ),
                                 onTap: () async {
@@ -681,6 +680,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () async {

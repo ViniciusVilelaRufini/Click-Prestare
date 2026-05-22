@@ -14,7 +14,6 @@ import {
   CondominioMobileController,
   ApartamentosMobileController,
   OcorrenciasMobileController,
-  FinanceiroMobileController,
   EncomendasMobileController,
 } from './mobile-auth.controller';
 
@@ -35,7 +34,6 @@ import {
     CondominioMobileController,
     ApartamentosMobileController,
     OcorrenciasMobileController,
-    FinanceiroMobileController,
     EncomendasMobileController,
   ],
   providers: [AuthService, MobileAuthService, JwtStrategy, QrSessionStore],
