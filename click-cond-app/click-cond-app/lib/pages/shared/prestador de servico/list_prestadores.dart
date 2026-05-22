@@ -55,8 +55,17 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
     final canAdd = (getUserType() != 'funcionario') || getUserPermission('prestadores_servico') == 1;
     
+    bool isExpired = false;
+    final endStr = item['data_hora_termino'];
+    if (endStr != null) {
+      final end = DateTime.tryParse(endStr.toString());
+      if (end != null && DateTime.now().isAfter(end)) {
+        isExpired = true;
+      }
+    }
+
     bool isAuthorized = false;
-    if (!isInside && item['data_saida'] == null) {
+    if (!isInside && item['data_saida'] == null && !isExpired) {
       final startStr = item['data_hora_inicio'];
       final endStr = item['data_hora_termino'];
       if (startStr != null && endStr != null) {
@@ -214,7 +223,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                   value: _formatDateTimeString(item['data_saida']),
                 ),
 
-              if (item['data_saida'] == null) ...[
+              if (item['data_saida'] == null && !isExpired) ...[
                 const SizedBox(height: AppSpacing.lg),
                 Container(
                   width: double.infinity,
@@ -357,6 +366,32 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                     ],
                   ),
                 ),
+              ] else ...[
+                const SizedBox(height: AppSpacing.lg),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary(context).withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.textSecondary(context).withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(PhosphorIcons.lockKeyhole, color: AppColors.textSecondary(context), size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        item['data_saida'] != null
+                            ? 'Visita Encerrada (Código Expirado)'
+                            : 'Período Expirado (Código Inativo)',
+                        style: AppTypography.captionMedium(context).copyWith(
+                          color: AppColors.textSecondary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
 
               
@@ -374,7 +409,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                       child: Text('Fechar', style: AppTypography.body(context)),
                     ),
                   ),
-                  if (canAdd) ...[
+                  if (canAdd && item['data_saida'] == null && !isExpired) ...[
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: ElevatedButton(
@@ -670,9 +705,18 @@ class _PrestadorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
     
+    bool isExpired = false;
+    final endStr = item['data_hora_termino'];
+    if (endStr != null) {
+      final end = DateTime.tryParse(endStr.toString());
+      if (end != null && DateTime.now().isAfter(end)) {
+        isExpired = true;
+      }
+    }
+    
     // Verificar se é agendado (está ativo no período, mas não entrou ainda)
     bool isAuthorized = false;
-    if (!isInside && item['data_saida'] == null) {
+    if (!isInside && item['data_saida'] == null && !isExpired) {
       final startStr = item['data_hora_inicio'];
       final endStr = item['data_hora_termino'];
       if (startStr != null && endStr != null) {
@@ -755,7 +799,7 @@ class _PrestadorCard extends StatelessWidget {
                       ],
                     ],
                   ),
-                  if (item['codigo_acesso'] != null && item['data_saida'] == null) ...[
+                  if (item['codigo_acesso'] != null && item['data_saida'] == null && !isExpired) ...[
                     const SizedBox(height: 2),
                     Row(
                       children: [

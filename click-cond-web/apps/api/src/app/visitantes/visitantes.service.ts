@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -287,6 +287,13 @@ export class VisitantesService {
       status = 'EXPIRADO';
     }
 
+    if (status === 'EXPIRADO') {
+      throw new BadRequestException('Acesso negado: O período de validade deste código já expirou.');
+    }
+    if (status === 'FUTURO') {
+      throw new BadRequestException('Acesso negado: O período de validade deste código ainda não iniciou.');
+    }
+
     const formatarData = (d: Date | null) => {
       if (!d) return '';
       const pad = (n: number) => n.toString().padStart(2, '0');
@@ -321,7 +328,7 @@ export class VisitantesService {
   async checkOut(id: number) {
     await this.prisma.visitantes.update({
       where: { id: Number(id) },
-      data: { data_saida: new Date() },
+      data: { data_saida: new Date(), codigo_acesso: null },
     });
     return { ok: true };
   }
