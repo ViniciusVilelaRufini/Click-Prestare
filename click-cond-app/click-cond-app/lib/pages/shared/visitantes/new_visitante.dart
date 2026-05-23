@@ -1,3 +1,5 @@
+import 'dart:io' as io;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/theme/app_colors.dart';
@@ -41,6 +43,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
 
   var idMyApartment;
   var currentTipo = '';
+  dynamic imageFile;
+  var imageChanged = false;
   var _isLoading = false;
   var _isSaving = false;
   var list = [];
@@ -91,10 +95,20 @@ class _NewVisitantePageState extends State<NewVisitante> {
       txtBloco.text = obj["apto_bloco"] ?? "";
       txtObs.text = obj["observacoes"] ?? "";
       currentTipo = obj["is_visitante"] == 1 ? 'visitante' : 'prestador';
+      imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _selectPhoto() async {
+    var res = await getPhoto(context);
+    if (res != null) {
+      imageFile = res;
+      imageChanged = true;
+      setState(() {});
     }
   }
 
@@ -127,6 +141,9 @@ class _NewVisitantePageState extends State<NewVisitante> {
         id_apartamento: idMyApartment ?? getIdApto(),
         is_visitante: currentTipo == 'visitante',
         is_prestador: currentTipo == 'prestador',
+        photo: imageFile != null && imageChanged
+            ? convertToBase64(imageFile, "image/jpeg")
+            : (imageFile is String ? imageFile : null),
       );
       setState(() => _isSaving = true);
       final result = await apiSaveVisitante(visitante, widget.isEdit);
@@ -311,6 +328,39 @@ class _NewVisitantePageState extends State<NewVisitante> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Center(
+                    child: GestureDetector(
+                      onTap: _selectPhoto,
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 52,
+                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            backgroundImage: imageFile == null
+                                ? const AssetImage('assets/images/defaultUser.png')
+                                : (imageFile is String
+                                    ? NetworkImage(imageFile)
+                                    : (kIsWeb
+                                        ? NetworkImage(imageFile.path)
+                                        : FileImage(io.File(imageFile.path)))) as ImageProvider,
+                          ),
+                          Positioned(
+                            bottom: 0, right: 0,
+                            child: Container(
+                              width: 30, height: 30,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppColors.bg(context), width: 2),
+                              ),
+                              child: const Icon(PhosphorIcons.camera, size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
                   _section(getText('funcionario_infos_pessoais')),
                   AppInput(
                     label: getText('user_nome_completo'),
@@ -501,18 +551,19 @@ class _Chip extends StatelessWidget {
 
 class VisitanteModel {
   int? id;
-  String? nome, doc_identificacao, data_inicio, data_termino, observacoes;
+  String? nome, doc_identificacao, data_inicio, data_termino, observacoes, photo;
   int? id_apartamento;
   bool? avisar, is_visitante, is_prestador;
 
   VisitanteModel({this.id, this.nome, this.doc_identificacao, this.data_inicio,
       this.data_termino, this.avisar, this.id_apartamento, this.is_visitante,
-      this.is_prestador, this.observacoes});
+      this.is_prestador, this.observacoes, this.photo});
 
   Map toJson() => {
         'id': id, 'nome': nome, 'doc_identificacao': doc_identificacao,
         'data_inicio': data_inicio, 'data_termino': data_termino,
         'observacoes': observacoes, 'id_apartamento': id_apartamento,
         'avisar': avisar, 'is_visitante': is_visitante, 'is_prestador': is_prestador,
+        'photo': photo,
       };
 }

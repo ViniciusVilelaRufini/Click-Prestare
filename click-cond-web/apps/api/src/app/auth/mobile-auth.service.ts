@@ -5,6 +5,7 @@ import { MailService } from '../common/mail/mail.service';
 import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
+import { StorageService } from '../common/storage/storage.service';
 
 @Injectable()
 export class MobileAuthService {
@@ -12,6 +13,7 @@ export class MobileAuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly mail: MailService,
+    private readonly storage: StorageService,
   ) {}
 
   private async verifyPassword(senhaRaw: string, stored: string | null | undefined, userId: number): Promise<boolean> {
@@ -769,6 +771,14 @@ export class MobileAuthService {
       where: { id_condominio: Number(idCond), ativo: 1 },
       orderBy: { nome: 'asc' },
     });
+    
+    const logins = reais.map(f => f.login).filter(Boolean);
+    const users = await this.prisma.users.findMany({
+      where: { login: { in: logins } },
+      select: { login: true, photo: true }
+    });
+    const userPhotoMap = new Map(users.map(u => [u.login, u.photo]));
+
     return reais.map(f => ({
       id: f.id,
       nome: f.nome ?? '',
@@ -778,7 +788,7 @@ export class MobileAuthService {
       funcao: f.turno ? `Porteiro ${f.turno}` : 'Porteiro',
       cargo: f.turno ? `Porteiro ${f.turno}` : 'Porteiro',
       ch: f.turno ?? '',
-      photo: '',
+      photo: userPhotoMap.get(f.login) ?? '',
       hasPortariaAccess: true,
     }));
   }
@@ -789,6 +799,10 @@ export class MobileAuthService {
     }
     const f = await this.prisma.funcionarios_Portaria.findUnique({ where: { id: Number(id) } });
     if (!f) throw new NotFoundException('Funcionário não encontrado.');
+    const user = await this.prisma.users.findFirst({
+      where: { login: f.login },
+      select: { photo: true }
+    });
     return {
       id: f.id,
       nome: f.nome ?? '',
@@ -797,7 +811,7 @@ export class MobileAuthService {
       telefone: f.telefone ?? '',
       funcao: f.turno ? `Porteiro ${f.turno}` : 'Porteiro',
       ch: f.turno ?? '',
-      photo: '',
+      photo: user?.photo ?? '',
       hasPortariaAccess: true,
     };
   }
@@ -809,8 +823,17 @@ export class MobileAuthService {
     const func = body.funcionario || body.funcionarios || {};
     const idCondominio = Number(body.id_condominio);
 
+    let photoUrl: string | null = null;
+    if (func.photo) {
+      if (this.storage.isDataUrl(func.photo)) {
+        photoUrl = await this.storage.uploadDataUrl(func.photo, 'funcionarios');
+      } else {
+        photoUrl = func.photo;
+      }
+    }
+
     // Função auxiliar para sincronizar com as tabelas de Users e Funcionarios do app mobile
-    const sincronizarUsuarioMobile = async (fp: any, senhaPlana?: string) => {
+    const sincronizarUsuarioMobile = async (fp: any, senhaPlana?: string, uploadedPhotoUrl?: string | null) => {
       try {
         let user = await this.prisma.users.findFirst({ where: { login: fp.login } });
         const md5Pwd = senhaPlana ? createHash('md5').update(senhaPlana).digest('hex') : fp.password;
@@ -826,6 +849,8 @@ export class MobileAuthService {
               is_funcionario: 1,
               is_sindico: 0,
               is_morador: 0,
+              photo: uploadedPhotoUrl ?? null,
+              profile_image: uploadedPhotoUrl ?? null,
             }
           });
         } else {
@@ -837,6 +862,7 @@ export class MobileAuthService {
               email: fp.email || fp.login,
               password: md5Pwd,
               is_funcionario: 1,
+              ...(uploadedPhotoUrl !== undefined && { photo: uploadedPhotoUrl, profile_image: uploadedPhotoUrl }),
             }
           });
         }
@@ -901,7 +927,7 @@ export class MobileAuthService {
       }
 
       const updated = await this.prisma.funcionarios_Portaria.update({ where: { id }, data });
-      await sincronizarUsuarioMobile(updated, func.senha || func.password);
+      await sincronizarUsuarioMobile(updated, func.senha || func.password, photoUrl);
       return '';
     }
 
@@ -931,7 +957,7 @@ export class MobileAuthService {
       },
     });
 
-    await sincronizarUsuarioMobile(created, senhaInicial);
+    await sincronizarUsuarioMobile(created, senhaInicial, photoUrl);
 
     return { id: created.id };
   }
@@ -1041,6 +1067,15 @@ export class MobileAuthService {
       .toLowerCase()
       .trim();
 
+    let photoUrl: string | null = null;
+    if (mor.photo) {
+      if (this.storage.isDataUrl(mor.photo)) {
+        photoUrl = await this.storage.uploadDataUrl(mor.photo, 'moradores');
+      } else {
+        photoUrl = mor.photo;
+      }
+    }
+
     try {
       // ===== EDIÇÃO =====
       if (isEdit) {
@@ -1078,13 +1113,17 @@ export class MobileAuthService {
             },
           });
 
-          const userPatch: any = {};
+           const userPatch: any = {};
           if (mor.nome !== undefined) userPatch.name = mor.nome;
           if (mor.telefone !== undefined) userPatch.phone = mor.telefone;
           if (mor.documento !== undefined) userPatch.cpf = mor.documento || null;
           if (emailMudou) {
             userPatch.email = mor.email || null;
             userPatch.login = mor.email || null;
+          }
+          if (photoUrl !== null) {
+            userPatch.photo = photoUrl;
+            userPatch.profile_image = photoUrl;
           }
           if (Object.keys(userPatch).length > 0 && atual.id_user) {
             await tx.users.update({ where: { id: atual.id_user }, data: userPatch });
@@ -1149,6 +1188,10 @@ export class MobileAuthService {
         if (!existing.cpf && cpf) patch.cpf = cpf;
         if (!existing.phone && mor.telefone) patch.phone = mor.telefone;
         if (!existing.name && mor.nome) patch.name = mor.nome;
+        if (photoUrl !== null) {
+          patch.photo = photoUrl;
+          patch.profile_image = photoUrl;
+        }
         if (Object.keys(patch).length > 0) {
           await this.prisma.users.update({ where: { id: existing.id }, data: patch });
         }
@@ -1163,6 +1206,8 @@ export class MobileAuthService {
             cpf,
             is_morador: 1,
             login_type: 'morador',
+            photo: photoUrl,
+            profile_image: photoUrl,
           },
         });
         userId = u.id;
@@ -1176,6 +1221,8 @@ export class MobileAuthService {
             cpf,
             is_morador: 1,
             login_type: 'morador',
+            photo: photoUrl,
+            profile_image: photoUrl,
           },
         });
         userId = u.id;

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
@@ -24,6 +25,7 @@ class NewFuncionario1 extends StatefulWidget {
 
 class _NewFuncionario1PageState extends State<NewFuncionario1> {
   dynamic imageFile;
+  var imageChanged = false;
   var _isLoading = false;
   var _isSaving = false;
   bool _hasPortariaAccess = false;
@@ -79,7 +81,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
       txtCH.text = obj["ch"] ?? '';
       txtExtra1.text = obj["extra1"] ?? '';
       txtExtra2.text = obj["extra2"] ?? '';
-      imageFile = await fileFromImageUrl(obj["photo"] ?? '');
+      imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
       for (var key in ["areas_sociais","comunicados","ocorrencias","manutencoes_programadas",
                         "prestadores_servico","agendar_mudanca","cadastrar_visitante","apartamentos"]) {
         if (obj[key] == 1) permissoes.add(key);
@@ -95,17 +97,21 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
 
   Future<void> _selectPhoto() async {
     var res = await getPhoto(context);
-    imageFile = res;
-    setState(() {});
+    if (res != null) {
+      imageFile = res;
+      imageChanged = true;
+      setState(() {});
+    }
   }
 
   Future<void> save() async {
     try {
       setState(() => _isSaving = true);
       String? base64;
-      if (imageFile != null) {
-        List<int> imageBytes = [];
-        base64 = "data:image/png;base64," + base64Encode(imageBytes);
+      if (imageFile != null && imageChanged) {
+        base64 = convertToBase64(imageFile, "image/jpeg");
+      } else if (imageFile is String) {
+        base64 = imageFile;
       }
       var obj = FuncionarioModel(
         id: widget.myId ?? -1, nome: txtNome.text, documento: txtDocumento.text,
@@ -162,7 +168,11 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                             backgroundColor: AppColors.primary.withOpacity(0.1),
                             backgroundImage: imageFile == null
                                 ? const AssetImage('assets/images/defaultUser.png')
-                                : Image.network(imageFile.path).image,
+                                : (imageFile is String
+                                    ? NetworkImage(imageFile)
+                                    : (kIsWeb
+                                        ? NetworkImage(imageFile.path)
+                                        : FileImage(io.File(imageFile.path)))) as ImageProvider,
                           ),
                           Positioned(
                             bottom: 0, right: 0,

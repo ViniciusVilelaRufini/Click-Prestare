@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_funcionario.dart';
@@ -57,7 +58,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
       txtDocumento.text = obj["documento"] ?? "";
       txtEmail.text = obj["email"] ?? "";
       txtTelefone.text = obj["telefone"] ?? "";
-      imageFile = await fileFromImageUrl(obj['photo'] ?? '');
+      imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) await displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -71,8 +72,9 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
       setState(() => _isSaving = true);
       String? base64;
       if (imageFile != null && changed) {
-        List<int> imageBytes = [];
-        base64 = "data:image/png;base64," + base64Encode(imageBytes);
+        base64 = convertToBase64(imageFile, "image/jpeg");
+      } else if (imageFile is String) {
+        base64 = imageFile;
       }
       var funcionario = FuncionarioModel(
         id: myId, nome: txtNome.text, documento: txtDocumento.text,
@@ -120,9 +122,11 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                             backgroundColor: AppColors.primary.withOpacity(0.1),
                             backgroundImage: imageFile == null
                                 ? const AssetImage('assets/images/defaultUser.png')
-                                : (kIsWeb
-                                    ? NetworkImage(imageFile!.path)
-                                    : const AssetImage('assets/images/defaultUser.png')) as ImageProvider,
+                                : (imageFile is String
+                                    ? NetworkImage(imageFile)
+                                    : (kIsWeb
+                                        ? NetworkImage(imageFile.path)
+                                        : FileImage(io.File(imageFile.path)))) as ImageProvider,
                           ),
                           Positioned(
                             bottom: 0, right: 0,

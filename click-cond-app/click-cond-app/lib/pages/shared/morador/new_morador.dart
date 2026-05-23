@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
@@ -84,7 +85,7 @@ class _NewMoradorPageState extends State<NewMorador> {
       txtExtra3.text = widget.obj["extra3"] ?? '';
       txtExtra4.text = widget.obj["extra4"] ?? '';
       myId = widget.obj["id"];
-      imageFile = await fileFromImageUrl(widget.obj['photo'] ?? '');
+      imageFile = widget.obj['photo'] != null && widget.obj['photo'].toString().isNotEmpty ? widget.obj['photo'] : null;
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -116,7 +117,9 @@ class _NewMoradorPageState extends State<NewMorador> {
         extra2: txtExtra2.text.trim(),
         extra3: txtExtra3.text.trim(),
         extra4: txtExtra4.text.trim(),
-        photo: null, // upload de foto não suportado por aqui ainda
+        photo: imageFile != null && imageChanged
+            ? convertToBase64(imageFile, "image/jpeg")
+            : (imageFile is String ? imageFile : null),
         sendCredentials: _sendCredentials,
       );
 
@@ -199,9 +202,11 @@ class _NewMoradorPageState extends State<NewMorador> {
                             backgroundColor: AppColors.primary.withOpacity(0.1),
                             backgroundImage: imageFile == null
                                 ? const AssetImage('assets/images/defaultUser.png')
-                                : (kIsWeb
-                                    ? NetworkImage(imageFile!.path)
-                                    : const AssetImage('assets/images/defaultUser.png')) as ImageProvider,
+                                : (imageFile is String
+                                    ? NetworkImage(imageFile)
+                                    : (kIsWeb
+                                        ? NetworkImage(imageFile.path)
+                                        : FileImage(io.File(imageFile.path)))) as ImageProvider,
                           ),
                           Positioned(
                             bottom: 0, right: 0,

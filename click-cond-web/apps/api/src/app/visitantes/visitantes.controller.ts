@@ -16,6 +16,7 @@ export class VisitantesController {
       ...rest,
       apto: apartamento?.apto ?? null,
       apto_bloco: apartamento?.bloco ?? null,
+      photo: (v as any).foto_pessoa ?? null,
     };
   }
 
@@ -66,6 +67,7 @@ export class VisitantesGlobalController {
       ...rest,
       apto: apartamento?.apto ?? null,
       apto_bloco: apartamento?.bloco ?? null,
+      photo: (v as any).foto_pessoa ?? null,
     };
   }
 
@@ -126,7 +128,7 @@ export class VisitantesGlobalController {
       id_apartamento: Number(vis.id_apartamento),
       id_condominio: idCondominio,
       foto_documento: vis.foto_documento,
-      foto_pessoa: vis.foto_pessoa,
+      foto_pessoa: vis.foto_pessoa || vis.photo,
     });
     
     return saved;
@@ -146,7 +148,7 @@ export class VisitantesGlobalController {
       is_prestador: vis.is_prestador !== undefined ? Number(vis.is_prestador) : undefined,
       id_apartamento: vis.id_apartamento ? Number(vis.id_apartamento) : undefined,
       foto_documento: vis.foto_documento,
-      foto_pessoa: vis.foto_pessoa,
+      foto_pessoa: vis.foto_pessoa || vis.photo,
     });
   }
 }
