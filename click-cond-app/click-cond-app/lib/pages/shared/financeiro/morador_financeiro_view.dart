@@ -114,6 +114,17 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
   @override
   Widget build(BuildContext context) {
+    if (mes == null || ano == null) {
+      var now = DateTime.now();
+      mes = now.month.toString().padLeft(2, '0');
+      ano = now.year.toString();
+    }
+
+    List<dynamic> activeItems = _items.where((item) {
+      var info = _getMesAno(item);
+      return info['mes'] == mes && info['ano'] == ano;
+    }).toList();
+
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       appBar: AppBar(
@@ -137,16 +148,17 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               padding: const EdgeInsets.all(16),
               children: [
                 _buildViewToggle(),
+                _buildMonthSelector(),
                 const SizedBox(height: 20),
                 if (_viewMode == FinanceiroViewMode.morador) ...[
-                  _buildSummaryCard(),
+                  _buildSummaryCard(activeItems),
                   const SizedBox(height: 24),
-                  _buildSection("Condomínio", PhosphorIcons.buildings),
-                  _buildSection("Aluguel", PhosphorIcons.house),
-                  _buildSection("Água", PhosphorIcons.drop),
-                  _buildSection("Luz", PhosphorIcons.lightning),
-                  _buildSection("Internet", PhosphorIcons.wifiHigh),
-                  _buildSection("Outros", PhosphorIcons.fileText),
+                  _buildSection("Condomínio", PhosphorIcons.buildings, activeItems),
+                  _buildSection("Aluguel", PhosphorIcons.house, activeItems),
+                  _buildSection("Água", PhosphorIcons.drop, activeItems),
+                  _buildSection("Luz", PhosphorIcons.lightning, activeItems),
+                  _buildSection("Internet", PhosphorIcons.wifiHigh, activeItems),
+                  _buildSection("Outros", PhosphorIcons.fileText, activeItems),
                 ] else ...[
                   Text("Despesas do Condomínio", style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
@@ -197,9 +209,9 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
-  Widget _buildSummaryCard() {
+  Widget _buildSummaryCard(List<dynamic> activeItems) {
     double totalPendente = 0;
-    for(var item in _items) {
+    for(var item in activeItems) {
       int intPago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
       if(intPago == 0) {
         double val = 0;
@@ -230,8 +242,8 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
-  Widget _buildSection(String title, IconData icon) {
-    var sectionItems = _items.where((i) => i['categoria'] == title).toList();
+  Widget _buildSection(String title, IconData icon, List<dynamic> activeItems) {
+    var sectionItems = activeItems.where((i) => i['categoria'] == title).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -736,6 +748,128 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           },
         );
       },
+    );
+  }
+
+  Map<String, String> _getMesAno(dynamic item) {
+    String v = item['data_vencimento']?.toString() ?? '';
+    if (v.isEmpty) {
+      v = item['data']?.toString() ?? '';
+    }
+    if (v.isNotEmpty && v.contains('/')) {
+      var parts = v.split('/');
+      if (parts.length >= 3) {
+        return {'mes': parts[1], 'ano': parts[2]};
+      }
+    }
+    
+    String nome = item['nome']?.toString() ?? '';
+    if (nome.contains('Ref.')) {
+      var refPart = nome.split('Ref.').last.trim();
+      if (refPart.contains('/')) {
+        var parts = refPart.split('/');
+        return {'mes': parts[0].padLeft(2, '0'), 'ano': parts[1]};
+      } else {
+        return {'mes': refPart.padLeft(2, '0'), 'ano': DateTime.now().year.toString()};
+      }
+    }
+    
+    var now = DateTime.now();
+    return {
+      'mes': now.month.toString().padLeft(2, '0'),
+      'ano': now.year.toString()
+    };
+  }
+
+  List<Map<String, String>> _getAvailableMonths() {
+    var now = DateTime.now();
+    var monthsMap = <String, Map<String, String>>{};
+    
+    String curKey = "${now.year}-${now.month.toString().padLeft(2, '0')}";
+    monthsMap[curKey] = {
+      'mes': now.month.toString().padLeft(2, '0'),
+      'ano': now.year.toString(),
+    };
+
+    for (var item in _items) {
+      var info = _getMesAno(item);
+      String key = "${info['ano']}-${info['mes']}";
+      monthsMap[key] = info;
+    }
+    
+    var sortedKeys = monthsMap.keys.toList()..sort();
+    sortedKeys = sortedKeys.reversed.toList();
+    
+    return sortedKeys.map((k) => monthsMap[k]!).toList();
+  }
+
+  String _getMonthName(String mesNum) {
+    switch (mesNum) {
+      case '01': return 'Jan';
+      case '02': return 'Fev';
+      case '03': return 'Mar';
+      case '04': return 'Abr';
+      case '05': return 'Mai';
+      case '06': return 'Jun';
+      case '07': return 'Jul';
+      case '08': return 'Ago';
+      case '09': return 'Set';
+      case '10': return 'Out';
+      case '11': return 'Nov';
+      case '12': return 'Dez';
+      default: return mesNum;
+    }
+  }
+
+  Widget _buildMonthSelector() {
+    var months = _getAvailableMonths();
+    if (months.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.only(top: 16),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: months.length,
+        itemBuilder: (context, index) {
+          var m = months[index];
+          bool isSelected = m['mes'] == mes && m['ano'] == ano;
+          
+          String monthName = _getMonthName(m['mes'] ?? '');
+          String yearShort = m['ano']?.substring(2) ?? '';
+          String label = "$monthName/$yearShort";
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                mes = m['mes'];
+                ano = m['ano'];
+              });
+              _loadData();
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary : AppColors.surface(context),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.border(context),
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  label.toUpperCase(),
+                  style: AppTypography.tiny(context).copyWith(
+                    color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

@@ -96,8 +96,8 @@ class _HomePageState extends State<HomePage> {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFF1AAEEB).withOpacity(0.15),
-                        const Color(0xFF1AAEEB).withOpacity(0),
+                        AppColors.primary.withOpacity(0.15),
+                        AppColors.primary.withOpacity(0),
                       ],
                     ),
                   ),
@@ -214,7 +214,7 @@ class _HomePageState extends State<HomePage> {
                         style: AppTypography.bodySecondary(context),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: AppSpacing.huge),
+                      _buildFeaturesList(context),
                       AppButton(
                         label: getText("sou_sindico"),
                         variant: AppButtonVariant.primary,
@@ -247,10 +247,21 @@ class _HomePageState extends State<HomePage> {
                           );
                         },
                       ),
-                      const SizedBox(height: AppSpacing.huge),
+                      const SizedBox(height: AppSpacing.xl),
                       Text(
                         '${getText("vesaoApp")} $_appVersion',
-                        style: AppTypography.tiny(context),
+                        style: AppTypography.tiny(context).copyWith(
+                          color: AppColors.textTertiary(context),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        '© 2026 Prestare Gestão e Tecnologia.\nTodos os direitos reservados.',
+                        style: AppTypography.tiny(context).copyWith(
+                          color: AppColors.textTertiary(context),
+                          height: 1.4,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: AppSpacing.xl),
@@ -299,6 +310,76 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturesList(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final checkColor = AppColors.primary;
+    final containerBg = isDark ? Colors.white.withOpacity(0.03) : AppColors.primary.withOpacity(0.04);
+    final borderCol = isDark ? Colors.white.withOpacity(0.05) : AppColors.primary.withOpacity(0.08);
+
+    Widget featureItem(String text) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: containerBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderCol),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: checkColor.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                PhosphorIcons.check,
+                color: checkColor,
+                size: 12,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: AppTypography.tiny(context).copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary(context),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: featureItem('Controle de Acesso')),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: featureItem('Gestão de Encomendas')),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(child: featureItem('Ocorrências Ativas')),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(child: featureItem('Relatórios Gerenciais')),
+            ],
+          ),
+        ],
       ),
     );
   }

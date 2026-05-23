@@ -620,8 +620,37 @@ class _CondominioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final saldo = (item['saldo'] ?? '').toString();
-    final isNegative = saldo.contains('-');
+    final isMorador = getUserType() == 'morador';
+    Widget subtitleWidget;
+
+    if (isMorador) {
+      final apto = item['apto']?.toString() ?? '';
+      final bloco = item['apto_bloco']?.toString() ?? '';
+      String details = '';
+      if (apto.isNotEmpty) {
+        details = bloco.isNotEmpty ? 'Bloco $bloco - Apto $apto' : 'Apto $apto';
+      } else {
+        details = 'Morador';
+      }
+      subtitleWidget = Text(
+        details,
+        style: AppTypography.caption(context).copyWith(
+          color: AppColors.textSecondary(context),
+          fontWeight: FontWeight.normal,
+        ),
+      );
+    } else {
+      final saldo = (item['saldo'] ?? '').toString();
+      final isNegative = saldo.contains('-');
+      subtitleWidget = Text(
+        saldo.isEmpty ? '—' : saldo,
+        style: AppTypography.caption(context).copyWith(
+          color: isNegative ? AppColors.error : AppColors.success,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
     return Material(
       color: AppColors.surface(context),
       borderRadius: BorderRadius.circular(AppRadius.xl),
@@ -654,11 +683,7 @@ class _CondominioCard extends StatelessWidget {
                         style: AppTypography.bodyMedium(context),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     AppSpacing.gapXs,
-                    Text(saldo.isEmpty ? '—' : saldo,
-                        style: AppTypography.caption(context).copyWith(
-                          color: isNegative ? AppColors.error : AppColors.success,
-                          fontWeight: FontWeight.w600,
-                        )),
+                    subtitleWidget,
                   ],
                 ),
               ),

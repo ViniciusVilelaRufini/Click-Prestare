@@ -4,18 +4,18 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // ── Primário (azul Click, modernizado)
-  static const Color primary = Color(0xFF1AAEEB);
-  static const Color primaryDark = Color(0xFF0E8FC4);
-  static const Color primaryLight = Color(0xFFE8F6FD);
-  static const Color primaryGradientStart = Color(0xFF1AAEEB);
-  static const Color primaryGradientEnd = Color(0xFF0E8FC4);
+  // ── Primário (azul Click corporativo, igual ao web)
+  static const Color primary = Color(0xFF2563EB);
+  static const Color primaryDark = Color(0xFF1D4ED8);
+  static const Color primaryLight = Color(0xFFEFF6FF);
+  static const Color primaryGradientStart = Color(0xFF2563EB);
+  static const Color primaryGradientEnd = Color(0xFF1D4ED8);
 
   // ── Semânticos
   static const Color success = Color(0xFF00C896);
   static const Color warning = Color(0xFFFFB020);
   static const Color error = Color(0xFFF4445E);
-  static const Color info = Color(0xFF1AAEEB);
+  static const Color info = Color(0xFF2563EB);
 
   // ── Modo CLARO
   static const Color lightBg = Color(0xFFFFFFFF);
