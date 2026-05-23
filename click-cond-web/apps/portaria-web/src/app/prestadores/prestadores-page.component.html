@@ -149,7 +149,7 @@
     </div>
   } @else {
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      @for (p of prestadoresFiltrados(); track p.id) {
+      @for (p of prestadoresPaginados(); track p.id) {
         <div class="group relative p-5 rounded-2xl bg-graphite-200 border border-white/10
                     hover:border-amber-400/30 transition">
           <div class="flex items-start gap-3">
@@ -192,5 +192,46 @@
         </div>
       }
     </div>
+
+    <!-- Paginação -->
+    @if (prestadoresFiltrados().length > itensPorPagina) {
+      <div class="mt-6 p-5 rounded-2xl bg-graphite-200 border border-white/10 flex items-center justify-between flex-wrap gap-4">
+        <p class="text-xs text-slate-400">
+          Exibindo <span class="text-white font-medium">{{ exibindoInicio() }}</span> a 
+          <span class="text-white font-medium">{{ exibindoFim() }}</span> de 
+          <span class="text-white font-medium">{{ prestadoresFiltrados().length }}</span> prestadores
+        </p>
+        
+        <div class="flex items-center gap-2">
+          <button (click)="pagina.set(pagina() - 1)" [disabled]="pagina() === 1"
+            class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          
+          <div class="flex items-center gap-1">
+            @for (p of paginasLista(); track p) {
+              @if (p === -1) {
+                <span class="px-2 text-slate-500">...</span>
+              } @else {
+                <button (click)="pagina.set(p)"
+                  class="w-8 h-8 rounded-lg text-xs font-semibold transition"
+                  [class.bg-accent]="pagina() === p"
+                  [class.text-white]="pagina() === p"
+                  [class.text-slate-400]="pagina() !== p"
+                  [class.hover:bg-white/5]="pagina() !== p"
+                  [class.hover:text-white]="pagina() !== p">
+                  {{ p }}
+                </button>
+              }
+            }
+          </div>
+
+          <button (click)="pagina.set(pagina() + 1)" [disabled]="pagina() === totalPaginas()"
+            class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    }
   }
 </div>

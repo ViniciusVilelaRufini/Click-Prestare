@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { VisitantesService } from './visitantes.service';
@@ -19,6 +19,16 @@ export class VisitantesPageComponent implements OnInit {
   private aptApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
 
+  constructor() {
+    effect(() => {
+      this.viewFilter();
+      this.search();
+      untracked(() => {
+        this.pagina.set(1);
+      });
+    });
+  }
+
   readonly visitantes = signal<Visitante[]>([]);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
@@ -32,6 +42,61 @@ export class VisitantesPageComponent implements OnInit {
   readonly validationError = signal<string | null>(null);
   readonly validating = signal(false);
   readonly checkingIn = signal(false);
+
+  readonly pagina = signal(1);
+  readonly itensPorPagina = 20;
+
+  readonly totalPaginas = computed(() => {
+    const total = this.visitantesFiltrados().length;
+    return Math.max(1, Math.ceil(total / this.itensPorPagina));
+  });
+
+  readonly visitantesPaginados = computed(() => {
+    const list = this.visitantesFiltrados();
+    const p = this.pagina();
+    const start = (p - 1) * this.itensPorPagina;
+    const end = start + this.itensPorPagina;
+    return list.slice(start, end);
+  });
+
+  readonly exibindoInicio = computed(() => {
+    if (this.visitantesFiltrados().length === 0) return 0;
+    return (this.pagina() - 1) * this.itensPorPagina + 1;
+  });
+
+  readonly exibindoFim = computed(() => {
+    return Math.min(this.pagina() * this.itensPorPagina, this.visitantesFiltrados().length);
+  });
+
+  readonly paginasLista = computed(() => {
+    const current = this.pagina();
+    const total = this.totalPaginas();
+    const list: number[] = [];
+    
+    if (total <= 5) {
+      for (let i = 1; i <= total; i++) list.push(i);
+    } else {
+      list.push(1);
+      
+      if (current > 3) {
+        list.push(-1);
+      }
+      
+      const start = Math.max(2, current - 1);
+      const end = Math.min(total - 1, current + 1);
+      
+      for (let i = start; i <= end; i++) {
+        if (!list.includes(i)) list.push(i);
+      }
+      
+      if (current < total - 2) {
+        list.push(-1);
+      }
+      
+      if (!list.includes(total)) list.push(total);
+    }
+    return list;
+  });
 
   readonly visitantesAtivos = computed(() =>
     this.visitantes().filter((v) => !v.data_hora_termino),
