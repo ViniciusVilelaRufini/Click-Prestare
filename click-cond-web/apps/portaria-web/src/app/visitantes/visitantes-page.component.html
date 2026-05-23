@@ -41,7 +41,7 @@
   <!-- Stats -->
   <div class="grid grid-cols-3 gap-3">
     <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Presentes agora</p>
+      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Ativos no local</p>
       <div class="flex items-end gap-2 mt-1">
         <p class="text-2xl font-bold text-emerald-400 tabular-nums leading-none">{{ visitantesAtivos().length }}</p>
         @if (visitantesAtivos().length > 0) {
@@ -50,7 +50,7 @@
       </div>
     </div>
     <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Histórico</p>
+      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Inativos / Saíram</p>
       <p class="text-2xl font-bold text-slate-300 tabular-nums mt-1 leading-none">{{ visitantesHistorico().length }}</p>
     </div>
     <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
@@ -64,8 +64,8 @@
     <div class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10">
       @for (f of [
         {key:'todos', label:'Todos'},
-        {key:'ativos', label:'Presentes'},
-        {key:'historico', label:'Histórico'}
+        {key:'ativos', label:'Ativos'},
+        {key:'historico', label:'Inativos'}
       ]; track f.key) {
         <button (click)="$any(viewFilter).set(f.key)"
                 class="px-3 py-1.5 text-xs rounded-lg transition"
@@ -260,15 +260,29 @@
                 }
               </td>
               <td class="px-5 py-3 text-right">
-                <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition">
-                  <button (click)="abrirEditar(v)"
-                          class="text-xs text-slate-500 hover:text-accent transition">
-                    Editar
-                  </button>
-                  <button (click)="remover(v)"
-                          class="text-xs text-slate-500 hover:text-red-400 transition">
-                    Remover
-                  </button>
+                <div class="flex items-center justify-end gap-3">
+                  @if (getStatusVisitante(v) === 'presente') {
+                    <button (click)="darBaixa(v)"
+                            class="px-2.5 py-1 text-xs rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white transition font-medium">
+                      Dar Baixa
+                    </button>
+                  } @else if (getStatusVisitante(v) === 'autorizado' || getStatusVisitante(v) === 'agendado') {
+                    <button (click)="registrarEntradaManual(v)"
+                            class="px-2.5 py-1 text-xs rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition font-medium">
+                      Registrar Entrada
+                    </button>
+                  }
+                  
+                  <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                    <button (click)="abrirEditar(v)"
+                            class="text-xs text-slate-500 hover:text-accent transition">
+                      Editar
+                    </button>
+                    <button (click)="remover(v)"
+                            class="text-xs text-slate-500 hover:text-red-400 transition">
+                      Remover
+                    </button>
+                  </div>
                 </div>
               </td>
             </tr>

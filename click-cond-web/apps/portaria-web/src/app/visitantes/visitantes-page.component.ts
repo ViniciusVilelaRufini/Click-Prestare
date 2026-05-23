@@ -99,10 +99,10 @@ export class VisitantesPageComponent implements OnInit {
   });
 
   readonly visitantesAtivos = computed(() =>
-    this.visitantes().filter((v) => !v.data_hora_termino),
+    this.visitantes().filter((v) => !!v.data_entrada && !v.data_saida),
   );
   readonly visitantesHistorico = computed(() =>
-    this.visitantes().filter((v) => !!v.data_hora_termino),
+    this.visitantes().filter((v) => !v.data_entrada || !!v.data_saida),
   );
   readonly visitantesFiltrados = computed(() => {
     const f = this.viewFilter();
@@ -204,6 +204,34 @@ export class VisitantesPageComponent implements OnInit {
     this.service.remove(v.id).subscribe({
       next: () => this.carregar(),
       error: (e) => this.error.set(`Falha ao remover: ${e?.message ?? e}`),
+    });
+  }
+
+  async darBaixa(v: Visitante) {
+    const ok = await this.confirm.ask({
+      title: 'Dar baixa (Saída)',
+      message: `Confirmar a saída de ${v.nome}?`,
+      confirmLabel: 'Confirmar Saída',
+      variant: 'primary',
+    });
+    if (!ok) return;
+    this.service.checkOut(v.id).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.error.set(`Falha ao registrar saída: ${e?.message ?? e}`),
+    });
+  }
+
+  async registrarEntradaManual(v: Visitante) {
+    const ok = await this.confirm.ask({
+      title: 'Registrar Entrada',
+      message: `Confirmar a entrada de ${v.nome}?`,
+      confirmLabel: 'Confirmar Entrada',
+      variant: 'primary',
+    });
+    if (!ok) return;
+    this.service.checkIn(v.id).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.error.set(`Falha ao registrar entrada: ${e?.message ?? e}`),
     });
   }
 

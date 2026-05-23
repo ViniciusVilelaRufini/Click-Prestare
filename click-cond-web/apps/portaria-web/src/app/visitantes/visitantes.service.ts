@@ -44,4 +44,8 @@ export class VisitantesService {
   checkIn(id: number): Observable<any> {
     return this.http.post<any>(`${API_BASE}/visitantes/check-in`, { id });
   }
+
+  checkOut(id: number): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/visitantes/check-out`, { id });
+  }
 }
