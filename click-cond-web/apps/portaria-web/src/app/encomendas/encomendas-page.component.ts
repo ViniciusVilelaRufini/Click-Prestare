@@ -28,6 +28,7 @@ export class EncomendasPageComponent implements OnInit {
       this.filtroBloco();
       untracked(() => {
         this.pagina.set(1);
+        this.selecionadas.set(new Set());
       });
     });
   }
@@ -41,6 +42,14 @@ export class EncomendasPageComponent implements OnInit {
   readonly busca = signal<string>('');
   readonly filtroTransportadora = signal<string>('');
   readonly filtroBloco = signal<string>('');
+
+  readonly selecionadas = signal<Set<number>>(new Set());
+  readonly retirandoEncomenda = signal<Encomenda | null>(null);
+  isBatchRetirada = false;
+
+  retiranteNome = '';
+  retiranteDocumento = '';
+  retiranteParentesco = 'Morador';
 
   readonly pagina = signal(1);
   readonly itensPorPagina = 20;
@@ -118,13 +127,11 @@ export class EncomendasPageComponent implements OnInit {
   readonly encomendasFiltradas = computed(() => {
     let list = this.encomendas();
     
-    // 1. Status
     const f = this.filtro();
     if (f) {
       list = list.filter(e => e.status === f);
     }
 
-    // 2. Busca
     const text = this.busca().toLowerCase().trim();
     if (text) {
       list = list.filter(e => 
@@ -137,19 +144,28 @@ export class EncomendasPageComponent implements OnInit {
       );
     }
 
-    // 3. Transportadora
     const fTransp = this.filtroTransportadora();
     if (fTransp) {
       list = list.filter(e => e.recebido_de?.trim() === fTransp);
     }
 
-    // 4. Bloco
     const fBloco = this.filtroBloco();
     if (fBloco) {
       list = list.filter(e => e.destinatario_bloco?.trim() === fBloco);
     }
 
     return list;
+  });
+
+  readonly totalAguardandoFiltradas = computed(() => {
+    return this.encomendasFiltradas().filter(e => e.status === 'Aguardando');
+  });
+
+  readonly todasSelecionadas = computed(() => {
+    const list = this.totalAguardandoFiltradas();
+    if (list.length === 0) return false;
+    const sel = this.selecionadas();
+    return list.every(e => sel.has(e.id));
   });
 
   readonly aguardando = computed(() => this.encomendas().filter((e) => e.status === 'Aguardando').length);
@@ -184,7 +200,6 @@ export class EncomendasPageComponent implements OnInit {
   carregarApartamentos() {
     this.aptosApi.list().subscribe({
       next: (data) => {
-        // Ordenar os apartamentos para ficar bonitinho
         data.sort((a, b) => {
           if (a.bloco === b.bloco) return a.apto.localeCompare(b.apto);
           return (a.bloco ?? '').localeCompare(b.bloco ?? '');
@@ -214,10 +229,161 @@ export class EncomendasPageComponent implements OnInit {
     });
   }
 
-  retirar(e: Encomenda) {
-    const por = prompt(`Quem está retirando "${e.descricao}"?\nNome do morador:`);
-    if (!por) return;
-    this.api.retirar(e.id, por).subscribe({ next: () => this.carregar() });
+  notificar(e: Encomenda) {
+    this.loading.set(true);
+    this.api.notificar(e.id).subscribe({
+      next: () => {
+        this.carregar();
+      },
+      error: (err) => {
+        this.error.set(err?.message ?? 'Erro ao notificar morador');
+        this.loading.set(false);
+      }
+    });
+  }
+
+  abrirRetirada(e: Encomenda) {
+    this.retirandoEncomenda.set(e);
+    this.isBatchRetirada = false;
+    this.retiranteNome = '';
+    this.retiranteDocumento = '';
+    this.retiranteParentesco = 'Morador';
+  }
+
+  abrirRetiradaLote() {
+    if (this.selecionadas().size === 0) return;
+    this.retirandoEncomenda.set(null);
+    this.isBatchRetirada = true;
+    this.retiranteNome = '';
+    this.retiranteDocumento = '';
+    this.retiranteParentesco = 'Morador';
+  }
+
+  confirmarRetirada() {
+    if (!this.retiranteNome.trim()) {
+      alert('Nome do retirante é obrigatório.');
+      return;
+    }
+    const details = `${this.retiranteNome} (${this.retiranteParentesco}${this.retiranteDocumento ? ' - Doc: ' + this.retiranteDocumento : ''})`;
+
+    this.loading.set(true);
+    if (this.isBatchRetirada) {
+      const sel = Array.from(this.selecionadas());
+      import('rxjs').then(({ forkJoin }) => {
+        const requests = sel.map(id => this.api.retirar(id, details));
+        forkJoin(requests).subscribe({
+          next: () => {
+            this.selecionadas.set(new Set());
+            this.isBatchRetirada = false;
+            this.carregar();
+          },
+          error: (e) => {
+            this.error.set(e?.message ?? 'Erro ao retirar lote');
+            this.loading.set(false);
+          }
+        });
+      });
+    } else {
+      const e = this.retirandoEncomenda();
+      if (!e) return;
+      this.api.retirar(e.id, details).subscribe({
+        next: () => {
+          this.retirandoEncomenda.set(null);
+          this.carregar();
+        },
+        error: (err) => {
+          this.error.set(err?.message ?? 'Erro ao registrar retirada');
+          this.loading.set(false);
+        }
+      });
+    }
+  }
+
+  toggleSelecionado(id: number) {
+    const current = new Set(this.selecionadas());
+    if (current.has(id)) {
+      current.delete(id);
+    } else {
+      current.add(id);
+    }
+    this.selecionadas.set(current);
+  }
+
+  toggleSelecionarTodos() {
+    const list = this.totalAguardandoFiltradas();
+    const current = new Set(this.selecionadas());
+    const allSelected = this.todasSelecionadas();
+
+    if (allSelected) {
+      list.forEach(e => current.delete(e.id));
+    } else {
+      list.forEach(e => current.add(e.id));
+    }
+    this.selecionadas.set(current);
+  }
+
+  notificarLote() {
+    const sel = Array.from(this.selecionadas());
+    if (sel.length === 0) return;
+    
+    this.loading.set(true);
+    import('rxjs').then(({ forkJoin }) => {
+      const requests = sel.map(id => this.api.notificar(id));
+      forkJoin(requests).subscribe({
+        next: () => {
+          this.selecionadas.set(new Set());
+          this.carregar();
+        },
+        error: (e) => {
+          this.error.set(e?.message ?? 'Erro ao notificar lote');
+          this.loading.set(false);
+        }
+      });
+    });
+  }
+
+  limparSelecao() {
+    this.selecionadas.set(new Set());
+  }
+
+  imprimirLote() {
+    const sel = this.selecionadas();
+    if (sel.size === 0) return;
+
+    const list = this.encomendas().filter(e => sel.has(e.id));
+    const w = window.open('', '_blank', 'width=600,height=800');
+    if (!w) return;
+
+    let htmlContent = `
+      <html><head><title>Etiquetas em Lote</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:20px;margin:0}
+        .label{border:2px solid #000;padding:16px;border-radius:8px;margin-bottom:20px;page-break-inside:avoid}
+        .id{font-size:11px;color:#666;letter-spacing:2px;text-transform:uppercase}
+        .apto{font-size:36px;font-weight:bold;margin:8px 0;letter-spacing:-1px}
+        .desc{font-size:14px;margin:8px 0;border-top:1px dashed #999;padding-top:8px}
+        .meta{font-size:11px;color:#666;margin-top:12px}
+      </style></head><body>
+    `;
+
+    list.forEach(e => {
+      htmlContent += `
+        <div class="label">
+          <div class="id">Encomenda #${e.id}</div>
+          <div class="apto">${e.destinatario_bloco ? e.destinatario_bloco + ' / ' : ''}${e.destinatario_apto}</div>
+          <div class="desc">${e.descricao}</div>
+          <div class="meta">Recebido de: ${e.recebido_de ?? '—'}<br>Em: ${new Date(e.recebido_em).toLocaleString('pt-BR')}</div>
+        </div>
+      `;
+    });
+
+    htmlContent += `
+      <script>window.onload=()=>window.print()</script>
+      </body></html>
+    `;
+
+    w.document.write(htmlContent);
+    w.document.close();
   }
 
   imprimir(e: Encomenda) {

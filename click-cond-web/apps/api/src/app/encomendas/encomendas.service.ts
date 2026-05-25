@@ -205,6 +205,58 @@ export class EncomendasService {
     }
   }
 
+  async notificar(id: number) {
+    if (!this.prisma.isConnected) {
+      return { success: true, id, notificado: 1, notificado_em: new Date() };
+    }
+
+    try {
+      const e = await this.prisma.encomendas.update({
+        where: { id: Number(id) },
+        data: {
+          notificado: 1,
+          notificado_em: new Date(),
+        },
+      });
+
+      try {
+        const moradores = await this.prisma.users.findMany({
+          where: {
+            moradores: {
+              some: {
+                id_condominio: e.id_condominio,
+                apartamento: {
+                  apto: e.destinatario_apto,
+                  ...(e.destinatario_bloco ? { bloco: e.destinatario_bloco } : {}),
+                },
+              },
+            },
+            fcm_token: { not: null },
+            notif_encomendas: 1,
+          },
+          select: { fcm_token: true },
+        });
+
+        for (const morador of moradores) {
+          if (morador.fcm_token) {
+            await this.notifications.sendPushNotification(
+              morador.fcm_token,
+              'Aviso de Encomenda Pendente!',
+              `Você tem uma encomenda pendente (${e.descricao}) aguardando retirada.`,
+              { id: e.id.toString(), type: 'encomenda' },
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Falha ao reenviar notificação:', err);
+      }
+
+      return e;
+    } catch {
+      throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    }
+  }
+
   async remove(id: number) {
     if (!this.prisma.isConnected) return { success: true };
     try {

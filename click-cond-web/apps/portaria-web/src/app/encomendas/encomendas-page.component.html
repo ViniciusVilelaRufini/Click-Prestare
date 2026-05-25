@@ -47,6 +47,64 @@
     </div>
   </div>
 
+  <!-- Legenda de Armazenamento -->
+  <div class="px-4 py-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between text-xs text-slate-400">
+    <div class="flex items-center gap-4 flex-wrap">
+      <span class="font-medium text-slate-300">Tempo de Armazenamento:</span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded bg-slate-400/20 border border-white/10"></span> Recente (&lt; 3 dias)
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded bg-amber-500/20 border border-amber-400/30"></span> Atenção (3 a 6 dias)
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded bg-red-500/20 border border-red-400/30"></span> Crítico (7+ dias)
+      </span>
+    </div>
+    <span class="text-slate-500 text-[11px] hidden md:inline">Notifique moradores diretamento no botão de ação da linha</span>
+  </div>
+
+  <!-- Barra de Ações em Lote -->
+  @if (selecionadas().size > 0) {
+    <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-400/20 flex flex-wrap items-center justify-between gap-4 animate-fade-in">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <span class="text-sm font-medium text-white">
+          <span class="font-bold text-emerald-400">{{ selecionadas().size }}</span> encomendas selecionadas
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button (click)="notificarLote()" 
+                class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          Notificar Lote
+        </button>
+        <button (click)="abrirRetiradaLote()" 
+                class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Retirar Lote
+        </button>
+        <button (click)="imprimirLote()" 
+                class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-graphite border border-white/10 hover:bg-white/5 text-slate-300 hover:text-white transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+          </svg>
+          Imprimir Etiquetas
+        </button>
+        <button (click)="limparSelecao()" 
+                class="px-3 py-2 text-xs rounded-lg text-slate-400 hover:text-white transition">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  }
+
   <!-- Filtros e Busca -->
   <div class="flex flex-wrap items-center justify-between gap-4">
     <!-- Status Tabs -->
@@ -190,12 +248,21 @@
       <table class="w-full text-sm">
         <thead class="bg-white/[0.02] text-slate-400 uppercase text-[11px] tracking-wider border-b border-white/10">
           <tr>
+            <th class="px-5 py-3 text-left w-10">
+              @if (filtro() === 'Aguardando' || filtro() === '') {
+                <input type="checkbox" 
+                       [checked]="todasSelecionadas()" 
+                       (change)="toggleSelecionarTodos()" 
+                       class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer" />
+              }
+            </th>
             <th class="text-left px-5 py-3 font-medium">#</th>
             <th class="text-left px-5 py-3 font-medium">Volume</th>
             <th class="text-left px-5 py-3 font-medium">Destinatário</th>
             <th class="text-left px-5 py-3 font-medium">Recebido de</th>
             <th class="text-left px-5 py-3 font-medium">Recebida em</th>
             <th class="text-left px-5 py-3 font-medium">Armazenada</th>
+            <th class="text-left px-5 py-3 font-medium">Notificação</th>
             <th class="text-left px-5 py-3 font-medium">Status</th>
             <th class="text-right px-5 py-3 font-medium"></th>
           </tr>
@@ -203,6 +270,16 @@
         <tbody>
           @for (e of encomendasPaginadas(); track e.id) {
             <tr class="border-t border-white/5 hover:bg-white/[0.02] transition group">
+              <td class="px-5 py-3 w-10">
+                @if (e.status === 'Aguardando') {
+                  <input type="checkbox" 
+                         [checked]="selecionadas().has(e.id)" 
+                         (change)="toggleSelecionado(e.id)" 
+                         class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer" />
+                } @else {
+                  <span class="text-slate-600 font-mono pl-1">—</span>
+                }
+              </td>
               <td class="px-5 py-3 text-slate-500 font-mono text-xs">#{{ e.id }}</td>
               <td class="px-5 py-3 font-medium text-white">{{ e.descricao }}</td>
               <td class="px-5 py-3">
@@ -219,14 +296,58 @@
               <td class="px-5 py-3 text-slate-400 text-xs font-mono">{{ e.recebido_em | date: 'dd/MM HH:mm' }}</td>
               <td class="px-5 py-3">
                 @if (e.status === 'Aguardando') {
-                  <span class="text-xs"
-                        [class.text-amber-400]="diasArmazenada(e) >= 3"
-                        [class.text-slate-300]="diasArmazenada(e) < 3">
-                    @if (diasArmazenada(e) === 0) { hoje }
-                    @else { {{ diasArmazenada(e) }}d }
-                  </span>
+                  <div class="flex items-center gap-1.5">
+                    @if (diasArmazenada(e) >= 7) {
+                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-red-500/10 border border-red-500/20 text-red-400 animate-pulse" title="Critico: armazenado há mais de 7 dias">
+                        <svg class="w-3 h-3 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        {{ diasArmazenada(e) }}d - Crítico
+                      </span>
+                    } @else if (diasArmazenada(e) >= 3) {
+                      <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500/10 border border-amber-400/20 text-amber-400" title="Atenção: armazenado há mais de 3 dias">
+                        <svg class="w-3 h-3 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        {{ diasArmazenada(e) }}d - Atenção
+                      </span>
+                    } @else {
+                      <span class="text-xs text-slate-300 font-mono">
+                        @if (diasArmazenada(e) === 0) { hoje }
+                        @else { {{ diasArmazenada(e) }}d }
+                      </span>
+                    }
+                  </div>
                 } @else {
-                  <span class="text-xs text-slate-500">{{ diasArmazenada(e) }}d</span>
+                  <span class="text-xs text-slate-500 font-mono">{{ diasArmazenada(e) }}d</span>
+                }
+              </td>
+              <td class="px-5 py-3">
+                @if (e.status === 'Aguardando') {
+                  @if (e.notificado) {
+                    <div class="flex flex-col">
+                      <span class="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
+                        <svg class="w-3 h-3 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Notificado
+                      </span>
+                      <span class="text-[10px] text-slate-500 mt-0.5 font-mono">
+                        {{ e.notificado_em | date: 'dd/MM HH:mm' }}
+                      </span>
+                    </div>
+                  } @else {
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-slate-500 font-medium">Pendente</span>
+                      <button (click)="notificar(e)" 
+                              class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition duration-150 shrink-0"
+                              title="Notificar morador por push">
+                        Notificar
+                      </button>
+                    </div>
+                  }
+                } @else {
+                  <span class="text-xs text-slate-500">—</span>
                 }
               </td>
               <td class="px-5 py-3">
@@ -254,7 +375,7 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                   </button>
                   @if (e.status === 'Aguardando') {
-                    <button (click)="retirar(e)"
+                    <button (click)="abrirRetirada(e)"
                             class="text-xs px-2.5 py-1 rounded-md bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 border border-emerald-400/20">
                       Marcar retirada
                     </button>
@@ -309,4 +430,81 @@
       }
     }
   </div>
+
+  <!-- Modal de Confirmação de Retirada -->
+  @if (retirandoEncomenda() || isBatchRetirada) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in">
+        
+        <!-- Header -->
+        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <h3 class="text-sm font-semibold text-white">Registrar Retirada de Encomenda</h3>
+          </div>
+          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false" class="text-slate-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6 space-y-4">
+          @if (!isBatchRetirada) {
+            <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Encomenda</span>
+              <p class="text-sm font-medium text-white">{{ retirandoEncomenda()?.descricao }}</p>
+              <p class="text-xs text-slate-400">
+                Destinatário: <span class="font-mono text-emerald-400">{{ retirandoEncomenda()?.destinatario_bloco ? retirandoEncomenda()?.destinatario_bloco + ' / ' : '' }}{{ retirandoEncomenda()?.destinatario_apto }}</span>
+              </p>
+            </div>
+          } @else {
+            <div class="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-400/10 space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Em Lote</span>
+              <p class="text-sm font-medium text-white">Retirando <span class="text-emerald-400 font-bold">{{ selecionadas().size }}</span> encomendas selecionadas.</p>
+            </div>
+          }
+
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Quem está retirando? *</label>
+              <input type="text" [(ngModel)]="retiranteNome" placeholder="Nome completo do morador ou pessoa autorizada"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Relação/Vínculo</label>
+              <select [(ngModel)]="retiranteParentesco"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60">
+                <option value="Morador">Morador (Próprio destinatário)</option>
+                <option value="Familiar">Familiar (Cônjuge, Filho, etc.)</option>
+                <option value="Autorizado">Pessoa Autorizada</option>
+                <option value="Funcionario">Funcionário do morador</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Documento / RG (Opcional)</label>
+              <input type="text" [(ngModel)]="retiranteDocumento" placeholder="Ex: 12.345.678-9"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end gap-2">
+          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false"
+                  class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition">
+            Cancelar
+          </button>
+          <button (click)="confirmarRetirada()" [disabled]="!retiranteNome.trim()"
+                  class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 transition">
+            Confirmar Retirada
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 </div>

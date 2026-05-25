@@ -16,6 +16,8 @@ export interface Encomenda {
   retirado_em: string | null;
   retirado_por: string | null;
   status: EncomendaStatus;
+  notificado?: number | null;
+  notificado_em?: string | null;
 }
 
 export interface CreateEncomenda {
@@ -48,6 +50,10 @@ export class EncomendasApi {
 
   retirar(id: number, retiradoPor: string): Observable<Encomenda> {
     return this.http.patch<Encomenda>(`${this.base}/${id}/retirar`, { retirado_por: retiradoPor });
+  }
+
+  notificar(id: number): Observable<Encomenda> {
+    return this.http.patch<Encomenda>(`${this.base}/${id}/notificar`, {});
   }
 
   remove(id: number): Observable<{ ok: boolean }> {

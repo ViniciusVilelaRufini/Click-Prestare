@@ -36,6 +36,11 @@ export class EncomendasController {
     return this.service.retirar(id, body.retirado_por);
   }
 
+  @Patch(':id/notificar')
+  notificar(@Param('id', ParseIntPipe) id: number) {
+    return this.service.notificar(id);
+  }
+
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     this.service.remove(id);
