@@ -44,6 +44,20 @@ module.exports = {
         soft: '0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08)',
         card: '0 1px 3px rgba(0,0,0,0.02), 0 4px 16px rgba(0,0,0,0.04)',
       },
+      keyframes: {
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'slide-in-right': {
+          '0%': { transform: 'translateX(100%)' },
+          '100%': { transform: 'translateX(0)' },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 0.15s ease-out',
+        'slide-in-right': 'slide-in-right 0.25s ease-out',
+      },
     },
   },
   plugins: [],

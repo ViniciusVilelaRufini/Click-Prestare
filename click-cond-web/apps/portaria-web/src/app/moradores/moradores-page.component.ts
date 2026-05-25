@@ -29,6 +29,8 @@ export class MoradoresPageComponent implements OnInit {
     });
   }
 
+  readonly selectedMorador = signal<Morador | null>(null);
+
   readonly moradores = signal<Morador[]>([]);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
@@ -91,11 +93,29 @@ export class MoradoresPageComponent implements OnInit {
     return list;
   });
 
-  readonly moradoresFiltrados = computed(() => {
+  // Filtro por tipo (chip buttons)
+  readonly moradoresPorTipo = computed(() => {
     const t = this.filtroTipo();
     if (!t) return this.moradores();
     return this.moradores().filter((m) => (m.tipo ?? '').toLowerCase() === t);
   });
+
+  // Filtro combinado: tipo + busca textual (local, sem chamar API)
+  readonly moradoresFiltrados = computed(() => {
+    const q = this.search().toLowerCase().trim();
+    const list = this.moradoresPorTipo();
+    if (!q) return list;
+    return list.filter(m =>
+      m.nome.toLowerCase().includes(q) ||
+      (m.documento && m.documento.toLowerCase().includes(q)) ||
+      (m.email && m.email.toLowerCase().includes(q)) ||
+      (m.telefone && m.telefone.toLowerCase().includes(q)) ||
+      (m.apartamento && String(m.apartamento).toLowerCase().includes(q)) ||
+      (m.bloco && m.bloco.toLowerCase().includes(q))
+    );
+  });
+
+  // Stats sempre baseadas em TODOS os moradores (nunca afetadas pelo filtro)
   readonly stats = computed(() => {
     const list = this.moradores();
     return {
@@ -121,7 +141,8 @@ export class MoradoresPageComponent implements OnInit {
   carregar() {
     this.loading.set(true);
     this.error.set(null);
-    this.api.list(this.search() || undefined).subscribe({
+    // Sempre carrega TODOS os moradores — filtro textual é feito localmente via computed
+    this.api.list(undefined).subscribe({
       next: (data) => { 
         this.moradores.set(data); 
         this.pagina.set(1);
@@ -129,6 +150,14 @@ export class MoradoresPageComponent implements OnInit {
       },
       error: (e) => { this.error.set(e?.message ?? 'Erro'); this.loading.set(false); },
     });
+  }
+
+  abrirDetalhes(m: Morador) {
+    this.selectedMorador.set(m);
+  }
+
+  fecharDetalhes() {
+    this.selectedMorador.set(null);
   }
   abrirNovo() {
     this.editingId = null;
