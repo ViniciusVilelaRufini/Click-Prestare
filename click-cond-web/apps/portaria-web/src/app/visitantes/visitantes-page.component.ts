@@ -24,6 +24,7 @@ export class VisitantesPageComponent implements OnInit {
   constructor() {
     effect(() => {
       this.viewFilter();
+      this.tipoFilter();
       this.search();
       untracked(() => {
         this.pagina.set(1);
@@ -37,6 +38,8 @@ export class VisitantesPageComponent implements OnInit {
   readonly error = signal<string | null>(null);
   readonly search = signal('');
   readonly viewFilter = signal<'todos' | 'ativos' | 'historico'>('todos');
+  readonly tipoFilter = signal<'todos' | 'visitante' | 'prestador'>('todos');
+  readonly pinsRevelados = signal<Set<number>>(new Set());
 
   readonly showValidationModal = signal(false);
   readonly pinCode = signal('');
@@ -107,10 +110,36 @@ export class VisitantesPageComponent implements OnInit {
     this.visitantes().filter((v) => !v.data_entrada || !!v.data_saida),
   );
   readonly visitantesFiltrados = computed(() => {
+    let list = this.visitantes();
+    
+    // 1. Filtrar por status
     const f = this.viewFilter();
-    if (f === 'ativos') return this.visitantesAtivos();
-    if (f === 'historico') return this.visitantesHistorico();
-    return this.visitantes();
+    if (f === 'ativos') {
+      list = list.filter((v) => !!v.data_entrada && !v.data_saida);
+    } else if (f === 'historico') {
+      list = list.filter((v) => !v.data_entrada || !!v.data_saida);
+    }
+
+    // 2. Filtrar por tipo (visitante vs prestador)
+    const t = this.tipoFilter();
+    if (t === 'visitante') {
+      list = list.filter((v) => !v.is_prestador);
+    } else if (t === 'prestador') {
+      list = list.filter((v) => !!v.is_prestador);
+    }
+
+    // 3. Filtrar por busca (tempo real)
+    const term = this.search().toLowerCase().trim();
+    if (term) {
+      list = list.filter((v) => 
+        v.nome.toLowerCase().includes(term) ||
+        (v.doc_identificacao && v.doc_identificacao.toLowerCase().includes(term)) ||
+        (v.apto && v.apto.toLowerCase().includes(term)) ||
+        (v.apto_bloco && v.apto_bloco.toLowerCase().includes(term))
+      );
+    }
+
+    return list;
   });
 
   novo: CreateVisitante = this.estadoInicial();
@@ -133,7 +162,7 @@ export class VisitantesPageComponent implements OnInit {
   carregar() {
     this.loading.set(true);
     this.error.set(null);
-    this.service.list(this.search() || undefined).subscribe({
+    this.service.list().subscribe({
       next: (data) => {
         this.visitantes.set(data);
         this.loading.set(false);
@@ -246,18 +275,24 @@ export class VisitantesPageComponent implements OnInit {
     return nome.trim().split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('');
   }
 
+  togglePin(id: number, event: Event) {
+    event.stopPropagation();
+    const current = new Set(this.pinsRevelados());
+    if (current.has(id)) {
+      current.delete(id);
+    } else {
+      current.add(id);
+    }
+    this.pinsRevelados.set(current);
+  }
+
   duracao(v: Visitante): string {
-    // Usa a entrada/saída real se disponível, senão usa o período agendado
-    const inicio = v.data_entrada
-      ? new Date(v.data_entrada).getTime()
-      : v.data_hora_inicio
-      ? new Date(v.data_hora_inicio).getTime()
-      : null;
-    if (!inicio) return '—';
+    if (!v.data_entrada) {
+      return '—';
+    }
+    const inicio = new Date(v.data_entrada).getTime();
     const fim = v.data_saida
       ? new Date(v.data_saida).getTime()
-      : v.data_hora_termino
-      ? new Date(v.data_hora_termino).getTime()
       : Date.now();
     const min = Math.floor((fim - inicio) / 60000);
     if (min < 1) return 'agora';
