@@ -50,6 +50,7 @@
           @for (item of group.items; track item.path) {
             <a
               [routerLink]="item.path"
+              (click)="linkClicked.emit()"
               routerLinkActive="bg-accent/[0.06] text-accent dark:bg-accent/15 border-l-2 border-accent rounded-l-none pl-2.5 font-semibold"
               [routerLinkActiveOptions]="{exact: item.path === '/dashboard'}"
               #rla="routerLinkActive"

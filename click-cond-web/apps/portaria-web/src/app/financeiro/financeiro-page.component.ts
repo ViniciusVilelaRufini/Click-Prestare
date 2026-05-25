@@ -25,9 +25,17 @@ export class FinanceiroPageComponent implements OnInit {
   // Período de Consumo
   selectedMesAno: string = '05|2026';
 
+  // Filtros e buscas
+  readonly searchCaixa = signal('');
+  readonly naturezaFilter = signal<'todos' | 'C' | 'D'>('todos');
+  readonly categoriaFilter = signal<string>('todos');
+
+  readonly searchInadimplencia = signal('');
+  readonly sortInadimplencia = signal<'apto' | 'qtd'>('apto');
+
   // Modais
   readonly modalLancamento = signal(false);
-  novoLancamento: any = { nome: '', tipo: 'C', valor: null, data: '', data_vencimento: '', categoria: 'Receitas' };
+  novoLancamento: any = { nome: '', tipo: 'C', valor: null, data: '', data_vencimento: '', categoria: 'Taxa Condominial' };
 
   readonly modalDetalhe = signal(false);
   readonly selectedApto = signal<any>(null);
@@ -39,6 +47,102 @@ export class FinanceiroPageComponent implements OnInit {
   // Upload de boleto/comprovante por lançamento
   readonly uploadingId = signal<number | null>(null);
   readonly uploadError = signal<string | null>(null);
+
+  // Filtro e Ordenação de Inadimplência
+  getFilteredInadimplentes() {
+    const query = this.searchInadimplencia().toLowerCase().trim();
+    const sortBy = this.sortInadimplencia();
+    const blocks = this.inadimplentesBlocos();
+
+    if (!query && sortBy === 'apto') {
+      return blocks;
+    }
+
+    return blocks.map(b => {
+      let filteredAptos = [...(b.aptos || [])];
+      if (query) {
+        filteredAptos = filteredAptos.filter(a =>
+          a.apto.toLowerCase().includes(query) ||
+          b.bloco.toLowerCase().includes(query)
+        );
+      }
+      if (sortBy === 'qtd') {
+        filteredAptos.sort((x, y) => (y.qtd || 0) - (x.qtd || 0));
+      } else {
+        filteredAptos.sort((x, y) => x.apto.localeCompare(y.apto, undefined, { numeric: true }));
+      }
+      return {
+        ...b,
+        aptos: filteredAptos
+      };
+    }).filter(b => b.aptos.length > 0);
+  }
+
+  // Filtros Dinâmicos do Livro Caixa
+  getCategoriasDisponiveis(): string[] {
+    const list: string[] = [];
+    const map = this.lancamentosMap();
+    for (const key of Object.keys(map)) {
+      for (const item of map[key]) {
+        if (item.categoria && !list.includes(item.categoria)) {
+          list.push(item.categoria);
+        }
+      }
+    }
+    return list.sort();
+  }
+
+  _filteredLancamentosMap: Record<string, Lancamento[]> = {};
+
+  getFilteredDiasChaves(): string[] {
+    const query = this.searchCaixa().toLowerCase().trim();
+    const nat = this.naturezaFilter();
+    const cat = this.categoriaFilter();
+    const map = this.lancamentosMap();
+
+    const filteredMap: Record<string, Lancamento[]> = {};
+
+    for (const dateKey of Object.keys(map)) {
+      const items = map[dateKey].filter(item => {
+        const matchesQuery = !query ||
+          item.nome.toLowerCase().includes(query) ||
+          (item.categoria && item.categoria.toLowerCase().includes(query)) ||
+          (item.nome_operador && item.nome_operador.toLowerCase().includes(query));
+
+        const matchesNat = nat === 'todos' || item.tipo === nat;
+        const matchesCat = cat === 'todos' || item.categoria === cat;
+
+        return matchesQuery && matchesNat && matchesCat;
+      });
+
+      if (items.length > 0) {
+        filteredMap[dateKey] = items;
+      }
+    }
+
+    this._filteredLancamentosMap = filteredMap;
+    return Object.keys(filteredMap);
+  }
+
+  getFilteredLancamentos(diaChave: string): Lancamento[] {
+    return this._filteredLancamentosMap[diaChave] || [];
+  }
+
+  // Categorias do Formulário de Lançamento
+  getCategoriasParaForm(): string[] {
+    if (this.novoLancamento.tipo === 'C') {
+      return ['Taxa Condominial', 'Fundo de Reserva', 'Multas/Juros', 'Locação de Área Comum', 'Outras Receitas'];
+    } else {
+      return ['Água e Esgoto', 'Energia Elétrica', 'Manutenção', 'Segurança', 'Limpeza/Conservação', 'Administração', 'Outras Despesas'];
+    }
+  }
+
+  onFormTipoChange() {
+    const cats = this.getCategoriasParaForm();
+    if (cats.length > 0) {
+      this.novoLancamento.categoria = cats[0];
+    }
+  }
 
   ngOnInit() {
     // Configura o mês atual inicialmente

@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
@@ -23,6 +23,7 @@ interface NavGroup {
 export class SidebarComponent {
   readonly auth = inject(AuthService);
   readonly isLight = signal<boolean>(false);
+  @Output() linkClicked = new EventEmitter<void>();
 
   constructor() {
     const saved = localStorage.getItem('theme_mode');

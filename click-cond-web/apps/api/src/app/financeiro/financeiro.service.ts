@@ -665,7 +665,7 @@ export class FinanceiroService implements OnModuleInit {
         categoria: c,
         saldo: info.saldo,
         saldoReal: formatReal(info.saldo),
-        tipo: info.tipo,
+        tipo: info.saldo >= 0 ? 'C' : 'D',
         percentualString: perc.toFixed(2) + '%',
       };
     });
