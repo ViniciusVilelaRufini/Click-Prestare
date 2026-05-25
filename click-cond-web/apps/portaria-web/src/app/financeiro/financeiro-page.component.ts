@@ -210,7 +210,7 @@ export class FinanceiroPageComponent implements OnInit {
   abrirModalLancamento() {
     const hoje = new Date();
     const dFmt = hoje.toLocaleDateString('pt-BR');
-    this.novoLancamento = { nome: '', tipo: 'C', valor: null, data: dFmt, data_vencimento: dFmt, categoria: 'Receitas' };
+    this.novoLancamento = { nome: '', tipo: 'C', valor: null, data: dFmt, data_vencimento: dFmt, categoria: 'Taxa Condominial' };
     this.modalLancamento.set(true);
   }
 

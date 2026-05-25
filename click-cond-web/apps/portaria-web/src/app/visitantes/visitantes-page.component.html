@@ -103,17 +103,27 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
         <input
+          #searchInput
           type="text"
           placeholder="Buscar por nome, documento ou apartamento..."
-          [ngModel]="search()"
-          (ngModelChange)="search.set($event)"
-          (keyup.enter)="carregar()"
+          [value]="search()"
+          (input)="search.set(searchInput.value)"
           class="w-full pl-9 pr-3 py-2 rounded-lg bg-graphite-200 border border-white/10
                  text-sm placeholder-slate-500 focus:outline-none focus:border-accent/60 transition" />
       </div>
+      @if (search()) {
+        <button (click)="search.set(''); searchInput.value = ''"
+                class="px-4 py-2 text-sm rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition text-red-400">
+          Limpar
+        </button>
+      }
       <button (click)="carregar()"
-              class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-graphite-200 hover:bg-white/5 transition text-white">
-        Buscar
+              class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-graphite-200 hover:bg-white/5 transition text-white flex items-center gap-1.5"
+              title="Recarregar dados do servidor">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.23"/>
+        </svg>
+        Atualizar
       </button>
     </div>
   </div>

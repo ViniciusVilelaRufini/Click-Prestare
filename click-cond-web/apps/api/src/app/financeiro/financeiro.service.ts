@@ -269,11 +269,17 @@ export class FinanceiroService implements OnModuleInit {
     const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
     for (const item of list) {
-      const v = item.valor ? Number(item.valor) : 0;
+      let v = item.valor ? Number(item.valor) : 0;
+      if (item.tipo === 'D') {
+        v = -Math.abs(v);
+      } else {
+        v = Math.abs(v);
+      }
+
       if (item.pago === 1) {
         saldo += v;
-        if (v > 0) totalReceita += v;
-        else totalDespesa += v;
+        if (item.tipo === 'C') totalReceita += Math.abs(v);
+        else totalDespesa += Math.abs(v);
       }
 
       const refDate = item.data || item.data_vencimento || item.created_at;
@@ -320,7 +326,7 @@ export class FinanceiroService implements OnModuleInit {
       lancamentos: lancamentosMap,
       saldo: formatRealGeral(saldo),
       totalReceita: formatRealGeral(totalReceita),
-      totalDespesa: formatRealGeral(totalDespesa),
+      totalDespesa: formatRealGeral(-totalDespesa),
       dia: ultimoDiaFmt,
       meses: mesesDisponiveis,
     };
@@ -635,41 +641,68 @@ export class FinanceiroService implements OnModuleInit {
       orderBy: { categoria: 'asc' },
     });
 
+    const revenueCategories = [
+      'Taxa Condominial',
+      'Fundo de Reserva',
+      'Multas/Juros',
+      'Locação de Área Comum',
+      'Outras Receitas',
+      'Condomínio',
+      'Receita',
+      'Receitas'
+    ];
+    const checkIsRevenue = (catName: string) => revenueCategories.includes(catName);
+
     const categsMap: Record<string, { saldo: number; tipo: string }> = {};
     let totalReceita = 0;
     let totalDespesa = 0;
     let saldo = 0;
 
     for (const item of list) {
-      const v = item.valor ? Number(item.valor) : 0;
+      // Use item.tipo from DB as the single source of truth — NOT the category name heuristic,
+      // which breaks when a custom category like "Receitas" is stored as a Despesa (tipo='D').
+      const itemTipo = item.tipo === 'C' ? 'C' : 'D';
+      let v = Math.abs(item.valor ? Number(item.valor) : 0);
+
+      if (itemTipo === 'D') {
+        v = -v; // despesas always negative
+      }
+
       const cat = item.categoria || 'Outros';
 
+      // Group by category. If the same category name has mixed types (edge case),
+      // the first transaction's tipo wins for the colour — values still accumulate correctly.
       if (!categsMap[cat]) {
-        categsMap[cat] = { saldo: 0, tipo: item.tipo ?? 'C' };
+        categsMap[cat] = { saldo: 0, tipo: itemTipo };
       }
       categsMap[cat].saldo += v;
       saldo += v;
 
-      if (item.tipo === 'C' || v > 0) totalReceita += v;
-      else totalDespesa += Math.abs(v);
+      if (itemTipo === 'C') {
+        totalReceita += Math.abs(v);
+      } else {
+        totalDespesa += Math.abs(v);
+      }
     }
-
-    const baseCalc = totalReceita + totalDespesa;
 
     const formatReal = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     const listCategs = Object.keys(categsMap).map(c => {
       const info = categsMap[c];
-      let perc = baseCalc > 0 ? (Math.abs(info.saldo) * 100) / baseCalc : 0;
+      const isRevenue = info.tipo === 'C';
+      const denominator = isRevenue ? totalReceita : totalDespesa;
+      const perc = denominator > 0 ? (Math.abs(info.saldo) * 100) / denominator : 0;
+
       return {
         categoria: c,
         saldo: info.saldo,
         saldoReal: formatReal(info.saldo),
-        tipo: info.saldo >= 0 ? 'C' : 'D',
+        tipo: info.tipo,
         percentualString: perc.toFixed(2) + '%',
       };
     });
 
+    const baseCalc = totalReceita + totalDespesa;
     const percRec = baseCalc > 0 ? (totalReceita * 100) / baseCalc : 0;
     const percDes = baseCalc > 0 ? (totalDespesa * 100) / baseCalc : 0;
 

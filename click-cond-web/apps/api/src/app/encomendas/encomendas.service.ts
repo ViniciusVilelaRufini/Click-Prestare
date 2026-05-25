@@ -147,6 +147,8 @@ export class EncomendasService {
         foto_volume: fotoUrl,
         status: 'Aguardando',
         id_condominio: dto.id_condominio,
+        notificado: 1,
+        notificado_em: new Date(),
       },
     });
 

@@ -44,14 +44,14 @@
       <!-- KPI Cards Skeleton -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         @for (_ of [1,2,3,4]; track $index) {
-          <div class="p-5 rounded-2xl bg-slate-100 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 h-[135px] flex flex-col justify-between">
+          <div class="p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/5 h-[135px] flex flex-col justify-between animate-pulse">
             <div class="flex items-start justify-between">
-              <div class="w-9 h-9 rounded-xl bg-slate-200 dark:bg-white/5"></div>
-              <div class="w-4 h-4 rounded bg-slate-200 dark:bg-white/5"></div>
+              <div class="w-9 h-9 rounded-xl bg-slate-200 dark:bg-white/10"></div>
+              <div class="w-12 h-4 rounded bg-slate-200 dark:bg-white/10"></div>
             </div>
             <div class="space-y-2">
-              <div class="h-8 w-16 bg-slate-200 dark:bg-white/5 rounded"></div>
-              <div class="h-3 w-28 bg-slate-200 dark:bg-white/5 rounded"></div>
+              <div class="h-8 w-16 bg-slate-200 dark:bg-white/10 rounded"></div>
+              <div class="h-3 w-28 bg-slate-200 dark:bg-white/10 rounded"></div>
             </div>
           </div>
         }
@@ -231,7 +231,15 @@
         </div>
         <div class="mt-4">
           <p class="text-3xl font-bold text-slate-800 dark:text-white tabular-nums tracking-tight font-display">{{ d.prestadoresAtivos }}</p>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Prestadores cadastrados</p>
+          <div class="flex items-center justify-between mt-1">
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Prestadores no condomínio</p>
+            @if (d.prestadoresAtivos > 0) {
+              <div class="flex items-center gap-1 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span class="text-[9px] text-amber-500 dark:text-amber-400 font-bold uppercase tracking-wider">no local</span>
+              </div>
+            }
+          </div>
         </div>
       </a>
 
