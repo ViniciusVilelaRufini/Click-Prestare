@@ -250,14 +250,39 @@
 
       <!-- Últimos eventos -->
       <div class="lg:col-span-2 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm flex flex-col">
-        <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 flex items-center justify-between bg-slate-50/[0.3] dark:bg-white/[0.01]">
+        <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/[0.3] dark:bg-white/[0.01]">
           <div class="flex items-center gap-2">
             <span class="w-1.5 h-3.5 bg-accent rounded-full"></span>
             <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Últimos eventos</h2>
           </div>
-          <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-full">
-            Recentes
-          </span>
+          
+          <!-- Filtro de Eventos -->
+          <div class="flex items-center gap-1 bg-slate-100 dark:bg-white/5 p-1 rounded-xl self-start sm:self-auto overflow-x-auto max-w-full scrollbar-none">
+            <button (click)="filtroEvento.set('Todos')"
+                    [class]="filtroEvento() === 'Todos'
+                             ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm transition-all duration-150 shrink-0'
+                             : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
+              Todos
+            </button>
+            <button (click)="filtroEvento.set('Visitante')"
+                    [class]="filtroEvento() === 'Visitante'
+                             ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-accent text-white shadow-sm transition-all duration-150 shrink-0'
+                             : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
+              Visitantes
+            </button>
+            <button (click)="filtroEvento.set('Encomenda')"
+                    [class]="filtroEvento() === 'Encomenda'
+                             ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white shadow-sm transition-all duration-150 shrink-0'
+                             : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
+              Encomendas
+            </button>
+            <button (click)="filtroEvento.set('Ocorrência')"
+                    [class]="filtroEvento() === 'Ocorrência'
+                             ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm transition-all duration-150 shrink-0'
+                             : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
+              Ocorrências
+            </button>
+          </div>
         </div>
         <div class="p-4 flex-1 max-h-[420px] overflow-y-auto custom-scrollbar">
           @if (d.ultimosEventos.length === 0) {
@@ -271,9 +296,20 @@
               <p class="text-sm font-medium text-slate-700 dark:text-slate-400">Nenhum evento registrado</p>
               <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">As movimentações da portaria aparecerão aqui</p>
             </div>
+          } @else if (eventosFiltrados().length === 0) {
+            <div class="flex flex-col items-center justify-center py-16 text-center">
+              <div class="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-center mb-3 border border-slate-100 dark:border-white/5">
+                <svg class="w-6 h-6 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                </svg>
+              </div>
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-400">Nenhum evento deste tipo encontrado</p>
+              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">Altere o filtro acima para visualizar outros registros</p>
+            </div>
           } @else {
             <ul class="space-y-2">
-              @for (e of d.ultimosEventos; track $index) {
+              @for (e of eventosFiltrados(); track $index) {
                 <li (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
                     class="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group">

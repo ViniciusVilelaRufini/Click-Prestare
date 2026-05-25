@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { DashboardApi, DashboardSummary } from './dashboard.service';
@@ -18,6 +18,17 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly loading = signal(true);
   readonly agora = signal(new Date());
   readonly eventoSelecionado = signal<any | null>(null);
+  readonly filtroEvento = signal<string>('Todos');
+
+  readonly eventosFiltrados = computed(() => {
+    const summary = this.data();
+    if (!summary) return [];
+    const filtro = this.filtroEvento();
+    if (filtro === 'Todos') {
+      return summary.ultimosEventos;
+    }
+    return summary.ultimosEventos.filter(e => e.tipo === filtro);
+  });
 
   private clockInterval?: ReturnType<typeof setInterval>;
   private refreshInterval?: ReturnType<typeof setInterval>;
