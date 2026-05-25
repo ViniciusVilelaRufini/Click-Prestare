@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:351005436987:android:7d5336bde667228869c01e",
+        "android_client_info": {
+          "package_name": "br.com.clickprestare.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAaaSKTd9COWqnl8QKZFLirmH7UCx7lRYo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:351005436987:android:6a6454903faa45d769c01e",
         "android_client_info": {
           "package_name": "com.thefixt.click"

@@ -24,7 +24,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.thefixt.click"
+    namespace "br.com.clickprestare.app"
     compileSdkVersion 36
     ndkVersion "28.2.13676358"
 
@@ -38,7 +38,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.thefixt.click"
+        applicationId "br.com.clickprestare.app"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()

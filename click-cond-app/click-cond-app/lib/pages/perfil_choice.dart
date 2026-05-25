@@ -8,6 +8,7 @@ import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_button.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -43,6 +44,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _requestCameraPermission() async {
+    if (kIsWeb) return; // permission_handler não funciona no Web
     try {
       if (!await Permission.camera.isGranted) {
         await Permission.camera.request();

@@ -35,7 +35,7 @@
 -keep class com.android.billingclient.** { *; }
 
 # Manter classes do projeto (model classes serializadas)
--keep class com.thefixt.click.** { *; }
+-keep class br.com.clickprestare.app.** { *; }
 
 # Evita remoção de métodos nativos (JNI)
 -keepclasseswithmembernames class * {

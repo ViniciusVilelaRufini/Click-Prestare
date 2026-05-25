@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:flutter/material.dart';
@@ -293,8 +294,20 @@ convertToBase64(dynamic file, String type) {
       // No Web, 'file' costuma vir como bytes ou um objeto PlatformFile
       return null; 
     }
-    final imageBytes = file.readAsBytesSync();
-    return 'data:$type;base64,' + base64Encode(imageBytes);
+    String? path;
+    if (file is String) {
+      path = file;
+    } else {
+      try {
+        path = file.path;
+      } catch (e) {
+        // Ignorar se não tiver a propriedade path
+      }
+    }
+    if (path != null) {
+      final imageBytes = File(path).readAsBytesSync();
+      return 'data:$type;base64,' + base64Encode(imageBytes);
+    }
   }
   return null;
 }

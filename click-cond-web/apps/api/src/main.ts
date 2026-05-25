@@ -9,9 +9,13 @@ import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app/app.module';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
 
   app.use(helmet());
 
