@@ -9,6 +9,11 @@ interface NavItem {
   icon: string;
 }
 
+interface NavGroup {
+  category: string;
+  items: NavItem[];
+}
+
 @Component({
   selector: 'app-sidebar',
   standalone: true,
@@ -54,20 +59,45 @@ export class SidebarComponent {
     }
   }
 
-  readonly nav: NavItem[] = [
-    { label: 'Dashboard',    path: '/dashboard',    icon: '◉' },
-    { label: 'Visitantes',   path: '/visitantes',   icon: '◆' },
-    { label: 'Prestadores',  path: '/prestadores',  icon: '✦' },
-    { label: 'Moradores',    path: '/moradores',    icon: '✪' },
-    { label: 'Apartamentos', path: '/apartamentos', icon: '▣' },
-    { label: 'Ocorrências',  path: '/ocorrencias',  icon: '!' },
-    { label: 'Comunicados',  path: '/comunicados',  icon: '✉' },
-    { label: 'Encomendas',   path: '/encomendas',   icon: '⬚' },
-    { label: 'Áreas Sociais', path: '/areas-sociais', icon: '☕' },
-    { label: 'Assembleias',  path: '/assembleias',   icon: '⚖' },
-    { label: 'Financeiro',   path: '/financeiro',    icon: '💲' },
-    { label: 'Documentos',   path: '/documentos',    icon: '📄' },
-    { label: 'Relatórios',   path: '/relatorios',    icon: '📊' },
-    { label: 'Configurações', path: '/configuracoes', icon: '⚙' },
+  readonly menu: NavGroup[] = [
+    {
+      category: 'Principal',
+      items: [
+        { label: 'Dashboard', path: '/dashboard', icon: '◉' }
+      ]
+    },
+    {
+      category: 'Operação',
+      items: [
+        { label: 'Visitantes', path: '/visitantes', icon: '◆' },
+        { label: 'Prestadores', path: '/prestadores', icon: '✦' },
+        { label: 'Encomendas', path: '/encomendas', icon: '⬚' },
+        { label: 'Ocorrências', path: '/ocorrencias', icon: '!' }
+      ]
+    },
+    {
+      category: 'Gestão',
+      items: [
+        { label: 'Moradores', path: '/moradores', icon: '✪' },
+        { label: 'Apartamentos', path: '/apartamentos', icon: '▣' }
+      ]
+    },
+    {
+      category: 'Serviços',
+      items: [
+        { label: 'Comunicados', path: '/comunicados', icon: '✉' },
+        { label: 'Áreas Sociais', path: '/areas-sociais', icon: '☕' },
+        { label: 'Assembleias', path: '/assembleias', icon: '⚖' }
+      ]
+    },
+    {
+      category: 'Administrativo',
+      items: [
+        { label: 'Financeiro', path: '/financeiro', icon: '💲' },
+        { label: 'Documentos', path: '/documentos', icon: '📄' },
+        { label: 'Relatórios', path: '/relatorios', icon: '📊' },
+        { label: 'Configurações', path: '/configuracoes', icon: '⚙' }
+      ]
+    }
   ];
 }
