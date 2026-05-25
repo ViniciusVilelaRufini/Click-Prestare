@@ -82,7 +82,7 @@
                class="w-full pl-9 pr-3 py-2 rounded-lg bg-graphite-200 border border-white/10 text-sm placeholder-slate-500 focus:outline-none focus:border-accent/60 transition" />
       </div>
       <button (click)="carregar()"
-              class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-graphite-200 hover:bg-white/5 transition">
+              class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-graphite-200 hover:bg-white/5 transition text-white">
         Buscar
       </button>
     </div>
@@ -108,11 +108,46 @@
           <input [(ngModel)]="novo.telefone" appMask="phone" placeholder="(11) 99999-9999"
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
         </label>
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Categorias <span class="text-slate-600">(separe com ;)</span></span>
-          <input [(ngModel)]="novo.categorias" placeholder="Hidráulica;Reformas"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
-        </label>
+        <div class="block md:col-span-3">
+          <span class="text-xs font-medium text-slate-400 mb-2 block">Categorias</span>
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+            @for (cat of categoriasPredefinidas; track cat) {
+              <label class="flex items-center gap-2 px-3 py-2 rounded-xl bg-graphite border border-white/10 hover:border-white/20 cursor-pointer select-none transition">
+                <input type="checkbox" 
+                       [checked]="categoriasSelecionadas().has(cat)"
+                       (change)="toggleCategoriaSelecionada(cat)"
+                       class="rounded border-white/20 bg-graphite text-accent focus:ring-accent" />
+                <span class="text-xs text-slate-300 font-medium">{{ cat }}</span>
+              </label>
+            }
+          </div>
+          
+          <div class="mt-3 flex gap-2 items-center">
+            <input #customCat type="text" placeholder="Outra categoria..."
+                   (keyup.enter)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
+                   class="px-3 py-1.5 text-xs rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60 transition w-48" />
+            <button type="button" 
+                    (click)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
+                    class="px-3 py-1.5 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300">
+              Adicionar
+            </button>
+          </div>
+
+          @if (categoriasCustomSelecionadas().length > 0) {
+            <div class="mt-2.5 flex flex-wrap gap-1.5">
+              @for (c of categoriasCustomSelecionadas(); track c) {
+                <span class="px-2 py-1 text-xs rounded-lg bg-accent/10 border border-accent/25 text-accent flex items-center gap-1.5">
+                  {{ c }}
+                  <button type="button" (click)="toggleCategoriaSelecionada(c)" class="hover:text-red-400 transition">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </span>
+              }
+            </div>
+          }
+        </div>
       </div>
       <div class="mt-5 flex justify-end gap-2">
         <button (click)="cancelarForm()" [disabled]="saving()"
@@ -150,19 +185,27 @@
   } @else {
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       @for (p of prestadoresPaginados(); track p.id) {
-        <div class="group relative p-5 rounded-2xl bg-graphite-200 border border-white/10
-                    hover:border-amber-400/30 transition">
+        <div (click)="detalhesPrestador.set(p)"
+             class="group relative p-5 rounded-2xl bg-graphite-200 border border-white/10
+                    hover:border-amber-400/30 hover:bg-white/[0.02] cursor-pointer transition select-none">
           <div class="flex items-start gap-3">
             <div class="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0">
               <span class="text-sm font-bold text-amber-400">{{ iniciais(p.nome) }}</span>
             </div>
             <div class="flex-1 min-w-0">
-              <h3 class="font-semibold text-white truncate">{{ p.nome }}</h3>
+              <h3 class="font-semibold text-white truncate pr-16">{{ p.nome }}</h3>
               @if (p.telefone) {
-                <a [href]="'tel:' + p.telefone" class="text-xs text-slate-400 hover:text-accent flex items-center gap-1.5 mt-1">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                  {{ p.telefone }}
-                </a>
+                <div class="flex items-center gap-2 mt-1">
+                  <a [href]="'tel:' + p.telefone" (click)="$event.stopPropagation()" class="text-xs text-slate-400 hover:text-accent flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                    {{ p.telefone }}
+                  </a>
+                  <a [href]="'https://wa.me/55' + limparTelefone(p.telefone)" (click)="$event.stopPropagation()" target="_blank" class="text-emerald-500 hover:text-emerald-400 transition" title="WhatsApp">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.45L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.965C16.528 2.05 14.07 1.025 11.993 1.025c-5.462 0-9.902 4.435-9.906 9.865-.001 1.75.486 3.454 1.411 4.961l-.979 3.574 3.734-.967z"/>
+                    </svg>
+                  </a>
+                </div>
               } @else {
                 <p class="text-xs text-slate-500 mt-1">Sem contato</p>
               }
@@ -179,14 +222,14 @@
             <p class="mt-4 text-[11px] text-slate-600">Sem categorias</p>
           }
 
-          <div class="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-            <button (click)="abrirEditar(p)" title="Editar"
-                    class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-accent hover:bg-accent/10 transition">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          <div class="absolute top-3 right-3 flex items-center gap-1.5">
+            <button (click)="abrirEditar(p); $event.stopPropagation()" title="Editar"
+                    class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-accent hover:bg-accent/10 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             </button>
-            <button (click)="remover(p)" title="Remover"
-                    class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+            <button (click)="remover(p); $event.stopPropagation()" title="Remover"
+                    class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
             </button>
           </div>
         </div>
@@ -233,5 +276,115 @@
         </div>
       </div>
     }
+  }
+
+  <!-- Modal de Detalhes do Prestador -->
+  @if (detalhesPrestador(); as dp) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in">
+        
+        <!-- Header -->
+        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <h3 class="text-sm font-semibold text-white">Detalhes do Prestador</h3>
+          </div>
+          <button (click)="detalhesPrestador.set(null)" class="text-slate-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6 space-y-5">
+          <!-- Avatar + Nome + Telefone -->
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0">
+              <span class="text-lg font-bold text-amber-400">{{ iniciais(dp.nome) }}</span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <h4 class="text-lg font-semibold text-white leading-tight truncate">{{ dp.nome }}</h4>
+              @if (dp.telefone) {
+                <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <a [href]="'tel:' + dp.telefone" class="text-sm text-slate-400 hover:text-accent flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                    </svg>
+                    {{ dp.telefone }}
+                  </a>
+                  <button (click)="copiarTelefone(dp.telefone)" class="text-slate-500 hover:text-white transition p-1" title="Copiar telefone">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                    </svg>
+                  </button>
+                  <a [href]="'https://wa.me/55' + limparTelefone(dp.telefone)" target="_blank" class="text-emerald-500 hover:text-emerald-400 transition p-1" title="Enviar WhatsApp">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.45L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.965C16.528 2.05 14.07 1.025 11.993 1.025c-5.462 0-9.902 4.435-9.906 9.865-.001 1.75.486 3.454 1.411 4.961l-.979 3.574 3.734-.967z"/>
+                    </svg>
+                  </a>
+                </div>
+              } @else {
+                <p class="text-xs text-slate-500 mt-1">Sem contato cadastrado</p>
+              }
+            </div>
+          </div>
+
+          <!-- Categorias -->
+          <div class="space-y-1.5">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Categorias</span>
+            @if (categoriasArray(dp).length > 0) {
+              <div class="flex flex-wrap gap-1.5">
+                @for (c of categoriasArray(dp); track c) {
+                  <span class="px-2.5 py-1 text-xs rounded-lg bg-amber-400/10 text-amber-400 border border-amber-400/20">{{ c }}</span>
+                }
+              </div>
+            } @else {
+              <span class="text-xs text-slate-500">Nenhuma categoria informada</span>
+            }
+          </div>
+
+          <!-- Histórico de Visitas -->
+          <div class="space-y-2 border-t border-white/5 pt-4">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Histórico de Acessos Recentes</span>
+            <div class="max-h-48 overflow-y-auto space-y-2 pr-1">
+              @if (historicoVisitas().length === 0) {
+                <p class="text-xs text-slate-500 italic p-3 text-center bg-white/[0.01] rounded-xl border border-white/5">Nenhum acesso registrado recentemente.</p>
+              } @else {
+                @for (v of historicoVisitas(); track v.id) {
+                  <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1 text-xs">
+                    <div class="flex items-center justify-between">
+                      <span class="font-medium text-slate-300">Apto: {{ v.apto_bloco ? v.apto_bloco + ' / ' : '' }}{{ v.apto || v.id_apartamento }}</span>
+                      @if (v.data_entrada && !v.data_saida) {
+                        <span class="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                          <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse"></span>
+                          No condomínio
+                        </span>
+                      } @else {
+                        <span class="text-slate-500 text-[10px]">Saída concluída</span>
+                      }
+                    </div>
+                    <div class="text-[11px] text-slate-500 font-mono space-y-0.5">
+                      <p>Entrada: {{ v.data_entrada ? (v.data_entrada | date: 'dd/MM/yyyy HH:mm') : (v.data_hora_inicio | date: 'dd/MM/yyyy HH:mm') }}</p>
+                      @if (v.data_saida) {
+                        <p>Saída: {{ v.data_saida | date: 'dd/MM/yyyy HH:mm' }}</p>
+                      }
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end">
+          <button (click)="detalhesPrestador.set(null)"
+                  class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-accent hover:bg-accent-600 transition">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
   }
 </div>
