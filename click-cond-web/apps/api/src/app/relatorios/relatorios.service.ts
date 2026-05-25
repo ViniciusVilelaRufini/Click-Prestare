@@ -280,11 +280,11 @@ export class RelatoriosService {
       };
     } else {
       const totalReceitas = list
-        .filter((f) => f.tipo?.toLowerCase() === 'receita')
-        .reduce((sum, f) => sum + (f.valor ? Number(f.valor) : 0), 0);
+        .filter((f) => f.tipo?.toUpperCase() === 'C')
+        .reduce((sum, f) => sum + Math.abs(f.valor ? Number(f.valor) : 0), 0);
       const totalDespesas = list
-        .filter((f) => f.tipo?.toLowerCase() !== 'receita')
-        .reduce((sum, f) => sum + (f.valor ? Number(f.valor) : 0), 0);
+        .filter((f) => f.tipo?.toUpperCase() === 'D')
+        .reduce((sum, f) => sum + Math.abs(f.valor ? Number(f.valor) : 0), 0);
 
       const buffer = await this.generatePdf({
         headerText: `Relatório Financeiro - ${nomeCondo}`,

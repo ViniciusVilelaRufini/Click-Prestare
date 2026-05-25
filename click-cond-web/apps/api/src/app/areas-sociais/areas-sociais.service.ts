@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -258,6 +258,21 @@ export class AreasSociaisService {
 
     const horaDeObj = new Date(1970, 0, 1, hDe, mDe, 0);
     const horaAteObj = new Date(1970, 0, 1, hAte, mAte, 0);
+
+    // Verificar se já existe um agendamento conflitante para este espaço neste dia e horário
+    const conflito = await this.prisma.areas_Sociais_Agendamentos.findFirst({
+      where: {
+        id_area_social: Number(agendamento.id_area_social),
+        data: dataObj,
+        status: { in: ['pendente', 'aprovado'] },
+        hora_de: { lt: horaAteObj },
+        hora_ate: { gt: horaDeObj },
+      },
+    });
+
+    if (conflito) {
+      throw new BadRequestException('Este espaço já possui um agendamento ativo que conflita com o horário solicitado.');
+    }
 
     // Definir status inicial baseado na regra da área
     const area = await this.prisma.areas_Sociais.findUnique({

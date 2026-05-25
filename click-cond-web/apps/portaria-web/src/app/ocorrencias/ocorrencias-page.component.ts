@@ -82,7 +82,21 @@ export class OcorrenciasPageComponent implements OnInit {
     });
   }
 
-  mudarStatus(o: Ocorrencia, status: OcorrenciaStatus) {
+  async mudarStatus(o: Ocorrencia, status: OcorrenciaStatus) {
+    const prioridade = this.prioridadeCategoria(o.tipo);
+    const isCritica = prioridade <= 1;
+
+    const ok = await this.confirm.ask({
+      title: isCritica ? '⚠️ Alteração em Ocorrência CRÍTICA' : 'Confirmar alteração de status',
+      message: isCritica 
+        ? `Você tem certeza que deseja alterar o status desta ocorrência de prioridade CRÍTICA para "${status}"?`
+        : `Deseja alterar o status da ocorrência para "${status}"?`,
+      confirmLabel: 'Alterar',
+      variant: isCritica ? 'danger' : 'primary',
+    });
+
+    if (!ok) return;
+
     this.api.updateStatus(o.id, status).subscribe({ next: () => this.carregar() });
   }
 

@@ -218,7 +218,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (a of apartamentos(); track a.id) {
+          @for (a of apartamentosOrdenados(); track a.id) {
             <tr class="border-t border-white/5 hover:bg-white/[0.02] transition group">
               <td class="px-5 py-3 text-slate-300">{{ a.bloco || '—' }}</td>
               <td class="px-5 py-3 font-bold text-white tabular-nums">{{ a.apto }}</td>

@@ -47,6 +47,16 @@ export class ApartamentosPageComponent implements OnInit {
       .sort((a, b) => a.nome.localeCompare(b.nome));
   });
 
+  readonly apartamentosOrdenados = computed(() => {
+    return [...this.apartamentos()].sort((x, y) => {
+      const blocoA = x.bloco || '';
+      const blocoB = y.bloco || '';
+      const blocoComp = blocoA.localeCompare(blocoB);
+      if (blocoComp !== 0) return blocoComp;
+      return x.apto.localeCompare(y.apto, 'pt', { numeric: true });
+    });
+  });
+
   readonly totalMoradores = computed(() =>
     this.apartamentos().reduce((sum, a) => sum + (a.qtdMoradores ?? 0), 0),
   );

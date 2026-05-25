@@ -1,4 +1,4 @@
-import { Component, inject, signal, Output, EventEmitter } from '@angular/core';
+import { Component, inject, signal, computed, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
@@ -24,6 +24,12 @@ export class SidebarComponent {
   readonly auth = inject(AuthService);
   readonly isLight = signal<boolean>(false);
   @Output() linkClicked = new EventEmitter<void>();
+
+  readonly isPorteiro = computed(() => {
+    const info = this.auth.porteiroInfo();
+    if (!info) return false;
+    return !!info.turno && info.turno !== 'Síndico';
+  });
 
   constructor() {
     const saved = localStorage.getItem('theme_mode');

@@ -410,10 +410,11 @@ async function main() {
     'Novo regimento interno', 'Coleta seletiva', 'Vacinação de animais',
   ];
   for (let i = 0; i < 20; i++) {
+    const tema = rand(titulosCom);
     await prisma.comunicados.create({
       data: {
-        titulo: `[TESTE] ${rand(titulosCom)} - #${i + 1}`,
-        descricao: `Prezados moradores, comunicamos que ${rand(titulosCom).toLowerCase()} ocorrerá em breve. Detalhes adicionais serão enviados em comunicado complementar.\n\nAtenciosamente,\nAdministração.`,
+        titulo: `[TESTE] ${tema} - #${i + 1}`,
+        descricao: `Prezados moradores, comunicamos que ${tema.toLowerCase()} ocorrerá em breve. Detalhes adicionais serão enviados em comunicado complementar.\n\nAtenciosamente,\nAdministração.`,
         user: SINDICO_USER_ID,
         id_condominio: idCond,
       },
