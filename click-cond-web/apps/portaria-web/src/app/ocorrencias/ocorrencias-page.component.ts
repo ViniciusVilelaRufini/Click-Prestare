@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import {
   Categoria, CreateOcorrencia, Ocorrencia, OcorrenciaStatus, OcorrenciasApi,
 } from './ocorrencias.service';
@@ -15,6 +16,7 @@ import { ConfirmService } from '../shared/confirm.service';
 export class OcorrenciasPageComponent implements OnInit {
   private api = inject(OcorrenciasApi);
   private confirm = inject(ConfirmService);
+  private route = inject(ActivatedRoute);
 
   readonly ocorrencias = signal<Ocorrencia[]>([]);
   readonly categorias = signal<Categoria[]>([]);
@@ -50,6 +52,11 @@ export class OcorrenciasPageComponent implements OnInit {
       },
     });
     this.carregar();
+    this.route.queryParams.subscribe((params) => {
+      if (params['novo'] === 'true') {
+        this.showForm = true;
+      }
+    });
   }
 
   carregar() {

@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { Comunicado, ComunicadosApi, CreateComunicado } from './comunicados.service';
 import { ConfirmService } from '../shared/confirm.service';
 
@@ -13,6 +14,7 @@ import { ConfirmService } from '../shared/confirm.service';
 export class ComunicadosPageComponent implements OnInit {
   private api = inject(ComunicadosApi);
   private confirm = inject(ConfirmService);
+  private route = inject(ActivatedRoute);
 
   readonly comunicados = signal<Comunicado[]>([]);
   readonly loading = signal(true);
@@ -30,6 +32,11 @@ export class ComunicadosPageComponent implements OnInit {
 
   ngOnInit() {
     this.carregar();
+    this.route.queryParams.subscribe((params) => {
+      if (params['novo'] === 'true') {
+        this.abrirNovo();
+      }
+    });
   }
 
   carregar() {

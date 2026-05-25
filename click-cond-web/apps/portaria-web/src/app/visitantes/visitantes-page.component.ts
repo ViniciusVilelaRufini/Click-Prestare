@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { VisitantesService } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
@@ -18,6 +19,7 @@ export class VisitantesPageComponent implements OnInit {
   private service = inject(VisitantesService);
   private aptApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
+  private route = inject(ActivatedRoute);
 
   constructor() {
     effect(() => {
@@ -120,6 +122,11 @@ export class VisitantesPageComponent implements OnInit {
     this.carregar();
     this.aptApi.list().subscribe({
       next: (data) => this.apartamentos.set(data),
+    });
+    this.route.queryParams.subscribe((params) => {
+      if (params['novo'] === 'true') {
+        this.abrirNovo();
+      }
     });
   }
 

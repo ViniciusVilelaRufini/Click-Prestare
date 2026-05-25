@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import {
   CreateEncomenda, Encomenda, EncomendasApi,
 } from './encomendas.service';
@@ -17,6 +18,7 @@ export class EncomendasPageComponent implements OnInit {
   private api = inject(EncomendasApi);
   private aptosApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
+  private route = inject(ActivatedRoute);
 
   constructor() {
     effect(() => {
@@ -160,6 +162,11 @@ export class EncomendasPageComponent implements OnInit {
   ngOnInit() { 
     this.carregar(); 
     this.carregarApartamentos();
+    this.route.queryParams.subscribe((params) => {
+      if (params['novo'] === 'true') {
+        this.showForm = true;
+      }
+    });
   }
 
   carregar() {

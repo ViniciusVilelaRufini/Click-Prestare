@@ -53,4 +53,34 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   fecharDetalhes() {
     this.eventoSelecionado.set(null);
   }
+
+  formatarDataEvento(quandoStr: string): string {
+    const data = new Date(quandoStr);
+    const hoje = new Date();
+    
+    const isHoje = data.getDate() === hoje.getDate() &&
+                   data.getMonth() === hoje.getMonth() &&
+                   data.getFullYear() === hoje.getFullYear();
+                   
+    const ontem = new Date();
+    ontem.setDate(hoje.getDate() - 1);
+    const isOntem = data.getDate() === ontem.getDate() &&
+                    data.getMonth() === ontem.getMonth() &&
+                    data.getFullYear() === ontem.getFullYear();
+
+    const horas = String(data.getHours()).padStart(2, '0');
+    const minutos = String(data.getMinutes()).padStart(2, '0');
+    const horaStr = `${horas}:${minutos}`;
+
+    if (isHoje) {
+      return `Hoje, ${horaStr}`;
+    } else if (isOntem) {
+      return `Ontem, ${horaStr}`;
+    } else {
+      const dia = String(data.getDate()).padStart(2, '0');
+      const mes = String(data.getMonth() + 1).padStart(2, '0');
+      const ano = data.getFullYear();
+      return `${dia}/${mes}/${ano} às ${horaStr}`;
+    }
+  }
 }
