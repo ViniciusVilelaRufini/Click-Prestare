@@ -121,8 +121,11 @@ export class DashboardService {
       this.prisma.apartamentos.count({ where: { id_condominio: idCondominio } }),
       this.prisma.moradores.count({ where: { id_condominio: idCondominio } }),
       this.prisma.visitantes.findMany({
-        where: { id_condominio: idCondominio },
-        orderBy: { created_at: 'desc' },
+        where: {
+          id_condominio: idCondominio,
+          NOT: { data_entrada: null },
+        },
+        orderBy: { data_entrada: 'desc' },
         take: 5,
         include: {
           apartamento: { select: { bloco: true, apto: true } },
