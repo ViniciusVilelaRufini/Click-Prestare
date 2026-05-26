@@ -44,8 +44,15 @@ export class ApartamentosService {
       include: {
         _count: { select: { users: true } },
       },
-      orderBy: [{ bloco: 'asc' }, { apto: 'asc' }],
     });
+
+    list.sort((a, b) => {
+      if (a.bloco === b.bloco) {
+        return (a.apto ?? '').localeCompare(b.apto ?? '', 'pt', { numeric: true });
+      }
+      return (a.bloco ?? '').localeCompare(b.bloco ?? '');
+    });
+
     return list.map((a) => ({
       id: a.id,
       bloco: a.bloco,
