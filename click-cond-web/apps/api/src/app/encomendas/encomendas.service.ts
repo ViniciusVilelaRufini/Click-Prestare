@@ -209,12 +209,18 @@ export class EncomendasService {
 
     let assinaturaUrl: string | null = retiradoAssinatura ?? null;
     if (assinaturaUrl && this.storage.isDataUrl(assinaturaUrl)) {
-      assinaturaUrl = (await this.storage.uploadDataUrl(assinaturaUrl, 'encomendas')) ?? null;
+      const uploaded = await this.storage.uploadDataUrl(assinaturaUrl, 'encomendas');
+      if (uploaded) {
+        assinaturaUrl = uploaded;
+      }
     }
 
     let fotoUrl: string | null = retiradoFoto ?? null;
     if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
-      fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? null;
+      const uploaded = await this.storage.uploadDataUrl(fotoUrl, 'encomendas');
+      if (uploaded) {
+        fotoUrl = uploaded;
+      }
     }
 
     try {

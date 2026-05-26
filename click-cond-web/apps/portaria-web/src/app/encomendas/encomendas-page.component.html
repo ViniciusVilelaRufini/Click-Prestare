@@ -270,12 +270,15 @@
           </thead>
           <tbody>
             @for (e of encomendasPaginadas(); track e.id) {
-              <tr class="border-t border-white/5 hover:bg-white/[0.02] transition group">
+              <tr [class.cursor-pointer]="e.retirado_assinatura || e.retirado_foto"
+                  (click)="(e.retirado_assinatura || e.retirado_foto) ? abrirComprovante(e) : null"
+                  class="border-t border-white/5 hover:bg-white/[0.02] transition group">
                 <td class="px-5 py-3 w-10">
                   @if (e.status === 'Aguardando') {
                     <input type="checkbox" 
                            [checked]="selecionadas().has(e.id)" 
                            (change)="toggleSelecionado(e.id)" 
+                           (click)="$event.stopPropagation()"
                            class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer" />
                   } @else {
                     <span class="text-slate-600 font-mono pl-1">—</span>
@@ -338,7 +341,7 @@
                             {{ e.notificado_em | date: 'dd/MM HH:mm' }}
                           </span>
                         </div>
-                        <button (click)="notificar(e)" 
+                        <button (click)="notificar(e); $event.stopPropagation()" 
                                 class="px-1.5 py-0.5 text-[9px] rounded bg-white/5 hover:bg-white/10 text-slate-350 border border-white/10 transition shrink-0"
                                 title="Re-notificar morador">
                           Re-notificar
@@ -347,7 +350,7 @@
                     } @else {
                       <div class="flex items-center gap-2">
                         <span class="text-xs text-slate-500 font-medium">Pendente</span>
-                        <button (click)="notificar(e)" 
+                        <button (click)="notificar(e); $event.stopPropagation()" 
                                 class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition duration-150 shrink-0"
                                 title="Notificar morador por push">
                           Notificar
@@ -374,7 +377,7 @@
                         <p class="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
                           por {{ e.retirado_por }} · {{ e.retirado_em | date: 'dd/MM HH:mm' }}
                           @if (e.retirado_assinatura || e.retirado_foto) {
-                            <button (click)="abrirComprovante(e)" 
+                            <button (click)="abrirComprovante(e); $event.stopPropagation()" 
                                     class="text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-0.5" 
                                     title="Ver comprovante">
                               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -388,17 +391,17 @@
                 </td>
               <td class="px-5 py-3 text-right">
                 <div class="flex items-center justify-end gap-3 transition">
-                  <button (click)="imprimir(e)" title="Imprimir etiqueta"
+                  <button (click)="imprimir(e); $event.stopPropagation()" title="Imprimir etiqueta"
                           class="text-xs text-slate-400 hover:text-accent">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                   </button>
                   @if (e.status === 'Aguardando') {
-                    <button (click)="abrirRetirada(e)"
+                    <button (click)="abrirRetirada(e); $event.stopPropagation()"
                             class="text-xs px-2.5 py-1 rounded-md bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 border border-emerald-400/20">
                       Marcar retirada
                     </button>
                   }
-                  <button (click)="remover(e)" class="text-xs text-slate-500 hover:text-red-400">Remover</button>
+                  <button (click)="remover(e); $event.stopPropagation()" class="text-xs text-slate-500 hover:text-red-400">Remover</button>
                 </div>
               </td>
             </tr>
