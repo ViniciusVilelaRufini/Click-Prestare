@@ -562,92 +562,87 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context)),
-                  Text("Vencimento: ${item['data_vencimento'] ?? ''}", style: AppTypography.caption(context)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text("Vencimento: ${item['data_vencimento'] ?? ''}", style: AppTypography.caption(context)),
+                  ],
+                ),
               ),
+              const SizedBox(width: AppSpacing.md),
               Text(item['valorReal'] ?? '', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: isPago ? Colors.green : AppColors.textPrimary(context))),
             ],
           ),
           if (!isPago) ...[
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 if (item['pix_copia_cola'] != null && item['pix_copia_cola'].toString().trim().isNotEmpty)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: item['pix_copia_cola'].toString()));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Pix Copia e Cola copiado!"),
-                            backgroundColor: AppColors.primary,
-                          ),
-                        );
-                      },
-                      icon: const Icon(PhosphorIcons.qrCode, size: 16),
-                      label: const Text(
-                        "Copiar Pix",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
-                      ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: item['pix_copia_cola'].toString()));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Pix Copia e Cola copiado!"),
+                          backgroundColor: AppColors.primary,
+                        ),
+                      );
+                    },
+                    icon: const Icon(PhosphorIcons.qrCode, size: 14),
+                    label: const Text(
+                      "Copiar Pix",
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      elevation: 0,
                     ),
                   ),
-                if (item['linha_digitavel'] != null && item['linha_digitavel'].toString().trim().isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: item['linha_digitavel'].toString()));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text("Código de barras copiado!"),
-                            backgroundColor: AppColors.textSecondary(context),
-                          ),
-                        );
-                      },
-                      icon: const Icon(PhosphorIcons.barcode, size: 16),
-                      label: const Text(
-                        "Copiar Código",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textPrimary(context),
-                        side: BorderSide(color: AppColors.textSecondary(context).withOpacity(0.3)),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
+                if (item['linha_digitavel'] != null && item['linha_digitavel'].toString().trim().isNotEmpty)
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: item['linha_digitavel'].toString()));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text("Código de barras copiado!"),
+                          backgroundColor: AppColors.textSecondary(context),
+                        ),
+                      );
+                    },
+                    icon: const Icon(PhosphorIcons.barcode, size: 14),
+                    label: const Text(
+                      "Copiar Código",
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary(context),
+                      side: BorderSide(color: AppColors.textSecondary(context).withOpacity(0.3)),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
-                ],
-                if (item['url_boleto'] != null && item['url_boleto'].toString().trim().isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => launchUrl(Uri.parse(item['url_boleto'])),
-                      icon: const Icon(PhosphorIcons.filePdf, color: Colors.redAccent, size: 16),
-                      label: const Text(
-                        "Ver Boleto",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        side: const BorderSide(color: Colors.redAccent, width: 0.8),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
+                if (item['url_boleto'] != null && item['url_boleto'].toString().trim().isNotEmpty)
+                  OutlinedButton.icon(
+                    onPressed: () => launchUrl(Uri.parse(item['url_boleto'])),
+                    icon: const Icon(PhosphorIcons.filePdf, color: Colors.redAccent, size: 14),
+                    label: const Text(
+                      "Ver Boleto",
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent, width: 0.8),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
-                ],
               ],
             ),
           ],

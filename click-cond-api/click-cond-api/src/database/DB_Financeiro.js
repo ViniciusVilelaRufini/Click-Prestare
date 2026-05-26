@@ -6,6 +6,30 @@ module.exports = {
     financeiro.descricao = financeiro.descricao.replaceAll("'","''");
     financeiro.tipo = financeiro.tipo.replaceAll("'","''");
 
+    let id_usuario = financeiro.id_usuario;
+    if (!id_usuario && financeiro.nome && financeiro.nome.startsWith('Apto ')) {
+      try {
+        const regex = /Apto\s+([^\s]+)\s+Bloco\s+([^\s]+)/i;
+        const match = financeiro.nome.match(regex);
+        if (match) {
+          const apto = match[1];
+          const bloco = match[2];
+          const userRes = await db.query(`select id_user from Moradores where id_condominio=${id_condominio} and apartamento='${apto}' and bloco='${bloco}' limit 1`);
+          if (userRes.results && userRes.results.length > 0) {
+            id_usuario = userRes.results[0].id_user;
+          }
+        }
+      } catch (err) {
+        console.error('Error finding resident user:', err);
+      }
+    }
+
+    const calculatedPago = financeiro.pago !== undefined && financeiro.pago !== null 
+      ? financeiro.pago 
+      : ((financeiro.categoria === 'Arrecadação' || (financeiro.nome && financeiro.nome.startsWith('Apto '))) 
+        ? 0 
+        : (financeiro.data == null || financeiro.data == "" ? 0 : 1));
+
     const query = `insert into Financeiro (nome, tipo, valor, data, data_vencimento, categoria, conta, descricao, cliente, forma_pagamento, parcelas, nome_operador, id_condominio, photo, pago, url_boleto, status, id_usuario)
 						values ('${financeiro.nome}',
                     '${financeiro.tipo}',
@@ -21,10 +45,10 @@ module.exports = {
                     '${name}',
                     ${id_condominio},
                     '${financeiro.photo}',
-                    ${financeiro.data == null || financeiro.data=="" ? 0 : 1},
+                    ${calculatedPago},
                     ${financeiro.url_boleto != null ? `'${financeiro.url_boleto}'` : 'null'},
                     ${financeiro.status != null ? financeiro.status : 0},
-                    ${financeiro.id_usuario != null ? financeiro.id_usuario : 'null'}
+                    ${id_usuario != null ? id_usuario : 'null'}
                   )`;
     await db.query(query);
   },
@@ -147,6 +171,24 @@ module.exports = {
     financeiro.nome = financeiro.nome.replaceAll("'","''");
     financeiro.descricao = financeiro.descricao.replaceAll("'","''");
     financeiro.tipo = financeiro.tipo.replaceAll("'","''");
+
+    let id_usuario = financeiro.id_usuario;
+    if (!id_usuario && financeiro.nome && financeiro.nome.startsWith('Apto ')) {
+      try {
+        const regex = /Apto\s+([^\s]+)\s+Bloco\s+([^\s]+)/i;
+        const match = financeiro.nome.match(regex);
+        if (match) {
+          const apto = match[1];
+          const bloco = match[2];
+          const userRes = await db.query(`select id_user from Moradores where id_condominio=${id_condominio} and apartamento='${apto}' and bloco='${bloco}' limit 1`);
+          if (userRes.results && userRes.results.length > 0) {
+            id_usuario = userRes.results[0].id_user;
+          }
+        }
+      } catch (err) {
+        console.error('Error finding resident user:', err);
+      }
+    }
     
     const query = `update Financeiro 
                      set nome='${financeiro.nome}',
@@ -161,11 +203,11 @@ module.exports = {
                       forma_pagamento=${financeiro.forma_pagamento != null ? `'${financeiro.forma_pagamento}'` : 'null'},
                       parcelas=${financeiro.parcelas != null ? `'${financeiro.parcelas}'` : 'null'},
                       nome_operador='${name}',
-                      pago=${financeiro.pago != null ? financeiro.pago : 0},
+                      pago=${financeiro.pago !== undefined && financeiro.pago !== null ? financeiro.pago : (financeiro.data == null || financeiro.data == "" ? 0 : 1)},
                       url_boleto=${financeiro.url_boleto != null ? `'${financeiro.url_boleto}'` : 'url_boleto'},
                       url_comprovante=${financeiro.url_comprovante != null ? `'${financeiro.url_comprovante}'` : 'url_comprovante'},
                       status=${financeiro.status != null ? financeiro.status : 'status'},
-                      id_usuario=${financeiro.id_usuario != null ? financeiro.id_usuario : 'id_usuario'}
+                      id_usuario=${id_usuario != null ? id_usuario : 'id_usuario'}
                     where id=${financeiro.id} and id_condominio=${id_condominio}`;
     await db.query(query);
   },

@@ -171,9 +171,13 @@ class _EncomendaCard extends StatelessWidget {
                   children: [
                     Icon(PhosphorIcons.calendar, size: 14, color: AppColors.textTertiary(context)),
                     const SizedBox(width: 4),
-                    Text(
-                      'Em: $dataFormatada',
-                      style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
+                    Expanded(
+                      child: Text(
+                        'Em: $dataFormatada',
+                        style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -183,9 +187,13 @@ class _EncomendaCard extends StatelessWidget {
                     children: [
                       Icon(PhosphorIcons.checkCircle, size: 14, color: Colors.green),
                       const SizedBox(width: 4),
-                      Text(
-                        'Retirado por: ${encomenda.retiradoPor}',
-                        style: AppTypography.caption(context).copyWith(color: Colors.green, fontWeight: FontWeight.w500),
+                      Expanded(
+                        child: Text(
+                          'Retirado por: ${encomenda.retiradoPor}',
+                          style: AppTypography.caption(context).copyWith(color: Colors.green, fontWeight: FontWeight.w500),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),

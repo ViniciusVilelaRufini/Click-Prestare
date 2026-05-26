@@ -56,22 +56,25 @@ class AppButton extends StatelessWidget {
             height: 22, width: 22,
             child: CircularProgressIndicator(strokeWidth: 2.5, color: colors.fg),
           )
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20, color: colors.fg),
-                const SizedBox(width: 8),
+        : FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20, color: colors.fg),
+                  const SizedBox(width: 8),
+                ],
+                Text(label, style: AppTypography.button(context).copyWith(
+                  color: colors.fg, fontSize: _fontSize,
+                )),
+                if (trailingIcon != null) ...[
+                  const SizedBox(width: 8),
+                  Icon(trailingIcon, size: 20, color: colors.fg),
+                ],
               ],
-              Text(label, style: AppTypography.button(context).copyWith(
-                color: colors.fg, fontSize: _fontSize,
-              )),
-              if (trailingIcon != null) ...[
-                const SizedBox(width: 8),
-                Icon(trailingIcon, size: 20, color: colors.fg),
-              ],
-            ],
+            ),
           );
 
     return SizedBox(

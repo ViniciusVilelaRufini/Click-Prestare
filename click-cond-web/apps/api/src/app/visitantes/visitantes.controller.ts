@@ -5,6 +5,9 @@ import {
   CreateVisitanteDto, UpdateVisitanteDto, VisitantesService,
 } from './visitantes.service';
 
+import { ReqUser } from '../auth/req-user.decorator';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+
 @Controller('condominios/:idCondominio/visitantes')
 export class VisitantesController {
   constructor(private readonly service: VisitantesService) {}
@@ -99,16 +102,27 @@ export class VisitantesGlobalController {
 
   @Get('get-all')
   async getAll(
-    @Query('id_condominio', ParseIntPipe) idCondominio: number,
-    @Query('id_apto') idApto?: string,
-    @Query('search') search?: string,
-    @Query('offset') offset?: string,
+    @Query('id_condominio') idCondominioStr: string | undefined,
+    @Query('id_apto') idAptoStr: string | undefined,
+    @Query('search') search: string | undefined,
+    @Query('offset') offsetStr: string | undefined,
+    @ReqUser() payload: JwtPayload,
   ) {
+    const idCondominio = (idCondominioStr && idCondominioStr !== 'null' && idCondominioStr !== 'undefined')
+      ? Number(idCondominioStr)
+      : undefined;
+    const idApto = idAptoStr ? Number(idAptoStr) : undefined;
+    const offset = offsetStr ? Number(offsetStr) : 0;
+    const userId = payload?.user?.id ?? payload?.sub;
+    const userType = payload?.typeAccess ?? payload?.user?.typeAccess;
+
     const list = await this.service.findAllMobile(
       idCondominio,
-      idApto ? Number(idApto) : undefined,
+      idApto,
       search,
-      offset ? Number(offset) : 0,
+      offset,
+      userId ? Number(userId) : undefined,
+      userType,
     );
     return list.map((v) => this.flatten(v));
   }

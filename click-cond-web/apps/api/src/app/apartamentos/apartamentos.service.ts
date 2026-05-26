@@ -119,6 +119,7 @@ export class ApartamentosService {
     if (!this.prisma.isConnected) return { success: true };
     try {
       await this.prisma.apartamentos.delete({ where: { id: Number(id) } });
+      return { success: true };
     } catch {
       throw new NotFoundException(`Apartamento ${id} não encontrado`);
     }

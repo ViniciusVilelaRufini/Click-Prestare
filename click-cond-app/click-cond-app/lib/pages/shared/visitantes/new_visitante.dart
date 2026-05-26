@@ -506,14 +506,15 @@ class _TipoPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.sm,
       children: [
         _Chip(
           label: getText('visitante'),
           selected: currentTipo == 'visitante',
           onTap: () => onChanged('visitante'),
         ),
-        const SizedBox(width: AppSpacing.md),
         _Chip(
           label: getText('visitante_prestador_servico'),
           selected: currentTipo == 'prestador',
@@ -532,18 +533,26 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        constraints: BoxConstraints(maxWidth: screenWidth - 48),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           color: selected ? AppColors.primary : AppColors.surface(context),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: selected ? AppColors.primary : AppColors.border(context)),
         ),
-        child: Text(label,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
             style: AppTypography.captionMedium(context).copyWith(
-                color: selected ? Colors.white : AppColors.textSecondary(context))),
+              color: selected ? Colors.white : AppColors.textSecondary(context),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -254,6 +254,7 @@ export class VisitantesService {
     if (!this.prisma.isConnected) return { success: true };
     try {
       await this.prisma.visitantes.delete({ where: { id: Number(id) } });
+      return { success: true };
     } catch {
       throw new NotFoundException(`Visitante ${id} não encontrado`);
     }
@@ -338,22 +339,82 @@ export class VisitantesService {
     return { ok: true };
   }
 
-  async findAllMobile(idCondominio: number, idApto?: number, search?: string, offset = 0) {
+  async findAllMobile(
+    idCondominio?: number,
+    idApto?: number,
+    search?: string,
+    offset = 0,
+    userId?: number,
+    userType?: string,
+  ) {
+    const conditions: any[] = [];
+
+    if (idCondominio) {
+      conditions.push({ id_condominio: Number(idCondominio) });
+      if (idApto) {
+        conditions.push({ id_apartamento: Number(idApto) });
+      }
+    } else if (userId && userType) {
+      const typeLower = userType.toLowerCase();
+      if (typeLower === 'morador') {
+        conditions.push({
+          OR: [
+            {
+              apartamento: {
+                users: {
+                  some: {
+                    id_user: userId,
+                  },
+                },
+              },
+            },
+            {
+              user: userId,
+            },
+          ],
+        });
+      } else if (typeLower === 'sindico') {
+        const managed = await this.prisma.sindicos_Condominios.findMany({
+          where: { id_user: userId },
+          select: { id_condominio: true },
+        });
+        const condoIds = managed.map((m) => m.id_condominio);
+        conditions.push({
+          id_condominio: { in: condoIds },
+        });
+      } else if (typeLower === 'funcionario') {
+        const func = await this.prisma.funcionarios.findFirst({
+          where: { id_user: userId },
+          select: { id_condominio: true },
+        });
+        if (func) {
+          conditions.push({
+            id_condominio: func.id_condominio,
+          });
+        } else {
+          return [];
+        }
+      }
+    } else {
+      return [];
+    }
+
+    if (search) {
+      conditions.push({
+        OR: [
+          { nome: { contains: search } },
+          { doc_identificacao: { contains: search } },
+        ],
+      });
+    }
+
+    const whereClause = conditions.length > 0 ? { AND: conditions } : {};
+
     const list = await this.prisma.visitantes.findMany({
-      where: {
-        id_condominio: Number(idCondominio),
-        ...(idApto ? { id_apartamento: Number(idApto) } : {}),
-        ...(search
-          ? {
-              OR: [
-                { nome: { contains: search } },
-                { doc_identificacao: { contains: search } },
-              ],
-            }
-          : {}),
-      },
+      where: whereClause,
       include: {
         apartamento: { select: { bloco: true, apto: true } },
+        condominio: { select: { nome: true } },
       },
       orderBy: [{ data_hora_inicio: 'desc' }, { created_at: 'desc' }],
       take: 30,
@@ -361,22 +422,28 @@ export class VisitantesService {
     });
 
     // Auto-gerar PIN para visitantes sem código e que ainda não saíram
-    const updated: typeof list = [];
+    const updated: any[] = [];
     for (const v of list) {
       if (!v.codigo_acesso && !v.data_saida) {
         const pin = await this.gerarPinUnico();
         const novo = await this.prisma.visitantes.update({
           where: { id: v.id },
           data: { codigo_acesso: pin },
-          include: { apartamento: { select: { bloco: true, apto: true } } },
+          include: { 
+            apartamento: { select: { bloco: true, apto: true } },
+            condominio: { select: { nome: true } },
+          },
         });
-        updated.push(novo as any);
+        updated.push(novo);
       } else {
         updated.push(v);
       }
     }
 
-    return updated;
+    return updated.map((v: any) => ({
+      ...v,
+      condominio_nome: v.condominio?.nome || null,
+    }));
   }
 
   private async gerarPinUnico(): Promise<string> {

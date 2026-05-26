@@ -347,6 +347,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final sw = MediaQuery.of(context).size.width;
+    final avatarRadius = sw < 360 ? 22.0 : 28.0;
+    final iconSize = sw < 360 ? 20.0 : 24.0;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
@@ -355,37 +358,54 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           Row(
             children: [
               CircleAvatar(
-                radius: 28,
+                radius: avatarRadius,
                 backgroundColor: AppColors.primaryLight,
                 backgroundImage: getUserPhoto().isNotEmpty
                     ? NetworkImage(getUserPhoto())
                     : null,
                 child: getUserPhoto().isEmpty
                     ? Icon(PhosphorIcons.userFill,
-                        color: AppColors.primary, size: 28)
+                        color: AppColors.primary, size: avatarRadius)
                     : null,
               ),
               AppSpacing.gapMd,
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(getText('ola'),
-                        style: AppTypography.bodySecondary(context)),
-                    Text(getUsername(),
-                        style: AppTypography.headline(context)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(getText('ola'),
+                          style: AppTypography.bodySecondary(context)),
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        getUsername(),
+                        style: AppTypography.headline(context),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ),
               IconButton(
                 icon: Icon(PhosphorIcons.pencilSimple,
-                    color: AppColors.textSecondary(context)),
+                    color: AppColors.textSecondary(context), size: iconSize),
                 onPressed: _editProfile,
                 tooltip: getText('editar_infos'),
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(),
               ),
+              const SizedBox(width: 4),
               IconButton(
                 icon: Icon(PhosphorIcons.bell,
-                    color: AppColors.textSecondary(context)),
+                    color: AppColors.textSecondary(context), size: iconSize),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -393,11 +413,16 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   );
                 },
                 tooltip: 'Notificações',
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(),
               ),
+              const SizedBox(width: 4),
               IconButton(
                 icon: Icon(PhosphorIcons.signOut,
-                    color: AppColors.textSecondary(context)),
+                    color: AppColors.textSecondary(context), size: iconSize),
                 tooltip: getText('lb_logout'),
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(),
                 onPressed: () {
                   storageLogout();
                   Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
@@ -428,12 +453,11 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       children: [
         Text('Resumo Geral', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: AppSpacing.md),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              if (type == 'sindico') ...[
-                _DashboardCard(
+        Row(
+          children: [
+            if (type == 'sindico') ...[
+              Expanded(
+                child: _DashboardCard(
                   title: 'Inadimplência',
                   value: 'R\$ ${(_summary!['debts']['total'] ?? 0).toStringAsFixed(2)}',
                   subtitle: '${_summary!['debts']['count']} pendências',
@@ -441,8 +465,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   color: AppColors.error,
                   onTap: () => _onDashboardTap('debts'),
                 ),
-                const SizedBox(width: AppSpacing.md),
-                _DashboardCard(
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _DashboardCard(
                   title: 'Ocorrências',
                   value: _summary!['occurrences'].toString(),
                   subtitle: 'Aguardando resposta',
@@ -450,8 +476,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   color: AppColors.warning,
                   onTap: () => _onDashboardTap('occurrences'),
                 ),
-              ] else if (type == 'morador') ...[
-                _DashboardCard(
+              ),
+            ] else if (type == 'morador') ...[
+              Expanded(
+                child: _DashboardCard(
                   title: 'Visitas Hoje',
                   value: _summary!['visits'].toString(),
                   subtitle: 'Agendadas para hoje',
@@ -459,8 +487,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   color: AppColors.primary,
                   onTap: () => _onDashboardTap('visits'),
                 ),
-                const SizedBox(width: AppSpacing.md),
-                _DashboardCard(
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _DashboardCard(
                   title: 'Encomendas',
                   value: _summary!['packages'].toString(),
                   subtitle: 'Aguardando retirada',
@@ -468,9 +498,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   color: AppColors.success,
                   onTap: () => _onDashboardTap('packages'),
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
       ],
     );
@@ -559,8 +589,7 @@ class _DashboardCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.xl),
         child: Container(
-          width: 160,
-          height: 160,
+          height: 140,
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.xl),

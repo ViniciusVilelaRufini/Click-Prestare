@@ -12,7 +12,7 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:rflutter_alert/rflutter_alert.dart';
+import 'package:click/utils/utils.dart';
 
 enum FinanceiroViewMode { morador, condominio }
 
@@ -99,15 +99,19 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         base64File = base64Encode(await file.readAsBytes());
       }
       
-      Alert(context: context, title: "Enviando...", desc: "Aguarde um momento", buttons: []).show();
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (c) => const Center(child: CircularProgressIndicator()),
+      );
       bool success = await apiUploadComprovante(id, base64File);
       Navigator.pop(context);
       
       if(success) {
         _loadData();
-        Alert(context: context, title: "Sucesso", desc: "Comprovante enviado para análise!", type: AlertType.success).show();
+        displayMessage(context, "Sucesso", "Comprovante enviado para análise!");
       } else {
-        Alert(context: context, title: "Erro", desc: "Falha ao enviar arquivo.", type: AlertType.error).show();
+        displayMessage(context, "Erro", "Falha ao enviar arquivo.");
       }
     }
   }
@@ -135,7 +139,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           IconButton(
             icon: const Icon(PhosphorIcons.downloadSimple),
             onPressed: () {
-              Alert(context: context, title: "Exportar", desc: "Relatório sendo gerado...").show();
+              displayMessage(context, "Exportar", "Relatório sendo gerado...");
             },
           )
         ],
@@ -291,32 +295,48 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(item['nome'] ?? 'Despesa', style: AppTypography.bodyMedium(context)),
-                      if (item['id_usuario'] != null) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            "Pessoal",
-                            style: TextStyle(color: AppColors.primary, fontSize: 8, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            item['nome'] ?? 'Despesa',
+                            style: AppTypography.bodyMedium(context),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (item['id_usuario'] != null && item['tipo'] == 'D') ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              "Pessoal",
+                              style: TextStyle(color: AppColors.primary, fontSize: 8, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                  Text("Vencimento: ${item['data_vencimento'] ?? item['data'] ?? '—'}", style: AppTypography.caption(context)),
-                ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text("Vencimento: ${item['data_vencimento'] ?? item['data'] ?? '—'}", style: AppTypography.caption(context)),
+                  ],
+                ),
               ),
-              Text(item['valorReal'] ?? item['valorString'] ?? 'R\$ 0,00', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: isPago ? Colors.green : AppColors.textPrimary(context))),
+              const SizedBox(width: 12),
+              Text(
+                item['valorReal'] ?? item['valorString'] ?? 'R\$ 0,00',
+                style: AppTypography.bodyMedium(context).copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isPago ? Colors.green : AppColors.textPrimary(context),
+                ),
+              ),
             ],
           ),
           if (!isPago) ...[
@@ -399,71 +419,98 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             ),
           ],
           Divider(height: 24, color: AppColors.border(context)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildStatusBadge(item['status'], item['pago']),
-              Row(
-                children: [
-                  if (!isPago && !isVerifying)
-                    ElevatedButton.icon(
-                      onPressed: () => _uploadComprovante(item['id']),
-                      icon: const Icon(PhosphorIcons.uploadSimple, size: 16),
-                      label: const Text("Comprovante"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
-                      ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final fits = constraints.maxWidth >= 260;
+              final statusWidget = _buildStatusBadge(item['status'], item['pago']);
+              
+              final buttonsList = <Widget>[
+                if (!isPago && !isVerifying)
+                  ElevatedButton.icon(
+                    onPressed: () => _uploadComprovante(item['id']),
+                    icon: const Icon(PhosphorIcons.uploadSimple, size: 14),
+                    label: const Text("Comprovante", style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                  if (item['id_usuario'] != null) ...[
-                    IconButton(
-                      icon: const Icon(PhosphorIcons.pencil, size: 18, color: Colors.blueAccent),
-                      onPressed: () => _showContaFormModal(item),
+                  ),
+                if (item['id_usuario'] != null && item['tipo'] == 'D') ...[
+                  IconButton(
+                    icon: const Icon(PhosphorIcons.pencil, size: 18, color: Colors.blueAccent),
+                    onPressed: () => _showContaFormModal(item),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  IconButton(
+                    icon: const Icon(PhosphorIcons.trash, size: 18, color: Colors.redAccent),
+                    onPressed: () async {
+                      bool? confirm = await showConfirmDialog(
+                        context,
+                        text: "Tem certeza que deseja excluir esta conta pessoal?",
+                      );
+                      if (confirm == true) {
+                        final messenger = ScaffoldMessenger.of(context);
+                        setState(() => _isLoading = true);
+                        bool success = await apiRemoveMoradorFinanceiro(item['id']);
+                        if (success) {
+                          _loadData();
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text("Conta pessoal removida com sucesso!")),
+                          );
+                        } else {
+                          setState(() => _isLoading = false);
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text("Erro ao remover conta pessoal.")),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ],
+              ];
+
+              if (fits) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(child: statusWidget),
+                    const SizedBox(width: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: buttonsList,
+                    )
+                  ],
+                );
+              } else {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: statusWidget,
                     ),
-                    IconButton(
-                      icon: const Icon(PhosphorIcons.trash, size: 18, color: Colors.redAccent),
-                      onPressed: () {
-                        Alert(
-                          context: context,
-                          type: AlertType.warning,
-                          title: "Remover Conta",
-                          desc: "Tem certeza que deseja excluir esta conta pessoal?",
-                          buttons: [
-                            DialogButton(
-                              child: const Text("Cancelar", style: TextStyle(color: Colors.white)),
-                              onPressed: () => Navigator.pop(context),
-                              color: Colors.grey,
-                            ),
-                            DialogButton(
-                              child: const Text("Excluir", style: TextStyle(color: Colors.white)),
-                              onPressed: () async {
-                                final messenger = ScaffoldMessenger.of(context);
-                                Navigator.pop(context);
-                                setState(() => _isLoading = true);
-                                bool success = await apiRemoveMoradorFinanceiro(item['id']);
-                                if (success) {
-                                  _loadData();
-                                  messenger.showSnackBar(
-                                    const SnackBar(content: Text("Conta removida com sucesso!")),
-                                  );
-                                } else {
-                                  setState(() => _isLoading = false);
-                                  messenger.showSnackBar(
-                                    const SnackBar(content: Text("Erro ao remover conta.")),
-                                  );
-                                }
-                              },
-                              color: Colors.red,
-                            )
-                          ]
-                        ).show();
-                      },
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        for (int idx = 0; idx < buttonsList.length; idx++) ...[
+                          if (idx > 0) const SizedBox(width: 8),
+                          if (buttonsList[idx] is ElevatedButton)
+                            Expanded(child: buttonsList[idx])
+                          else
+                            buttonsList[idx],
+                        ],
+                      ],
                     ),
                   ],
-                ],
-              )
-            ],
+                );
+              }
+            },
           )
         ],
       ),
@@ -497,7 +544,28 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     final txtNome = TextEditingController(text: isEditing ? item['nome'] : '');
     final txtValor = TextEditingController(text: isEditing ? (item['valor'] as num).toStringAsFixed(2) : '');
     final txtVencimento = TextEditingController(text: isEditing ? item['data_vencimento'] : '');
-    String selectedCategoria = isEditing ? item['categoria'] : 'Luz';
+    final allowedCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
+    
+    String clean(String s) {
+      return s.replaceAll('í', 'i')
+              .replaceAll('í', 'i')
+              .replaceAll('ó', 'o')
+              .replaceAll('á', 'a')
+              .replaceAll('é', 'e')
+              .replaceAll('ú', 'u')
+              .toLowerCase()
+              .trim();
+    }
+
+    String selectedCategoria = 'Luz';
+    if (isEditing) {
+      String cat = item['categoria'] ?? 'Outros';
+      String target = clean(cat);
+      selectedCategoria = allowedCategories.firstWhere(
+        (c) => clean(c) == target,
+        orElse: () => allowedCategories.contains(cat) ? cat : 'Outros',
+      );
+    }
     bool isPago = isEditing ? item['pago'] == 1 : false;
 
     showModalBottomSheet(
@@ -559,7 +627,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           dropdownColor: AppColors.bg(context),
                           isExpanded: true,
                           style: AppTypography.bodyMedium(context),
-                          items: ["Aluguel", "Água", "Luz", "Internet", "Outros"]
+                          items: allowedCategories
                               .map((cat) => DropdownMenuItem(
                                     value: cat,
                                     child: Text(cat),

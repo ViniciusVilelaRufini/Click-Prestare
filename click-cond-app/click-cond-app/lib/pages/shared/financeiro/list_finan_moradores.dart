@@ -21,11 +21,14 @@ class _ListFinanceiroMoradoresPageState extends State<ListFinanceiroMoradores> {
   List<dynamic> blocos = [];
   List<dynamic> titlesTabs = [];
   final ScrollController _tabScroll = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
 
   var _isLoading = false;
   var tabSelected = '';
   var mes = '';
   var ano = '';
+  String _searchText = '';
+  String _statusFilter = 'Todos';
 
   @override
   void initState() {
@@ -36,6 +39,7 @@ class _ListFinanceiroMoradoresPageState extends State<ListFinanceiroMoradores> {
   @override
   void dispose() {
     _tabScroll.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -46,9 +50,21 @@ class _ListFinanceiroMoradoresPageState extends State<ListFinanceiroMoradores> {
       blocos = locals['blocos'];
       titlesTabs = locals['meses'];
       if (tabSelected == '' && titlesTabs.isNotEmpty) {
-        var last = titlesTabs[titlesTabs.length - 1];
-        tabSelected = last['periodo'];
-        _changeMonth(last['periodo'], last['mes'], last['ano']);
+        var now = DateTime.now();
+        var mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        var currentPeriod = "${mesesNomes[now.month - 1]}/${now.year}";
+        
+        dynamic selectedTab;
+        for (var t in titlesTabs) {
+          if (t['periodo'].toString().toLowerCase() == currentPeriod.toLowerCase()) {
+            selectedTab = t;
+            break;
+          }
+        }
+        
+        selectedTab ??= titlesTabs[titlesTabs.length - 1];
+        tabSelected = selectedTab['periodo'];
+        _changeMonth(selectedTab['periodo'], selectedTab['mes'], selectedTab['ano']);
         return;
       }
       if (mounted) setState(() {});
@@ -69,18 +85,163 @@ class _ListFinanceiroMoradoresPageState extends State<ListFinanceiroMoradores> {
   int _getCountStatus(dynamic bloco, int pago) {
     var count = 0;
     for (var apto in bloco['aptos']) {
-      count += apto['pago'] == pago ? 1 : 0;
+      final isPaid = apto['pago'] == 1;
+      if (pago == 1) {
+        count += isPaid ? 1 : 0;
+      } else {
+        count += !isPaid ? 1 : 0;
+      }
     }
     return count;
   }
 
+  Widget _buildSearchField() {
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: AppSpacing.md,
+        bottom: AppSpacing.xs,
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (val) => setState(() => _searchText = val),
+        style: AppTypography.body(context),
+        decoration: InputDecoration(
+          hintText: 'Pesquisar apartamento ou bloco...',
+          hintStyle: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context)),
+          prefixIcon: Icon(PhosphorIcons.magnifyingGlass, color: AppColors.textSecondary(context)),
+          suffixIcon: _searchText.isNotEmpty
+              ? IconButton(
+                  icon: Icon(PhosphorIcons.xCircle, color: AppColors.textSecondary(context)),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchText = '');
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: AppColors.surface(context),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppColors.border(context)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppColors.border(context)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    final statuses = ['Todos', 'Pagos', 'Pendentes'];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+      child: Row(
+        children: statuses.map((status) {
+          final isSelected = _statusFilter == status;
+          Color activeColor;
+          IconData icon;
+          if (status == 'Pagos') {
+            activeColor = Colors.green;
+            icon = PhosphorIcons.checkCircle;
+          } else if (status == 'Pendentes') {
+            activeColor = Colors.orange;
+            icon = PhosphorIcons.warningCircle;
+          } else {
+            activeColor = AppColors.primary;
+            icon = PhosphorIcons.list;
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            child: InkWell(
+              onTap: () => setState(() => _statusFilter = status),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isSelected ? activeColor.withOpacity(0.15) : AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected ? activeColor : AppColors.border(context),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 14,
+                      color: isSelected ? activeColor : AppColors.textSecondary(context),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      status,
+                      style: AppTypography.caption(context).copyWith(
+                        color: isSelected ? activeColor : AppColors.textSecondary(context),
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Filter blocks and apartments
+    List<dynamic> filteredBlocos = [];
+    for (var b in blocos) {
+      final blocoName = b['bloco'].toString().toLowerCase();
+      final aptos = b['aptos'] as List<dynamic>;
+      
+      List<dynamic> filteredAptos = [];
+      for (var a in aptos) {
+        final aptoNum = a['apto'].toString().toLowerCase();
+        final isPaid = a['pago'] == 1;
+        
+        if (_statusFilter == 'Pagos' && !isPaid) continue;
+        if (_statusFilter == 'Pendentes' && isPaid) continue;
+        
+        if (_searchText.isNotEmpty) {
+          final matchesApto = aptoNum.contains(_searchText.toLowerCase());
+          final matchesBloco = blocoName.contains(_searchText.toLowerCase());
+          if (!matchesApto && !matchesBloco) continue;
+        }
+        
+        filteredAptos.add(a);
+      }
+      
+      if (filteredAptos.isNotEmpty) {
+        filteredBlocos.add({
+          'bloco': b['bloco'],
+          'total': b['total'],
+          'aptos': filteredAptos,
+        });
+      }
+    }
+
     return AppScaffold(
       title: getText('financeiro_nav_arrecadacoes'),
       body: Column(
         children: [
           if (titlesTabs.isNotEmpty) _buildTabBar(),
+          _buildSearchField(),
+          _buildFilterChips(),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -92,22 +253,43 @@ class _ListFinanceiroMoradoresPageState extends State<ListFinanceiroMoradores> {
                           textAlign: TextAlign.center,
                         ),
                       )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        itemCount: blocos.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (context, i) => _BlocoTile(
-                          bloco: blocos[i],
-                          paid: _getCountStatus(blocos[i], 1),
-                          pending: _getCountStatus(blocos[i], 0),
-                          onApto: (apto) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => NewFinanceiroMorador(apto: apto)),
-                            ).then((_) => loadList());
-                          },
-                        ),
-                      ),
+                    : filteredBlocos.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  PhosphorIcons.magnifyingGlass,
+                                  size: 48,
+                                  color: AppColors.textSecondary(context),
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  "Nenhum apartamento encontrado",
+                                  style: AppTypography.body(context).copyWith(
+                                    color: AppColors.textSecondary(context),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            itemCount: filteredBlocos.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                            itemBuilder: (context, i) => _BlocoTile(
+                              bloco: filteredBlocos[i],
+                              paid: _getCountStatus(filteredBlocos[i], 1),
+                              pending: _getCountStatus(filteredBlocos[i], 0),
+                              onApto: (apto) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => NewFinanceiroMorador(apto: apto)),
+                                ).then((_) => loadList());
+                              },
+                            ),
+                          ),
           ),
         ],
       ),

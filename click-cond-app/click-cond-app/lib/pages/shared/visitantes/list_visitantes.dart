@@ -76,32 +76,52 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
       }
     }
 
+    final _sw = MediaQuery.of(context).size.width;
+    final _sh = MediaQuery.of(context).size.height;
+    final _hPad = _sw < 360 ? 14.0 : 20.0;
+    final _qrSize = (_sw * 0.52).clamp(120.0, 200.0);
+    final _pinSize = _sw < 360 ? 26.0 : 32.0;
+    final _initSize = _sh < 700 ? 0.95 : 0.88;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          decoration: BoxDecoration(
-            color: AppColors.bg(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.textTertiary(context).withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+      useSafeArea: true,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: _initSize,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (_, scrollCtrl) {
+            return Container(
+              decoration: BoxDecoration(
+                color: AppColors.bg(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              const SizedBox(height: AppSpacing.lg),
+              child: Column(
+                children: [
+                  // Handle bar fixo
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.textTertiary(context).withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    )),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollCtrl,
+                      padding: EdgeInsets.fromLTRB(_hPad, 4, _hPad, _hPad),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
                   CircleAvatar(
@@ -185,6 +205,13 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
               ),
               const SizedBox(height: AppSpacing.xl),
               
+              if (item['condominio_nome'] != null && item['condominio_nome'].toString().trim().isNotEmpty)
+                _buildDetailRow(
+                  context,
+                  icon: PhosphorIcons.buildings,
+                  label: 'Condomínio',
+                  value: item['condominio_nome'].toString(),
+                ),
               _buildDetailRow(
                 context,
                 icon: PhosphorIcons.houseLine,
@@ -246,12 +273,18 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                           children: [
                             const Icon(PhosphorIcons.shieldCheck, color: AppColors.primary, size: 18),
                             const SizedBox(width: 8),
-                            Text(
-                              'Código de Acesso para Portaria',
-                              style: AppTypography.tiny(context).copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
+                            Expanded(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Código de Acesso para Portaria',
+                                  style: AppTypography.tiny(context).copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -269,7 +302,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                           child: QrImageView(
                             data: item['codigo_acesso'].toString(),
                             version: QrVersions.auto,
-                            size: 180,
+                            size: _qrSize,
                             backgroundColor: Colors.white,
                             eyeStyle: const QrEyeStyle(
                               eyeShape: QrEyeShape.square,
@@ -281,7 +314,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: AppSpacing.md),
+                        const SizedBox(height: 10),
                         // PIN numérico
                         Text(
                           'PIN',
@@ -299,10 +332,10 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                             color: AppColors.primary,
                             letterSpacing: 6,
                             fontWeight: FontWeight.w900,
-                            fontSize: 32,
+                            fontSize: _pinSize,
                           ),
                         ),
-                        const SizedBox(height: AppSpacing.md),
+                        const SizedBox(height: 10),
                         // Botão copiar
                         SizedBox(
                           width: double.infinity,
@@ -393,15 +426,14 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                 ),
               ],
 
-              
-              const SizedBox(height: AppSpacing.xl),
+                   const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(ctx),
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        minimumSize: const Size.fromHeight(48),
                         side: BorderSide(color: AppColors.textTertiary(context).withOpacity(0.3)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
@@ -409,11 +441,11 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                     ),
                   ),
                   if (canAdd && item['data_saida'] == null && !isExpired) ...[
-                    const SizedBox(width: AppSpacing.md),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.pop(context);
+                          Navigator.pop(ctx);
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -426,7 +458,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          minimumSize: const Size.fromHeight(48),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                         child: Text(
@@ -441,9 +473,15 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                   ],
                 ],
               ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: 8),
             ],
           ),
+        ),
+      ),
+    ],
+  ),
+);
+          },
         );
       },
     );
@@ -511,21 +549,30 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
     // Filtrar apenas visitantes (onde is_prestador não é 1)
     final visitorsOnlyList = list.where((e) => e['is_prestador'] != 1).toList();
 
-    // Filtrar quem está no condomínio atualmente OU possui liberação ativa para hoje
+    // Filtrar quem está no condomínio atualmente OU possui liberação ativa/agendada para hoje
     final now = DateTime.now();
     final listInside = visitorsOnlyList.where((e) {
       // 1. Está no local fisicamente
       final isInside = e['data_entrada'] != null && e['data_saida'] == null;
       if (isInside) return true;
 
-      // 2. Liberação ativa agendada (período atual e sem registro de saída)
+      // 2. Liberação ativa/agendada para hoje ou período atual e sem registro de saída
       final startStr = e['data_hora_inicio'];
-      final endStr = e['data_hora_termino'];
-      if (startStr != null && endStr != null && e['data_saida'] == null) {
+      if (startStr != null && e['data_saida'] == null) {
         final start = DateTime.tryParse(startStr);
-        final end = DateTime.tryParse(endStr);
-        if (start != null && end != null) {
-          return now.isAfter(start) && now.isBefore(end);
+        if (start != null) {
+          // Se a visita é hoje
+          final isToday = start.year == now.year && start.month == now.month && start.day == now.day;
+          if (isToday) return true;
+
+          // Ou se o momento atual está no período da liberação
+          final endStr = e['data_hora_termino'];
+          if (endStr != null) {
+            final end = DateTime.tryParse(endStr);
+            if (end != null) {
+              return now.isAfter(start) && now.isBefore(end);
+            }
+          }
         }
       }
       return false;
@@ -602,23 +649,32 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                   ),
                   tabs: [
                     Tab(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(PhosphorIcons.houseLine, size: 16),
-                          const SizedBox(width: 6),
-                          Text('No Local / Ativos (${listInside.length})'),
-                        ],
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(PhosphorIcons.houseLine, size: 16),
+                            const SizedBox(width: 6),
+                            Builder(builder: (ctx) {
+                              final w = MediaQuery.of(ctx).size.width;
+                              return Text(w < 370 ? 'Ativos (${listInside.length})' : 'No Local / Ativos (${listInside.length})');
+                            }),
+                          ],
+                        ),
                       ),
                     ),
                     Tab(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(PhosphorIcons.identificationCard, size: 16),
-                          const SizedBox(width: 6),
-                          Text('Cadastrados (${listCadastrados.length})'),
-                        ],
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(PhosphorIcons.identificationCard, size: 16),
+                            const SizedBox(width: 6),
+                            Text('Cadastrados (${listCadastrados.length})'),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -764,34 +820,40 @@ class _VisitanteCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      if (item['apto'] != null)
-                        Text(
-                          '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto']}',
-                          style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
-                        ),
-                      if (isInside) ...[
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                          child: Text('NO LOCAL', style: AppTypography.tiny(context).copyWith(color: AppColors.success, fontWeight: FontWeight.bold)),
-                        ),
-                      ] else if (isAuthorized) ...[
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                          child: Text('AUTORIZADO', style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
+                      Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 2,
+                        children: [
+                          if (item['apto'] != null)
+                            Text(
+                              '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto']}',
+                              style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
+                            ),
+                          if (isInside)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                              child: Text('NO LOCAL', style: AppTypography.tiny(context).copyWith(color: AppColors.success, fontWeight: FontWeight.bold)),
+                            )
+                          else if (isAuthorized)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                              child: Text('AUTORIZADO', style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                   if (item['codigo_acesso'] != null && item['data_saida'] == null && !isExpired) ...[
                     const SizedBox(height: 2),
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Icon(PhosphorIcons.key, size: 12, color: AppColors.primary),
                         const SizedBox(width: 4),
@@ -801,24 +863,27 @@ class _VisitanteCard extends StatelessWidget {
                             color: AppColors.primary,
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ],
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 4,
+                    runSpacing: 2,
                     children: [
                       if (item['data_hora'] != null)
                         Text(item['data_hora'], style: AppTypography.caption(context)),
                       if (item['hora_entrada'] != null) ...[
                         Text(' • ', style: AppTypography.caption(context)),
                         Icon(PhosphorIcons.signIn, size: 12, color: AppColors.textTertiary(context)),
-                        const SizedBox(width: 2),
                         Text(item['hora_entrada'], style: AppTypography.caption(context)),
                       ],
                       if (item['hora_saida'] != null) ...[
                         Text(' • ', style: AppTypography.caption(context)),
                         Icon(PhosphorIcons.signOut, size: 12, color: AppColors.textTertiary(context)),
-                        const SizedBox(width: 2),
                         Text(item['hora_saida'], style: AppTypography.caption(context)),
                       ],
                     ],

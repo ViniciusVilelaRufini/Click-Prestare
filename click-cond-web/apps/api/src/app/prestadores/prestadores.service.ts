@@ -100,6 +100,7 @@ export class PrestadoresService {
     if (!this.prisma.isConnected) return { success: true };
     try {
       await this.prisma.prestadores_servico.delete({ where: { id: Number(id) } });
+      return { success: true };
     } catch {
       throw new NotFoundException(`Prestador ${id} não encontrado`);
     }

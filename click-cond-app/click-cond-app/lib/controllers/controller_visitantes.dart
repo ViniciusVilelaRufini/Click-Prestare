@@ -17,10 +17,12 @@ apiGetAllVisitantes(String search, {bool allCondos = false}) async {
   }
   var url = ApiConfig.buildUri('/visitantes/get-all', params);
   try{
+      print('[apiGetAllVisitantes] URL: $url, allCondos: $allCondos, id_condominio: ${Singleton.instance.id_condominio}');
       var response = await http.get(
         url,
         headers: { "Authorization": getToken() }
       );
+      print('[apiGetAllVisitantes] Status: ${response.statusCode}, Body: ${response.body}');
 
     if (response.statusCode == 200) {
       var parsed = jsonDecode(response.body);
@@ -29,6 +31,7 @@ apiGetAllVisitantes(String search, {bool allCondos = false}) async {
       return [];
     }
   }catch(e){
+    print('[apiGetAllVisitantes] Error: $e');
     return "Houve um erro, tente novamente!";
   }
 }

@@ -67,7 +67,36 @@ export class FinanceiroService implements OnModuleInit {
     const dLanc = parseDate(financeiro.data);
     const dVenc = parseDate(financeiro.data_vencimento);
 
-    const isPago = (!financeiro.data || financeiro.data === '') ? 0 : 1;
+    let isPago = 0;
+    if (financeiro.pago !== undefined && financeiro.pago !== null) {
+      isPago = Number(financeiro.pago) === 1 ? 1 : 0;
+    } else {
+      const isMoradorCharge = (financeiro.nome && financeiro.nome.startsWith('Apto ')) || financeiro.categoria === 'Arrecadação';
+      if (financeiro.data && financeiro.data !== '' && !isMoradorCharge) {
+        isPago = 1;
+      }
+    }
+
+    let idUsuario = financeiro.id_usuario ? Number(financeiro.id_usuario) : null;
+    if (!idUsuario && financeiro.nome && financeiro.nome.startsWith('Apto ')) {
+      const regex = /Apto\s+([^\s]+)\s+Bloco\s+([^\s]+)/i;
+      const match = financeiro.nome.match(regex);
+      if (match) {
+        const apto = match[1];
+        const bloco = match[2];
+        const morador = await this.prisma.moradores.findFirst({
+          where: {
+            id_condominio: Number(idCondominio),
+            apartamento: apto,
+            bloco: bloco,
+          },
+          select: { id_user: true },
+        });
+        if (morador) {
+          idUsuario = morador.id_user;
+        }
+      }
+    }
 
     await this.prisma.financeiro.create({
       data: {
@@ -90,6 +119,7 @@ export class FinanceiroService implements OnModuleInit {
         status: financeiro.status ? String(financeiro.status) : '0',
         linha_digitavel: financeiro.linha_digitavel ?? null,
         pix_copia_cola: financeiro.pix_copia_cola ?? null,
+        id_usuario: idUsuario,
       },
     });
 
@@ -135,7 +165,37 @@ export class FinanceiroService implements OnModuleInit {
 
     const dLanc = parseDate(financeiro.data);
     const dVenc = parseDate(financeiro.data_vencimento);
-    const isPago = financeiro.pago !== undefined ? Number(financeiro.pago) : ((!financeiro.data || financeiro.data === '') ? 0 : 1);
+
+    let isPago = 0;
+    if (financeiro.pago !== undefined && financeiro.pago !== null) {
+      isPago = Number(financeiro.pago) === 1 ? 1 : 0;
+    } else {
+      const isMoradorCharge = (financeiro.nome && financeiro.nome.startsWith('Apto ')) || financeiro.categoria === 'Arrecadação';
+      if (financeiro.data && financeiro.data !== '' && !isMoradorCharge) {
+        isPago = 1;
+      }
+    }
+
+    let idUsuario = financeiro.id_usuario ? Number(financeiro.id_usuario) : null;
+    if (!idUsuario && financeiro.nome && financeiro.nome.startsWith('Apto ')) {
+      const regex = /Apto\s+([^\s]+)\s+Bloco\s+([^\s]+)/i;
+      const match = financeiro.nome.match(regex);
+      if (match) {
+        const apto = match[1];
+        const bloco = match[2];
+        const morador = await this.prisma.moradores.findFirst({
+          where: {
+            id_condominio: Number(idCondominio),
+            apartamento: apto,
+            bloco: bloco,
+          },
+          select: { id_user: true },
+        });
+        if (morador) {
+          idUsuario = morador.id_user;
+        }
+      }
+    }
 
     await this.prisma.financeiro.updateMany({
       where: {
@@ -160,6 +220,7 @@ export class FinanceiroService implements OnModuleInit {
         ...(financeiro.status !== undefined ? { status: String(financeiro.status) } : {}),
         ...(financeiro.linha_digitavel !== undefined ? { linha_digitavel: financeiro.linha_digitavel } : {}),
         ...(financeiro.pix_copia_cola !== undefined ? { pix_copia_cola: financeiro.pix_copia_cola } : {}),
+        id_usuario: idUsuario,
       },
     });
 
@@ -648,18 +709,6 @@ export class FinanceiroService implements OnModuleInit {
       orderBy: { categoria: 'asc' },
     });
 
-    const revenueCategories = [
-      'Taxa Condominial',
-      'Fundo de Reserva',
-      'Multas/Juros',
-      'Locação de Área Comum',
-      'Outras Receitas',
-      'Condomínio',
-      'Receita',
-      'Receitas'
-    ];
-    const checkIsRevenue = (catName: string) => revenueCategories.includes(catName);
-
     const categsMap: Record<string, { saldo: number; tipo: string }> = {};
     let totalReceita = 0;
     let totalDespesa = 0;
@@ -789,9 +838,25 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return { url: '' };
 
     const prefix = type === 'boleto' ? 'boletos' : 'comprovantes';
-    const url = this.storage.isDataUrl(fileBase64)
-      ? await this.storage.uploadDataUrl(fileBase64, prefix)
-      : null;
+
+    // Se o base64 for enviado sem prefixo data URL (caso do FilePicker do Flutter), adiciona o prefixo
+    let dataUrl = fileBase64;
+    if (typeof dataUrl === 'string' && !dataUrl.startsWith('data:')) {
+      if (dataUrl.startsWith('JVBERi0')) {
+        dataUrl = `data:application/pdf;base64,${dataUrl}`;
+      } else {
+        dataUrl = `data:image/png;base64,${dataUrl}`;
+      }
+    }
+
+    let url: string | null = null;
+    if (this.storage.enabled) {
+      url = await this.storage.uploadDataUrl(dataUrl, prefix);
+    } else {
+      // Local development fallback
+      this.logger.warn('StorageService desativado. Usando URL mockada para desenvolvimento local.');
+      url = `https://dummyimage.com/600x400/3498db/ffffff&text=Comprovante+Local+ID+${id}`;
+    }
 
     if (!url) {
       throw new NotFoundException('Falha ao subir arquivo (storage indisponível).');
@@ -838,10 +903,19 @@ export class FinanceiroService implements OnModuleInit {
     const setMesesMap = new Map<string, any>();
     const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+    const hoje = new Date();
+    const currentYear = hoje.getFullYear();
+    const currentMonth = hoje.getMonth() + 1;
+
     for (const item of list) {
       const d = item.data || item.data_vencimento || item.created_at;
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
+
+      // Desconsiderar lançamentos de meses futuros
+      if (y > currentYear || (y === currentYear && m > currentMonth)) {
+        continue;
+      }
 
       const mStr = m < 10 ? '0' + m : String(m);
       const chave = `${mStr}/${y}`;
@@ -855,16 +929,14 @@ export class FinanceiroService implements OnModuleInit {
       }
     }
 
-    // Se vazio, adiciona o mês atual
-    if (setMesesMap.size === 0) {
-      const hoje = new Date();
-      const m = hoje.getMonth() + 1;
-      const y = hoje.getFullYear();
-      const mStr = m < 10 ? '0' + m : String(m);
-      setMesesMap.set(`${mStr}/${y}`, {
-        mes: mStr,
-        ano: String(y),
-        periodo: `${mesesNomes[m - 1]}/${y}`,
+    // Garantir que o mês atual esteja sempre presente
+    const mStrHoje = currentMonth < 10 ? '0' + currentMonth : String(currentMonth);
+    const chaveHoje = `${mStrHoje}/${currentYear}`;
+    if (!setMesesMap.has(chaveHoje)) {
+      setMesesMap.set(chaveHoje, {
+        mes: mStrHoje,
+        ano: String(currentYear),
+        periodo: `${mesesNomes[currentMonth - 1]}/${currentYear}`,
       });
     }
 

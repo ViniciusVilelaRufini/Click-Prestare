@@ -43,10 +43,12 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
   final txtLinhaDigitavel = TextEditingController();
   final txtPixCopiaCola = TextEditingController();
 
-  String _selectedCategoria = 'Condomínio';
+  static const _categories = ["Condomínio", "Aluguel", "Água", "Luz", "Internet", "Outros"];
+  String _selectedCategoria = _categories[0];
   String? _urlBoleto;
   var list = [];
   var listBlocos = [];
+  bool _isPago = false;
 
   @override
   void dispose() {
@@ -57,23 +59,43 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
     super.dispose();
   }
 
+  String _sanitizeCategory(String? category) {
+    if (category == null) return _categories[0];
+    String clean(String s) {
+      return s.replaceAll('í', 'i')
+              .replaceAll('í', 'i')
+              .replaceAll('ó', 'o')
+              .replaceAll('á', 'a')
+              .replaceAll('é', 'e')
+              .replaceAll('ú', 'u')
+              .toLowerCase()
+              .trim();
+    }
+    String target = clean(category);
+    return _categories.firstWhere(
+      (c) => clean(c) == target,
+      orElse: () => _categories.contains(category) ? category : _categories[5], // Fallback to 'Outros'
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     if (widget.apto != null) {
-      var pago = widget.apto["pago"] ?? 1;
+      var pago = widget.apto["pago"] ?? 0;
+      _isPago = pago == 1;
       id = widget.apto["financeiro_id"] ?? -1;
       txtBloco.text = widget.apto['bloco'] ?? '';
       txtApto.text = widget.apto['apto'] ?? '';
       txtReferencia.text = "${widget.apto['mes']}/${widget.apto['ano']}";
       txtVencimento.text = widget.apto['data_vencimento'] ?? '';
-      txtPagamento.text = pago == 1 ? widget.apto['data'] ?? '' : '';
+      txtPagamento.text = _isPago ? widget.apto['data'] ?? '' : '';
       txtValor.text = widget.apto['valor'].toString();
       txtDescricao.text = widget.apto['descricao'] ?? '';
       txtConta.text = widget.apto['conta'] ?? '';
       txtLinhaDigitavel.text = widget.apto['linha_digitavel'] ?? '';
       txtPixCopiaCola.text = widget.apto['pix_copia_cola'] ?? '';
-      _selectedCategoria = widget.apto['categoria'] ?? 'Condomínio';
+      _selectedCategoria = _sanitizeCategory(widget.apto['categoria']);
       _urlBoleto = widget.apto['url_boleto'];
     } else if (widget.id != null) {
       load();
@@ -111,20 +133,51 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
     try {
       setState(() => _isLoading = true);
       var obj = await apiGetDetails('financeiro', widget.id!);
-      var nome = obj['nome'].toString().split("-")[0];
-      var apto = nome.split(getText('lb_bloco'))[0].split('Apto')[1].trim();
-      var pago = obj["pago"] ?? 1;
-      txtBloco.text = nome.toString().split('Bloco')[1].trim();
-      txtApto.text = apto;
-      txtReferencia.text = obj['nome'].toString().split("Ref.")[1].trim();
+      String nomeCompleto = obj['nome']?.toString() ?? '';
+      
+      String blocoVal = '';
+      String aptoVal = '';
+      String refVal = '';
+      
+      if (nomeCompleto.contains('Apto')) {
+        try {
+          final regexApto = RegExp(r'Apto\s+([^\s]+)', caseSensitive: false);
+          final matchApto = regexApto.firstMatch(nomeCompleto);
+          if (matchApto != null) {
+            aptoVal = matchApto.group(1) ?? '';
+          }
+        } catch (_) {}
+      }
+      
+      if (nomeCompleto.contains('Bloco')) {
+        try {
+          final regexBloco = RegExp(r'Bloco\s+([^\s]+)', caseSensitive: false);
+          final matchBloco = regexBloco.firstMatch(nomeCompleto);
+          if (matchBloco != null) {
+            blocoVal = matchBloco.group(1) ?? '';
+          }
+        } catch (_) {}
+      }
+      
+      if (nomeCompleto.contains('Ref.')) {
+        try {
+          refVal = nomeCompleto.split('Ref.').last.trim();
+        } catch (_) {}
+      }
+      
+      var pago = obj["pago"] ?? 0;
+      _isPago = pago == 1;
+      txtBloco.text = blocoVal;
+      txtApto.text = aptoVal;
+      txtReferencia.text = refVal;
       txtVencimento.text = obj['data_vencimento'] ?? '';
-      txtPagamento.text = pago == 1 ? obj['data'] ?? '' : '';
+      txtPagamento.text = _isPago ? obj['data'] ?? '' : '';
       txtValor.text = obj['valor'].toString();
       txtDescricao.text = obj['descricao']?.toString() ?? '';
       txtConta.text = obj['conta']?.toString() ?? '';
       txtLinhaDigitavel.text = obj['linha_digitavel']?.toString() ?? '';
       txtPixCopiaCola.text = obj['pix_copia_cola']?.toString() ?? '';
-      _selectedCategoria = obj['categoria'] ?? 'Condomínio';
+      _selectedCategoria = _sanitizeCategory(obj['categoria']);
       _urlBoleto = obj['url_boleto'];
       id = obj['id'];
       if (mounted) setState(() {});
@@ -160,6 +213,7 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
         url_boleto: _urlBoleto,
         linha_digitavel: txtLinhaDigitavel.text,
         pix_copia_cola: txtPixCopiaCola.text,
+        pago: _isPago ? 1 : 0,
       );
       var res = await apiSaveObject("financeiro", "financeiro", obj, id != null && id != -1);
       if (res.toString().isEmpty) {
@@ -280,21 +334,42 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  AppInput(
-                    label: getText('financeiro_dt_pag'),
-                    controller: txtPagamento,
-                    prefixIcon: PhosphorIcons.calendarCheck,
-                    readOnly: true,
-                    onTap: () => showCupertinoModalPopup(
-                      context: context,
-                      builder: (_) => ModalCupertino(
-                        onPressed: (text) => setState(() => txtPagamento.text = text),
-                        initialDate: DateTime.now(),
-                        minimumDate: DateTime.now().add(const Duration(days: -700)),
-                        type: 'date',
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Já está pago?", style: AppTypography.body(context)),
+                      Switch(
+                        value: _isPago,
+                        activeColor: AppColors.primary,
+                        onChanged: (val) {
+                          setState(() {
+                            _isPago = val;
+                            if (!_isPago) {
+                              txtPagamento.text = '';
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  if (_isPago) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    AppInput(
+                      label: getText('financeiro_dt_pag'),
+                      controller: txtPagamento,
+                      prefixIcon: PhosphorIcons.calendarCheck,
+                      readOnly: true,
+                      onTap: () => showCupertinoModalPopup(
+                        context: context,
+                        builder: (_) => ModalCupertino(
+                          onPressed: (text) => setState(() => txtPagamento.text = text),
+                          initialDate: DateTime.now(),
+                          minimumDate: DateTime.now().add(const Duration(days: -700)),
+                          type: 'date',
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('financeiro_valores')),
                   AppInput(
@@ -315,7 +390,7 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       prefixIcon: Icon(PhosphorIcons.tag, color: AppColors.primary),
                     ),
-                    items: ["Condomínio", "Aluguel", "Água", "Luz", "Internet", "Outros"]
+                    items: _categories
                         .map((c) => DropdownMenuItem(value: c, child: Text(c, style: AppTypography.body(context))))
                         .toList(),
                     onChanged: (val) => setState(() => _selectedCategoria = val!),
@@ -399,12 +474,12 @@ class FinanceiroModel {
   String? nome, tipo, data, data_vencimento, categoria, conta, descricao, cliente, forma_pagamento, photo, url_boleto, url_comprovante;
   String? linha_digitavel, pix_copia_cola;
   double? valor;
-  int? parcelas, status;
+  int? parcelas, status, pago;
 
   FinanceiroModel({this.id, this.id_condominio, this.nome, this.tipo, this.data, this.data_vencimento,
       this.valor, this.categoria, this.conta, this.descricao, this.cliente,
       this.forma_pagamento, this.parcelas, this.photo, this.url_boleto, this.url_comprovante, this.status,
-      this.linha_digitavel, this.pix_copia_cola});
+      this.linha_digitavel, this.pix_copia_cola, this.pago});
 
   Map toJson() => {
         'id': id, 'nome': nome, 'tipo': tipo, 'data': data,
@@ -413,6 +488,6 @@ class FinanceiroModel {
         'conta': conta, 'descricao': descricao, 'cliente': cliente,
         'forma_pagamento': forma_pagamento, 'parcelas': parcelas, 'photo': photo,
         'url_boleto': url_boleto, 'url_comprovante': url_comprovante, 'status': status,
-        'linha_digitavel': linha_digitavel, 'pix_copia_cola': pix_copia_cola
+        'linha_digitavel': linha_digitavel, 'pix_copia_cola': pix_copia_cola, 'pago': pago
       };
 }

@@ -209,13 +209,22 @@ class _MyCondominiumState extends State<MyCondominium> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('${getText('ola')} ${getUsername()}',
-                    style: AppTypography.bodySecondary(context)),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text('${getText('ola')} ${getUsername()}',
+                      style: AppTypography.bodySecondary(context)),
+                ),
                 if (_cond != null)
-                  Text(_cond!['nome'] ?? '',
-                      style: AppTypography.headline(context),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(_cond!['nome'] ?? '',
+                        style: AppTypography.headline(context),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
               ],
             ),
           ),
@@ -343,22 +352,58 @@ class _MyCondominiumState extends State<MyCondominium> {
               AppSpacing.gapXl,
               Container(height: 1, color: Colors.white.withOpacity(0.2)),
               AppSpacing.gapLg,
-              Row(
-                children: [
-                  _AlertItem(
-                    count: _summary?['packages'] ?? 0,
-                    label: 'Encomendas',
-                    icon: PhosphorIcons.package,
-                    onTap: () => _navigate(const ListEncomendas()),
-                  ),
-                  Container(width: 1, height: 40, color: Colors.white.withOpacity(0.2), margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg)),
-                  _AlertItem(
-                    count: _summary?['visits'] ?? 0,
-                    label: 'Visitas Hoje',
-                    icon: PhosphorIcons.userList,
-                    onTap: () => _navigate(const ListVisitantes()),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 240;
+                  if (isNarrow) {
+                    return Column(
+                      children: [
+                        _AlertItem(
+                          count: _summary?['packages'] ?? 0,
+                          label: 'Encomendas',
+                          icon: PhosphorIcons.package,
+                          onTap: () => _navigate(const ListEncomendas()),
+                          isExpanded: false,
+                        ),
+                        const SizedBox(height: 12),
+                        Container(height: 1, color: Colors.white.withOpacity(0.15)),
+                        const SizedBox(height: 12),
+                        _AlertItem(
+                          count: _summary?['visits'] ?? 0,
+                          label: 'Visitas Hoje',
+                          icon: PhosphorIcons.userList,
+                          onTap: () => _navigate(const ListVisitantes()),
+                          isExpanded: false,
+                        ),
+                      ],
+                    );
+                  } else {
+                    return Row(
+                      children: [
+                        _AlertItem(
+                          count: _summary?['packages'] ?? 0,
+                          label: 'Encomendas',
+                          icon: PhosphorIcons.package,
+                          onTap: () => _navigate(const ListEncomendas()),
+                          isExpanded: true,
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.white.withOpacity(0.2),
+                          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                        ),
+                        _AlertItem(
+                          count: _summary?['visits'] ?? 0,
+                          label: 'Visitas Hoje',
+                          icon: PhosphorIcons.userList,
+                          onTap: () => _navigate(const ListVisitantes()),
+                          isExpanded: true,
+                        ),
+                      ],
+                    );
+                  }
+                },
               ),
             ],
           ],
@@ -428,28 +473,55 @@ class _AlertItem extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+  final bool isExpanded;
 
-  const _AlertItem({required this.count, required this.label, required this.icon, required this.onTap});
+  const _AlertItem({
+    required this.count,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.isExpanded = true,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 24),
-            AppSpacing.gapMd,
-            Column(
+    final content = InkWell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 24),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(count.toString(), style: AppTypography.headline(context).copyWith(color: Colors.white)),
-                Text(label, style: AppTypography.tiny(context).copyWith(color: Colors.white.withOpacity(0.8))),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    count.toString(),
+                    style: AppTypography.headline(context).copyWith(color: Colors.white),
+                  ),
+                ),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    label,
+                    style: AppTypography.tiny(context).copyWith(color: Colors.white.withOpacity(0.8)),
+                  ),
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    if (isExpanded) {
+      return Expanded(child: content);
+    }
+    return content;
   }
 }
