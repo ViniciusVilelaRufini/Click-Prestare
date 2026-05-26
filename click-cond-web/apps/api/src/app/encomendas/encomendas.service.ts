@@ -292,6 +292,7 @@ export class EncomendasService {
     if (!this.prisma.isConnected) return { success: true };
     try {
       await this.prisma.encomendas.delete({ where: { id: Number(id) } });
+      return { success: true };
     } catch {
       throw new NotFoundException(`Encomenda ${id} não encontrada`);
     }
