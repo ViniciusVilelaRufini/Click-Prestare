@@ -32,7 +32,10 @@ export class RelatoriosController {
   @Get('auditoria')
   async getAuditoria(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Query('modulo') modulo?: string,
+    @Query('dataInicio') dataInicio?: string,
+    @Query('dataFim') dataFim?: string,
   ) {
-    return this.service.getAuditoria(idCondominio);
+    return this.service.getAuditoria(idCondominio, modulo, dataInicio, dataFim);
   }
 }

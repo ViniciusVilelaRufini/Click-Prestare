@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as xlsx from 'xlsx';
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
@@ -46,7 +46,7 @@ const getGeradoEmStr = (): string => {
     hour: '2-digit',
     minute: '2-digit',
   });
-  return `${dateStr} às ${timeStr}`;
+  return `${dateStr} Ã s ${timeStr}`;
 };
 
 @Injectable()
@@ -64,7 +64,7 @@ export class RelatoriosService {
       where: { id: idCondominio },
       select: { nome: true },
     });
-    const nomeCondo = condominio?.nome || 'Condomínio';
+    const nomeCondo = condominio?.nome || 'CondomÃ­nio';
 
     const range = {
       gte: dataInicio ? new Date(dataInicio) : undefined,
@@ -83,10 +83,10 @@ export class RelatoriosService {
 
       const excelData = list.map((v) => ({
         Nome: v.nome,
-        Documento: v.doc_identificacao || 'Não informado',
-        Apartamento: v.apartamento ? `${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : 'Não informado',
+        Documento: v.doc_identificacao || 'NÃ£o informado',
+        Apartamento: v.apartamento ? `${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : 'NÃ£o informado',
         Entrada: v.data_entrada ? formatDateTime(v.data_entrada) : 'Pendente',
-        Saída: v.data_saida ? formatDateTime(v.data_saida) : 'No local',
+        SaÃ­da: v.data_saida ? formatDateTime(v.data_saida) : 'No local',
         'Autorizado Por': v.criadoPor?.name || 'Morador',
         Criado: formatDateTime(v.created_at),
       }));
@@ -100,7 +100,7 @@ export class RelatoriosService {
         };
       } else {
         const buffer = await this.generatePdf({
-          headerText: `Relatório de Visitantes - ${nomeCondo}`,
+          headerText: `RelatÃ³rio de Visitantes - ${nomeCondo}`,
           periodo: this.formatPeriod(dataInicio, dataFim),
           metrics: [
             { label: 'Total de Visitantes', value: list.length.toString() },
@@ -109,7 +109,7 @@ export class RelatoriosService {
           table: {
             widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
             body: [
-              ['Nome', 'Documento', 'Apto', 'Entrada', 'Saída', 'Autorizado Por'].map((h) => ({
+              ['Nome', 'Documento', 'Apto', 'Entrada', 'SaÃ­da', 'Autorizado Por'].map((h) => ({
                 text: h,
                 style: 'tableHeader',
               })),
@@ -143,9 +143,9 @@ export class RelatoriosService {
       });
 
       const excelData = list.map((e) => ({
-        Descrição: e.descricao,
-        Destinatário: `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`,
-        Remetente: e.recebido_de || 'Não informado',
+        DescriÃ§Ã£o: e.descricao,
+        DestinatÃ¡rio: `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`,
+        Remetente: e.recebido_de || 'NÃ£o informado',
         Recebido: formatDateTime(e.recebido_em),
         Retirado: e.retirado_em ? formatDateTime(e.retirado_em) : 'Aguardando',
         Status: e.status,
@@ -161,7 +161,7 @@ export class RelatoriosService {
         };
       } else {
         const buffer = await this.generatePdf({
-          headerText: `Relatório de Encomendas - ${nomeCondo}`,
+          headerText: `RelatÃ³rio de Encomendas - ${nomeCondo}`,
           periodo: this.formatPeriod(dataInicio, dataFim),
           metrics: [
             { label: 'Total de Encomendas', value: list.length.toString() },
@@ -171,7 +171,7 @@ export class RelatoriosService {
           table: {
             widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
             body: [
-              ['Descrição', 'Destinatário', 'Recebido Em', 'Retirado Em', 'Status', 'Recebido Por'].map((h) => ({
+              ['DescriÃ§Ã£o', 'DestinatÃ¡rio', 'Recebido Em', 'Retirado Em', 'Status', 'Recebido Por'].map((h) => ({
                 text: h,
                 style: 'tableHeader',
               })),
@@ -206,7 +206,7 @@ export class RelatoriosService {
 
       const excelData = list.map((o) => ({
         Categoria: o.categoria?.nome || 'Geral',
-        Descrição: o.descricao || 'Sem descrição',
+        DescriÃ§Ã£o: o.descricao || 'Sem descriÃ§Ã£o',
         Status: o.status,
         Criado: formatDateTime(o.created_at),
         'Criado Por': o.criadoPor?.name || 'Morador',
@@ -215,7 +215,7 @@ export class RelatoriosService {
       }));
 
       if (formato === 'xlsx') {
-        const buffer = this.generateExcel(excelData, 'Ocorrências');
+        const buffer = this.generateExcel(excelData, 'OcorrÃªncias');
         return {
           buffer,
           mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -223,17 +223,17 @@ export class RelatoriosService {
         };
       } else {
         const buffer = await this.generatePdf({
-          headerText: `Relatório de Ocorrências - ${nomeCondo}`,
+          headerText: `RelatÃ³rio de OcorrÃªncias - ${nomeCondo}`,
           periodo: this.formatPeriod(dataInicio, dataFim),
           metrics: [
             { label: 'Total Registrado', value: list.length.toString() },
-            { label: 'Ocorrências Pendentes', value: list.filter((o) => o.status === 'Pendente').length.toString() },
+            { label: 'OcorrÃªncias Pendentes', value: list.filter((o) => o.status === 'Pendente').length.toString() },
             { label: 'Resolvidas', value: list.filter((o) => o.status === 'Resolvido').length.toString() },
           ],
           table: {
             widths: ['auto', '*', 'auto', 'auto', 'auto'],
             body: [
-              ['Categoria', 'Descrição', 'Criado Em', 'Status', 'Criado Por'].map((h) => ({
+              ['Categoria', 'DescriÃ§Ã£o', 'Criado Em', 'Status', 'Criado Por'].map((h) => ({
                 text: h,
                 style: 'tableHeader',
               })),
@@ -291,17 +291,17 @@ export class RelatoriosService {
         .reduce((sum, f) => sum + Math.abs(f.valor ? Number(f.valor) : 0), 0);
 
       const buffer = await this.generatePdf({
-        headerText: `Relatório Financeiro - ${nomeCondo}`,
+        headerText: `RelatÃ³rio Financeiro - ${nomeCondo}`,
         periodo: this.formatPeriod(dataInicio, dataFim),
         metrics: [
           { label: 'Total Receitas', value: `R$ ${totalReceitas.toFixed(2)}` },
           { label: 'Total Despesas', value: `R$ ${totalDespesas.toFixed(2)}` },
-          { label: 'Balanço Geral', value: `R$ ${(totalReceitas - totalDespesas).toFixed(2)}` },
+          { label: 'BalanÃ§o Geral', value: `R$ ${(totalReceitas - totalDespesas).toFixed(2)}` },
         ],
         table: {
           widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
           body: [
-            ['Descrição', 'Tipo', 'Valor', 'Vencimento', 'Categoria', 'Status'].map((h) => ({
+            ['DescriÃ§Ã£o', 'Tipo', 'Valor', 'Vencimento', 'Categoria', 'Status'].map((h) => ({
               text: h,
               style: 'tableHeader',
             })),
@@ -356,14 +356,14 @@ export class RelatoriosService {
         font: 'Helvetica',
       },
       content: [
-        // Cabeçalho Premium
+        // CabeÃ§alho Premium
         { text: params.headerText, style: 'header' },
-        { text: `Período: ${params.periodo}`, style: 'subheader' },
+        { text: `PerÃ­odo: ${params.periodo}`, style: 'subheader' },
         { text: `Gerado em: ${getGeradoEmStr()}`, style: 'meta' },
         { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1.5, lineColor: '#E2E8F0' }] },
         { text: '', margin: [0, 15] },
 
-        // Cards de métricas
+        // Cards de mÃ©tricas
         {
           table: {
             widths: params.metrics.map(() => '*'),
@@ -395,7 +395,7 @@ export class RelatoriosService {
             widths: params.table.widths,
             body: params.table.body.map((row, rIdx) =>
               row.map((cell) => {
-                if (rIdx === 0) return cell; // Se for o header, mantém o estilo do header
+                if (rIdx === 0) return cell; // Se for o header, mantÃ©m o estilo do header
                 return {
                   text: cell,
                   style: 'tableCell',
@@ -415,7 +415,7 @@ export class RelatoriosService {
         return {
           columns: [
             { text: 'Gerado pelo Sistema Click com Prestare', alignment: 'left', fontSize: 8, color: '#94A3B8' },
-            { text: `Página ${currentPage} de ${pageCount}`, alignment: 'right', fontSize: 8, color: '#94A3B8' },
+            { text: `PÃ¡gina ${currentPage} de ${pageCount}`, alignment: 'right', fontSize: 8, color: '#94A3B8' },
           ],
           margin: [40, 15, 40, 0],
         };
@@ -458,40 +458,13 @@ export class RelatoriosService {
   }
 
   private formatPeriod(start?: string, end?: string): string {
-    if (!start && !end) return 'Todo o histórico';
-    const s = start ? formatDateOnly(new Date(start)) : 'Início';
+    if (!start && !end) return 'Todo o histÃ³rico';
+    const s = start ? formatDateOnly(new Date(start)) : 'InÃ­cio';
     const e = end ? formatDateOnly(new Date(end)) : 'Hoje';
-    return `${s} até ${e}`;
+    return `${s} atÃ© ${e}`;
   }
 
   async getAuditoria(
     idCondominio: number,
     modulo?: string,
     dataInicio?: string,
-    dataFim?: string,
-    take = 200,
-  ) {
-    if (!this.prisma.isConnected) {
-      return [];
-    }
-
-    const where: any = { id_condominio: idCondominio };
-
-    if (modulo && modulo !== 'todos') {
-      where.modulo = modulo;
-    }
-
-    if (dataInicio || dataFim) {
-      where.created_at = {
-        ...(dataInicio ? { gte: new Date(dataInicio) } : {}),
-        ...(dataFim ? { lte: new Date(new Date(dataFim).setHours(23, 59, 59, 999)) } : {}),
-      };
-    }
-
-    return this.prisma.auditLog.findMany({
-      where,
-      orderBy: { created_at: 'desc' },
-      take,
-    });
-  }
-}

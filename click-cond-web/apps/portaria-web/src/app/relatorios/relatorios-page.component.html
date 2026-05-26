@@ -205,7 +205,8 @@
 
   @if (activeSubTab() === 'auditoria') {
     <!-- Log de Auditoria -->
-    <div class="rounded-2xl bg-graphite-200 border border-white/10 p-6 space-y-6 animate-fade-in">
+    <div class="rounded-2xl bg-graphite-200 border border-white/10 p-6 space-y-5 animate-fade-in">
+      <!-- Cabeçalho -->
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 class="text-lg font-semibold text-white">Linha do Tempo de Segurança</h2>
@@ -217,6 +218,46 @@
         </button>
       </div>
 
+      <!-- Filtros -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white/[0.02] rounded-xl border border-white/5">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Módulo</label>
+          <select [ngModel]="filtroModulo()" (ngModelChange)="filtroModulo.set($event)"
+                  class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition">
+            @for (m of modulosDisponiveis; track m.value) {
+              <option [value]="m.value" class="bg-slate-900">{{ m.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Data Início</label>
+          <input type="date" [ngModel]="filtroDataInicio()" (ngModelChange)="filtroDataInicio.set($event)"
+                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition" />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Data Fim</label>
+          <input type="date" [ngModel]="filtroDataFim()" (ngModelChange)="filtroDataFim.set($event)"
+                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition" />
+        </div>
+        <div class="md:col-span-3 flex gap-3 justify-end">
+          <button (click)="limparFiltros()" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition">
+            Limpar filtros
+          </button>
+          <button (click)="aplicarFiltros()" class="px-4 py-2 text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition">
+            Aplicar Filtros
+          </button>
+        </div>
+      </div>
+
+      @if (errorAudit()) {
+        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>{{ errorAudit() }}</span>
+        </div>
+      }
+
       @if (loadingAudit()) {
         <div class="flex flex-col items-center justify-center py-16 space-y-3">
           <div class="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
@@ -227,56 +268,68 @@
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="bg-white/[0.02] border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400 font-mono">
-                <th class="px-4 py-3 font-semibold">Data / Hora</th>
+                <th class="px-4 py-3 font-semibold whitespace-nowrap">Data / Hora</th>
                 <th class="px-4 py-3 font-semibold">Usuário</th>
                 <th class="px-4 py-3 font-semibold text-center">Ação</th>
-                <th class="px-4 py-3 font-semibold">Módulo / Entidade</th>
+                <th class="px-4 py-3 font-semibold">Módulo</th>
+                <th class="px-4 py-3 font-semibold">Descrição</th>
                 <th class="px-4 py-3 font-semibold">IP</th>
-                <th class="px-4 py-3 font-semibold">Detalhes da Transação</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-white/5 text-xs text-white">
               @for (log of auditLogs(); track log.id) {
-                <tr class="hover:bg-white/[0.01]">
+                <tr class="hover:bg-white/[0.02] transition-colors">
                   <td class="px-4 py-3.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">
-                    {{ log.created_at | date: 'dd/MM/yyyy HH:mm:ss' }}
+                    {{ formatarData(log.created_at) }}
                   </td>
                   <td class="px-4 py-3.5">
-                    <p class="font-medium text-white">{{ log.user?.name || 'Sistema' }}</p>
-                    <p class="text-[10px] text-slate-500">{{ log.user?.email || 'Ação Automatizada' }}</p>
+                    <p class="font-medium text-white">{{ log.usuario_nome || 'Sistema' }}</p>
+                    @if (log.usuario_email) {
+                      <p class="text-[10px] text-slate-500">{{ log.usuario_email }}</p>
+                    }
                   </td>
                   <td class="px-4 py-3.5 text-center">
-                    <span [class]="log.acao === 'CREATE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                   log.acao === 'UPDATE' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
-                                   log.acao === 'DELETE' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                                   'bg-slate-500/10 border-white/10 text-slate-400'"
-                          class="inline-block text-[10px] uppercase font-semibold px-2 py-0.5 rounded border">
-                      {{ log.acao }}
+                    <span [class]="getAcaoColor(log.acao)"
+                          class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded border whitespace-nowrap">
+                      {{ getAcaoLabel(log.acao) }}
                     </span>
                   </td>
-                  <td class="px-4 py-3.5 font-medium whitespace-nowrap">
-                    {{ log.entidade }} @if (log.entidade_id) { <span class="text-slate-500 font-mono text-[10px]">#{{ log.entidade_id }}</span> }
+                  <td class="px-4 py-3.5 whitespace-nowrap">
+                    <span class="font-medium text-slate-300">{{ getModuloLabel(log.modulo) }}</span>
+                    @if (log.entidade_id) {
+                      <span class="text-slate-500 font-mono text-[10px] ml-1">#{{ log.entidade_id }}</span>
+                    }
                   </td>
-                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-400">
+                  <td class="px-4 py-3.5 text-slate-300 max-w-xs">
+                    <div class="truncate" [title]="log.descricao">{{ log.descricao || '-' }}</div>
+                  </td>
+                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">
                     {{ log.ip || '-' }}
-                  </td>
-                  <td class="px-4 py-3.5 font-mono text-[10px] text-slate-500">
-                    <div class="max-w-[400px] truncate" [title]="log.detalhes">
-                      {{ log.detalhes || '-' }}
-                    </div>
                   </td>
                 </tr>
               }
               @if (auditLogs().length === 0) {
                 <tr>
-                  <td colspan="6" class="px-4 py-8 text-center text-slate-500">
-                    Nenhum log de segurança gravado ainda.
+                  <td colspan="6" class="px-4 py-12 text-center">
+                    <div class="flex flex-col items-center gap-3 text-slate-500">
+                      <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                      </svg>
+                      <p class="text-sm">Nenhum log encontrado para os filtros selecionados.</p>
+                      <p class="text-xs text-slate-600">Os logs serão gravados automaticamente a partir de agora.</p>
+                    </div>
                   </td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
+
+        @if (auditLogs().length > 0) {
+          <p class="text-xs text-slate-500 text-right">
+            Exibindo {{ auditLogs().length }} registro(s) mais recentes
+          </p>
+        }
       }
     </div>
   }

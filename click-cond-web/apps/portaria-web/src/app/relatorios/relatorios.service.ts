@@ -28,7 +28,11 @@ export class RelatoriosApi {
     });
   }
 
-  getAuditoria(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.base}/auditoria`);
+  getAuditoria(modulo?: string, dataInicio?: string, dataFim?: string): Observable<any[]> {
+    let params = new HttpParams();
+    if (modulo && modulo !== 'todos') params = params.set('modulo', modulo);
+    if (dataInicio) params = params.set('dataInicio', dataInicio);
+    if (dataFim) params = params.set('dataFim', dataFim);
+    return this.http.get<any[]>(`${this.base}/auditoria`, { params });
   }
 }
