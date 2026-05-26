@@ -159,10 +159,8 @@ export class EncomendasService {
           moradores: {
             some: {
               id_condominio: dto.id_condominio,
-              apartamento: {
-                apto: dto.destinatario_apto,
-                ...(dto.destinatario_bloco ? { bloco: dto.destinatario_bloco } : {}),
-              },
+              apartamento: dto.destinatario_apto,
+              ...(dto.destinatario_bloco ? { bloco: dto.destinatario_bloco } : {}),
             },
           },
           fcm_token: { not: null },
@@ -260,10 +258,8 @@ export class EncomendasService {
             moradores: {
               some: {
                 id_condominio: e.id_condominio,
-                apartamento: {
-                  apto: e.destinatario_apto,
-                  ...(e.destinatario_bloco ? { bloco: e.destinatario_bloco } : {}),
-                },
+                apartamento: e.destinatario_apto,
+                ...(e.destinatario_bloco ? { bloco: e.destinatario_bloco } : {}),
               },
             },
             fcm_token: { not: null },
