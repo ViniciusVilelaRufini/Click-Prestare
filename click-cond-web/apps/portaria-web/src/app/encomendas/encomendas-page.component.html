@@ -371,7 +371,17 @@
                         Retirada
                       </span>
                       @if (e.retirado_por) {
-                        <p class="text-[10px] text-slate-500 mt-1">por {{ e.retirado_por }} · {{ e.retirado_em | date: 'dd/MM HH:mm' }}</p>
+                        <p class="text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                          por {{ e.retirado_por }} · {{ e.retirado_em | date: 'dd/MM HH:mm' }}
+                          @if (e.retirado_assinatura || e.retirado_foto) {
+                            <button (click)="abrirComprovante(e)" 
+                                    class="text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-0.5" 
+                                    title="Ver comprovante">
+                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                              <span>Recibo</span>
+                            </button>
+                          }
+                        </p>
                       }
                     </div>
                   }
@@ -458,7 +468,7 @@
         </div>
 
         <!-- Body -->
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           @if (!isBatchRetirada) {
             <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
               <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Encomenda</span>
@@ -498,6 +508,67 @@
               <input type="text" [(ngModel)]="retiranteDocumento" placeholder="Ex: 12.345.678-9"
                 class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
             </div>
+
+            <!-- Foto do Recebedor (Webcam) -->
+            <div class="mt-4 pt-4 border-t border-white/5">
+              <label class="block text-xs font-medium text-slate-400 mb-2">Comprovante de Foto (Opcional)</label>
+              
+              @if (capturedPhoto) {
+                <div class="relative w-full max-w-[200px] h-[150px] mx-auto rounded-lg overflow-hidden border border-white/10">
+                  <img [src]="capturedPhoto" class="w-full h-full object-cover" />
+                  <button (click)="capturedPhoto = null" 
+                          class="absolute top-2 right-2 p-1.5 rounded-full bg-red-500/80 text-white hover:bg-red-600 transition"
+                          title="Remover foto">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              } @else if (isCameraActive) {
+                <div class="relative w-full max-w-[200px] h-[150px] mx-auto rounded-lg overflow-hidden border border-emerald-500/30 bg-black">
+                  <video id="webcamVideo" class="w-full h-full object-cover" autoplay playsinline></video>
+                  <div class="absolute bottom-2 inset-x-0 flex justify-center gap-1">
+                    <button (click)="capturePhoto()" 
+                            class="px-2.5 py-1 text-[11px] rounded-lg bg-emerald-500 text-white font-medium hover:bg-emerald-600 transition shadow">
+                      Capturar
+                    </button>
+                    <button (click)="stopCamera()" 
+                            class="px-2.5 py-1 text-[11px] rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 transition shadow">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <button (click)="startCamera()" 
+                        class="w-full py-3 border border-dashed border-white/10 hover:border-emerald-500/40 hover:bg-white/[0.02] rounded-xl flex items-center justify-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition">
+                  <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  </svg>
+                  Tirar Foto (Webcam)
+                </button>
+              }
+            </div>
+
+            <!-- Assinatura Digital -->
+            <div class="mt-4 pt-4 border-t border-white/5">
+              <div class="flex items-center justify-between mb-2">
+                <label class="block text-xs font-medium text-slate-400">Assinatura Digital (Opcional)</label>
+                <button (click)="clearSignature()" 
+                        class="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 transition">
+                  Limpar
+                </button>
+              </div>
+              <div class="relative w-full h-[120px] rounded-xl overflow-hidden border border-white/10 bg-black/40">
+                <canvas id="signatureCanvas" width="380" height="120"
+                        (mousedown)="onMouseDown($event)" 
+                        (mousemove)="onMouseMove($event)" 
+                        (mouseup)="onMouseUp()" 
+                        (mouseleave)="onMouseUp()" 
+                        (touchstart)="onTouchStart($event)" 
+                        (touchmove)="onTouchMove($event)" 
+                        (touchend)="onMouseUp()"
+                        class="w-full h-full cursor-crosshair block"></canvas>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -510,6 +581,57 @@
           <button (click)="confirmarRetirada()" [disabled]="!retiranteNome.trim()"
                   class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 transition">
             Confirmar Retirada
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Modal de Visualização de Comprovante -->
+  @if (viewingProof(); as proof) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl">
+        <!-- Header -->
+        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-white">Comprovante de Retirada</h3>
+          <button (click)="viewingProof.set(null)" class="text-slate-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <!-- Body -->
+        <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          <div class="space-y-1">
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Encomenda</span>
+            <p class="text-sm font-medium text-white">{{ proof.descricao }}</p>
+          </div>
+
+          @if (proof.photo) {
+            <div class="space-y-2">
+              <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Foto do Recebedor</span>
+              <div class="w-full max-w-[200px] h-[150px] mx-auto rounded-lg overflow-hidden border border-white/10 bg-black/40">
+                <img [src]="proof.photo" class="w-full h-full object-cover" />
+              </div>
+            </div>
+          }
+
+          @if (proof.signature) {
+            <div class="space-y-2">
+              <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Assinatura Digital</span>
+              <div class="w-full h-[120px] rounded-xl overflow-hidden border border-white/10 bg-white/50 p-2 flex items-center justify-center">
+                <img [src]="proof.signature" class="max-h-full max-w-full object-contain" />
+              </div>
+            </div>
+          }
+          
+          @if (!proof.photo && !proof.signature) {
+            <div class="text-xs text-slate-500 text-center py-4">Nenhum comprovante de foto ou assinatura registrado.</div>
+          }
+        </div>
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end">
+          <button (click)="viewingProof.set(null)"
+                  class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-emerald-500 hover:bg-emerald-600 transition">
+            Fechar
           </button>
         </div>
       </div>

@@ -27,4 +27,8 @@ export class RelatoriosApi {
       responseType: 'blob',
     });
   }
+
+  getAuditoria(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/auditoria`);
+  }
 }

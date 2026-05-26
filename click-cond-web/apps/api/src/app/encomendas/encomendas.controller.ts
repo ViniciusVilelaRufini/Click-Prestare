@@ -31,9 +31,20 @@ export class EncomendasController {
   @Patch(':id/retirar')
   retirar(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { retirado_por: string },
+    @Body() body: {
+      retirado_por: string;
+      retirado_doc?: string;
+      retirado_assinatura?: string;
+      retirado_foto?: string;
+    },
   ) {
-    return this.service.retirar(id, body.retirado_por);
+    return this.service.retirar(
+      id,
+      body.retirado_por,
+      body.retirado_doc,
+      body.retirado_assinatura,
+      body.retirado_foto,
+    );
   }
 
   @Patch(':id/notificar')

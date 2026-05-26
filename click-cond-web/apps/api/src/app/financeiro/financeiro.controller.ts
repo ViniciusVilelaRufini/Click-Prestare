@@ -176,4 +176,20 @@ export class FinanceiroController {
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? 'Administrador';
     return this.service.createAcordoInadimplente(Number(body.id_condominio), body.acordoData, operatorName);
   }
+
+  @Post('conciliacao/importar')
+  @HttpCode(200)
+  importarOfx(
+    @Body() body: { id_condominio: string | number; ofxContent: string },
+  ) {
+    return this.service.parseOfxContent(Number(body.id_condominio), body.ofxContent);
+  }
+
+  @Post('conciliacao/confirmar')
+  @HttpCode(200)
+  confirmarConciliacao(
+    @Body() body: { id_condominio: string | number; reconciliations: { databaseId: number; dataPagamento: string }[] },
+  ) {
+    return this.service.confirmarConciliacao(Number(body.id_condominio), body.reconciliations);
+  }
 }

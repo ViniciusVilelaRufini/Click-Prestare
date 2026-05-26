@@ -1188,4 +1188,123 @@ export class FinanceiroService implements OnModuleInit {
 
     return { success: true };
   }
+
+  async parseOfxContent(idCondominio: number, ofxContent: string) {
+    const transactions: any[] = [];
+    const stmttrnRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
+    let match;
+    while ((match = stmttrnRegex.exec(ofxContent)) !== null) {
+      const block = match[1];
+      const trntype = (/<TRNTYPE>([^\r\n<]+)/i.exec(block)?.[1] ?? '').trim();
+      const dtpostedStr = (/<DTPOSTED>([^\r\n<]+)/i.exec(block)?.[1] ?? '').trim();
+      const trnamt = parseFloat((/<TRNAMT>([^\r\n<]+)/i.exec(block)?.[1] ?? '0').trim());
+      const fitid = (/<FITID>([^\r\n<]+)/i.exec(block)?.[1] ?? '').trim();
+      const memo = (/<MEMO>([^\r\n<]+)/i.exec(block)?.[1] ?? '').trim();
+
+      let date = new Date();
+      if (dtpostedStr.length >= 8) {
+        const year = parseInt(dtpostedStr.substring(0, 4), 10);
+        const month = parseInt(dtpostedStr.substring(4, 6), 10) - 1;
+        const day = parseInt(dtpostedStr.substring(6, 8), 10);
+        date = new Date(year, month, day);
+      }
+
+      transactions.push({
+        type: trntype,
+        date,
+        amount: trnamt,
+        fitid,
+        memo,
+      });
+    }
+
+    const unpaid = await this.prisma.financeiro.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        pago: 0,
+      },
+    });
+
+    const results = transactions.map(tx => {
+      const txType = tx.amount < 0 ? 'D' : 'C';
+      const absAmount = Math.abs(tx.amount);
+
+      let bestMatch: any = null;
+      let matchType: 'exact' | 'partial' | 'none' = 'none';
+
+      const exactMatches = unpaid.filter(db => {
+        const dbType = db.tipo || 'C';
+        const dbAmt = Math.abs(Number(db.valor || 0));
+        if (dbType !== txType || Math.abs(dbAmt - absAmount) > 0.01) return false;
+
+        const dbDate = db.data_vencimento || db.data || new Date();
+        const diffDays = Math.abs(dbDate.getTime() - tx.date.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays <= 5;
+      });
+
+      if (exactMatches.length > 0) {
+        bestMatch = exactMatches[0];
+        matchType = 'exact';
+      } else {
+        const partialMatches = unpaid.filter(db => {
+          const dbType = db.tipo || 'C';
+          const dbAmt = Math.abs(Number(db.valor || 0));
+          return dbType === txType && Math.abs(dbAmt - absAmount) <= 0.01;
+        });
+
+        if (partialMatches.length > 0) {
+          bestMatch = partialMatches[0];
+          matchType = 'partial';
+        }
+      }
+
+      return {
+        ofxTx: {
+          ...tx,
+          amount: tx.amount,
+          date: tx.date.toISOString(),
+        },
+        suggestion: bestMatch ? {
+          id: bestMatch.id,
+          nome: bestMatch.nome,
+          tipo: bestMatch.tipo,
+          valor: Number(bestMatch.valor),
+          data_vencimento: bestMatch.data_vencimento ? bestMatch.data_vencimento.toISOString() : null,
+          categoria: bestMatch.categoria,
+        } : null,
+        matchType,
+      };
+    });
+
+    return {
+      results,
+      unpaid: unpaid.map(u => ({
+        id: u.id,
+        nome: u.nome,
+        tipo: u.tipo,
+        valor: Number(u.valor),
+        data_vencimento: u.data_vencimento ? u.data_vencimento.toISOString() : null,
+        categoria: u.categoria,
+      }))
+    };
+  }
+
+  async confirmarConciliacao(idCondominio: number, reconciliations: { databaseId: number; dataPagamento: string }[]) {
+    for (const rec of reconciliations) {
+      const parsedDate = new Date(rec.dataPagamento);
+      const isDateValid = !isNaN(parsedDate.getTime());
+
+      await this.prisma.financeiro.update({
+        where: {
+          id: Number(rec.databaseId),
+          id_condominio: Number(idCondominio),
+        },
+        data: {
+          pago: 1,
+          data: isDateValid ? parsedDate : new Date(),
+        },
+      });
+    }
+    return { success: true };
+  }
 }

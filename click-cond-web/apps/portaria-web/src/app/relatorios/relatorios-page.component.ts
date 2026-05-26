@@ -12,11 +12,38 @@ import { RelatoriosApi } from './relatorios.service';
 export class RelatoriosPageComponent {
   private api = inject(RelatoriosApi);
 
+  readonly activeSubTab = signal<'gerador' | 'auditoria'>('gerador');
+  readonly auditLogs = signal<any[]>([]);
+  readonly loadingAudit = signal<boolean>(false);
+
   readonly tipo = signal<'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro'>('visitantes');
   readonly dataInicio = signal<string>('');
   readonly dataFim = signal<string>('');
   readonly loading = signal<boolean>(false);
   readonly error = signal<string | null>(null);
+
+  setSubTab(tab: 'gerador' | 'auditoria') {
+    this.activeSubTab.set(tab);
+    if (tab === 'auditoria') {
+      this.carregarAuditoria();
+    }
+  }
+
+  carregarAuditoria() {
+    this.loadingAudit.set(true);
+    this.error.set(null);
+    this.api.getAuditoria().subscribe({
+      next: (data) => {
+        this.auditLogs.set(data || []);
+        this.loadingAudit.set(false);
+      },
+      error: (err) => {
+        console.error(err);
+        this.error.set('Falha ao carregar logs de auditoria.');
+        this.loadingAudit.set(false);
+      }
+    });
+  }
 
   setTipo(t: 'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro') {
     this.tipo.set(t);

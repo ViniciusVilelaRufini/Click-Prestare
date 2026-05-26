@@ -28,4 +28,11 @@ export class RelatoriosController {
     res.setHeader('Content-Length', buffer.length);
     res.end(buffer);
   }
+
+  @Get('auditoria')
+  async getAuditoria(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+  ) {
+    return this.service.getAuditoria(idCondominio);
+  }
 }

@@ -463,4 +463,68 @@ export class RelatoriosService {
     const e = end ? formatDateOnly(new Date(end)) : 'Hoje';
     return `${s} até ${e}`;
   }
+
+  async getAuditoria(idCondominio: number) {
+    if (!this.prisma.isConnected) {
+      return [
+        {
+          id: 1,
+          acao: 'CREATE',
+          entidade: 'Financeiro',
+          entidade_id: 101,
+          detalhes: '{"nome":"Taxa Condominial Apto 101","valor":650}',
+          ip: '127.0.0.1',
+          created_at: new Date(),
+          user: { name: 'Portaria Local', email: 'portaria@click.com' }
+        }
+      ];
+    }
+
+    return await this.prisma.auditoria.findMany({
+      where: {
+        OR: [
+          {
+            user: {
+              moradores: {
+                some: {
+                  id_condominio: idCondominio
+                }
+              }
+            }
+          },
+          {
+            user: {
+              funcionarios: {
+                some: {
+                  id_condominio: idCondominio
+                }
+              }
+            }
+          },
+          {
+            user: {
+              sindicosCondominios: {
+                some: {
+                  id_condominio: idCondominio
+                }
+              }
+            }
+          }
+        ]
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          }
+        }
+      },
+      orderBy: {
+        created_at: 'desc'
+      },
+      take: 200,
+    });
+  }
 }

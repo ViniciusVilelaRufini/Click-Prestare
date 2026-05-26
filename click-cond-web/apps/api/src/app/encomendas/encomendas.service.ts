@@ -188,9 +188,33 @@ export class EncomendasService {
     return encomenda;
   }
 
-  async retirar(id: number, retiradoPor: string) {
+  async retirar(
+    id: number,
+    retiradoPor: string,
+    retiradoDoc?: string,
+    retiradoAssinatura?: string,
+    retiradoFoto?: string,
+  ) {
     if (!this.prisma.isConnected) {
-      return { success: true, id, retirado_por: retiradoPor, status: 'Retirada' };
+      return {
+        success: true,
+        id,
+        retirado_por: retiradoPor,
+        retirado_doc: retiradoDoc,
+        retirado_assinatura: retiradoAssinatura,
+        retirado_foto: retiradoFoto,
+        status: 'Retirada',
+      };
+    }
+
+    let assinaturaUrl: string | null = retiradoAssinatura ?? null;
+    if (assinaturaUrl && this.storage.isDataUrl(assinaturaUrl)) {
+      assinaturaUrl = (await this.storage.uploadDataUrl(assinaturaUrl, 'encomendas')) ?? null;
+    }
+
+    let fotoUrl: string | null = retiradoFoto ?? null;
+    if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
+      fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? null;
     }
 
     try {
@@ -199,6 +223,9 @@ export class EncomendasService {
         data: {
           retirado_em: new Date(),
           retirado_por: retiradoPor,
+          retirado_doc: retiradoDoc ?? null,
+          retirado_assinatura: assinaturaUrl,
+          retirado_foto: fotoUrl,
           status: 'Retirada',
         },
       });

@@ -48,6 +48,13 @@ export class FinanceiroPageComponent implements OnInit {
   readonly uploadingId = signal<number | null>(null);
   readonly uploadError = signal<string | null>(null);
 
+  // Conciliação Bancária
+  readonly modalConciliacao = signal(false);
+  readonly ofxTransactions = signal<any[]>([]);
+  readonly unpaidList = signal<any[]>([]);
+  readonly loadingOfx = signal(false);
+  readonly conciliando = signal(false);
+
   // Filtro e Ordenação de Inadimplência
   getFilteredInadimplentes() {
     const query = this.searchInadimplencia().toLowerCase().trim();
@@ -301,6 +308,102 @@ export class FinanceiroPageComponent implements OnInit {
           success: false,
           message: err?.error?.message ?? 'Falha ao enviar cobrança.'
         });
+      }
+    });
+  }
+
+  triggerOfxUpload() {
+    this.uploadError.set(null);
+    const inputEl = document.createElement('input');
+    inputEl.type = 'file';
+    inputEl.accept = '.ofx';
+    inputEl.onchange = () => {
+      const file = inputEl.files?.[0];
+      if (!file) return;
+      
+      this.loadingOfx.set(true);
+      this.modalConciliacao.set(true);
+      
+      const reader = new FileReader();
+      reader.onerror = () => {
+        this.uploadError.set('Falha ao ler o arquivo OFX.');
+        this.loadingOfx.set(false);
+      };
+      reader.onload = () => {
+        const textContent = String(reader.result ?? '');
+        this.api.importarOfx(textContent).subscribe({
+          next: (res) => {
+            this.ofxTransactions.set(res?.results || []);
+            this.unpaidList.set(res?.unpaid || []);
+            this.loadingOfx.set(false);
+          },
+          error: (e) => {
+            this.uploadError.set(`Erro ao importar OFX: ${e?.error?.message ?? e?.message}`);
+            this.loadingOfx.set(false);
+            this.modalConciliacao.set(false);
+          }
+        });
+      };
+      reader.readAsText(file);
+    };
+    inputEl.click();
+  }
+
+  cancelarConciliacao() {
+    this.modalConciliacao.set(false);
+    this.ofxTransactions.set([]);
+    this.unpaidList.set([]);
+    this.loadingOfx.set(false);
+    this.conciliando.set(false);
+  }
+
+  onSuggestionChange(txIndex: number, newDbIdStr: string) {
+    const dbId = Number(newDbIdStr);
+    const list = [...this.ofxTransactions()];
+    const tx = list[txIndex];
+    if (!dbId) {
+      tx.suggestion = null;
+      tx.matchType = 'none';
+    } else {
+      const found = this.unpaidList().find(u => u.id === dbId);
+      if (found) {
+        tx.suggestion = {
+          id: found.id,
+          nome: found.nome,
+          tipo: found.tipo,
+          valor: found.valor,
+          data_vencimento: found.data_vencimento,
+          categoria: found.categoria,
+        };
+        tx.matchType = 'partial';
+      }
+    }
+    this.ofxTransactions.set(list);
+  }
+
+  confirmarReconciliacao() {
+    const list = this.ofxTransactions();
+    const payload = list
+      .filter(tx => tx.suggestion && tx.suggestion.id)
+      .map(tx => ({
+        databaseId: Number(tx.suggestion.id),
+        dataPagamento: tx.ofxTx.date,
+      }));
+
+    if (payload.length === 0) {
+      alert('Nenhuma conciliação selecionada.');
+      return;
+    }
+
+    this.conciliando.set(true);
+    this.api.confirmarConciliacao(payload).subscribe({
+      next: () => {
+        this.cancelarConciliacao();
+        this.carregarDados();
+      },
+      error: (e) => {
+        alert(`Erro ao salvar conciliação: ${e?.error?.message ?? e?.message}`);
+        this.conciliando.set(false);
       }
     });
   }

@@ -248,6 +248,8 @@ export class EncomendasPageComponent implements OnInit {
     this.retiranteNome = '';
     this.retiranteDocumento = '';
     this.retiranteParentesco = 'Morador';
+    this.capturedPhoto = null;
+    this.stopCamera();
   }
 
   abrirRetiradaLote() {
@@ -257,6 +259,15 @@ export class EncomendasPageComponent implements OnInit {
     this.retiranteNome = '';
     this.retiranteDocumento = '';
     this.retiranteParentesco = 'Morador';
+    this.capturedPhoto = null;
+    this.stopCamera();
+  }
+
+  fecharRetirada() {
+    this.retirandoEncomenda.set(null);
+    this.isBatchRetirada = false;
+    this.capturedPhoto = null;
+    this.stopCamera();
   }
 
   confirmarRetirada() {
@@ -264,17 +275,30 @@ export class EncomendasPageComponent implements OnInit {
       alert('Nome do retirante é obrigatório.');
       return;
     }
-    const details = `${this.retiranteNome} (${this.retiranteParentesco}${this.retiranteDocumento ? ' - Doc: ' + this.retiranteDocumento : ''})`;
+
+    const canvas = document.getElementById('signatureCanvas') as HTMLCanvasElement;
+    let signature: string | null = null;
+    if (canvas) {
+      const blank = document.createElement('canvas');
+      blank.width = canvas.width;
+      blank.height = canvas.height;
+      if (canvas.toDataURL() !== blank.toDataURL()) {
+        signature = canvas.toDataURL('image/png');
+      }
+    }
+
+    const photo = this.capturedPhoto;
+    const details = `${this.retiranteNome} (${this.retiranteParentesco})`;
 
     this.loading.set(true);
     if (this.isBatchRetirada) {
       const sel = Array.from(this.selecionadas());
       import('rxjs').then(({ forkJoin }) => {
-        const requests = sel.map(id => this.api.retirar(id, details));
+        const requests = sel.map(id => this.api.retirar(id, details, this.retiranteDocumento || undefined, signature || undefined, photo || undefined));
         forkJoin(requests).subscribe({
           next: () => {
             this.selecionadas.set(new Set());
-            this.isBatchRetirada = false;
+            this.fecharRetirada();
             this.carregar();
           },
           error: (e) => {
@@ -286,9 +310,9 @@ export class EncomendasPageComponent implements OnInit {
     } else {
       const e = this.retirandoEncomenda();
       if (!e) return;
-      this.api.retirar(e.id, details).subscribe({
+      this.api.retirar(e.id, details, this.retiranteDocumento || undefined, signature || undefined, photo || undefined).subscribe({
         next: () => {
-          this.retirandoEncomenda.set(null);
+          this.fecharRetirada();
           this.carregar();
         },
         error: (err) => {
@@ -430,5 +454,152 @@ export class EncomendasPageComponent implements OnInit {
 
   private estadoInicial(): CreateEncomenda {
     return { descricao: '', destinatario_apto: '', destinatario_bloco: '', recebido_de: '' };
+  }
+
+  // Camera & Photo properties
+  cameraStream: MediaStream | null = null;
+  capturedPhoto: string | null = null;
+  isCameraActive = false;
+
+  // Signature drawing properties
+  private isDrawing = false;
+  private lastX = 0;
+  private lastY = 0;
+
+  // Signature Drawing handlers
+  onMouseDown(e: MouseEvent) {
+    const canvas = e.target as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    this.isDrawing = true;
+    this.lastX = e.clientX - rect.left;
+    this.lastY = e.clientY - rect.top;
+  }
+
+  onMouseMove(e: MouseEvent) {
+    if (!this.isDrawing) return;
+    const canvas = e.target as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#10b981'; // emerald-500
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.moveTo(this.lastX, this.lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+
+    this.lastX = x;
+    this.lastY = y;
+  }
+
+  onMouseUp() {
+    this.isDrawing = false;
+  }
+
+  onTouchStart(e: TouchEvent) {
+    if (e.touches.length === 0) return;
+    const canvas = e.target as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    this.isDrawing = true;
+    const touch = e.touches[0];
+    this.lastX = touch.clientX - rect.left;
+    this.lastY = touch.clientY - rect.top;
+    e.preventDefault();
+  }
+
+  onTouchMove(e: TouchEvent) {
+    if (!this.isDrawing || e.touches.length === 0) return;
+    const canvas = e.target as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#10b981'; // emerald-500
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.moveTo(this.lastX, this.lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+
+    this.lastX = x;
+    this.lastY = y;
+    e.preventDefault();
+  }
+
+  clearSignature() {
+    const canvas = document.getElementById('signatureCanvas') as HTMLCanvasElement;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }
+
+  async startCamera() {
+    try {
+      this.isCameraActive = true;
+      this.capturedPhoto = null;
+      this.cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 320, height: 240, facingMode: 'user' }
+      });
+      setTimeout(() => {
+        const video = document.getElementById('webcamVideo') as HTMLVideoElement;
+        if (video && this.cameraStream) {
+          video.srcObject = this.cameraStream;
+          video.play().catch(err => console.log('Erro ao dar play no video:', err));
+        }
+      }, 200);
+    } catch (err) {
+      console.error('Erro ao acessar webcam:', err);
+      alert('Não foi possível acessar a câmera. Verifique as permissões de vídeo.');
+      this.isCameraActive = false;
+    }
+  }
+
+  capturePhoto() {
+    const video = document.getElementById('webcamVideo') as HTMLVideoElement;
+    if (!video) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 320;
+    canvas.height = video.videoHeight || 240;
+    
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      this.capturedPhoto = canvas.toDataURL('image/jpeg', 0.8);
+    }
+    this.stopCamera();
+  }
+
+  stopCamera() {
+    if (this.cameraStream) {
+      this.cameraStream.getTracks().forEach(track => track.stop());
+      this.cameraStream = null;
+    }
+    this.isCameraActive = false;
+  }
+
+  readonly viewingProof = signal<{ signature: string | null; photo: string | null; descricao: string } | null>(null);
+
+  abrirComprovante(e: Encomenda) {
+    this.viewingProof.set({
+      signature: e.retirado_assinatura ?? null,
+      photo: e.retirado_foto ?? null,
+      descricao: e.descricao
+    });
   }
 }

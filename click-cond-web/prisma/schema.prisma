@@ -581,6 +581,9 @@ model Encomendas {
   recebido_em        DateTime    @default(now()) @db.DateTime(0)
   retirado_em        DateTime?   @db.DateTime(0)
   retirado_por       String?     @db.VarChar(255)
+  retirado_assinatura String?    @db.LongText
+  retirado_doc       String?     @db.VarChar(50)
+  retirado_foto      String?     @db.LongText
   status             String      @default("Aguardando") @db.VarChar(20)
   foto_volume        String?     @db.VarChar(500)
   notificado         Int?        @default(0) @db.TinyInt

@@ -75,4 +75,14 @@ export class FinanceiroApi {
     const url = `${API_BASE}/financeiro/upload-shared-file`;
     return this.http.post(url, { id, file: fileBase64, type });
   }
+
+  importarOfx(ofxContent: string): Observable<any> {
+    const url = `${API_BASE}/financeiro/conciliacao/importar`;
+    return this.http.post<any>(url, { id_condominio: this.cid, ofxContent });
+  }
+
+  confirmarConciliacao(reconciliations: { databaseId: number; dataPagamento: string }[]): Observable<any> {
+    const url = `${API_BASE}/financeiro/conciliacao/confirmar`;
+    return this.http.post<any>(url, { id_condominio: this.cid, reconciliations });
+  }
 }

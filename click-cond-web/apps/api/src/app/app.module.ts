@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -22,6 +22,7 @@ import { MudancasModule } from './mudancas/mudancas.module';
 import { MailModule } from './common/mail/mail.module';
 import { StorageModule } from './common/storage/storage.module';
 import { RelatoriosModule } from './relatorios/relatorios.module';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
@@ -64,6 +65,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     AppService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}

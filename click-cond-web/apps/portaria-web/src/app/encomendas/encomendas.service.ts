@@ -15,6 +15,9 @@ export interface Encomenda {
   recebido_em: string;
   retirado_em: string | null;
   retirado_por: string | null;
+  retirado_doc?: string | null;
+  retirado_assinatura?: string | null;
+  retirado_foto?: string | null;
   status: EncomendaStatus;
   notificado?: number | null;
   notificado_em?: string | null;
@@ -48,8 +51,19 @@ export class EncomendasApi {
     return this.http.post<Encomenda>(this.base, dto);
   }
 
-  retirar(id: number, retiradoPor: string): Observable<Encomenda> {
-    return this.http.patch<Encomenda>(`${this.base}/${id}/retirar`, { retirado_por: retiradoPor });
+  retirar(
+    id: number,
+    retiradoPor: string,
+    retiradoDoc?: string,
+    retiradoAssinatura?: string,
+    retiradoFoto?: string,
+  ): Observable<Encomenda> {
+    return this.http.patch<Encomenda>(`${this.base}/${id}/retirar`, {
+      retirado_por: retiradoPor,
+      retirado_doc: retiradoDoc,
+      retirado_assinatura: retiradoAssinatura,
+      retirado_foto: retiradoFoto,
+    });
   }
 
   notificar(id: number): Observable<Encomenda> {
