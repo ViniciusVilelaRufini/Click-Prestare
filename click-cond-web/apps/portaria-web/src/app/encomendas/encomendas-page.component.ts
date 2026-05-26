@@ -201,7 +201,7 @@ export class EncomendasPageComponent implements OnInit {
     this.aptosApi.list().subscribe({
       next: (data) => {
         data.sort((a, b) => {
-          if (a.bloco === b.bloco) return a.apto.localeCompare(b.apto);
+          if (a.bloco === b.bloco) return a.apto.localeCompare(b.apto, 'pt', { numeric: true });
           return (a.bloco ?? '').localeCompare(b.bloco ?? '');
         });
         this.apartamentos.set(data);

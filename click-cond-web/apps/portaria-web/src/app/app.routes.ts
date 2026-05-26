@@ -15,6 +15,7 @@ export const appRoutes: Route[] = [
   {
     path: '',
     canActivate: [authGuard],
+    canActivateChild: [authGuard],
     loadComponent: () =>
       import('./shell/shell.component').then((m) => m.ShellComponent),
     children: [

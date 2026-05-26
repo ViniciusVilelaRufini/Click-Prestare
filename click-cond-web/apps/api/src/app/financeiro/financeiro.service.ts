@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { MailService } from '../common/mail/mail.service';
@@ -39,9 +39,12 @@ export class FinanceiroService implements OnModuleInit {
     }
     if (isNaN(valor)) valor = 0;
 
-    if (financeiro.tipo === 'D') {
-      valor = Math.abs(valor) * -1;
+    const absValor = Math.abs(valor);
+    if (absValor <= 0 || absValor > 9999999) {
+      throw new BadRequestException('O valor do lançamento deve ser maior que zero e menor que R$ 10.000.000,00.');
     }
+
+    valor = financeiro.tipo === 'D' ? -absValor : absValor;
 
     let photoUrl = financeiro.photo ?? '';
     if (this.storage.isDataUrl(photoUrl)) {
@@ -107,9 +110,13 @@ export class FinanceiroService implements OnModuleInit {
       valor = parseFloat(str);
     }
     if (isNaN(valor)) valor = 0;
-    if (financeiro.tipo === 'D') {
-      valor = Math.abs(valor) * -1;
+
+    const absValor = Math.abs(valor);
+    if (absValor <= 0 || absValor > 9999999) {
+      throw new BadRequestException('O valor do lançamento deve ser maior que zero e menor que R$ 10.000.000,00.');
     }
+
+    valor = financeiro.tipo === 'D' ? -absValor : absValor;
 
     let photoUrl = financeiro.photo ?? undefined;
     if (this.storage.isDataUrl(photoUrl)) {

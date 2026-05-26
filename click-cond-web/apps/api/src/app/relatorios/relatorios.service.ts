@@ -261,15 +261,19 @@ export class RelatoriosService {
       orderBy: { created_at: 'desc' },
     });
 
-    const excelData = list.map((f) => ({
-      Nome: f.nome || '-',
-      Tipo: f.tipo || 'Despesa',
-      Valor: f.valor ? Number(f.valor) : 0,
-      Vencimento: f.data_vencimento ? formatDateOnly(f.data_vencimento) : '-',
-      Categoria: f.categoria || 'Geral',
-      Status: f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
-      Pagamento: f.forma_pagamento || '-',
-    }));
+    const excelData = list.map((f) => {
+      const isRevenue = f.tipo?.toUpperCase() === 'C';
+      const rawVal = Math.abs(f.valor ? Number(f.valor) : 0);
+      return {
+        Nome: f.nome || '-',
+        Tipo: isRevenue ? 'Receita' : 'Despesa',
+        Valor: isRevenue ? rawVal : -rawVal,
+        Vencimento: f.data_vencimento ? formatDateOnly(f.data_vencimento) : '-',
+        Categoria: f.categoria || 'Geral',
+        Status: f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
+        Pagamento: f.forma_pagamento || '-',
+      };
+    });
 
     if (formato === 'xlsx') {
       const buffer = this.generateExcel(excelData, 'Financeiro');
@@ -301,14 +305,19 @@ export class RelatoriosService {
               text: h,
               style: 'tableHeader',
             })),
-            ...list.map((f) => [
-              f.nome || '-',
-              f.tipo || 'Despesa',
-              f.valor ? `R$ ${Number(f.valor).toFixed(2)}` : 'R$ 0,00',
-              f.data_vencimento ? formatDateOnly(f.data_vencimento) : '-',
-              f.categoria || '-',
-              f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
-            ]),
+            ...list.map((f) => {
+              const isRevenue = f.tipo?.toUpperCase() === 'C';
+              const rawVal = Math.abs(f.valor ? Number(f.valor) : 0);
+              const valStr = isRevenue ? `R$ ${rawVal.toFixed(2)}` : `-R$ ${rawVal.toFixed(2)}`;
+              return [
+                f.nome || '-',
+                isRevenue ? 'Receita' : 'Despesa',
+                valStr,
+                f.data_vencimento ? formatDateOnly(f.data_vencimento) : '-',
+                f.categoria || '-',
+                f.status || (f.pago === 1 ? 'Pago' : 'Pendente'),
+              ];
+            }),
           ],
         },
       });

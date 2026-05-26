@@ -150,7 +150,13 @@ export class VisitantesPageComponent implements OnInit {
   ngOnInit() {
     this.carregar();
     this.aptApi.list().subscribe({
-      next: (data) => this.apartamentos.set(data),
+      next: (data) => {
+        data.sort((a, b) => {
+          if (a.bloco === b.bloco) return a.apto.localeCompare(b.apto, 'pt', { numeric: true });
+          return (a.bloco ?? '').localeCompare(b.bloco ?? '');
+        });
+        this.apartamentos.set(data);
+      },
     });
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {

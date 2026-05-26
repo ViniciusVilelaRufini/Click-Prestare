@@ -103,13 +103,10 @@ export class DashboardService {
           data_saida: null,
         },
       }),
-      // Prestadores de serviço ativos (no local): entrada registrada mas sem saída registrada, e is_prestador = 1
-      this.prisma.visitantes.count({
+      // Prestadores de serviço cadastrados
+      this.prisma.prestadores_servico.count({
         where: {
           id_condominio: idCondominio,
-          is_prestador: 1,
-          NOT: { data_entrada: null },
-          data_saida: null,
         },
       }),
       this.prisma.ocorrencias.count({
