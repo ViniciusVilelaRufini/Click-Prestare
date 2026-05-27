@@ -365,14 +365,14 @@ class _EncomendaCard extends StatelessWidget {
                   children: [
                     _buildDetailRow(
                       context,
-                      icon: PhosphorIcons.textT,
+                      icon: PhosphorIcons.package,
                       label: 'Descrição',
                       value: encomenda.descricao ?? 'Sem descrição',
                     ),
                     const Divider(height: 24),
                     _buildDetailRow(
                       context,
-                      icon: PhosphorIcons.tag,
+                      icon: PhosphorIcons.package,
                       label: 'Status',
                       widgetValue: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -412,7 +412,7 @@ class _EncomendaCard extends StatelessWidget {
                       const Divider(height: 24),
                       _buildDetailRow(
                         context,
-                        icon: PhosphorIcons.userCheck,
+                        icon: PhosphorIcons.checkCircle,
                         label: 'Retirado por',
                         value: encomenda.retiradoPor!,
                       ),
@@ -421,7 +421,7 @@ class _EncomendaCard extends StatelessWidget {
                       const Divider(height: 24),
                       _buildDetailRow(
                         context,
-                        icon: PhosphorIcons.calendarCheck,
+                        icon: PhosphorIcons.calendar,
                         label: 'Data de Retirada',
                         value: () {
                           try {
