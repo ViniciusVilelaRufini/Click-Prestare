@@ -90,7 +90,8 @@ export class DashboardService {
       comunicadosRecentes,
       totalApartamentos,
       totalMoradores,
-      ultVisitantes,
+      ultEntradasVisitantes,
+      ultSaidasVisitantes,
       ultEncomendas,
       ultOcorrencias,
     ] = await Promise.all([
@@ -120,12 +121,26 @@ export class DashboardService {
       }),
       this.prisma.apartamentos.count({ where: { id_condominio: idCondominio } }),
       this.prisma.moradores.count({ where: { id_condominio: idCondominio } }),
+      // Entradas recentes
       this.prisma.visitantes.findMany({
         where: {
           id_condominio: idCondominio,
           NOT: { data_entrada: null },
         },
         orderBy: { data_entrada: 'desc' },
+        take: 5,
+        include: {
+          apartamento: { select: { bloco: true, apto: true } },
+          criadoPor: { select: { name: true } },
+        },
+      }),
+      // Saídas recentes
+      this.prisma.visitantes.findMany({
+        where: {
+          id_condominio: idCondominio,
+          NOT: { data_saida: null },
+        },
+        orderBy: { data_saida: 'desc' },
         take: 5,
         include: {
           apartamento: { select: { bloco: true, apto: true } },
@@ -153,7 +168,9 @@ export class DashboardService {
     ]);
 
     const ultimosEventos: DashboardSummary['ultimosEventos'] = [];
-    for (const v of ultVisitantes) {
+
+    // Mapear Entradas
+    for (const v of ultEntradasVisitantes) {
       const aptoStr = v.apartamento
         ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
         : '';
@@ -169,7 +186,30 @@ export class DashboardService {
           blocoApto: aptoStr || 'Não informado',
           dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
           dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
-          status: v.data_saida ? 'Saída registrada' : (v.data_entrada ? 'No local' : 'Autorizado'),
+          status: v.data_saida ? 'Saída registrada' : 'No local',
+          autorizadoPor: v.criadoPor?.name || 'Morador',
+        },
+      });
+    }
+
+    // Mapear Saídas
+    for (const v of ultSaidasVisitantes) {
+      if (!v.data_saida) continue;
+      const aptoStr = v.apartamento
+        ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
+        : '';
+      ultimosEventos.push({
+        tipo: 'Visitante',
+        descricao: `${v.nome} saiu — ${aptoStr}`.trim(),
+        quando: v.data_saida.toISOString(),
+        detalhes: {
+          id: v.id,
+          nome: v.nome,
+          documento: v.doc_identificacao || 'Não informado',
+          blocoApto: aptoStr || 'Não informado',
+          dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
+          dataSaida: v.data_saida.toISOString(),
+          status: 'Saiu',
           autorizadoPor: v.criadoPor?.name || 'Morador',
         },
       });
