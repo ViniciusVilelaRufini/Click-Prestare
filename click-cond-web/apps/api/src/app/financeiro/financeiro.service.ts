@@ -499,21 +499,32 @@ export class FinanceiroService implements OnModuleInit {
       orderBy: [{ bloco: 'asc' }, { apto: 'asc' }],
     });
 
+    // Otimização: Carrega todos os lançamentos faturados pagos do condomínio de uma só vez
+    const faturasPagas = await this.prisma.financeiro.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        pago: 1,
+        nome: { contains: 'Ref.' },
+      },
+      select: { nome: true },
+    });
+
+    const setPagas = new Set(
+      faturasPagas.map(f => f.nome ? f.nome.trim() : '')
+    );
+
     const blocosMap: Record<string, any[]> = {};
 
     for (const a of aptos) {
       // Checar em quantos dos meses faturados este apartamento possui `pago = 1`
       let pagosCount = 0;
       for (const m of meses) {
-        const matchName = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${m.mes}/${m.ano}`;
-        const fin = await this.prisma.financeiro.findFirst({
-          where: {
-            id_condominio: Number(idCondominio),
-            nome: matchName,
-            pago: 1,
-          },
-        });
-        if (fin) pagosCount++;
+        const matchName1 = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${m.mes}/${m.ano}`;
+        const anoCurto = m.ano.slice(-2);
+        const matchName2 = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${m.mes}/${anoCurto}`;
+        if (setPagas.has(matchName1.trim()) || setPagas.has(matchName2.trim())) {
+          pagosCount++;
+        }
       }
 
       const devendoCount = meses.length - pagosCount;
@@ -801,16 +812,17 @@ export class FinanceiroService implements OnModuleInit {
       orderBy: { data_vencimento: 'desc' },
     });
 
-    // Filtra as cobranças: despesas gerais (D) são públicas para transparência,
-    // cobranças (C) só aparecem se forem destinadas ao bloco e apartamento do morador.
-    // As contas privadas do próprio morador (id_usuario == idUser) sempre passam.
     const filteredList = list.filter(item => {
       if (item.id_usuario === idUser) return true;
       if (item.tipo === 'C') {
-        return moradoresList.some(m => 
-          item.nome?.includes(`Apto ${m.apartamento}`) && 
-          item.nome?.includes(`Bloco ${m.bloco}`)
-        );
+        return moradoresList.some(m => {
+          const aptoOk = item.nome?.includes(`Apto ${m.apartamento}`) ?? false;
+          const temBloco = m.bloco !== null && m.bloco !== undefined && m.bloco.trim() !== '';
+          const blocoOk = temBloco
+            ? (item.nome?.includes(`Bloco ${m.bloco}`) ?? false)
+            : (!item.nome?.includes('Bloco') || item.nome?.includes('Bloco ') === false || item.nome?.includes('Bloco  '));
+          return aptoOk && blocoOk;
+        });
       }
       return false;
     });
