@@ -119,132 +119,371 @@ class _EncomendaCard extends StatelessWidget {
       }
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: () => _showEncomendaDetails(context, dataFormatada, statusColor),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.md),
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(PhosphorIcons.package, color: AppColors.primary, size: 28),
             ),
-            child: Icon(PhosphorIcons.package, color: AppColors.primary, size: 28),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (encomenda.condominioNome != null && encomenda.condominioNome!.isNotEmpty) ...[
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (encomenda.condominioNome != null && encomenda.condominioNome!.isNotEmpty) ...[
+                    Text(
+                      encomenda.condominioNome!.toUpperCase(),
+                      style: AppTypography.tiny(context).copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
                   Text(
-                    encomenda.condominioNome!.toUpperCase(),
-                    style: AppTypography.tiny(context).copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
+                    encomenda.descricao ?? 'Encomenda sem descrição',
+                    style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
-                ],
-                Text(
-                  encomenda.descricao ?? 'Encomenda sem descrição',
-                  style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
-                  maxLines: 2, overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(PhosphorIcons.truck, size: 14, color: AppColors.textTertiary(context)),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        'Recebido de: ${encomenda.recebidoDe ?? "N/A"}',
-                        style: AppTypography.caption(context),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(PhosphorIcons.calendar, size: 14, color: AppColors.textTertiary(context)),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        'Em: $dataFormatada',
-                        style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                if (isRetirado && encomenda.retiradoPor != null) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(PhosphorIcons.checkCircle, size: 14, color: Colors.green),
+                      Icon(PhosphorIcons.truck, size: 14, color: AppColors.textTertiary(context)),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          'Retirado por: ${encomenda.retiradoPor}',
-                          style: AppTypography.caption(context).copyWith(color: Colors.green, fontWeight: FontWeight.w500),
+                          'Recebido de: ${encomenda.recebidoDe ?? "N/A"}',
+                          style: AppTypography.caption(context),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(PhosphorIcons.calendar, size: 14, color: AppColors.textTertiary(context)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Em: $dataFormatada',
+                          style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
+                  if (isRetirado && encomenda.retiradoPor != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(PhosphorIcons.checkCircle, size: 14, color: Colors.green),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Retirado por: ${encomenda.retiradoPor}',
+                            style: AppTypography.caption(context).copyWith(color: Colors.green, fontWeight: FontWeight.w500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: statusColor.withOpacity(0.3)),
-                ),
-                child: Text(
-                  encomenda.status?.toUpperCase() ?? 'PENDENTE',
-                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
               ),
-              const SizedBox(height: 12),
-              if (encomenda.destinatarioApto != null)
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(6),
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
                   ),
                   child: Text(
-                    '${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? encomenda.destinatarioBloco! + ' - ' : ''}${encomenda.destinatarioApto}',
-                    style: AppTypography.tiny(context).copyWith(
-                      color: AppColors.primary, 
-                      fontWeight: FontWeight.bold,
+                    encomenda.status?.toUpperCase() ?? 'PENDENTE',
+                    style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (encomenda.destinatarioApto != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? encomenda.destinatarioBloco! + ' - ' : ''}${encomenda.destinatarioApto}',
+                      style: AppTypography.tiny(context).copyWith(
+                        color: AppColors.primary, 
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEncomendaDetails(BuildContext context, String dataFormatada, Color statusColor) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final hasFoto = encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty;
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 15,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.md,
+            AppSpacing.xl,
+            MediaQuery.of(context).padding.bottom + AppSpacing.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.textTertiary(context).withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                'Detalhes da Encomenda',
+                style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              if (hasFoto) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    height: 220,
+                    width: double.infinity,
+                    color: AppColors.surfaceElevated(context),
+                    child: Image.network(
+                      encomenda.fotoVolume!,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const Center(
+                          child: CircularProgressIndicator(color: AppColors.primary),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 36),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Erro ao carregar imagem',
+                                style: AppTypography.caption(context),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
+                const SizedBox(height: AppSpacing.lg),
+              ] else ...[
+                Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(PhosphorIcons.package, color: AppColors.primary.withOpacity(0.6), size: 40),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Sem foto registrada do volume',
+                        style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated(context),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.03)),
+                ),
+                child: Column(
+                  children: [
+                    _buildDetailRow(
+                      context,
+                      icon: PhosphorIcons.textT,
+                      label: 'Descrição',
+                      value: encomenda.descricao ?? 'Sem descrição',
+                    ),
+                    const Divider(height: 24),
+                    _buildDetailRow(
+                      context,
+                      icon: PhosphorIcons.tag,
+                      label: 'Status',
+                      widgetValue: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: statusColor.withOpacity(0.3)),
+                        ),
+                        child: Text(
+                          encomenda.status?.toUpperCase() ?? 'PENDENTE',
+                          style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    _buildDetailRow(
+                      context,
+                      icon: PhosphorIcons.house,
+                      label: 'Destinatário',
+                      value: 'Apto ${encomenda.destinatarioApto}${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? " — Bloco " + encomenda.destinatarioBloco! : ""}',
+                    ),
+                    const Divider(height: 24),
+                    _buildDetailRow(
+                      context,
+                      icon: PhosphorIcons.truck,
+                      label: 'Entregador / Remetente',
+                      value: encomenda.recebidoDe ?? 'Não informado',
+                    ),
+                    const Divider(height: 24),
+                    _buildDetailRow(
+                      context,
+                      icon: PhosphorIcons.calendar,
+                      label: 'Data de Recebimento',
+                      value: dataFormatada,
+                    ),
+                    if (encomenda.retiradoPor != null) ...[
+                      const Divider(height: 24),
+                      _buildDetailRow(
+                        context,
+                        icon: PhosphorIcons.userCheck,
+                        label: 'Retirado por',
+                        value: encomenda.retiradoPor!,
+                      ),
+                    ],
+                    if (encomenda.retiradoEm != null) ...[
+                      const Divider(height: 24),
+                      _buildDetailRow(
+                        context,
+                        icon: PhosphorIcons.calendarCheck,
+                        label: 'Data de Retirada',
+                        value: () {
+                          try {
+                            DateTime dt = DateTime.parse(encomenda.retiradoEm!);
+                            return DateFormat('dd/MM/yyyy HH:mm').format(dt);
+                          } catch (_) {
+                            return encomenda.retiradoEm!;
+                          }
+                        }(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Voltar', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    String? value,
+    Widget? widgetValue,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppColors.primary, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context)),
+              ),
+              const SizedBox(height: 2),
+              widgetValue ??
+                  Text(
+                    value ?? '',
+                    style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w500),
+                  ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
