@@ -440,6 +440,77 @@ class _EncomendaCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (encomenda.retiradoFoto != null && encomenda.retiradoFoto!.isNotEmpty ||
+                    encomenda.retiradoAssinatura != null && encomenda.retiradoAssinatura!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    'Comprovante de Retirada',
+                    style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevated(context),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.03)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (encomenda.retiradoFoto != null && encomenda.retiradoFoto!.isNotEmpty) ...[
+                          Text(
+                            'Foto do Recebedor',
+                            style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context)),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              height: 180,
+                              width: double.infinity,
+                              color: AppColors.surface(context),
+                              child: Image.network(
+                                encomenda.retiradoFoto!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Icon(PhosphorIcons.imageSquare, size: 32, color: Colors.grey),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (encomenda.retiradoAssinatura != null && encomenda.retiradoAssinatura!.isNotEmpty)
+                            const SizedBox(height: AppSpacing.md),
+                        ],
+                        if (encomenda.retiradoAssinatura != null && encomenda.retiradoAssinatura!.isNotEmpty) ...[
+                          Text(
+                            'Assinatura Digital',
+                            style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context)),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            height: 100,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.all(8),
+                            child: Image.network(
+                              encomenda.retiradoAssinatura!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const Center(
+                                child: Icon(PhosphorIcons.signature, size: 32, color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.xl),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
