@@ -208,6 +208,8 @@ model Moradores {
   extra2          String?      @db.VarChar(255)
   extra3          String?      @db.VarChar(255)
   extra4          String?      @db.VarChar(255)
+  foto_pessoa     String?      @db.LongText
+  foto_documento  String?      @db.LongText
   created_at      DateTime     @default(now()) @db.DateTime(0)
   updated_at      DateTime     @default(now()) @updatedAt @db.DateTime(0)
   condominio      Condominios? @relation(fields: [id_condominio], references: [id], map: "fk_mor_cond")
@@ -473,8 +475,8 @@ model Visitantes {
   avisar            Int          @default(1) @db.TinyInt
   created_at        DateTime     @default(now()) @db.DateTime(0)
   updated_at        DateTime     @default(now()) @updatedAt @db.DateTime(0)
-  foto_documento    String?      @db.VarChar(500)
-  foto_pessoa       String?      @db.VarChar(500)
+  foto_documento    String?      @db.LongText
+  foto_pessoa       String?      @db.LongText
   data_entrada      DateTime?    @db.DateTime(0)
   data_saida        DateTime?    @db.DateTime(0)
   codigo_acesso     String?      @db.VarChar(50)

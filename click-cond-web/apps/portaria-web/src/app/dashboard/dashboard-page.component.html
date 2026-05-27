@@ -405,11 +405,36 @@
           } @else {
             <ul class="space-y-2">
               @for (e of eventosFiltrados(); track $index) {
-                <li (click)="abrirDetalhes(e)"
+                 <li (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
                     [class]="modoCompacto() && eventosMaximizados()
                              ? 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-1.5 rounded-lg border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group'
                              : 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group'">
+                  
+                  <!-- Ícone / Miniatura do Evento -->
+                  @if (e.tipo === 'Visitante' || e.tipo === 'Prestador') {
+                    @if (e.detalhes.fotoPessoa) {
+                      <img [src]="e.detalhes.fotoPessoa" 
+                           class="w-7 h-7 rounded-full object-cover border border-slate-200 dark:border-white/10 shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-105" />
+                    } @else {
+                      <div class="w-7 h-7 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-xs shrink-0 transition-transform duration-200 group-hover:scale-105">
+                        {{ (e.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
+                      </div>
+                    }
+                  } @else if (e.tipo === 'Encomenda') {
+                    <div class="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                      </svg>
+                    </div>
+                  } @else {
+                    <div class="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                      </svg>
+                    </div>
+                  }
+
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase shrink-0 {{ tipoColor(e) }}">
                     {{ e.direcao ? (e.direcao === 'entrada' ? 'Entrada' : 'Saída') : e.tipo }}
                   </span>
@@ -418,7 +443,7 @@
                     <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0 font-mono">
                       {{ formatarDataEvento(e.quando) }}
                     </span>
-                    <svg class="w-4 h-4 text-slate-350 dark:text-slate-650 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4 text-slate-350 dark:text-slate-350 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                     </svg>
                   </div>
@@ -599,16 +624,25 @@
         <!-- Conteúdo -->
         <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
           
-          <!-- Evento tipo: Visitante -->
-          @if (ev.tipo === 'Visitante') {
+          <!-- Evento tipo: Visitante ou Prestador -->
+          @if (ev.tipo === 'Visitante' || ev.tipo === 'Prestador') {
             <div class="space-y-4">
               <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
-                <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-base shadow-sm">
-                  {{ (ev.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
-                </div>
+                @if (ev.detalhes.fotoPessoa) {
+                  <img [src]="ev.detalhes.fotoPessoa" 
+                       (click)="abrirAmpliarFoto(ev.detalhes.fotoPessoa, 'Foto de ' + ev.detalhes.nome)"
+                       class="w-10 h-10 rounded-full object-cover border border-slate-250 dark:border-white/10 shadow-sm cursor-pointer hover:scale-105 transition-all" 
+                       title="Clique para ampliar a foto" />
+                } @else {
+                  <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-base shadow-sm">
+                    {{ (ev.detalhes.nome || 'V').substring(0, 1).toUpperCase() }}
+                  </div>
+                }
                 <div>
                   <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
-                  <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">Visitante Cadastrado</p>
+                  <p class="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
+                    {{ ev.tipo === 'Prestador' ? 'Prestador de Serviço' : 'Visitante Cadastrado' }}
+                  </p>
                 </div>
               </div>
 
@@ -617,9 +651,18 @@
                   <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Apartamento</span>
                   <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.blocoApto }}</span>
                 </div>
-                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
-                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Documento</span>
-                  <span class="text-sm font-mono font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.documento || '—' }}</span>
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5 flex flex-col justify-between">
+                  <div>
+                    <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Documento</span>
+                    <span class="text-sm font-mono font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.documento || '—' }}</span>
+                  </div>
+                  @if (ev.detalhes.fotoDocumento) {
+                    <button (click)="abrirAmpliarFoto(ev.detalhes.fotoDocumento, 'Documento (RG) de ' + ev.detalhes.nome)"
+                      class="mt-1.5 self-start text-[10px] font-bold text-accent hover:underline flex items-center gap-1">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      Ver Foto do RG
+                    </button>
+                  }
                 </div>
                 <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
                   <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Data/Hora Entrada</span>
@@ -777,6 +820,23 @@
           }
         </div>
 
+      </div>
+    </div>
+  }
+
+  <!-- Modal de Foto Ampliada -->
+  @if (fotoAmpliadaUrl()) {
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4" (click)="fecharAmpliarFoto()">
+      <div class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
+        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-white">{{ fotoAmpliadaTitulo() }}</h3>
+          <button (click)="fecharAmpliarFoto()" class="text-slate-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="p-2 flex-1 overflow-auto flex items-center justify-center bg-slate-950">
+          <img [src]="fotoAmpliadaUrl()" class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg" />
+        </div>
       </div>
     </div>
   }

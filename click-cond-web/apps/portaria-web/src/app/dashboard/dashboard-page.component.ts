@@ -26,6 +26,18 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly buscaTexto = signal('');
   readonly filtroDirecao = signal<'todos' | 'entrada' | 'saida'>('todos');
   readonly modoCompacto = signal(false);
+  readonly fotoAmpliadaUrl = signal<string | null>(null);
+  readonly fotoAmpliadaTitulo = signal<string>('');
+
+  abrirAmpliarFoto(url: string, titulo: string) {
+    this.fotoAmpliadaUrl.set(url);
+    this.fotoAmpliadaTitulo.set(titulo);
+  }
+
+  fecharAmpliarFoto() {
+    this.fotoAmpliadaUrl.set(null);
+    this.fotoAmpliadaTitulo.set('');
+  }
 
   readonly eventosFiltrados = computed(() => {
     const summary = this.data();

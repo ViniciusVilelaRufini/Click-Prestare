@@ -31,6 +31,8 @@ export interface DashboardSummary {
       recebidoPor?: string;
       descricao?: string;
       resposta?: string;
+      fotoPessoa?: string;
+      fotoDocumento?: string;
     };
   }[];
 }

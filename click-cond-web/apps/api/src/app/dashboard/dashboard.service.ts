@@ -28,6 +28,8 @@ export interface DashboardSummary {
       recebidoPor?: string;
       descricao?: string;
       resposta?: string;
+      fotoPessoa?: string;
+      fotoDocumento?: string;
     };
   }[];
 }
@@ -190,6 +192,8 @@ export class DashboardService {
           dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
           status: v.data_saida ? 'Saída registrada' : 'No local',
           autorizadoPor: v.criadoPor?.name || 'Morador',
+          fotoPessoa: v.foto_pessoa || undefined,
+          fotoDocumento: v.foto_documento || undefined,
         },
       });
     }
@@ -214,6 +218,8 @@ export class DashboardService {
           dataSaida: v.data_saida.toISOString(),
           status: 'Saiu',
           autorizadoPor: v.criadoPor?.name || 'Morador',
+          fotoPessoa: v.foto_pessoa || undefined,
+          fotoDocumento: v.foto_documento || undefined,
         },
       });
     }

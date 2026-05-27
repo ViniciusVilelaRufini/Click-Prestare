@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
+import { StorageService } from '../common/storage/storage.service';
 import * as crypto from 'crypto';
 
 export interface CreateMoradorDto {
@@ -13,13 +14,15 @@ export interface CreateMoradorDto {
   id_apartamento: number;
   id_condominio: number;
   sendCredentials?: boolean;
+  foto_pessoa?: string;
+  foto_documento?: string;
 }
 
 @Injectable()
 export class MoradoresService {
   private static mockMoradores = [
-    { id: 1, nome: 'João da Silva', documento: '11122233344', email: 'joao@example.com', telefone: '11999998888', data_nascimento: null, tipo: 'proprietario', bloco: 'A', apartamento: '101', id_apartamento: 0, id_condominio: 1, photo: null },
-    { id: 2, nome: 'Maria Oliveira', documento: '55566677788', email: 'maria@example.com', telefone: '11988887777', data_nascimento: null, tipo: 'inquilino', bloco: 'B', apartamento: '202', id_apartamento: 0, id_condominio: 1, photo: null },
+    { id: 1, nome: 'João da Silva', documento: '11122233344', email: 'joao@example.com', telefone: '11999998888', data_nascimento: null, tipo: 'proprietario', bloco: 'A', apartamento: '101', id_apartamento: 0, id_condominio: 1, photo: null, foto_pessoa: null, foto_documento: null },
+    { id: 2, nome: 'Maria Oliveira', documento: '55566677788', email: 'maria@example.com', telefone: '11988887777', data_nascimento: null, tipo: 'inquilino', bloco: 'B', apartamento: '202', id_apartamento: 0, id_condominio: 1, photo: null, foto_pessoa: null, foto_documento: null },
   ];
 
   private readonly logger = new Logger(MoradoresService.name);
@@ -27,6 +30,7 @@ export class MoradoresService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly storage: StorageService,
   ) {}
 
   private fireWelcomeEmail(email: string, nome: string, senha?: string) {
@@ -39,6 +43,14 @@ export class MoradoresService {
         .sendWelcomeMoradorExisting(email, nome)
         .catch((err) => this.logger.warn(`Falha ao enviar boas-vindas para ${email}: ${err?.message ?? err}`));
     }
+  }
+
+  private async resolveFoto(value: string | undefined | null): Promise<string | null> {
+    if (!value) return value ?? null;
+    if (this.storage.isDataUrl(value)) {
+      return (await this.storage.uploadDataUrl(value, 'moradores')) ?? null;
+    }
+    return value;
   }
 
   /**
@@ -95,6 +107,7 @@ export class MoradoresService {
 
     return list.map((m) => {
       const idAptoMapped = m.user?.apartamentosUsers?.[0]?.id_apto ?? 0;
+      const fotoFinal = m.foto_pessoa ?? m.user?.photo ?? null;
       return {
         id: m.id,
         nome: m.nome,
@@ -107,7 +120,9 @@ export class MoradoresService {
         apartamento: m.apartamento,
         id_apartamento: idAptoMapped,
         id_condominio: m.id_condominio,
-        photo: m.user?.photo ?? null,
+        photo: fotoFinal,
+        foto_pessoa: fotoFinal,
+        foto_documento: m.foto_documento ?? null,
       };
     });
   }
@@ -123,9 +138,12 @@ export class MoradoresService {
       include: { user: { select: { photo: true } } },
     });
     if (!m) throw new NotFoundException(`Morador ${id} não encontrado`);
+    const fotoFinal = m.foto_pessoa ?? m.user?.photo ?? null;
     return {
       ...m,
-      photo: m.user?.photo ?? null,
+      photo: fotoFinal,
+      foto_pessoa: fotoFinal,
+      foto_documento: m.foto_documento ?? null,
     };
   }
 
@@ -148,6 +166,8 @@ export class MoradoresService {
         id_apartamento: 0,
         id_condominio: dto.id_condominio,
         photo: null,
+        foto_pessoa: dto.foto_pessoa || null,
+        foto_documento: dto.foto_documento || null,
       };
       MoradoresService.mockMoradores.push(newM as any);
       if (dto.sendCredentials && dto.email) {
@@ -155,6 +175,10 @@ export class MoradoresService {
       }
       return newM;
     }
+
+    const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa);
+    const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento);
+
     const md5Password = crypto.createHash('md5').update(dto.documento || '123456').digest('hex');
     let passwordWasSet = false;
 
@@ -166,16 +190,22 @@ export class MoradoresService {
       });
       if (existing) {
         userId = existing.id;
-        // Atualiza login e password caso estejam vazios para permitir acesso
+        // Atualiza login e password caso estejam vazios para permitir acesso, e as fotos
+        const userUpdates: any = {};
         if (!existing.login || !existing.password) {
+          userUpdates.login = dto.email;
+          userUpdates.password = md5Password;
+          passwordWasSet = true;
+        }
+        if (fotoPessoaUrl) {
+          userUpdates.photo = fotoPessoaUrl;
+          userUpdates.profile_image = fotoPessoaUrl;
+        }
+        if (Object.keys(userUpdates).length > 0) {
           await this.prisma.users.update({
             where: { id: existing.id },
-            data: {
-              login: dto.email,
-              password: md5Password,
-            },
+            data: userUpdates,
           });
-          passwordWasSet = true;
         }
       } else {
         const u = await this.prisma.users.create({
@@ -188,6 +218,8 @@ export class MoradoresService {
             cpf: dto.documento,
             is_morador: 1,
             login_type: 'morador',
+            photo: fotoPessoaUrl,
+            profile_image: fotoPessoaUrl,
           },
         });
         userId = u.id;
@@ -201,6 +233,8 @@ export class MoradoresService {
           cpf: dto.documento,
           is_morador: 1,
           login_type: 'morador',
+          photo: fotoPessoaUrl,
+          profile_image: fotoPessoaUrl,
         },
       });
       userId = u.id;
@@ -243,6 +277,8 @@ export class MoradoresService {
         id_condominio: dto.id_condominio,
         bloco: bloco || null,
         apartamento: aptoNum || null,
+        foto_pessoa: fotoPessoaUrl,
+        foto_documento: fotoDocumentoUrl,
       },
     });
 
@@ -262,6 +298,9 @@ export class MoradoresService {
       }
       throw new NotFoundException(`Morador ${id} não encontrado`);
     }
+
+    const fotoPessoaUrl = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
+    const fotoDocumentoUrl = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
 
     // Carrega o morador atual com seu Users vinculado
     const atual = await this.prisma.moradores.findUnique({
@@ -298,10 +337,12 @@ export class MoradoresService {
           ...(dto.data_nascimento !== undefined && {
             data_nascimento: dto.data_nascimento ? new Date(dto.data_nascimento) : null,
           }),
+          ...(fotoPessoaUrl !== undefined && { foto_pessoa: fotoPessoaUrl }),
+          ...(fotoDocumentoUrl !== undefined && { foto_documento: fotoDocumentoUrl }),
         },
       });
 
-      // Propaga para Users (login/email/phone/name/cpf) para manter o acesso ao app
+      // Propaga para Users (login/email/phone/name/cpf/photo) para manter o acesso ao app e sincronizar a foto
       const userPatch: any = {};
       if (dto.nome !== undefined) userPatch.name = dto.nome;
       if (dto.telefone !== undefined) userPatch.phone = dto.telefone;
@@ -309,6 +350,10 @@ export class MoradoresService {
       if (emailMudou) {
         userPatch.email = dto.email || null;
         userPatch.login = dto.email || null;
+      }
+      if (fotoPessoaUrl !== undefined) {
+        userPatch.photo = fotoPessoaUrl;
+        userPatch.profile_image = fotoPessoaUrl;
       }
       if (Object.keys(userPatch).length > 0 && atual.id_user) {
         await tx.users.update({

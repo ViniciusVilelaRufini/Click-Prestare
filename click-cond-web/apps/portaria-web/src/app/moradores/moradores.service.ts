@@ -17,6 +17,8 @@ export interface Morador {
   id_apartamento: number;
   id_condominio: number;
   photo: string | null;
+  foto_pessoa: string | null;
+  foto_documento: string | null;
 }
 
 export interface CreateMorador {
@@ -27,6 +29,8 @@ export interface CreateMorador {
   tipo?: string;
   id_apartamento: number;
   sendCredentials?: boolean;
+  foto_pessoa?: string;
+  foto_documento?: string;
 }
 
 @Injectable({ providedIn: 'root' })

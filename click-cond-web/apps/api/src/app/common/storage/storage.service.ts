@@ -67,7 +67,8 @@ export class StorageService {
     prefix: string,
     hint?: string,
   ): Promise<string | null> {
-    if (!this.enabled || !this.client) return null;
+    // Se o S3 não está configurado, retorna o base64 original como fallback
+    if (!this.enabled || !this.client) return dataUrl;
 
     try {
       const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
