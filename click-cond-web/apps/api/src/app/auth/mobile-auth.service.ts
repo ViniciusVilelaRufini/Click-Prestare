@@ -570,6 +570,7 @@ export class MobileAuthService {
         where: {
           id_apartamento: { in: aptoIds },
           data_hora_inicio: { gte: hojeIni, lte: hojeFim },
+          is_prestador: { not: 1 },
         },
       });
 

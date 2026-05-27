@@ -27,6 +27,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     if (filtro === 'Todos') {
       return summary.ultimosEventos;
     }
+    if (filtro === 'Visitante') {
+      return summary.ultimosEventos.filter(e => e.tipo === 'Visitante' || e.tipo === 'Prestador');
+    }
     return summary.ultimosEventos.filter(e => e.tipo === filtro);
   });
 
@@ -52,13 +55,17 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   tipoColor(evento: any): string {
-    if (evento.tipo === 'Visitante') {
+    if (evento.tipo === 'Visitante' || evento.tipo === 'Prestador') {
       if (evento.direcao === 'entrada') {
-        return 'text-sky-400 bg-sky-400/10 border-sky-400/20'; // Azul para Entrada
+        return evento.tipo === 'Prestador'
+          ? 'text-amber-400 bg-amber-400/10 border-amber-400/20'
+          : 'text-sky-400 bg-sky-400/10 border-sky-400/20'; // Azul para Entrada Visitante, Laranja para Entrada Prestador
       } else if (evento.direcao === 'saida') {
         return 'text-rose-400 bg-rose-400/10 border-rose-400/20'; // Vermelho/Rosa para Saída
       }
-      return 'text-accent bg-accent/10 border-accent/20';
+      return evento.tipo === 'Prestador'
+        ? 'text-amber-400 bg-amber-400/10 border-amber-400/20'
+        : 'text-accent bg-accent/10 border-accent/20';
     }
     return evento.tipo === 'Encomenda' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
       : 'text-amber-400 bg-amber-400/10 border-amber-400/20';

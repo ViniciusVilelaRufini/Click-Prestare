@@ -177,7 +177,7 @@ export class DashboardService {
         : '';
       const dataEvento = v.data_entrada || v.created_at;
       ultimosEventos.push({
-        tipo: 'Visitante',
+        tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
         descricao: `${v.nome} entrou — ${aptoStr}`.trim(),
         quando: dataEvento.toISOString(),
         direcao: 'entrada',
@@ -201,7 +201,7 @@ export class DashboardService {
         ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
         : '';
       ultimosEventos.push({
-        tipo: 'Visitante',
+        tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
         descricao: `${v.nome} saiu — ${aptoStr}`.trim(),
         quando: v.data_saida.toISOString(),
         direcao: 'saida',
