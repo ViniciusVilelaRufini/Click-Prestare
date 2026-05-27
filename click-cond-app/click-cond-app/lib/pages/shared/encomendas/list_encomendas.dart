@@ -98,8 +98,15 @@ class _EncomendaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isRetirado = encomenda.status?.toLowerCase() == 'retirado';
-    final statusColor = isRetirado ? Colors.green : Colors.orange;
+    final statusLower = encomenda.status?.toLowerCase() ?? '';
+    Color statusColor;
+    if (statusLower == 'retirado' || statusLower == 'retirada' || statusLower == 'entregue') {
+      statusColor = Colors.green;
+    } else if (statusLower == 'cancelado' || statusLower == 'recusado') {
+      statusColor = Colors.red;
+    } else {
+      statusColor = Colors.orange;
+    }
     
     String dataFormatada = '';
     if (encomenda.recebidoEm != null) {
