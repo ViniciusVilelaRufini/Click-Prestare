@@ -369,6 +369,14 @@ export class FacialService {
     });
   }
 
+  async listAcessosPessoa(tipo: 'morador' | 'visitante', idPessoa: number, limit = 30) {
+    return this.prisma.acessos_Facial.findMany({
+      where: { tipo_pessoa: tipo, id_pessoa: idPessoa },
+      orderBy: { timestamp: 'desc' },
+      take: Math.min(limit, 100),
+    });
+  }
+
   // ---------- Helpers ----------
 
   private toConfig(device: any): FacialDeviceConfig {

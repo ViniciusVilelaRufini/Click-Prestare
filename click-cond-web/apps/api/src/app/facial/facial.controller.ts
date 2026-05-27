@@ -69,6 +69,24 @@ export class FacialController {
     const limit = limitStr ? Number(limitStr) : 50;
     return this.service.listAcessos(idCondominio, limit);
   }
+
+  @Get('acessos/visitante/:id')
+  acessosVisitante(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limitStr?: string,
+  ) {
+    const limit = limitStr ? Number(limitStr) : 30;
+    return this.service.listAcessosPessoa('visitante', id, limit);
+  }
+
+  @Get('acessos/morador/:id')
+  acessosMorador(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limitStr?: string,
+  ) {
+    const limit = limitStr ? Number(limitStr) : 30;
+    return this.service.listAcessosPessoa('morador', id, limit);
+  }
 }
 
 @Controller('facial/webhook')
