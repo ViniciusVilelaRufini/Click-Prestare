@@ -1,5 +1,6 @@
 const db = require('../database/DB_Visitantes.js');
 const dbAptos = require('../database/DB_Apartamento.js');
+const saveToAWS = require('../utils/saveToAWS');
 
 module.exports = {
   async insert(req, res) {
@@ -13,6 +14,18 @@ module.exports = {
         if (!userAptos.includes(parseInt(visitante.id_apartamento))) {
           return res.status(403).json({ message: "Acesso negado: Você só pode registrar visitantes para o seu próprio apartamento." });
         }
+      }
+
+      // Upload foto_pessoa para S3 se for base64
+      if (visitante.foto_pessoa && visitante.foto_pessoa.includes('base64')) {
+        const urlPessoa = await saveToAWS(visitante.foto_pessoa, `condominios/${id_condominio}/visitantes`, 'pessoa');
+        visitante.foto_pessoa = urlPessoa.url;
+      }
+
+      // Upload foto_documento para S3 se for base64
+      if (visitante.foto_documento && visitante.foto_documento.includes('base64')) {
+        const urlDoc = await saveToAWS(visitante.foto_documento, `condominios/${id_condominio}/visitantes`, 'documento');
+        visitante.foto_documento = urlDoc.url;
       }
 
       const saved = await db.insert(id_condominio, visitante, user.id);
@@ -90,6 +103,18 @@ module.exports = {
         if (!userAptos.includes(existing.id_apartamento)) {
           return res.status(403).json({ message: "Acesso negado." });
         }
+      }
+
+      // Upload foto_pessoa para S3 se for base64 e modificada
+      if (visitante.foto_pessoa && visitante.foto_pessoa.includes('base64')) {
+        const urlPessoa = await saveToAWS(visitante.foto_pessoa, `condominios/${id_condominio}/visitantes`, 'pessoa');
+        visitante.foto_pessoa = urlPessoa.url;
+      }
+
+      // Upload foto_documento para S3 se for base64 e modificada
+      if (visitante.foto_documento && visitante.foto_documento.includes('base64')) {
+        const urlDoc = await saveToAWS(visitante.foto_documento, `condominios/${id_condominio}/visitantes`, 'documento');
+        visitante.foto_documento = urlDoc.url;
       }
 
       await db.update(id_condominio, visitante);

@@ -48,6 +48,18 @@ export class VisitantesPageComponent implements OnInit {
   readonly validating = signal(false);
   readonly checkingIn = signal(false);
 
+  // Câmera ativa para foto de pessoa ou de documento
+  readonly activeCamera = signal<'pessoa' | 'documento' | null>(null);
+  private videoStream: MediaStream | null = null;
+
+  // Imagens capturadas (Base64 ou URL)
+  readonly fotoPessoaBase64 = signal<string | null>(null);
+  readonly fotoDocumentoBase64 = signal<string | null>(null);
+
+  // Modal de visualização de foto ampliada
+  readonly fotoAmpliadaUrl = signal<string | null>(null);
+  readonly fotoAmpliadaTitulo = signal<string>('');
+
   readonly pagina = signal(1);
   readonly itensPorPagina = 20;
 
@@ -183,6 +195,8 @@ export class VisitantesPageComponent implements OnInit {
   abrirNovo() {
     this.editingId = null;
     this.novo = this.estadoInicial();
+    this.fotoPessoaBase64.set(null);
+    this.fotoDocumentoBase64.set(null);
     this.error.set(null);
     this.showForm = true;
   }
@@ -195,6 +209,8 @@ export class VisitantesPageComponent implements OnInit {
       id_apartamento: v.id_apartamento,
       is_visitante: v.is_visitante ?? 1,
       is_prestador: v.is_prestador ?? 0,
+      foto_pessoa: v.foto_pessoa ?? undefined,
+      foto_documento: v.foto_documento ?? undefined,
       data_hora_inicio: v.data_hora_inicio
         ? new Date(v.data_hora_inicio).toISOString().slice(0, 16)
         : undefined,
@@ -202,13 +218,18 @@ export class VisitantesPageComponent implements OnInit {
         ? new Date(v.data_hora_termino).toISOString().slice(0, 16)
         : undefined,
     } as CreateVisitante;
+    this.fotoPessoaBase64.set(v.foto_pessoa ?? null);
+    this.fotoDocumentoBase64.set(v.foto_documento ?? null);
     this.error.set(null);
     this.showForm = true;
   }
 
   cancelarForm() {
+    this.fecharCamera();
     this.showForm = false;
     this.editingId = null;
+    this.fotoPessoaBase64.set(null);
+    this.fotoDocumentoBase64.set(null);
     this.error.set(null);
   }
 
@@ -233,6 +254,92 @@ export class VisitantesPageComponent implements OnInit {
         this.error.set(`Falha ao salvar: ${e?.error?.message ?? e?.message ?? e}`);
       },
     });
+  }
+
+  async iniciarCamera(tipo: 'pessoa' | 'documento') {
+    this.fecharCamera();
+    this.activeCamera.set(tipo);
+
+    try {
+      this.videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+
+      // Aguardar renderização no DOM do elemento video webcam-preview
+      setTimeout(() => {
+        const videoElement = document.getElementById('webcam-preview') as HTMLVideoElement;
+        if (videoElement && this.videoStream) {
+          videoElement.srcObject = this.videoStream;
+          videoElement.play().catch(err => console.error('Erro ao dar play no vídeo da webcam:', err));
+        }
+      }, 100);
+    } catch (err: any) {
+      this.error.set('Não foi possível acessar a câmera: ' + (err.message || err));
+      this.activeCamera.set(null);
+    }
+  }
+
+  fecharCamera() {
+    if (this.videoStream) {
+      this.videoStream.getTracks().forEach(track => track.stop());
+      this.videoStream = null;
+    }
+    this.activeCamera.set(null);
+  }
+
+  capturarFoto() {
+    const videoElement = document.getElementById('webcam-preview') as HTMLVideoElement;
+    if (!videoElement) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoElement.videoWidth || 640;
+    canvas.height = videoElement.videoHeight || 480;
+
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      
+      const tipo = this.activeCamera();
+      if (tipo === 'pessoa') {
+        this.fotoPessoaBase64.set(dataUrl);
+        this.novo.foto_pessoa = dataUrl;
+      } else if (tipo === 'documento') {
+        this.fotoDocumentoBase64.set(dataUrl);
+        this.novo.foto_documento = dataUrl;
+      }
+    }
+
+    this.fecharCamera();
+  }
+
+  onFileSelected(event: any, tipo: 'pessoa' | 'documento') {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      const base64 = e.target.result;
+      if (tipo === 'pessoa') {
+        this.fotoPessoaBase64.set(base64);
+        this.novo.foto_pessoa = base64;
+      } else if (tipo === 'documento') {
+        this.fotoDocumentoBase64.set(base64);
+        this.novo.foto_documento = base64;
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  removerFoto(tipo: 'pessoa' | 'documento') {
+    if (tipo === 'pessoa') {
+      this.fotoPessoaBase64.set(null);
+      this.novo.foto_pessoa = null;
+    } else if (tipo === 'documento') {
+      this.fotoDocumentoBase64.set(null);
+      this.novo.foto_documento = null;
+    }
   }
 
   async remover(v: Visitante) {
@@ -374,6 +481,15 @@ export class VisitantesPageComponent implements OnInit {
         this.checkingIn.set(false);
       }
     });
+  }
+
+  abrirAmpliarFoto(url: string, titulo: string) {
+    this.fotoAmpliadaUrl.set(url);
+    this.fotoAmpliadaTitulo.set(titulo);
+  }
+
+  fecharAmpliarFoto() {
+    this.fotoAmpliadaUrl.set(null);
   }
 
   private estadoInicial(): CreateVisitante {

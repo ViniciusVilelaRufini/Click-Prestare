@@ -13,6 +13,8 @@ export interface Visitante {
   apto?: string;
   apto_bloco?: string;
   codigo_acesso?: string | null;
+  foto_pessoa?: string | null;
+  foto_documento?: string | null;
   created_at: string;
 }
 
@@ -24,4 +26,6 @@ export interface CreateVisitante {
   is_visitante?: number;
   is_prestador?: number;
   id_apartamento: number;
+  foto_pessoa?: string | null;
+  foto_documento?: string | null;
 }
