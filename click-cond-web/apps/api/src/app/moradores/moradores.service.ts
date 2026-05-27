@@ -131,6 +131,8 @@ export class MoradoresService {
         photo: fotoFinal,
         foto_pessoa: fotoFinal,
         foto_documento: m.foto_documento ?? null,
+        face_id: m.face_id ?? null,
+        face_sync_status: m.face_sync_status ?? null,
       };
     });
   }
@@ -406,7 +408,7 @@ export class MoradoresService {
   }
 
   async sendCredentials(id: number) {
-    const m = await this.findOne(id);
+    const m = (await this.findOne(id)) as any;
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
     }

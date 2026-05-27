@@ -112,6 +112,13 @@ export const appRoutes: Route[] = [
           ),
       },
       {
+        path: 'terminais-faciais',
+        loadComponent: () =>
+          import('./terminais-faciais/terminais-faciais-page.component').then(
+            (m) => m.TerminaisFaciaisPageComponent,
+          ),
+      },
+      {
         path: 'relatorios',
         loadComponent: () =>
           import('./relatorios/relatorios-page.component').then(

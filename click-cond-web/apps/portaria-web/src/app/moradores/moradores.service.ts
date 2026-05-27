@@ -19,6 +19,8 @@ export interface Morador {
   photo: string | null;
   foto_pessoa: string | null;
   foto_documento: string | null;
+  face_id?: string | null;
+  face_sync_status?: string | null;
 }
 
 export interface CreateMorador {
