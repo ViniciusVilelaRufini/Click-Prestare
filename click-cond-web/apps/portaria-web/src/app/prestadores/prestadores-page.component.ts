@@ -36,6 +36,18 @@ export class PrestadoresPageComponent implements OnInit {
   readonly filtroCategoria = signal<string>('');
 
   readonly detalhesPrestador = signal<Prestador | null>(null);
+
+  // Câmera ativa para foto de pessoa ou de documento
+  readonly activeCamera = signal<'pessoa' | 'documento' | null>(null);
+  videoStream: MediaStream | null = null;
+
+  // Imagens capturadas (Base64 ou URL)
+  readonly fotoPessoaBase64 = signal<string | null>(null);
+  readonly fotoDocumentoBase64 = signal<string | null>(null);
+
+  // Modal de visualização de foto ampliada
+  readonly fotoAmpliadaUrl = signal<string | null>(null);
+  readonly fotoAmpliadaTitulo = signal<string>('');
   readonly categoriasSelecionadas = signal<Set<string>>(new Set());
   readonly categoriasPredefinidas = [
     'Elétrica',
@@ -174,18 +186,25 @@ export class PrestadoresPageComponent implements OnInit {
 
   abrirNovo() {
     this.editingId = null;
-    this.novo = { nome: '', telefone: '', categorias: '' };
+    this.novo = { nome: '', telefone: '', categorias: '', foto_pessoa: undefined, foto_documento: undefined };
     this.categoriasSelecionadas.set(new Set());
+    this.fotoPessoaBase64.set(null);
+    this.fotoDocumentoBase64.set(null);
+    this.fecharCamera();
     this.error.set(null);
     this.showForm = true;
   }
 
   abrirEditar(p: Prestador) {
     this.editingId = p.id;
+    this.fotoPessoaBase64.set(p.foto_pessoa ?? null);
+    this.fotoDocumentoBase64.set(p.foto_documento ?? null);
     this.novo = {
       nome: p.nome,
       telefone: p.telefone ?? '',
       categorias: p.categorias ?? '',
+      foto_pessoa: p.foto_pessoa ?? undefined,
+      foto_documento: p.foto_documento ?? undefined,
     };
     const cats = (p.categorias ?? '').split(';').map((x) => x.trim()).filter(Boolean);
     this.categoriasSelecionadas.set(new Set(cats));
@@ -194,6 +213,9 @@ export class PrestadoresPageComponent implements OnInit {
   }
 
   cancelarForm() {
+    this.fecharCamera();
+    this.fotoPessoaBase64.set(null);
+    this.fotoDocumentoBase64.set(null);
     this.showForm = false;
     this.editingId = null;
     this.error.set(null);
@@ -266,5 +288,91 @@ export class PrestadoresPageComponent implements OnInit {
 
   iniciais(nome: string): string {
     return nome.trim().split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('');
+  }
+
+  // Métodos da Câmera / Webcam
+  async iniciarCamera(tipo: 'pessoa' | 'documento') {
+    this.fecharCamera();
+    this.activeCamera.set(tipo);
+
+    try {
+      this.videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+
+      setTimeout(() => {
+        const videoElement = document.getElementById('webcam-preview') as HTMLVideoElement;
+        if (videoElement && this.videoStream) {
+          videoElement.srcObject = this.videoStream;
+          videoElement.play().catch(err => console.error('Erro ao dar play no vídeo da webcam:', err));
+        }
+      }, 100);
+    } catch (err: any) {
+      this.error.set('Não foi possível acessar a câmera: ' + (err.message || err));
+      this.activeCamera.set(null);
+    }
+  }
+
+  fecharCamera() {
+    if (this.videoStream) {
+      this.videoStream.getTracks().forEach(track => track.stop());
+      this.videoStream = null;
+    }
+    this.activeCamera.set(null);
+  }
+
+  capturarFoto() {
+    const videoElement = document.getElementById('webcam-preview') as HTMLVideoElement;
+    if (!videoElement) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoElement.videoWidth || 640;
+    canvas.height = videoElement.videoHeight || 480;
+
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      
+      const tipo = this.activeCamera();
+      if (tipo === 'pessoa') {
+        this.fotoPessoaBase64.set(dataUrl);
+        this.novo.foto_pessoa = dataUrl;
+      } else if (tipo === 'documento') {
+        this.fotoDocumentoBase64.set(dataUrl);
+        this.novo.foto_documento = dataUrl;
+      }
+    }
+
+    this.fecharCamera();
+  }
+
+  onFileSelectedImage(event: any, tipo: 'pessoa' | 'documento') {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      const dataUrl = e.target.result as string;
+      if (tipo === 'pessoa') {
+        this.fotoPessoaBase64.set(dataUrl);
+        this.novo.foto_pessoa = dataUrl;
+      } else if (tipo === 'documento') {
+        this.fotoDocumentoBase64.set(dataUrl);
+        this.novo.foto_documento = dataUrl;
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  abrirAmpliarFoto(url: string, titulo: string) {
+    this.fotoAmpliadaUrl.set(url);
+    this.fotoAmpliadaTitulo.set(titulo);
+  }
+
+  fecharAmpliarFoto() {
+    this.fotoAmpliadaUrl.set(null);
+    this.fotoAmpliadaTitulo.set('');
   }
 }
