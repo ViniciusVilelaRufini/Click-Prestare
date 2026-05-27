@@ -16,6 +16,7 @@ export interface DashboardSummary {
     tipo: string;
     descricao: string;
     quando: string;
+    direcao?: 'entrada' | 'saida';
     detalhes: {
       id: number;
       nome?: string;

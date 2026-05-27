@@ -51,9 +51,16 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  tipoColor(tipo: string): string {
-    return tipo === 'Visitante' ? 'text-accent bg-accent/10 border-accent/20'
-      : tipo === 'Encomenda'   ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+  tipoColor(evento: any): string {
+    if (evento.tipo === 'Visitante') {
+      if (evento.direcao === 'entrada') {
+        return 'text-sky-400 bg-sky-400/10 border-sky-400/20'; // Azul para Entrada
+      } else if (evento.direcao === 'saida') {
+        return 'text-rose-400 bg-rose-400/10 border-rose-400/20'; // Vermelho/Rosa para Saída
+      }
+      return 'text-accent bg-accent/10 border-accent/20';
+    }
+    return evento.tipo === 'Encomenda' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
       : 'text-amber-400 bg-amber-400/10 border-amber-400/20';
   }
 

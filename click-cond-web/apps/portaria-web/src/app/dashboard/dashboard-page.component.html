@@ -313,8 +313,8 @@
                 <li (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
                     class="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group">
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase shrink-0 {{ tipoColor(e.tipo) }}">
-                    {{ e.tipo }}
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase shrink-0 {{ tipoColor(e) }}">
+                    {{ e.direcao ? (e.direcao === 'entrada' ? 'Entrada' : 'Saída') : e.tipo }}
                   </span>
                   <span class="flex-1 text-sm text-slate-750 dark:text-slate-250 truncate font-semibold">{{ e.descricao }}</span>
                   <div class="flex items-center gap-2 font-medium">

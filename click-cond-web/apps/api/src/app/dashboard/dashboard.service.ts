@@ -13,6 +13,7 @@ export interface DashboardSummary {
     tipo: string;
     descricao: string;
     quando: string;
+    direcao?: 'entrada' | 'saida';
     detalhes: {
       id: number;
       nome?: string;
@@ -179,6 +180,7 @@ export class DashboardService {
         tipo: 'Visitante',
         descricao: `${v.nome} entrou — ${aptoStr}`.trim(),
         quando: dataEvento.toISOString(),
+        direcao: 'entrada',
         detalhes: {
           id: v.id,
           nome: v.nome,
@@ -202,6 +204,7 @@ export class DashboardService {
         tipo: 'Visitante',
         descricao: `${v.nome} saiu — ${aptoStr}`.trim(),
         quando: v.data_saida.toISOString(),
+        direcao: 'saida',
         detalhes: {
           id: v.id,
           nome: v.nome,
