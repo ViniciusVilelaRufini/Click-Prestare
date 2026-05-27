@@ -588,10 +588,14 @@ export class MobileAuthService {
         ) {
           continue;
         }
+        const blocoFiltro = (m.bloco === null || m.bloco === undefined || m.bloco.trim() === '')
+          ? { in: [null, ''] }
+          : m.bloco;
+
         const cnt = await this.prisma.encomendas.count({
           where: {
             id_condominio: m.id_condominio,
-            destinatario_bloco: m.bloco,
+            destinatario_bloco: blocoFiltro,
             destinatario_apto: m.apartamento,
             status: 'Aguardando',
           },
@@ -1577,10 +1581,14 @@ export class MobileAuthService {
           ) {
             continue;
           }
+          const blocoFiltro = (m.bloco === null || m.bloco === undefined || m.bloco.trim() === '')
+            ? { in: [null, ''] }
+            : m.bloco;
+
           const list = await this.prisma.encomendas.findMany({
             where: {
               id_condominio: m.id_condominio,
-              destinatario_bloco: m.bloco,
+              destinatario_bloco: blocoFiltro,
               destinatario_apto: m.apartamento,
             },
             orderBy: { created_at: 'desc' },
