@@ -502,7 +502,7 @@ class _EncomendaCard extends StatelessWidget {
                               encomenda.retiradoAssinatura!,
                               fit: BoxFit.contain,
                               errorBuilder: (_, __, ___) => const Center(
-                                child: Icon(PhosphorIcons.signature, size: 32, color: Colors.grey),
+                                child: Icon(Icons.border_color, size: 32, color: Colors.grey),
                               ),
                             ),
                           ),
