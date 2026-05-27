@@ -249,42 +249,137 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
       <!-- Últimos eventos -->
-      <div class="lg:col-span-2 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm flex flex-col">
-        <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/[0.3] dark:bg-white/[0.01]">
-          <div class="flex items-center gap-2">
-            <span class="w-1.5 h-3.5 bg-accent rounded-full"></span>
-            <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Últimos eventos</h2>
+      <div [class]="eventosMaximizados() 
+                    ? 'fixed inset-0 z-40 bg-white dark:bg-slate-900 md:p-8 p-4 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200'
+                    : 'lg:col-span-2 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm flex flex-col'">
+        
+        <!-- Cabeçalho do Painel -->
+        <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 flex flex-col gap-4 bg-slate-50/[0.3] dark:bg-white/[0.01] shrink-0">
+          <div class="flex items-center justify-between w-full">
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-3.5 bg-accent rounded-full"></span>
+              <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">
+                {{ eventosMaximizados() ? 'Painel de Eventos da Portaria' : 'Últimos eventos' }}
+              </h2>
+              @if (eventosMaximizados()) {
+                <span class="px-2 py-0.5 text-[9px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 rounded-full tracking-wider uppercase animate-pulse">
+                  Monitoramento Expandido
+                </span>
+              }
+            </div>
+
+            <div class="flex items-center gap-2">
+              <!-- Botão Maximizar/Minimizar -->
+              <button (click)="toggleMaximizacao()" 
+                      [title]="eventosMaximizados() ? 'Minimizar Painel' : 'Maximizar Painel'"
+                      class="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-slate-200/50 dark:border-white/5 shadow-sm active:scale-95 duration-150 flex items-center justify-center">
+                @if (eventosMaximizados()) {
+                  <!-- Ícone Minimizar -->
+                  <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3 3m12 6V4.5M15 9h4.5M15 9l6-6M9 15v4.5M9 15H4.5M9 15l-6 6m12-6v4.5M15 15h4.5M15 15l6 6" />
+                  </svg>
+                } @else {
+                  <!-- Ícone Maximizar -->
+                  <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0l-6-6" />
+                  </svg>
+                }
+              </button>
+            </div>
           </div>
-          
-          <!-- Filtro de Eventos -->
-          <div class="flex items-center gap-1 bg-slate-100 dark:bg-white/5 p-1 rounded-xl self-start sm:self-auto overflow-x-auto max-w-full scrollbar-none">
-            <button (click)="filtroEvento.set('Todos')"
-                    [class]="filtroEvento() === 'Todos'
-                             ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm transition-all duration-150 shrink-0'
-                             : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
-              Todos
-            </button>
-            <button (click)="filtroEvento.set('Visitante')"
-                    [class]="filtroEvento() === 'Visitante'
-                             ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-accent text-white shadow-sm transition-all duration-150 shrink-0'
-                             : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
-              Visitantes
-            </button>
-            <button (click)="filtroEvento.set('Encomenda')"
-                    [class]="filtroEvento() === 'Encomenda'
-                             ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white shadow-sm transition-all duration-150 shrink-0'
-                             : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
-              Encomendas
-            </button>
-            <button (click)="filtroEvento.set('Ocorrência')"
-                    [class]="filtroEvento() === 'Ocorrência'
-                             ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm transition-all duration-150 shrink-0'
-                             : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
-              Ocorrências
-            </button>
+
+          <!-- Barra de Filtros e Ferramentas Básicas -->
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex items-center gap-1 bg-slate-100 dark:bg-white/5 p-1 rounded-xl self-start overflow-x-auto max-w-full scrollbar-none shrink-0">
+              <button (click)="filtroEvento.set('Todos')"
+                      [class]="filtroEvento() === 'Todos'
+                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm transition-all duration-150 shrink-0'
+                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
+                Todos
+              </button>
+              <button (click)="filtroEvento.set('Visitante')"
+                      [class]="filtroEvento() === 'Visitante'
+                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-accent text-white shadow-sm transition-all duration-150 shrink-0'
+                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
+                Visitantes
+              </button>
+              <button (click)="filtroEvento.set('Encomenda')"
+                      [class]="filtroEvento() === 'Encomenda'
+                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white shadow-sm transition-all duration-150 shrink-0'
+                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
+                Encomendas
+              </button>
+              <button (click)="filtroEvento.set('Ocorrência')"
+                      [class]="filtroEvento() === 'Ocorrência'
+                               ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white shadow-sm transition-all duration-150 shrink-0'
+                               : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] transition-all duration-150 shrink-0'">
+                Ocorrências
+              </button>
+            </div>
+
+            @if (eventosMaximizados()) {
+              <div class="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                <button (click)="modoCompacto.update(v => !v)"
+                        [class]="modoCompacto()
+                                 ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-white/10 text-slate-800 dark:text-white border border-slate-300 dark:border-white/10 shadow-sm active:scale-95 transition-all'
+                                 : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-655 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/[0.08] border border-slate-200/50 dark:border-transparent active:scale-95 transition-all'"
+                        title="Alternar densidade da lista">
+                  {{ modoCompacto() ? 'Modo Detalhado' : 'Modo Compacto' }}
+                </button>
+                
+                <button *ngIf="buscaTexto() || filtroDirecao() !== 'todos' || filtroEvento() !== 'Todos'"
+                        (click)="limparFiltros()"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-lg text-rose-600 dark:text-rose-450 hover:bg-rose-500/10 active:scale-95 transition-all">
+                  Limpar Filtros
+                </button>
+              </div>
+            }
           </div>
+
+          <!-- Barra de Pesquisa e Direção Condicional -->
+          @if (eventosMaximizados()) {
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200/60 dark:border-white/5 animate-in slide-in-from-top-2 duration-200">
+              <div class="relative md:col-span-2">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input [value]="buscaTexto()" 
+                       (input)="buscaTexto.set($any($event.target).value)"
+                       type="text" 
+                       placeholder="Pesquise por nome, apartamento, bloco ou descrição..." 
+                       class="w-full pl-9 pr-4 py-2 text-xs font-semibold rounded-xl bg-slate-50 hover:bg-slate-100 focus:bg-white dark:bg-white/5 dark:hover:bg-white/[0.08] dark:focus:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-white/5 focus:border-accent dark:focus:border-accent focus:ring-1 focus:ring-accent transition-all duration-150 outline-none">
+              </div>
+
+              <div class="flex items-center gap-1 bg-slate-100 dark:bg-white/5 p-1 rounded-xl w-full">
+                <button (click)="filtroDirecao.set('todos')"
+                        [class]="filtroDirecao() === 'todos'
+                                 ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm flex-1 text-center transition-all duration-150'
+                                 : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] flex-1 text-center transition-all duration-150'">
+                  Ambos
+                </button>
+                <button (click)="filtroDirecao.set('entrada')"
+                        [class]="filtroDirecao() === 'entrada'
+                                 ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white shadow-sm flex-1 text-center transition-all duration-150'
+                                 : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] flex-1 text-center transition-all duration-150'">
+                  Entrada
+                </button>
+                <button (click)="filtroDirecao.set('saida')"
+                        [class]="filtroDirecao() === 'saida'
+                                 ? 'text-[10px] font-bold px-3 py-1.5 rounded-lg bg-rose-500 text-white shadow-sm flex-1 text-center transition-all duration-150'
+                                 : 'text-[10px] font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-white/[0.02] flex-1 text-center transition-all duration-150'">
+                  Saída
+                </button>
+              </div>
+            </div>
+          }
         </div>
-        <div class="p-4 flex-1 max-h-[420px] overflow-y-auto custom-scrollbar">
+
+        <!-- Lista de Eventos -->
+        <div [class]="eventosMaximizados() 
+                      ? 'p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50/30 dark:bg-slate-900/10' 
+                      : 'p-4 flex-1 max-h-[420px] overflow-y-auto custom-scrollbar'">
           @if (d.ultimosEventos.length === 0) {
             <div class="flex flex-col items-center justify-center py-16 text-center">
               <div class="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-center mb-3 border border-slate-100 dark:border-white/5">
@@ -305,14 +400,16 @@
                 </svg>
               </div>
               <p class="text-sm font-medium text-slate-700 dark:text-slate-400">Nenhum evento deste tipo encontrado</p>
-              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">Altere o filtro acima para visualizar outros registros</p>
+              <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">Altere os filtros ou pesquisa para encontrar outros registros</p>
             </div>
           } @else {
             <ul class="space-y-2">
               @for (e of eventosFiltrados(); track $index) {
                 <li (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
-                    class="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group">
+                    [class]="modoCompacto() && eventosMaximizados()
+                             ? 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-1.5 rounded-lg border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group'
+                             : 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group'">
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase shrink-0 {{ tipoColor(e) }}">
                     {{ e.direcao ? (e.direcao === 'entrada' ? 'Entrada' : 'Saída') : e.tipo }}
                   </span>
@@ -330,6 +427,18 @@
             </ul>
           }
         </div>
+
+        <!-- Rodapé de Informações Adicionais (Apenas Maximizado) -->
+        @if (eventosMaximizados()) {
+          <div class="px-6 py-3 border-t border-slate-200/60 dark:border-white/5 bg-slate-50 dark:bg-white/[0.01] flex items-center justify-between shrink-0 text-slate-500 dark:text-slate-400 text-[10px] font-semibold">
+            <div>
+              Exibindo <span class="font-bold text-slate-800 dark:text-white">{{ eventosFiltrados().length }}</span> de <span class="font-bold">{{ d.ultimosEventos.length }}</span> registros de movimentação
+            </div>
+            <div class="hidden sm:block">
+              Pressione <kbd class="px-1.5 py-0.5 bg-slate-200 dark:bg-white/10 rounded font-mono text-[9px] font-bold">Esc</kbd> ou clique no botão de fechar para reduzir
+            </div>
+          </div>
+        }
       </div>
 
       <!-- Painel direito -->

@@ -9,6 +9,9 @@ import { AuthService } from '../auth/auth.service';
   standalone: true,
   imports: [CommonModule, RouterLink],
   templateUrl: './dashboard-page.component.html',
+  host: {
+    '(window:keydown.escape)': 'onEscapePressed()'
+  }
 })
 export class DashboardPageComponent implements OnInit, OnDestroy {
   private api = inject(DashboardApi);
@@ -19,19 +22,71 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly agora = signal(new Date());
   readonly eventoSelecionado = signal<any | null>(null);
   readonly filtroEvento = signal<string>('Todos');
+  readonly eventosMaximizados = signal(false);
+  readonly buscaTexto = signal('');
+  readonly filtroDirecao = signal<'todos' | 'entrada' | 'saida'>('todos');
+  readonly modoCompacto = signal(false);
 
   readonly eventosFiltrados = computed(() => {
     const summary = this.data();
     if (!summary) return [];
+    
+    let filtrados = summary.ultimosEventos;
     const filtro = this.filtroEvento();
-    if (filtro === 'Todos') {
-      return summary.ultimosEventos;
+    const busca = this.buscaTexto().toLowerCase().trim();
+    const direcao = this.filtroDirecao();
+
+    // 1. Filtro por tipo de evento
+    if (filtro !== 'Todos') {
+      if (filtro === 'Visitante') {
+        filtrados = filtrados.filter(e => e.tipo === 'Visitante' || e.tipo === 'Prestador');
+      } else {
+        filtrados = filtrados.filter(e => e.tipo === filtro);
+      }
     }
-    if (filtro === 'Visitante') {
-      return summary.ultimosEventos.filter(e => e.tipo === 'Visitante' || e.tipo === 'Prestador');
+
+    // 2. Filtro por direção (Entrada/Saída)
+    if (direcao !== 'todos') {
+      filtrados = filtrados.filter(e => e.direcao === direcao);
     }
-    return summary.ultimosEventos.filter(e => e.tipo === filtro);
+
+    // 3. Filtro de pesquisa de texto
+    if (busca) {
+      filtrados = filtrados.filter(e => {
+        const descricao = e.descricao ? e.descricao.toLowerCase() : '';
+        const tipo = e.tipo ? e.tipo.toLowerCase() : '';
+        const apto = e.detalhes?.blocoApto ? e.detalhes.blocoApto.toLowerCase() : '';
+        const nome = e.detalhes?.nome ? e.detalhes.nome.toLowerCase() : '';
+        
+        return descricao.includes(busca) || 
+               tipo.includes(busca) || 
+               apto.includes(busca) || 
+               nome.includes(busca);
+      });
+    }
+
+    return filtrados;
   });
+
+  toggleMaximizacao() {
+    this.eventosMaximizados.update(v => !v);
+    if (!this.eventosMaximizados()) {
+      this.buscaTexto.set('');
+      this.filtroDirecao.set('todos');
+    }
+  }
+
+  limparFiltros() {
+    this.buscaTexto.set('');
+    this.filtroDirecao.set('todos');
+    this.filtroEvento.set('Todos');
+  }
+
+  onEscapePressed() {
+    if (this.eventosMaximizados()) {
+      this.toggleMaximizacao();
+    }
+  }
 
   private clockInterval?: ReturnType<typeof setInterval>;
   private refreshInterval?: ReturnType<typeof setInterval>;
