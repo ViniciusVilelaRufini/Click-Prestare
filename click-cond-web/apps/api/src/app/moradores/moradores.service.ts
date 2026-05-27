@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
 import { StorageService } from '../common/storage/storage.service';
+import { FacialService } from '../facial/facial.service';
 import * as crypto from 'crypto';
 
 export interface CreateMoradorDto {
@@ -31,7 +32,14 @@ export class MoradoresService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly storage: StorageService,
+    private readonly facial: FacialService,
   ) {}
+
+  private fireFacialSync(idMorador: number) {
+    this.facial
+      .syncMorador(idMorador)
+      .catch((err) => this.logger.warn(`Sync facial morador ${idMorador} falhou: ${err?.message ?? err}`));
+  }
 
   private fireWelcomeEmail(email: string, nome: string, senha?: string) {
     if (senha) {
@@ -286,6 +294,10 @@ export class MoradoresService {
       this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? (dto.documento || '123456') : undefined);
     }
 
+    if (fotoPessoaUrl) {
+      this.fireFacialSync(createdMorador.id);
+    }
+
     return createdMorador;
   }
 
@@ -324,7 +336,7 @@ export class MoradoresService {
       }
     }
 
-    return await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Atualiza moradores
       const morador = await tx.moradores.update({
         where: { id },
@@ -364,6 +376,12 @@ export class MoradoresService {
 
       return morador;
     });
+
+    if (fotoPessoaUrl !== undefined && fotoPessoaUrl) {
+      this.fireFacialSync(id);
+    }
+
+    return result;
   }
 
   async remove(id: number) {
@@ -371,10 +389,19 @@ export class MoradoresService {
       MoradoresService.mockMoradores = MoradoresService.mockMoradores.filter(x => x.id !== id);
       return;
     }
+    const morador = await this.prisma.moradores.findUnique({
+      where: { id },
+      select: { face_id: true, id_condominio: true },
+    });
     try {
       await this.prisma.moradores.delete({ where: { id } });
     } catch {
       throw new NotFoundException(`Morador ${id} não encontrado`);
+    }
+    if (morador?.face_id) {
+      this.facial
+        .unsyncMorador(id, morador.face_id, morador.id_condominio)
+        .catch((err) => this.logger.warn(`Unsync facial morador ${id} falhou: ${err?.message ?? err}`));
     }
   }
 
