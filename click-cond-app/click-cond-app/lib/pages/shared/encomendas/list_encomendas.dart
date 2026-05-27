@@ -259,6 +259,9 @@ class _EncomendaCard extends StatelessWidget {
       builder: (context) {
         final hasFoto = encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty;
         return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
           decoration: BoxDecoration(
             color: AppColors.surface(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -276,178 +279,180 @@ class _EncomendaCard extends StatelessWidget {
             AppSpacing.xl,
             MediaQuery.of(context).padding.bottom + AppSpacing.xl,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.textTertiary(context).withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              Text(
-                'Detalhes da Encomenda',
-                style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              if (hasFoto) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
                   child: Container(
-                    height: 220,
-                    width: double.infinity,
-                    color: AppColors.surfaceElevated(context),
-                    child: Image.network(
-                      encomenda.fotoVolume!,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(
-                          child: CircularProgressIndicator(color: AppColors.primary),
-                        );
-                      },
-                      errorBuilder: (_, __, ___) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 36),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Erro ao carregar imagem',
-                                style: AppTypography.caption(context),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.textTertiary(context).withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
+                const SizedBox(height: AppSpacing.xl),
+                Text(
+                  'Detalhes da Encomenda',
+                  style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: AppSpacing.lg),
-              ] else ...[
-                Container(
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.05),
+                if (hasFoto) ...[
+                  ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+                    child: Container(
+                      height: 220,
+                      width: double.infinity,
+                      color: AppColors.surfaceElevated(context),
+                      child: Image.network(
+                        encomenda.fotoVolume!,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(
+                            child: CircularProgressIndicator(color: AppColors.primary),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 36),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Erro ao carregar imagem',
+                                  style: AppTypography.caption(context),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ] else ...[
+                  Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(PhosphorIcons.package, color: AppColors.primary.withOpacity(0.6), size: 40),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Sem foto registrada do volume',
+                          style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated(context),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.03)),
                   ),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(PhosphorIcons.package, color: AppColors.primary.withOpacity(0.6), size: 40),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Sem foto registrada do volume',
-                        style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+                      _buildDetailRow(
+                        context,
+                        icon: PhosphorIcons.package,
+                        label: 'Descrição',
+                        value: encomenda.descricao ?? 'Sem descrição',
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated(context),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.03)),
-                ),
-                child: Column(
-                  children: [
-                    _buildDetailRow(
-                      context,
-                      icon: PhosphorIcons.package,
-                      label: 'Descrição',
-                      value: encomenda.descricao ?? 'Sem descrição',
-                    ),
-                    const Divider(height: 24),
-                    _buildDetailRow(
-                      context,
-                      icon: PhosphorIcons.package,
-                      label: 'Status',
-                      widgetValue: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: statusColor.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          encomenda.status?.toUpperCase() ?? 'PENDENTE',
-                          style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                    const Divider(height: 24),
-                    _buildDetailRow(
-                      context,
-                      icon: PhosphorIcons.house,
-                      label: 'Destinatário',
-                      value: 'Apto ${encomenda.destinatarioApto}${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? " — Bloco " + encomenda.destinatarioBloco! : ""}',
-                    ),
-                    const Divider(height: 24),
-                    _buildDetailRow(
-                      context,
-                      icon: PhosphorIcons.truck,
-                      label: 'Entregador / Remetente',
-                      value: encomenda.recebidoDe ?? 'Não informado',
-                    ),
-                    const Divider(height: 24),
-                    _buildDetailRow(
-                      context,
-                      icon: PhosphorIcons.calendar,
-                      label: 'Data de Recebimento',
-                      value: dataFormatada,
-                    ),
-                    if (encomenda.retiradoPor != null) ...[
                       const Divider(height: 24),
                       _buildDetailRow(
                         context,
-                        icon: PhosphorIcons.checkCircle,
-                        label: 'Retirado por',
-                        value: encomenda.retiradoPor!,
+                        icon: PhosphorIcons.package,
+                        label: 'Status',
+                        widgetValue: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: statusColor.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            encomenda.status?.toUpperCase() ?? 'PENDENTE',
+                            style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
-                    ],
-                    if (encomenda.retiradoEm != null) ...[
+                      const Divider(height: 24),
+                      _buildDetailRow(
+                        context,
+                        icon: PhosphorIcons.house,
+                        label: 'Destinatário',
+                        value: 'Apto ${encomenda.destinatarioApto}${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? " — Bloco " + encomenda.destinatarioBloco! : ""}',
+                      ),
+                      const Divider(height: 24),
+                      _buildDetailRow(
+                        context,
+                        icon: PhosphorIcons.truck,
+                        label: 'Entregador / Remetente',
+                        value: encomenda.recebidoDe ?? 'Não informado',
+                      ),
                       const Divider(height: 24),
                       _buildDetailRow(
                         context,
                         icon: PhosphorIcons.calendar,
-                        label: 'Data de Retirada',
-                        value: () {
-                          try {
-                            DateTime dt = DateTime.parse(encomenda.retiradoEm!);
-                            return DateFormat('dd/MM/yyyy HH:mm').format(dt);
-                          } catch (_) {
-                            return encomenda.retiradoEm!;
-                          }
-                        }(),
+                        label: 'Data de Recebimento',
+                        value: dataFormatada,
                       ),
+                      if (encomenda.retiradoPor != null) ...[
+                        const Divider(height: 24),
+                        _buildDetailRow(
+                          context,
+                          icon: PhosphorIcons.checkCircle,
+                          label: 'Retirado por',
+                          value: encomenda.retiradoPor!,
+                        ),
+                      ],
+                      if (encomenda.retiradoEm != null) ...[
+                        const Divider(height: 24),
+                        _buildDetailRow(
+                          context,
+                          icon: PhosphorIcons.calendar,
+                          label: 'Data de Retirada',
+                          value: () {
+                            try {
+                              DateTime dt = DateTime.parse(encomenda.retiradoEm!);
+                              return DateFormat('dd/MM/yyyy HH:mm').format(dt);
+                            } catch (_) {
+                              return encomenda.retiradoEm!;
+                            }
+                          }(),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: AppSpacing.xl),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Voltar', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Voltar', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
