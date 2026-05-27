@@ -45,6 +45,12 @@ android {
         versionName flutterVersionName
     }
 
+    packaging {
+        jniLibs {
+            keepDebugSymbols.add("**/*.so")
+        }
+    }
+
     signingConfigs {
         release {
             keyAlias localProperties.getProperty('keyAlias')
@@ -61,6 +67,10 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            ndk {
+                debugSymbolLevel = "none"
+            }
         }
         debug {
             signingConfig signingConfigs.debug
