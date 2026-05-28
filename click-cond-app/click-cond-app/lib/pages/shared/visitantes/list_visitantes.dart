@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:click/controllers/controller_visitantes.dart';
+import 'package:click/pages/shared/visitantes/acessos_facial_list.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -248,6 +249,11 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                   label: 'Saída Registrada',
                   value: _formatDateTimeString(item['data_saida']),
                 ),
+
+              if (item['face_sync_status'] != null || item['face_id'] != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                AcessosFacialList(idVisitante: item['id']),
+              ],
 
               if (item['data_saida'] == null && !isExpired) ...[
                 const SizedBox(height: AppSpacing.lg),
@@ -823,7 +829,14 @@ class _VisitanteCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          _buildFaceBadge(context, item['face_sync_status']?.toString()),
+                        ],
+                      ),
                       const SizedBox(height: 2),
                       Wrap(
                         spacing: 6,
@@ -932,4 +945,51 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _buildFaceBadge(BuildContext context, String? status) {
+  if (status == null || status.isEmpty) return const SizedBox.shrink();
+
+  Color bg;
+  Color fg;
+  String label;
+  switch (status) {
+    case 'synced':
+      bg = AppColors.success.withOpacity(0.15);
+      fg = AppColors.success;
+      label = 'FACIAL';
+      break;
+    case 'pending':
+      bg = Colors.amber.withOpacity(0.15);
+      fg = Colors.amber.shade700;
+      label = 'SINC.';
+      break;
+    case 'error':
+      bg = Colors.red.withOpacity(0.15);
+      fg = Colors.red.shade600;
+      label = 'ERRO';
+      break;
+    default:
+      return const SizedBox.shrink();
+  }
+
+  return Padding(
+    padding: const EdgeInsets.only(left: 6),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.tiny(context).copyWith(
+          color: fg,
+          fontWeight: FontWeight.bold,
+          fontSize: 9,
+          letterSpacing: 0.3,
+        ),
+      ),
+    ),
+  );
 }

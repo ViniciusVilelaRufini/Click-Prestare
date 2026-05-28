@@ -1,16 +1,30 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../common/storage/storage.service';
 
 export interface CreatePrestadorDto {
   nome: string;
   telefone?: string;
   categorias?: string;
   id_condominio: number;
+  foto_pessoa?: string;
+  foto_documento?: string;
 }
 
 @Injectable()
 export class PrestadoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
+
+  private async resolveFoto(value: string | undefined | null): Promise<string | null> {
+    if (!value) return value ?? null;
+    if (this.storage.isDataUrl(value)) {
+      return (await this.storage.uploadDataUrl(value, 'prestadores')) ?? null;
+    }
+    return value;
+  }
 
   async findAll(idCondominio: number, search?: string) {
     if (!this.prisma.isConnected) {
@@ -62,10 +76,15 @@ export class PrestadoresService {
         telefone: dto.telefone ?? null,
         categorias: dto.categorias ?? null,
         id_condominio: dto.id_condominio,
+        foto_pessoa: dto.foto_pessoa ?? null,
+        foto_documento: dto.foto_documento ?? null,
         created_at: new Date(),
         updated_at: new Date(),
       };
     }
+
+    const fotoPes = await this.resolveFoto(dto.foto_pessoa);
+    const fotoDoc = await this.resolveFoto(dto.foto_documento);
 
     return this.prisma.prestadores_servico.create({
       data: {
@@ -73,6 +92,8 @@ export class PrestadoresService {
         telefone: dto.telefone ?? null,
         categorias: dto.categorias ?? null,
         id_condominio: dto.id_condominio,
+        foto_pessoa: fotoPes,
+        foto_documento: fotoDoc,
       },
     });
   }
@@ -82,6 +103,9 @@ export class PrestadoresService {
       return { success: true, id };
     }
 
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
+
     try {
       return await this.prisma.prestadores_servico.update({
         where: { id: Number(id) },
@@ -89,6 +113,8 @@ export class PrestadoresService {
           ...(dto.nome !== undefined && { nome: dto.nome }),
           ...(dto.telefone !== undefined && { telefone: dto.telefone }),
           ...(dto.categorias !== undefined && { categorias: dto.categorias }),
+          ...(fotoPes !== undefined && { foto_pessoa: fotoPes }),
+          ...(fotoDoc !== undefined && { foto_documento: fotoDoc }),
         },
       });
     } catch {

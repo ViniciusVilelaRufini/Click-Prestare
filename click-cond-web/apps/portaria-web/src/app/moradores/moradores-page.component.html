@@ -306,7 +306,16 @@
                     }
                   </div>
                   <div class="min-w-0">
-                    <p class="font-medium text-white truncate group-hover:text-accent transition">{{ m.nome }}</p>
+                    <div class="flex items-center gap-1.5">
+                      <p class="font-medium text-white truncate group-hover:text-accent transition">{{ m.nome }}</p>
+                      @if (m.face_sync_status === 'synced') {
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-400 uppercase shrink-0" title="Reconhecimento facial sincronizado">Facial</span>
+                      } @else if (m.face_sync_status === 'pending') {
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 uppercase shrink-0" title="Sincronização pendente">Sinc.</span>
+                      } @else if (m.face_sync_status === 'error') {
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 uppercase shrink-0" title="Erro na sincronização facial">Erro</span>
+                      }
+                    </div>
                     @if (m.email) { <p class="text-[11px] text-slate-500 truncate">{{ m.email }}</p> }
                   </div>
                 </div>

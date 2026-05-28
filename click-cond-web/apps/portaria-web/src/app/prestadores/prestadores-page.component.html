@@ -159,6 +159,91 @@
           }
         </div>
       </div>
+
+      <!-- Fotos (Pessoa e Documento) -->
+      <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-white/5 pt-5 md:col-span-3">
+        <!-- Foto do Prestador -->
+        <div class="space-y-2">
+          <span class="text-xs font-medium text-slate-400 block">Foto do Prestador</span>
+          <div class="flex items-center gap-3">
+            <div class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0">
+              @if (fotoPessoaBase64()) {
+                <img [src]="fotoPessoaBase64()" class="w-full h-full object-cover" />
+              } @else {
+                <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+              }
+            </div>
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <button type="button" (click)="iniciarCamera('pessoa')"
+                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  </svg>
+                  Tirar Foto
+                </button>
+                <label class="px-3 py-1.5 text-xs rounded-lg font-medium bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition cursor-pointer flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                  </svg>
+                  Upload
+                  <input type="file" accept="image/*" class="hidden" (change)="onFileSelectedImage($event, 'pessoa')" />
+                </label>
+              </div>
+              @if (fotoPessoaBase64()) {
+                <button type="button" (click)="fotoPessoaBase64.set(null); novo.foto_pessoa = undefined"
+                  class="text-left text-[11px] text-red-400 hover:underline">
+                  Remover foto
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Foto do Documento (RG/CPF) -->
+        <div class="space-y-2">
+          <span class="text-xs font-medium text-slate-400 block">Foto do Documento (RG / CPF)</span>
+          <div class="flex items-center gap-3">
+            <div class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0">
+              @if (fotoDocumentoBase64()) {
+                <img [src]="fotoDocumentoBase64()" class="w-full h-full object-cover" />
+              } @else {
+                <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+              }
+            </div>
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <button type="button" (click)="iniciarCamera('documento')"
+                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  </svg>
+                  Tirar Foto
+                </button>
+                <label class="px-3 py-1.5 text-xs rounded-lg font-medium bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition cursor-pointer flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                  </svg>
+                  Upload
+                  <input type="file" accept="image/*" class="hidden" (change)="onFileSelectedImage($event, 'documento')" />
+                </label>
+              </div>
+              @if (fotoDocumentoBase64()) {
+                <button type="button" (click)="fotoDocumentoBase64.set(null); novo.foto_documento = undefined"
+                  class="text-left text-[11px] text-red-400 hover:underline">
+                  Remover foto
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="mt-5 flex justify-end gap-2">
         <button (click)="cancelarForm()" [disabled]="saving()"
           class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition disabled:opacity-50">Cancelar</button>
@@ -199,8 +284,12 @@
              class="group relative p-5 rounded-2xl bg-graphite-200 border border-white/10
                     hover:border-amber-400/30 hover:bg-white/[0.02] cursor-pointer transition select-none">
           <div class="flex items-start gap-3">
-            <div class="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0">
-              <span class="text-sm font-bold text-amber-400">{{ iniciais(p.nome) }}</span>
+            <div class="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0 overflow-hidden">
+              @if (p.foto_pessoa) {
+                <img [src]="p.foto_pessoa" class="w-full h-full object-cover" />
+              } @else {
+                <span class="text-sm font-bold text-amber-400">{{ iniciais(p.nome) }}</span>
+              }
             </div>
             <div class="flex-1 min-w-0">
               <h3 class="font-semibold text-white truncate">{{ p.nome }}</h3>
@@ -312,8 +401,14 @@
         <div class="p-6 space-y-5">
           <!-- Avatar + Nome + Telefone -->
           <div class="flex items-center gap-4">
-            <div class="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0">
-              <span class="text-lg font-bold text-amber-400">{{ iniciais(dp.nome) }}</span>
+            <div (click)="dp.foto_pessoa ? abrirAmpliarFoto(dp.foto_pessoa, dp.nome) : null"
+                 [class.cursor-zoom-in]="dp.foto_pessoa"
+                 class="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0 overflow-hidden">
+              @if (dp.foto_pessoa) {
+                <img [src]="dp.foto_pessoa" class="w-full h-full object-cover" />
+              } @else {
+                <span class="text-lg font-bold text-amber-400">{{ iniciais(dp.nome) }}</span>
+              }
             </div>
             <div class="min-w-0 flex-1">
               <h4 class="text-lg font-semibold text-white leading-tight truncate">{{ dp.nome }}</h4>
@@ -355,6 +450,21 @@
               <span class="text-xs text-slate-500">Nenhuma categoria informada</span>
             }
           </div>
+
+          <!-- Foto de Documento se houver -->
+          @if (dp.foto_documento) {
+            <div class="space-y-1.5 pt-2">
+              <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Documento do Prestador</span>
+              <button (click)="abrirAmpliarFoto(dp.foto_documento, 'Documento de ' + dp.nome)"
+                      class="w-full py-2 px-3 text-xs rounded-lg font-medium bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent transition flex items-center justify-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                Ver Foto do Documento (RG/CPF)
+              </button>
+            </div>
+          }
 
           <!-- Histórico de Visitas -->
           <div class="space-y-2 border-t border-white/5 pt-4">
@@ -414,3 +524,54 @@
     </div>
   }
 </div>
+
+<!-- Modal da Webcam para Captura -->
+@if (activeCamera()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in flex flex-col">
+      <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white">
+          Capturando Foto - {{ activeCamera() === 'pessoa' ? 'Prestador' : 'Documento (RG)' }}
+        </h3>
+        <button (click)="fecharCamera()" class="text-slate-400 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="relative aspect-video bg-black flex items-center justify-center">
+        <video id="webcam-preview" class="w-full h-full object-cover" autoplay playsinline></video>
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3">
+          <button (click)="capturarFoto()"
+            class="w-14 h-14 rounded-full bg-accent hover:bg-accent-600 border-4 border-white/20 flex items-center justify-center transition shadow-lg text-white hover:scale-105 active:scale-95">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end">
+        <button (click)="fecharCamera()"
+          class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Modal de Foto Ampliada -->
+@if (fotoAmpliadaUrl()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4" (click)="fecharAmpliarFoto()">
+    <div class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white">{{ fotoAmpliadaTitulo() }}</h3>
+        <button (click)="fecharAmpliarFoto()" class="text-slate-400 hover:text-white transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-2 flex-1 overflow-auto flex items-center justify-center bg-slate-950">
+        <img [src]="fotoAmpliadaUrl()" class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg" />
+      </div>
+    </div>
+  </div>
+}

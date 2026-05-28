@@ -10,11 +10,15 @@ export interface Prestador {
   telefone: string | null;
   categorias: string | null;
   id_condominio: number;
+  foto_pessoa?: string | null;
+  foto_documento?: string | null;
 }
 export interface CreatePrestador {
   nome: string;
   telefone?: string;
   categorias?: string;
+  foto_pessoa?: string;
+  foto_documento?: string;
 }
 
 @Injectable({ providedIn: 'root' })

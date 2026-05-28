@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
+import { FacialService } from '../facial/facial.service';
 
 export interface CreateVisitanteDto {
   nome: string;
@@ -22,11 +23,20 @@ export interface UpdateVisitanteDto extends Partial<CreateVisitanteDto> {
 
 @Injectable()
 export class VisitantesService {
+  private readonly logger = new Logger(VisitantesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly storage: StorageService,
+    private readonly facial: FacialService,
   ) {}
+
+  private fireFacialSync(idVisitante: number) {
+    this.facial
+      .syncVisitante(idVisitante)
+      .catch((err) => this.logger.warn(`Sync facial visitante ${idVisitante} falhou: ${err?.message ?? err}`));
+  }
 
   private async resolveFoto(value: string | undefined | null): Promise<string | null> {
     if (!value) return value ?? null;
@@ -215,6 +225,10 @@ export class VisitantesService {
       console.error('Erro ao notificar moradores sobre visitante:', error);
     }
 
+    if (fotoPes) {
+      this.fireFacialSync(visitante.id);
+    }
+
     return visitante;
   }
 
@@ -227,7 +241,7 @@ export class VisitantesService {
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
 
     try {
-      return await this.prisma.visitantes.update({
+      const updated = await this.prisma.visitantes.update({
         where: { id: Number(dto.id) },
         data: {
           ...(dto.nome !== undefined && { nome: dto.nome }),
@@ -245,6 +259,10 @@ export class VisitantesService {
           ...(fotoPes !== undefined && { foto_pessoa: fotoPes }),
         },
       });
+      if (fotoPes !== undefined && fotoPes) {
+        this.fireFacialSync(updated.id);
+      }
+      return updated;
     } catch {
       throw new NotFoundException(`Visitante ${dto.id} não encontrado`);
     }
@@ -252,12 +270,21 @@ export class VisitantesService {
 
   async remove(id: number) {
     if (!this.prisma.isConnected) return { success: true };
+    const v = await this.prisma.visitantes.findUnique({
+      where: { id: Number(id) },
+      select: { face_id: true, id_condominio: true },
+    });
     try {
       await this.prisma.visitantes.delete({ where: { id: Number(id) } });
-      return { success: true };
     } catch {
       throw new NotFoundException(`Visitante ${id} não encontrado`);
     }
+    if (v?.face_id) {
+      this.facial
+        .unsyncVisitante(id, v.face_id, v.id_condominio)
+        .catch((err) => this.logger.warn(`Unsync facial visitante ${id} falhou: ${err?.message ?? err}`));
+    }
+    return { success: true };
   }
 
   async validarCodigo(idCondominio: number, codigo: string) {
