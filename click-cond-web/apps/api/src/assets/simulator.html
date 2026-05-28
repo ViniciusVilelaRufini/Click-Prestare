@@ -274,6 +274,61 @@
       margin-bottom: 4px;
     }
 
+    /* Seletor de direção (entrada/saída) — estilo segmented control */
+    .direction-control {
+      margin-top: 12px;
+    }
+    .direction-control label.field-label {
+      display: block;
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 4px;
+    }
+    .segmented input[type="radio"] {
+      display: none;
+    }
+    .segmented label {
+      padding: 8px 12px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      border-radius: 7px;
+      transition: all 0.15s;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .segmented input[type="radio"]:checked + label {
+      background: #1e293b;
+      color: #fff;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.05);
+    }
+    .segmented input[type="radio"][value="entrada"]:checked + label {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.3);
+    }
+    .segmented input[type="radio"][value="saida"]:checked + label {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+    }
+
     @media (max-width: 900px) {
       .grid { grid-template-columns: 1fr; }
     }
@@ -315,6 +370,15 @@
               <span>menor = mais rigoroso</span>
             </div>
             <input id="threshold" type="range" min="0.30" max="0.70" step="0.01" value="0.45" />
+          </div>
+          <div class="direction-control">
+            <label class="field-label">Direção do acesso (simula o sensor do terminal)</label>
+            <div class="segmented" id="directionSelector">
+              <input type="radio" name="direction" id="dirEntrada" value="entrada" checked />
+              <label for="dirEntrada">↗ Entrada</label>
+              <input type="radio" name="direction" id="dirSaida" value="saida" />
+              <label for="dirSaida">↙ Saída</label>
+            </div>
           </div>
           <div id="setupAlert"></div>
         </div>
@@ -420,11 +484,16 @@
       el.threshold.value = SAVED.threshold;
       el.thresholdLabel.textContent = SAVED.threshold;
     }
+    if (SAVED.direction) {
+      const r = document.querySelector(`input[name="direction"][value="${SAVED.direction}"]`);
+      if (r) r.checked = true;
+    }
     function saveSetup() {
       localStorage.setItem('facial-simulator', JSON.stringify({
         webhookToken: el.webhookToken.value,
         backendUrl: el.backendUrl.value,
         threshold: el.threshold.value,
+        direction: getDirection(),
       }));
     }
 
@@ -434,6 +503,15 @@
     });
     el.webhookToken.addEventListener('change', saveSetup);
     el.backendUrl.addEventListener('change', saveSetup);
+    document.querySelectorAll('input[name="direction"]').forEach(r => {
+      r.addEventListener('change', () => {
+        saveSetup();
+        // Limpa cooldown ao trocar de direção pra disparar imediatamente
+        state.lastSeen.clear();
+        logEvent('warn', `Modo trocado para "${getDirection() === 'saida' ? 'Saída' : 'Entrada'}"`,
+          'Cooldown resetado - próximo rosto reconhecido será enviado');
+      });
+    });
 
     function setBadge(target, kind, text) {
       target.innerHTML = `<span class="badge ${kind}">${text}</span>`;
@@ -726,18 +804,25 @@
       });
     }
 
+    // Retorna a direção atual selecionada no segmented control
+    function getDirection() {
+      const selected = document.querySelector('input[name="direction"]:checked');
+      return selected ? selected.value : 'entrada';
+    }
+
     // 5. Disparo do webhook
     async function fireWebhook(externalId, confidence) {
       const token = extractToken(el.webhookToken.value);
       const backend = el.backendUrl.value.trim().replace(/\/$/, '');
       const person = state.persons.find(p => p.external_id === externalId);
+      const direction = getDirection(); // 'entrada' | 'saida'
       const payload = {
         device_id: 'simulator',
-        event: 'access_granted',
+        event: direction === 'saida' ? 'access_exit' : 'access_granted',
         external_id: externalId,
         timestamp: new Date().toISOString(),
         confidence: confidence,
-        direction: 'in',
+        direction: direction === 'saida' ? 'out' : 'in',
       };
       try {
         const res = await fetch(`${backend}/api/facial/webhook/${token}`, {
@@ -747,8 +832,9 @@
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
+          const acao = direction === 'saida' ? 'Saída registrada' : 'Acesso liberado';
           logEvent('success',
-            `Acesso liberado: ${person?.nome ?? externalId}`,
+            `${acao}: ${person?.nome ?? externalId}`,
             `Confiança ${(confidence * 100).toFixed(0)}% · Backend respondeu ${res.status}`);
         } else {
           logEvent('error',

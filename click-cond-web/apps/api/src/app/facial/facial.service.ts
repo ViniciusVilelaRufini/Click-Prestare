@@ -422,8 +422,8 @@ export class FacialService {
         },
       });
 
-      // Notifica moradores do apartamento (apenas entradas)
-      if (isEntrada) {
+      // Notifica moradores do apartamento (entrada ou saída)
+      if (evento === 'entrada' || evento === 'saida') {
         try {
           const moradores = await this.prisma.users.findMany({
             where: {
@@ -433,12 +433,16 @@ export class FacialService {
             },
             select: { fcm_token: true },
           });
+          const titulo = evento === 'entrada' ? 'Visitante entrou' : 'Visitante saiu';
+          const corpo = evento === 'entrada'
+            ? `${v.nome} acabou de entrar no condomínio.`
+            : `${v.nome} acabou de sair do condomínio.`;
           for (const u of moradores) {
             if (u.fcm_token) {
               await this.notifications.sendPushNotification(
                 u.fcm_token,
-                'Visitante entrou',
-                `${v.nome} acabou de entrar no condomínio.`,
+                titulo,
+                corpo,
                 { id: v.id.toString(), type: 'visitante_acesso' },
               );
             }
