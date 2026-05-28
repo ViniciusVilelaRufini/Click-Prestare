@@ -503,7 +503,7 @@ export class DashboardService {
           tipo: 'Acesso Facial',
           descricao: `${a.nome_pessoa} ${acao} pelo terminal facial${confiancaPct}`,
           quando: a.timestamp.toISOString(),
-          direcao: a.evento === 'saida' ? 'saida' : 'entrada',
+          direcao: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada',
           detalhes: {
             id: a.id,
             nome: a.nome_pessoa,

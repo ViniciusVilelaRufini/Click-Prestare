@@ -145,6 +145,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       return 'text-emerald-550 bg-emerald-500/10 border-emerald-500/20 dark:text-emerald-400 dark:bg-emerald-400/10 dark:border-emerald-400/20';
     } else if (direcao === 'saida') {
       return 'text-rose-550 bg-rose-500/10 border-rose-500/20 dark:text-rose-400 dark:bg-rose-400/10 dark:border-rose-400/20';
+    } else if (direcao === 'negado' || direcao === 'bloqueado') {
+      return 'text-rose-600 bg-rose-500/10 border-rose-500/20 dark:text-rose-400 dark:bg-rose-500/10 dark:border-rose-500/20';
     }
 
     if (tipo === 'Visitante' || tipo === 'Prestador') {

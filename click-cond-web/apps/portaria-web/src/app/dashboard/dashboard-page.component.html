@@ -436,7 +436,7 @@
                   }
 
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase shrink-0 {{ tipoColor(e) }}">
-                    {{ e.direcao ? (e.direcao === 'entrada' ? 'Entrada' : 'Saída') : e.tipo }}
+                    {{ e.direcao ? (e.direcao === 'entrada' ? 'Entrada' : e.direcao === 'saida' ? 'Saída' : 'Bloqueado') : e.tipo }}
                   </span>
                   @if (e.detalhes.tipoPessoa) {
                     <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase shrink-0"
@@ -620,7 +620,7 @@
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
               <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase {{ tipoColor(ev) }}">
-                {{ ev.direcao ? (ev.direcao === 'entrada' ? 'Entrada' : 'Saída') : ev.tipo }}
+                {{ ev.direcao ? (ev.direcao === 'entrada' ? 'Entrada' : ev.direcao === 'saida' ? 'Saída' : 'Bloqueado') : ev.tipo }}
               </span>
               @if (ev.detalhes.tipoPessoa) {
                 <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase"
