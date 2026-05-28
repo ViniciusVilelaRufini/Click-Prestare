@@ -250,6 +250,7 @@ export class VisitantesPageComponent implements OnInit {
       is_prestador: v.is_prestador ?? 0,
       foto_pessoa: v.foto_pessoa ?? undefined,
       foto_documento: v.foto_documento ?? undefined,
+      tag_rfid: v.tag_rfid ?? '',
       data_hora_inicio: v.data_hora_inicio
         ? new Date(v.data_hora_inicio).toISOString().slice(0, 16)
         : undefined,
@@ -538,6 +539,7 @@ export class VisitantesPageComponent implements OnInit {
       id_apartamento: 0,
       is_visitante: 1,
       is_prestador: 0,
+      tag_rfid: '',
     };
   }
 }

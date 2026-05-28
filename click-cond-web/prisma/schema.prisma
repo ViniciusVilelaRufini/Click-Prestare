@@ -215,6 +215,8 @@ model Moradores {
   face_id          String?     @db.VarChar(100)
   face_enrolled_at DateTime?   @db.DateTime(0)
   face_sync_status String?     @db.VarChar(20)
+  tag_rfid         String?     @db.VarChar(50)
+  qrcode_acesso    String?     @db.VarChar(100)
   created_at      DateTime     @default(now()) @db.DateTime(0)
   updated_at      DateTime     @default(now()) @updatedAt @db.DateTime(0)
   condominio      Condominios? @relation(fields: [id_condominio], references: [id], map: "fk_mor_cond")
@@ -488,6 +490,7 @@ model Visitantes {
   face_id           String?      @db.VarChar(100)
   face_enrolled_at  DateTime?    @db.DateTime(0)
   face_sync_status  String?      @db.VarChar(20)
+  tag_rfid          String?      @db.VarChar(50)
   apartamento       Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_vis_apto")
   condominio        Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_vis_cond")
   criadoPor         Users?       @relation("VisitanteUser", fields: [user], references: [id], map: "fk_vis_user")
@@ -785,6 +788,7 @@ model Facial_Devices {
   id            Int         @id @default(autoincrement())
   id_condominio Int
   nome          String      @db.VarChar(100)
+  tipo          String      @default("facial") @db.VarChar(30)
   fabricante    String      @db.VarChar(50)
   modelo        String?     @db.VarChar(100)
   ip            String      @db.VarChar(45)
@@ -805,9 +809,10 @@ model Acessos_Facial {
   id            Int         @id @default(autoincrement())
   id_condominio Int
   id_device     Int
+  tipo_dispositivo String   @default("facial") @db.VarChar(30)
   face_id       String      @db.VarChar(100)
   tipo_pessoa   String      @db.VarChar(20)
-  id_pessoa     Int
+  id_pessoa     Int?
   nome_pessoa   String      @db.VarChar(255)
   evento        String      @db.VarChar(20)
   confianca     Float?

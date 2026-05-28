@@ -16,6 +16,7 @@ import {
 export interface CreateDeviceDto {
   id_condominio: number;
   nome: string;
+  tipo?: string;
   fabricante: string;
   modelo?: string;
   ip: string;
@@ -34,6 +35,8 @@ export interface WebhookEventDto {
   timestamp?: string;
   confidence?: number;
   direction?: string;
+  card_uid?: string;
+  qrcode?: string;
 }
 
 const FACIAL_ENABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'true';
@@ -78,6 +81,7 @@ export class FacialService {
       data: {
         id_condominio: dto.id_condominio,
         nome: dto.nome,
+        tipo: dto.tipo ?? 'facial',
         fabricante: dto.fabricante,
         modelo: dto.modelo ?? null,
         ip: dto.ip,
@@ -95,6 +99,7 @@ export class FacialService {
       where: { id },
       data: {
         ...(dto.nome !== undefined && { nome: dto.nome }),
+        ...(dto.tipo !== undefined && { tipo: dto.tipo }),
         ...(dto.fabricante !== undefined && { fabricante: dto.fabricante }),
         ...(dto.modelo !== undefined && { modelo: dto.modelo }),
         ...(dto.ip !== undefined && { ip: dto.ip }),
@@ -115,6 +120,28 @@ export class FacialService {
     const device = await this.getDevice(id);
     const online = await this.client.ping(this.toConfig(device));
     return { online };
+  }
+
+  async triggerDevice(id: number) {
+    const device = await this.getDevice(id);
+    if (device.tipo !== 'botoeira' && device.tipo !== 'catraca') {
+      throw new BadRequestException('Apenas dispositivos do tipo Botoeira ou Catraca podem ser acionados remotamente.');
+    }
+    const success = await this.client.triggerRelay(this.toConfig(device));
+    await this.prisma.acessos_Facial.create({
+      data: {
+        id_condominio: device.id_condominio,
+        id_device: device.id,
+        tipo_dispositivo: device.tipo,
+        face_id: 'trigger_manual',
+        tipo_pessoa: 'operador',
+        id_pessoa: null,
+        nome_pessoa: 'Operador (Portal Web)',
+        evento: 'acionado_manual',
+        timestamp: new Date(),
+      },
+    });
+    return { ok: success };
   }
 
   /**
@@ -361,41 +388,117 @@ export class FacialService {
     });
     if (!device) throw new UnauthorizedException('Token de webhook inválido');
 
-    const externalId = payload.external_id ?? payload.person_id ?? '';
-    if (!externalId) {
-      throw new BadRequestException('Payload sem external_id ou person_id');
-    }
-
-    const parsed = this.parseExternalId(externalId);
+    let tipoPessoa: 'morador' | 'visitante' | 'prestador' | null = null;
+    let idPessoa: number | null = null;
+    let nomePessoa = 'Desconhecido';
+    let faceIdSalvo = '';
+    const confianca = payload.confidence ?? null;
     const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date();
     const evento = this.normalizeEvento(payload.event, payload.direction);
 
-    if (parsed.tipo === 'morador') {
-      const m = await this.prisma.moradores.findUnique({ where: { id: parsed.id } });
-      if (!m) throw new NotFoundException(`Morador ${parsed.id} não encontrado`);
+    const qrCodeLido = payload.qrcode ?? (device.tipo === 'qrcode_reader' ? payload.external_id : undefined);
+    const tagRfidLida = payload.card_uid ?? (device.tipo === 'tag_reader' ? payload.external_id : undefined);
+    const externalId = payload.external_id ?? payload.person_id ?? '';
 
+    if (qrCodeLido) {
+      const morador = await this.prisma.moradores.findFirst({
+        where: { qrcode_acesso: qrCodeLido, id_condominio: device.id_condominio }
+      });
+      if (morador) {
+        tipoPessoa = 'morador';
+        idPessoa = morador.id;
+        nomePessoa = morador.nome;
+        faceIdSalvo = qrCodeLido;
+      } else {
+        const visitante = await this.prisma.visitantes.findFirst({
+          where: { codigo_acesso: qrCodeLido, id_condominio: device.id_condominio }
+        });
+        if (visitante) {
+          tipoPessoa = visitante.is_prestador === 1 ? 'prestador' : 'visitante';
+          idPessoa = visitante.id;
+          nomePessoa = visitante.nome;
+          faceIdSalvo = qrCodeLido;
+        }
+      }
+    } else if (tagRfidLida) {
+      const morador = await this.prisma.moradores.findFirst({
+        where: { tag_rfid: tagRfidLida, id_condominio: device.id_condominio }
+      });
+      if (morador) {
+        tipoPessoa = 'morador';
+        idPessoa = morador.id;
+        nomePessoa = morador.nome;
+        faceIdSalvo = tagRfidLida;
+      } else {
+        const visitante = await this.prisma.visitantes.findFirst({
+          where: { tag_rfid: tagRfidLida, id_condominio: device.id_condominio }
+        });
+        if (visitante) {
+          tipoPessoa = visitante.is_prestador === 1 ? 'prestador' : 'visitante';
+          idPessoa = visitante.id;
+          nomePessoa = visitante.nome;
+          faceIdSalvo = tagRfidLida;
+        }
+      }
+    } else if (externalId) {
+      const parsed = this.parseExternalId(externalId);
+      if (parsed.tipo === 'morador') {
+        const m = await this.prisma.moradores.findUnique({ where: { id: parsed.id } });
+        if (m) {
+          tipoPessoa = 'morador';
+          idPessoa = m.id;
+          nomePessoa = m.nome;
+          faceIdSalvo = m.face_id ?? externalId;
+        }
+      } else if (parsed.tipo === 'visitante') {
+        const v = await this.prisma.visitantes.findUnique({ where: { id: parsed.id } });
+        if (v) {
+          tipoPessoa = v.is_prestador === 1 ? 'prestador' : 'visitante';
+          idPessoa = v.id;
+          nomePessoa = v.nome;
+          faceIdSalvo = v.face_id ?? externalId;
+        }
+      }
+    }
+
+    if (!idPessoa || !tipoPessoa) {
       await this.prisma.acessos_Facial.create({
         data: {
           id_condominio: device.id_condominio,
           id_device: device.id,
-          face_id: m.face_id ?? externalId,
-          tipo_pessoa: 'morador',
-          id_pessoa: m.id,
-          nome_pessoa: m.nome,
-          evento,
-          confianca: payload.confidence ?? null,
+          tipo_dispositivo: device.tipo,
+          face_id: qrCodeLido ?? tagRfidLida ?? externalId ?? 'desconhecido',
+          tipo_pessoa: 'desconhecido',
+          id_pessoa: null,
+          nome_pessoa: 'Não identificado ou expirado',
+          evento: 'negado',
+          confianca,
           timestamp,
         },
       });
-
-      return { ok: true, tipo: 'morador', id: m.id, evento };
+      throw new BadRequestException('Acesso negado: Credencial não encontrada ou inválida');
     }
 
-    if (parsed.tipo === 'visitante') {
-      const v = await this.prisma.visitantes.findUnique({ where: { id: parsed.id } });
-      if (!v) throw new NotFoundException(`Visitante ${parsed.id} não encontrado`);
-
+    if (tipoPessoa === 'morador') {
+      await this.prisma.acessos_Facial.create({
+        data: {
+          id_condominio: device.id_condominio,
+          id_device: device.id,
+          tipo_dispositivo: device.tipo,
+          face_id: faceIdSalvo,
+          tipo_pessoa: 'morador',
+          id_pessoa: idPessoa,
+          nome_pessoa: nomePessoa,
+          evento,
+          confianca,
+          timestamp,
+        },
+      });
+    } else {
       const isEntrada = evento === 'entrada';
+      const v = await this.prisma.visitantes.findUnique({ where: { id: idPessoa } });
+      if (!v) throw new NotFoundException('Cadastro de visitante/prestador não encontrado');
+
       if (isEntrada) {
         await this.prisma.visitantes.update({
           where: { id: v.id },
@@ -404,7 +507,7 @@ export class FacialService {
       } else if (evento === 'saida') {
         await this.prisma.visitantes.update({
           where: { id: v.id },
-          data: { data_saida: timestamp, codigo_acesso: null },
+          data: { data_saida: timestamp, codigo_acesso: device.tipo === 'qrcode_reader' ? null : v.codigo_acesso },
         });
       }
 
@@ -412,17 +515,17 @@ export class FacialService {
         data: {
           id_condominio: device.id_condominio,
           id_device: device.id,
-          face_id: v.face_id ?? externalId,
-          tipo_pessoa: 'visitante',
+          tipo_dispositivo: device.tipo,
+          face_id: faceIdSalvo,
+          tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
           id_pessoa: v.id,
-          nome_pessoa: v.nome,
+          nome_pessoa: nomePessoa,
           evento,
-          confianca: payload.confidence ?? null,
+          confianca,
           timestamp,
         },
       });
 
-      // Notifica moradores do apartamento (entrada ou saída)
       if (evento === 'entrada' || evento === 'saida') {
         try {
           const moradores = await this.prisma.users.findMany({
@@ -433,7 +536,8 @@ export class FacialService {
             },
             select: { fcm_token: true },
           });
-          const titulo = evento === 'entrada' ? 'Visitante entrou' : 'Visitante saiu';
+          const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+          const titulo = evento === 'entrada' ? `${label} entrou` : `${label} saiu`;
           const corpo = evento === 'entrada'
             ? `${v.nome} acabou de entrar no condomínio.`
             : `${v.nome} acabou de sair do condomínio.`;
@@ -451,11 +555,9 @@ export class FacialService {
           this.logger.warn(`Push de acesso falhou: ${err}`);
         }
       }
-
-      return { ok: true, tipo: 'visitante', id: v.id, evento };
     }
 
-    throw new BadRequestException(`external_id desconhecido: ${externalId}`);
+    return { ok: true, tipo: tipoPessoa, id: idPessoa, evento };
   }
 
   async listAcessos(idCondominio: number, limit = 50) {

@@ -28,6 +28,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
   readonly showModal = signal(false);
   readonly editingId = signal<number | null>(null);
   readonly saving = signal(false);
+  readonly triggeringId = signal<number | null>(null);
 
   form: CreateTerminalFacial = this.emptyForm();
 
@@ -38,6 +39,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
   private emptyForm(): CreateTerminalFacial {
     return {
       nome: '',
+      tipo: 'facial',
       fabricante: 'control_id',
       modelo: '',
       ip: '',
@@ -71,6 +73,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
     this.editingId.set(t.id);
     this.form = {
       nome: t.nome,
+      tipo: t.tipo || 'facial',
       fabricante: t.fabricante,
       modelo: t.modelo ?? '',
       ip: t.ip,
@@ -96,6 +99,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
 
     const payload: CreateTerminalFacial = {
       nome: this.form.nome,
+      tipo: this.form.tipo || 'facial',
       fabricante: this.form.fabricante,
       modelo: this.form.modelo || undefined,
       ip: this.form.ip,
@@ -109,7 +113,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
     obs.subscribe({
       next: () => {
         this.saving.set(false);
-        this.successMessage.set(id != null ? 'Terminal atualizado.' : 'Terminal cadastrado.');
+        this.successMessage.set(id != null ? 'Dispositivo atualizado.' : 'Dispositivo cadastrado.');
         setTimeout(() => this.successMessage.set(null), 4000);
         this.closeModal();
         this.load();
@@ -122,14 +126,31 @@ export class TerminaisFaciaisPageComponent implements OnInit {
   }
 
   remove(t: TerminalFacial) {
-    if (!confirm(`Remover o terminal "${t.nome}"?`)) return;
+    if (!confirm(`Remover o dispositivo "${t.nome}"?`)) return;
     this.api.remove(t.id).subscribe({
       next: () => {
-        this.successMessage.set('Terminal removido.');
+        this.successMessage.set('Dispositivo removido.');
         setTimeout(() => this.successMessage.set(null), 4000);
         this.load();
       },
       error: (err) => this.errorMessage.set(err?.error?.message ?? 'Falha ao remover.'),
+    });
+  }
+
+  trigger(t: TerminalFacial) {
+    this.triggeringId.set(t.id);
+    this.errorMessage.set(null);
+    this.api.trigger(t.id).subscribe({
+      next: () => {
+        this.triggeringId.set(null);
+        this.successMessage.set(`Dispositivo "${t.nome}" acionado com sucesso.`);
+        setTimeout(() => this.successMessage.set(null), 4000);
+      },
+      error: (err) => {
+        this.triggeringId.set(null);
+        this.errorMessage.set(err?.error?.message ?? 'Falha ao acionar dispositivo.');
+        setTimeout(() => this.errorMessage.set(null), 4000);
+      },
     });
   }
 

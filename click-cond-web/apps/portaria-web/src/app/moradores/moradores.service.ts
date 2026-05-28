@@ -21,6 +21,8 @@ export interface Morador {
   foto_documento: string | null;
   face_id?: string | null;
   face_sync_status?: string | null;
+  tag_rfid?: string | null;
+  qrcode_acesso?: string | null;
 }
 
 export interface CreateMorador {
@@ -33,6 +35,8 @@ export interface CreateMorador {
   sendCredentials?: boolean;
   foto_pessoa?: string;
   foto_documento?: string;
+  tag_rfid?: string;
+  qrcode_acesso?: string;
 }
 
 @Injectable({ providedIn: 'root' })

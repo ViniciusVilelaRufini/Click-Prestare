@@ -51,6 +51,11 @@ export class FacialController {
     return this.service.testDevice(id);
   }
 
+  @Post('devices/:id/trigger')
+  trigger(@Param('id', ParseIntPipe) id: number) {
+    return this.service.triggerDevice(id);
+  }
+
   @Post('sync/morador/:id')
   syncMorador(@Param('id', ParseIntPipe) id: number) {
     return this.service.syncMorador(id);

@@ -37,6 +37,7 @@ export interface VisitanteDetalhes {
     codigo_acesso: string | null;
     data_entrada: string | null;
     data_saida: string | null;
+    tag_rfid: string | null;
     created_at: string;
   };
   stats: {

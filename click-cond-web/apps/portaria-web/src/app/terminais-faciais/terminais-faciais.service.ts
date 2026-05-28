@@ -8,6 +8,7 @@ export interface TerminalFacial {
   id: number;
   id_condominio: number;
   nome: string;
+  tipo: string;
   fabricante: string;
   modelo: string | null;
   ip: string;
@@ -23,6 +24,7 @@ export interface TerminalFacial {
 
 export interface CreateTerminalFacial {
   nome: string;
+  tipo?: string;
   fabricante: string;
   modelo?: string;
   ip: string;
@@ -35,9 +37,10 @@ export interface AcessoFacial {
   id: number;
   id_condominio: number;
   id_device: number;
+  tipo_dispositivo: string;
   face_id: string;
   tipo_pessoa: string;
-  id_pessoa: number;
+  id_pessoa: number | null;
   nome_pessoa: string;
   evento: string;
   confianca: number | null;
@@ -80,6 +83,10 @@ export class TerminaisFaciaisApi {
 
   test(id: number): Observable<{ online: boolean }> {
     return this.http.post<{ online: boolean }>(`${this.base}/devices/${id}/test`, {});
+  }
+
+  trigger(id: number): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.base}/devices/${id}/trigger`, {});
   }
 
   syncMorador(id: number): Observable<any> {

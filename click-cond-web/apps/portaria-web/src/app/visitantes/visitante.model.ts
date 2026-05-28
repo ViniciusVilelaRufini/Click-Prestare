@@ -17,6 +17,7 @@ export interface Visitante {
   foto_documento?: string | null;
   face_id?: string | null;
   face_sync_status?: string | null;
+  tag_rfid?: string | null;
   created_at: string;
 }
 
@@ -30,4 +31,5 @@ export interface CreateVisitante {
   id_apartamento: number;
   foto_pessoa?: string | null;
   foto_documento?: string | null;
+  tag_rfid?: string;
 }

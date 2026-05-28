@@ -193,6 +193,8 @@ export class MoradoresPageComponent implements OnInit {
       sendCredentials: false,
       foto_pessoa: m.foto_pessoa ?? m.photo ?? undefined,
       foto_documento: m.foto_documento ?? undefined,
+      tag_rfid: m.tag_rfid ?? '',
+      qrcode_acesso: m.qrcode_acesso ?? '',
     };
     this.error.set(null);
     this.showForm = true;
@@ -366,7 +368,7 @@ export class MoradoresPageComponent implements OnInit {
   }
 
   private estadoInicial(): CreateMorador {
-    return { nome: '', documento: '', email: '', telefone: '', tipo: 'proprietario', id_apartamento: 0, sendCredentials: true };
+    return { nome: '', documento: '', email: '', telefone: '', tipo: 'proprietario', id_apartamento: 0, sendCredentials: true, tag_rfid: '', qrcode_acesso: '' };
   }
 
   // Controle de Importação em Lote (Excel/CSV)
