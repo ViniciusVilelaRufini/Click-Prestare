@@ -103,6 +103,7 @@ export class SidebarComponent {
         { label: 'Financeiro', path: '/financeiro', icon: '💲' },
         { label: 'Documentos', path: '/documentos', icon: '📄' },
         { label: 'Relatórios', path: '/relatorios', icon: '📊' },
+        { label: 'Terminais Faciais', path: '/terminais-faciais', icon: '◉' },
         { label: 'Configurações', path: '/configuracoes', icon: '⚙' }
       ]
     }

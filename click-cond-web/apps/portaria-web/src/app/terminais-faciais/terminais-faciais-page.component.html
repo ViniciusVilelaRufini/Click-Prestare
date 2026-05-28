@@ -1,0 +1,270 @@
+<div class="min-h-screen p-6 lg:p-8 space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div class="flex items-start gap-4">
+      <div class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+        <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-white tracking-tight">Terminais Faciais</h1>
+        <p class="text-sm text-slate-400 mt-0.5">Gerencie os terminais de reconhecimento facial instalados na portaria</p>
+      </div>
+    </div>
+
+    <button
+      (click)="openCreate()"
+      class="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-accent/5"
+    >
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+      </svg>
+      Novo Terminal
+    </button>
+  </div>
+
+  <!-- Feedback -->
+  @if (successMessage()) {
+    <div class="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-medium flex items-center gap-2.5">
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+      </svg>
+      <span>{{ successMessage() }}</span>
+    </div>
+  }
+
+  @if (errorMessage()) {
+    <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium flex items-center gap-2.5">
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+      <span>{{ errorMessage() }}</span>
+    </div>
+  }
+
+  <!-- Lista -->
+  @if (loading()) {
+    <div class="p-12 rounded-2xl bg-graphite-200 border border-white/5 flex items-center justify-center">
+      <div class="w-6 h-6 border-2 border-white/20 border-t-accent rounded-full animate-spin"></div>
+    </div>
+  } @else if (terminais().length === 0) {
+    <div class="p-12 rounded-2xl bg-graphite-200 border border-white/5 text-center space-y-3">
+      <div class="text-slate-400 text-sm">Nenhum terminal facial cadastrado.</div>
+      <div class="text-xs text-slate-500">Clique em "Novo Terminal" para adicionar o primeiro.</div>
+    </div>
+  } @else {
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      @for (t of terminais(); track t.id) {
+        <div class="p-5 rounded-2xl bg-graphite-200 border border-white/5 space-y-4">
+          <!-- Status & Nome -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <h3 class="text-base font-bold text-white">{{ t.nome }}</h3>
+                @if (statusMap()[t.id] === true) {
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-green-500/15 border border-green-500/30 text-green-400 uppercase tracking-wider">Online</span>
+                } @else if (statusMap()[t.id] === false) {
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/30 text-rose-400 uppercase tracking-wider">Offline</span>
+                } @else {
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-700/30 border border-slate-700/40 text-slate-400 uppercase tracking-wider">Não testado</span>
+                }
+              </div>
+              <p class="text-xs text-slate-400">{{ t.fabricante }}<span *ngIf="t.modelo"> · {{ t.modelo }}</span></p>
+            </div>
+            <span class="text-[10px] font-mono text-slate-500">#{{ t.id }}</span>
+          </div>
+
+          <!-- IP / Porta -->
+          <div class="grid grid-cols-2 gap-3 pt-3 border-t border-white/5">
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-widest">Endereço IP</span>
+              <div class="text-xs font-mono text-slate-200">{{ t.ip }}:{{ t.porta }}</div>
+            </div>
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-widest">Última Sinc.</span>
+              <div class="text-xs text-slate-300">
+                {{ t.ultima_sincr ? (t.ultima_sincr | date:'dd/MM HH:mm') : '—' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Ações -->
+          <div class="flex items-center gap-2 pt-3 border-t border-white/5 flex-wrap">
+            <button
+              (click)="test(t)"
+              [disabled]="testingId() === t.id"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-200 bg-slate-800/60 hover:bg-slate-800 border border-white/5 transition disabled:opacity-50 flex items-center gap-1.5"
+            >
+              @if (testingId() === t.id) {
+                <div class="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                <span>Testando…</span>
+              } @else {
+                <span>Testar Conexão</span>
+              }
+            </button>
+            <button
+              (click)="copyToken(t)"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-200 bg-slate-800/60 hover:bg-slate-800 border border-white/5 transition"
+              title="Copia a URL completa do webhook"
+            >
+              Copiar URL Webhook
+            </button>
+            <button
+              (click)="openEdit(t)"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-accent bg-accent/10 hover:bg-accent/15 border border-accent/20 transition"
+            >
+              Editar
+            </button>
+            <button
+              (click)="remove(t)"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 transition ml-auto"
+            >
+              Remover
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Modal -->
+  @if (showModal()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" (click)="closeModal()">
+      <div
+        class="w-full max-w-lg p-6 rounded-2xl bg-graphite-200 border border-white/5 space-y-5"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="flex items-start justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-white">
+              {{ editingId() ? 'Editar Terminal' : 'Novo Terminal Facial' }}
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Configure o endereço IP e credenciais do terminal</p>
+          </div>
+          <button (click)="closeModal()" class="text-slate-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <form (submit)="save(); $event.preventDefault()" class="space-y-4">
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-slate-400">Nome do Terminal</label>
+            <input
+              [(ngModel)]="form.nome"
+              name="nome"
+              type="text"
+              placeholder="Ex: Portaria Principal"
+              required
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Fabricante</label>
+              <select
+                [(ngModel)]="form.fabricante"
+                name="fabricante"
+                class="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              >
+                <option value="control_id">Control iD</option>
+                <option value="intelbras">Intelbras</option>
+                <option value="zkteco">ZKTeco</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Modelo</label>
+              <input
+                [(ngModel)]="form.modelo"
+                name="modelo"
+                type="text"
+                placeholder="Ex: iDFace 373"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div class="col-span-2 space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Endereço IP</label>
+              <input
+                [(ngModel)]="form.ip"
+                name="ip"
+                type="text"
+                placeholder="192.168.1.50"
+                required
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs font-mono placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Porta</label>
+              <input
+                [(ngModel)]="form.porta"
+                name="porta"
+                type="number"
+                placeholder="80"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs font-mono placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Usuário API</label>
+              <input
+                [(ngModel)]="form.api_user"
+                name="api_user"
+                type="text"
+                placeholder="admin"
+                autocomplete="off"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Senha API</label>
+              <input
+                [(ngModel)]="form.api_password"
+                name="api_password"
+                type="password"
+                placeholder="••••••••"
+                autocomplete="new-password"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-white/5 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              (click)="closeModal()"
+              class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800/60 hover:bg-slate-800 border border-white/5 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              [disabled]="saving() || !form.nome || !form.ip"
+              class="px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 disabled:opacity-50 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-accent/5"
+            >
+              @if (saving()) {
+                <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span>Salvando…</span>
+              } @else {
+                <span>{{ editingId() ? 'Atualizar' : 'Cadastrar' }}</span>
+              }
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+</div>

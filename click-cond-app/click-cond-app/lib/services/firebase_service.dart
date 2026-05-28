@@ -41,12 +41,37 @@ class FirebaseService {
         print('Message data: ${message.data}');
       }
 
+      _logByType(message);
+
       if (message.notification != null) {
         if (kDebugMode) {
           print('Message also contained a notification: ${message.notification}');
         }
       }
     });
+
+    // Handle when the app is opened from a notification (background → foreground)
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      if (kDebugMode) {
+        print('Notification opened the app. Data: ${message.data}');
+      }
+      _logByType(message);
+    });
+  }
+
+  void _logByType(RemoteMessage message) {
+    final type = message.data['type']?.toString();
+    if (!kDebugMode || type == null) return;
+    switch (type) {
+      case 'visitante':
+        print('[FCM] Novo visitante chegou (PIN). id=${message.data['id']}');
+        break;
+      case 'visitante_acesso':
+        print('[FCM] Visitante reconhecido pelo terminal facial. id=${message.data['id']}');
+        break;
+      default:
+        print('[FCM] Tipo desconhecido: $type');
+    }
   }
 }
 

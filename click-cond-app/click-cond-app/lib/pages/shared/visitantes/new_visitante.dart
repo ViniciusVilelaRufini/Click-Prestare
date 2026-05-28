@@ -360,6 +360,35 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                      margin: const EdgeInsets.only(top: AppSpacing.sm),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(PhosphorIcons.scan, color: AppColors.primary, size: 14),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Foto necessária para acesso facial automático na portaria',
+                              style: AppTypography.tiny(context).copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('funcionario_infos_pessoais')),
                   AppInput(

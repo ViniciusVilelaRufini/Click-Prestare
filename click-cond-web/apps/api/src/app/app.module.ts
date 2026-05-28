@@ -22,6 +22,7 @@ import { MudancasModule } from './mudancas/mudancas.module';
 import { MailModule } from './common/mail/mail.module';
 import { StorageModule } from './common/storage/storage.module';
 import { RelatoriosModule } from './relatorios/relatorios.module';
+import { FacialModule } from './facial/facial.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -59,6 +60,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     DocumentosModule,
     MudancasModule,
     RelatoriosModule,
+    FacialModule,
   ],
   controllers: [AppController],
   providers: [

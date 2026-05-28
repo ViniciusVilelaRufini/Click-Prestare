@@ -15,6 +15,8 @@ export interface Visitante {
   codigo_acesso?: string | null;
   foto_pessoa?: string | null;
   foto_documento?: string | null;
+  face_id?: string | null;
+  face_sync_status?: string | null;
   created_at: string;
 }
 
