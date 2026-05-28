@@ -159,6 +159,35 @@ html, body {
   color: #DC2626 !important;
 }
 
+/* Proteção de contraste e adaptação de elementos do Light Mode */
+.light .bg-slate-800 {
+  background-color: #F1F5F9 !important;
+}
+
+.light .border-slate-700 {
+  border-color: #CBD5E1 !important;
+}
+
+.light .text-slate-350 {
+  color: var(--text-sub) !important;
+}
+
+.light .bg-slate-900 label:hover {
+  background-color: rgba(10, 22, 40, 0.04) !important;
+}
+
+/* Botão Cancelar/Secundário no Light Mode */
+.light button.bg-slate-800 {
+  background-color: #F1F5F9 !important;
+  color: var(--text-sub) !important;
+  border-color: #E2E8F0 !important;
+}
+
+.light button.bg-slate-800:hover {
+  background-color: #E2E8F0 !important;
+  color: var(--text-main) !important;
+}
+
 /* Scrollbar com cores dinâmicas */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
