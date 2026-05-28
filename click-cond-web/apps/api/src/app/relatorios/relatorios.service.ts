@@ -67,8 +67,8 @@ export class RelatoriosService {
     const nomeCondo = condominio?.nome || 'Condomínio';
 
     const range = {
-      gte: dataInicio ? new Date(dataInicio) : undefined,
-      lte: dataFim ? new Date(dataFim) : undefined,
+      gte: dataInicio ? new Date(`${dataInicio}T00:00:00.000-03:00`) : undefined,
+      lte: dataFim ? new Date(`${dataFim}T23:59:59.999-03:00`) : undefined,
     };
 
     if (tipo === 'visitantes') {
@@ -459,8 +459,8 @@ export class RelatoriosService {
 
   private formatPeriod(start?: string, end?: string): string {
     if (!start && !end) return 'Todo o histórico';
-    const s = start ? formatDateOnly(new Date(start)) : 'Início';
-    const e = end ? formatDateOnly(new Date(end)) : 'Hoje';
+    const s = start ? formatDateOnly(new Date(`${start}T00:00:00.000-03:00`)) : 'Início';
+    const e = end ? formatDateOnly(new Date(`${end}T00:00:00.000-03:00`)) : 'Hoje';
     return `${s} até ${e}`;
   }
 
@@ -483,8 +483,8 @@ export class RelatoriosService {
 
     if (dataInicio || dataFim) {
       where.created_at = {
-        ...(dataInicio ? { gte: new Date(dataInicio) } : {}),
-        ...(dataFim ? { lte: new Date(new Date(dataFim).setHours(23, 59, 59, 999)) } : {}),
+        ...(dataInicio ? { gte: new Date(`${dataInicio}T00:00:00.000-03:00`) } : {}),
+        ...(dataFim ? { lte: new Date(`${dataFim}T23:59:59.999-03:00`) } : {}),
       };
     }
 
