@@ -30,6 +30,13 @@
     >
       Terminais Faciais
     </button>
+    <button
+      (click)="currentTab.set('simulador')"
+      [class]="'px-4 pb-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all duration-200 ' + 
+        (currentTab() === 'simulador' ? 'border-accent text-accent' : 'border-transparent text-slate-400 hover:text-white')"
+    >
+      Simulador de Hardware
+    </button>
   </div>
 
   @if (currentTab() === 'conta') {
@@ -174,6 +181,10 @@
   } @else if (currentTab() === 'terminais') {
     <div class="p-6 rounded-2xl bg-graphite-200 border border-white/5 animate-fadeIn">
       <app-terminais-faciais-page [embedded]="true" />
+    </div>
+  } @else if (currentTab() === 'simulador') {
+    <div class="p-6 rounded-2xl bg-graphite-200 border border-white/5 animate-fadeIn">
+      <app-simulador-dispositivos />
     </div>
   }
 
