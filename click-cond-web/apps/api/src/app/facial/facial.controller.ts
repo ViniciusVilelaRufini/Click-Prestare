@@ -99,3 +99,19 @@ export class FacialWebhookController {
     return this.service.processWebhook(token, payload);
   }
 }
+
+/**
+ * Endpoints públicos para o simulador de terminal facial (browser).
+ * Autenticação via webhook_token do device.
+ */
+@Controller('facial/simulator')
+export class FacialSimulatorController {
+  constructor(private readonly service: FacialService) {}
+
+  @Public()
+  @Get(':token/persons')
+  async listPersons(@Param('token') token: string) {
+    const device = await this.service.findDeviceByToken(token);
+    return this.service.listPersonsForDevice(device.id);
+  }
+}

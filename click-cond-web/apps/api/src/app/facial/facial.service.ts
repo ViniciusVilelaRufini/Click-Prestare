@@ -64,6 +64,14 @@ export class FacialService {
     return d;
   }
 
+  async findDeviceByToken(token: string) {
+    const d = await this.prisma.facial_Devices.findFirst({
+      where: { webhook_token: token, ativo: 1 },
+    });
+    if (!d) throw new UnauthorizedException('Token de webhook inválido');
+    return d;
+  }
+
   async createDevice(dto: CreateDeviceDto) {
     const token = crypto.randomBytes(32).toString('hex');
     return this.prisma.facial_Devices.create({
@@ -107,6 +115,55 @@ export class FacialService {
     const device = await this.getDevice(id);
     const online = await this.client.ping(this.toConfig(device));
     return { online };
+  }
+
+  /**
+   * Lista pessoas com foto cadastrada no condomínio do terminal.
+   * Usado pelo simulador (browser) para fazer matching local de rostos.
+   */
+  async listPersonsForDevice(idDevice: number) {
+    const device = await this.getDevice(idDevice);
+    const idCondominio = device.id_condominio;
+
+    const [moradores, visitantes] = await Promise.all([
+      this.prisma.moradores.findMany({
+        where: { id_condominio: idCondominio, foto_pessoa: { not: null } },
+        select: { id: true, nome: true, foto_pessoa: true },
+      }),
+      this.prisma.visitantes.findMany({
+        where: {
+          id_condominio: idCondominio,
+          foto_pessoa: { not: null },
+          data_saida: null,
+        },
+        select: { id: true, nome: true, foto_pessoa: true },
+      }),
+    ]);
+
+    const persons = [
+      ...moradores.map((m) => ({
+        external_id: `morador_${m.id}`,
+        tipo: 'morador',
+        nome: m.nome,
+        foto: m.foto_pessoa,
+      })),
+      ...visitantes.map((v) => ({
+        external_id: `visitante_${v.id}`,
+        tipo: 'visitante',
+        nome: v.nome,
+        foto: v.foto_pessoa,
+      })),
+    ];
+
+    return {
+      device: {
+        id: device.id,
+        nome: device.nome,
+        webhook_token: device.webhook_token,
+      },
+      persons,
+      total: persons.length,
+    };
   }
 
   // ---------- Sync ----------

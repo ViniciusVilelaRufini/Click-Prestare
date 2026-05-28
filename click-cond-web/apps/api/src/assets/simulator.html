@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simulador de Terminal Facial — Click Portaria</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #1e293b;
+    }
+    header h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #fff;
+    }
+    header .subtitle {
+      color: #64748b;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    header .icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #3b82f6;
+      font-size: 22px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 20px;
+    }
+
+    .panel {
+      background: #131b2e;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 20px;
+    }
+
+    .panel h2 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+
+    /* Setup */
+    .setup-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .setup-row label {
+      display: block;
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .setup-row .field { flex: 1; }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 10px 12px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    input:focus { outline: none; border-color: #3b82f6; }
+    button {
+      padding: 10px 16px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #2563eb; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.secondary {
+      background: #1e293b;
+      color: #cbd5e1;
+    }
+    button.secondary:hover:not(:disabled) { background: #334155; }
+    button.danger { background: #dc2626; }
+    button.danger:hover:not(:disabled) { background: #b91c1c; }
+
+    /* Webcam */
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    #video, #overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #video { object-fit: cover; transform: scaleX(-1); }
+    #overlay { pointer-events: none; }
+    .video-status {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.6);
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+    }
+    .video-status.detecting { color: #fbbf24; }
+    .video-status.match { color: #10b981; }
+    .video-status.no-face { color: #64748b; }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+    }
+    .controls button { flex: 1; }
+
+    /* Sidebar */
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #1e293b;
+      font-size: 13px;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-row .label { color: #64748b; }
+    .info-row .value { color: #fff; font-weight: 500; font-family: monospace; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .badge.green { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .badge.amber { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .badge.red { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .badge.gray { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+
+    /* Log de eventos */
+    .events {
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .event-item {
+      padding: 10px 12px;
+      background: #0f172a;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      border-left: 3px solid #334155;
+    }
+    .event-item.success { border-left-color: #10b981; }
+    .event-item.warn { border-left-color: #fbbf24; }
+    .event-item.error { border-left-color: #ef4444; }
+    .event-item .when {
+      font-family: monospace;
+      color: #64748b;
+      font-size: 10px;
+      margin-bottom: 2px;
+    }
+
+    /* Persons grid */
+    .persons-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .person-thumb {
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background: #0f172a;
+      overflow: hidden;
+      position: relative;
+      border: 2px solid #1e293b;
+    }
+    .person-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .person-thumb.matched {
+      border-color: #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+    .person-thumb .name {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.7);
+      padding: 2px 4px;
+      font-size: 9px;
+      text-align: center;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .empty {
+      color: #64748b;
+      font-size: 12px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .alert {
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .alert.info { background: rgba(59, 130, 246, 0.1); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .alert.error { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    .threshold-control {
+      margin-top: 12px;
+    }
+    .threshold-control input[type="range"] {
+      width: 100%;
+      accent-color: #3b82f6;
+    }
+    .threshold-control .threshold-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="icon">📷</div>
+      <div>
+        <h1>Simulador de Terminal Facial</h1>
+        <div class="subtitle">Click Portaria — reconhecimento facial via webcam para testes locais</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Coluna esquerda: webcam + setup -->
+      <div>
+        <div class="panel">
+          <h2>Configuração</h2>
+          <div class="setup-row">
+            <div class="field">
+              <label>URL do Backend</label>
+              <input id="backendUrl" type="text" value="" placeholder="http://localhost:3000" />
+            </div>
+            <div class="field">
+              <label>Webhook Token do Terminal</label>
+              <input id="webhookToken" type="text" placeholder="cole aqui o token do device" />
+            </div>
+          </div>
+          <div class="setup-row">
+            <button id="btnLoadPersons">Carregar Pessoas</button>
+            <button id="btnStartCam" class="secondary">Ativar Webcam</button>
+            <button id="btnStop" class="danger" disabled>Parar</button>
+          </div>
+          <div class="threshold-control">
+            <div class="threshold-row">
+              <span>Sensibilidade (distância máxima): <strong id="thresholdLabel">0.45</strong></span>
+              <span>menor = mais rigoroso</span>
+            </div>
+            <input id="threshold" type="range" min="0.30" max="0.70" step="0.01" value="0.45" />
+          </div>
+          <div id="setupAlert"></div>
+        </div>
+
+        <div class="panel" style="margin-top: 20px;">
+          <h2>Câmera ao Vivo</h2>
+          <div class="video-wrap">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="overlay"></canvas>
+            <div class="video-status no-face" id="videoStatus">Aguardando...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coluna direita: status + eventos -->
+      <div>
+        <div class="panel">
+          <h2>Status</h2>
+          <div class="info-row">
+            <span class="label">Modelos face-api</span>
+            <span class="value" id="statusModels"><span class="badge gray">Não carregado</span></span>
+          </div>
+          <div class="info-row">
+            <span class="label">Backend</span>
+            <span class="value" id="statusBackend"><span class="badge gray">—</span></span>
+          </div>
+          <div class="info-row">
+            <span class="label">Pessoas cadastradas</span>
+            <span class="value" id="statusPersons">0</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Webcam</span>
+            <span class="value" id="statusCam"><span class="badge gray">Inativa</span></span>
+          </div>
+          <div class="info-row">
+            <span class="label">Cooldown reconhecimento</span>
+            <span class="value">10 s/pessoa</span>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top: 20px;">
+          <h2>Pessoas no Terminal</h2>
+          <div id="personsGrid" class="persons-grid">
+            <div class="empty">Nenhuma pessoa carregada.</div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top: 20px;">
+          <h2>Log de Eventos</h2>
+          <div id="events" class="events">
+            <div class="empty">Nenhum evento ainda.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- face-api.js -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+  <script>
+    const MODELS_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+    const COOLDOWN_MS = 10000;
+    const TICK_MS = 600;
+
+    const el = {
+      backendUrl: document.getElementById('backendUrl'),
+      webhookToken: document.getElementById('webhookToken'),
+      btnLoadPersons: document.getElementById('btnLoadPersons'),
+      btnStartCam: document.getElementById('btnStartCam'),
+      btnStop: document.getElementById('btnStop'),
+      threshold: document.getElementById('threshold'),
+      thresholdLabel: document.getElementById('thresholdLabel'),
+      setupAlert: document.getElementById('setupAlert'),
+      video: document.getElementById('video'),
+      overlay: document.getElementById('overlay'),
+      videoStatus: document.getElementById('videoStatus'),
+      statusModels: document.getElementById('statusModels'),
+      statusBackend: document.getElementById('statusBackend'),
+      statusPersons: document.getElementById('statusPersons'),
+      statusCam: document.getElementById('statusCam'),
+      personsGrid: document.getElementById('personsGrid'),
+      events: document.getElementById('events'),
+    };
+
+    el.backendUrl.value = window.location.origin;
+
+    const state = {
+      modelsLoaded: false,
+      persons: [],
+      labeledDescriptors: [],
+      faceMatcher: null,
+      stream: null,
+      tickerId: null,
+      lastSeen: new Map(),
+    };
+
+    // Persist setup in localStorage
+    const SAVED = JSON.parse(localStorage.getItem('facial-simulator') || '{}');
+    if (SAVED.webhookToken) el.webhookToken.value = SAVED.webhookToken;
+    if (SAVED.backendUrl) el.backendUrl.value = SAVED.backendUrl;
+    if (SAVED.threshold) {
+      el.threshold.value = SAVED.threshold;
+      el.thresholdLabel.textContent = SAVED.threshold;
+    }
+    function saveSetup() {
+      localStorage.setItem('facial-simulator', JSON.stringify({
+        webhookToken: el.webhookToken.value,
+        backendUrl: el.backendUrl.value,
+        threshold: el.threshold.value,
+      }));
+    }
+
+    el.threshold.addEventListener('input', () => {
+      el.thresholdLabel.textContent = el.threshold.value;
+      saveSetup();
+    });
+    el.webhookToken.addEventListener('change', saveSetup);
+    el.backendUrl.addEventListener('change', saveSetup);
+
+    function setBadge(target, kind, text) {
+      target.innerHTML = `<span class="badge ${kind}">${text}</span>`;
+    }
+
+    function setAlert(kind, text) {
+      el.setupAlert.innerHTML = text
+        ? `<div class="alert ${kind}" style="margin-top:12px">${text}</div>`
+        : '';
+    }
+
+    function logEvent(kind, title, detail) {
+      const t = new Date();
+      const hh = String(t.getHours()).padStart(2, '0');
+      const mm = String(t.getMinutes()).padStart(2, '0');
+      const ss = String(t.getSeconds()).padStart(2, '0');
+      if (el.events.querySelector('.empty')) el.events.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = `event-item ${kind}`;
+      div.innerHTML = `
+        <div class="when">${hh}:${mm}:${ss}</div>
+        <div><strong>${title}</strong></div>
+        ${detail ? `<div style="color:#94a3b8;margin-top:2px">${detail}</div>` : ''}
+      `;
+      el.events.prepend(div);
+    }
+
+    // 1. Carregar modelos
+    async function loadModels() {
+      try {
+        setBadge(el.statusModels, 'amber', 'Carregando…');
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URL),
+        ]);
+        state.modelsLoaded = true;
+        setBadge(el.statusModels, 'green', 'Carregado');
+        logEvent('success', 'Modelos face-api carregados', '~6 MB baixados do CDN');
+      } catch (err) {
+        setBadge(el.statusModels, 'red', 'Erro');
+        logEvent('error', 'Falha ao carregar modelos', err.message);
+        throw err;
+      }
+    }
+
+    // 2. Buscar pessoas do backend e calcular descritores
+    async function loadPersons() {
+      const token = el.webhookToken.value.trim();
+      const backend = el.backendUrl.value.trim().replace(/\/$/, '');
+      if (!token) {
+        setAlert('error', 'Informe o Webhook Token do terminal antes de carregar.');
+        return;
+      }
+      if (!state.modelsLoaded) await loadModels();
+
+      try {
+        setBadge(el.statusBackend, 'amber', 'Buscando…');
+        const res = await fetch(`${backend}/api/facial/simulator/${token}/persons`);
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`HTTP ${res.status}: ${text.substring(0, 200)}`);
+        }
+        const data = await res.json();
+        state.persons = data.persons;
+        el.statusPersons.textContent = data.persons.length;
+        setBadge(el.statusBackend, 'green', `OK (${data.device.nome})`);
+        logEvent('success', `${data.persons.length} pessoa(s) carregadas`, `Terminal: ${data.device.nome}`);
+
+        await computeDescriptors();
+        renderPersonsGrid();
+        setAlert('info', `Pronto. Ative a webcam para começar o reconhecimento.`);
+      } catch (err) {
+        setBadge(el.statusBackend, 'red', 'Erro');
+        logEvent('error', 'Falha ao buscar pessoas', err.message);
+        setAlert('error', `Erro: ${err.message}`);
+      }
+    }
+
+    // Calcula embeddings das fotos de referência
+    async function computeDescriptors() {
+      state.labeledDescriptors = [];
+      let processed = 0, skipped = 0;
+      for (const p of state.persons) {
+        try {
+          const img = await loadImage(p.foto);
+          const det = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+          if (!det) {
+            skipped++;
+            continue;
+          }
+          state.labeledDescriptors.push(
+            new faceapi.LabeledFaceDescriptors(p.external_id, [det.descriptor])
+          );
+          processed++;
+        } catch (err) {
+          console.warn('skip', p.external_id, err);
+          skipped++;
+        }
+      }
+      if (state.labeledDescriptors.length > 0) {
+        state.faceMatcher = new faceapi.FaceMatcher(state.labeledDescriptors, parseFloat(el.threshold.value));
+      }
+      logEvent('success', `Embeddings calculados`, `${processed} OK · ${skipped} sem rosto detectável`);
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        // Base64 vem como data: URL ou string pura; URLs http vêm como string normal
+        if (src && !src.startsWith('http') && !src.startsWith('data:')) {
+          img.src = 'data:image/jpeg;base64,' + src;
+        } else {
+          img.src = src;
+        }
+      });
+    }
+
+    function renderPersonsGrid() {
+      if (state.persons.length === 0) {
+        el.personsGrid.innerHTML = '<div class="empty">Nenhuma pessoa carregada.</div>';
+        return;
+      }
+      el.personsGrid.innerHTML = state.persons.map((p, i) => {
+        const fotoSrc = p.foto && !p.foto.startsWith('http') && !p.foto.startsWith('data:')
+          ? 'data:image/jpeg;base64,' + p.foto
+          : p.foto;
+        return `
+          <div class="person-thumb" data-id="${p.external_id}" title="${p.nome}">
+            <img src="${fotoSrc}" alt="${p.nome}" />
+            <div class="name">${p.nome.split(' ')[0]}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 3. Webcam
+    async function startCam() {
+      try {
+        state.stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' }
+        });
+        el.video.srcObject = state.stream;
+        await new Promise(r => el.video.onloadedmetadata = r);
+        el.overlay.width = el.video.videoWidth;
+        el.overlay.height = el.video.videoHeight;
+        setBadge(el.statusCam, 'green', 'Ativa');
+        el.btnStop.disabled = false;
+        el.btnStartCam.disabled = true;
+        startTicker();
+        logEvent('success', 'Webcam ativada', 'Iniciando detecção de rostos');
+      } catch (err) {
+        setBadge(el.statusCam, 'red', 'Negado');
+        logEvent('error', 'Falha ao acessar webcam', err.message);
+        setAlert('error', `Webcam negada. Conceda permissão e tente de novo. (${err.message})`);
+      }
+    }
+
+    function stopCam() {
+      if (state.tickerId) {
+        clearInterval(state.tickerId);
+        state.tickerId = null;
+      }
+      if (state.stream) {
+        state.stream.getTracks().forEach(t => t.stop());
+        state.stream = null;
+      }
+      el.video.srcObject = null;
+      el.overlay.getContext('2d').clearRect(0, 0, el.overlay.width, el.overlay.height);
+      setBadge(el.statusCam, 'gray', 'Inativa');
+      el.btnStop.disabled = true;
+      el.btnStartCam.disabled = false;
+      el.videoStatus.className = 'video-status no-face';
+      el.videoStatus.textContent = 'Parado';
+    }
+
+    function startTicker() {
+      if (state.tickerId) clearInterval(state.tickerId);
+      state.tickerId = setInterval(tick, TICK_MS);
+    }
+
+    // 4. Detecção a cada tick
+    async function tick() {
+      if (!state.modelsLoaded || !state.stream) return;
+
+      try {
+        const det = await faceapi
+          .detectSingleFace(el.video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        const ctx = el.overlay.getContext('2d');
+        ctx.clearRect(0, 0, el.overlay.width, el.overlay.height);
+
+        if (!det) {
+          el.videoStatus.className = 'video-status no-face';
+          el.videoStatus.textContent = 'Nenhum rosto';
+          clearMatched();
+          return;
+        }
+
+        // Desenha o box do rosto
+        const box = det.detection.box;
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 3;
+        // Espelhado horizontalmente porque o vídeo está flipado
+        const x = el.overlay.width - box.x - box.width;
+        ctx.strokeRect(x, box.y, box.width, box.height);
+
+        if (!state.faceMatcher) {
+          el.videoStatus.className = 'video-status detecting';
+          el.videoStatus.textContent = 'Rosto detectado (sem cadastros)';
+          return;
+        }
+
+        const best = state.faceMatcher.findBestMatch(det.descriptor);
+        if (best.label === 'unknown') {
+          el.videoStatus.className = 'video-status detecting';
+          el.videoStatus.textContent = `Desconhecido (dist ${best.distance.toFixed(2)})`;
+          clearMatched();
+          return;
+        }
+
+        // Match!
+        el.videoStatus.className = 'video-status match';
+        const person = state.persons.find(p => p.external_id === best.label);
+        const confidence = 1 - best.distance;
+        el.videoStatus.textContent = `✓ ${person?.nome ?? best.label} (${(confidence * 100).toFixed(0)}%)`;
+
+        highlightMatched(best.label);
+
+        // Cooldown anti-spam
+        const lastWhen = state.lastSeen.get(best.label) || 0;
+        if (Date.now() - lastWhen < COOLDOWN_MS) return;
+        state.lastSeen.set(best.label, Date.now());
+
+        await fireWebhook(best.label, confidence);
+      } catch (err) {
+        console.error('tick error', err);
+      }
+    }
+
+    function highlightMatched(externalId) {
+      el.personsGrid.querySelectorAll('.person-thumb').forEach(div => {
+        if (div.dataset.id === externalId) div.classList.add('matched');
+        else div.classList.remove('matched');
+      });
+    }
+    function clearMatched() {
+      el.personsGrid.querySelectorAll('.person-thumb.matched').forEach(div => {
+        div.classList.remove('matched');
+      });
+    }
+
+    // 5. Disparo do webhook
+    async function fireWebhook(externalId, confidence) {
+      const token = el.webhookToken.value.trim();
+      const backend = el.backendUrl.value.trim().replace(/\/$/, '');
+      const person = state.persons.find(p => p.external_id === externalId);
+      const payload = {
+        device_id: 'simulator',
+        event: 'access_granted',
+        external_id: externalId,
+        timestamp: new Date().toISOString(),
+        confidence: confidence,
+        direction: 'in',
+      };
+      try {
+        const res = await fetch(`${backend}/api/facial/webhook/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          logEvent('success',
+            `Acesso liberado: ${person?.nome ?? externalId}`,
+            `Confiança ${(confidence * 100).toFixed(0)}% · Backend respondeu ${res.status}`);
+        } else {
+          logEvent('error',
+            `Webhook rejeitado (${res.status})`,
+            data.message || 'Resposta sem detalhes');
+        }
+      } catch (err) {
+        logEvent('error', 'Falha ao chamar webhook', err.message);
+      }
+    }
+
+    // Wire up buttons
+    el.btnLoadPersons.addEventListener('click', loadPersons);
+    el.btnStartCam.addEventListener('click', startCam);
+    el.btnStop.addEventListener('click', stopCam);
+
+    // Auto-load models on page open
+    loadModels();
+  </script>
+</body>
+</html>

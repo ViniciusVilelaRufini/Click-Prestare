@@ -6,18 +6,24 @@ dns.setDefaultResultOrder('ipv4first');
 
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { HttpAdapterHost, NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
+import { join } from 'path';
 import { AppModule } from './app/app.module';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ limit: '50mb', extended: true }));
 
-  app.use(helmet());
+  // helmet com CSP desabilitada — o simulador facial carrega face-api.js de CDN
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+  // Serve arquivos estáticos copiados de src/assets (simulador facial em /simulator.html)
+  app.useStaticAssets(join(__dirname, 'assets'));
 
   app.useGlobalPipes(
     new ValidationPipe({
