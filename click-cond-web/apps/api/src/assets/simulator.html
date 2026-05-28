@@ -300,8 +300,8 @@
               <input id="backendUrl" type="text" value="" placeholder="http://localhost:3000" />
             </div>
             <div class="field">
-              <label>Webhook Token do Terminal</label>
-              <input id="webhookToken" type="text" placeholder="cole aqui o token do device" />
+              <label>Webhook Token (ou URL completa)</label>
+              <input id="webhookToken" type="text" placeholder="cole o token ou a URL inteira do webhook" />
             </div>
           </div>
           <div class="setup-row">
@@ -467,12 +467,13 @@
         setBadge(el.statusModels, 'amber', 'Carregando…');
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODELS_URL),
           faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URL),
           faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URL),
         ]);
         state.modelsLoaded = true;
         setBadge(el.statusModels, 'green', 'Carregado');
-        logEvent('success', 'Modelos face-api carregados', '~6 MB baixados do CDN');
+        logEvent('success', 'Modelos face-api carregados', '~12 MB baixados do CDN (tiny + ssdMobilenet)');
       } catch (err) {
         setBadge(el.statusModels, 'red', 'Erro');
         logEvent('error', 'Falha ao carregar modelos', err.message);
@@ -480,13 +481,28 @@
       }
     }
 
+    // Aceita URL completa ou só o token, devolve só o token
+    function extractToken(raw) {
+      const trimmed = raw.trim();
+      if (!trimmed) return '';
+      // Se for URL com /webhook/ no caminho, pega o segmento depois
+      const match = trimmed.match(/\/webhook\/([^/?#]+)/i);
+      if (match) return match[1];
+      return trimmed;
+    }
+
     // 2. Buscar pessoas do backend e calcular descritores
     async function loadPersons() {
-      const token = el.webhookToken.value.trim();
+      const token = extractToken(el.webhookToken.value);
       const backend = el.backendUrl.value.trim().replace(/\/$/, '');
       if (!token) {
         setAlert('error', 'Informe o Webhook Token do terminal antes de carregar.');
         return;
+      }
+      // Se o usuário colou URL inteira, normaliza o campo pra só o token
+      if (el.webhookToken.value.trim() !== token) {
+        el.webhookToken.value = token;
+        saveSetup();
       }
       if (!state.modelsLoaded) await loadModels();
 
@@ -516,15 +532,29 @@
     // Calcula embeddings das fotos de referência
     async function computeDescriptors() {
       state.labeledDescriptors = [];
-      let processed = 0, skipped = 0;
+      let processed = 0;
+      const skippedNames = [];
       for (const p of state.persons) {
         try {
           const img = await loadImage(p.foto);
-          const det = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+
+          // Tenta ssdMobilenetv1 primeiro (mais preciso, lida melhor com fotos
+          // ruins/pequenas/anguladas), com threshold permissivo
+          let det = await faceapi
+            .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
+
+          // Fallback: tinyFaceDetector com input maior e threshold mais baixo
           if (!det) {
-            skipped++;
+            det = await faceapi
+              .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
+              .withFaceLandmarks()
+              .withFaceDescriptor();
+          }
+
+          if (!det) {
+            skippedNames.push(p.nome);
             continue;
           }
           state.labeledDescriptors.push(
@@ -533,13 +563,16 @@
           processed++;
         } catch (err) {
           console.warn('skip', p.external_id, err);
-          skipped++;
+          skippedNames.push(p.nome);
         }
       }
       if (state.labeledDescriptors.length > 0) {
         state.faceMatcher = new faceapi.FaceMatcher(state.labeledDescriptors, parseFloat(el.threshold.value));
       }
-      logEvent('success', `Embeddings calculados`, `${processed} OK · ${skipped} sem rosto detectável`);
+      const detail = skippedNames.length > 0
+        ? `${processed} OK · ${skippedNames.length} sem rosto: ${skippedNames.join(', ')}`
+        : `${processed} OK`;
+      logEvent(skippedNames.length > 0 ? 'warn' : 'success', `Embeddings calculados`, detail);
     }
 
     function loadImage(src) {
@@ -695,7 +728,7 @@
 
     // 5. Disparo do webhook
     async function fireWebhook(externalId, confidence) {
-      const token = el.webhookToken.value.trim();
+      const token = extractToken(el.webhookToken.value);
       const backend = el.backendUrl.value.trim().replace(/\/$/, '');
       const person = state.persons.find(p => p.external_id === externalId);
       const payload = {

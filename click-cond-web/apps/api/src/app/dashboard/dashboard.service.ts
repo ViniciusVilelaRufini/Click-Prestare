@@ -97,6 +97,7 @@ export class DashboardService {
       ultSaidasVisitantes,
       ultEncomendas,
       ultOcorrencias,
+      ultAcessosFacial,
     ] = await Promise.all([
       // Visitantes ainda no condomínio: entrada registrada mas sem saída registrada, e is_visitante = 1 (ou is_prestador = 0)
       this.prisma.visitantes.count({
@@ -167,6 +168,12 @@ export class DashboardService {
           criadoPor: { select: { name: true } },
           categoria: { select: { nome: true } },
         },
+      }),
+      // Acessos faciais recentes (terminal facial)
+      this.prisma.acessos_Facial.findMany({
+        where: { id_condominio: idCondominio },
+        orderBy: { timestamp: 'desc' },
+        take: 5,
       }),
     ]);
 
@@ -259,6 +266,29 @@ export class DashboardService {
           autorizadoPor: o.criadoPor?.name || 'Morador',
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
+        },
+      });
+    }
+
+    // Mapear Acessos faciais (terminal facial)
+    for (const a of ultAcessosFacial) {
+      const confiancaPct = a.confianca != null ? ` · ${Math.round(a.confianca * 100)}%` : '';
+      const acao = a.evento === 'saida' ? 'saiu' : a.evento === 'negado' ? 'tentou acesso (negado)' : 'entrou';
+      ultimosEventos.push({
+        tipo: 'Acesso Facial',
+        descricao: `${a.nome_pessoa} ${acao} pelo terminal facial${confiancaPct}`,
+        quando: a.timestamp.toISOString(),
+        direcao: a.evento === 'saida' ? 'saida' : 'entrada',
+        detalhes: {
+          id: a.id,
+          nome: a.nome_pessoa,
+          status: a.evento === 'entrada' ? 'Entrada via terminal' :
+                  a.evento === 'saida' ? 'Saída via terminal' :
+                  'Acesso negado',
+          dataEntrada: a.evento === 'entrada' ? a.timestamp.toISOString() : undefined,
+          dataSaida: a.evento === 'saida' ? a.timestamp.toISOString() : undefined,
+          autorizadoPor: `Terminal Facial #${a.id_device}`,
+          descricao: a.confianca != null ? `Confiança ${Math.round(a.confianca * 100)}%` : undefined,
         },
       });
     }

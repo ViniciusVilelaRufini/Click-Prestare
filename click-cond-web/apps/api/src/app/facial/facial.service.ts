@@ -120,6 +120,8 @@ export class FacialService {
   /**
    * Lista pessoas com foto cadastrada no condomínio do terminal.
    * Usado pelo simulador (browser) para fazer matching local de rostos.
+   * Fotos armazenadas como URL no R2 são baixadas e convertidas para
+   * data URL (base64) para evitar problemas de CORS no canvas do face-api.
    */
   async listPersonsForDevice(idDevice: number) {
     const device = await this.getDevice(idDevice);
@@ -140,7 +142,7 @@ export class FacialService {
       }),
     ]);
 
-    const persons = [
+    const rawPersons = [
       ...moradores.map((m) => ({
         external_id: `morador_${m.id}`,
         tipo: 'morador',
@@ -155,6 +157,13 @@ export class FacialService {
       })),
     ];
 
+    const persons = await Promise.all(
+      rawPersons.map(async (p) => ({
+        ...p,
+        foto: await this.toDataUrl(p.foto),
+      })),
+    );
+
     return {
       device: {
         id: device.id,
@@ -164,6 +173,33 @@ export class FacialService {
       persons,
       total: persons.length,
     };
+  }
+
+  /**
+   * Converte foto (URL HTTP do R2, base64 puro ou data: URL) em data URL
+   * com prefix correto. Necessário para o face-api processar a imagem em
+   * canvas sem CORS taint.
+   */
+  private async toDataUrl(foto: string | null): Promise<string | null> {
+    if (!foto) return null;
+    if (foto.startsWith('data:')) return foto;
+    if (foto.startsWith('http://') || foto.startsWith('https://')) {
+      try {
+        const axios = (await import('axios')).default;
+        const res = await axios.get(foto, {
+          responseType: 'arraybuffer',
+          timeout: 15000,
+        });
+        const mime = res.headers['content-type'] || 'image/jpeg';
+        const b64 = Buffer.from(res.data).toString('base64');
+        return `data:${mime};base64,${b64}`;
+      } catch (err: any) {
+        this.logger.warn(`Falha ao baixar foto ${foto}: ${err?.message ?? err}`);
+        return null;
+      }
+    }
+    // Já é base64 puro
+    return `data:image/jpeg;base64,${foto}`;
   }
 
   // ---------- Sync ----------
