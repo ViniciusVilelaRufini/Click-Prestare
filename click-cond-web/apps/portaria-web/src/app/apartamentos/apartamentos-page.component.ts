@@ -8,6 +8,7 @@ import { ConfirmService } from '../shared/confirm.service';
 import { HttpClient } from '@angular/common/http';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
+import { MoradoresApi } from '../moradores/moradores.service';
 
 declare var require: any;
 
@@ -22,6 +23,7 @@ export class ApartamentosPageComponent implements OnInit {
   private confirm = inject(ConfirmService);
   private http = inject(HttpClient);
   private auth = inject(AuthService);
+  private moradoresApi = inject(MoradoresApi);
 
   // Painel de moradores
   showMoradoresPanel = false;
@@ -29,6 +31,18 @@ export class ApartamentosPageComponent implements OnInit {
   moradoresApto: Apartamento | null = null;
   readonly moradores = signal<any[]>([]);
   readonly loadingMoradores = signal(false);
+
+  // Form de adicionar morador no modal
+  showAddMoradorForm = false;
+  novoMorador = {
+    nome: '',
+    documento: '',
+    email: '',
+    telefone: '',
+    tipo: 'proprietario'
+  };
+  readonly savingMorador = signal(false);
+  readonly errorMorador = signal<string | null>(null);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -142,7 +156,71 @@ export class ApartamentosPageComponent implements OnInit {
 
   fecharMoradores() {
     this.showMoradoresPanel = false;
+    this.showAddMoradorForm = false;
+    this.errorMorador.set(null);
     this.moradores.set([]);
+  }
+
+  salvarNovoMorador() {
+    if (!this.novoMorador.nome?.trim()) {
+      this.errorMorador.set('Nome é obrigatório.');
+      return;
+    }
+    
+    const aptoId = this.moradoresApto?.id;
+    if (!aptoId) return;
+
+    this.savingMorador.set(true);
+    this.errorMorador.set(null);
+
+    const dto = {
+      nome: this.novoMorador.nome.trim(),
+      documento: this.novoMorador.documento.trim() || undefined,
+      email: this.novoMorador.email.trim() || undefined,
+      telefone: this.novoMorador.telefone.trim() || undefined,
+      tipo: this.novoMorador.tipo,
+      id_apartamento: aptoId,
+      sendCredentials: !!this.novoMorador.email.trim()
+    };
+
+    this.moradoresApi.create(dto).subscribe({
+      next: () => {
+        this.savingMorador.set(false);
+        this.showAddMoradorForm = false;
+        this.novoMorador = { nome: '', documento: '', email: '', telefone: '', tipo: 'proprietario' };
+        this.carregarMoradores(this.moradoresBlocoNome, aptoId);
+        this.carregar();
+      },
+      error: (err) => {
+        this.savingMorador.set(false);
+        this.errorMorador.set(err?.error?.message ?? err?.message ?? 'Erro ao cadastrar morador');
+      }
+    });
+  }
+
+  async removerMorador(m: any) {
+    const ok = await this.confirm.ask({
+      title: 'Remover morador',
+      message: `Tem certeza que deseja remover o morador ${m.nome || m.name}? Esta ação é irreversível e revogará seu acesso.`,
+      confirmLabel: 'Remover',
+      variant: 'danger',
+    });
+    if (!ok) return;
+
+    const aptoId = this.moradoresApto?.id;
+    this.moradoresApi.remove(m.id).subscribe({
+      next: () => {
+        if (aptoId) {
+          this.carregarMoradores(this.moradoresBlocoNome, aptoId);
+        } else {
+          this.carregarMoradores(this.moradoresBlocoNome);
+        }
+        this.carregar();
+      },
+      error: (err) => {
+        alert(err?.error?.message ?? err?.message ?? 'Erro ao remover morador');
+      }
+    });
   }
 
   private carregarMoradores(bloco?: string, aptoId?: number) {
