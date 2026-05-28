@@ -44,6 +44,9 @@ export class RegrasAcessoComponent implements OnInit {
       permitir_visitante: 0,
       permitir_prestador: 0,
       permitir_funcionario: 0,
+      sentido: 'ambos',
+      hora_inicio: '',
+      hora_fim: '',
       ativo: 1,
       dispositivosIds: [],
     };
@@ -90,6 +93,9 @@ export class RegrasAcessoComponent implements OnInit {
       permitir_visitante: r.permitir_visitante,
       permitir_prestador: r.permitir_prestador,
       permitir_funcionario: r.permitir_funcionario,
+      sentido: r.sentido,
+      hora_inicio: r.hora_inicio ?? '',
+      hora_fim: r.hora_fim ?? '',
       ativo: r.ativo,
       dispositivosIds: r.dispositivos.map(d => d.id_dispositivo),
     };
@@ -144,6 +150,9 @@ export class RegrasAcessoComponent implements OnInit {
       permitir_visitante: this.form.permitir_visitante ? 1 : 0,
       permitir_prestador: this.form.permitir_prestador ? 1 : 0,
       permitir_funcionario: this.form.permitir_funcionario ? 1 : 0,
+      sentido: this.form.sentido,
+      hora_inicio: this.form.hora_inicio || null,
+      hora_fim: this.form.hora_fim || null,
       ativo: this.form.ativo ? 1 : 0,
       dispositivosIds,
     };

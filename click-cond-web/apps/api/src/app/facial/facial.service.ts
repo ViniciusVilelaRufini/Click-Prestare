@@ -479,7 +479,7 @@ export class FacialService {
       throw new BadRequestException('Acesso negado: Credencial não encontrada ou inválida');
     }
 
-    // Validação de Regras de Acesso (Sprint 3)
+    // Validação de Regras de Acesso (Sprint 3 com Horários e Sentidos)
     const regrasDispositivo = await this.prisma.regras_Acesso.findMany({
       where: {
         id_condominio: device.id_condominio,
@@ -493,15 +493,44 @@ export class FacialService {
     });
 
     if (regrasDispositivo.length > 0) {
+      let possuiRegraAplicavel = false;
       let permitido = false;
+
+      // Obtém o horário do evento em formato HH:MM (ajustando a data e a timezone se necessário)
+      const horaMinutoAtual = timestamp.toTimeString().substring(0, 5); // formato "HH:MM"
+
       for (const r of regrasDispositivo) {
+        // 1. Validar sentido (entrada / saida / ambos)
+        if (r.sentido !== 'ambos' && r.sentido !== evento) {
+          continue; // Esta regra não se aplica a esta direção
+        }
+
+        // 2. Validar horário de funcionamento da regra
+        if (r.hora_inicio && r.hora_fim) {
+          let dentroDoHorario = false;
+          if (r.hora_inicio <= r.hora_fim) {
+            dentroDoHorario = horaMinutoAtual >= r.hora_inicio && horaMinutoAtual <= r.hora_fim;
+          } else {
+            // Caso ultrapasse a meia-noite (ex: das 22:00 às 06:00)
+            dentroDoHorario = horaMinutoAtual >= r.hora_inicio || horaMinutoAtual <= r.hora_fim;
+          }
+          if (!dentroDoHorario) {
+            continue; // Esta regra não se aplica a este horário
+          }
+        }
+
+        // Se a regra é válida para esta direção e hora, ela passa a ser uma regra ativa/aplicável
+        possuiRegraAplicavel = true;
+
+        // 3. Validar se a categoria da pessoa é permitida
         if (tipoPessoa === 'morador' && r.permitir_morador === 1) permitido = true;
         if (tipoPessoa === 'visitante' && r.permitir_visitante === 1) permitido = true;
         if (tipoPessoa === 'prestador' && r.permitir_prestador === 1) permitido = true;
         if (tipoPessoa === 'funcionario' && r.permitir_funcionario === 1) permitido = true;
       }
 
-      if (!permitido) {
+      // Se temos regras aplicáveis para este sentido e horário, mas nenhuma autorizou o usuário
+      if (possuiRegraAplicavel && !permitido) {
         await this.prisma.acessos_Facial.create({
           data: {
             id_condominio: device.id_condominio,
@@ -517,6 +546,7 @@ export class FacialService {
           },
         });
 
+        const sentidoLabel = evento === 'entrada' ? 'Entrada' : evento === 'saida' ? 'Saída' : evento;
         throw new BadRequestException(
           `Acesso negado: terminal restrito para ${
             tipoPessoa === 'morador'
@@ -524,7 +554,7 @@ export class FacialService {
               : tipoPessoa === 'prestador'
               ? 'Prestadores'
               : 'Visitantes'
-          }`
+          } no sentido de ${sentidoLabel} neste horário`
         );
       }
     }

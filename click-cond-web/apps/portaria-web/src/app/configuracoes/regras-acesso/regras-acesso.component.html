@@ -128,6 +128,33 @@
             </div>
           </div>
 
+          <!-- Sentido e Faixa Horária -->
+          <div class="space-y-2 pt-3 border-t border-white/5 grid grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Direção / Sentido</span>
+              <span 
+                class="text-[9px] px-2 py-0.5 rounded-md font-bold uppercase border inline-block"
+                [ngClass]="{
+                  'bg-white/5 text-slate-350 border-white/10': r.sentido === 'ambos',
+                  'bg-teal-500/15 text-teal-400 border-teal-500/25': r.sentido === 'entrada',
+                  'bg-amber-500/15 text-amber-400 border-amber-500/25': r.sentido === 'saida'
+                }"
+              >
+                {{ r.sentido === 'ambos' ? 'Entrada & Saída' : r.sentido === 'entrada' ? 'Apenas Entrada' : 'Apenas Saída' }}
+              </span>
+            </div>
+
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Horário Permitido</span>
+              <span class="text-[9px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-350 font-bold flex items-center gap-1.5 w-max">
+                <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                {{ (r.hora_inicio && r.hora_fim) ? r.hora_inicio + ' às ' + r.hora_fim : '24 Horas (Livre)' }}
+              </span>
+            </div>
+          </div>
+
           <!-- Terminais Vinculados -->
           <div class="space-y-2 pt-3 border-t border-white/5 flex items-center justify-between gap-4 flex-wrap">
             <div class="space-y-1">
@@ -227,6 +254,45 @@
               placeholder="Ex: Impede que visitantes e prestadores abram a catraca da piscina..."
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition resize-none"
             ></textarea>
+          </div>
+
+          <!-- Sentido e Faixa Horária no Modal -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Direção / Sentido -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Direção / Sentido do Acesso</label>
+              <select
+                [(ngModel)]="form.sentido"
+                name="sentido"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition cursor-pointer"
+              >
+                <option value="ambos">Entrada e Saída (Ambos)</option>
+                <option value="entrada">Apenas Entrada</option>
+                <option value="saida">Apenas Saída</option>
+              </select>
+            </div>
+
+            <!-- Faixa de Horário -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Restrição de Horário (Deixe em branco para 24h)</label>
+              <div class="flex items-center gap-2">
+                <input
+                  [(ngModel)]="form.hora_inicio"
+                  name="hora_inicio"
+                  type="time"
+                  placeholder="Início"
+                  class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-accent transition"
+                />
+                <span class="text-xs text-slate-500 font-bold">até</span>
+                <input
+                  [(ngModel)]="form.hora_fim"
+                  name="hora_fim"
+                  type="time"
+                  placeholder="Fim"
+                  class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-accent transition"
+                />
+              </div>
+            </div>
           </div>
 
           <!-- Quem pode acessar (Checkboxes de Categorias) -->

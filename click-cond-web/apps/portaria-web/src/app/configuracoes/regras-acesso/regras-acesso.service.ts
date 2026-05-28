@@ -13,6 +13,9 @@ export interface RegraAcesso {
   permitir_visitante: number;
   permitir_prestador: number;
   permitir_funcionario: number;
+  sentido: string;
+  hora_inicio: string | null;
+  hora_fim: string | null;
   ativo: number;
   dispositivos: {
     id_dispositivo: number;
@@ -33,6 +36,9 @@ export interface CreateRegraAcesso {
   permitir_visitante: number;
   permitir_prestador: number;
   permitir_funcionario: number;
+  sentido: string;
+  hora_inicio?: string | null;
+  hora_fim?: string | null;
   ativo: number;
   dispositivosIds: number[];
 }
