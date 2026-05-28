@@ -10,7 +10,7 @@
           </svg>
         </div>
         <div>
-          <h1 class="text-2xl font-semibold text-white tracking-tight">Dispositivos de Acesso</h1>
+          <h1 class="text-2xl font-semibold text-white tracking-tight">Terminais de Dispositivos</h1>
           <p class="text-sm text-slate-400 mt-0.5">Gerencie botoeiras, leitoras de tags, catracas, leitores de QR Code e reconhecimento facial</p>
         </div>
       </div>
@@ -28,7 +28,7 @@
   } @else {
     <div class="flex justify-between items-center pb-4 border-b border-white/5">
       <div class="space-y-0.5">
-        <h2 class="text-lg font-bold text-white">Dispositivos de Acesso</h2>
+        <h2 class="text-lg font-bold text-white">Terminais de Dispositivos</h2>
         <p class="text-xs text-slate-400 font-medium">Gerencie os leitores e acionadores de controle de acesso da portaria</p>
       </div>
       <button
@@ -79,9 +79,9 @@
           <!-- Status & Nome & Tipo -->
           <div class="flex items-start justify-between gap-3">
             <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="shrink-0 w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300" [title]="t.tipo">
-                  @if (t.tipo === 'facial') {
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="shrink-0 w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300" [title]="t.tipo || 'facial'">
+                  @if (t.tipo === 'facial' || !t.tipo) {
                     <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
@@ -104,6 +104,23 @@
                   }
                 </span>
                 <h3 class="text-base font-bold text-slate-800 dark:text-white">{{ t.nome }}</h3>
+                
+                <!-- Badge de Tipo de Dispositivo Muito Visível -->
+                <span class="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0"
+                  [ngClass]="{
+                    'bg-accent/15 text-accent border border-accent/25': t.tipo === 'facial' || !t.tipo,
+                    'bg-amber-500/15 text-amber-500 border border-amber-500/25': t.tipo === 'botoeira',
+                    'bg-blue-500/15 text-blue-500 border border-blue-500/25': t.tipo === 'tag_reader',
+                    'bg-teal-500/15 text-teal-500 border border-teal-500/25': t.tipo === 'catraca',
+                    'bg-purple-500/15 text-purple-500 border border-purple-500/25': t.tipo === 'qrcode_reader'
+                  }">
+                  {{ t.tipo === 'facial' || !t.tipo ? 'Reconhecimento Facial' :
+                     t.tipo === 'botoeira' ? 'Botoeira Relé IP' :
+                     t.tipo === 'tag_reader' ? 'Leitor de Tags RFID' :
+                     t.tipo === 'catraca' ? 'Catraca Eletrônica IP' :
+                     t.tipo === 'qrcode_reader' ? 'Leitor de QR Code' : t.tipo }}
+                </span>
+
                 @if (statusMap()[t.id] === true) {
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-500/15 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 uppercase tracking-wider">Online</span>
                 } @else if (statusMap()[t.id] === false) {
@@ -113,20 +130,6 @@
                 }
               </div>
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0"
-                  [ngClass]="{
-                    'bg-accent/10 text-accent': t.tipo === 'facial',
-                    'bg-amber-500/10 text-amber-500': t.tipo === 'botoeira',
-                    'bg-blue-500/10 text-blue-500': t.tipo === 'tag_reader',
-                    'bg-teal-500/10 text-teal-500': t.tipo === 'catraca',
-                    'bg-purple-500/10 text-purple-500': t.tipo === 'qrcode_reader'
-                  }">
-                  {{ t.tipo === 'facial' ? 'Reconhecimento Facial' :
-                     t.tipo === 'botoeira' ? 'Botoeira Relé IP' :
-                     t.tipo === 'tag_reader' ? 'Leitor de Tags RFID' :
-                     t.tipo === 'catraca' ? 'Catraca Eletrônica IP' :
-                     t.tipo === 'qrcode_reader' ? 'Leitor de QR Code' : t.tipo }}
-                </span>
                 <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">{{ t.fabricante }}<span *ngIf="t.modelo"> · {{ t.modelo }}</span></span>
               </div>
             </div>
