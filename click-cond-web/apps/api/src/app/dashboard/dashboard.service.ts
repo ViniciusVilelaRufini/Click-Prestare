@@ -271,26 +271,90 @@ export class DashboardService {
     }
 
     // Mapear Acessos faciais (terminal facial)
-    for (const a of ultAcessosFacial) {
-      const confiancaPct = a.confianca != null ? ` · ${Math.round(a.confianca * 100)}%` : '';
-      const acao = a.evento === 'saida' ? 'saiu' : a.evento === 'negado' ? 'tentou acesso (negado)' : 'entrou';
-      ultimosEventos.push({
-        tipo: 'Acesso Facial',
-        descricao: `${a.nome_pessoa} ${acao} pelo terminal facial${confiancaPct}`,
-        quando: a.timestamp.toISOString(),
-        direcao: a.evento === 'saida' ? 'saida' : 'entrada',
-        detalhes: {
-          id: a.id,
-          nome: a.nome_pessoa,
-          status: a.evento === 'entrada' ? 'Entrada via terminal' :
-                  a.evento === 'saida' ? 'Saída via terminal' :
-                  'Acesso negado',
-          dataEntrada: a.evento === 'entrada' ? a.timestamp.toISOString() : undefined,
-          dataSaida: a.evento === 'saida' ? a.timestamp.toISOString() : undefined,
-          autorizadoPor: `Terminal Facial #${a.id_device}`,
-          descricao: a.confianca != null ? `Confiança ${Math.round(a.confianca * 100)}%` : undefined,
-        },
-      });
+    // Pra cada acesso, busca a foto e o apto da pessoa (morador ou visitante)
+    if (ultAcessosFacial.length > 0) {
+      const idsMorador = ultAcessosFacial
+        .filter((a) => a.tipo_pessoa === 'morador')
+        .map((a) => a.id_pessoa);
+      const idsVisitante = ultAcessosFacial
+        .filter((a) => a.tipo_pessoa === 'visitante')
+        .map((a) => a.id_pessoa);
+
+      const [moradoresInfo, visitantesInfo] = await Promise.all([
+        idsMorador.length > 0
+          ? this.prisma.moradores.findMany({
+              where: { id: { in: idsMorador } },
+              select: {
+                id: true,
+                foto_pessoa: true,
+                bloco: true,
+                apartamento: true,
+                user: { select: { photo: true } },
+              },
+            })
+          : Promise.resolve([]),
+        idsVisitante.length > 0
+          ? this.prisma.visitantes.findMany({
+              where: { id: { in: idsVisitante } },
+              select: {
+                id: true,
+                foto_pessoa: true,
+                doc_identificacao: true,
+                apartamento: { select: { bloco: true, apto: true } },
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const moradorById = new Map(moradoresInfo.map((m) => [m.id, m]));
+      const visitanteById = new Map(visitantesInfo.map((v) => [v.id, v]));
+
+      for (const a of ultAcessosFacial) {
+        const confiancaPct = a.confianca != null ? ` · ${Math.round(a.confianca * 100)}%` : '';
+        const acao = a.evento === 'saida' ? 'saiu' : a.evento === 'negado' ? 'tentou acesso (negado)' : 'entrou';
+
+        let foto: string | undefined;
+        let aptoStr = '';
+        let documento: string | undefined;
+
+        if (a.tipo_pessoa === 'morador') {
+          const m = moradorById.get(a.id_pessoa);
+          foto = m?.foto_pessoa ?? m?.user?.photo ?? undefined;
+          if (m?.bloco || m?.apartamento) {
+            aptoStr = `Apto ${m?.apartamento ?? ''}${m?.bloco ?? ''}`.trim();
+          }
+        } else if (a.tipo_pessoa === 'visitante') {
+          const v = visitanteById.get(a.id_pessoa);
+          foto = v?.foto_pessoa ?? undefined;
+          documento = v?.doc_identificacao ?? undefined;
+          if (v?.apartamento) {
+            aptoStr = `Apto ${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim();
+          }
+        }
+
+        ultimosEventos.push({
+          tipo: 'Acesso Facial',
+          descricao: `${a.nome_pessoa} ${acao} pelo terminal facial${confiancaPct}`,
+          quando: a.timestamp.toISOString(),
+          direcao: a.evento === 'saida' ? 'saida' : 'entrada',
+          detalhes: {
+            id: a.id,
+            nome: a.nome_pessoa,
+            documento,
+            blocoApto: aptoStr || undefined,
+            status: a.evento === 'entrada' ? 'Entrada via terminal facial' :
+                    a.evento === 'saida' ? 'Saída via terminal facial' :
+                    'Acesso negado',
+            dataEntrada: a.evento === 'entrada' ? a.timestamp.toISOString() : undefined,
+            dataSaida: a.evento === 'saida' ? a.timestamp.toISOString() : undefined,
+            autorizadoPor: `Terminal Facial #${a.id_device}`,
+            descricao: a.confianca != null
+              ? `Reconhecido com ${Math.round(a.confianca * 100)}% de confiança`
+              : undefined,
+            fotoPessoa: foto,
+          },
+        });
+      }
     }
 
     const sortedEvents = ultimosEventos
