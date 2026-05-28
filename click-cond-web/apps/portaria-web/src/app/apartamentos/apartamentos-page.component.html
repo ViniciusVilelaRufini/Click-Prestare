@@ -246,13 +246,13 @@
   
   <!-- Modal Moradores do Bloco/Apto -->
   @if (showMoradoresPanel) {
-    <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+    <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
          (click)="fecharMoradores()">
-      <div class="w-full max-w-lg rounded-2xl bg-graphite border border-white/10 shadow-2xl flex flex-col max-h-[80vh] overflow-hidden"
+      <div class="w-full max-w-lg rounded-2xl bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col max-h-[80vh] overflow-hidden"
            (click)="$event.stopPropagation()">
 
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-graphite-200">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-graphite-200">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
               <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -260,7 +260,7 @@
               </svg>
             </div>
             <div>
-              <h3 class="text-base font-semibold text-white">
+              <h3 class="text-base font-bold text-slate-800 dark:text-white">
                 @if (moradoresApto) {
                   Apto {{ moradoresApto.apto }}
                   @if (moradoresApto.bloco) { · Bloco {{ moradoresApto.bloco }} }
@@ -268,54 +268,58 @@
                   Bloco {{ moradoresBlocoNome }} · Todos os moradores
                 }
               </h3>
-              <p class="text-xs text-slate-400 mt-0.5">{{ moradores().length }} morador(es) encontrado(s)</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ moradores().length }} morador(es) encontrado(s)</p>
             </div>
           </div>
-          <button (click)="fecharMoradores()" class="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-white/5">
+          <button (click)="fecharMoradores()" class="text-slate-450 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
         <!-- Corpo -->
-        <div class="overflow-y-auto flex-1 min-h-0 p-4 space-y-2">
+        <div class="overflow-y-auto flex-1 min-h-0 p-4 space-y-2 bg-white dark:bg-graphite">
           @if (loadingMoradores()) {
             <div class="py-10 flex flex-col items-center gap-3">
               <div class="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
-              <p class="text-xs text-slate-400">Carregando moradores...</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Carregando moradores...</p>
             </div>
           } @else if (moradores().length === 0) {
             <div class="py-10 flex flex-col items-center gap-3 text-center">
-              <div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center">
-                <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-center">
+                <svg class="w-6 h-6 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                 </svg>
               </div>
-              <p class="text-sm text-slate-400">Nenhum morador cadastrado nesta unidade.</p>
+              <p class="text-sm text-slate-500 dark:text-slate-450">Nenhum morador cadastrado nesta unidade.</p>
             </div>
           } @else {
             @for (m of moradores(); track m.id) {
-              <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-graphite-200 border border-white/5 hover:border-accent/20 transition">
-                <!-- Avatar inicial -->
-                <div class="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-                  <span class="text-sm font-bold text-accent">
-                    {{ (m.nome || m.name || '?').trim().charAt(0).toUpperCase() }}
-                  </span>
+              <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50/50 dark:bg-graphite-200/50 border border-slate-200/50 dark:border-white/5 hover:border-accent/30 dark:hover:border-accent/30 hover:bg-slate-50 dark:hover:bg-graphite-200 transition">
+                <!-- Avatar / Foto do morador -->
+                <div class="w-10 h-10 rounded-full overflow-hidden bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0">
+                  @if (m.foto_pessoa || m.photo) {
+                    <img [src]="m.foto_pessoa || m.photo" alt="" class="w-full h-full object-cover" />
+                  } @else {
+                    <span class="text-sm font-bold text-accent">
+                      {{ (m.nome || m.name || '?').trim().charAt(0).toUpperCase() }}
+                    </span>
+                  }
                 </div>
                 <!-- Info -->
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-white truncate">{{ m.nome || m.name || 'Morador' }}</p>
+                  <p class="text-sm font-semibold text-slate-800 dark:text-white truncate">{{ m.nome || m.name || 'Morador' }}</p>
                   <div class="flex items-center gap-3 mt-0.5 flex-wrap">
                     @if (m.apto || m.apto_numero) {
-                      <span class="text-[11px] text-slate-400">
+                      <span class="text-[11px] text-slate-500 dark:text-slate-400">
                         Apto {{ m.apto || m.apto_numero }}
                         @if (m.bloco) { · Bloco {{ m.bloco }} }
                       </span>
                     }
                     @if (m.email) {
-                      <span class="text-[11px] text-slate-500 truncate">{{ m.email }}</span>
+                      <span class="text-[11px] text-slate-400 dark:text-slate-500 truncate">{{ m.email }}</span>
                     }
                     @if (m.celular || m.telefone) {
-                      <span class="text-[11px] text-slate-500">{{ m.celular || m.telefone }}</span>
+                      <span class="text-[11px] text-slate-400 dark:text-slate-500">{{ m.celular || m.telefone }}</span>
                     }
                   </div>
                 </div>
@@ -338,8 +342,8 @@
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-3 border-t border-white/10 flex justify-end shrink-0 bg-graphite-200/50">
-          <button (click)="fecharMoradores()" class="px-4 py-2 text-sm rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 transition">
+        <div class="px-6 py-4 border-t border-slate-100 dark:border-white/10 flex justify-end shrink-0 bg-slate-50/30 dark:bg-graphite-200/20">
+          <button (click)="fecharMoradores()" class="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-white/5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition">
             Fechar
           </button>
         </div>
