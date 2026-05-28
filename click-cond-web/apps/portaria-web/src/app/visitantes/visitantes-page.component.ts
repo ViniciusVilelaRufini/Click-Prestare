@@ -523,7 +523,10 @@ export class VisitantesPageComponent implements OnInit {
     });
   }
 
-  abrirAmpliarFoto(url: string, titulo: string) {
+  abrirAmpliarFoto(url: string, titulo: string, event?: Event) {
+    if (event) {
+      event.stopPropagation();
+    }
     this.fotoAmpliadaUrl.set(url);
     this.fotoAmpliadaTitulo.set(titulo);
   }

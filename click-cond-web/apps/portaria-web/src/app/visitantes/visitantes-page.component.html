@@ -315,13 +315,14 @@
         </thead>
         <tbody>
           @for (v of visitantesPaginados(); track v.id) {
-            <tr class="border-t border-white/5 hover:bg-white/[0.02] transition group">
+            <tr (click)="abrirDetalhes(v)"
+                class="border-t border-white/5 hover:bg-white/[0.02] active:bg-white/[0.04] transition group cursor-pointer">
               <td class="px-5 py-3">
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden"
                        [class.cursor-pointer]="v.foto_pessoa"
                        [title]="v.foto_pessoa ? 'Clique para ampliar' : ''"
-                       (click)="v.foto_pessoa ? abrirAmpliarFoto(v.foto_pessoa, v.nome) : null">
+                       (click)="v.foto_pessoa ? abrirAmpliarFoto(v.foto_pessoa, v.nome, $event) : $event.stopPropagation()">
                     @if (v.foto_pessoa) {
                       <img [src]="v.foto_pessoa" class="w-full h-full object-cover" />
                     } @else {
@@ -330,9 +331,8 @@
                   </div>
                   <div>
                     <div class="flex items-center gap-1.5">
-                      <button (click)="abrirDetalhes(v)"
-                              class="font-medium text-white hover:text-accent transition text-left cursor-pointer"
-                              title="Ver detalhes, histórico de acessos e apartamentos visitados">{{ v.nome }}</button>
+                      <span class="font-medium text-white hover:text-accent transition text-left"
+                            title="Clique na linha para ver detalhes, histórico de acessos e apartamentos visitados">{{ v.nome }}</span>
                       @if (v.face_sync_status === 'synced') {
                         <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-400 uppercase" title="Reconhecimento facial sincronizado">Facial</span>
                       } @else if (v.face_sync_status === 'pending') {
@@ -344,7 +344,7 @@
                     @if (v.codigo_acesso) {
                       <span class="inline-flex items-center gap-1.5 text-[10px] font-mono mt-0.5 select-none">
                         <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
                         </svg>
                         <span class="text-slate-400">PIN:</span>
                         <span class="text-emerald-400 font-semibold">
@@ -382,7 +382,7 @@
                 <div class="flex items-center gap-2">
                   <span>{{ v.doc_identificacao || '—' }}</span>
                   @if (v.foto_documento) {
-                    <button (click)="abrirAmpliarFoto(v.foto_documento, 'Documento de ' + v.nome)"
+                    <button (click)="abrirAmpliarFoto(v.foto_documento, 'Documento de ' + v.nome, $event)"
                             class="text-accent hover:text-accent-500 transition focus:outline-none p-0.5"
                             title="Visualizar foto do documento">
                       <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -437,7 +437,7 @@
                   }
                 }
               </td>
-              <td class="px-5 py-3 text-right">
+              <td class="px-5 py-3 text-right" (click)="$event.stopPropagation()">
                 <div class="flex items-center justify-end gap-3">
                   @if (getStatusVisitante(v) === 'presente') {
                     <button (click)="darBaixa(v)"
