@@ -4,17 +4,24 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../auth/auth.service';
 import { TerminaisFaciaisPageComponent } from '../terminais-faciais/terminais-faciais-page.component';
 import { SimuladorDispositivosComponent } from './simulador-dispositivos/simulador-dispositivos.component';
+import { RegrasAcessoComponent } from './regras-acesso/regras-acesso.component';
 
 @Component({
   selector: 'app-configuracoes-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, TerminaisFaciaisPageComponent, SimuladorDispositivosComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    TerminaisFaciaisPageComponent,
+    SimuladorDispositivosComponent,
+    RegrasAcessoComponent,
+  ],
   templateUrl: './configuracoes-page.component.html',
 })
 export class ConfiguracoesPageComponent {
   readonly auth = inject(AuthService);
 
-  readonly currentTab = signal<'conta' | 'terminais' | 'simulador'>('conta');
+  readonly currentTab = signal<'conta' | 'terminais' | 'simulador' | 'regras'>('conta');
 
   // Form State
   senhaAtual = '';

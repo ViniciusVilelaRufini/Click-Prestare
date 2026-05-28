@@ -23,6 +23,7 @@ import { MailModule } from './common/mail/mail.module';
 import { StorageModule } from './common/storage/storage.module';
 import { RelatoriosModule } from './relatorios/relatorios.module';
 import { FacialModule } from './facial/facial.module';
+import { RegrasAcessoModule } from './regras-acesso/regras-acesso.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -61,6 +62,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     MudancasModule,
     RelatoriosModule,
     FacialModule,
+    RegrasAcessoModule,
   ],
   controllers: [AppController],
   providers: [

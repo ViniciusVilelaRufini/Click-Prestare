@@ -479,6 +479,56 @@ export class FacialService {
       throw new BadRequestException('Acesso negado: Credencial não encontrada ou inválida');
     }
 
+    // Validação de Regras de Acesso (Sprint 3)
+    const regrasDispositivo = await this.prisma.regras_Acesso.findMany({
+      where: {
+        id_condominio: device.id_condominio,
+        ativo: 1,
+        dispositivos: {
+          some: {
+            id_dispositivo: device.id,
+          },
+        },
+      },
+    });
+
+    if (regrasDispositivo.length > 0) {
+      let permitido = false;
+      for (const r of regrasDispositivo) {
+        if (tipoPessoa === 'morador' && r.permitir_morador === 1) permitido = true;
+        if (tipoPessoa === 'visitante' && r.permitir_visitante === 1) permitido = true;
+        if (tipoPessoa === 'prestador' && r.permitir_prestador === 1) permitido = true;
+        if (tipoPessoa === 'funcionario' && r.permitir_funcionario === 1) permitido = true;
+      }
+
+      if (!permitido) {
+        await this.prisma.acessos_Facial.create({
+          data: {
+            id_condominio: device.id_condominio,
+            id_device: device.id,
+            tipo_dispositivo: device.tipo,
+            face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            nome_pessoa: `${nomePessoa} (Bloqueado por Regra de Acesso)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
+          },
+        });
+
+        throw new BadRequestException(
+          `Acesso negado: terminal restrito para ${
+            tipoPessoa === 'morador'
+              ? 'Moradores'
+              : tipoPessoa === 'prestador'
+              ? 'Prestadores'
+              : 'Visitantes'
+          }`
+        );
+      }
+    }
+
     if (tipoPessoa === 'morador') {
       await this.prisma.acessos_Facial.create({
         data: {

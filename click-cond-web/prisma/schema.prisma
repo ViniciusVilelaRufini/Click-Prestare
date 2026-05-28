@@ -146,6 +146,7 @@ model Condominios {
   votacoes             Votacoes[]
   facialDevices        Facial_Devices[]
   acessosFacial        Acessos_Facial[]
+  regrasAcesso         Regras_Acesso[]
 
   @@index([endereco], map: "fk_cond_endereco")
 }
@@ -801,6 +802,7 @@ model Facial_Devices {
   created_at    DateTime    @default(now()) @db.DateTime(0)
   updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
   condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
+  regras        Regras_Dispositivos[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
 }
@@ -822,4 +824,34 @@ model Acessos_Facial {
 
   @@index([id_condominio, timestamp], map: "idx_acfac_cond_ts")
   @@index([id_pessoa, tipo_pessoa], map: "idx_acfac_pessoa")
+}
+
+model Regras_Acesso {
+  id              Int               @id @default(autoincrement())
+  id_condominio   Int
+  nome            String            @db.VarChar(150)
+  descricao       String?           @db.VarChar(255)
+  permitir_morador Int              @default(1) @db.TinyInt
+  permitir_visitante Int            @default(0) @db.TinyInt
+  permitir_prestador Int            @default(0) @db.TinyInt
+  permitir_funcionario Int          @default(0) @db.TinyInt
+  ativo           Int               @default(1) @db.TinyInt
+  created_at      DateTime          @default(now()) @db.DateTime(0)
+  updated_at      DateTime          @default(now()) @updatedAt @db.DateTime(0)
+  condominio      Condominios       @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_regac_cond")
+  dispositivos    Regras_Dispositivos[]
+
+  @@index([id_condominio], map: "idx_regac_cond")
+  @@map("regras_acesso")
+}
+
+model Regras_Dispositivos {
+  id_regra      Int
+  id_dispositivo Int
+  regra         Regras_Acesso   @relation(fields: [id_regra], references: [id], onDelete: Cascade, map: "fk_regdisp_reg")
+  dispositivo   Facial_Devices  @relation(fields: [id_dispositivo], references: [id], onDelete: Cascade, map: "fk_regdisp_disp")
+
+  @@id([id_regra, id_dispositivo])
+  @@index([id_dispositivo], map: "idx_regdisp_disp")
+  @@map("regras_dispositivos")
 }
