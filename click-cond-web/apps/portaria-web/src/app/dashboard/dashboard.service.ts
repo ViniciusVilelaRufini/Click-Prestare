@@ -22,6 +22,7 @@ export interface DashboardSummary {
       nome?: string;
       documento?: string;
       blocoApto?: string;
+      tipoPessoa?: 'morador' | 'visitante' | 'prestador' | 'funcionario';
       dataEntrada?: string;
       dataSaida?: string;
       autorizadoPor?: string;

@@ -19,6 +19,7 @@ export interface DashboardSummary {
       nome?: string;
       documento?: string;
       blocoApto?: string;
+      tipoPessoa?: 'morador' | 'visitante' | 'prestador' | 'funcionario';
       dataEntrada?: string;
       dataSaida?: string;
       autorizadoPor?: string;
@@ -323,6 +324,7 @@ export class DashboardService {
           nome: v.nome,
           documento: v.doc_identificacao || 'Não informado',
           blocoApto: aptoStr || 'Não informado',
+          tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
           dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
           dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
           status: v.data_saida ? 'Saída registrada' : 'No local',
@@ -353,6 +355,7 @@ export class DashboardService {
           nome: v.nome,
           documento: v.doc_identificacao || 'Não informado',
           blocoApto: aptoStr || 'Não informado',
+          tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
           dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
           dataSaida: v.data_saida.toISOString(),
           status: 'Saiu',
@@ -506,6 +509,7 @@ export class DashboardService {
             nome: a.nome_pessoa,
             documento,
             blocoApto: aptoStr || undefined,
+            tipoPessoa: a.tipo_pessoa as any,
             status: a.evento === 'entrada' ? 'Entrada via terminal facial' :
                     a.evento === 'saida' ? 'Saída via terminal facial' :
                     'Acesso negado',

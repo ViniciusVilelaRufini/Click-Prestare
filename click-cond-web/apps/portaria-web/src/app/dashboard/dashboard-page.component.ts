@@ -51,7 +51,11 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     // 1. Filtro por tipo de evento
     if (filtro !== 'Todos') {
       if (filtro === 'Visitante') {
-        filtrados = filtrados.filter(e => e.tipo === 'Visitante' || e.tipo === 'Prestador');
+        filtrados = filtrados.filter(e => 
+          e.tipo === 'Visitante' || 
+          e.tipo === 'Prestador' || 
+          (e.tipo === 'Acesso Facial' && (e.detalhes?.tipoPessoa === 'visitante' || e.detalhes?.tipoPessoa === 'prestador'))
+        );
       } else {
         filtrados = filtrados.filter(e => e.tipo === filtro);
       }

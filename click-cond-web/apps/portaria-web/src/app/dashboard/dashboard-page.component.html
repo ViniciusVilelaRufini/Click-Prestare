@@ -438,6 +438,20 @@
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase shrink-0 {{ tipoColor(e) }}">
                     {{ e.direcao ? (e.direcao === 'entrada' ? 'Entrada' : 'Saída') : e.tipo }}
                   </span>
+                  @if (e.detalhes.tipoPessoa) {
+                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase shrink-0"
+                          [ngClass]="{
+                            'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-400/10 dark:text-blue-450 dark:border-blue-400/20': e.detalhes.tipoPessoa === 'morador',
+                            'bg-accent/10 text-accent border-accent/20 dark:bg-accent/10 dark:text-accent dark:border-accent/20': e.detalhes.tipoPessoa === 'visitante',
+                            'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-450 dark:border-amber-400/20': e.detalhes.tipoPessoa === 'prestador',
+                            'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-400/10 dark:text-purple-450 dark:border-purple-400/20': e.detalhes.tipoPessoa === 'funcionario'
+                          }">
+                      {{ e.detalhes.tipoPessoa === 'morador' ? 'Morador' :
+                         e.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
+                         e.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
+                         e.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : e.detalhes.tipoPessoa }}
+                    </span>
+                  }
                   <span class="flex-1 text-sm text-slate-750 dark:text-slate-250 truncate font-semibold">{{ e.descricao }}</span>
                   <div class="flex items-center gap-2 font-medium">
                     <span class="text-xs text-slate-500 dark:text-slate-400 shrink-0 font-mono">
@@ -605,9 +619,23 @@
         <div class="px-6 py-4 border-b border-slate-200/60 dark:border-white/5 flex flex-col gap-1 bg-slate-50/[0.3] dark:bg-white/[0.01]">
           <div class="flex items-center justify-between w-full">
             <div class="flex items-center gap-2">
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase {{ tipoColor(ev.tipo) }}">
-                {{ ev.tipo }}
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase {{ tipoColor(ev) }}">
+                {{ ev.direcao ? (ev.direcao === 'entrada' ? 'Entrada' : 'Saída') : ev.tipo }}
               </span>
+              @if (ev.detalhes.tipoPessoa) {
+                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase"
+                      [ngClass]="{
+                        'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-400/10 dark:text-blue-450 dark:border-blue-400/20': ev.detalhes.tipoPessoa === 'morador',
+                        'bg-accent/10 text-accent border-accent/20 dark:bg-accent/10 dark:text-accent dark:border-accent/20': ev.detalhes.tipoPessoa === 'visitante',
+                        'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-450 dark:border-amber-400/20': ev.detalhes.tipoPessoa === 'prestador',
+                        'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-400/10 dark:text-purple-450 dark:border-purple-400/20': ev.detalhes.tipoPessoa === 'funcionario'
+                      }">
+                  {{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' :
+                     ev.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
+                     ev.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
+                     ev.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : ev.detalhes.tipoPessoa }}
+                </span>
+              }
               <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Detalhes do Evento</h3>
             </div>
             <button (click)="fecharDetalhes()" class="p-1.5 rounded-lg text-slate-450 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
@@ -903,7 +931,23 @@
                   </div>
                 }
                 <div>
-                  <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ ev.detalhes.nome }}</h4>
+                    @if (ev.detalhes.tipoPessoa) {
+                      <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase"
+                            [ngClass]="{
+                              'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-400/10 dark:text-blue-450 dark:border-blue-400/20': ev.detalhes.tipoPessoa === 'morador',
+                              'bg-accent/10 text-accent border-accent/20 dark:bg-accent/10 dark:text-accent dark:border-accent/20': ev.detalhes.tipoPessoa === 'visitante',
+                              'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-400/10 dark:text-amber-450 dark:border-amber-400/20': ev.detalhes.tipoPessoa === 'prestador',
+                              'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-400/10 dark:text-purple-450 dark:border-purple-400/20': ev.detalhes.tipoPessoa === 'funcionario'
+                            }">
+                        {{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' :
+                           ev.detalhes.tipoPessoa === 'visitante' ? 'Visitante' :
+                           ev.detalhes.tipoPessoa === 'prestador' ? 'Prestador' :
+                           ev.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : ev.detalhes.tipoPessoa }}
+                      </span>
+                    }
+                  </div>
                   <p class="text-[11px] font-semibold text-accent uppercase tracking-wider mt-0.5 flex items-center gap-1">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
