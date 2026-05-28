@@ -1146,6 +1146,30 @@ export class MobileAuthService {
 
       const idCondominio = Number(body.id_condominio) || apto.id_condominio;
 
+      // Validar duplicidade de morador no condomínio
+      const emailNorm = mor.email ? mor.email.toLowerCase().trim() : null;
+      const docNorm = mor.documento ? String(mor.documento).trim() : null;
+      const nomeNorm = mor.nome ? mor.nome.trim() : null;
+
+      const duplicationCheck = await this.prisma.moradores.findFirst({
+        where: {
+          id_condominio: idCondominio,
+          OR: [
+            ...(emailNorm ? [{ email: emailNorm }] : []),
+            ...(docNorm ? [{ documento: docNorm }] : []),
+            ...(nomeNorm ? [{
+              nome: nomeNorm,
+              bloco: apto.bloco || null,
+              apartamento: apto.apto || null
+            }] : [])
+          ]
+        }
+      });
+
+      if (duplicationCheck) {
+        throw new BadRequestException('Este morador já está cadastrado neste condomínio (e-mail, documento ou nome/apartamento duplicado).');
+      }
+
       // Cria/reutiliza Users por email OU cpf — senha inicial = documento ou '123456'
       let userId: number;
       let passwordWasSet = false;

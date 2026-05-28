@@ -186,6 +186,37 @@ export class MoradoresService {
       return newM;
     }
 
+    // Validar duplicidade
+    const emailNorm = dto.email ? dto.email.toLowerCase().trim() : null;
+    const docNorm = dto.documento ? dto.documento.trim() : null;
+    const nomeNorm = dto.nome ? dto.nome.trim() : null;
+
+    let aptoObj = null;
+    if (dto.id_apartamento) {
+      aptoObj = await this.prisma.apartamentos.findUnique({
+        where: { id: Number(dto.id_apartamento) },
+      });
+    }
+
+    const duplicationCheck = await this.prisma.moradores.findFirst({
+      where: {
+        id_condominio: dto.id_condominio,
+        OR: [
+          ...(emailNorm ? [{ email: emailNorm }] : []),
+          ...(docNorm ? [{ documento: docNorm }] : []),
+          ...(nomeNorm && aptoObj ? [{ 
+            nome: nomeNorm,
+            bloco: aptoObj.bloco || null,
+            apartamento: aptoObj.apto || null
+          }] : [])
+        ]
+      }
+    });
+
+    if (duplicationCheck) {
+      throw new BadRequestException('Este morador já está cadastrado neste condomínio (e-mail, documento ou nome/apartamento duplicado).');
+    }
+
     const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa);
     const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento);
 
