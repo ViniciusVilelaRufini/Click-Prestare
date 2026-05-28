@@ -559,6 +559,40 @@ export class FacialService {
       }
     }
 
+    // Controle de Anti-passback (Evita registro duplicado sequencial de entrada ou saída)
+    if (evento === 'entrada' || evento === 'saida') {
+      const ultimoAcesso = await this.prisma.acessos_Facial.findFirst({
+        where: {
+          tipo_pessoa: tipoPessoa,
+          id_pessoa: idPessoa,
+          evento: { in: ['entrada', 'saida'] },
+        },
+        orderBy: { timestamp: 'desc' },
+      });
+
+      if (ultimoAcesso && ultimoAcesso.evento === evento) {
+        await this.prisma.acessos_Facial.create({
+          data: {
+            id_condominio: device.id_condominio,
+            id_device: device.id,
+            tipo_dispositivo: device.tipo,
+            face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            nome_pessoa: `${nomePessoa} (Bloqueado por Anti-passback)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
+          },
+        });
+
+        const sentidoLabel = evento === 'entrada' ? 'entrada' : 'saída';
+        throw new BadRequestException(
+          `Acesso negado: O usuário já registrou uma ${sentidoLabel} e não pode registrar outra sequencialmente (Regra de Anti-passback).`
+        );
+      }
+    }
+
     if (tipoPessoa === 'morador') {
       await this.prisma.acessos_Facial.create({
         data: {
