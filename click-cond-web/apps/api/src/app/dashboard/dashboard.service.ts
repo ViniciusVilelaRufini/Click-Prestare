@@ -179,8 +179,29 @@ export class DashboardService {
 
     const ultimosEventos: DashboardSummary['ultimosEventos'] = [];
 
+    // Para deduplicar: se um visitante teve um acesso facial (entrada ou saída)
+    // dentro de ±15s do data_entrada/data_saida, é o mesmo evento físico —
+    // mostra só a versão "Acesso Facial" (mais informativa, tem confiança).
+    const DEDUP_WINDOW_MS = 15_000;
+    const facialKeys = new Set<string>();
+    for (const a of ultAcessosFacial) {
+      if (a.tipo_pessoa !== 'visitante') continue;
+      // Arredonda timestamp pra janelas de 15s para gerar chave estável
+      const bucket = Math.floor(a.timestamp.getTime() / DEDUP_WINDOW_MS);
+      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket}`);
+      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket - 1}`);
+      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket + 1}`);
+    }
+
+    const isDuplicadoFacial = (idVisitante: number, evento: 'entrada' | 'saida', ts: Date | null) => {
+      if (!ts) return false;
+      const bucket = Math.floor(ts.getTime() / DEDUP_WINDOW_MS);
+      return facialKeys.has(`${idVisitante}:${evento}:${bucket}`);
+    };
+
     // Mapear Entradas
     for (const v of ultEntradasVisitantes) {
+      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada)) continue;
       const aptoStr = v.apartamento
         ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
         : '';
@@ -208,6 +229,7 @@ export class DashboardService {
     // Mapear Saídas
     for (const v of ultSaidasVisitantes) {
       if (!v.data_saida) continue;
+      if (isDuplicadoFacial(v.id, 'saida', v.data_saida)) continue;
       const aptoStr = v.apartamento
         ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
         : '';
