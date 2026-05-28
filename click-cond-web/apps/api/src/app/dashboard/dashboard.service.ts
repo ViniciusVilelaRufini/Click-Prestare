@@ -30,6 +30,19 @@ export interface DashboardSummary {
       resposta?: string;
       fotoPessoa?: string;
       fotoDocumento?: string;
+      // Novos para Visitante / Acesso Facial
+      metodoLiberacao?: 'facial' | 'pin' | 'manual';
+      metodoLabel?: string;
+      confianca?: number;
+      terminalNome?: string;
+      historicoAcessos?: {
+        evento: 'entrada' | 'saida' | 'negado';
+        timestamp: string;
+        metodo: 'facial' | 'pin' | 'manual';
+        metodoLabel: string;
+        confianca?: number;
+        terminalNome?: string;
+      }[];
     };
   }[];
 }
@@ -199,6 +212,100 @@ export class DashboardService {
       return facialKeys.has(`${idVisitante}:${evento}:${bucket}`);
     };
 
+    // Busca TODOS os acessos faciais dos visitantes que vão aparecer no
+    // dashboard, para montar o histórico completo no modal de detalhes.
+    const visitanteIds = [
+      ...ultEntradasVisitantes.map((v) => v.id),
+      ...ultSaidasVisitantes.map((v) => v.id),
+    ];
+    const uniqueVisitanteIds = Array.from(new Set(visitanteIds));
+
+    const [todosAcessosFaciaisDosVisitantes, devicesInfo] = await Promise.all([
+      uniqueVisitanteIds.length > 0
+        ? this.prisma.acessos_Facial.findMany({
+            where: {
+              tipo_pessoa: 'visitante',
+              id_pessoa: { in: uniqueVisitanteIds },
+            },
+            orderBy: { timestamp: 'asc' },
+          })
+        : Promise.resolve([]),
+      this.prisma.facial_Devices.findMany({
+        where: { id_condominio: idCondominio },
+        select: { id: true, nome: true },
+      }),
+    ]);
+
+    const deviceById = new Map(devicesInfo.map((d) => [d.id, d.nome]));
+
+    // Agrupa acessos faciais por visitante
+    type AcessoFacialRow = typeof todosAcessosFaciaisDosVisitantes[number];
+    const facialPorVisitante = new Map<number, AcessoFacialRow[]>();
+    for (const a of todosAcessosFaciaisDosVisitantes) {
+      const list = facialPorVisitante.get(a.id_pessoa) ?? [];
+      list.push(a);
+      facialPorVisitante.set(a.id_pessoa, list);
+    }
+
+    // Decide se uma entrada/saída foi pelo terminal facial e devolve o registro
+    const acessoFacialDe = (idVisitante: number, evento: 'entrada' | 'saida', ts: Date | null) => {
+      if (!ts) return undefined;
+      const acessos = facialPorVisitante.get(idVisitante);
+      if (!acessos) return undefined;
+      const tsMs = ts.getTime();
+      return acessos.find(
+        (a) => a.evento === evento && Math.abs(a.timestamp.getTime() - tsMs) <= DEDUP_WINDOW_MS,
+      );
+    };
+
+    // Constrói o histórico cronológico de acessos do visitante
+    const buildHistoricoAcessos = (v: {
+      id: number;
+      data_entrada: Date | null;
+      data_saida: Date | null;
+    }) => {
+      const historico: NonNullable<DashboardSummary['ultimosEventos'][number]['detalhes']['historicoAcessos']> = [];
+
+      // Entradas/Saídas por acesso facial (vem da tabela Acessos_Facial)
+      const acessosFaciaisDoV = facialPorVisitante.get(v.id) ?? [];
+      const faciaisVistos = new Set<number>();
+      for (const a of acessosFaciaisDoV) {
+        const evento = a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada';
+        historico.push({
+          evento,
+          timestamp: a.timestamp.toISOString(),
+          metodo: 'facial',
+          metodoLabel: 'Terminal Facial',
+          confianca: a.confianca ?? undefined,
+          terminalNome: deviceById.get(a.id_device) ?? `Terminal #${a.id_device}`,
+        });
+        faciaisVistos.add(a.id);
+      }
+
+      // Se a data_entrada/data_saida do visitante NÃO coincide com nenhum
+      // acesso facial, foi por PIN ou manual
+      if (v.data_entrada && !acessoFacialDe(v.id, 'entrada', v.data_entrada)) {
+        historico.push({
+          evento: 'entrada',
+          timestamp: v.data_entrada.toISOString(),
+          metodo: 'pin',
+          metodoLabel: 'PIN / Manual',
+        });
+      }
+      if (v.data_saida && !acessoFacialDe(v.id, 'saida', v.data_saida)) {
+        historico.push({
+          evento: 'saida',
+          timestamp: v.data_saida.toISOString(),
+          metodo: 'pin',
+          metodoLabel: 'PIN / Manual',
+        });
+      }
+
+      // Ordena cronologicamente (mais recente primeiro)
+      historico.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      return historico;
+    };
+
     // Mapear Entradas
     for (const v of ultEntradasVisitantes) {
       if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada)) continue;
@@ -222,6 +329,9 @@ export class DashboardService {
           autorizadoPor: v.criadoPor?.name || 'Morador',
           fotoPessoa: v.foto_pessoa || undefined,
           fotoDocumento: v.foto_documento || undefined,
+          metodoLiberacao: 'pin',
+          metodoLabel: 'PIN / Manual',
+          historicoAcessos: buildHistoricoAcessos(v),
         },
       });
     }
@@ -249,6 +359,9 @@ export class DashboardService {
           autorizadoPor: v.criadoPor?.name || 'Morador',
           fotoPessoa: v.foto_pessoa || undefined,
           fotoDocumento: v.foto_documento || undefined,
+          metodoLiberacao: 'pin',
+          metodoLabel: 'PIN / Manual',
+          historicoAcessos: buildHistoricoAcessos(v),
         },
       });
     }
@@ -354,6 +467,35 @@ export class DashboardService {
           }
         }
 
+        const terminalNome = deviceById.get(a.id_device) ?? `Terminal #${a.id_device}`;
+        // Se for visitante, monta o histórico completo dele
+        let historicoAcessos:
+          | DashboardSummary['ultimosEventos'][number]['detalhes']['historicoAcessos']
+          | undefined;
+        if (a.tipo_pessoa === 'visitante') {
+          const v = visitanteById.get(a.id_pessoa);
+          if (v) {
+            // Para usar buildHistoricoAcessos precisamos das datas do visitante;
+            // visitanteInfo aqui não tem data_entrada/data_saida — vamos buscar
+            // direto dos acessos faciais agrupados
+            const acessosV = facialPorVisitante.get(a.id_pessoa) ?? [];
+            historicoAcessos = acessosV
+              .map((row) => ({
+                evento: (row.evento === 'saida'
+                  ? 'saida'
+                  : row.evento === 'negado'
+                    ? 'negado'
+                    : 'entrada') as 'entrada' | 'saida' | 'negado',
+                timestamp: row.timestamp.toISOString(),
+                metodo: 'facial' as const,
+                metodoLabel: 'Terminal Facial',
+                confianca: row.confianca ?? undefined,
+                terminalNome: deviceById.get(row.id_device) ?? `Terminal #${row.id_device}`,
+              }))
+              .sort((x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime());
+          }
+        }
+
         ultimosEventos.push({
           tipo: 'Acesso Facial',
           descricao: `${a.nome_pessoa} ${acao} pelo terminal facial${confiancaPct}`,
@@ -369,11 +511,16 @@ export class DashboardService {
                     'Acesso negado',
             dataEntrada: a.evento === 'entrada' ? a.timestamp.toISOString() : undefined,
             dataSaida: a.evento === 'saida' ? a.timestamp.toISOString() : undefined,
-            autorizadoPor: `Terminal Facial #${a.id_device}`,
+            autorizadoPor: terminalNome,
             descricao: a.confianca != null
               ? `Reconhecido com ${Math.round(a.confianca * 100)}% de confiança`
               : undefined,
             fotoPessoa: foto,
+            metodoLiberacao: 'facial',
+            metodoLabel: 'Terminal Facial',
+            confianca: a.confianca ?? undefined,
+            terminalNome,
+            historicoAcessos,
           },
         });
       }

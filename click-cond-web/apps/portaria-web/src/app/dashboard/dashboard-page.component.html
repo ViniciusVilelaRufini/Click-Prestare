@@ -682,6 +682,101 @@
                 <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">Autorizado Por</span>
                 <span class="text-sm font-semibold text-slate-850 dark:text-slate-100">{{ ev.detalhes.autorizadoPor || 'Não informado' }}</span>
               </div>
+
+              <!-- Método de liberação atual -->
+              @if (ev.detalhes.metodoLiberacao) {
+                <div [class]="ev.detalhes.metodoLiberacao === 'facial'
+                              ? 'p-3 rounded-xl border bg-accent/5 border-accent/20'
+                              : 'p-3 rounded-xl border bg-slate-50 dark:bg-white/5 border-slate-200/40 dark:border-white/5'">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Método de Liberação</span>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    @if (ev.detalhes.metodoLiberacao === 'facial') {
+                      <span class="inline-flex items-center gap-1.5 text-xs font-bold text-accent">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                        Reconhecimento Facial
+                      </span>
+                    } @else {
+                      <span class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                        </svg>
+                        {{ ev.detalhes.metodoLabel || 'PIN / Manual' }}
+                      </span>
+                    }
+                    @if (ev.detalhes.terminalNome) {
+                      <span class="text-[10px] font-mono text-slate-500 dark:text-slate-450">·  {{ ev.detalhes.terminalNome }}</span>
+                    }
+                    @if (ev.detalhes.confianca != null) {
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
+                        {{ (ev.detalhes.confianca * 100).toFixed(0) }}% confiança
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- Linha do tempo de acessos -->
+              @if (ev.detalhes.historicoAcessos && ev.detalhes.historicoAcessos.length > 0) {
+                <div class="bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
+                  <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Histórico de Acessos
+                  </span>
+                  <ul class="space-y-2">
+                    @for (h of ev.detalhes.historicoAcessos; track $index) {
+                      <li class="flex items-center gap-2.5 text-xs">
+                        @if (h.evento === 'entrada') {
+                          <span class="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shrink-0">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+                            </svg>
+                          </span>
+                        } @else if (h.evento === 'saida') {
+                          <span class="w-6 h-6 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                            </svg>
+                          </span>
+                        } @else {
+                          <span class="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01"/>
+                            </svg>
+                          </span>
+                        }
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-semibold text-slate-850 dark:text-slate-100">
+                              @if (h.evento === 'entrada') { Entrou }
+                              @else if (h.evento === 'saida') { Saiu }
+                              @else { Acesso negado }
+                            </span>
+                            <span class="text-[10px] font-mono text-slate-500 dark:text-slate-450">{{ h.timestamp | date:'dd/MM HH:mm:ss' }}</span>
+                          </div>
+                          <div class="flex items-center gap-1.5 mt-0.5 text-[10px]">
+                            <span [class]="h.metodo === 'facial'
+                                            ? 'inline-flex items-center px-1.5 py-0.5 rounded font-bold bg-accent/10 text-accent border border-accent/20'
+                                            : 'inline-flex items-center px-1.5 py-0.5 rounded font-bold bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-300'">
+                              {{ h.metodoLabel }}
+                            </span>
+                            @if (h.terminalNome) {
+                              <span class="text-slate-450 dark:text-slate-500 font-mono">{{ h.terminalNome }}</span>
+                            }
+                            @if (h.confianca != null) {
+                              <span class="text-slate-450 dark:text-slate-500">· {{ (h.confianca * 100).toFixed(0) }}%</span>
+                            }
+                          </div>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
             </div>
           }
 

@@ -33,6 +33,18 @@ export interface DashboardSummary {
       resposta?: string;
       fotoPessoa?: string;
       fotoDocumento?: string;
+      metodoLiberacao?: 'facial' | 'pin' | 'manual';
+      metodoLabel?: string;
+      confianca?: number;
+      terminalNome?: string;
+      historicoAcessos?: {
+        evento: 'entrada' | 'saida' | 'negado';
+        timestamp: string;
+        metodo: 'facial' | 'pin' | 'manual';
+        metodoLabel: string;
+        confianca?: number;
+        terminalNome?: string;
+      }[];
     };
   }[];
 }
