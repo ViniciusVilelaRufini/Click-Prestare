@@ -350,6 +350,220 @@ export class VisitantesService {
     };
   }
 
+  async detalhes(id: number) {
+    if (!this.prisma.isConnected) {
+      throw new NotFoundException('Banco indisponível');
+    }
+
+    const v = await this.prisma.visitantes.findUnique({
+      where: { id: Number(id) },
+      include: {
+        apartamento: { select: { id: true, bloco: true, apto: true } },
+        criadoPor: { select: { name: true } },
+        condominio: { select: { nome: true } },
+      },
+    });
+    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+
+    // Outros registros do mesmo visitante (mesmo doc OU mesmo nome no mesmo condomínio)
+    const docNorm = v.doc_identificacao?.trim();
+    const outrasVisitas = await this.prisma.visitantes.findMany({
+      where: {
+        id_condominio: v.id_condominio,
+        OR: [
+          ...(docNorm ? [{ doc_identificacao: docNorm }] : []),
+          { nome: v.nome },
+        ],
+        NOT: { id: v.id },
+      },
+      include: {
+        apartamento: { select: { id: true, bloco: true, apto: true } },
+      },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+    });
+
+    const todasVisitas = [v, ...outrasVisitas];
+    const todosVisIds = todasVisitas.map((x) => x.id);
+
+    // Acessos faciais de qualquer um desses registros
+    const acessosFacial = todosVisIds.length > 0
+      ? await this.prisma.acessos_Facial.findMany({
+          where: {
+            tipo_pessoa: 'visitante',
+            id_pessoa: { in: todosVisIds },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 100,
+        })
+      : [];
+
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: { id_condominio: v.id_condominio },
+      select: { id: true, nome: true },
+    });
+    const deviceNomePor = new Map(devices.map((d) => [d.id, d.nome]));
+
+    // Monta a timeline (mais recente primeiro)
+    const DEDUP_MS = 15_000;
+    const facialBuckets = new Set<string>();
+    for (const a of acessosFacial) {
+      const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b}`);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
+    }
+    const isDup = (idVis: number, evento: 'entrada' | 'saida', ts: Date) => {
+      const b = Math.floor(ts.getTime() / DEDUP_MS);
+      return facialBuckets.has(`${idVis}:${evento}:${b}`);
+    };
+
+    type TimelineEntry = {
+      evento: 'entrada' | 'saida' | 'negado';
+      timestamp: string;
+      metodo: 'facial' | 'pin';
+      metodoLabel: string;
+      confianca?: number;
+      terminalNome?: string;
+      idApartamento?: number;
+      blocoApto?: string;
+      idVisitanteRegistro: number;
+    };
+
+    const timeline: TimelineEntry[] = [];
+
+    // Acessos faciais
+    for (const a of acessosFacial) {
+      const visitanteReg = todasVisitas.find((x) => x.id === a.id_pessoa);
+      const apto = visitanteReg?.apartamento;
+      timeline.push({
+        evento: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada',
+        timestamp: a.timestamp.toISOString(),
+        metodo: 'facial',
+        metodoLabel: 'Terminal Facial',
+        confianca: a.confianca ?? undefined,
+        terminalNome: deviceNomePor.get(a.id_device) ?? `Terminal #${a.id_device}`,
+        idApartamento: apto?.id,
+        blocoApto: apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined,
+        idVisitanteRegistro: a.id_pessoa,
+      });
+    }
+
+    // Entradas/Saídas por PIN/Manual (que não casam com acesso facial)
+    for (const reg of todasVisitas) {
+      const apto = reg.apartamento;
+      const blocoApto = apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined;
+      if (reg.data_entrada && !isDup(reg.id, 'entrada', reg.data_entrada)) {
+        timeline.push({
+          evento: 'entrada',
+          timestamp: reg.data_entrada.toISOString(),
+          metodo: 'pin',
+          metodoLabel: 'PIN / Manual',
+          idApartamento: apto?.id,
+          blocoApto,
+          idVisitanteRegistro: reg.id,
+        });
+      }
+      if (reg.data_saida && !isDup(reg.id, 'saida', reg.data_saida)) {
+        timeline.push({
+          evento: 'saida',
+          timestamp: reg.data_saida.toISOString(),
+          metodo: 'pin',
+          metodoLabel: 'PIN / Manual',
+          idApartamento: apto?.id,
+          blocoApto,
+          idVisitanteRegistro: reg.id,
+        });
+      }
+    }
+
+    timeline.sort(
+      (x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime(),
+    );
+
+    // Stats
+    const totalEntradas = timeline.filter((t) => t.evento === 'entrada').length;
+    const totalSaidas = timeline.filter((t) => t.evento === 'saida').length;
+    const totalNegados = timeline.filter((t) => t.evento === 'negado').length;
+    const primeira = timeline.length > 0 ? timeline[timeline.length - 1].timestamp : null;
+    const ultima = timeline.length > 0 ? timeline[0].timestamp : null;
+    const acessosFaciais = timeline.filter((t) => t.metodo === 'facial').length;
+    const acessosPin = timeline.filter((t) => t.metodo === 'pin').length;
+
+    // Calcula tempo médio dentro do condomínio (pareando entrada/saída em ordem)
+    const cron = [...timeline].sort(
+      (x, y) => new Date(x.timestamp).getTime() - new Date(y.timestamp).getTime(),
+    );
+    let permanenciaTotalMs = 0;
+    let permanenciaCount = 0;
+    let entradaAberta: TimelineEntry | null = null;
+    for (const ev of cron) {
+      if (ev.evento === 'entrada') {
+        entradaAberta = ev;
+      } else if (ev.evento === 'saida' && entradaAberta) {
+        permanenciaTotalMs +=
+          new Date(ev.timestamp).getTime() - new Date(entradaAberta.timestamp).getTime();
+        permanenciaCount++;
+        entradaAberta = null;
+      }
+    }
+    const tempoMedioMs = permanenciaCount > 0 ? permanenciaTotalMs / permanenciaCount : null;
+
+    // Lista única de apartamentos visitados
+    const apartamentosVisitados = new Map<number, { id: number; blocoApto: string; visitas: number }>();
+    for (const reg of todasVisitas) {
+      if (!reg.apartamento) continue;
+      const a = reg.apartamento;
+      const key = a.id;
+      const blocoApto = `${a.apto ?? ''}${a.bloco ?? ''}`.trim();
+      const existing = apartamentosVisitados.get(key);
+      if (existing) {
+        existing.visitas++;
+      } else {
+        apartamentosVisitados.set(key, { id: a.id, blocoApto, visitas: 1 });
+      }
+    }
+
+    return {
+      visitante: {
+        id: v.id,
+        nome: v.nome,
+        doc_identificacao: v.doc_identificacao,
+        foto_pessoa: v.foto_pessoa,
+        foto_documento: v.foto_documento,
+        is_visitante: v.is_visitante,
+        is_prestador: v.is_prestador,
+        id_apartamento: v.id_apartamento,
+        blocoAptoAtual: v.apartamento
+          ? `${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim()
+          : null,
+        face_id: v.face_id,
+        face_sync_status: v.face_sync_status,
+        condominio: v.condominio?.nome ?? null,
+        criadoPor: v.criadoPor?.name ?? null,
+        data_hora_inicio: v.data_hora_inicio?.toISOString() ?? null,
+        data_hora_termino: v.data_hora_termino?.toISOString() ?? null,
+        codigo_acesso: v.codigo_acesso,
+        data_entrada: v.data_entrada?.toISOString() ?? null,
+        data_saida: v.data_saida?.toISOString() ?? null,
+        created_at: v.created_at.toISOString(),
+      },
+      stats: {
+        totalEntradas,
+        totalSaidas,
+        totalNegados,
+        primeiraVisita: primeira,
+        ultimaVisita: ultima,
+        acessosFaciais,
+        acessosPin,
+        tempoMedioMs,
+        permanenciaCount,
+        apartamentosVisitados: Array.from(apartamentosVisitados.values()),
+      },
+      timeline,
+    };
+  }
+
   async checkIn(id: number) {
     await this.prisma.visitantes.update({
       where: { id: Number(id) },

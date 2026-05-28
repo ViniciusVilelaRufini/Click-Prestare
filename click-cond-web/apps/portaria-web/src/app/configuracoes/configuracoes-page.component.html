@@ -14,143 +14,167 @@
     </div>
   </div>
 
-  <!-- Grid Principal -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <!-- Abas (Tabs) -->
+  <div class="flex gap-2 border-b border-white/5 pb-px">
+    <button
+      (click)="currentTab.set('conta')"
+      [class]="'px-4 pb-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all duration-200 ' + 
+        (currentTab() === 'conta' ? 'border-accent text-accent' : 'border-transparent text-slate-400 hover:text-white')"
+    >
+      Segurança e Perfil
+    </button>
+    <button
+      (click)="currentTab.set('terminais')"
+      [class]="'px-4 pb-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all duration-200 ' + 
+        (currentTab() === 'terminais' ? 'border-accent text-accent' : 'border-transparent text-slate-400 hover:text-white')"
+    >
+      Terminais Faciais
+    </button>
+  </div>
 
-    <!-- Card de Perfil do Usuário -->
-    <div class="md:col-span-1 p-6 rounded-2xl bg-graphite-200 border border-white/5 flex flex-col items-center text-center space-y-6 relative overflow-hidden">
-      <!-- Decorativo Translúcido de Fundo -->
-      <div class="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+  @if (currentTab() === 'conta') {
+    <!-- Grid Principal -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
 
-      <!-- Avatar com Iniciais -->
-      @if (auth.porteiroInfo(); as info) {
-        <div class="relative">
-          <div class="w-20 h-20 rounded-full bg-accent/15 border-2 border-accent/30 flex items-center justify-center shadow-lg shadow-accent/5">
-            <span class="text-accent text-3xl font-bold tracking-tight">
-              {{ info.nome.charAt(0).toUpperCase() }}
-            </span>
+      <!-- Card de Perfil do Usuário -->
+      <div class="md:col-span-1 p-6 rounded-2xl bg-graphite-200 border border-white/5 flex flex-col items-center text-center space-y-6 relative overflow-hidden">
+        <!-- Decorativo Translúcido de Fundo -->
+        <div class="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+
+        <!-- Avatar com Iniciais -->
+        @if (auth.porteiroInfo(); as info) {
+          <div class="relative">
+            <div class="w-20 h-20 rounded-full bg-accent/15 border-2 border-accent/30 flex items-center justify-center shadow-lg shadow-accent/5">
+              <span class="text-accent text-3xl font-bold tracking-tight">
+                {{ info.nome.charAt(0).toUpperCase() }}
+              </span>
+            </div>
+            <span class="absolute bottom-0 right-1 w-5 h-5 rounded-full bg-green-500 border-4 border-graphite-200" title="Sessão Ativa"></span>
           </div>
-          <span class="absolute bottom-0 right-1 w-5 h-5 rounded-full bg-green-500 border-4 border-graphite-200" title="Sessão Ativa"></span>
-        </div>
 
-        <div class="space-y-1">
-          <h2 class="text-lg font-bold text-white leading-snug">{{ info.nome }}</h2>
-          <p class="text-xs text-accent font-semibold tracking-wider uppercase">
-            {{ info.turno || 'Operador Geral' }}
-          </p>
-        </div>
-
-        <div class="w-full pt-6 border-t border-white/5 space-y-4 text-left">
           <div class="space-y-1">
-            <span class="text-[10px] text-slate-500 uppercase tracking-widest block">Condomínio Atual</span>
-            <div class="flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-              <span class="text-xs font-semibold text-slate-200">{{ auth.condominioNome() }}</span>
+            <h2 class="text-lg font-bold text-white leading-snug">{{ info.nome }}</h2>
+            <p class="text-xs text-accent font-semibold tracking-wider uppercase">
+              {{ info.turno || 'Operador Geral' }}
+            </p>
+          </div>
+
+          <div class="w-full pt-6 border-t border-white/5 space-y-4 text-left">
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-widest block">Condomínio Atual</span>
+              <div class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
+                <span class="text-xs font-semibold text-slate-200">{{ auth.condominioNome() }}</span>
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-widest block">Código Identificador</span>
+              <span class="text-xs font-mono text-slate-400">#{{ info.id ?? '---' }}</span>
+            </div>
+
+            <div class="space-y-1">
+              <span class="text-[10px] text-slate-500 uppercase tracking-widest block">Nível de Permissão</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent/10 border border-accent/20 text-accent uppercase tracking-wider">
+                {{ info.turno ? 'Portaria' : 'Gestor' }}
+              </span>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Card de Segurança / Alteração de Senha -->
+      <div class="md:col-span-2 p-6 rounded-2xl bg-graphite-200 border border-white/5 space-y-6">
+        <div class="space-y-1">
+          <h2 class="text-lg font-bold text-white">Alterar Senha de Acesso</h2>
+          <p class="text-xs text-slate-400">Garanta a segurança de sua conta alterando sua senha periodicamente.</p>
+        </div>
+
+        <!-- Feedbacks de Alerta -->
+        @if (successMessage()) {
+          <div class="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-medium flex items-center gap-2.5 animate-fadeIn">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>
+            <span>{{ successMessage() }}</span>
+          </div>
+        }
+
+        @if (errorMessage()) {
+          <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium flex items-center gap-2.5 animate-fadeIn">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <span>{{ errorMessage() }}</span>
+          </div>
+        }
+
+        <form (submit)="alterarSenha(); $event.preventDefault()" class="space-y-4">
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-slate-400">Senha Atual</label>
+            <div class="relative">
+              <input
+                [(ngModel)]="senhaAtual"
+                name="senhaAtual"
+                type="password"
+                placeholder="Digite sua senha atual"
+                required
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
             </div>
           </div>
 
-          <div class="space-y-1">
-            <span class="text-[10px] text-slate-500 uppercase tracking-widest block">Código Identificador</span>
-            <span class="text-xs font-mono text-slate-400">#{{ info.id ?? '---' }}</span>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Nova Senha</label>
+              <input
+                [(ngModel)]="novaSenha"
+                name="novaSenha"
+                type="password"
+                placeholder="Min. 6 caracteres"
+                required
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-400">Confirmar Nova Senha</label>
+              <input
+                [(ngModel)]="confirmarSenha"
+                name="confirmarSenha"
+                type="password"
+                placeholder="Confirme a nova senha"
+                required
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+            </div>
           </div>
 
-          <div class="space-y-1">
-            <span class="text-[10px] text-slate-500 uppercase tracking-widest block">Nível de Permissão</span>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent/10 border border-accent/20 text-accent uppercase tracking-wider">
-              {{ info.turno ? 'Portaria' : 'Gestor' }}
-            </span>
+          <div class="pt-4 border-t border-white/5 flex items-center justify-between gap-4 flex-wrap">
+            <div class="text-[10px] text-slate-500 max-w-sm leading-relaxed">
+              Dica: Utilize letras maiúsculas, minúsculas, números e caracteres especiais para criar uma senha forte.
+            </div>
+            <button
+              type="submit"
+              [disabled]="loading() || !senhaAtual || !novaSenha || !confirmarSenha"
+              class="px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 disabled:opacity-50 transition active:scale-95 flex items-center gap-2 shrink-0 shadow-lg shadow-accent/5"
+            >
+              @if (loading()) {
+                <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span>Salvando...</span>
+              } @else {
+                <span>Salvar Alterações</span>
+              }
+            </button>
           </div>
-        </div>
-      }
-    </div>
-
-    <!-- Card de Segurança / Alteração de Senha -->
-    <div class="md:col-span-2 p-6 rounded-2xl bg-graphite-200 border border-white/5 space-y-6">
-      <div class="space-y-1">
-        <h2 class="text-lg font-bold text-white">Alterar Senha de Acesso</h2>
-        <p class="text-xs text-slate-400">Garanta a segurança de sua conta alterando sua senha periodicamente.</p>
+        </form>
       </div>
 
-      <!-- Feedbacks de Alerta -->
-      @if (successMessage()) {
-        <div class="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-medium flex items-center gap-2.5 animate-fadeIn">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-          </svg>
-          <span>{{ successMessage() }}</span>
-        </div>
-      }
-
-      @if (errorMessage()) {
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium flex items-center gap-2.5 animate-fadeIn">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-          </svg>
-          <span>{{ errorMessage() }}</span>
-        </div>
-      }
-
-      <form (submit)="alterarSenha(); $event.preventDefault()" class="space-y-4">
-        <div class="space-y-1.5">
-          <label class="block text-xs font-semibold text-slate-400">Senha Atual</label>
-          <div class="relative">
-            <input
-              [(ngModel)]="senhaAtual"
-              name="senhaAtual"
-              type="password"
-              placeholder="Digite sua senha atual"
-              required
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
-            />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label class="block text-xs font-semibold text-slate-400">Nova Senha</label>
-            <input
-              [(ngModel)]="novaSenha"
-              name="novaSenha"
-              type="password"
-              placeholder="Min. 6 caracteres"
-              required
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
-            />
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="block text-xs font-semibold text-slate-400">Confirmar Nova Senha</label>
-            <input
-              [(ngModel)]="confirmarSenha"
-              name="confirmarSenha"
-              type="password"
-              placeholder="Confirme a nova senha"
-              required
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
-            />
-          </div>
-        </div>
-
-        <div class="pt-4 border-t border-white/5 flex items-center justify-between gap-4 flex-wrap">
-          <div class="text-[10px] text-slate-500 max-w-sm leading-relaxed">
-            Dica: Utilize letras maiúsculas, minúsculas, números e caracteres especiais para criar uma senha forte.
-          </div>
-          <button
-            type="submit"
-            [disabled]="loading() || !senhaAtual || !novaSenha || !confirmarSenha"
-            class="px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 disabled:opacity-50 transition active:scale-95 flex items-center gap-2 shrink-0 shadow-lg shadow-accent/5"
-          >
-            @if (loading()) {
-              <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              <span>Salvando...</span>
-            } @else {
-              <span>Salvar Alterações</span>
-            }
-          </button>
-        </div>
-      </form>
     </div>
-
-  </div>
+  } @else if (currentTab() === 'terminais') {
+    <div class="p-6 rounded-2xl bg-graphite-200 border border-white/5 animate-fadeIn">
+      <app-terminais-faciais-page [embedded]="true" />
+    </div>
+  }
 
 </div>

@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal, effect, untracked } from '
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { VisitantesService } from './visitantes.service';
+import { VisitantesService, VisitanteDetalhes } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
@@ -59,6 +59,45 @@ export class VisitantesPageComponent implements OnInit {
   // Modal de visualização de foto ampliada
   readonly fotoAmpliadaUrl = signal<string | null>(null);
   readonly fotoAmpliadaTitulo = signal<string>('');
+
+  // Modal de detalhes do visitante (timeline, stats, apartamentos)
+  readonly detalhesData = signal<VisitanteDetalhes | null>(null);
+  readonly detalhesLoading = signal(false);
+  readonly detalhesError = signal<string | null>(null);
+
+  abrirDetalhes(v: Visitante) {
+    this.detalhesData.set(null);
+    this.detalhesError.set(null);
+    this.detalhesLoading.set(true);
+    this.service.detalhes(v.id).subscribe({
+      next: (d) => {
+        this.detalhesData.set(d);
+        this.detalhesLoading.set(false);
+      },
+      error: (err) => {
+        this.detalhesLoading.set(false);
+        this.detalhesError.set(err?.error?.message ?? 'Falha ao carregar detalhes do visitante.');
+      },
+    });
+  }
+
+  fecharDetalhes() {
+    this.detalhesData.set(null);
+    this.detalhesError.set(null);
+    this.detalhesLoading.set(false);
+  }
+
+  formatarPermanencia(ms: number | null): string {
+    if (ms == null || ms <= 0) return '—';
+    const minutos = Math.floor(ms / 60000);
+    if (minutos < 60) return `${minutos} min`;
+    const horas = Math.floor(minutos / 60);
+    const restoMin = minutos % 60;
+    if (horas < 24) return `${horas}h ${restoMin}min`;
+    const dias = Math.floor(horas / 24);
+    const restoHoras = horas % 24;
+    return `${dias}d ${restoHoras}h`;
+  }
 
   readonly pagina = signal(1);
   readonly itensPorPagina = 20;

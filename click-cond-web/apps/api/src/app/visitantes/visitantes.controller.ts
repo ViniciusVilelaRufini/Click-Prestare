@@ -37,6 +37,11 @@ export class VisitantesController {
     return this.flatten(await this.service.findOne(id));
   }
 
+  @Get(':id/detalhes')
+  detalhes(@Param('id', ParseIntPipe) id: number) {
+    return this.service.detalhes(id);
+  }
+
   @Post()
   create(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,

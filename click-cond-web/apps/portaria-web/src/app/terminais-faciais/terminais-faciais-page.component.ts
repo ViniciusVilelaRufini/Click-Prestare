@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -14,6 +14,7 @@ import {
   templateUrl: './terminais-faciais-page.component.html',
 })
 export class TerminaisFaciaisPageComponent implements OnInit {
+  @Input() embedded = false;
   private api = inject(TerminaisFaciaisApi);
 
   readonly loading = signal(false);

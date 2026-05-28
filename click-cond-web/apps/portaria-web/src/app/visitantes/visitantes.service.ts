@@ -5,6 +5,55 @@ import { CreateVisitante, Visitante } from './visitante.model';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
 
+export interface VisitanteTimelineEntry {
+  evento: 'entrada' | 'saida' | 'negado';
+  timestamp: string;
+  metodo: 'facial' | 'pin';
+  metodoLabel: string;
+  confianca?: number;
+  terminalNome?: string;
+  idApartamento?: number;
+  blocoApto?: string;
+  idVisitanteRegistro: number;
+}
+
+export interface VisitanteDetalhes {
+  visitante: {
+    id: number;
+    nome: string;
+    doc_identificacao: string | null;
+    foto_pessoa: string | null;
+    foto_documento: string | null;
+    is_visitante: number | null;
+    is_prestador: number | null;
+    id_apartamento: number;
+    blocoAptoAtual: string | null;
+    face_id: string | null;
+    face_sync_status: string | null;
+    condominio: string | null;
+    criadoPor: string | null;
+    data_hora_inicio: string | null;
+    data_hora_termino: string | null;
+    codigo_acesso: string | null;
+    data_entrada: string | null;
+    data_saida: string | null;
+    created_at: string;
+  };
+  stats: {
+    totalEntradas: number;
+    totalSaidas: number;
+    totalNegados: number;
+    primeiraVisita: string | null;
+    ultimaVisita: string | null;
+    acessosFaciais: number;
+    acessosPin: number;
+    tempoMedioMs: number | null;
+    permanenciaCount: number;
+    apartamentosVisitados: { id: number; blocoApto: string; visitas: number }[];
+  };
+  timeline: VisitanteTimelineEntry[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class VisitantesService {
   private http = inject(HttpClient);
@@ -32,6 +81,10 @@ export class VisitantesService {
 
   remove(id: number): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
+  }
+
+  detalhes(id: number): Observable<VisitanteDetalhes> {
+    return this.http.get<VisitanteDetalhes>(`${this.base}/${id}/detalhes`);
   }
 
   validarCodigo(codigo: string): Observable<any> {
