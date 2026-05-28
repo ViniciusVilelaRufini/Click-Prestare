@@ -145,6 +145,59 @@ export class VisitantesService {
     return v;
   }
 
+  /**
+   * Busca um cadastro anterior da mesma pessoa no condomínio.
+   * Critério: mesmo documento (normalizado) OU mesmo nome (case insensitive)
+   * quando documento não é informado.
+   * Retorna o registro mais informativo (com foto e face_id sincronizado de
+   * preferência) para que possa ser reutilizado.
+   */
+  async buscarPessoa(idCondominio: number, doc?: string, nome?: string) {
+    if (!this.prisma.isConnected) return null;
+
+    const docNorm = doc?.trim();
+    const nomeNorm = nome?.trim();
+    if (!docNorm && !nomeNorm) return null;
+
+    const candidatos = await this.prisma.visitantes.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        OR: [
+          ...(docNorm ? [{ doc_identificacao: docNorm }] : []),
+          ...(nomeNorm && !docNorm ? [{ nome: nomeNorm }] : []),
+        ],
+      },
+      orderBy: { created_at: 'desc' },
+      take: 20,
+    });
+
+    if (candidatos.length === 0) return null;
+
+    // Prioriza candidato com foto_pessoa + face_sync_status='synced'
+    const score = (v: typeof candidatos[number]) => {
+      let s = 0;
+      if (v.face_sync_status === 'synced') s += 100;
+      if (v.face_id) s += 50;
+      if (v.foto_pessoa) s += 30;
+      if (v.foto_documento) s += 10;
+      return s;
+    };
+    candidatos.sort((a, b) => score(b) - score(a));
+    const melhor = candidatos[0];
+
+    return {
+      id: melhor.id,
+      nome: melhor.nome,
+      doc_identificacao: melhor.doc_identificacao,
+      foto_pessoa: melhor.foto_pessoa,
+      foto_documento: melhor.foto_documento,
+      face_id: melhor.face_id,
+      face_sync_status: melhor.face_sync_status,
+      face_enrolled_at: melhor.face_enrolled_at?.toISOString() ?? null,
+      totalVisitasAnteriores: candidatos.length,
+    };
+  }
+
   async create(dto: CreateVisitanteDto) {
     if (!this.prisma.isConnected) {
       return {
@@ -164,8 +217,30 @@ export class VisitantesService {
       };
     }
 
-    const fotoDoc = await this.resolveFoto(dto.foto_documento);
-    const fotoPes = await this.resolveFoto(dto.foto_pessoa);
+    let fotoDoc = await this.resolveFoto(dto.foto_documento);
+    let fotoPes = await this.resolveFoto(dto.foto_pessoa);
+
+    // Reutilização: se o operador NÃO enviou foto, tenta puxar de um
+    // cadastro anterior da mesma pessoa no condomínio (mesmo documento).
+    // Também herda face_id pra evitar duplicar no terminal facial.
+    let faceIdHerdado: string | null = null;
+    let faceSyncHerdado: string | null = null;
+    let faceEnrolledHerdado: Date | null = null;
+    if (!fotoPes && dto.doc_identificacao?.trim()) {
+      const anterior = await this.buscarPessoa(dto.id_condominio, dto.doc_identificacao, dto.nome);
+      if (anterior) {
+        if (!fotoPes && anterior.foto_pessoa) fotoPes = anterior.foto_pessoa;
+        if (!fotoDoc && anterior.foto_documento) fotoDoc = anterior.foto_documento;
+        if (anterior.face_id) {
+          faceIdHerdado = anterior.face_id;
+          faceSyncHerdado = anterior.face_sync_status;
+          faceEnrolledHerdado = anterior.face_enrolled_at ? new Date(anterior.face_enrolled_at) : null;
+        }
+        this.logger.log(
+          `Visitante ${dto.nome} (doc=${dto.doc_identificacao}) tem ${anterior.totalVisitasAnteriores} cadastro(s) anterior(es); reutilizando foto/face_id.`,
+        );
+      }
+    }
 
     // Gerar PIN único e ativo
     let pin = '';
@@ -193,6 +268,9 @@ export class VisitantesService {
         foto_documento: fotoDoc,
         foto_pessoa: fotoPes,
         codigo_acesso: pin,
+        face_id: faceIdHerdado,
+        face_sync_status: faceSyncHerdado,
+        face_enrolled_at: faceEnrolledHerdado,
       },
     });
 
@@ -225,7 +303,9 @@ export class VisitantesService {
       console.error('Erro ao notificar moradores sobre visitante:', error);
     }
 
-    if (fotoPes) {
+    // Sync facial: só dispara se há foto E o face_id ainda não foi herdado
+    // de cadastro anterior (caso herdou, terminal já conhece a pessoa).
+    if (fotoPes && !faceIdHerdado) {
       this.fireFacialSync(visitante.id);
     }
 

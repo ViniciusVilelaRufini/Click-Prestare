@@ -146,7 +146,31 @@
         <label class="block">
           <span class="text-xs font-medium text-slate-400 mb-1.5 block">Documento (CPF/CNPJ)</span>
           <input [(ngModel)]="novo.doc_identificacao" appMask="cpfCnpj" placeholder="000.000.000-00"
+            (blur)="verificarPessoaExistente()"
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
+          @if (pessoaEncontrada(); as p) {
+            <div class="mt-2 p-3 rounded-lg bg-accent/5 border border-accent/30 flex items-center gap-3">
+              @if (p.foto_pessoa) {
+                <img [src]="p.foto_pessoa" class="w-10 h-10 rounded-full object-cover border border-accent/40" />
+              } @else {
+                <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold">
+                  {{ iniciais(p.nome) }}
+                </div>
+              }
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-accent">Pessoa já cadastrada</p>
+                <p class="text-[11px] text-slate-300 truncate">
+                  {{ p.nome }} · {{ p.totalVisitasAnteriores }} cadastro(s) anterior(es)
+                  @if (p.face_sync_status === 'synced') { · facial sincronizado }
+                </p>
+                <p class="text-[10px] text-slate-450 mt-0.5">A foto e o reconhecimento facial serão reutilizados automaticamente.</p>
+              </div>
+              <button type="button" (click)="reutilizarPessoa(p)"
+                      class="px-2.5 py-1 rounded-md text-[11px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 transition shrink-0">
+                Usar dados
+              </button>
+            </div>
+          }
         </label>
         <label class="block">
           <span class="text-xs font-medium text-slate-400 mb-1.5 block">Apartamento de destino *</span>

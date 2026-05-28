@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal, effect, untracked } from '
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { VisitantesService, VisitanteDetalhes } from './visitantes.service';
+import { VisitantesService, VisitanteDetalhes, PessoaEncontrada } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
@@ -64,6 +64,50 @@ export class VisitantesPageComponent implements OnInit {
   readonly detalhesData = signal<VisitanteDetalhes | null>(null);
   readonly detalhesLoading = signal(false);
   readonly detalhesError = signal<string | null>(null);
+
+  // Lookup de pessoa existente no formulário (mesmo doc)
+  readonly pessoaEncontrada = signal<PessoaEncontrada | null>(null);
+
+  /**
+   * Ao sair do campo "documento", busca se já há cadastro anterior dessa
+   * pessoa no condomínio. Se houver, mostra um banner sugerindo reutilizar
+   * foto/face_id. (O backend já reutiliza automaticamente quando o operador
+   * não envia foto — esse banner é só feedback visual.)
+   */
+  verificarPessoaExistente() {
+    const doc = (this.novo.doc_identificacao ?? '').trim();
+    if (!doc || doc.length < 3) {
+      this.pessoaEncontrada.set(null);
+      return;
+    }
+    // Não busca se estiver editando (já é o registro principal)
+    if (this.editingId) {
+      this.pessoaEncontrada.set(null);
+      return;
+    }
+    this.service.buscarPessoa(doc).subscribe({
+      next: (p) => this.pessoaEncontrada.set(p ?? null),
+      error: () => this.pessoaEncontrada.set(null),
+    });
+  }
+
+  /**
+   * Copia foto/nome da pessoa encontrada para o formulário atual.
+   * Útil quando o operador quer pré-preencher visualmente antes de salvar.
+   */
+  reutilizarPessoa(p: PessoaEncontrada) {
+    if (p.nome && !this.novo.nome) {
+      this.novo.nome = p.nome;
+    }
+    if (p.foto_pessoa) {
+      this.novo.foto_pessoa = p.foto_pessoa;
+      this.fotoPessoaBase64.set(p.foto_pessoa);
+    }
+    if (p.foto_documento) {
+      this.novo.foto_documento = p.foto_documento;
+      this.fotoDocumentoBase64.set(p.foto_documento);
+    }
+  }
 
   abrirDetalhes(v: Visitante) {
     this.detalhesData.set(null);
@@ -272,6 +316,7 @@ export class VisitantesPageComponent implements OnInit {
     this.novo = this.estadoInicial();
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
+    this.pessoaEncontrada.set(null);
     this.error.set(null);
     this.showForm = true;
   }
@@ -306,6 +351,7 @@ export class VisitantesPageComponent implements OnInit {
     this.editingId = null;
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
+    this.pessoaEncontrada.set(null);
     this.error.set(null);
   }
 

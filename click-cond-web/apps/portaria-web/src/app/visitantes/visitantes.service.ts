@@ -55,6 +55,18 @@ export interface VisitanteDetalhes {
   timeline: VisitanteTimelineEntry[];
 }
 
+export interface PessoaEncontrada {
+  id: number;
+  nome: string;
+  doc_identificacao: string | null;
+  foto_pessoa: string | null;
+  foto_documento: string | null;
+  face_id: string | null;
+  face_sync_status: string | null;
+  face_enrolled_at: string | null;
+  totalVisitasAnteriores: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class VisitantesService {
   private http = inject(HttpClient);
@@ -86,6 +98,13 @@ export class VisitantesService {
 
   detalhes(id: number): Observable<VisitanteDetalhes> {
     return this.http.get<VisitanteDetalhes>(`${this.base}/${id}/detalhes`);
+  }
+
+  buscarPessoa(doc?: string, nome?: string): Observable<PessoaEncontrada | null> {
+    let params = new HttpParams();
+    if (doc) params = params.set('doc', doc);
+    if (nome) params = params.set('nome', nome);
+    return this.http.get<PessoaEncontrada | null>(`${this.base}/buscar/pessoa`, { params });
   }
 
   validarCodigo(codigo: string): Observable<any> {

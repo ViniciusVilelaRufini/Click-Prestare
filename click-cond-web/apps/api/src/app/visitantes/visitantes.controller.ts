@@ -42,6 +42,15 @@ export class VisitantesController {
     return this.service.detalhes(id);
   }
 
+  @Get('buscar/pessoa')
+  buscarPessoa(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Query('doc') doc?: string,
+    @Query('nome') nome?: string,
+  ) {
+    return this.service.buscarPessoa(idCondominio, doc, nome);
+  }
+
   @Post()
   create(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
