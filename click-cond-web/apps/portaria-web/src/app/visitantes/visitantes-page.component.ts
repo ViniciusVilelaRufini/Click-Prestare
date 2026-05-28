@@ -162,7 +162,7 @@ export class VisitantesPageComponent implements OnInit {
   );
   readonly visitantesFiltrados = computed(() => {
     let list = this.visitantes();
-    
+
     // 1. Filtrar por status
     const f = this.viewFilter();
     if (f === 'ativos') {
@@ -182,7 +182,7 @@ export class VisitantesPageComponent implements OnInit {
     // 3. Filtrar por busca (tempo real)
     const term = this.search().toLowerCase().trim();
     if (term) {
-      list = list.filter((v) => 
+      list = list.filter((v) =>
         v.nome.toLowerCase().includes(term) ||
         (v.doc_identificacao && v.doc_identificacao.toLowerCase().includes(term)) ||
         (v.apto && v.apto.toLowerCase().includes(term)) ||
@@ -190,7 +190,43 @@ export class VisitantesPageComponent implements OnInit {
       );
     }
 
-    return list;
+    // 4. Deduplicar por documento (ou nome se não tiver documento).
+    //    Mantém o registro mais relevante:
+    //      - Prioriza quem está "no local" (data_entrada sem data_saida)
+    //      - Senão, prioriza quem tem PIN ativo (codigo_acesso)
+    //      - Senão, o mais recente (created_at desc)
+    //    Acumula a contagem de visitas anteriores em (v as any).visitasAnteriores.
+    const grupo = new Map<string, Visitante[]>();
+    for (const v of list) {
+      const docNorm = (v.doc_identificacao ?? '').trim().toLowerCase();
+      const nomeNorm = (v.nome ?? '').trim().toLowerCase();
+      const key = docNorm || `nome:${nomeNorm}`;
+      const arr = grupo.get(key) ?? [];
+      arr.push(v);
+      grupo.set(key, arr);
+    }
+
+    const score = (v: Visitante): number => {
+      if (v.data_entrada && !v.data_saida) return 1000; // No local
+      if (v.codigo_acesso) return 500;                  // PIN ativo / agendado
+      const created = v.created_at ? new Date(v.created_at).getTime() : 0;
+      return created / 1e10;                            // Mais recente ganha
+    };
+
+    const deduped: Visitante[] = [];
+    for (const arr of grupo.values()) {
+      arr.sort((a, b) => score(b) - score(a));
+      const principal = arr[0];
+      (principal as Visitante & { visitasAnteriores?: number }).visitasAnteriores = arr.length - 1;
+      deduped.push(principal);
+    }
+
+    // Mantém ordenação original (data_hora_inicio desc — vem do backend)
+    return deduped.sort((a, b) => {
+      const ta = a.data_hora_inicio ? new Date(a.data_hora_inicio).getTime() : 0;
+      const tb = b.data_hora_inicio ? new Date(b.data_hora_inicio).getTime() : 0;
+      return tb - ta;
+    });
   });
 
   novo: CreateVisitante = this.estadoInicial();
