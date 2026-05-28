@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/acessos_facial_list.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
@@ -125,14 +126,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
-                    child: Text(
-                      (item['nome'] ?? 'V').substring(0, 1).toUpperCase(),
-                      style: AppTypography.headline(context).copyWith(color: AppColors.primary),
-                    ),
-                  ),
+                  _buildVisitanteAvatar(context, item, radius: 28),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
@@ -788,14 +782,7 @@ class _VisitanteCard extends StatelessWidget {
           children: [
             Stack(
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
-                  child: Text(
-                    (item['nome'] ?? 'V').substring(0, 1).toUpperCase(),
-                    style: AppTypography.bodyMedium(context).copyWith(color: AppColors.primary),
-                  ),
-                ),
+                _buildVisitanteAvatar(context, item),
                 if (isInside)
                   Positioned(
                     right: 0, bottom: 0,
@@ -945,6 +932,59 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Extrai a string da foto do visitante a partir do payload da API.
+/// Aceita base64 puro, data URL ou URL HTTP (R2/Cloudflare).
+String? _getFotoVisitante(dynamic item) {
+  final raw = item['foto_pessoa'] ?? item['photo'];
+  if (raw == null) return null;
+  final s = raw.toString().trim();
+  if (s.isEmpty || s == 'null') return null;
+  return s;
+}
+
+/// Decide entre exibir a foto (NetworkImage ou MemoryImage de base64)
+/// ou um fallback com a inicial do nome.
+Widget _buildVisitanteAvatar(BuildContext context, dynamic item, {double radius = 22}) {
+  final foto = _getFotoVisitante(item);
+  final nome = (item['nome'] ?? 'V').toString();
+
+  if (foto != null) {
+    ImageProvider? provider;
+    if (foto.startsWith('http://') || foto.startsWith('https://')) {
+      provider = NetworkImage(foto);
+    } else if (foto.startsWith('data:')) {
+      // data:image/jpeg;base64,xxxxx
+      final commaIdx = foto.indexOf(',');
+      if (commaIdx > 0) {
+        try {
+          provider = MemoryImage(base64Decode(foto.substring(commaIdx + 1)));
+        } catch (_) { /* fallback abaixo */ }
+      }
+    } else {
+      // base64 puro
+      try {
+        provider = MemoryImage(base64Decode(foto));
+      } catch (_) { /* fallback abaixo */ }
+    }
+    if (provider != null) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: AppColors.primary.withOpacity(0.1),
+        backgroundImage: provider,
+      );
+    }
+  }
+
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: AppColors.primary.withOpacity(0.1),
+    child: Text(
+      nome.substring(0, 1).toUpperCase(),
+      style: AppTypography.bodyMedium(context).copyWith(color: AppColors.primary),
+    ),
+  );
 }
 
 Widget _buildFaceBadge(BuildContext context, String? status) {
