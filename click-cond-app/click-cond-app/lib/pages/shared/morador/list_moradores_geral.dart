@@ -337,7 +337,7 @@ class _MoradorGeralCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tipo = (item['tipo'] ?? 'Proprietario').toString();
     final tipoColor = _getTipoColor(tipo);
-    final photoUrl = item['photo']?.toString() ?? '';
+    final photoUrl = (item['foto_pessoa'] ?? item['photo'])?.toString() ?? '';
 
     return GestureDetector(
       onTap: onTap,

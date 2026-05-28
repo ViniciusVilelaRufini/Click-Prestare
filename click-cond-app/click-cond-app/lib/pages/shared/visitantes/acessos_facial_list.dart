@@ -49,14 +49,19 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
   }
 
-  ({IconData icon, Color color, String label}) _styleForEvento(String evento) {
+  ({IconData icon, Color color, String label}) _styleForEvento(String evento, String? observacao) {
+    // Anti-passback ou acesso explicitamente bloqueado
+    final isBlocked = evento == 'negado' &&
+        (observacao ?? '').toLowerCase().contains('anti-passback');
     switch (evento) {
       case 'entrada':
         return (icon: PhosphorIcons.signIn, color: AppColors.success, label: 'Entrou');
       case 'saida':
         return (icon: PhosphorIcons.signOut, color: AppColors.primary, label: 'Saiu');
       case 'negado':
-        return (icon: PhosphorIcons.xCircle, color: Colors.red, label: 'Negado');
+        return isBlocked
+            ? (icon: PhosphorIcons.prohibit, color: Colors.red, label: 'BLOQUEADO')
+            : (icon: PhosphorIcons.xCircle, color: Colors.red, label: 'Negado');
       default:
         return (
           icon: PhosphorIcons.scan,
@@ -135,7 +140,8 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
           child: Column(
             children: _acessos.map((a) {
               final evento = (a['evento'] ?? '').toString();
-              final style = _styleForEvento(evento);
+              final observacao = a['observacao']?.toString();
+              final style = _styleForEvento(evento, observacao);
               final isLast = a == _acessos.last;
               return Container(
                 padding: const EdgeInsets.symmetric(
@@ -170,6 +176,16 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
                               color: AppColors.textSecondary(context),
                             ),
                           ),
+                          if (observacao != null && observacao.trim().isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              observacao.trim(),
+                              style: AppTypography.tiny(context).copyWith(
+                                color: style.color.withOpacity(0.7),
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
