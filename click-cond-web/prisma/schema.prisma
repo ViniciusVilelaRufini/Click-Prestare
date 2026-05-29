@@ -500,6 +500,9 @@ model Visitantes {
   @@index([id_condominio])
   @@index([id_apartamento])
   @@index([user], map: "fk_vis_user")
+  // Acelera GROUP BY doc no listarPessoas e buscarPessoa (agrupamento de
+  // múltiplos registros da mesma pessoa).
+  @@index([id_condominio, doc_identificacao], map: "idx_vis_cond_doc")
 }
 
 model Prestadores_servico {

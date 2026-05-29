@@ -2,7 +2,7 @@ import {
   Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query,
 } from '@nestjs/common';
 import {
-  CreateVisitanteDto, UpdateVisitanteDto, VisitantesService,
+  CreateVisitanteDto, VisitantesService,
 } from './visitantes.service';
 
 import { ReqUser } from '../auth/req-user.decorator';
@@ -43,11 +43,6 @@ export class VisitantesController {
     @Query('search') search?: string,
   ) {
     return this.service.listarPessoas(idCondominio, search);
-  }
-
-  @Get(':id')
-  async get(@Param('id', ParseIntPipe) id: number) {
-    return this.flatten(await this.service.findOne(id));
   }
 
   @Get(':id/detalhes')
@@ -122,19 +117,11 @@ export class VisitantesController {
     return this.service.create({ ...body, id_condominio: idCondominio });
   }
 
-  @Put(':id')
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: Omit<UpdateVisitanteDto, 'id'>,
-  ) {
-    return this.service.update({ ...body, id });
-  }
-
-  @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    await this.service.remove(id);
-    return { ok: true };
-  }
+  // PUT /:id e DELETE /:id foram removidos. Para atualizar identidade de
+  // uma pessoa em todas as suas visitas, use PUT /pessoa/:idRef. Para
+  // remover, use DELETE /pessoa/:idRef. Atualizações específicas de uma
+  // visita ainda podem ser feitas via POST /visitantes/update (legacy,
+  // usado pelo app Flutter).
 }
 
 @Controller('visitantes')
@@ -172,14 +159,6 @@ export class VisitantesGlobalController {
   @Post('check-out')
   async checkOut(@Body('id', ParseIntPipe) id: number) {
     return this.service.checkOut(id);
-  }
-
-  @Get('get')
-  async getDetails(
-    @Query('id', ParseIntPipe) id: number,
-  ) {
-    const v = await this.service.findOne(id);
-    return this.flatten(v);
   }
 
   @Get('get-all')

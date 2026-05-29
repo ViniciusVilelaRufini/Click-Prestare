@@ -32,7 +32,6 @@ export class VisitantesPageComponent implements OnInit {
     });
   }
 
-  readonly visitantes = signal<Visitante[]>([]);
   // Lista agregada por pessoa (1 pessoa = 1 linha). Fonte da página /visitantes.
   readonly pessoas = signal<Pessoa[]>([]);
   readonly apartamentos = signal<Apartamento[]>([]);
@@ -302,12 +301,6 @@ export class VisitantesPageComponent implements OnInit {
         this.loading.set(false);
       },
     });
-    // Mantém a lista bruta também para compatibilidade com computeds
-    // existentes (PIN validation, etc.). Custo mínimo.
-    this.service.list().subscribe({
-      next: (data) => this.visitantes.set(data),
-      error: () => {},
-    });
   }
 
   abrirNovo() {
@@ -574,20 +567,6 @@ export class VisitantesPageComponent implements OnInit {
       this.fotoDocumentoBase64.set(null);
       this.novo.foto_documento = null;
     }
-  }
-
-  async remover(v: Visitante | Pessoa) {
-    const ok = await this.confirm.ask({
-      title: 'Remover visitante',
-      message: `Remover o registro de ${v.nome}?`,
-      confirmLabel: 'Remover',
-      variant: 'danger',
-    });
-    if (!ok) return;
-    this.service.remove(v.id).subscribe({
-      next: () => this.carregar(),
-      error: (e) => this.error.set(`Falha ao remover: ${e?.message ?? e}`),
-    });
   }
 
   async darBaixa(v: Visitante | Pessoa) {

@@ -326,9 +326,6 @@ export class VisitantesService {
         // Visita atual (registro principal)
         id_apartamento: principal.id_apartamento,
         apartamentoAtual: aptoStr,
-        // Aliases para compatibilidade com HTML legacy
-        apto: apto?.apto ?? null,
-        apto_bloco: apto?.bloco ?? null,
 
         // Datas
         ultEntrada: ultEntrada?.toISOString() ?? null,
@@ -869,7 +866,7 @@ export class VisitantesService {
         terminalNome: deviceNomePor.get(a.id_device) ?? `Terminal #${a.id_device}`,
         idApartamento: apto?.id,
         blocoApto: apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined,
-        idVisitanteRegistro: a.id_pessoa,
+        idVisitanteRegistro: a.id_pessoa!,
         observacao: obs,
       });
     }

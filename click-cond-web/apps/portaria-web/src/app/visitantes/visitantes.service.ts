@@ -92,11 +92,8 @@ export interface Pessoa {
   id_apartamento: number;
   apartamentoAtual: string | null;
 
-  // Aliases para compatibilidade com o HTML antigo que usa estes nomes.
-  // Derivados de apartamentoAtual (apto = número, apto_bloco = letra/bloco).
-  apto?: string;
-  apto_bloco?: string;
-  tag_rfid?: string;
+  // tag_rfid herdada do registro principal (não é alias — é dado real)
+  tag_rfid?: string | null;
 
   ultEntrada: string | null;
   ultSaida: string | null;
@@ -119,23 +116,28 @@ export class VisitantesService {
     return `${API_BASE}/condominios/${cid}/visitantes`;
   }
 
+  /**
+   * Lista bruta de TODOS os registros de visita (não agrega por pessoa).
+   * Usado por componentes externos que precisam de pickers — ex:
+   * /prestadores/relacionar-visita, /simulador-dispositivos. NÃO usar na
+   * página principal /visitantes (use listarPessoas, agregado por pessoa).
+   */
   list(search?: string): Observable<Visitante[]> {
     let params = new HttpParams();
     if (search) params = params.set('search', search);
-
     return this.http.get<Visitante[]>(this.base, { params });
   }
 
+  /**
+   * Cria um cadastro novo (pessoa + 1ª visita ao mesmo tempo). Mapeia para
+   * POST /condominios/:id/visitantes — quando o operador cadastra uma
+   * pessoa que NÃO existe no condomínio.
+   *
+   * Para reutilizar identidade de pessoa já cadastrada, prefira
+   * novaVisitaPessoa() — endpoint dedicado que herda foto/face_id.
+   */
   create(dto: CreateVisitante): Observable<Visitante> {
     return this.http.post<Visitante>(this.base, dto);
-  }
-
-  update(id: number, dto: Partial<CreateVisitante>): Observable<Visitante> {
-    return this.http.put<Visitante>(`${this.base}/${id}`, dto);
-  }
-
-  remove(id: number): Observable<{ ok: boolean }> {
-    return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
   }
 
   detalhes(id: number): Observable<VisitanteDetalhes> {
