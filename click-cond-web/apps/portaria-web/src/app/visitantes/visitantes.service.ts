@@ -15,6 +15,7 @@ export interface VisitanteTimelineEntry {
   idApartamento?: number;
   blocoApto?: string;
   idVisitanteRegistro: number;
+  observacao?: string;
 }
 
 export interface VisitanteDetalhes {

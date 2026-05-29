@@ -789,6 +789,7 @@ export class VisitantesService {
       idApartamento?: number;
       blocoApto?: string;
       idVisitanteRegistro: number;
+      observacao?: string;
     };
 
     const timeline: TimelineEntry[] = [];
@@ -797,6 +798,11 @@ export class VisitantesService {
     for (const a of acessosFacial) {
       const visitanteReg = todasVisitas.find((x) => x.id === a.id_pessoa);
       const apto = visitanteReg?.apartamento;
+      let obs = undefined;
+      const match = a.nome_pessoa.match(/\(([^)]+)\)/);
+      if (match) {
+        obs = match[1];
+      }
       timeline.push({
         evento: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada',
         timestamp: a.timestamp.toISOString(),
@@ -807,6 +813,7 @@ export class VisitantesService {
         idApartamento: apto?.id,
         blocoApto: apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined,
         idVisitanteRegistro: a.id_pessoa,
+        observacao: obs,
       });
     }
 

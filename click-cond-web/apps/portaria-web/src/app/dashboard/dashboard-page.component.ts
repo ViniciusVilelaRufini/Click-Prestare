@@ -1,13 +1,16 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { DashboardApi, DashboardSummary } from './dashboard.service';
 import { AuthService } from '../auth/auth.service';
+import { VisitantesService, Pessoa } from '../visitantes/visitantes.service';
+import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, FormsModule],
   templateUrl: './dashboard-page.component.html',
   host: {
     '(window:keydown.escape)': 'onEscapePressed()'
@@ -16,6 +19,8 @@ import { AuthService } from '../auth/auth.service';
 export class DashboardPageComponent implements OnInit, OnDestroy {
   private api = inject(DashboardApi);
   readonly auth = inject(AuthService);
+  private visitantesService = inject(VisitantesService);
+  private aptosService = inject(ApartamentosApi);
 
   readonly data = signal<DashboardSummary | null>(null);
   readonly loading = signal(true);
@@ -28,6 +33,115 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly modoCompacto = signal(false);
   readonly fotoAmpliadaUrl = signal<string | null>(null);
   readonly fotoAmpliadaTitulo = signal<string>('');
+
+  // Estados do Modal de Liberação Rápida
+  readonly showLiberarModal = signal(false);
+  readonly buscaPessoa = signal('');
+  readonly pessoasEncontradas = signal<Pessoa[]>([]);
+  readonly pessoaSelecionada = signal<Pessoa | null>(null);
+  readonly apartamentos = signal<Apartamento[]>([]);
+  readonly idApartamentoSelecionado = signal<number | null>(null);
+  readonly carregandoPessoas = signal(false);
+  readonly liberandoVisitante = signal(false);
+  readonly erroLiberar = signal<string | null>(null);
+  readonly sucessoLiberar = signal<string | null>(null);
+
+  abrirModalLiberar() {
+    this.showLiberarModal.set(true);
+    this.buscaPessoa.set('');
+    this.pessoasEncontradas.set([]);
+    this.pessoaSelecionada.set(null);
+    this.idApartamentoSelecionado.set(null);
+    this.erroLiberar.set(null);
+    this.sucessoLiberar.set(null);
+
+    // Carrega a lista de apartamentos se estiver vazia
+    if (this.apartamentos().length === 0) {
+      this.aptosService.list().subscribe({
+        next: (data) => this.apartamentos.set(data),
+        error: (e) => this.erroLiberar.set('Falha ao carregar apartamentos: ' + (e?.message ?? e)),
+      });
+    }
+  }
+
+  fecharModalLiberar() {
+    this.showLiberarModal.set(false);
+    this.buscaPessoa.set('');
+    this.pessoasEncontradas.set([]);
+    this.pessoaSelecionada.set(null);
+    this.idApartamentoSelecionado.set(null);
+    this.erroLiberar.set(null);
+    this.sucessoLiberar.set(null);
+  }
+
+  onPesquisarPessoa() {
+    const termo = this.buscaPessoa().trim();
+    if (termo.length < 2) {
+      this.pessoasEncontradas.set([]);
+      return;
+    }
+    this.carregandoPessoas.set(true);
+    this.visitantesService.listarPessoas(termo).subscribe({
+      next: (data) => {
+        this.pessoasEncontradas.set(data);
+        this.carregandoPessoas.set(false);
+      },
+      error: (e) => {
+        this.erroLiberar.set('Falha ao buscar visitantes: ' + (e?.message ?? e));
+        this.carregandoPessoas.set(false);
+      }
+    });
+  }
+
+  selecionarPessoa(p: Pessoa) {
+    this.pessoaSelecionada.set(p);
+    this.erroLiberar.set(null);
+    if (p.id_apartamento) {
+      this.idApartamentoSelecionado.set(p.id_apartamento);
+    } else if (p.apartamentosVisitados && p.apartamentosVisitados.length > 0) {
+      this.idApartamentoSelecionado.set(p.apartamentosVisitados[0].id);
+    } else {
+      this.idApartamentoSelecionado.set(null);
+    }
+  }
+
+  confirmarLiberacao() {
+    const p = this.pessoaSelecionada();
+    const idApto = this.idApartamentoSelecionado();
+    if (!p) return;
+    if (!idApto) {
+      this.erroLiberar.set('Selecione o apartamento de destino.');
+      return;
+    }
+
+    this.liberandoVisitante.set(true);
+    this.erroLiberar.set(null);
+
+    this.visitantesService.novaVisitaPessoa(p.id, {
+      id_apartamento: idApto
+    }).subscribe({
+      next: (visitanteCriado) => {
+        this.visitantesService.checkIn(visitanteCriado.id).subscribe({
+          next: () => {
+            this.liberandoVisitante.set(false);
+            this.sucessoLiberar.set(`Acesso de ${p.nome} liberado com sucesso!`);
+            this.load();
+            setTimeout(() => {
+              this.fecharModalLiberar();
+            }, 2000);
+          },
+          error: (e) => {
+            this.liberandoVisitante.set(false);
+            this.erroLiberar.set('A visita foi cadastrada, mas falhou ao registrar a entrada: ' + (e?.error?.message ?? e?.message ?? e));
+          }
+        });
+      },
+      error: (e) => {
+        this.liberandoVisitante.set(false);
+        this.erroLiberar.set('Falha ao criar visita: ' + (e?.error?.message ?? e?.message ?? e));
+      }
+    });
+  }
 
   abrirAmpliarFoto(url: string, titulo: string) {
     this.fotoAmpliadaUrl.set(url);
@@ -101,6 +215,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   onEscapePressed() {
     if (this.eventosMaximizados()) {
       this.toggleMaximizacao();
+    }
+    if (this.showLiberarModal()) {
+      this.fecharModalLiberar();
     }
   }
 

@@ -35,7 +35,13 @@ class CellMorador extends StatelessWidget {
                 SizedBox(width: 10),
                 CircleAvatar(                      
                   radius: 45,
-                  backgroundImage: NetworkImage(item['photo'])
+                  backgroundColor: Colors.grey[200],
+                  backgroundImage: ((item['foto_pessoa'] ?? item['photo']) != null && (item['foto_pessoa'] ?? item['photo']).toString().isNotEmpty)
+                      ? NetworkImage((item['foto_pessoa'] ?? item['photo']).toString())
+                      : null,
+                  child: ((item['foto_pessoa'] ?? item['photo']) == null || (item['foto_pessoa'] ?? item['photo']).toString().isEmpty)
+                      ? const Icon(Icons.person, color: Colors.grey, size: 30)
+                      : null,
                 ),
                 SizedBox(width: 10),
                 SizedBox(

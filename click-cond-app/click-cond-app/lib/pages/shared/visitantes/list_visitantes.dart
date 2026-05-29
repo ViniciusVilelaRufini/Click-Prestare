@@ -42,6 +42,32 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
     super.dispose();
   }
 
+  Future<void> _registrarEntrada(dynamic item) async {
+    final id = item['id'];
+    if (id == null) return;
+    final result = await apiCheckInVisitante(id as int);
+    if (!mounted) return;
+    if (result is Map) {
+      // Sucesso
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Entrada de ${item['nome'] ?? 'visitante'} registrada com sucesso!'),
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      loadList();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro: ${result ?? 'Não foi possível registrar a entrada.'}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Future<void> loadList() async {
     try {
       setState(() => _isLoading = true);
@@ -427,6 +453,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
               ],
 
                    const SizedBox(height: 20),
+              // Botões de ação: Registrar Entrada (se autorizado/agendado) + Editar + Fechar
               Row(
                 children: [
                   Expanded(
@@ -440,35 +467,54 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                       child: Text('Fechar', style: AppTypography.body(context)),
                     ),
                   ),
-                  if (canAdd && item['data_saida'] == null && !isExpired) ...[
-                    const SizedBox(width: 12),
+                  // Botão REGISTRAR ENTRADA: aparece somente para visitantes autorizados sem data_entrada
+                  if (canAdd && item['data_entrada'] == null && item['data_saida'] == null && !isExpired) ...[
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
                           Navigator.pop(ctx);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => NewVisitante(
-                                isEdit: true,
-                                myId: item['id'],
-                              ),
-                            ),
-                          ).then((_) => loadList());
+                          await _registrarEntrada(item);
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          minimumSize: const Size.fromHeight(48),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: Text(
-                          'Editar',
+                        icon: const Icon(PhosphorIcons.signIn, size: 18, color: Colors.white),
+                        label: Text(
+                          'Registrar Entrada',
                           style: AppTypography.body(context).copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
+                            fontSize: 13,
                           ),
                         ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.success,
+                          minimumSize: const Size.fromHeight(48),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
                       ),
+                    ),
+                  ],
+                  if (canAdd && item['data_saida'] == null && !isExpired) ...[
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NewVisitante(
+                              isEdit: true,
+                              myId: item['id'],
+                            ),
+                          ),
+                        ).then((_) => loadList());
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        minimumSize: const Size(48, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                      ),
+                      child: const Icon(PhosphorIcons.pencilSimple, color: Colors.white, size: 18),
                     ),
                   ],
                 ],
@@ -596,12 +642,16 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
       child: AppScaffold(
         title: getText('visitantes_list'),
         floatingActionButton: canAdd
-            ? FloatingActionButton(
+            ? FloatingActionButton.extended(
                 onPressed: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)))
                     .then((_) => loadList()),
                 backgroundColor: AppColors.primary,
-                child: const Icon(PhosphorIcons.plus, color: Colors.white),
+                icon: const Icon(PhosphorIcons.userPlus, color: Colors.white, size: 20),
+                label: const Text(
+                  'Cadastrar novo visitante',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
               )
             : null,
         body: Column(

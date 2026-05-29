@@ -50,9 +50,9 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
   }
 
   ({IconData icon, Color color, String label}) _styleForEvento(String evento, String? observacao) {
-    // Anti-passback ou acesso explicitamente bloqueado
+    // Qualquer acesso negado com observação (anti-passback, sem liberação, etc.) é marcado como BLOQUEADO
     final isBlocked = evento == 'negado' &&
-        (observacao ?? '').toLowerCase().contains('anti-passback');
+        (observacao ?? '').trim().isNotEmpty;
     switch (evento) {
       case 'entrada':
         return (icon: PhosphorIcons.signIn, color: AppColors.success, label: 'Entrou');

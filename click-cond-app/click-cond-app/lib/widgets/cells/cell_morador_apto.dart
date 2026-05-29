@@ -24,10 +24,10 @@ class CellMoradorApto extends StatelessWidget {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: Colors.grey[200],
-                  backgroundImage: (item['photo'] != null && item['photo'].toString().isNotEmpty)
-                      ? NetworkImage(item['photo'])
+                  backgroundImage: ((item['foto_pessoa'] ?? item['photo']) != null && (item['foto_pessoa'] ?? item['photo']).toString().isNotEmpty)
+                      ? NetworkImage((item['foto_pessoa'] ?? item['photo']).toString())
                       : null,
-                  child: (item['photo'] == null || item['photo'].toString().isEmpty)
+                  child: ((item['foto_pessoa'] ?? item['photo']) == null || (item['foto_pessoa'] ?? item['photo']).toString().isEmpty)
                       ? const Icon(Icons.person, color: Colors.grey)
                       : null,
                 ),

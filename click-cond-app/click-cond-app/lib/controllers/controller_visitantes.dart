@@ -68,3 +68,29 @@ apiSaveVisitante(dynamic obj, bool isEdit) async {
     return "Falha de comunicação com o servidor.";
   }
 }
+
+/// Registra a entrada manual de um visitante (check-in pelo morador ou porteiro).
+/// Chama POST /visitantes/check-in com o id do visitante.
+apiCheckInVisitante(int idVisitante) async {
+  final url = ApiConfig.buildUri('/visitantes/check-in');
+  final headers = {
+    "Authorization": getToken(),
+    "Content-Type": "application/json; charset=utf-8"
+  };
+  final body = json.encode({'id': idVisitante});
+  try {
+    final response = await http.post(
+      url,
+      headers: headers,
+      body: body,
+      encoding: utf8,
+    ).timeout(ApiConfig.timeout);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return {};
+    }
+    final parsed = jsonDecode(response.body);
+    return parsed['message'] ?? "Erro ao registrar entrada";
+  } catch (e) {
+    return "Falha de comunicação com o servidor.";
+  }
+}

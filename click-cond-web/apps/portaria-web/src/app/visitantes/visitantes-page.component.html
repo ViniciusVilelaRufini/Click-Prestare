@@ -948,6 +948,12 @@
                             <span class="text-[10px] text-slate-500 dark:text-slate-450">· Apto {{ h.blocoApto }}</span>
                           }
                         </div>
+                        @if (h.observacao) {
+                          <div class="text-[10px] text-rose-500 dark:text-rose-450 font-medium italic mt-1.5 flex items-center gap-1">
+                            <span class="w-1 h-1 rounded-full bg-rose-500 dark:bg-rose-450"></span>
+                            {{ h.observacao }}
+                          </div>
+                        }
                       </div>
                     </li>
                   }

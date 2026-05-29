@@ -388,7 +388,7 @@ export class FacialService {
     });
     if (!device) throw new UnauthorizedException('Token de webhook inválido');
 
-    let tipoPessoa: 'morador' | 'visitante' | 'prestador' | null = null;
+    let tipoPessoa: 'morador' | 'visitante' | 'prestador' | 'funcionario' | null = null;
     let idPessoa: number | null = null;
     let nomePessoa = 'Desconhecido';
     let faceIdSalvo = '';
@@ -477,6 +477,56 @@ export class FacialService {
         },
       });
       throw new BadRequestException('Acesso negado: Credencial não encontrada ou inválida');
+    }
+
+    // Regra: Visitantes e Prestadores só podem acessar se a entrada foi ativamente liberada/registrada via app ou web
+    if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
+      const v = await this.prisma.visitantes.findUnique({ where: { id: idPessoa } });
+      if (!v) {
+        throw new NotFoundException('Cadastro de visitante/prestador não encontrado');
+      }
+
+      if (evento === 'entrada') {
+        if (!v.data_entrada) {
+          await this.prisma.acessos_Facial.create({
+            data: {
+              id_condominio: device.id_condominio,
+              id_device: device.id,
+              tipo_dispositivo: device.tipo,
+              face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+              tipo_pessoa: tipoPessoa,
+              id_pessoa: idPessoa,
+              nome_pessoa: `${nomePessoa} (Bloqueado por falta de liberação)`,
+              evento: 'negado',
+              confianca,
+              timestamp,
+            },
+          });
+          throw new BadRequestException(
+            'Acesso negado: A entrada deste visitante não foi autorizada pelo morador ou portaria.'
+          );
+        }
+      } else if (evento === 'saida') {
+        if (!v.data_entrada || v.data_saida) {
+          await this.prisma.acessos_Facial.create({
+            data: {
+              id_condominio: device.id_condominio,
+              id_device: device.id,
+              tipo_dispositivo: device.tipo,
+              face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+              tipo_pessoa: tipoPessoa,
+              id_pessoa: idPessoa,
+              nome_pessoa: `${nomePessoa} (Bloqueado por não estar no condomínio)`,
+              evento: 'negado',
+              confianca,
+              timestamp,
+            },
+          });
+          throw new BadRequestException(
+            'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.'
+          );
+        }
+      }
     }
 
     // Validação de Regras de Acesso (Sprint 3 com Horários e Sentidos)
@@ -675,18 +725,40 @@ export class FacialService {
   }
 
   async listAcessos(idCondominio: number, limit = 50) {
-    return this.prisma.acessos_Facial.findMany({
+    const list = await this.prisma.acessos_Facial.findMany({
       where: { id_condominio: idCondominio },
       orderBy: { timestamp: 'desc' },
       take: Math.min(limit, 200),
     });
+    return list.map((a) => {
+      let observacao = null;
+      const match = a.nome_pessoa.match(/\(([^)]+)\)/);
+      if (match) {
+        observacao = match[1];
+      }
+      return {
+        ...a,
+        observacao,
+      };
+    });
   }
 
   async listAcessosPessoa(tipo: 'morador' | 'visitante', idPessoa: number, limit = 30) {
-    return this.prisma.acessos_Facial.findMany({
+    const list = await this.prisma.acessos_Facial.findMany({
       where: { tipo_pessoa: tipo, id_pessoa: idPessoa },
       orderBy: { timestamp: 'desc' },
       take: Math.min(limit, 100),
+    });
+    return list.map((a) => {
+      let observacao = null;
+      const match = a.nome_pessoa.match(/\(([^)]+)\)/);
+      if (match) {
+        observacao = match[1];
+      }
+      return {
+        ...a,
+        observacao,
+      };
     });
   }
 
