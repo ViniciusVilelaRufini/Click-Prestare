@@ -405,7 +405,7 @@ export class FacialService {
         where: { qrcode_acesso: qrCodeLido, id_condominio: device.id_condominio }
       });
       if (morador) {
-        tipoPessoa = 'morador';
+        tipoPessoa = morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
         idPessoa = morador.id;
         nomePessoa = morador.nome;
         faceIdSalvo = qrCodeLido;
@@ -425,7 +425,7 @@ export class FacialService {
         where: { tag_rfid: tagRfidLida, id_condominio: device.id_condominio }
       });
       if (morador) {
-        tipoPessoa = 'morador';
+        tipoPessoa = morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
         idPessoa = morador.id;
         nomePessoa = morador.nome;
         faceIdSalvo = tagRfidLida;
@@ -445,7 +445,7 @@ export class FacialService {
       if (parsed.tipo === 'morador') {
         const m = await this.prisma.moradores.findUnique({ where: { id: parsed.id } });
         if (m) {
-          tipoPessoa = 'morador';
+          tipoPessoa = m.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
           idPessoa = m.id;
           nomePessoa = m.nome;
           faceIdSalvo = m.face_id ?? externalId;
@@ -487,6 +487,63 @@ export class FacialService {
       }
 
       if (evento === 'entrada') {
+        // Validação de janela temporal (Vigência da visita/agendamento)
+        const now = timestamp;
+        const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
+        const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : null;
+
+        const GRACE_PERIOD_MS = 15 * 60 * 1000;
+        const inicioComTolerancia = new Date(inicio.getTime() - GRACE_PERIOD_MS);
+
+        if (now < inicioComTolerancia) {
+          await this.prisma.acessos_Facial.create({
+            data: {
+              id_condominio: device.id_condominio,
+              id_device: device.id,
+              tipo_dispositivo: device.tipo,
+              face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+              tipo_pessoa: tipoPessoa,
+              id_pessoa: idPessoa,
+              nome_pessoa: `${nomePessoa} (Bloqueado por validade futura)`,
+              evento: 'negado',
+              confianca,
+              timestamp,
+            },
+          });
+          throw new BadRequestException(
+            'Acesso negado: O período de validade desta autorização ainda não iniciou.'
+          );
+        }
+
+        if (termino) {
+          const terminoComTolerancia = new Date(termino.getTime() + GRACE_PERIOD_MS);
+          if (now > terminoComTolerancia) {
+            // Se expirou temporalmente, revoga a flag liberado no banco para 0
+            await this.prisma.visitantes.update({
+              where: { id: v.id },
+              data: { liberado: 0 },
+            });
+
+            await this.prisma.acessos_Facial.create({
+              data: {
+                id_condominio: device.id_condominio,
+                id_device: device.id,
+                tipo_dispositivo: device.tipo,
+                face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+                tipo_pessoa: tipoPessoa,
+                id_pessoa: idPessoa,
+                nome_pessoa: `${nomePessoa} (Bloqueado por validade expirada)`,
+                evento: 'negado',
+                confianca,
+                timestamp,
+              },
+            });
+            throw new BadRequestException(
+              'Acesso negado: O período de validade desta autorização já expirou.'
+            );
+          }
+        }
+
         if (v.liberado !== 1) {
           await this.prisma.acessos_Facial.create({
             data: {
@@ -576,7 +633,7 @@ export class FacialService {
         if (tipoPessoa === 'morador' && r.permitir_morador === 1) permitido = true;
         if (tipoPessoa === 'visitante' && r.permitir_visitante === 1) permitido = true;
         if (tipoPessoa === 'prestador' && r.permitir_prestador === 1) permitido = true;
-        if ((tipoPessoa as string) === 'funcionario' && r.permitir_funcionario === 1) permitido = true;
+        if (tipoPessoa === 'funcionario' && r.permitir_funcionario === 1) permitido = true;
       }
 
       // Se temos regras aplicáveis para este sentido e horário, mas nenhuma autorizou o usuário
@@ -671,7 +728,11 @@ export class FacialService {
       } else if (evento === 'saida') {
         await this.prisma.visitantes.update({
           where: { id: v.id },
-          data: { data_saida: timestamp, codigo_acesso: device.tipo === 'qrcode_reader' ? null : v.codigo_acesso },
+          data: {
+            data_saida: timestamp,
+            codigo_acesso: device.tipo === 'qrcode_reader' ? null : v.codigo_acesso,
+            liberado: v.is_prestador === 1 ? 1 : 0
+          },
         });
       }
 

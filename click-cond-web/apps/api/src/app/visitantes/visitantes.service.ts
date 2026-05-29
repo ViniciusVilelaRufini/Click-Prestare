@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 
 export interface CreateVisitanteDto {
   nome: string;
@@ -30,6 +31,7 @@ export class VisitantesService {
     private readonly notifications: NotificationsService,
     private readonly storage: StorageService,
     private readonly facial: FacialService,
+    private readonly auditoria: AuditoriaService,
   ) {}
 
   private fireFacialSync(idVisitante: number) {
@@ -420,6 +422,15 @@ export class VisitantesService {
 
     const result = await this.prisma.visitantes.deleteMany({ where });
 
+    await this.auditoria.registrar({
+      id_condominio: ref.id_condominio,
+      usuario_nome: 'Sistema / Portaria',
+      acao: 'DELETE',
+      modulo: 'visitantes',
+      entidade_id: ref.id,
+      descricao: `Cadastro da pessoa "${ref.nome}" e todas as suas visitas associadas foram excluídos.`,
+    });
+
     // Best-effort: desinscreve do terminal
     for (const faceId of faceIds) {
       this.facial
@@ -473,6 +484,15 @@ export class VisitantesService {
     if (dto.is_prestador !== undefined) data.is_prestador = dto.is_prestador;
 
     const result = await this.prisma.visitantes.updateMany({ where, data });
+
+    await this.auditoria.registrar({
+      id_condominio: ref.id_condominio,
+      usuario_nome: 'Sistema / Portaria',
+      acao: 'UPDATE',
+      modulo: 'visitantes',
+      entidade_id: ref.id,
+      descricao: `Cadastro da pessoa "${dto.nome || ref.nome}" atualizado com sucesso.`,
+    });
 
     // Se a foto mudou e havia face_id, re-sincroniza
     if (fotoPes && ref.face_id) {
@@ -558,6 +578,16 @@ export class VisitantesService {
       },
     });
 
+    const tipoLabel = visitante.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    await this.auditoria.registrar({
+      id_condominio: visitante.id_condominio,
+      usuario_nome: 'Sistema / Portaria',
+      acao: 'CREATE',
+      modulo: 'visitantes',
+      entidade_id: visitante.id,
+      descricao: `Novo agendamento criado para ${tipoLabel} "${visitante.nome}".`,
+    });
+
     // Notificar moradores
     try {
       const moradores = await this.prisma.users.findMany({
@@ -626,6 +656,15 @@ export class VisitantesService {
       if (fotoPes !== undefined && fotoPes) {
         this.fireFacialSync(updated.id);
       }
+      const label = updated.is_prestador === 1 ? 'Prestador' : 'Visitante';
+      await this.auditoria.registrar({
+        id_condominio: updated.id_condominio,
+        usuario_nome: 'Sistema / Portaria',
+        acao: 'UPDATE',
+        modulo: 'visitantes',
+        entidade_id: updated.id,
+        descricao: `Dados da visita de ${label} "${updated.nome}" atualizados com sucesso.`,
+      });
       return updated;
     } catch {
       throw new NotFoundException(`Visitante ${dto.id} não encontrado`);
@@ -636,10 +675,21 @@ export class VisitantesService {
     if (!this.prisma.isConnected) return { success: true };
     const v = await this.prisma.visitantes.findUnique({
       where: { id: Number(id) },
-      select: { face_id: true, id_condominio: true },
+      select: { face_id: true, id_condominio: true, nome: true, is_prestador: true },
     });
     try {
       await this.prisma.visitantes.delete({ where: { id: Number(id) } });
+      if (v) {
+        const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+        await this.auditoria.registrar({
+          id_condominio: v.id_condominio,
+          usuario_nome: 'Sistema / Portaria',
+          acao: 'DELETE',
+          modulo: 'visitantes',
+          entidade_id: Number(id),
+          descricao: `Visita agendada de ${label} "${v.nome}" removida com sucesso.`,
+        });
+      }
     } catch {
       throw new NotFoundException(`Visitante ${id} não encontrado`);
     }
@@ -689,6 +739,10 @@ export class VisitantesService {
     }
     if (status === 'FUTURO') {
       throw new BadRequestException('Acesso negado: O período de validade deste código ainda não iniciou.');
+    }
+
+    if (v.liberado !== 1) {
+      throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
     const formatarData = (d: Date | null) => {
@@ -936,25 +990,52 @@ export class VisitantesService {
   }
 
   async checkIn(id: number) {
-    await this.prisma.visitantes.update({
+    const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: { data_entrada: new Date(), data_saida: null, liberado: 1 },
+    });
+    const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: 'Portaria / Sistema',
+      acao: 'CHECK_IN',
+      modulo: 'visitantes',
+      entidade_id: v.id,
+      descricao: `Check-in de ${label} "${v.nome}" registrado manualmente.`,
     });
     return { ok: true };
   }
 
   async liberarAcesso(id: number) {
-    await this.prisma.visitantes.update({
+    const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: { liberado: 1, data_entrada: null, data_saida: null },
+    });
+    const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: 'Portaria / Morador',
+      acao: 'UPDATE',
+      modulo: 'visitantes',
+      entidade_id: v.id,
+      descricao: `Acesso de ${label} "${v.nome}" liberado administrativamente.`,
     });
     return { ok: true };
   }
 
   async checkOut(id: number) {
-    await this.prisma.visitantes.update({
+    const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: { data_saida: new Date(), codigo_acesso: null, liberado: 0 },
+    });
+    const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: 'Portaria / Sistema',
+      acao: 'CHECK_OUT',
+      modulo: 'visitantes',
+      entidade_id: v.id,
+      descricao: `Check-out de ${label} "${v.nome}" registrado manualmente.`,
     });
     return { ok: true };
   }
