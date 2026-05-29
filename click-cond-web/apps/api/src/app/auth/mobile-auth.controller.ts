@@ -3,6 +3,7 @@ import { MobileAuthService } from './mobile-auth.service';
 import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
 import type { JwtPayload } from './jwt-payload.interface';
+import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 
 // ==========================================
 // SÍNDICO
@@ -265,7 +266,10 @@ export class ApartamentosMobileController {
 // ==========================================
 @Controller('ocorrencias')
 export class OcorrenciasMobileController {
-  constructor(private readonly service: MobileAuthService) {}
+  constructor(
+    private readonly service: MobileAuthService,
+    private readonly ocorrenciasService: OcorrenciasService,
+  ) {}
 
   @Get('categorias/get-all')
   categorias() {
@@ -308,6 +312,25 @@ export class OcorrenciasMobileController {
   @Get('get')
   get(@Query('id') id: string) {
     return this.service.getOcorrenciaById(Number(id));
+  }
+
+  @Get('mensagens/get-all')
+  listMessages(@Query('id') id: string) {
+    return this.ocorrenciasService.listMessages(Number(id));
+  }
+
+  @Post('mensagens/enviar')
+  @HttpCode(200)
+  createMessage(
+    @Body() body: { id_ocorrencia: number; mensagem: string },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    const idUser = payload?.user?.id ?? payload?.sub ?? null;
+    return this.ocorrenciasService.createMessage(
+      Number(body.id_ocorrencia),
+      Number(idUser),
+      body.mensagem,
+    );
   }
 }
 

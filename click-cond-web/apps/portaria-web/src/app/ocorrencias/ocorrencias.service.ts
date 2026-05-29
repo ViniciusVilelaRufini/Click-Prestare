@@ -56,4 +56,26 @@ export class OcorrenciasApi {
   remove(id: number): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
   }
+
+  listMessages(id: number): Observable<OcorrenciaMensagem[]> {
+    return this.http.get<OcorrenciaMensagem[]>(`${this.base}/${id}/mensagens`);
+  }
+
+  sendMessage(id: number, mensagem: string): Observable<OcorrenciaMensagem> {
+    return this.http.post<OcorrenciaMensagem>(`${this.base}/${id}/mensagens`, { mensagem });
+  }
+}
+
+export interface OcorrenciaMensagem {
+  id: number;
+  id_ocorrencia: number;
+  id_usuario: number;
+  mensagem: string;
+  created_at: string;
+  usuario: {
+    id: number;
+    name: string;
+    login_type: string;
+    is_sindico: number;
+  };
 }

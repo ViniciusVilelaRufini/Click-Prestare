@@ -5,5 +5,6 @@ import { OcorrenciasService } from './ocorrencias.service';
 @Module({
   controllers: [OcorrenciasController],
   providers: [OcorrenciasService],
+  exports: [OcorrenciasService],
 })
 export class OcorrenciasModule {}

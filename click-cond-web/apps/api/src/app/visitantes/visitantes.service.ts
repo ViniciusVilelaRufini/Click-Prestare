@@ -244,6 +244,7 @@ export class VisitantesService {
     // Score do registro principal (qual representa a pessoa na lista)
     const score = (v: Reg) => {
       if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
+      if (v.codigo_acesso && v.liberado === 1) return 800; // PIN ativo e liberado!
       if (v.codigo_acesso) return 500;                  // PIN ativo / agendado
       const created = v.created_at ? new Date(v.created_at).getTime() : 0;
       return created / 1e10;
@@ -543,6 +544,102 @@ export class VisitantesService {
       }
     }
 
+    // Reutilizar registro ativo existente (mesmo doc, ou mesmo nome se sem doc)
+    let existingActive: any = null;
+    const docNorm = dto.doc_identificacao?.trim();
+    if (docNorm) {
+      existingActive = await this.prisma.visitantes.findFirst({
+        where: {
+          id_condominio: Number(dto.id_condominio),
+          doc_identificacao: docNorm,
+          data_entrada: null,
+          data_saida: null,
+        },
+        orderBy: { id: 'desc' },
+      });
+    } else if (dto.nome?.trim()) {
+      existingActive = await this.prisma.visitantes.findFirst({
+        where: {
+          id_condominio: Number(dto.id_condominio),
+          nome: dto.nome.trim(),
+          doc_identificacao: null,
+          data_entrada: null,
+          data_saida: null,
+        },
+        orderBy: { id: 'desc' },
+      });
+    }
+
+    if (existingActive) {
+      this.logger.log(`Reutilizando agendamento ativo (id=${existingActive.id}) para "${dto.nome}".`);
+      const updated = await this.prisma.visitantes.update({
+        where: { id: existingActive.id },
+        data: {
+          nome: dto.nome,
+          doc_identificacao: dto.doc_identificacao ?? existingActive.doc_identificacao,
+          data_hora_inicio: dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : existingActive.data_hora_inicio,
+          data_hora_termino: dto.data_hora_termino ? new Date(dto.data_hora_termino) : existingActive.data_hora_termino,
+          is_visitante: dto.is_visitante ?? existingActive.is_visitante,
+          is_prestador: dto.is_prestador ?? existingActive.is_prestador,
+          id_apartamento: dto.id_apartamento,
+          foto_documento: fotoDoc ?? existingActive.foto_documento,
+          foto_pessoa: fotoPes ?? existingActive.foto_pessoa,
+          face_id: faceIdHerdado ?? existingActive.face_id,
+          face_sync_status: faceSyncHerdado ?? existingActive.face_sync_status,
+          face_enrolled_at: faceEnrolledHerdado ?? existingActive.face_enrolled_at,
+          liberado: 1,
+        },
+      });
+
+      const tipoLabel = updated.is_prestador === 1 ? 'Prestador' : 'Visitante';
+      await this.auditoria.registrar({
+        id_condominio: updated.id_condominio,
+        usuario_nome: 'Sistema / Portaria',
+        acao: 'UPDATE',
+        modulo: 'visitantes',
+        entidade_id: updated.id,
+        descricao: `Agendamento existente atualizado para ${tipoLabel} "${updated.nome}".`,
+      });
+
+      // Desativar qualquer outra visita ativa/duplicada
+      await this.desativarOutrosCodigos(updated.id_condominio, updated.id, updated.nome, updated.doc_identificacao);
+
+      // Notificar moradores
+      try {
+        const moradores = await this.prisma.users.findMany({
+          where: {
+            apartamentosUsers: {
+              some: {
+                id_apto: dto.id_apartamento,
+              },
+            },
+            fcm_token: { not: null },
+            notif_visitantes: 1,
+          },
+          select: { fcm_token: true },
+        });
+
+        for (const m of moradores) {
+          if (m.fcm_token) {
+            await this.notifications.sendPushNotification(
+              m.fcm_token,
+              dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
+              `${dto.nome} acabou de chegar para o seu apartamento.`,
+              { id: updated.id.toString(), type: 'visitante' },
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao notificar moradores sobre visitante:', error);
+      }
+
+      if (fotoPes && !faceIdHerdado) {
+        this.fireFacialSync(updated.id);
+      }
+
+      return updated;
+    }
+
     // Gerar PIN único e ativo
     let pin = '';
     let isUnique = false;
@@ -572,6 +669,7 @@ export class VisitantesService {
         face_id: faceIdHerdado,
         face_sync_status: faceSyncHerdado,
         face_enrolled_at: faceEnrolledHerdado,
+        liberado: 1,
       },
     });
 
@@ -1017,6 +1115,7 @@ export class VisitantesService {
       entidade_id: v.id,
       descricao: `Acesso de ${label} "${v.nome}" liberado administrativamente.`,
     });
+    await this.desativarOutrosCodigos(v.id_condominio, v.id, v.nome, v.doc_identificacao);
     return { ok: true };
   }
 
@@ -1142,6 +1241,36 @@ export class VisitantesService {
       ...v,
       condominio_nome: v.condominio?.nome || null,
     }));
+  }
+
+  private async desativarOutrosCodigos(
+    idCondominio: number,
+    idAtual: number,
+    nome: string,
+    doc?: string | null,
+  ): Promise<void> {
+    if (!this.prisma.isConnected) return;
+    const docNorm = doc?.trim();
+    const where: any = {
+      id_condominio: Number(idCondominio),
+      id: { not: Number(idAtual) },
+      data_entrada: null,
+      data_saida: null,
+    };
+    if (docNorm) {
+      where.doc_identificacao = docNorm;
+    } else {
+      where.nome = nome.trim();
+      where.doc_identificacao = null;
+    }
+
+    await this.prisma.visitantes.updateMany({
+      where,
+      data: {
+        liberado: 0,
+        codigo_acesso: null,
+      },
+    });
   }
 
   private async gerarPinUnico(): Promise<string> {

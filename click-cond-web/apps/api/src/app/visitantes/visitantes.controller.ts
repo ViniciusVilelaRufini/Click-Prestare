@@ -15,11 +15,24 @@ export class VisitantesController {
   /** Achata a relação `apartamento` em `apto` / `apto_bloco` (compatível com o frontend antigo). */
   private flatten<T extends { apartamento?: { bloco: string | null; apto: string | null } | null }>(v: T) {
     const { apartamento, ...rest } = v;
+    const formatDateTime = (date: any) => {
+      if (!date) return null;
+      const d = new Date(date);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const day = pad(d.getDate());
+      const month = pad(d.getMonth() + 1);
+      const year = d.getFullYear();
+      const hours = pad(d.getHours());
+      const minutes = pad(d.getMinutes());
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    };
     return {
       ...rest,
       apto: apartamento?.apto ?? null,
       apto_bloco: apartamento?.bloco ?? null,
       photo: (v as any).foto_pessoa ?? null,
+      data_inicio: (v as any).data_hora_inicio ? formatDateTime((v as any).data_hora_inicio) : null,
+      data_termino: (v as any).data_hora_termino ? formatDateTime((v as any).data_hora_termino) : null,
     };
   }
 
@@ -130,11 +143,24 @@ export class VisitantesGlobalController {
 
   private flatten<T extends { apartamento?: { bloco: string | null; apto: string | null } | null }>(v: T) {
     const { apartamento, ...rest } = v;
+    const formatDateTime = (date: any) => {
+      if (!date) return null;
+      const d = new Date(date);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const day = pad(d.getDate());
+      const month = pad(d.getMonth() + 1);
+      const year = d.getFullYear();
+      const hours = pad(d.getHours());
+      const minutes = pad(d.getMinutes());
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    };
     return {
       ...rest,
       apto: apartamento?.apto ?? null,
       apto_bloco: apartamento?.bloco ?? null,
       photo: (v as any).foto_pessoa ?? null,
+      data_inicio: (v as any).data_hora_inicio ? formatDateTime((v as any).data_hora_inicio) : null,
+      data_termino: (v as any).data_hora_termino ? formatDateTime((v as any).data_hora_termino) : null,
     };
   }
 
@@ -159,6 +185,12 @@ export class VisitantesGlobalController {
   @Post('check-out')
   async checkOut(@Body('id', ParseIntPipe) id: number) {
     return this.service.checkOut(id);
+  }
+
+  @Get('get')
+  async getOne(@Query('id') id: string) {
+    const v = await this.service.findOne(Number(id));
+    return this.flatten(v);
   }
 
   @Get('get-all')

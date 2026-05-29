@@ -94,6 +94,7 @@ model Users {
   moradores           Moradores[]
   mudancas            Mudancas[]                   @relation("MudancaUser")
   ocorrencias         Ocorrencias[]                @relation("OcorrenciaUser")
+  ocorrenciaMensagens OcorrenciaMensagens[]        @relation("MensagemUsuario")
   orders              Orders[]
   productsFavorites   Products_Favorites[]
   shoppingCart        Shopping_Cart[]
@@ -555,10 +556,24 @@ model Ocorrencias {
   categoria     Ocorrencias_Categorias? @relation(fields: [tipo], references: [id], map: "fk_oco_cat")
   condominio    Condominios             @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_oco_cond")
   criadoPor     Users?                  @relation("OcorrenciaUser", fields: [user], references: [id], map: "fk_oco_user")
+  mensagens     OcorrenciaMensagens[]
 
   @@index([id_condominio])
   @@index([tipo], map: "fk_oco_cat")
   @@index([user], map: "fk_oco_user")
+}
+
+model OcorrenciaMensagens {
+  id             Int         @id @default(autoincrement())
+  id_ocorrencia  Int
+  id_usuario     Int
+  mensagem       String      @db.Text
+  created_at     DateTime    @default(now()) @db.DateTime(0)
+  ocorrencia     Ocorrencias @relation(fields: [id_ocorrencia], references: [id], onDelete: Cascade, map: "fk_msg_oco")
+  usuario        Users       @relation(fields: [id_usuario], references: [id], onDelete: Cascade, map: "fk_msg_user", name: "MensagemUsuario")
+
+  @@index([id_ocorrencia], map: "fk_msg_oco")
+  @@index([id_usuario], map: "fk_msg_user")
 }
 
 model Financeiro {

@@ -1,3 +1,4 @@
+import 'package:click/pages/shared/ocorrencias/ocorrencia_chat.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
@@ -224,6 +225,23 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                             icon: PhosphorIcons.floppyDisk,
                           ),
                         ],
+                        const SizedBox(height: AppSpacing.lg),
+                        AppButton(
+                          label: 'Chat da Ocorrência',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => OcorrenciaChatPage(
+                                  idOcorrencia: widget.id,
+                                  titulo: obj['tipo'] ?? 'Ocorrência',
+                                ),
+                              ),
+                            );
+                          },
+                          icon: PhosphorIcons.chatText,
+                          variant: AppButtonVariant.secondary,
+                        ),
                         const SizedBox(height: AppSpacing.xxxl),
                       ],
                     ),

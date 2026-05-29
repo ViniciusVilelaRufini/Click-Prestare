@@ -66,14 +66,24 @@ export class RelatoriosService {
     });
     const nomeCondo = condominio?.nome || 'Condomínio';
 
-    const range = {
-      gte: dataInicio ? new Date(`${dataInicio}T00:00:00.000-03:00`) : undefined,
-      lte: dataFim ? new Date(`${dataFim}T23:59:59.999-03:00`) : undefined,
-    };
+    const dateFilter = (dataInicio || dataFim) ? {
+      ...(dataInicio ? { gte: new Date(`${dataInicio}T00:00:00.000-03:00`) } : {}),
+      ...(dataFim ? { lte: new Date(`${dataFim}T23:59:59.999-03:00`) } : {}),
+    } : null;
 
     if (tipo === 'visitantes') {
+      const where: any = { id_condominio: idCondominio };
+      if (dateFilter) {
+        where.OR = [
+          { created_at: dateFilter },
+          { data_entrada: dateFilter },
+          { data_saida: dateFilter },
+          { data_hora_inicio: dateFilter },
+        ];
+      }
+
       const list = await this.prisma.visitantes.findMany({
-        where: { id_condominio: idCondominio, created_at: range },
+        where,
         include: {
           apartamento: { select: { bloco: true, apto: true } },
           criadoPor: { select: { name: true } },
@@ -86,7 +96,7 @@ export class RelatoriosService {
         Documento: v.doc_identificacao || 'Não informado',
         Apartamento: v.apartamento ? `${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : 'Não informado',
         Entrada: v.data_entrada ? formatDateTime(v.data_entrada) : 'Pendente',
-        Saída: v.data_saida ? formatDateTime(v.data_saida) : 'No local',
+        Saída: v.data_entrada ? (v.data_saida ? formatDateTime(v.data_saida) : 'No local') : '-',
         'Autorizado Por': v.criadoPor?.name || 'Morador',
         Criado: formatDateTime(v.created_at),
       }));
@@ -118,7 +128,7 @@ export class RelatoriosService {
                 v.doc_identificacao || '-',
                 v.apartamento ? `${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '-',
                 v.data_entrada ? formatDateTime(v.data_entrada) : '-',
-                v.data_saida ? formatDateTime(v.data_saida) : 'No local',
+                v.data_entrada ? (v.data_saida ? formatDateTime(v.data_saida) : 'No local') : '-',
                 v.criadoPor?.name || 'Morador',
               ]),
             ],
@@ -133,8 +143,16 @@ export class RelatoriosService {
     }
 
     if (tipo === 'encomendas') {
+      const where: any = { id_condominio: idCondominio };
+      if (dateFilter) {
+        where.OR = [
+          { recebido_em: dateFilter },
+          { retirado_em: dateFilter },
+        ];
+      }
+
       const list = await this.prisma.encomendas.findMany({
-        where: { id_condominio: idCondominio, recebido_em: range },
+        where,
         include: {
           recebidoPor: { select: { name: true } },
           entreguePor: { select: { name: true } },
@@ -195,8 +213,16 @@ export class RelatoriosService {
     }
 
     if (tipo === 'ocorrencias') {
+      const where: any = { id_condominio: idCondominio };
+      if (dateFilter) {
+        where.OR = [
+          { created_at: dateFilter },
+          { resposta_at: dateFilter },
+        ];
+      }
+
       const list = await this.prisma.ocorrencias.findMany({
-        where: { id_condominio: idCondominio, created_at: range },
+        where,
         include: {
           criadoPor: { select: { name: true } },
           categoria: { select: { nome: true } },
@@ -256,8 +282,17 @@ export class RelatoriosService {
     }
 
     // Financeiro
+    const where: any = { id_condominio: idCondominio };
+    if (dateFilter) {
+      where.OR = [
+        { created_at: dateFilter },
+        { data: dateFilter },
+        { data_vencimento: dateFilter },
+      ];
+    }
+
     const list = await this.prisma.financeiro.findMany({
-      where: { id_condominio: idCondominio, created_at: range },
+      where,
       orderBy: { created_at: 'desc' },
     });
 

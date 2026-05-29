@@ -86,6 +86,25 @@ export class PrestadoresService {
     const fotoPes = await this.resolveFoto(dto.foto_pessoa);
     const fotoDoc = await this.resolveFoto(dto.foto_documento);
 
+    const existing = await this.prisma.prestadores_servico.findFirst({
+      where: {
+        id_condominio: Number(dto.id_condominio),
+        nome: dto.nome.trim(),
+      },
+    });
+
+    if (existing) {
+      return this.prisma.prestadores_servico.update({
+        where: { id: existing.id },
+        data: {
+          telefone: dto.telefone ?? existing.telefone,
+          categorias: dto.categorias ?? existing.categorias,
+          foto_pessoa: fotoPes ?? existing.foto_pessoa,
+          foto_documento: fotoDoc ?? existing.foto_documento,
+        },
+      });
+    }
+
     return this.prisma.prestadores_servico.create({
       data: {
         nome: dto.nome,

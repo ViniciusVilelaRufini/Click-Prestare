@@ -1,0 +1,19 @@
+Excelente!
+Vamos analisar agora a lógica e encontrar possíveis brechas/gaps no fluxo de controle de acesso de visitantes, moradores e prestadores.
+
+### Brecha 1: Concorrência e Conflito de Liberação (Anti-passback e Estado)
+**Problema:**
+No `FacialService` (`facial.service.ts`), quando o webhook detecta um evento de `entrada` ou `saida`:
+* Se for `entrada` e `liberado !== 1`, ele bloqueia (correto!).
+* Mas e se for um evento de `saida`?
+  Nas linhas 509 a 529 de `facial.service.ts`:
+  ```typescript
+  } else if (evento === 'saida') {
+    if (!v.data_entrada || v.data_saida) {
+      // Bloqueia e rejeita a saída
+    }
+  }
+  ```
+  Se o visitante já está no local e decide sair, o webhook de `saida` é disparado. Se ele sair, o sistema de acesso do hardware libera o portão de saída e o backend registra a saída?
+  Espere! Onde o backend registra a `data_saida` no webhook físico?
+<truncated 278 bytes>

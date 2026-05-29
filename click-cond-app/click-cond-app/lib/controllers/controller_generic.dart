@@ -169,3 +169,42 @@ apiUpdateStatusOcorrManut(String route, int idItem, String status) async {
     throw e;
   }
 }
+
+apiGetOcorrenciaMessages(int idOcorrencia) async {
+  final url = _buildUri('/ocorrencias/mensagens/get-all', {
+    'id': idOcorrencia.toString(),
+  });
+  try {
+    final response = await http
+        .get(url, headers: _authHeaders())
+        .timeout(_kTimeout);
+    if (response.statusCode == 200) {
+      final parsed = jsonDecode(response.body);
+      return (parsed == null || parsed == "") ? [] : parsed;
+    }
+    return [];
+  } catch (e) {
+    print('[apiGetOcorrenciaMessages] Erro: $e');
+    return [];
+  }
+}
+
+apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
+  final url = _buildUri('/ocorrencias/mensagens/enviar');
+  final body = json.encode({
+    "id_ocorrencia": idOcorrencia,
+    "mensagem": mensagem,
+  });
+  try {
+    final response = await http
+        .post(url, headers: _authHeaders(withContentType: true), body: body)
+        .timeout(_kTimeout);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return null;
+  } catch (e) {
+    print('[apiSendOcorrenciaMessage] Erro: $e');
+    return null;
+  }
+}

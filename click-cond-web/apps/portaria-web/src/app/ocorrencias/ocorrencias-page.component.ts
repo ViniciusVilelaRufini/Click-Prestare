@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import {
-  Categoria, CreateOcorrencia, Ocorrencia, OcorrenciaStatus, OcorrenciasApi,
+  Categoria, CreateOcorrencia, Ocorrencia, OcorrenciaStatus, OcorrenciasApi, OcorrenciaMensagem,
 } from './ocorrencias.service';
 import { ConfirmService } from '../shared/confirm.service';
 
@@ -23,6 +23,11 @@ export class OcorrenciasPageComponent implements OnInit {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly filtroStatus = signal<string>('');
+
+  readonly selectedOcorrencia = signal<Ocorrencia | null>(null);
+  readonly mensagens = signal<OcorrenciaMensagem[]>([]);
+  readonly loadingMensagens = signal(false);
+  novaMensagemText = '';
 
   readonly ocorrenciasFiltradas = computed(() => {
     const list = this.ocorrencias();
@@ -126,5 +131,46 @@ export class OcorrenciasPageComponent implements OnInit {
     if (p <= 2) return { label: 'Alta', color: 'text-amber-400' };
     if (p <= 3) return { label: 'Média', color: 'text-accent' };
     return { label: 'Baixa', color: 'text-slate-400' };
+  }
+
+  abrirChat(o: Ocorrencia) {
+    this.selectedOcorrencia.set(o);
+    this.loadingMensagens.set(true);
+    this.api.listMessages(o.id).subscribe({
+      next: (msgs) => {
+        this.mensagens.set(msgs);
+        this.loadingMensagens.set(false);
+        this.scrollChatParaFim();
+      },
+      error: () => this.loadingMensagens.set(false),
+    });
+  }
+
+  fecharChat() {
+    this.selectedOcorrencia.set(null);
+    this.mensagens.set([]);
+  }
+
+  enviarMensagem() {
+    const o = this.selectedOcorrencia();
+    const txt = this.novaMensagemText.trim();
+    if (!o || !txt) return;
+
+    this.api.sendMessage(o.id, txt).subscribe({
+      next: (msg) => {
+        this.mensagens.update((curr) => [...curr, msg]);
+        this.novaMensagemText = '';
+        this.scrollChatParaFim();
+      },
+    });
+  }
+
+  scrollChatParaFim() {
+    setTimeout(() => {
+      const container = document.getElementById('chat-container');
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }, 100);
   }
 }

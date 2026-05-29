@@ -17,6 +17,8 @@ import {
   EncomendasMobileController,
 } from './mobile-auth.controller';
 
+import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
+
 @Module({
   imports: [
     PassportModule,
@@ -24,6 +26,7 @@ import {
       secret: process.env['JWT_SECRET'] ?? 'fallback-secret',
       signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '7d') as any },
     }),
+    OcorrenciasModule,
   ],
   controllers: [
     AuthController,
