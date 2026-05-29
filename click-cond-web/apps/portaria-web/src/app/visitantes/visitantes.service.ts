@@ -82,7 +82,8 @@ export interface Pessoa {
 
   noLocal: boolean;
   temPinAtivo: boolean;
-  statusLabel: 'No condomínio' | 'Agendado' | 'Histórico';
+  statusLabel: 'No condomínio' | 'Liberado' | 'Agendado' | 'Histórico';
+  liberado?: number;
 
   totalVisitas: number;
   visitasAnteriores: number;

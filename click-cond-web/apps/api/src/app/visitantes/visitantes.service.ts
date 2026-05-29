@@ -297,6 +297,7 @@ export class VisitantesService {
         foto_documento: principal.foto_documento,
         is_visitante: principal.is_visitante,
         is_prestador: principal.is_prestador,
+        liberado: arr.some((r) => r.liberado === 1 && !r.data_entrada && !r.data_saida) ? 1 : 0,
 
         // Facial
         face_id: principal.face_id,
@@ -307,6 +308,8 @@ export class VisitantesService {
         temPinAtivo,
         statusLabel: noLocal
           ? 'No condomínio'
+          : arr.some((r) => r.liberado === 1 && !r.data_entrada && !r.data_saida)
+          ? 'Liberado'
           : temPinAtivo
           ? 'Agendado'
           : 'Histórico',

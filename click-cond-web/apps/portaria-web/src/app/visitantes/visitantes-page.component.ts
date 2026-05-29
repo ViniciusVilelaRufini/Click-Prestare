@@ -39,7 +39,7 @@ export class VisitantesPageComponent implements OnInit {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly search = signal('');
-  readonly viewFilter = signal<'todos' | 'ativos' | 'historico'>('todos');
+  readonly viewFilter = signal<'todos' | 'ativos' | 'liberados' | 'historico'>('todos');
   readonly tipoFilter = signal<'todos' | 'visitante' | 'prestador'>('todos');
   readonly pinsRevelados = signal<Set<number>>(new Set());
 
@@ -214,8 +214,11 @@ export class VisitantesPageComponent implements OnInit {
   readonly visitantesAtivos = computed(() =>
     this.pessoas().filter((p) => p.noLocal),
   );
+  readonly visitantesLiberados = computed(() =>
+    this.pessoas().filter((p) => !p.noLocal && (p as any).liberado === 1),
+  );
   readonly visitantesHistorico = computed(() =>
-    this.pessoas().filter((p) => !p.noLocal),
+    this.pessoas().filter((p) => !p.noLocal && (p as any).liberado !== 1),
   );
   readonly totalPessoas = computed(() => this.pessoas().length);
   /**
@@ -230,8 +233,10 @@ export class VisitantesPageComponent implements OnInit {
     const f = this.viewFilter();
     if (f === 'ativos') {
       list = list.filter((p) => p.noLocal);
+    } else if (f === 'liberados') {
+      list = list.filter((p) => !p.noLocal && (p as any).liberado === 1);
     } else if (f === 'historico') {
-      list = list.filter((p) => !p.noLocal);
+      list = list.filter((p) => !p.noLocal && (p as any).liberado !== 1);
     }
 
     // 2. Filtrar por tipo (visitante vs prestador)
@@ -644,19 +649,22 @@ export class VisitantesPageComponent implements OnInit {
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
-  getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'autorizado' | 'agendado' | 'saiu' {
-    const now = Date.now();
+  getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'saiu' {
     // 1. Entrou e ainda está dentro (saida não registrada)
     if (v.data_entrada && !v.data_saida) return 'presente';
     // 2. Saída real registrada
     if (v.data_saida) return 'saiu';
-    // 3. Dentro do período de liberação (ainda não entrou)
+    // 3. Pré-autorizado manualmente/app (liberado === 1)
+    if ((v as any).liberado === 1) return 'liberado';
+    
+    const now = Date.now();
+    // 4. Dentro do período de liberação (ainda não entrou)
     if (v.data_hora_inicio && v.data_hora_termino) {
       const inicio = new Date(v.data_hora_inicio).getTime();
       const fim = new Date(v.data_hora_termino).getTime();
       if (now >= inicio && now <= fim) return 'autorizado';
     }
-    // 4. Agendado (ainda não chegou o horário)
+    // 5. Agendado (ainda não chegou o horário)
     return 'agendado';
   }
 
