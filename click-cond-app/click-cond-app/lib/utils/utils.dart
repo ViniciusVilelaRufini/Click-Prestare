@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:file_picker/file_picker.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -291,8 +292,10 @@ openFile(String path) async {
 convertToBase64(dynamic file, String type) {
   if (file != null) {
     if (kIsWeb) {
-      // No Web, 'file' costuma vir como bytes ou um objeto PlatformFile
-      return null; 
+      if (file is PlatformFile && file.bytes != null) {
+        return 'data:$type;base64,' + base64Encode(file.bytes!);
+      }
+      return null;
     }
     String? path;
     if (file is String) {

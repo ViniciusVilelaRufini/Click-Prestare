@@ -1461,14 +1461,19 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
-    if (!body.descricao) throw new BadRequestException('Descrição é obrigatória.');
-    if (!body.id_condominio) throw new BadRequestException('id_condominio é obrigatório.');
+    const data = body.ocorrencia ?? body;
+    const idCondominio = body.id_condominio ?? data.id_condominio;
+    const descricao = data.descricao;
+    const tipo = data.tipo;
+
+    if (!descricao) throw new BadRequestException('Descrição é obrigatória.');
+    if (!idCondominio) throw new BadRequestException('id_condominio é obrigatório.');
     try {
       return await this.prisma.ocorrencias.create({
         data: {
-          id_condominio: Number(body.id_condominio),
-          descricao: body.descricao,
-          tipo: body.tipo ? Number(body.tipo) : null,
+          id_condominio: Number(idCondominio),
+          descricao: descricao,
+          tipo: tipo ? Number(tipo) : null,
           user: idUser,
           status: 'Pendente',
         },

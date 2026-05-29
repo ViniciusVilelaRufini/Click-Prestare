@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/utils/utils.dart';
@@ -90,12 +91,44 @@ class _uploadFileState extends State<uploadFile> {
                     Column(
                       children: [
                         InkWell(
-                          onTap: () { openFile(list[i].path);},
-                          child: 
-                            list[i].path.contains('.jpg') || list[i].path.contains('.png') || list[i].path.contains('.jpeg')
-                             ? Image(image: Image.file(list[i]).image, width: 80, height: 80)
-                             : Icon(MdiIcons.filePdfBox, color: Theme.of(context).primaryColor, size: 80)                              
-                          ,
+                          onTap: () {
+                            if (!kIsWeb && list[i].path != null) {
+                              openFile(list[i].path!);
+                            }
+                          },
+                          child: Builder(
+                            builder: (context) {
+                              final String fileName = list[i].name.toLowerCase();
+                              final bool isImage = fileName.endsWith('.jpg') ||
+                                  fileName.endsWith('.jpeg') ||
+                                  fileName.endsWith('.png');
+
+                              if (isImage) {
+                                if (kIsWeb) {
+                                  if (list[i].bytes != null) {
+                                    return Image.memory(
+                                      list[i].bytes!,
+                                      width: 80,
+                                      height: 80,
+                                      fit: BoxFit.cover,
+                                    );
+                                  }
+                                } else if (list[i].path != null) {
+                                  return Image.file(
+                                    File(list[i].path!),
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                  );
+                                }
+                              }
+                              return Icon(
+                                MdiIcons.filePdfBox,
+                                color: Theme.of(context).primaryColor,
+                                size: 80,
+                              );
+                            },
+                          ),
                         ),       
                         SizedBox(height: 10),
                         InkWell(
