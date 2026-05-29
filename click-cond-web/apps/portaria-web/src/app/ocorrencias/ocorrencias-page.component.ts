@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -13,7 +13,7 @@ import { ConfirmService } from '../shared/confirm.service';
   imports: [CommonModule, FormsModule],
   templateUrl: './ocorrencias-page.component.html',
 })
-export class OcorrenciasPageComponent implements OnInit {
+export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   private api = inject(OcorrenciasApi);
   private confirm = inject(ConfirmService);
   private route = inject(ActivatedRoute);
@@ -133,7 +133,21 @@ export class OcorrenciasPageComponent implements OnInit {
     return { label: 'Baixa', color: 'text-slate-400' };
   }
 
+  chatInterval: any = null;
+
+  ngOnDestroy() {
+    this.limparIntervaloChat();
+  }
+
+  limparIntervaloChat() {
+    if (this.chatInterval) {
+      clearInterval(this.chatInterval);
+      this.chatInterval = null;
+    }
+  }
+
   abrirChat(o: Ocorrencia) {
+    this.limparIntervaloChat();
     this.selectedOcorrencia.set(o);
     this.loadingMensagens.set(true);
     this.api.listMessages(o.id).subscribe({
@@ -144,11 +158,29 @@ export class OcorrenciasPageComponent implements OnInit {
       },
       error: () => this.loadingMensagens.set(false),
     });
+
+    // Atualiza silenciosamente a cada 1.5 segundos
+    this.chatInterval = setInterval(() => {
+      this.atualizarMensagensSilenciosamente(o.id);
+    }, 1500);
   }
 
   fecharChat() {
+    this.limparIntervaloChat();
     this.selectedOcorrencia.set(null);
     this.mensagens.set([]);
+  }
+
+  atualizarMensagensSilenciosamente(idOcorrencia: number) {
+    this.api.listMessages(idOcorrencia).subscribe({
+      next: (msgs) => {
+        // Apenas atualiza e rola se o tamanho da lista mudar
+        if (msgs.length !== this.mensagens().length) {
+          this.mensagens.set(msgs);
+          this.scrollChatParaFim();
+        }
+      },
+    });
   }
 
   enviarMensagem() {

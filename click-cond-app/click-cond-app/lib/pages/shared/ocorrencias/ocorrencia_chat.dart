@@ -39,8 +39,8 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
     _myId = getUserId();
     _loadMessages();
     
-    // Auto-refresh chat every 8 seconds
-    _timer = Timer.periodic(const Duration(seconds: 8), (_) => _loadMessages(showLoading: false));
+    // Auto-refresh chat every 1.5 seconds
+    _timer = Timer.periodic(const Duration(milliseconds: 1500), (_) => _loadMessages(showLoading: false));
   }
 
   @override
@@ -58,11 +58,14 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
       }
       final list = await apiGetOcorrenciaMessages(widget.idOcorrencia);
       if (mounted) {
+        final hasNewMessage = list.length != _mensagens.length;
         setState(() {
           _mensagens = list;
           _isLoading = false;
         });
-        _scrollToBottom();
+        if (hasNewMessage) {
+          _scrollToBottom();
+        }
       }
     } catch (e) {
       print('[OcorrenciaChat] Erro ao carregar mensagens: $e');
