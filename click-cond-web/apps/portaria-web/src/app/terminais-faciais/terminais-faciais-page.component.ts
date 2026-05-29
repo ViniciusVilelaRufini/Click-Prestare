@@ -32,6 +32,104 @@ export class TerminaisFaciaisPageComponent implements OnInit {
 
   form: CreateTerminalFacial = this.emptyForm();
 
+  // Define quais campos e fabricantes fazem sentido por tipo de dispositivo.
+  // Mantém o form coerente: terminal facial precisa de credenciais e fabricantes
+  // específicos; botoeira simples geralmente é HTTP plain sem auth.
+  readonly tiposDispositivo = [
+    {
+      value: 'facial',
+      label: 'Terminal Facial',
+      hint: 'Reconhece pessoas por biometria e dispara o acesso quando identifica um rosto cadastrado.',
+      requerAuth: true,
+      fabricantes: [
+        { value: 'control_id', label: 'Control iD' },
+        { value: 'intelbras', label: 'Intelbras' },
+        { value: 'zkteco', label: 'ZKTeco' },
+        { value: 'outro', label: 'Outro' },
+      ],
+      modeloPlaceholder: 'Ex: iDFace 373',
+    },
+    {
+      value: 'botoeira',
+      label: 'Botoeira Relé IP',
+      hint: 'Aciona um relé via HTTP para abrir porta ou destravar trinco. Geralmente sem autenticação na LAN.',
+      requerAuth: false,
+      fabricantes: [
+        { value: 'control_id', label: 'Control iD' },
+        { value: 'intelbras', label: 'Intelbras' },
+        { value: 'hikvision', label: 'HikVision' },
+        { value: 'genérico', label: 'Genérico HTTP' },
+        { value: 'outro', label: 'Outro' },
+      ],
+      modeloPlaceholder: 'Ex: ITC-100/IP',
+    },
+    {
+      value: 'catraca',
+      label: 'Catraca Eletrônica IP',
+      hint: 'Aciona a liberação da catraca. Tipicamente HTTP autenticado no fabricante específico.',
+      requerAuth: true,
+      fabricantes: [
+        { value: 'control_id', label: 'Control iD' },
+        { value: 'intelbras', label: 'Intelbras' },
+        { value: 'hikvision', label: 'HikVision' },
+        { value: 'henry', label: 'Henry' },
+        { value: 'topdata', label: 'Topdata' },
+        { value: 'outro', label: 'Outro' },
+      ],
+      modeloPlaceholder: 'Ex: Catraca Henry Pulsar',
+    },
+    {
+      value: 'tag_reader',
+      label: 'Leitor de Tags RFID',
+      hint: 'Lê tags Mifare/EM-Marin e envia o UID via webhook. Identifica pela coluna tag_rfid do morador.',
+      requerAuth: false,
+      fabricantes: [
+        { value: 'hid', label: 'HID' },
+        { value: 'control_id', label: 'Control iD' },
+        { value: 'intelbras', label: 'Intelbras' },
+        { value: 'genérico', label: 'Genérico (Wiegand→IP)' },
+        { value: 'outro', label: 'Outro' },
+      ],
+      modeloPlaceholder: 'Ex: HID iCLASS R10',
+    },
+    {
+      value: 'qrcode_reader',
+      label: 'Leitor de QR Code',
+      hint: 'Lê o código QR do morador via app e envia via webhook. Identifica pela coluna qrcode_acesso.',
+      requerAuth: false,
+      fabricantes: [
+        { value: 'genérico', label: 'Genérico' },
+        { value: 'control_id', label: 'Control iD' },
+        { value: 'intelbras', label: 'Intelbras' },
+        { value: 'outro', label: 'Outro' },
+      ],
+      modeloPlaceholder: 'Ex: Leitor QR USB→IP',
+    },
+  ] as const;
+
+  get tipoSelecionado() {
+    return this.tiposDispositivo.find((t) => t.value === this.form.tipo) ?? this.tiposDispositivo[0];
+  }
+
+  /**
+   * Chamado quando o operador troca o tipo no dropdown. Reajusta o
+   * fabricante para o primeiro válido daquele tipo, evitando que sobre uma
+   * combinação inconsistente (ex: tipo=botoeira + fabricante=zkteco).
+   */
+  onTipoChange() {
+    const tipoCfg = this.tipoSelecionado;
+    const fabricanteAtualValido = tipoCfg.fabricantes.some((f) => f.value === this.form.fabricante);
+    if (!fabricanteAtualValido) {
+      this.form.fabricante = tipoCfg.fabricantes[0].value;
+    }
+    // Se o tipo novo não precisa de auth, limpa pra não enviar credenciais
+    // antigas sem querer.
+    if (!tipoCfg.requerAuth) {
+      this.form.api_user = '';
+      this.form.api_password = '';
+    }
+  }
+
   ngOnInit(): void {
     this.load();
   }

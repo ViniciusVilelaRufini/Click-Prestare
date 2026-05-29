@@ -127,7 +127,11 @@ export class FacialService {
     if (device.tipo !== 'botoeira' && device.tipo !== 'catraca') {
       throw new BadRequestException('Apenas dispositivos do tipo Botoeira ou Catraca podem ser acionados remotamente.');
     }
-    const success = await this.client.triggerRelay(this.toConfig(device));
+    const result = await this.client.triggerRelay(this.toConfig(device));
+
+    // Sempre registra o evento — sucesso vira 'acionado_manual', falha vira
+    // 'falha_acionamento' (auditável). O operador NÃO pode pensar que abriu
+    // quando não abriu.
     await this.prisma.acessos_Facial.create({
       data: {
         id_condominio: device.id_condominio,
@@ -136,12 +140,22 @@ export class FacialService {
         face_id: 'trigger_manual',
         tipo_pessoa: 'operador',
         id_pessoa: null,
-        nome_pessoa: 'Operador (Portal Web)',
-        evento: 'acionado_manual',
+        nome_pessoa: result.ok ? 'Operador (Portal Web)' : 'Operador (FALHA)',
+        evento: result.ok ? 'acionado_manual' : 'falha_acionamento',
         timestamp: new Date(),
       },
     });
-    return { ok: success };
+
+    if (!result.ok) {
+      // 502 Bad Gateway: nosso backend OK, mas o hardware downstream falhou
+      throw new BadRequestException(
+        result.error
+          ? `Falha ao acionar dispositivo: ${result.error}`
+          : `Falha ao acionar dispositivo (HTTP ${result.statusCode ?? 'sem resposta'}).`,
+      );
+    }
+
+    return { ok: true };
   }
 
   /**
@@ -244,11 +258,13 @@ export class FacialService {
       return { skipped: true, reason: 'no_condominio' };
     }
 
+    // Só sincronizamos com terminais faciais — botoeira, catraca, leitores
+    // de QR/RFID não têm endpoint de cadastro de pessoa (não recebem foto).
     const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: morador.id_condominio, ativo: 1 },
+      where: { id_condominio: morador.id_condominio, ativo: 1, tipo: 'facial' },
     });
     if (devices.length === 0) {
-      return { skipped: true, reason: 'no_devices' };
+      return { skipped: true, reason: 'no_facial_devices' };
     }
 
     const externalId = `morador_${morador.id}`;
@@ -260,6 +276,7 @@ export class FacialService {
 
     let faceId: string | null = morador.face_id ?? null;
     let allOk = true;
+    const devicesSincronizados: number[] = [];
     for (const device of devices) {
       try {
         if (faceId) {
@@ -275,10 +292,25 @@ export class FacialService {
           });
           faceId = r.faceId;
         }
+        devicesSincronizados.push(device.id);
       } catch (err: any) {
         allOk = false;
         this.logger.warn(`Sync morador ${idMorador} device ${device.id} falhou: ${err?.message ?? err}`);
       }
+    }
+
+    // Atualiza ultima_sincr dos devices que receberam a sync com sucesso —
+    // não bloqueante: erros de update são logados mas não falham o sync.
+    if (devicesSincronizados.length > 0) {
+      const agora = new Date();
+      this.prisma.facial_Devices
+        .updateMany({
+          where: { id: { in: devicesSincronizados } },
+          data: { ultima_sincr: agora },
+        })
+        .catch((err) =>
+          this.logger.warn(`Falha ao atualizar ultima_sincr (morador ${idMorador}): ${err?.message ?? err}`),
+        );
     }
 
     await this.prisma.moradores.update({
@@ -303,11 +335,13 @@ export class FacialService {
       return { skipped: true, reason: 'no_photo' };
     }
 
+    // Só terminais faciais recebem cadastro de pessoa (foto + face_id).
+    // Botoeira/catraca/QR/RFID não armazenam biometria.
     const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: visitante.id_condominio, ativo: 1 },
+      where: { id_condominio: visitante.id_condominio, ativo: 1, tipo: 'facial' },
     });
     if (devices.length === 0) {
-      return { skipped: true, reason: 'no_devices' };
+      return { skipped: true, reason: 'no_facial_devices' };
     }
 
     const externalId = `visitante_${visitante.id}`;
@@ -319,6 +353,7 @@ export class FacialService {
 
     let faceId: string | null = visitante.face_id ?? null;
     let allOk = true;
+    const devicesSincronizados: number[] = [];
     for (const device of devices) {
       try {
         if (faceId) {
@@ -334,10 +369,24 @@ export class FacialService {
           });
           faceId = r.faceId;
         }
+        devicesSincronizados.push(device.id);
       } catch (err: any) {
         allOk = false;
         this.logger.warn(`Sync visitante ${idVisitante} device ${device.id} falhou: ${err?.message ?? err}`);
       }
+    }
+
+    // Mesma lógica de atualização de ultima_sincr do syncMorador.
+    if (devicesSincronizados.length > 0) {
+      const agora = new Date();
+      this.prisma.facial_Devices
+        .updateMany({
+          where: { id: { in: devicesSincronizados } },
+          data: { ultima_sincr: agora },
+        })
+        .catch((err) =>
+          this.logger.warn(`Falha ao atualizar ultima_sincr (visitante ${idVisitante}): ${err?.message ?? err}`),
+        );
     }
 
     await this.prisma.visitantes.update({
@@ -354,8 +403,9 @@ export class FacialService {
 
   async unsyncMorador(idMorador: number, faceId: string | null, idCondominio: number | null) {
     if (!FACIAL_ENABLED || !faceId || !idCondominio) return;
+    // Mesmo critério do sync: só terminais faciais têm /persons.
     const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: idCondominio, ativo: 1 },
+      where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial' },
     });
     for (const device of devices) {
       try {
@@ -368,8 +418,9 @@ export class FacialService {
 
   async unsyncVisitante(idVisitante: number, faceId: string | null, idCondominio: number) {
     if (!FACIAL_ENABLED || !faceId) return;
+    // Mesmo critério do sync: só terminais faciais têm /persons.
     const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: idCondominio, ativo: 1 },
+      where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial' },
     });
     for (const device of devices) {
       try {

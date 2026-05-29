@@ -449,7 +449,12 @@ export class DashboardService {
 
       for (const a of ultAcessosFacial) {
         const confiancaPct = a.confianca != null ? ` · ${Math.round(a.confianca * 100)}%` : '';
-        const acao = a.evento === 'saida' ? 'saiu' : a.evento === 'negado' ? 'tentou acesso (negado)' : 'entrou';
+        const acao =
+          a.evento === 'saida' ? 'saiu' :
+          a.evento === 'negado' ? 'tentou acesso (negado)' :
+          a.evento === 'acionado_manual' ? 'acionou manualmente' :
+          a.evento === 'falha_acionamento' ? 'tentou acionar (falhou)' :
+          'entrou';
 
         let foto: string | undefined;
         let aptoStr = '';
@@ -501,9 +506,15 @@ export class DashboardService {
 
         ultimosEventos.push({
           tipo: 'Acesso Facial',
-          descricao: `${a.nome_pessoa} ${acao} pelo terminal facial${confiancaPct}`,
+          descricao:
+            a.tipo_pessoa === 'operador'
+              ? `${a.nome_pessoa} ${acao} ${terminalNome}`
+              : `${a.nome_pessoa} ${acao} pelo terminal facial${confiancaPct}`,
           quando: a.timestamp.toISOString(),
-          direcao: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada',
+          direcao:
+            a.evento === 'saida' ? 'saida' :
+            a.evento === 'negado' || a.evento === 'falha_acionamento' ? 'negado' :
+            'entrada',
           detalhes: {
             id: a.id,
             nome: a.nome_pessoa,

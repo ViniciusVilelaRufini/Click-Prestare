@@ -44,21 +44,65 @@ export class FacialDeviceClientService {
     }
   }
 
-  async triggerRelay(device: FacialDeviceConfig): Promise<boolean> {
+  /**
+   * Mapa de endpoints de "abrir porta/catraca" por fabricante.
+   *
+   * NOTA: esses paths são baseados em documentação pública conhecida.
+   * Antes de colocar em produção, valide com o manual do dispositivo
+   * específico — alguns fabricantes mudam o path entre firmwares.
+   * Quando o fabricante não está mapeado, usa o fallback POST /open_door
+   * (padrão comum de botoeiras genéricas HTTP).
+   */
+  private readonly relayEndpoints: Record<
+    string,
+    { method: 'POST' | 'PUT'; path: string; body?: any; contentType?: string }
+  > = {
+    control_id: { method: 'POST', path: '/actions/open_door', body: { door_id: 1 } },
+    intelbras: { method: 'POST', path: '/api/v1/door/open' },
+    hikvision: {
+      method: 'PUT',
+      path: '/ISAPI/AccessControl/RemoteControl/door/1',
+      body: '<RemoteControlDoor><cmd>open</cmd></RemoteControlDoor>',
+      contentType: 'application/xml',
+    },
+    henry: { method: 'POST', path: '/api/door/open' },
+    topdata: { method: 'POST', path: '/Rep/Bio.svc/AbrirPorta' },
+    zkteco: { method: 'POST', path: '/api/door/open' },
+    genérico: { method: 'POST', path: '/open_door' },
+  };
+
+  /**
+   * Aciona o relé de abertura do dispositivo (botoeira ou catraca).
+   *
+   * Retorna { ok, statusCode, error }:
+   *   - ok=true só quando o hardware retornou HTTP 2xx
+   *   - ok=false quando o hardware respondeu erro, está offline ou deu timeout
+   *
+   * IMPORTANTE: nunca retorne ok=true em caso de falha. O operador precisa
+   * saber se a porta abriu ou não — visitante esperando do outro lado.
+   */
+  async triggerRelay(device: FacialDeviceConfig): Promise<{
+    ok: boolean;
+    statusCode?: number;
+    error?: string;
+  }> {
     try {
-      let path = '/open_door';
-      let body: any = {};
-      if (device.fabricante === 'control_id') {
-        path = '/actions/open_door';
-        body = { door_id: 1 };
-      } else if (device.fabricante === 'intelbras') {
-        path = '/api/v1/door/open';
+      const endpoint =
+        this.relayEndpoints[device.fabricante] ?? this.relayEndpoints['genérico'];
+      const config: any = {};
+      if (endpoint.contentType) {
+        config.headers = { 'Content-Type': endpoint.contentType };
       }
-      const res = await this.http(device).post(path, body);
-      return res.status >= 200 && res.status < 300;
+      const res = endpoint.method === 'PUT'
+        ? await this.http(device).put(endpoint.path, endpoint.body ?? {}, config)
+        : await this.http(device).post(endpoint.path, endpoint.body ?? {}, config);
+      const ok = res.status >= 200 && res.status < 300;
+      return { ok, statusCode: res.status };
     } catch (err: any) {
-      this.logger.warn(`Trigger relay falhou no device ${device.id} (${device.ip}): ${err?.message ?? err}`);
-      return true; // Retorna true para simular sucesso caso o hardware esteja offline em ambiente de teste
+      const statusCode = err?.response?.status;
+      const msg = err?.message ?? String(err);
+      this.logger.warn(`Trigger relay falhou no device ${device.id} (${device.ip}): ${msg}`);
+      return { ok: false, statusCode, error: msg };
     }
   }
 

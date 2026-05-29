@@ -234,13 +234,12 @@
               <select
                 [(ngModel)]="form.tipo"
                 name="tipo"
+                (change)="onTipoChange()"
                 class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
               >
-                <option value="facial">Terminal Facial</option>
-                <option value="botoeira">Botoeira Relé IP</option>
-                <option value="tag_reader">Leitor de Tags RFID</option>
-                <option value="catraca">Catraca Eletrônica IP</option>
-                <option value="qrcode_reader">Leitor de QR Code</option>
+                @for (t of tiposDispositivo; track t.value) {
+                  <option [value]="t.value">{{ t.label }}</option>
+                }
               </select>
             </div>
 
@@ -257,6 +256,12 @@
             </div>
           </div>
 
+          <!-- Hint contextual sobre o tipo escolhido — ajuda o operador a saber o que vai cadastrar -->
+          <div class="p-3 rounded-xl bg-accent/5 border border-accent/20 text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed">
+            <span class="font-semibold text-accent">{{ tipoSelecionado.label }}:</span>
+            {{ tipoSelecionado.hint }}
+          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
               <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Fabricante</label>
@@ -265,10 +270,9 @@
                 name="fabricante"
                 class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
               >
-                <option value="control_id">Control iD</option>
-                <option value="intelbras">Intelbras</option>
-                <option value="zkteco">ZKTeco</option>
-                <option value="outro">Outro</option>
+                @for (f of tipoSelecionado.fabricantes; track f.value) {
+                  <option [value]="f.value">{{ f.label }}</option>
+                }
               </select>
             </div>
 
@@ -278,7 +282,7 @@
                 [(ngModel)]="form.modelo"
                 name="modelo"
                 type="text"
-                placeholder="Ex: iDFace 373"
+                [placeholder]="tipoSelecionado.modeloPlaceholder"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
               />
             </div>
@@ -309,31 +313,37 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div class="space-y-1.5">
-              <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Usuário API</label>
-              <input
-                [(ngModel)]="form.api_user"
-                name="api_user"
-                type="text"
-                placeholder="admin"
-                autocomplete="off"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
-              />
-            </div>
+          @if (tipoSelecionado.requerAuth) {
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1.5">
+                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Usuário API</label>
+                <input
+                  [(ngModel)]="form.api_user"
+                  name="api_user"
+                  type="text"
+                  placeholder="admin"
+                  autocomplete="off"
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+                />
+              </div>
 
-            <div class="space-y-1.5">
-              <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Senha API</label>
-              <input
-                [(ngModel)]="form.api_password"
-                name="api_password"
-                type="password"
-                placeholder="••••••••"
-                autocomplete="new-password"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
-              />
+              <div class="space-y-1.5">
+                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Senha API</label>
+                <input
+                  [(ngModel)]="form.api_password"
+                  name="api_password"
+                  type="password"
+                  placeholder="••••••••"
+                  autocomplete="new-password"
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+                />
+              </div>
             </div>
-          </div>
+          } @else {
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 italic">
+              Este tipo de dispositivo normalmente não requer autenticação HTTP.
+            </div>
+          }
 
           <div class="pt-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end gap-3">
             <button
