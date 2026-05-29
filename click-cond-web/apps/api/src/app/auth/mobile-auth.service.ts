@@ -1465,6 +1465,7 @@ export class MobileAuthService {
     const idCondominio = body.id_condominio ?? data.id_condominio;
     const descricao = data.descricao;
     const tipo = data.tipo;
+    const publica = data.publica === true || data.publica === 1 || data.publica === 'true';
 
     if (!descricao) throw new BadRequestException('Descrição é obrigatória.');
     if (!idCondominio) throw new BadRequestException('id_condominio é obrigatório.');
@@ -1476,6 +1477,7 @@ export class MobileAuthService {
           tipo: tipo ? Number(tipo) : null,
           user: idUser,
           status: 'Pendente',
+          publica: publica,
         },
       });
     } catch (e: any) {
@@ -1485,23 +1487,50 @@ export class MobileAuthService {
 
   async listOcorrencias(idUser: number) {
     if (!this.prisma.isConnected) return [];
-    return this.prisma.ocorrencias.findMany({
-      where: { user: idUser },
-      include: { categoria: true },
+    
+    // Buscar o morador para descobrir o id_condominio
+    const morador = await this.prisma.moradores.findFirst({
+      where: { id_user: idUser },
+      select: { id_condominio: true },
+    });
+
+    const where: any = {
+      OR: [
+        { user: idUser },
+      ]
+    };
+
+    if (morador?.id_condominio) {
+      where.OR.push({
+        id_condominio: morador.id_condominio,
+        publica: true,
+      });
+    }
+
+    const list = await this.prisma.ocorrencias.findMany({
+      where,
+      include: { categoria: true, criadoPor: { select: { name: true } } },
       orderBy: { created_at: 'desc' },
     });
+
+    return list.map(o => this.mapOcorrencia(o));
   }
 
   /**
    * Lista todas as ocorrências visíveis para o usuário logado.
    * - Síndico/Funcionário: vê todas do condomínio.
-   * - Morador: vê só as próprias.
+   * - Morador: vê só as próprias ou as públicas.
    */
   async listOcorrenciasTodos(idCondominio: number, idUser: number, typeAccess: string) {
     if (!this.prisma.isConnected) return [];
     const isPrivileged = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
     const where: any = { id_condominio: Number(idCondominio) };
-    if (!isPrivileged) where.user = Number(idUser);
+    if (!isPrivileged) {
+      where.OR = [
+        { user: Number(idUser) },
+        { publica: true }
+      ];
+    }
 
     const list = await this.prisma.ocorrencias.findMany({
       where,
@@ -1521,7 +1550,12 @@ export class MobileAuthService {
       id_condominio: Number(idCondominio),
       status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
     };
-    if (!isPrivileged) where.user = Number(idUser);
+    if (!isPrivileged) {
+      where.OR = [
+        { user: Number(idUser) },
+        { publica: true }
+      ];
+    }
 
     const list = await this.prisma.ocorrencias.findMany({
       where,
@@ -1543,6 +1577,8 @@ export class MobileAuthService {
       created_at: o.created_at,
       updated_at: o.updated_at,
       anexos: o.anexos ?? '',
+      publica: o.publica ?? false,
+      user: o.user,
     };
   }
 

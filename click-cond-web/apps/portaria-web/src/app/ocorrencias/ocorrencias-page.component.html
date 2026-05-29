@@ -142,6 +142,20 @@
                 @if (o.tipoNome) {
                   <span class="text-[11px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300">{{ o.tipoNome }}</span>
                 }
+                <!-- Badge de Publicidade / Visibilidade -->
+                <span class="text-[11px] px-2 py-0.5 rounded-md border flex items-center gap-1 cursor-pointer hover:opacity-80 transition"
+                      [class.bg-emerald-400/10]="o.publica" [class.border-emerald-400/20]="o.publica" [class.text-emerald-400]="o.publica"
+                      [class.bg-slate-400/10]="!o.publica" [class.border-slate-400/20]="!o.publica" [class.text-slate-400]="!o.publica"
+                      (click)="alternarPublica(o)"
+                      title="Clique para alternar a visibilidade da ocorrência para outros moradores">
+                  <span class="w-1.5 h-1.5 rounded-full" [class.bg-emerald-400]="o.publica" [class.bg-slate-500]="!o.publica"></span>
+                  {{ o.publica ? 'Pública' : 'Privada' }}
+                </span>
+                @if (o.criadoPorNome) {
+                  <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-500/10 border border-slate-500/20 text-slate-300">
+                    Autor: {{ o.criadoPorNome }}
+                  </span>
+                }
                 @if (prioridadeLabel(prioridadeCategoria(o.tipo)); as p) {
                   <span class="text-[11px] {{ p.color }}">· prioridade {{ p.label }}</span>
                 }
@@ -151,16 +165,36 @@
               <!-- Descrição -->
               <p class="text-sm text-slate-100 leading-relaxed whitespace-pre-line">{{ o.descricao }}</p>
 
-              <!-- Resposta -->
-              @if (o.resposta) {
-                <div class="mt-3 pl-3 border-l-2 border-accent/40">
-                  <p class="text-[11px] text-accent uppercase tracking-wider mb-1">Resposta da administração</p>
-                  <p class="text-sm text-slate-300">{{ o.resposta }}</p>
+              <!-- Resposta da Administração -->
+              <div class="mt-3 pl-3 border-l-2 border-accent/40 bg-white/5 p-3 rounded-r-xl">
+                <p class="text-[10px] text-accent uppercase tracking-wider mb-1 font-bold">Resposta/Atualização da administração</p>
+                @if (editingRespostaId === o.id) {
+                  <div class="flex flex-col gap-2 mt-1">
+                    <textarea rows="2" [(ngModel)]="tempRespostaText" placeholder="Digite a atualização pública sobre esta ocorrência..."
+                              class="w-full text-xs px-3 py-1.5 rounded-lg bg-graphite-300 border border-white/10 text-slate-100 focus:outline-none focus:border-accent resize-none"></textarea>
+                    <div class="flex gap-2 justify-end">
+                      <button (click)="cancelarEdicaoResposta()"
+                              class="px-2.5 py-1 text-[11px] bg-white/10 text-slate-300 rounded-md hover:bg-white/20 transition">
+                        Cancelar
+                      </button>
+                      <button (click)="salvarResposta(o)"
+                              class="px-2.5 py-1 text-[11px] bg-accent text-slate-900 font-medium rounded-md hover:bg-accent/80 transition">
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                } @else {
+                  <p class="text-xs text-slate-300 leading-relaxed">{{ o.resposta || 'Nenhuma atualização pública cadastrada.' }}</p>
                   @if (o.resposta_at) {
-                    <p class="text-[10px] text-slate-500 mt-1">{{ o.resposta_at | date: 'dd/MM/yy HH:mm' }}</p>
+                    <p class="text-[9px] text-slate-500 mt-1">Atualizado em: {{ o.resposta_at | date: 'dd/MM/yy HH:mm' }}</p>
                   }
-                </div>
-              }
+                  <button (click)="iniciarEdicaoResposta(o)"
+                          class="mt-2 text-[10px] text-slate-400 hover:text-accent transition flex items-center gap-1 font-medium">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    {{ o.resposta ? 'Editar resposta pública' : 'Responder publicamente' }}
+                  </button>
+                }
+              </div>
 
               <!-- Ações -->
               <div class="mt-4 flex flex-wrap items-center gap-2">

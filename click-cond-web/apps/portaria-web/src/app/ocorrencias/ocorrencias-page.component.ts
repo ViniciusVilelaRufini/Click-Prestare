@@ -28,6 +28,8 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   readonly mensagens = signal<OcorrenciaMensagem[]>([]);
   readonly loadingMensagens = signal(false);
   novaMensagemText = '';
+  editingRespostaId: number | null = null;
+  tempRespostaText = '';
 
   readonly ocorrenciasFiltradas = computed(() => {
     const list = this.ocorrencias();
@@ -204,5 +206,37 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         container.scrollTop = container.scrollHeight;
       }
     }, 100);
+  }
+
+  alternarPublica(o: Ocorrencia) {
+    const novoValor = !o.publica;
+    this.api.updatePublica(o.id, novoValor).subscribe({
+      next: (updated) => {
+        o.publica = updated.publica;
+        this.carregar();
+      }
+    });
+  }
+
+  iniciarEdicaoResposta(o: Ocorrencia) {
+    this.editingRespostaId = o.id;
+    this.tempRespostaText = o.resposta || '';
+  }
+
+  cancelarEdicaoResposta() {
+    this.editingRespostaId = null;
+    this.tempRespostaText = '';
+  }
+
+  salvarResposta(o: Ocorrencia) {
+    if (!this.tempRespostaText.trim()) return;
+    this.api.updateResposta(o.id, this.tempRespostaText.trim()).subscribe({
+      next: (updated) => {
+        o.resposta = updated.resposta;
+        o.resposta_at = updated.resposta_at;
+        this.cancelarEdicaoResposta();
+        this.carregar();
+      }
+    });
   }
 }

@@ -48,6 +48,7 @@ export class OcorrenciasService {
       tipoNome: o.categoria?.nome ?? null,
       criadoPorNome: o.criadoPor?.name ?? 'Morador',
       created_at: o.created_at,
+      publica: o.publica,
     }));
   }
 
@@ -60,7 +61,11 @@ export class OcorrenciasService {
       },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
-    return { ...o, tipoNome: o.categoria?.nome ?? null, criadoPorNome: o.criadoPor?.name ?? 'Morador' };
+    return {
+      ...o,
+      tipoNome: o.categoria?.nome ?? null,
+      criadoPorNome: o.criadoPor?.name ?? 'Morador',
+    };
   }
 
   create(dto: CreateOcorrenciaDto) {
@@ -81,6 +86,31 @@ export class OcorrenciasService {
       return await this.prisma.ocorrencias.update({
         where: { id },
         data: { status },
+      });
+    } catch {
+      throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    }
+  }
+
+  async updatePublica(id: number, publica: boolean) {
+    try {
+      return await this.prisma.ocorrencias.update({
+        where: { id },
+        data: { publica },
+      });
+    } catch {
+      throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    }
+  }
+
+  async updateResposta(id: number, resposta: string) {
+    try {
+      return await this.prisma.ocorrencias.update({
+        where: { id },
+        data: {
+          resposta,
+          resposta_at: new Date(),
+        },
       });
     } catch {
       throw new NotFoundException(`Ocorrência ${id} não encontrada`);

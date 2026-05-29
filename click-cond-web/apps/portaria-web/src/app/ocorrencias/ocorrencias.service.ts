@@ -17,6 +17,8 @@ export interface Ocorrencia {
   tipo: number;
   tipoNome?: string;
   created_at: string;
+  publica?: boolean;
+  criadoPorNome?: string;
 }
 
 export interface CreateOcorrencia {
@@ -51,6 +53,14 @@ export class OcorrenciasApi {
 
   updateStatus(id: number, status: OcorrenciaStatus): Observable<Ocorrencia> {
     return this.http.patch<Ocorrencia>(`${this.base}/${id}/status`, { status });
+  }
+
+  updatePublica(id: number, publica: boolean): Observable<Ocorrencia> {
+    return this.http.patch<Ocorrencia>(`${this.base}/${id}/publica`, { publica });
+  }
+
+  updateResposta(id: number, resposta: string): Observable<Ocorrencia> {
+    return this.http.patch<Ocorrencia>(`${this.base}/${id}/resposta`, { resposta });
   }
 
   remove(id: number): Observable<{ ok: boolean }> {

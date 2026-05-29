@@ -29,6 +29,7 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
   final txtDescricao = TextEditingController();
   var currentTipo = '';
   List<dynamic> categorias = [];
+  var _publica = false;
 
   @override
   void dispose() {
@@ -53,6 +54,7 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
       categorias = await apiGetAll("ocorrencias/categorias");
       txtDescricao.text = obj["descricao"] ?? '';
       currentTipo = obj["tipoId"].toString();
+      _publica = obj["publica"] == true;
       for (var item in obj['anexos'].split(';')) {
         list.add(await fileFromImageUrl(item));
       }
@@ -92,6 +94,7 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
         docs: base64,
         tipo: currentTipo,
         isResposta: false,
+        publica: _publica,
       );
       setState(() => _isSaving = true);
       var message = await apiSaveObject('ocorrencias', 'ocorrencia', doc, widget.isEdit);
@@ -191,6 +194,41 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
                         ),
                       )),
                   const SizedBox(height: AppSpacing.xl),
+                  _section('Visibilidade'),
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface(context),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Tornar ocorrência pública',
+                                style: AppTypography.bodyMedium(context),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Outros moradores poderão ver esta ocorrência.',
+                                style: AppTypography.caption(context),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _publica,
+                          onChanged: (val) => setState(() => _publica = val),
+                          activeColor: AppColors.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
                   AppButton(
                     label: getText('btn_save'),
                     onPressed: _isSaving ? null : save,
@@ -225,10 +263,16 @@ class OcorrenciaModel {
   String? descricao, tipo;
   List<String>? docs;
   bool? isResposta;
+  bool? publica;
 
-  OcorrenciaModel({this.id, this.descricao, this.docs, this.tipo, this.isResposta});
+  OcorrenciaModel({this.id, this.descricao, this.docs, this.tipo, this.isResposta, this.publica});
 
   Map toJson() => {
-        'id': id, 'descricao': descricao, 'docs': docs, 'tipo': tipo, 'isResposta': isResposta,
+        'id': id,
+        'descricao': descricao,
+        'docs': docs,
+        'tipo': tipo,
+        'isResposta': isResposta,
+        'publica': publica,
       };
 }

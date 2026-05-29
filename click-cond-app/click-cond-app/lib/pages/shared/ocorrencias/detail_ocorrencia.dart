@@ -101,8 +101,12 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
 
   @override
   Widget build(BuildContext context) {
-    final canRespond = (getUserType() == 'sindico' || getUserPermission("ocorrencias") == 1) &&
-        obj != null && obj['status'] == 'Pendente';
+    final String myId = getUserId();
+    final bool isOwner = obj != null && obj['user']?.toString() == myId;
+    final bool isPrivileged = getUserType() == 'sindico' || getUserPermission("ocorrencias") == 1;
+    final bool canChat = isOwner || isPrivileged;
+
+    final canRespond = isPrivileged && obj != null && obj['status'] == 'Pendente';
     final isMorador = getUserType() == 'morador';
 
     return AppScaffold(
@@ -142,6 +146,48 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Row(
+                            children: [
+                              Icon(PhosphorIcons.eye, size: 16, color: AppColors.textSecondary(context)),
+                              const SizedBox(width: 8),
+                              Text('Visibilidade: ', style: AppTypography.captionMedium(context)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: (obj['publica'] == true) 
+                                      ? const Color(0xFF22C55E).withOpacity(0.12) 
+                                      : AppColors.textTertiary(context).withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  (obj['publica'] == true) ? 'Pública' : 'Privada',
+                                  style: AppTypography.captionMedium(context).copyWith(
+                                    color: (obj['publica'] == true) 
+                                        ? const Color(0xFF22C55E) 
+                                        : AppColors.textSecondary(context),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (obj['criado_por'] != null && obj['criado_por'].toString().isNotEmpty) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            Row(
+                              children: [
+                                Icon(PhosphorIcons.user, size: 16, color: AppColors.textSecondary(context)),
+                                const SizedBox(width: 8),
+                                Text('Autor: ', style: AppTypography.captionMedium(context)),
+                                Text(
+                                  obj['criado_por'].toString(),
+                                  style: AppTypography.captionMedium(context).copyWith(
+                                    color: AppColors.textPrimary(context),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ]),
                         const SizedBox(height: AppSpacing.md),
                         _InfoCard(children: [
@@ -175,14 +221,48 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                         ]),
                         if ((obj['resposta']?.toString() ?? '').isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
-                          _InfoCard(children: [
-                            Text(getText('lb_resposta').toUpperCase(),
-                                style: AppTypography.captionMedium(context).copyWith(color: const Color(0xFF22C55E), letterSpacing: 0.8)),
-                            const SizedBox(height: AppSpacing.sm),
-                            _Row(icon: PhosphorIcons.clock, label: getText('ocorrencia_respondido'), value: obj['resposta_at'] ?? ''),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(obj['resposta'] ?? '', style: AppTypography.body(context)),
-                          ]),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                left: BorderSide(
+                                  color: const Color(0xFF3B82F6),
+                                  width: 3.0,
+                                ),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'RESPOSTA DA ADMINISTRAÇÃO',
+                                  style: AppTypography.captionMedium(context).copyWith(
+                                    color: const Color(0xFF3B82F6),
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.8,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  obj['resposta'] ?? '',
+                                  style: AppTypography.body(context).copyWith(
+                                    color: AppColors.textPrimary(context).withOpacity(0.9),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                if (obj['resposta_at'] != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    obj['resposta_at'],
+                                    style: AppTypography.caption(context).copyWith(
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ],
                         if (canRespond) ...[
                           const SizedBox(height: AppSpacing.xl),
@@ -226,22 +306,32 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                           ),
                         ],
                         const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: 'Chat da Ocorrência',
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => OcorrenciaChatPage(
-                                  idOcorrencia: widget.id,
-                                  titulo: obj['tipo'] ?? 'Ocorrência',
+                        if (canChat) ...[
+                          AppButton(
+                            label: 'Chat da Ocorrência',
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => OcorrenciaChatPage(
+                                    idOcorrencia: widget.id,
+                                    titulo: obj['tipo'] ?? 'Ocorrência',
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                          icon: PhosphorIcons.chatText,
-                          variant: AppButtonVariant.secondary,
-                        ),
+                              );
+                            },
+                            icon: PhosphorIcons.chatText,
+                            variant: AppButtonVariant.secondary,
+                          ),
+                        ] else ...[
+                          Center(
+                            child: Text(
+                              'O chat é privado para o criador desta ocorrência.',
+                              style: AppTypography.caption(context),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: AppSpacing.xxxl),
                       ],
                     ),

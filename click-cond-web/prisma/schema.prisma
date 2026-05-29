@@ -551,6 +551,7 @@ model Ocorrencias {
   status        String                  @default("Pendente") @db.VarChar(50)
   resposta      String?                 @db.Text
   resposta_at   DateTime?               @db.DateTime(0)
+  publica       Boolean                 @default(false)
   created_at    DateTime                @default(now()) @db.DateTime(0)
   updated_at    DateTime                @default(now()) @updatedAt @db.DateTime(0)
   categoria     Ocorrencias_Categorias? @relation(fields: [tipo], references: [id], map: "fk_oco_cat")

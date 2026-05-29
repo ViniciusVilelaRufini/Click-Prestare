@@ -55,6 +55,22 @@ export class OcorrenciasController {
     return this.service.updateStatus(id, body.status);
   }
 
+  @Patch(':id/publica')
+  updatePublica(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { publica: boolean },
+  ) {
+    return this.service.updatePublica(id, body.publica);
+  }
+
+  @Patch(':id/resposta')
+  updateResposta(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { resposta: string },
+  ) {
+    return this.service.updateResposta(id, body.resposta);
+  }
+
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     this.service.remove(id);

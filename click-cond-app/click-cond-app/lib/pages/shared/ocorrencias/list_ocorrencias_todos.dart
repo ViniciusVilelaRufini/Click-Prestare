@@ -230,9 +230,43 @@ class _OcorrenciaCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item['tipo'] ?? item['descricao'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(item['tipo'] ?? item['descricao'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (item['publica'] == true) 
+                              ? const Color(0xFF22C55E).withOpacity(0.12) 
+                              : AppColors.textTertiary(context).withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          (item['publica'] == true) ? 'Pública' : 'Privada',
+                          style: AppTypography.captionMedium(context).copyWith(
+                            color: (item['publica'] == true) 
+                                ? const Color(0xFF22C55E) 
+                                : AppColors.textSecondary(context),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   if (item['descricao'] != null)
                     Text(item['descricao'], style: AppTypography.caption(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if (item['criado_por'] != null && item['criado_por'].toString().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Autor: ${item['criado_por']}',
+                        style: AppTypography.caption(context).copyWith(fontSize: 10, color: AppColors.textSecondary(context)),
+                      ),
+                    ),
                 ],
               ),
             ),
