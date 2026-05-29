@@ -576,7 +576,7 @@ export class FacialService {
         if (tipoPessoa === 'morador' && r.permitir_morador === 1) permitido = true;
         if (tipoPessoa === 'visitante' && r.permitir_visitante === 1) permitido = true;
         if (tipoPessoa === 'prestador' && r.permitir_prestador === 1) permitido = true;
-        if (tipoPessoa === 'funcionario' && r.permitir_funcionario === 1) permitido = true;
+        if ((tipoPessoa as string) === 'funcionario' && r.permitir_funcionario === 1) permitido = true;
       }
 
       // Se temos regras aplicáveis para este sentido e horário, mas nenhuma autorizou o usuário
