@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal, effect, untracked } from '
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { VisitantesService, VisitanteDetalhes, PessoaEncontrada } from './visitantes.service';
+import { VisitantesService, VisitanteDetalhes, PessoaEncontrada, Pessoa } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
@@ -33,6 +33,8 @@ export class VisitantesPageComponent implements OnInit {
   }
 
   readonly visitantes = signal<Visitante[]>([]);
+  // Lista agregada por pessoa (1 pessoa = 1 linha). Fonte da página /visitantes.
+  readonly pessoas = signal<Pessoa[]>([]);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -67,6 +69,16 @@ export class VisitantesPageComponent implements OnInit {
 
   // Lookup de pessoa existente no formulário (mesmo doc)
   readonly pessoaEncontrada = signal<PessoaEncontrada | null>(null);
+
+  // Modos do formulário:
+  //   - editandoIdentidade=true: alterando dados da pessoa (nome/foto/doc)
+  //     -> salva via atualizarPessoa(), reflete em TODAS as visitas
+  //   - novaVisitaPara != null: cadastrando uma nova visita pra pessoa
+  //     que já existe -> form curto (só apto + validade), salva via
+  //     novaVisitaPessoa()
+  //   - ambos false e editingId=null: cadastro de pessoa nova
+  readonly editandoIdentidade = signal(false);
+  readonly novaVisitaPara = signal<Pessoa | null>(null);
 
   /**
    * Ao sair do campo "documento", busca se já há cadastro anterior dessa
@@ -109,7 +121,7 @@ export class VisitantesPageComponent implements OnInit {
     }
   }
 
-  abrirDetalhes(v: Visitante) {
+  abrirDetalhes(v: Visitante | Pessoa) {
     this.detalhesData.set(null);
     this.detalhesError.set(null);
     this.detalhesLoading.set(true);
@@ -147,12 +159,12 @@ export class VisitantesPageComponent implements OnInit {
   readonly itensPorPagina = 20;
 
   readonly totalPaginas = computed(() => {
-    const total = this.visitantesFiltrados().length;
+    const total = this.pessoasFiltradas().length;
     return Math.max(1, Math.ceil(total / this.itensPorPagina));
   });
 
   readonly visitantesPaginados = computed(() => {
-    const list = this.visitantesFiltrados();
+    const list = this.pessoasFiltradas();
     const p = this.pagina();
     const start = (p - 1) * this.itensPorPagina;
     const end = start + this.itensPorPagina;
@@ -160,12 +172,12 @@ export class VisitantesPageComponent implements OnInit {
   });
 
   readonly exibindoInicio = computed(() => {
-    if (this.visitantesFiltrados().length === 0) return 0;
+    if (this.pessoasFiltradas().length === 0) return 0;
     return (this.pagina() - 1) * this.itensPorPagina + 1;
   });
 
   readonly exibindoFim = computed(() => {
-    return Math.min(this.pagina() * this.itensPorPagina, this.visitantesFiltrados().length);
+    return Math.min(this.pagina() * this.itensPorPagina, this.pessoasFiltradas().length);
   });
 
   readonly paginasLista = computed(() => {
@@ -198,80 +210,55 @@ export class VisitantesPageComponent implements OnInit {
     return list;
   });
 
+  // KPIs do topo — agora contam PESSOAS únicas, não registros de visita.
   readonly visitantesAtivos = computed(() =>
-    this.visitantes().filter((v) => !!v.data_entrada && !v.data_saida),
+    this.pessoas().filter((p) => p.noLocal),
   );
   readonly visitantesHistorico = computed(() =>
-    this.visitantes().filter((v) => !v.data_entrada || !!v.data_saida),
+    this.pessoas().filter((p) => !p.noLocal),
   );
-  readonly visitantesFiltrados = computed(() => {
-    let list = this.visitantes();
+  readonly totalPessoas = computed(() => this.pessoas().length);
+  /**
+   * Lista de pessoas filtradas (1 pessoa = 1 linha). Renderizada na tabela.
+   * Substitui o antigo visitantesFiltrados — agora a lista representa
+   * identidades, não visitas.
+   */
+  readonly pessoasFiltradas = computed(() => {
+    let list = this.pessoas();
 
     // 1. Filtrar por status
     const f = this.viewFilter();
     if (f === 'ativos') {
-      list = list.filter((v) => !!v.data_entrada && !v.data_saida);
+      list = list.filter((p) => p.noLocal);
     } else if (f === 'historico') {
-      list = list.filter((v) => !v.data_entrada || !!v.data_saida);
+      list = list.filter((p) => !p.noLocal);
     }
 
     // 2. Filtrar por tipo (visitante vs prestador)
     const t = this.tipoFilter();
     if (t === 'visitante') {
-      list = list.filter((v) => !v.is_prestador);
+      list = list.filter((p) => !p.is_prestador);
     } else if (t === 'prestador') {
-      list = list.filter((v) => !!v.is_prestador);
+      list = list.filter((p) => !!p.is_prestador);
     }
 
-    // 3. Filtrar por busca (tempo real)
+    // 3. Busca por nome ou documento
     const term = this.search().toLowerCase().trim();
     if (term) {
-      list = list.filter((v) =>
-        v.nome.toLowerCase().includes(term) ||
-        (v.doc_identificacao && v.doc_identificacao.toLowerCase().includes(term)) ||
-        (v.apto && v.apto.toLowerCase().includes(term)) ||
-        (v.apto_bloco && v.apto_bloco.toLowerCase().includes(term))
+      list = list.filter((p) =>
+        p.nome.toLowerCase().includes(term) ||
+        (p.doc_identificacao && p.doc_identificacao.toLowerCase().includes(term))
       );
     }
 
-    // 4. Deduplicar por documento (ou nome se não tiver documento).
-    //    Mantém o registro mais relevante:
-    //      - Prioriza quem está "no local" (data_entrada sem data_saida)
-    //      - Senão, prioriza quem tem PIN ativo (codigo_acesso)
-    //      - Senão, o mais recente (created_at desc)
-    //    Acumula a contagem de visitas anteriores em (v as any).visitasAnteriores.
-    const grupo = new Map<string, Visitante[]>();
-    for (const v of list) {
-      const docNorm = (v.doc_identificacao ?? '').trim().toLowerCase();
-      const nomeNorm = (v.nome ?? '').trim().toLowerCase();
-      const key = docNorm || `nome:${nomeNorm}`;
-      const arr = grupo.get(key) ?? [];
-      arr.push(v);
-      grupo.set(key, arr);
-    }
-
-    const score = (v: Visitante): number => {
-      if (v.data_entrada && !v.data_saida) return 1000; // No local
-      if (v.codigo_acesso) return 500;                  // PIN ativo / agendado
-      const created = v.created_at ? new Date(v.created_at).getTime() : 0;
-      return created / 1e10;                            // Mais recente ganha
-    };
-
-    const deduped: Visitante[] = [];
-    for (const arr of grupo.values()) {
-      arr.sort((a, b) => score(b) - score(a));
-      const principal = arr[0];
-      (principal as Visitante & { visitasAnteriores?: number }).visitasAnteriores = arr.length - 1;
-      deduped.push(principal);
-    }
-
-    // Mantém ordenação original (data_hora_inicio desc — vem do backend)
-    return deduped.sort((a, b) => {
-      const ta = a.data_hora_inicio ? new Date(a.data_hora_inicio).getTime() : 0;
-      const tb = b.data_hora_inicio ? new Date(b.data_hora_inicio).getTime() : 0;
-      return tb - ta;
-    });
+    return list;
   });
+
+  /**
+   * @deprecated mantido para compatibilidade com templates antigos.
+   * Use pessoasFiltradas.
+   */
+  readonly visitantesFiltrados = this.pessoasFiltradas;
 
   novo: CreateVisitante = this.estadoInicial();
   showForm = false;
@@ -299,9 +286,10 @@ export class VisitantesPageComponent implements OnInit {
   carregar() {
     this.loading.set(true);
     this.error.set(null);
-    this.service.list().subscribe({
+    // Lista agrupada por pessoa para a tabela principal
+    this.service.listarPessoas().subscribe({
       next: (data) => {
-        this.visitantes.set(data);
+        this.pessoas.set(data);
         this.loading.set(false);
       },
       error: (e) => {
@@ -309,10 +297,18 @@ export class VisitantesPageComponent implements OnInit {
         this.loading.set(false);
       },
     });
+    // Mantém a lista bruta também para compatibilidade com computeds
+    // existentes (PIN validation, etc.). Custo mínimo.
+    this.service.list().subscribe({
+      next: (data) => this.visitantes.set(data),
+      error: () => {},
+    });
   }
 
   abrirNovo() {
     this.editingId = null;
+    this.editandoIdentidade.set(false);
+    this.novaVisitaPara.set(null);
     this.novo = this.estadoInicial();
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
@@ -321,17 +317,72 @@ export class VisitantesPageComponent implements OnInit {
     this.showForm = true;
   }
 
-  abrirEditar(v: Visitante) {
+  /**
+   * Abre o formulário em modo "Nova Visita" para uma pessoa já cadastrada.
+   * Pré-preenche nome/foto/doc (somente leitura no template) e zera
+   * apartamento + datas para o operador escolher.
+   */
+  abrirNovaVisita(p: Pessoa) {
+    this.editingId = null;
+    this.editandoIdentidade.set(false);
+    this.novaVisitaPara.set(p);
+    this.novo = {
+      ...this.estadoInicial(),
+      nome: p.nome,
+      doc_identificacao: p.doc_identificacao ?? '',
+      is_visitante: p.is_visitante ?? 1,
+      is_prestador: p.is_prestador ?? 0,
+      foto_pessoa: p.foto_pessoa ?? undefined,
+      foto_documento: p.foto_documento ?? undefined,
+    } as CreateVisitante;
+    this.fotoPessoaBase64.set(p.foto_pessoa ?? null);
+    this.fotoDocumentoBase64.set(p.foto_documento ?? null);
+    this.pessoaEncontrada.set(null);
+    this.error.set(null);
+    this.showForm = true;
+  }
+
+  /**
+   * Remove a PESSOA inteira (todas as visitas + face_id do terminal).
+   * Pede confirmação porque é destrutivo.
+   */
+  removerPessoa(p: Pessoa) {
+    const visitas = p.totalVisitas;
+    const aviso = visitas > 1
+      ? `Remover ${p.nome}? Isso vai apagar todas as ${visitas} visitas dele e remover do terminal facial.`
+      : `Remover ${p.nome}? Isso também vai remover do terminal facial.`;
+    this.confirm.ask({
+      title: 'Remover pessoa',
+      message: aviso,
+      confirmLabel: 'Remover',
+      variant: 'danger',
+    }).then((ok) => {
+      if (!ok) return;
+      this.service.removerPessoa(p.id).subscribe({
+        next: () => this.carregar(),
+        error: (e) => this.error.set(`Falha ao remover: ${e?.error?.message ?? e?.message ?? e}`),
+      });
+    });
+  }
+
+  /**
+   * 'p' pode ser uma Pessoa (vinda da nova lista agregada) ou um Visitante
+   * legacy. Ambos têm os campos básicos (id, nome, doc, fotos).
+   * Em modo edição, ID representa "registro principal da pessoa" e o save
+   * usa atualizarPessoa() para refletir em todas as visitas dela.
+   */
+  abrirEditar(v: Visitante | Pessoa) {
     this.editingId = v.id;
+    this.editandoIdentidade.set(true);
     this.novo = {
       nome: v.nome,
       doc_identificacao: v.doc_identificacao ?? '',
-      id_apartamento: v.id_apartamento,
+      id_apartamento: (v as any).id_apartamento,
       is_visitante: v.is_visitante ?? 1,
       is_prestador: v.is_prestador ?? 0,
       foto_pessoa: v.foto_pessoa ?? undefined,
       foto_documento: v.foto_documento ?? undefined,
-      tag_rfid: v.tag_rfid ?? '',
+      tag_rfid: (v as any).tag_rfid ?? '',
       data_hora_inicio: v.data_hora_inicio
         ? new Date(v.data_hora_inicio).toISOString().slice(0, 16)
         : undefined,
@@ -349,6 +400,8 @@ export class VisitantesPageComponent implements OnInit {
     this.fecharCamera();
     this.showForm = false;
     this.editingId = null;
+    this.editandoIdentidade.set(false);
+    this.novaVisitaPara.set(null);
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
     this.pessoaEncontrada.set(null);
@@ -356,15 +409,69 @@ export class VisitantesPageComponent implements OnInit {
   }
 
   salvar() {
+    // Modo: Nova Visita para pessoa existente (form curto, só apto+validade)
+    const novaPara = this.novaVisitaPara();
+    if (novaPara) {
+      if (!this.novo.id_apartamento) {
+        this.error.set('Selecione o apartamento da visita.');
+        return;
+      }
+      this.saving.set(true);
+      this.service.novaVisitaPessoa(novaPara.id, {
+        id_apartamento: this.novo.id_apartamento,
+        data_hora_inicio: this.novo.data_hora_inicio,
+        data_hora_termino: this.novo.data_hora_termino,
+      }).subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.cancelarForm();
+          this.novo = this.estadoInicial();
+          this.carregar();
+        },
+        error: (e) => {
+          this.saving.set(false);
+          this.error.set(`Falha ao criar visita: ${e?.error?.message ?? e?.message ?? e}`);
+        },
+      });
+      return;
+    }
+
+    // Modo: Editar identidade da pessoa (reflete em todas as visitas dela)
+    if (this.editingId && this.editandoIdentidade()) {
+      if (!this.novo.nome?.trim()) {
+        this.error.set('Informe o nome da pessoa.');
+        return;
+      }
+      this.saving.set(true);
+      this.service.atualizarPessoa(this.editingId, {
+        nome: this.novo.nome,
+        doc_identificacao: this.novo.doc_identificacao,
+        foto_pessoa: this.novo.foto_pessoa ?? undefined,
+        foto_documento: this.novo.foto_documento ?? undefined,
+        is_visitante: this.novo.is_visitante,
+        is_prestador: this.novo.is_prestador,
+      }).subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.cancelarForm();
+          this.novo = this.estadoInicial();
+          this.carregar();
+        },
+        error: (e) => {
+          this.saving.set(false);
+          this.error.set(`Falha ao salvar: ${e?.error?.message ?? e?.message ?? e}`);
+        },
+      });
+      return;
+    }
+
+    // Modo: Pessoa nova (cria pessoa + primeira visita)
     if (!this.novo.nome?.trim() || !this.novo.id_apartamento) {
       this.error.set('Informe nome e selecione o apartamento.');
       return;
     }
     this.saving.set(true);
-    const obs = this.editingId
-      ? this.service.update(this.editingId, this.novo)
-      : this.service.create(this.novo);
-    obs.subscribe({
+    this.service.create(this.novo).subscribe({
       next: () => {
         this.saving.set(false);
         this.cancelarForm();
@@ -464,7 +571,7 @@ export class VisitantesPageComponent implements OnInit {
     }
   }
 
-  async remover(v: Visitante) {
+  async remover(v: Visitante | Pessoa) {
     const ok = await this.confirm.ask({
       title: 'Remover visitante',
       message: `Remover o registro de ${v.nome}?`,
@@ -478,7 +585,7 @@ export class VisitantesPageComponent implements OnInit {
     });
   }
 
-  async darBaixa(v: Visitante) {
+  async darBaixa(v: Visitante | Pessoa) {
     const ok = await this.confirm.ask({
       title: 'Dar baixa (Saída)',
       message: `Confirmar a saída de ${v.nome}?`,
@@ -492,7 +599,7 @@ export class VisitantesPageComponent implements OnInit {
     });
   }
 
-  async registrarEntradaManual(v: Visitante) {
+  async registrarEntradaManual(v: Visitante | Pessoa) {
     const ok = await this.confirm.ask({
       title: 'Registrar Entrada',
       message: `Confirmar a entrada de ${v.nome}?`,
@@ -521,7 +628,7 @@ export class VisitantesPageComponent implements OnInit {
     this.pinsRevelados.set(current);
   }
 
-  duracao(v: Visitante): string {
+  duracao(v: Visitante | Pessoa): string {
     if (!v.data_entrada) {
       return '—';
     }
@@ -537,7 +644,7 @@ export class VisitantesPageComponent implements OnInit {
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
-  getStatusVisitante(v: Visitante): 'presente' | 'autorizado' | 'agendado' | 'saiu' {
+  getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'autorizado' | 'agendado' | 'saiu' {
     const now = Date.now();
     // 1. Entrou e ainda está dentro (saida não registrada)
     if (v.data_entrada && !v.data_saida) return 'presente';

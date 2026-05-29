@@ -32,6 +32,19 @@ export class VisitantesController {
     return list.map((v) => this.flatten(v));
   }
 
+  /**
+   * Lista pessoas únicas (agrupadas por documento/nome). Cada item
+   * representa 1 pessoa, com agregados de todas as visitas. É a fonte
+   * principal da página /visitantes.
+   */
+  @Get('pessoas')
+  pessoas(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Query('search') search?: string,
+  ) {
+    return this.service.listarPessoas(idCondominio, search);
+  }
+
   @Get(':id')
   async get(@Param('id', ParseIntPipe) id: number) {
     return this.flatten(await this.service.findOne(id));
@@ -49,6 +62,56 @@ export class VisitantesController {
     @Query('nome') nome?: string,
   ) {
     return this.service.buscarPessoa(idCondominio, doc, nome);
+  }
+
+  /**
+   * Cria uma nova visita para uma pessoa já cadastrada. Só pede apto +
+   * validade — nome, foto, doc e face_id são copiados do registro de
+   * referência. Endpoint do botão "Nova Visita" na lista.
+   */
+  @Post('pessoa/:idRef/nova-visita')
+  novaVisitaPessoa(
+    @Param('idRef', ParseIntPipe) idRef: number,
+    @Body() body: {
+      id_apartamento: number;
+      data_hora_inicio?: string;
+      data_hora_termino?: string;
+    },
+  ) {
+    return this.service.novaVisitaParaPessoa(idRef, body);
+  }
+
+  /**
+   * Atualiza dados de IDENTIDADE da pessoa em todos os seus registros
+   * (nome, doc, fotos). Apartamento e datas pertencem a cada visita
+   * individual e são editados por outro fluxo.
+   */
+  @Put('pessoa/:idRef')
+  atualizarPessoa(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('idRef', ParseIntPipe) idRef: number,
+    @Body() body: {
+      nome?: string;
+      doc_identificacao?: string;
+      foto_pessoa?: string;
+      foto_documento?: string;
+      is_visitante?: number;
+      is_prestador?: number;
+    },
+  ) {
+    return this.service.atualizarPessoa(idCondominio, idRef, body);
+  }
+
+  /**
+   * Remove TODAS as visitas dessa pessoa no condomínio + desinscreve do
+   * terminal facial. Endpoint do botão "Remover" da lista.
+   */
+  @Delete('pessoa/:idRef')
+  removerPessoa(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('idRef', ParseIntPipe) idRef: number,
+  ) {
+    return this.service.removerPessoa(idCondominio, idRef);
   }
 
   @Post()

@@ -198,6 +198,287 @@ export class VisitantesService {
     };
   }
 
+  /**
+   * Lista pessoas únicas no condomínio (agrupadas por documento, ou pelo
+   * nome quando documento não existe). Cada pessoa é "1 linha", com o
+   * registro principal escolhido por relevância e contadores agregados.
+   *
+   * Substitui o conceito anterior de "1 visita = 1 linha" — agora a lista
+   * mostra pessoas e o card de detalhes (modal) mostra todas as visitas.
+   */
+  async listarPessoas(idCondominio: number, search?: string) {
+    if (!this.prisma.isConnected) {
+      return [];
+    }
+
+    const todas = await this.prisma.visitantes.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        ...(search
+          ? {
+              OR: [
+                { nome: { contains: search } },
+                { doc_identificacao: { contains: search } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        apartamento: { select: { id: true, bloco: true, apto: true } },
+      },
+      orderBy: [{ data_hora_inicio: 'desc' }, { created_at: 'desc' }],
+    });
+
+    type Reg = typeof todas[number];
+    const grupos = new Map<string, Reg[]>();
+    for (const v of todas) {
+      const doc = (v.doc_identificacao ?? '').trim().toLowerCase();
+      const key = doc || `nome:${(v.nome ?? '').trim().toLowerCase()}`;
+      const arr = grupos.get(key) ?? [];
+      arr.push(v);
+      grupos.set(key, arr);
+    }
+
+    // Score do registro principal (qual representa a pessoa na lista)
+    const score = (v: Reg) => {
+      if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
+      if (v.codigo_acesso) return 500;                  // PIN ativo / agendado
+      const created = v.created_at ? new Date(v.created_at).getTime() : 0;
+      return created / 1e10;
+    };
+
+    const pessoas = [];
+    for (const arr of grupos.values()) {
+      arr.sort((a, b) => score(b) - score(a));
+      const principal = arr[0];
+
+      const noLocal = arr.some((r) => r.data_entrada && !r.data_saida);
+      const temPinAtivo = arr.some(
+        (r) => r.codigo_acesso && !r.data_saida,
+      );
+      const totalVisitas = arr.length;
+
+      // Última entrada conhecida (qualquer registro)
+      const ultEntrada = arr
+        .map((r) => r.data_entrada)
+        .filter((d): d is Date => !!d)
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+
+      // Última saída conhecida
+      const ultSaida = arr
+        .map((r) => r.data_saida)
+        .filter((d): d is Date => !!d)
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+
+      // Apartamento atual (do registro principal — ainda usado pelo backend
+      // pra registrar entrada/saída; a UI esconde isso)
+      const apto = principal.apartamento;
+      const aptoStr = apto
+        ? `${apto.apto ?? ''}${apto.bloco ? '/' + apto.bloco : ''}`.replace(/^\/|\/$/g, '')
+        : null;
+
+      // Apartamentos únicos visitados
+      const aptosVisitados = new Map<number, string>();
+      for (const r of arr) {
+        if (r.apartamento) {
+          aptosVisitados.set(
+            r.apartamento.id,
+            `${r.apartamento.apto ?? ''}${r.apartamento.bloco ? '/' + r.apartamento.bloco : ''}`,
+          );
+        }
+      }
+
+      pessoas.push({
+        // Identidade da pessoa
+        id: principal.id, // id do registro principal (compatível com ações antigas)
+        nome: principal.nome,
+        doc_identificacao: principal.doc_identificacao,
+        foto_pessoa: principal.foto_pessoa,
+        foto_documento: principal.foto_documento,
+        is_visitante: principal.is_visitante,
+        is_prestador: principal.is_prestador,
+
+        // Facial
+        face_id: principal.face_id,
+        face_sync_status: principal.face_sync_status,
+
+        // Status atual (agregado de TODAS as visitas)
+        noLocal,
+        temPinAtivo,
+        statusLabel: noLocal
+          ? 'No condomínio'
+          : temPinAtivo
+          ? 'Agendado'
+          : 'Histórico',
+
+        // Resumo
+        totalVisitas,
+        visitasAnteriores: Math.max(0, totalVisitas - 1),
+        apartamentosVisitados: Array.from(aptosVisitados.entries()).map(
+          ([id, label]) => ({ id, label }),
+        ),
+
+        // Visita atual (registro principal)
+        id_apartamento: principal.id_apartamento,
+        apartamentoAtual: aptoStr,
+        // Aliases para compatibilidade com HTML legacy
+        apto: apto?.apto ?? null,
+        apto_bloco: apto?.bloco ?? null,
+
+        // Datas
+        ultEntrada: ultEntrada?.toISOString() ?? null,
+        ultSaida: ultSaida?.toISOString() ?? null,
+        data_entrada: principal.data_entrada?.toISOString() ?? null,
+        data_saida: principal.data_saida?.toISOString() ?? null,
+        data_hora_inicio: principal.data_hora_inicio?.toISOString() ?? null,
+        data_hora_termino: principal.data_hora_termino?.toISOString() ?? null,
+        codigo_acesso: temPinAtivo ? principal.codigo_acesso : null,
+
+        created_at: principal.created_at.toISOString(),
+      });
+    }
+
+    // Ordena: quem está no local primeiro, depois quem tem PIN ativo, depois
+    // pela visita mais recente
+    pessoas.sort((a, b) => {
+      if (a.noLocal !== b.noLocal) return a.noLocal ? -1 : 1;
+      if (a.temPinAtivo !== b.temPinAtivo) return a.temPinAtivo ? -1 : 1;
+      const ta = a.ultEntrada ? new Date(a.ultEntrada).getTime() : 0;
+      const tb = b.ultEntrada ? new Date(b.ultEntrada).getTime() : 0;
+      return tb - ta;
+    });
+
+    return pessoas;
+  }
+
+  /**
+   * Cria uma "nova visita" para uma pessoa que já é cadastrada
+   * (identificada pelo registro principal). Reutiliza foto, documento e
+   * face_id automaticamente — só pede apartamento + validade.
+   */
+  async novaVisitaParaPessoa(
+    idPessoaRef: number,
+    dto: {
+      id_apartamento: number;
+      data_hora_inicio?: string;
+      data_hora_termino?: string;
+    },
+  ) {
+    const ref = await this.prisma.visitantes.findUnique({
+      where: { id: Number(idPessoaRef) },
+    });
+    if (!ref) {
+      throw new NotFoundException(`Pessoa de referência ${idPessoaRef} não encontrada`);
+    }
+    if (!dto.id_apartamento) {
+      throw new BadRequestException('Informe o apartamento da nova visita');
+    }
+    return this.create({
+      nome: ref.nome,
+      doc_identificacao: ref.doc_identificacao ?? undefined,
+      foto_pessoa: ref.foto_pessoa ?? undefined,
+      foto_documento: ref.foto_documento ?? undefined,
+      is_visitante: ref.is_visitante ?? 1,
+      is_prestador: ref.is_prestador ?? 0,
+      id_apartamento: Number(dto.id_apartamento),
+      id_condominio: ref.id_condominio,
+      data_hora_inicio: dto.data_hora_inicio,
+      data_hora_termino: dto.data_hora_termino,
+    });
+  }
+
+  /**
+   * Remove TODAS as visitas de uma pessoa (mesmo documento ou mesmo nome
+   * quando não há documento), e também desinscreve do terminal facial.
+   * Usado pelo botão "Remover" da lista de pessoas.
+   */
+  async removerPessoa(idCondominio: number, idPessoaRef: number) {
+    const ref = await this.prisma.visitantes.findUnique({
+      where: { id: Number(idPessoaRef) },
+    });
+    if (!ref || ref.id_condominio !== Number(idCondominio)) {
+      throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
+    }
+
+    const doc = ref.doc_identificacao?.trim();
+    const where = doc
+      ? { id_condominio: ref.id_condominio, doc_identificacao: doc }
+      : { id_condominio: ref.id_condominio, nome: ref.nome };
+
+    const registros = await this.prisma.visitantes.findMany({
+      where,
+      select: { id: true, face_id: true, id_condominio: true },
+    });
+
+    // Coleta face_ids únicos pra desinscrever do terminal
+    const faceIds = new Set(
+      registros.map((r) => r.face_id).filter((f): f is string => !!f),
+    );
+
+    const result = await this.prisma.visitantes.deleteMany({ where });
+
+    // Best-effort: desinscreve do terminal
+    for (const faceId of faceIds) {
+      this.facial
+        .unsyncVisitante(0, faceId, ref.id_condominio)
+        .catch((err) =>
+          this.logger.warn(`Unsync facial pessoa removida (${faceId}): ${err?.message ?? err}`),
+        );
+    }
+
+    return { ok: true, removidos: result.count };
+  }
+
+  /**
+   * Atualiza dados de IDENTIDADE de uma pessoa em TODOS os seus registros
+   * (mesmo doc/nome no condomínio). Usado pelo "Editar" da lista. Não mexe
+   * em apartamento, datas de visita ou PIN — esses pertencem a cada visita.
+   */
+  async atualizarPessoa(
+    idCondominio: number,
+    idPessoaRef: number,
+    dto: {
+      nome?: string;
+      doc_identificacao?: string;
+      foto_pessoa?: string;
+      foto_documento?: string;
+      is_visitante?: number;
+      is_prestador?: number;
+    },
+  ) {
+    const ref = await this.prisma.visitantes.findUnique({
+      where: { id: Number(idPessoaRef) },
+    });
+    if (!ref || ref.id_condominio !== Number(idCondominio)) {
+      throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
+    }
+
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
+
+    const docRef = ref.doc_identificacao?.trim();
+    const where = docRef
+      ? { id_condominio: ref.id_condominio, doc_identificacao: docRef }
+      : { id_condominio: ref.id_condominio, nome: ref.nome };
+
+    const data: any = {};
+    if (dto.nome !== undefined) data.nome = dto.nome;
+    if (dto.doc_identificacao !== undefined) data.doc_identificacao = dto.doc_identificacao;
+    if (fotoPes !== undefined) data.foto_pessoa = fotoPes;
+    if (fotoDoc !== undefined) data.foto_documento = fotoDoc;
+    if (dto.is_visitante !== undefined) data.is_visitante = dto.is_visitante;
+    if (dto.is_prestador !== undefined) data.is_prestador = dto.is_prestador;
+
+    const result = await this.prisma.visitantes.updateMany({ where, data });
+
+    // Se a foto mudou e havia face_id, re-sincroniza
+    if (fotoPes && ref.face_id) {
+      this.fireFacialSync(ref.id);
+    }
+
+    return { ok: true, atualizados: result.count };
+  }
+
   async create(dto: CreateVisitanteDto) {
     if (!this.prisma.isConnected) {
       return {

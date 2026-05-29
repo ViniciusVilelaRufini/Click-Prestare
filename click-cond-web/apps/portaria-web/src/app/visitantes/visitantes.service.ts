@@ -67,6 +67,46 @@ export interface PessoaEncontrada {
   totalVisitasAnteriores: number;
 }
 
+/** 1 pessoa = 1 linha. Substitui Visitante[] na página /visitantes. */
+export interface Pessoa {
+  id: number; // id do registro principal (compatível com endpoints antigos)
+  nome: string;
+  doc_identificacao: string | null;
+  foto_pessoa: string | null;
+  foto_documento: string | null;
+  is_visitante: number | null;
+  is_prestador: number | null;
+  face_id: string | null;
+  face_sync_status: string | null;
+
+  noLocal: boolean;
+  temPinAtivo: boolean;
+  statusLabel: 'No condomínio' | 'Agendado' | 'Histórico';
+
+  totalVisitas: number;
+  visitasAnteriores: number;
+  apartamentosVisitados: { id: number; label: string }[];
+
+  id_apartamento: number;
+  apartamentoAtual: string | null;
+
+  // Aliases para compatibilidade com o HTML antigo que usa estes nomes.
+  // Derivados de apartamentoAtual (apto = número, apto_bloco = letra/bloco).
+  apto?: string;
+  apto_bloco?: string;
+  tag_rfid?: string;
+
+  ultEntrada: string | null;
+  ultSaida: string | null;
+  data_entrada: string | null;
+  data_saida: string | null;
+  data_hora_inicio: string | null;
+  data_hora_termino: string | null;
+  codigo_acesso: string | null;
+
+  created_at: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class VisitantesService {
   private http = inject(HttpClient);
@@ -105,6 +145,37 @@ export class VisitantesService {
     if (doc) params = params.set('doc', doc);
     if (nome) params = params.set('nome', nome);
     return this.http.get<PessoaEncontrada | null>(`${this.base}/buscar/pessoa`, { params });
+  }
+
+  listarPessoas(search?: string): Observable<Pessoa[]> {
+    let params = new HttpParams();
+    if (search) params = params.set('search', search);
+    return this.http.get<Pessoa[]>(`${this.base}/pessoas`, { params });
+  }
+
+  novaVisitaPessoa(
+    idRef: number,
+    dto: { id_apartamento: number; data_hora_inicio?: string; data_hora_termino?: string },
+  ): Observable<Visitante> {
+    return this.http.post<Visitante>(`${this.base}/pessoa/${idRef}/nova-visita`, dto);
+  }
+
+  atualizarPessoa(
+    idRef: number,
+    dto: Partial<{
+      nome: string;
+      doc_identificacao: string;
+      foto_pessoa: string;
+      foto_documento: string;
+      is_visitante: number;
+      is_prestador: number;
+    }>,
+  ): Observable<{ ok: boolean; atualizados: number }> {
+    return this.http.put<{ ok: boolean; atualizados: number }>(`${this.base}/pessoa/${idRef}`, dto);
+  }
+
+  removerPessoa(idRef: number): Observable<{ ok: boolean; removidos: number }> {
+    return this.http.delete<{ ok: boolean; removidos: number }>(`${this.base}/pessoa/${idRef}`);
   }
 
   validarCodigo(codigo: string): Observable<any> {
