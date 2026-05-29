@@ -34,6 +34,16 @@ export class MoradoresController {
     return this.service.findOne(id);
   }
 
+  /**
+   * Atividade completa do morador para o painel de detalhes: visitas
+   * que convidou, encomendas do apto, ocorrências que abriu, histórico
+   * de acessos faciais. Tudo num único request paralelo.
+   */
+  @Get(':id/atividade')
+  atividade(@Param('id', ParseIntPipe) id: number) {
+    return this.service.atividade(id);
+  }
+
   @Post()
   create(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,

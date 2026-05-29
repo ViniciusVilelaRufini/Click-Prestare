@@ -1,7 +1,9 @@
 import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CreateMorador, Morador, MoradoresApi } from './moradores.service';
+import { CreateMorador, Morador, MoradoresApi, MoradorAtividade } from './moradores.service';
+
+type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective, validators } from '../shared/input-mask.directive';
@@ -30,6 +32,19 @@ export class MoradoresPageComponent implements OnInit {
   }
 
   readonly selectedMorador = signal<Morador | null>(null);
+
+  // Painel de detalhes — atividade do morador (lazy-loaded ao abrir)
+  readonly abaDetalhe = signal<AbaDetalhe>('geral');
+  readonly atividade = signal<MoradorAtividade | null>(null);
+  readonly atividadeLoading = signal(false);
+  readonly atividadeError = signal<string | null>(null);
+
+  formatarData(d: string | null | undefined): string {
+    if (!d) return '—';
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '—';
+    return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
 
   // Câmera ativa para foto de pessoa ou de documento
   readonly activeCamera = signal<'pessoa' | 'documento' | null>(null);
@@ -166,10 +181,29 @@ export class MoradoresPageComponent implements OnInit {
 
   abrirDetalhes(m: Morador) {
     this.selectedMorador.set(m);
+    this.abaDetalhe.set('geral');
+    // Lazy-load das outras abas — só dispara o request ao abrir o painel
+    this.atividade.set(null);
+    this.atividadeError.set(null);
+    this.atividadeLoading.set(true);
+    this.api.atividade(m.id).subscribe({
+      next: (data) => {
+        this.atividade.set(data);
+        this.atividadeLoading.set(false);
+      },
+      error: (e) => {
+        this.atividadeLoading.set(false);
+        this.atividadeError.set(e?.error?.message ?? 'Falha ao carregar atividade');
+      },
+    });
   }
 
   fecharDetalhes() {
     this.selectedMorador.set(null);
+    this.atividade.set(null);
+    this.atividadeError.set(null);
+    this.atividadeLoading.set(false);
+    this.abaDetalhe.set('geral');
   }
   abrirNovo() {
     this.editingId = null;

@@ -158,6 +158,208 @@ export class MoradoresService {
   }
 
   /**
+   * Retorna toda a atividade do morador para o painel de detalhes:
+   * - Visitas que esse morador convidou (Visitantes WHERE user=id_user)
+   * - Encomendas para o apto do morador (match por string apto+bloco)
+   * - Ocorrências criadas pelo morador
+   * - Histórico de acessos faciais do morador
+   *
+   * As 4 queries rodam em paralelo (Promise.all) para baixa latência.
+   */
+  async atividade(idMorador: number) {
+    if (!this.prisma.isConnected) {
+      return {
+        visitas: [],
+        encomendas: [],
+        ocorrencias: [],
+        acessos: [],
+        stats: {
+          visitasNoLocal: 0,
+          visitasAgendadas: 0,
+          visitasHistorico: 0,
+          encomendasAguardando: 0,
+          encomendasEntregues: 0,
+          ocorrenciasPendentes: 0,
+          ocorrenciasResolvidas: 0,
+          totalAcessos: 0,
+        },
+      };
+    }
+
+    const morador = await this.prisma.moradores.findUnique({
+      where: { id: idMorador },
+      select: {
+        id: true,
+        id_user: true,
+        id_condominio: true,
+        apartamento: true,
+        bloco: true,
+      },
+    });
+    if (!morador) {
+      throw new NotFoundException(`Morador ${idMorador} não encontrado`);
+    }
+
+    // Normaliza apartamento/bloco do morador uma vez (strings podem ter
+    // espaços ou variações que quebrariam o match).
+    const aptoNorm = (morador.apartamento ?? '').trim();
+    const blocoNorm = (morador.bloco ?? '').trim();
+
+    const [visitas, encomendas, ocorrencias, acessos] = await Promise.all([
+      // Visitas que esse morador convidou (campo `user` em Visitantes = autor)
+      this.prisma.visitantes.findMany({
+        where: {
+          id_condominio: morador.id_condominio ?? -1,
+          user: morador.id_user,
+        },
+        select: {
+          id: true,
+          nome: true,
+          doc_identificacao: true,
+          foto_pessoa: true,
+          is_visitante: true,
+          is_prestador: true,
+          data_hora_inicio: true,
+          data_hora_termino: true,
+          data_entrada: true,
+          data_saida: true,
+          codigo_acesso: true,
+          created_at: true,
+          apartamento: { select: { bloco: true, apto: true } },
+        },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+      }),
+
+      // Encomendas para o apto do morador. Encomendas NÃO tem FK para
+      // Morador — match feito por string (apto + bloco). O índice
+      // (id_condominio, status) acelera o filtro.
+      aptoNorm
+        ? this.prisma.encomendas.findMany({
+            where: {
+              id_condominio: morador.id_condominio ?? -1,
+              destinatario_apto: aptoNorm,
+              ...(blocoNorm ? { destinatario_bloco: blocoNorm } : {}),
+            },
+            select: {
+              id: true,
+              descricao: true,
+              destinatario_apto: true,
+              destinatario_bloco: true,
+              recebido_de: true,
+              recebido_em: true,
+              retirado_em: true,
+              retirado_por: true,
+              status: true,
+              foto_volume: true,
+              recebidoPor: { select: { name: true } },
+              entreguePor: { select: { name: true } },
+            },
+            orderBy: { recebido_em: 'desc' },
+            take: 50,
+          })
+        : Promise.resolve([]),
+
+      // Ocorrências criadas pelo morador (`user` em Ocorrencias = autor)
+      this.prisma.ocorrencias.findMany({
+        where: {
+          id_condominio: morador.id_condominio ?? -1,
+          user: morador.id_user,
+        },
+        select: {
+          id: true,
+          descricao: true,
+          status: true,
+          resposta: true,
+          resposta_at: true,
+          created_at: true,
+          categoria: { select: { nome: true } },
+        },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+      }),
+
+      // Histórico de acessos faciais do morador
+      this.prisma.acessos_Facial.findMany({
+        where: {
+          id_condominio: morador.id_condominio ?? -1,
+          tipo_pessoa: 'morador',
+          id_pessoa: morador.id,
+        },
+        select: {
+          id: true,
+          id_device: true,
+          tipo_dispositivo: true,
+          evento: true,
+          confianca: true,
+          timestamp: true,
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 50,
+      }),
+    ]);
+
+    // Resolve nomes dos dispositivos referenciados nos acessos (1 query)
+    const idsDevice = Array.from(new Set(acessos.map((a) => a.id_device)));
+    const devices = idsDevice.length > 0
+      ? await this.prisma.facial_Devices.findMany({
+          where: { id: { in: idsDevice } },
+          select: { id: true, nome: true, tipo: true },
+        })
+      : [];
+    const deviceById = new Map(devices.map((d) => [d.id, d]));
+
+    // Stats agregados pra alimentar os badges das abas e KPIs
+    const agora = new Date();
+    const visitasNoLocal = visitas.filter((v) => !!v.data_entrada && !v.data_saida).length;
+    const visitasAgendadas = visitas.filter(
+      (v) =>
+        !v.data_entrada &&
+        !v.data_saida &&
+        v.data_hora_inicio &&
+        (!v.data_hora_termino || new Date(v.data_hora_termino) >= agora),
+    ).length;
+    const visitasHistorico = visitas.length - visitasNoLocal - visitasAgendadas;
+    const encomendasAguardando = encomendas.filter(
+      (e) => (e.status ?? '').toLowerCase() !== 'entregue',
+    ).length;
+    const encomendasEntregues = encomendas.length - encomendasAguardando;
+    const ocorrenciasPendentes = ocorrencias.filter(
+      (o) => (o.status ?? '').toLowerCase() !== 'resolvido',
+    ).length;
+    const ocorrenciasResolvidas = ocorrencias.length - ocorrenciasPendentes;
+
+    return {
+      visitas: visitas.map((v) => ({
+        ...v,
+        apto: v.apartamento?.apto ?? null,
+        apto_bloco: v.apartamento?.bloco ?? null,
+        apartamento: undefined,
+      })),
+      encomendas,
+      ocorrencias,
+      acessos: acessos.map((a) => {
+        const d = deviceById.get(a.id_device);
+        return {
+          ...a,
+          terminalNome: d?.nome ?? `Dispositivo #${a.id_device}`,
+          terminalTipo: d?.tipo ?? a.tipo_dispositivo ?? 'desconhecido',
+        };
+      }),
+      stats: {
+        visitasNoLocal,
+        visitasAgendadas,
+        visitasHistorico: Math.max(0, visitasHistorico),
+        encomendasAguardando,
+        encomendasEntregues,
+        ocorrenciasPendentes,
+        ocorrenciasResolvidas,
+        totalAcessos: acessos.length,
+      },
+    };
+  }
+
+  /**
    * Criação simplificada: assumimos que o porteiro está só registrando dados
    * básicos. Cria um Users mínimo se ainda não existir e vincula via id_user.
    */
