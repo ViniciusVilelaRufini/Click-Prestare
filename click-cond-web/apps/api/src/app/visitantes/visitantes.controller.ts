@@ -164,6 +164,11 @@ export class VisitantesGlobalController {
     return this.service.checkIn(id);
   }
 
+  @Post('liberar')
+  async liberarAcesso(@Body('id', ParseIntPipe) id: number) {
+    return this.service.liberarAcesso(id);
+  }
+
   @Post('check-out')
   async checkOut(@Body('id', ParseIntPipe) id: number) {
     return this.service.checkOut(id);

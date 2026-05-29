@@ -487,7 +487,7 @@ export class FacialService {
       }
 
       if (evento === 'entrada') {
-        if (!v.data_entrada) {
+        if (v.liberado !== 1) {
           await this.prisma.acessos_Facial.create({
             data: {
               id_condominio: device.id_condominio,

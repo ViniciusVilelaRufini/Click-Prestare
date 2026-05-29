@@ -121,7 +121,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       id_apartamento: idApto
     }).subscribe({
       next: (visitanteCriado) => {
-        this.visitantesService.checkIn(visitanteCriado.id).subscribe({
+        this.visitantesService.liberar(visitanteCriado.id).subscribe({
           next: () => {
             this.liberandoVisitante.set(false);
             this.sucessoLiberar.set(`Acesso de ${p.nome} liberado com sucesso!`);
@@ -132,7 +132,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
           },
           error: (e) => {
             this.liberandoVisitante.set(false);
-            this.erroLiberar.set('A visita foi cadastrada, mas falhou ao registrar a entrada: ' + (e?.error?.message ?? e?.message ?? e));
+            this.erroLiberar.set('A visita foi cadastrada, mas falhou ao liberar o acesso: ' + (e?.error?.message ?? e?.message ?? e));
           }
         });
       },

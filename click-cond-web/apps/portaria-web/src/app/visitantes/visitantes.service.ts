@@ -190,6 +190,10 @@ export class VisitantesService {
     return this.http.post<any>(`${API_BASE}/visitantes/check-in`, { id });
   }
 
+  liberar(id: number): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/visitantes/liberar`, { id });
+  }
+
   checkOut(id: number): Observable<any> {
     return this.http.post<any>(`${API_BASE}/visitantes/check-out`, { id });
   }

@@ -935,7 +935,15 @@ export class VisitantesService {
   async checkIn(id: number) {
     await this.prisma.visitantes.update({
       where: { id: Number(id) },
-      data: { data_entrada: new Date(), data_saida: null },
+      data: { data_entrada: new Date(), data_saida: null, liberado: 1 },
+    });
+    return { ok: true };
+  }
+
+  async liberarAcesso(id: number) {
+    await this.prisma.visitantes.update({
+      where: { id: Number(id) },
+      data: { liberado: 1, data_entrada: null, data_saida: null },
     });
     return { ok: true };
   }
@@ -943,7 +951,7 @@ export class VisitantesService {
   async checkOut(id: number) {
     await this.prisma.visitantes.update({
       where: { id: Number(id) },
-      data: { data_saida: new Date(), codigo_acesso: null },
+      data: { data_saida: new Date(), codigo_acesso: null, liberado: 0 },
     });
     return { ok: true };
   }

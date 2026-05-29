@@ -487,6 +487,7 @@ model Visitantes {
   foto_pessoa       String?      @db.LongText
   data_entrada      DateTime?    @db.DateTime(0)
   data_saida        DateTime?    @db.DateTime(0)
+  liberado          Int          @default(0) @db.TinyInt
   codigo_acesso     String?      @db.VarChar(50)
   face_id           String?      @db.VarChar(100)
   face_enrolled_at  DateTime?    @db.DateTime(0)
