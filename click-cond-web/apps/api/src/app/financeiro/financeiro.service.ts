@@ -19,10 +19,72 @@ export class FinanceiroService implements OnModuleInit {
     private readonly auditoria: AuditoriaService,
   ) {}
 
+  // Lock para impedir execução concorrente do job (se o intervalo se sobrepuser
+  // a uma execução lenta, ou se Nest emitir múltiplos onModuleInit em algum caso edge).
+  private billingJobRunning = false;
+
+  // Dedup em memória para evitar reenvio de lembrete no mesmo dia.
+  // Key: `${faturaId}:${tipo}:${YYYY-MM-DD}`. Reseta no reboot.
+  // Sem isso, reiniciar o backend = todos os moradores recebem push de novo
+  // das mesmas faturas (UX horrível, motivo de desinstalar o app).
+  private lembretesEnviados = new Set<string>();
+
   onModuleInit() {
-    // Inicializa o job de cobrança automática 30 segundos após o startup, rodando a cada 24 horas.
-    setTimeout(() => this.runBillingRemindersJob(), 30000);
-    setInterval(() => this.runBillingRemindersJob(), 24 * 60 * 60 * 1000);
+    // 1h após startup roda a primeira vez (não 30s — evita rodar durante o
+    // warm-up se Railway ainda está terminando deploy). Depois checa a cada
+    // hora se está dentro da janela horária permitida (9h-18h por padrão).
+    setTimeout(() => this.tickBillingJob(), 60 * 60 * 1000);
+    setInterval(() => this.tickBillingJob(), 60 * 60 * 1000);
+  }
+
+  /**
+   * Tick horário do job. Só executa se:
+   *   1. Não há outra execução em curso (lock simples)
+   *   2. Está dentro da janela horária (env BILLING_REMINDER_HOUR_START/END)
+   *   3. É exatamente a "hora gatilho" (default 9h) — evita rodar 10x por dia
+   *
+   * É melhor que setInterval(24h) porque sobrevive a reinícios sem perder a
+   * janela do dia, e nunca dispara push fora do horário comercial.
+   */
+  private async tickBillingJob() {
+    if (this.billingJobRunning) {
+      this.logger.debug('Job de lembretes já em execução — pulando este tick');
+      return;
+    }
+
+    const triggerHour = Number(process.env.BILLING_REMINDER_HOUR ?? 9);
+    // Hora local do servidor. Railway por padrão está em UTC — operador deve
+    // configurar TZ=America/Sao_Paulo ou ajustar BILLING_REMINDER_HOUR pra
+    // compensar (ex: 12 = 9h em SP quando server está em UTC).
+    const horaAtual = new Date().getHours();
+    if (horaAtual !== triggerHour) {
+      return;
+    }
+
+    // Limpa cache de dedup mais antigo que 3 dias (em produção longa, evita
+    // o Set crescer indefinidamente).
+    this.purgarCacheLembretesAntigos();
+
+    this.billingJobRunning = true;
+    try {
+      await this.runBillingRemindersJob();
+    } catch (err: any) {
+      this.logger.error(`Job de lembretes falhou: ${err?.message ?? err}`);
+    } finally {
+      this.billingJobRunning = false;
+    }
+  }
+
+  private purgarCacheLembretesAntigos() {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 3);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    for (const k of this.lembretesEnviados) {
+      const datePart = k.split(':')[2];
+      if (datePart && datePart < cutoffStr) {
+        this.lembretesEnviados.delete(k);
+      }
+    }
   }
 
   /**
@@ -1433,83 +1495,129 @@ export class FinanceiroService implements OnModuleInit {
 
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
+    const hojeStr = hoje.toISOString().slice(0, 10);
+
+    // Janela de busca otimizada: só faturas com vencimento entre -2 e +6 dias.
+    // Antes buscava TODAS as faturas em aberto do sistema (todos os condomínios)
+    // — em produção com muitos lançamentos isso virava minutos de processamento.
+    const dataMin = new Date(hoje);
+    dataMin.setDate(dataMin.getDate() - 2);
+    const dataMax = new Date(hoje);
+    dataMax.setDate(dataMax.getDate() + 6);
 
     const faturas = await this.prisma.financeiro.findMany({
       where: {
         pago: 0,
-        data_vencimento: { not: null },
+        data_vencimento: { gte: dataMin, lte: dataMax, not: null },
+      },
+      select: {
+        id: true,
+        nome: true,
+        valor: true,
+        data_vencimento: true,
+        id_condominio: true,
+        pix_copia_cola: true,
       },
     });
 
+    let stats = { faturasProcessadas: 0, pushEnviados: 0, emailsEnviados: 0, deduplicados: 0 };
+
     for (const fat of faturas) {
       if (!fat.data_vencimento) continue;
-      
+
       const venc = new Date(fat.data_vencimento);
       venc.setHours(0, 0, 0, 0);
-      
-      const diffTime = venc.getTime() - hoje.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.ceil((venc.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
 
-      if (diffDays === 5 || diffDays === 0 || diffDays === -1) {
-        const aptoMatch = fat.nome?.match(/Apto\s+(\S+)\s+Bloco\s+(\S+)/i);
-        if (!aptoMatch) continue;
+      let tipo: 'antecipado' | 'hoje' | 'vencido' | null = null;
+      let title = '';
+      const valorFmt = Number(fat.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-        const apto = aptoMatch[1];
-        const bloco = aptoMatch[2];
+      if (diffDays === 5) {
+        tipo = 'antecipado';
+        title = 'Lembrete de Vencimento';
+      } else if (diffDays === 0) {
+        tipo = 'hoje';
+        title = 'Fatura vence hoje!';
+      } else if (diffDays === -1) {
+        tipo = 'vencido';
+        title = 'Fatura vencida';
+      } else {
+        continue;
+      }
 
-        const moradores = await this.prisma.users.findMany({
-          where: {
-            moradores: {
-              some: {
-                id_condominio: fat.id_condominio,
-                apartamento: apto,
-                bloco: bloco,
-              },
-            },
+      // Dedup: garante 1 lembrete por fatura por tipo por dia. Sem isso,
+      // reboot do backend = todo mundo recebe push de novo.
+      const dedupKey = `${fat.id}:${tipo}:${hojeStr}`;
+      if (this.lembretesEnviados.has(dedupKey)) {
+        stats.deduplicados++;
+        continue;
+      }
+
+      const aptoMatch = fat.nome?.match(/Apto\s+(\S+)\s+Bloco\s+(\S+)/i);
+      if (!aptoMatch) continue;
+      const [, apto, bloco] = aptoMatch;
+
+      // TODO: filtrar por preferência `notif_financeiro` quando a coluna for
+      // adicionada ao schema Users. Hoje só existem notif_encomendas e
+      // notif_visitantes. Não usamos notif_encomendas como proxy porque a
+      // semântica é diferente (morador pode querer push de encomenda mas não
+      // de cobrança, ou vice-versa).
+      const moradores = await this.prisma.users.findMany({
+        where: {
+          moradores: {
+            some: { id_condominio: fat.id_condominio, apartamento: apto, bloco: bloco },
           },
-        });
+        },
+        select: { fcm_token: true, email: true, name: true },
+      });
 
-        let title = '';
-        let body = '';
+      const body = tipo === 'antecipado'
+        ? `Olá! A fatura "${fat.nome}" (${valorFmt}) vence em 5 dias (${venc.toLocaleDateString('pt-BR')}).`
+        : tipo === 'hoje'
+        ? `A fatura "${fat.nome}" (${valorFmt}) vence hoje. Evite multas e juros.`
+        : `A fatura "${fat.nome}" (${valorFmt}) venceu ontem. Regularize seu débito.`;
 
-        if (diffDays === 5) {
-          title = 'Lembrete de Vencimento';
-          body = `Olá! A fatura (${fat.nome}) no valor de R$ ${fat.valor} vence em 5 dias (${venc.toLocaleDateString('pt-BR')}).`;
-        } else if (diffDays === 0) {
-          title = 'Fatura Vence Hoje!';
-          body = `Atenção: A fatura (${fat.nome}) no valor de R$ ${fat.valor} vence hoje! Evite multas e juros.`;
-        } else if (diffDays === -1) {
-          title = 'Fatura Vencida!';
-          body = `Constatamos que a fatura (${fat.nome}) no valor de R$ ${fat.valor} venceu ontem. Regularize seu débito.`;
-        }
-
-        for (const morador of moradores) {
-          if (morador.fcm_token) {
+      for (const morador of moradores) {
+        if (morador.fcm_token) {
+          try {
             await this.notifications.sendPushNotification(
-              morador.fcm_token,
-              title,
-              body,
+              morador.fcm_token, title, body,
               { id: fat.id.toString(), type: 'financeiro' },
             );
+            stats.pushEnviados++;
+          } catch (err) {
+            this.logger.warn(`Push falhou para ${morador.name}: ${err}`);
           }
-          if (morador.email) {
-            try {
-              await this.mail.sendBillingReminder(
-                morador.email,
-                morador.name || 'Morador',
-                fat.nome || 'Taxa Condominial',
-                venc.toLocaleDateString('pt-BR'),
-                Number(fat.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-                fat.pix_copia_cola || undefined,
-              );
-            } catch (err) {
-              this.logger.error(`Erro ao enviar email para ${morador.email}: ${err}`);
-            }
+        }
+        if (morador.email) {
+          try {
+            await this.mail.sendBillingReminder(
+              morador.email,
+              morador.name || 'Morador',
+              fat.nome || 'Taxa Condominial',
+              venc.toLocaleDateString('pt-BR'),
+              valorFmt,
+              fat.pix_copia_cola || undefined,
+            );
+            stats.emailsEnviados++;
+          } catch (err) {
+            this.logger.error(`Email falhou para ${morador.email}: ${err}`);
           }
         }
       }
+
+      // Marca como enviado APÓS o envio (se quebrou no meio, pode reenviar
+      // — aceitável: mensagem duplicada vs. mensagem perdida em fatura crítica).
+      this.lembretesEnviados.add(dedupKey);
+      stats.faturasProcessadas++;
     }
-    this.logger.log('Job de Lembretes de Cobrança concluído.');
+
+    this.logger.log(
+      `Job de Lembretes concluído: ${stats.faturasProcessadas} faturas processadas, ` +
+      `${stats.pushEnviados} push, ${stats.emailsEnviados} emails, ` +
+      `${stats.deduplicados} já enviados hoje (skip).`,
+    );
   }
 
   // ==========================================
