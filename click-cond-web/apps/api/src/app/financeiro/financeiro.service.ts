@@ -94,6 +94,36 @@ export class FinanceiroService implements OnModuleInit {
    * ou apagar lançamentos de OUTROS condomínios passando o id solto.
    * É o vetor mais crítico do módulo financeiro — mexe em fluxo de caixa.
    */
+  /**
+   * Parser unificado de data brasileira / ISO.
+   *
+   * Aceita:
+   *   - "dd/mm/aaaa"  → interpretação local (BR)
+   *   - "aaaa-mm-dd" e ISO   → delegado pro construtor Date
+   *   - "" / null / undefined → null
+   *
+   * Retorna `null` se a data resultante for inválida (NaN). Antes esse
+   * parser estava duplicado em 5 lugares, e em 2 deles sem a checagem
+   * de NaN — datas inválidas iam pro banco como "Invalid Date" e
+   * estouravam depois no toLocaleDateString.
+   */
+  private parseDataBR(dStr?: string | null): Date | null {
+    if (!dStr) return null;
+    let d: Date;
+    if (dStr.includes('/')) {
+      const parts = dStr.split('/');
+      if (parts.length !== 3) return null;
+      const dia = Number(parts[0]);
+      const mes = Number(parts[1]);
+      const ano = Number(parts[2]);
+      if (Number.isNaN(dia) || Number.isNaN(mes) || Number.isNaN(ano)) return null;
+      d = new Date(ano, mes - 1, dia);
+    } else {
+      d = new Date(dStr);
+    }
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
   private async getLancamentoForTenant(id: number, user?: JwtPayload) {
     const lanc = await this.prisma.financeiro.findUnique({
       where: { id: Number(id) },
@@ -188,20 +218,8 @@ export class FinanceiroService implements OnModuleInit {
       photoUrl = uploaded ?? '';
     }
 
-    const parseDate = (dStr?: string) => {
-      if (!dStr) return null;
-      let d: Date;
-      if (dStr.includes('/')) {
-        const parts = dStr.split('/');
-        d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-      } else {
-        d = new Date(dStr);
-      }
-      return isNaN(d.getTime()) ? null : d;
-    };
-
-    const dLanc = parseDate(financeiro.data);
-    const dVenc = parseDate(financeiro.data_vencimento);
+    const dLanc = this.parseDataBR(financeiro.data);
+    const dVenc = this.parseDataBR(financeiro.data_vencimento);
 
     let isPago = 0;
     if (financeiro.pago !== undefined && financeiro.pago !== null) {
@@ -308,17 +326,8 @@ export class FinanceiroService implements OnModuleInit {
       photoUrl = uploaded ?? undefined;
     }
 
-    const parseDate = (dStr?: string) => {
-      if (!dStr) return null;
-      if (dStr.includes('/')) {
-        const parts = dStr.split('/');
-        return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-      }
-      return new Date(dStr);
-    };
-
-    const dLanc = parseDate(financeiro.data);
-    const dVenc = parseDate(financeiro.data_vencimento);
+    const dLanc = this.parseDataBR(financeiro.data);
+    const dVenc = this.parseDataBR(financeiro.data_vencimento);
 
     let isPago = 0;
     if (financeiro.pago !== undefined && financeiro.pago !== null) {
@@ -1344,15 +1353,7 @@ export class FinanceiroService implements OnModuleInit {
     if (aptos.length === 0) return { success: false, message: 'Nenhum apartamento cadastrado.' };
 
     const valorPorApto = Number(rateioData.valorTotal) / aptos.length;
-    const parseDate = (dStr?: string) => {
-      if (!dStr) return null;
-      if (dStr.includes('/')) {
-        const parts = dStr.split('/');
-        return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-      }
-      return new Date(dStr);
-    };
-    const dVenc = parseDate(rateioData.data_vencimento);
+    const dVenc = this.parseDataBR(rateioData.data_vencimento);
 
     // Transação: rateio é all-or-nothing. Se cair na metade, alguns aptos
     // ficavam com cobrança e outros não, sem operador saber.
@@ -1624,19 +1625,7 @@ export class FinanceiroService implements OnModuleInit {
     let valor = parseFloat(String(data.valor || '0').replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
     if (isNaN(valor)) valor = 0;
 
-    const parseDate = (dStr?: string) => {
-      if (!dStr) return null;
-      let d: Date;
-      if (dStr.includes('/')) {
-        const parts = dStr.split('/');
-        d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-      } else {
-        d = new Date(dStr);
-      }
-      return isNaN(d.getTime()) ? null : d;
-    };
-
-    const dVenc = parseDate(data.data_vencimento);
+    const dVenc = this.parseDataBR(data.data_vencimento);
 
     await this.prisma.financeiro.create({
       data: {
@@ -1670,19 +1659,7 @@ export class FinanceiroService implements OnModuleInit {
     let valor = parseFloat(String(data.valor || '0').replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
     if (isNaN(valor)) valor = 0;
 
-    const parseDate = (dStr?: string) => {
-      if (!dStr) return null;
-      let d: Date;
-      if (dStr.includes('/')) {
-        const parts = dStr.split('/');
-        d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-      } else {
-        d = new Date(dStr);
-      }
-      return isNaN(d.getTime()) ? null : d;
-    };
-
-    const dVenc = parseDate(data.data_vencimento);
+    const dVenc = this.parseDataBR(data.data_vencimento);
     const isPago = data.pago ? Number(data.pago) : 0;
 
     await this.prisma.financeiro.update({
