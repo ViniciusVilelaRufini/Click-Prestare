@@ -389,6 +389,64 @@
                             </div>
                           </div>
                         </div>
+                      } @else if (tipo === 'encomenda' && dt) {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <!-- Pacote -->
+                          <div class="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3 md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-2">Encomenda</div>
+                            <div class="text-sm font-semibold text-white">{{ dt.encomenda.descricao }}</div>
+                            <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                              <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold"
+                                    [class.bg-amber-500/15]="dt.encomenda.status === 'Aguardando'"
+                                    [class.text-amber-300]="dt.encomenda.status === 'Aguardando'"
+                                    [class.bg-emerald-500/15]="dt.encomenda.status === 'Retirada'"
+                                    [class.text-emerald-300]="dt.encomenda.status === 'Retirada'">
+                                {{ dt.encomenda.status }}
+                              </span>
+                              @if (dt.encomenda.remetente) {
+                                <span class="text-[11px] text-slate-400">de {{ dt.encomenda.remetente }}</span>
+                              }
+                              @if (dt.encomenda.temFoto) {
+                                <span class="text-[11px] text-slate-500">📷 com foto</span>
+                              }
+                            </div>
+                          </div>
+
+                          <!-- Destinatário -->
+                          <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-blue-400 font-bold mb-2">Destinatário</div>
+                            <div class="text-sm font-semibold text-white">{{ dt.destinatario.label }}</div>
+                          </div>
+
+                          <!-- Recebimento -->
+                          <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Recebido</div>
+                            <div class="text-xs text-slate-300">{{ dt.recebimento.em || '—' }}</div>
+                            @if (dt.recebimento.por) {
+                              <div class="text-[11px] text-slate-400 mt-0.5">por {{ dt.recebimento.por.nome }}</div>
+                            }
+                          </div>
+
+                          <!-- Retirada -->
+                          @if (dt.retirada) {
+                            <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 md:col-span-2">
+                              <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold mb-2">Retirada</div>
+                              <div class="text-sm font-semibold text-white">{{ dt.retirada.por }}</div>
+                              <div class="flex items-center gap-3 mt-1 text-[11px] text-slate-400 flex-wrap">
+                                <span>{{ dt.retirada.em }}</span>
+                                @if (dt.retirada.documento) { <span class="font-mono">Doc: {{ dt.retirada.documento }}</span> }
+                                @if (dt.retirada.entreguePor) { <span>entregue por {{ dt.retirada.entreguePor.nome }}</span> }
+                                @if (dt.retirada.comAssinatura) { <span class="text-emerald-400">✍ assinou</span> }
+                                @if (dt.retirada.comFoto) { <span class="text-emerald-400">📷 foto</span> }
+                              </div>
+                            </div>
+                          } @else {
+                            <div class="rounded-lg bg-slate-500/5 border border-slate-500/20 p-3 md:col-span-2">
+                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Retirada</div>
+                              <div class="text-sm text-slate-500">Pendente</div>
+                            </div>
+                          }
+                        </div>
                       } @else if (tipo === 'manual-override' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">

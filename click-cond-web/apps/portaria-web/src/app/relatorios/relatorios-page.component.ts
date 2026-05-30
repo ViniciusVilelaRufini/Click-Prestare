@@ -82,9 +82,12 @@ export class RelatoriosPageComponent {
    * Reconhece o "schema" do detalhes pra escolher o card certo.
    * Mais tipos podem ser adicionados conforme outros serviços enriquecem.
    */
-  tipoDetalhes(detalhes: any): 'visitante' | 'device-change' | 'rule-change' | 'manual-override' | 'generico' {
+  tipoDetalhes(
+    detalhes: any,
+  ): 'visitante' | 'encomenda' | 'device-change' | 'rule-change' | 'manual-override' | 'generico' {
     if (!detalhes) return 'generico';
     if (detalhes.visitante && detalhes.apartamento !== undefined) return 'visitante';
+    if (detalhes.encomenda && detalhes.destinatario !== undefined) return 'encomenda';
     if (detalhes.device_nome && detalhes.success !== undefined) return 'manual-override';
     if (detalhes.changes && typeof detalhes.changes === 'object') {
       // Distingue device de rule pelos campos no diff
