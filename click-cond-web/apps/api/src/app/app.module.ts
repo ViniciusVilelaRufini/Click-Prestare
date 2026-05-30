@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { TenantGuard } from './auth/tenant.guard';
 import { VisitantesModule } from './visitantes/visitantes.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MoradoresModule } from './moradores/moradores.module';
@@ -25,6 +26,7 @@ import { RelatoriosModule } from './relatorios/relatorios.module';
 import { FacialModule } from './facial/facial.module';
 import { RegrasAcessoModule } from './regras-acesso/regras-acesso.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { AuditoriaModule } from './auditoria/auditoria.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
@@ -63,11 +65,13 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     RelatoriosModule,
     FacialModule,
     RegrasAcessoModule,
+    AuditoriaModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],

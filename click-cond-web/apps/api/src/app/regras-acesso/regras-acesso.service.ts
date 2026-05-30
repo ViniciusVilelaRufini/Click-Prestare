@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 export interface CreateRegraAcessoDto {
   nome: string;
@@ -17,7 +19,10 @@ export interface CreateRegraAcessoDto {
 
 @Injectable()
 export class RegrasAcessoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditoria: AuditoriaService,
+  ) {}
 
   async findAll(idCondominio: number) {
     if (!this.prisma.isConnected) {
@@ -62,7 +67,7 @@ export class RegrasAcessoService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, idCondominio?: number) {
     if (!this.prisma.isConnected) {
       return {
         id,
@@ -105,10 +110,14 @@ export class RegrasAcessoService {
       throw new NotFoundException(`Regra de acesso #${id} não encontrada`);
     }
 
+    if (idCondominio !== undefined && regra.id_condominio !== idCondominio) {
+      throw new ForbiddenException(`Regra #${id} não pertence a este condomínio`);
+    }
+
     return regra;
   }
 
-  async create(idCondominio: number, dto: CreateRegraAcessoDto) {
+  async create(idCondominio: number, dto: CreateRegraAcessoDto, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),
@@ -120,7 +129,7 @@ export class RegrasAcessoService {
     }
 
     // Criar a regra e os vínculos N:N com os dispositivos em uma única transação
-    return this.prisma.regras_Acesso.create({
+    const criada = await this.prisma.regras_Acesso.create({
       data: {
         id_condominio: Number(idCondominio),
         nome: dto.nome,
@@ -143,9 +152,30 @@ export class RegrasAcessoService {
         dispositivos: true,
       },
     });
+
+    await this.auditoria.registrar({
+      id_condominio: Number(idCondominio),
+      usuario_nome: operador?.nome ?? 'sistema',
+      acao: 'RULE_CHANGE',
+      modulo: 'regras-acesso',
+      entidade_id: criada.id,
+      descricao: `Criou regra "${criada.nome}"`,
+      detalhes: {
+        sentido: criada.sentido,
+        horario: { inicio: criada.hora_inicio, fim: criada.hora_fim },
+        permite: {
+          morador: criada.permitir_morador === 1,
+          visitante: criada.permitir_visitante === 1,
+          prestador: criada.permitir_prestador === 1,
+          funcionario: criada.permitir_funcionario === 1,
+        },
+        ativo: criada.ativo === 1,
+      },
+    });
+    return criada;
   }
 
-  async update(id: number, dto: Partial<CreateRegraAcessoDto>) {
+  async update(id: number, dto: Partial<CreateRegraAcessoDto>, idCondominio?: number, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return { id, ...dto };
     }
@@ -158,6 +188,10 @@ export class RegrasAcessoService {
       throw new NotFoundException(`Regra de acesso #${id} não encontrada`);
     }
 
+    if (idCondominio !== undefined && regraExistente.id_condominio !== idCondominio) {
+      throw new ForbiddenException(`Regra #${id} não pertence a este condomínio`);
+    }
+
     // Se novos dispositivosIds foram passados, removemos os antigos e inserimos os novos
     if (dto.dispositivosIds !== undefined) {
       await this.prisma.regras_Dispositivos.deleteMany({
@@ -165,7 +199,7 @@ export class RegrasAcessoService {
       });
     }
 
-    return this.prisma.regras_Acesso.update({
+    const atualizada = await this.prisma.regras_Acesso.update({
       where: { id: Number(id) },
       data: {
         ...(dto.nome !== undefined && { nome: dto.nome }),
@@ -190,17 +224,56 @@ export class RegrasAcessoService {
         dispositivos: true,
       },
     });
+
+    // Diff dos campos sensíveis para o log.
+    const diff: Record<string, any> = {};
+    for (const k of ['nome', 'sentido', 'hora_inicio', 'hora_fim', 'ativo',
+                     'permitir_morador', 'permitir_visitante',
+                     'permitir_prestador', 'permitir_funcionario'] as const) {
+      if (dto[k] !== undefined && (regraExistente as any)[k] !== (atualizada as any)[k]) {
+        diff[k] = { de: (regraExistente as any)[k], para: (atualizada as any)[k] };
+      }
+    }
+    if (dto.dispositivosIds !== undefined) diff['dispositivos'] = dto.dispositivosIds;
+
+    await this.auditoria.registrar({
+      id_condominio: atualizada.id_condominio,
+      usuario_nome: operador?.nome ?? 'sistema',
+      acao: 'RULE_CHANGE',
+      modulo: 'regras-acesso',
+      entidade_id: id,
+      descricao: `Alterou regra "${atualizada.nome}"`,
+      detalhes: { changes: diff },
+    });
+    return atualizada;
   }
 
-  async remove(id: number) {
+  async remove(id: number, idCondominio?: number, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return { success: true };
+    }
+
+    const regra = await this.prisma.regras_Acesso.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true, nome: true },
+    });
+    if (!regra) throw new NotFoundException(`Regra de acesso #${id} não encontrada`);
+    if (idCondominio !== undefined && regra.id_condominio !== idCondominio) {
+      throw new ForbiddenException(`Regra #${id} não pertence a este condomínio`);
     }
 
     try {
       // Devido ao onDelete: Cascade no Schema, deletar a regra já limpa a tabela intermediária
       await this.prisma.regras_Acesso.delete({
         where: { id: Number(id) },
+      });
+      await this.auditoria.registrar({
+        id_condominio: regra.id_condominio,
+        usuario_nome: operador?.nome ?? 'sistema',
+        acao: 'RULE_CHANGE',
+        modulo: 'regras-acesso',
+        entidade_id: id,
+        descricao: `Removeu regra "${regra.nome}"`,
       });
       return { success: true };
     } catch {

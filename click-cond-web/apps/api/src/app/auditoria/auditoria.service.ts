@@ -10,7 +10,14 @@ export type AuditoriaAcao =
   | 'ENTREGA'
   | 'RETIRADA'
   | 'RESPOSTA'
-  | 'STATUS';
+  | 'STATUS'
+  // ---- Decisões de controle de acesso físico ----
+  | 'ACCESS_GRANTED'    // identificação OK + regras OK → liberou
+  | 'ACCESS_DENIED'     // credencial inválida, fora de janela, ou regra bloqueou
+  | 'MANUAL_OVERRIDE'   // porteiro acionou trigger manual de uma abertura
+  | 'BRIDGE_TRIGGER'    // ponte RFID/QR → botoeira disparou automático
+  | 'RULE_CHANGE'       // CRUD em regras de acesso
+  | 'DEVICE_CHANGE';    // CRUD em dispositivos (criar/desativar/trocar IP)
 
 export interface RegistrarAuditoriaDto {
   id_condominio: number;

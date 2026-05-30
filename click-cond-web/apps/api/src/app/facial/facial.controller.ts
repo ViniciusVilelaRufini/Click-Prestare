@@ -17,53 +17,74 @@ import {
   WebhookEventDto,
 } from './facial.service';
 import { MockRelayService } from './mock-relay.service';
+import { ReqUser } from '../auth/req-user.decorator';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertSameTenant } from '../auth/tenant.util';
 
 @Controller('facial')
 export class FacialController {
   constructor(private readonly service: FacialService) {}
 
   @Get('devices')
-  list(@Query('id_condominio', ParseIntPipe) idCondominio: number) {
+  list(@Query('id_condominio', ParseIntPipe) idCondominio: number, @ReqUser() user: JwtPayload) {
+    assertSameTenant(idCondominio, user, `dispositivos do condomínio ${idCondominio}`);
     return this.service.listDevices(idCondominio);
   }
 
   @Get('devices/:id')
-  get(@Param('id', ParseIntPipe) id: number) {
-    return this.service.getDevice(id);
+  async get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    const device = await this.service.getDevice(id);
+    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    return device;
   }
 
   @Post('devices')
-  create(@Body() body: CreateDeviceDto) {
-    return this.service.createDevice(body);
+  create(@Body() body: CreateDeviceDto, @ReqUser() user: JwtPayload) {
+    assertSameTenant(body.id_condominio, user, `criação de dispositivo`);
+    return this.service.createDevice(body, user);
   }
 
   @Put('devices/:id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateDeviceDto) {
-    return this.service.updateDevice(id, body);
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateDeviceDto,
+    @ReqUser() user: JwtPayload,
+  ) {
+    const device = await this.service.getDevice(id);
+    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    return this.service.updateDevice(id, body, user);
   }
 
   @Delete('devices/:id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.removeDevice(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    const device = await this.service.getDevice(id);
+    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    return this.service.removeDevice(id, user);
   }
 
   @Post('devices/:id/test')
-  test(@Param('id', ParseIntPipe) id: number) {
+  async test(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    const device = await this.service.getDevice(id);
+    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
     return this.service.testDevice(id);
   }
 
   @Post('devices/:id/trigger')
-  trigger(@Param('id', ParseIntPipe) id: number) {
-    return this.service.triggerDevice(id);
+  async trigger(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    const device = await this.service.getDevice(id);
+    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    return this.service.triggerDevice(id, user);
   }
 
   @Post('sync/morador/:id')
-  syncMorador(@Param('id', ParseIntPipe) id: number) {
+  async syncMorador(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    await this.service.assertMoradorSameTenant(id, user);
     return this.service.syncMorador(id);
   }
 
   @Post('sync/visitante/:id')
-  syncVisitante(@Param('id', ParseIntPipe) id: number) {
+  async syncVisitante(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    await this.service.assertVisitanteSameTenant(id, user);
     return this.service.syncVisitante(id);
   }
 
@@ -71,25 +92,31 @@ export class FacialController {
   acessos(
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
     @Query('limit') limitStr?: string,
+    @ReqUser() user?: JwtPayload,
   ) {
+    assertSameTenant(idCondominio, user, `acessos do condomínio ${idCondominio}`);
     const limit = limitStr ? Number(limitStr) : 50;
     return this.service.listAcessos(idCondominio, limit);
   }
 
   @Get('acessos/visitante/:id')
-  acessosVisitante(
+  async acessosVisitante(
     @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
     @Query('limit') limitStr?: string,
   ) {
+    await this.service.assertVisitanteSameTenant(id, user);
     const limit = limitStr ? Number(limitStr) : 30;
     return this.service.listAcessosPessoa('visitante', id, limit);
   }
 
   @Get('acessos/morador/:id')
-  acessosMorador(
+  async acessosMorador(
     @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
     @Query('limit') limitStr?: string,
   ) {
+    await this.service.assertMoradorSameTenant(id, user);
     const limit = limitStr ? Number(limitStr) : 30;
     return this.service.listAcessosPessoa('morador', id, limit);
   }
@@ -97,18 +124,20 @@ export class FacialController {
   // ----- Enrollment guiado (captura de UID/QR via leitor) -----
 
   @Post('enroll/start')
-  startEnroll(@Body() body: { id_device: number }) {
+  async startEnroll(@Body() body: { id_device: number }, @ReqUser() user: JwtPayload) {
+    const device = await this.service.getDevice(body.id_device);
+    assertSameTenant(device.id_condominio, user, `dispositivo #${body.id_device}`);
     return this.service.startEnrollCapture(body.id_device);
   }
 
   @Get('enroll/:sessionId')
-  pollEnroll(@Param('sessionId') sessionId: string) {
-    return this.service.pollEnrollCapture(sessionId);
+  pollEnroll(@Param('sessionId') sessionId: string, @ReqUser() user: JwtPayload) {
+    return this.service.pollEnrollCapture(sessionId, user);
   }
 
   @Delete('enroll/:sessionId')
-  cancelEnroll(@Param('sessionId') sessionId: string) {
-    return this.service.cancelEnrollCapture(sessionId);
+  cancelEnroll(@Param('sessionId') sessionId: string, @ReqUser() user: JwtPayload) {
+    return this.service.cancelEnrollCapture(sessionId, user);
   }
 }
 

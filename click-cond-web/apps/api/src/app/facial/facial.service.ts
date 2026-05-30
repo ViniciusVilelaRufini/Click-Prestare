@@ -13,6 +13,10 @@ import {
   FacialDeviceConfig,
 } from './facial-device-client.service';
 import { EnrollSessionService } from './enroll-session.service';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertSameTenant } from '../auth/tenant.util';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import { AccessStateService } from './access-state.service';
 
 export interface CreateDeviceDto {
   id_condominio: number;
@@ -51,6 +55,8 @@ export class FacialService {
     private readonly client: FacialDeviceClientService,
     private readonly notifications: NotificationsService,
     private readonly enrollSessions: EnrollSessionService,
+    private readonly auditoria: AuditoriaService,
+    private readonly accessState: AccessStateService,
   ) {}
 
   // ---------- Enrollment guiado (RFID/QR) ----------
@@ -70,13 +76,45 @@ export class FacialService {
     return this.enrollSessions.start(idDevice);
   }
 
-  pollEnrollCapture(sessionId: string) {
-    return this.enrollSessions.get(sessionId);
+  async pollEnrollCapture(sessionId: string, user?: JwtPayload) {
+    const session = this.enrollSessions.get(sessionId);
+    await this.assertSessionSameTenant(session.idDevice, user);
+    return session;
   }
 
-  cancelEnrollCapture(sessionId: string) {
+  async cancelEnrollCapture(sessionId: string, user?: JwtPayload) {
+    const session = this.enrollSessions.get(sessionId);
+    await this.assertSessionSameTenant(session.idDevice, user);
     this.enrollSessions.cancel(sessionId);
     return { ok: true };
+  }
+
+  private async assertSessionSameTenant(idDevice: number, user?: JwtPayload) {
+    const device = await this.prisma.facial_Devices.findUnique({
+      where: { id: idDevice },
+      select: { id_condominio: true },
+    });
+    assertSameTenant(device?.id_condominio, user, `sessão de enrollment`);
+  }
+
+  /** Garante que o morador pertence ao condomínio do usuário. */
+  async assertMoradorSameTenant(idMorador: number, user?: JwtPayload) {
+    const m = await this.prisma.moradores.findUnique({
+      where: { id: idMorador },
+      select: { id_condominio: true },
+    });
+    if (!m) throw new NotFoundException(`Morador ${idMorador} não encontrado`);
+    assertSameTenant(m.id_condominio, user, `morador #${idMorador}`);
+  }
+
+  /** Garante que o visitante pertence ao condomínio do usuário. */
+  async assertVisitanteSameTenant(idVisitante: number, user?: JwtPayload) {
+    const v = await this.prisma.visitantes.findUnique({
+      where: { id: idVisitante },
+      select: { id_condominio: true },
+    });
+    if (!v) throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
+    assertSameTenant(v.id_condominio, user, `visitante #${idVisitante}`);
   }
 
   // ---------- Devices CRUD ----------
@@ -103,9 +141,9 @@ export class FacialService {
     return d;
   }
 
-  async createDevice(dto: CreateDeviceDto) {
+  async createDevice(dto: CreateDeviceDto, operador?: JwtPayload) {
     const token = crypto.randomBytes(32).toString('hex');
-    return this.prisma.facial_Devices.create({
+    const created = await this.prisma.facial_Devices.create({
       data: {
         id_condominio: dto.id_condominio,
         nome: dto.nome,
@@ -119,11 +157,21 @@ export class FacialService {
         webhook_token: token,
       },
     });
+    await this.auditoria.registrar({
+      id_condominio: dto.id_condominio,
+      usuario_nome: operador?.nome ?? 'sistema',
+      acao: 'DEVICE_CHANGE',
+      modulo: 'facial',
+      entidade_id: created.id,
+      descricao: `Cadastrou dispositivo "${created.nome}" (${created.tipo})`,
+      detalhes: { tipo: created.tipo, fabricante: created.fabricante, ip: created.ip },
+    });
+    return created;
   }
 
-  async updateDevice(id: number, dto: UpdateDeviceDto) {
-    await this.getDevice(id);
-    return this.prisma.facial_Devices.update({
+  async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
+    const antes = await this.getDevice(id);
+    const atual = await this.prisma.facial_Devices.update({
       where: { id },
       data: {
         ...(dto.nome !== undefined && { nome: dto.nome }),
@@ -136,11 +184,39 @@ export class FacialService {
         ...(dto.api_password !== undefined && { api_password: dto.api_password }),
       },
     });
+    // Detalha o que mudou (campos sensíveis: ip/porta/tipo/api_user — mudança
+    // pode redirecionar a abertura para hardware diferente).
+    const diff: Record<string, { de: any; para: any }> = {};
+    for (const k of ['nome', 'tipo', 'fabricante', 'ip', 'porta', 'api_user'] as const) {
+      if (dto[k] !== undefined && (antes as any)[k] !== (atual as any)[k]) {
+        diff[k] = { de: (antes as any)[k], para: (atual as any)[k] };
+      }
+    }
+    if (dto.api_password !== undefined) diff['api_password'] = { de: '***', para: '***' };
+    await this.auditoria.registrar({
+      id_condominio: atual.id_condominio,
+      usuario_nome: operador?.nome ?? 'sistema',
+      acao: 'DEVICE_CHANGE',
+      modulo: 'facial',
+      entidade_id: id,
+      descricao: `Alterou dispositivo "${atual.nome}"`,
+      detalhes: { changes: diff },
+    });
+    return atual;
   }
 
-  async removeDevice(id: number) {
-    await this.getDevice(id);
+  async removeDevice(id: number, operador?: JwtPayload) {
+    const device = await this.getDevice(id);
     await this.prisma.facial_Devices.delete({ where: { id } });
+    await this.auditoria.registrar({
+      id_condominio: device.id_condominio,
+      usuario_nome: operador?.nome ?? 'sistema',
+      acao: 'DEVICE_CHANGE',
+      modulo: 'facial',
+      entidade_id: id,
+      descricao: `Removeu dispositivo "${device.nome}"`,
+      detalhes: { tipo: device.tipo, ip: device.ip },
+    });
     return { ok: true };
   }
 
@@ -150,12 +226,14 @@ export class FacialService {
     return { online };
   }
 
-  async triggerDevice(id: number) {
+  async triggerDevice(id: number, operador?: JwtPayload) {
     const device = await this.getDevice(id);
     if (device.tipo !== 'botoeira' && device.tipo !== 'catraca') {
       throw new BadRequestException('Apenas dispositivos do tipo Botoeira ou Catraca podem ser acionados remotamente.');
     }
     const result = await this.client.triggerRelay(this.toConfig(device));
+
+    const nomeOperador = operador?.nome ?? 'Operador (Portal Web)';
 
     // Sempre registra o evento — sucesso vira 'acionado_manual', falha vira
     // 'falha_acionamento' (auditável). O operador NÃO pode pensar que abriu
@@ -167,10 +245,31 @@ export class FacialService {
         tipo_dispositivo: device.tipo,
         face_id: 'trigger_manual',
         tipo_pessoa: 'operador',
-        id_pessoa: null,
-        nome_pessoa: result.ok ? 'Operador (Portal Web)' : 'Operador (FALHA)',
+        id_pessoa: operador?.sub ?? null,
+        nome_pessoa: result.ok ? nomeOperador : `${nomeOperador} (FALHA)`,
         evento: result.ok ? 'acionado_manual' : 'falha_acionamento',
         timestamp: new Date(),
+      },
+    });
+
+    // Auditoria estruturada — quem, quando, qual porta, sucesso/falha.
+    // Essencial para responder "quem abriu a porta às 3h da manhã?".
+    await this.auditoria.registrar({
+      id_condominio: device.id_condominio,
+      usuario_nome: nomeOperador,
+      acao: 'MANUAL_OVERRIDE',
+      modulo: 'facial',
+      entidade_id: device.id,
+      descricao: result.ok
+        ? `Acionou manualmente ${device.tipo} "${device.nome}"`
+        : `FALHA ao acionar ${device.tipo} "${device.nome}"`,
+      detalhes: {
+        device_nome: device.nome,
+        device_tipo: device.tipo,
+        device_ip: device.ip,
+        success: result.ok,
+        statusCode: result.statusCode,
+        error: result.error,
       },
     });
 
@@ -478,6 +577,15 @@ export class FacialService {
     const qrCodeLido = payload.qrcode ?? (device.tipo === 'qrcode_reader' ? payload.external_id : undefined);
     const tagRfidLida = payload.card_uid ?? (device.tipo === 'tag_reader' ? payload.external_id : undefined);
     const externalId = payload.external_id ?? payload.person_id ?? '';
+
+    // Cooldown: descarta eventos duplicados do mesmo leitor para a mesma
+    // credencial dentro da janela (default 15s). Protege contra leitor com
+    // defeito disparando em loop e contra usuário batendo o crachá duas vezes.
+    const credencial = qrCodeLido ?? tagRfidLida ?? externalId ?? '';
+    if (credencial && this.accessState.shouldDebounce(device.id, credencial)) {
+      this.logger.debug(`Webhook ignorado por cooldown: device ${device.id}, credencial ${credencial}`);
+      return { ok: true, debounced: true };
+    }
 
     if (qrCodeLido) {
       const morador = await this.prisma.moradores.findFirst({
@@ -887,18 +995,62 @@ export class FacialService {
     // que abre o portão. Morador encosta o crachá → leitor identifica →
     // ponte aciona botoeira → portão abre.
     //
-    // Para setups com múltiplas entradas/saídas e regras complexas, o
-    // operador deve usar Regras_Dispositivos (não implementado nesta versão).
+    // Para setups com múltiplas entradas, configure Regras_Dispositivos:
+    // crie uma regra ativa que inclua o leitor X E a(s) abertura(s) que ele
+    // deve acionar. Só essas aberturas serão disparadas.
+    //
+    // Se NENHUMA regra mapeia o leitor para aberturas específicas, cai no
+    // fallback: aciona todas as aberturas ativas do condomínio (comportamento
+    // legado, útil pra condomínios simples com 1 entrada).
+    //
     // Apenas eventos de ENTRADA disparam acionamento — saídas não precisam.
     const isLeitor = device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
     if (isLeitor && evento === 'entrada') {
-      const aberturasParaAcionar = await this.prisma.facial_Devices.findMany({
+      // Busca aberturas vinculadas a esse leitor via regras ativas.
+      // Uma regra que tenha o leitor E aberturas define o roteamento.
+      const regrasDoLeitor = await this.prisma.regras_Acesso.findMany({
         where: {
           id_condominio: device.id_condominio,
           ativo: 1,
-          tipo: { in: ['botoeira', 'catraca'] },
+          dispositivos: { some: { id_dispositivo: device.id } },
+        },
+        include: {
+          dispositivos: {
+            include: { dispositivo: true },
+          },
         },
       });
+
+      const aberturasMapeadas = new Map<number, typeof device>();
+      for (const regra of regrasDoLeitor) {
+        for (const link of regra.dispositivos) {
+          const d = link.dispositivo;
+          if (
+            d &&
+            d.id !== device.id &&
+            d.ativo === 1 &&
+            (d.tipo === 'botoeira' || d.tipo === 'catraca')
+          ) {
+            aberturasMapeadas.set(d.id, d as any);
+          }
+        }
+      }
+
+      const aberturasParaAcionar = aberturasMapeadas.size > 0
+        ? Array.from(aberturasMapeadas.values())
+        : await this.prisma.facial_Devices.findMany({
+            where: {
+              id_condominio: device.id_condominio,
+              ativo: 1,
+              tipo: { in: ['botoeira', 'catraca'] },
+            },
+          });
+
+      if (aberturasMapeadas.size === 0) {
+        this.logger.warn(
+          `Ponte usando FALLBACK (sem mapeamento): leitor ${device.id} acionando todas as aberturas do condomínio`,
+        );
+      }
 
       for (const abertura of aberturasParaAcionar) {
         try {

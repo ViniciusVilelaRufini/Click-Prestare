@@ -24,7 +24,10 @@ import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
     PassportModule,
     JwtModule.register({
       secret: process.env['JWT_SECRET'] ?? 'fallback-secret',
-      signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '7d') as any },
+      // Default reduzido de 7d para 8h: porteiro fica logado durante o turno,
+      // mas crachá expira no dia seguinte. Reduz janela de exposição se
+      // o token vazar. Override via JWT_EXPIRES_IN para casos especiais.
+      signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '8h') as any },
     }),
     OcorrenciasModule,
   ],

@@ -9,6 +9,7 @@ import { FacialService } from './facial.service';
 import { FacialDeviceClientService } from './facial-device-client.service';
 import { MockRelayService } from './mock-relay.service';
 import { EnrollSessionService } from './enroll-session.service';
+import { AccessStateService } from './access-state.service';
 
 @Module({
   controllers: [
@@ -22,6 +23,7 @@ import { EnrollSessionService } from './enroll-session.service';
     FacialDeviceClientService,
     MockRelayService,
     EnrollSessionService,
+    AccessStateService,
   ],
   exports: [FacialService],
 })

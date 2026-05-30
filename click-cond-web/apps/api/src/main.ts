@@ -19,8 +19,21 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ limit: '50mb', extended: true }));
 
-  // helmet com CSP desabilitada — o simulador facial carrega face-api.js de CDN
-  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+  // Helmet: CSP desabilitada porque os simuladores HTML em /assets carregam
+  // bibliotecas de CDN (face-api.js, jsQR). Demais headers ficam ligados:
+  //   - HSTS força HTTPS (importante: token JWT está no Authorization header)
+  //   - X-Frame-Options bloqueia clickjacking
+  //   - X-Content-Type-Options previne MIME sniffing
+  //   - Referrer-Policy limita info vazada em links externos
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      hsts: { maxAge: 15552000, includeSubDomains: true, preload: true },
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    }),
+  );
 
   // Serve arquivos estáticos copiados de src/assets (simulador facial em /simulator.html)
   app.useStaticAssets(join(__dirname, 'assets'));

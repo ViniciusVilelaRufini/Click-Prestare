@@ -2,6 +2,9 @@ import {
   Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query,
 } from '@nestjs/common';
 import { CreateMoradorDto, MoradoresService } from './moradores.service';
+import { ReqUser } from '../auth/req-user.decorator';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertSameTenant } from '../auth/tenant.util';
 
 @Controller('condominios/:idCondominio/moradores')
 export class MoradoresController {
@@ -30,8 +33,10 @@ export class MoradoresController {
   }
 
   @Get(':id')
-  get(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findOne(id);
+  async get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    const morador = await this.service.findOne(id);
+    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
+    return morador;
   }
 
   /**
@@ -40,7 +45,10 @@ export class MoradoresController {
    * de acessos faciais. Tudo num único request paralelo.
    */
   @Get(':id/atividade')
-  atividade(@Param('id', ParseIntPipe) id: number) {
+  async atividade(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    // findOne só pra validar tenant; atividade tem queries paralelas próprias.
+    const morador = await this.service.findOne(id);
+    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
     return this.service.atividade(id);
   }
 
@@ -53,21 +61,28 @@ export class MoradoresController {
   }
 
   @Put(':id')
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: Partial<CreateMoradorDto>,
+    @ReqUser() user: JwtPayload,
   ) {
+    const morador = await this.service.findOne(id);
+    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
     return this.service.update(id, body);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    const morador = await this.service.findOne(id);
+    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
     this.service.remove(id);
     return { ok: true };
   }
 
   @Post(':id/send-credentials')
-  sendCredentials(@Param('id', ParseIntPipe) id: number) {
+  async sendCredentials(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    const morador = await this.service.findOne(id);
+    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
     return this.service.sendCredentials(id);
   }
 }

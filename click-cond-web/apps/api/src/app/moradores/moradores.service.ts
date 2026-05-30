@@ -17,6 +17,8 @@ export interface CreateMoradorDto {
   sendCredentials?: boolean;
   foto_pessoa?: string;
   foto_documento?: string;
+  tag_rfid?: string;
+  qrcode_acesso?: string;
 }
 
 @Injectable()
@@ -59,6 +61,85 @@ export class MoradoresService {
       return (await this.storage.uploadDataUrl(value, 'moradores')) ?? null;
     }
     return value;
+  }
+
+  /**
+   * Garante que tag RFID / QR não estão sendo usadas por outra pessoa
+   * (morador OU visitante) no mesmo condomínio. Idealmente o schema teria
+   * UNIQUE compound (id_condominio, tag_rfid) — enquanto não rodamos a
+   * migration, validamos no application layer.
+   *
+   * Suporta excluir o próprio morador via `excluirMoradorId` (no update).
+   */
+  private async assertCredencialDisponivel(
+    idCondominio: number,
+    tag: string | undefined | null,
+    qr: string | undefined | null,
+    excluirMoradorId: number | null,
+  ): Promise<void> {
+    if (!this.prisma.isConnected) return;
+
+    const checks: Array<Promise<void>> = [];
+
+    if (tag) {
+      checks.push(
+        (async () => {
+          const conflitoMorador = await this.prisma.moradores.findFirst({
+            where: {
+              id_condominio: idCondominio,
+              tag_rfid: tag,
+              ...(excluirMoradorId ? { NOT: { id: excluirMoradorId } } : {}),
+            },
+            select: { id: true, nome: true },
+          });
+          if (conflitoMorador) {
+            throw new BadRequestException(
+              `Tag RFID já cadastrada para o morador "${conflitoMorador.nome}"`,
+            );
+          }
+          const conflitoVisitante = await this.prisma.visitantes.findFirst({
+            where: { id_condominio: idCondominio, tag_rfid: tag },
+            select: { id: true, nome: true },
+          });
+          if (conflitoVisitante) {
+            throw new BadRequestException(
+              `Tag RFID já em uso pelo visitante "${conflitoVisitante.nome}"`,
+            );
+          }
+        })(),
+      );
+    }
+
+    if (qr) {
+      checks.push(
+        (async () => {
+          const conflitoMorador = await this.prisma.moradores.findFirst({
+            where: {
+              id_condominio: idCondominio,
+              qrcode_acesso: qr,
+              ...(excluirMoradorId ? { NOT: { id: excluirMoradorId } } : {}),
+            },
+            select: { id: true, nome: true },
+          });
+          if (conflitoMorador) {
+            throw new BadRequestException(
+              `QR Code já cadastrado para o morador "${conflitoMorador.nome}"`,
+            );
+          }
+          const conflitoVisitante = await this.prisma.visitantes.findFirst({
+            where: { id_condominio: idCondominio, codigo_acesso: qr },
+            select: { id: true, nome: true },
+          });
+          if (conflitoVisitante) {
+            throw new BadRequestException(
+              `QR Code já em uso pelo visitante "${conflitoVisitante.nome}"`,
+            );
+          }
+        })(),
+      );
+    }
+
+    await Promise.all(checks);
   }
 
   /**
@@ -419,6 +500,11 @@ export class MoradoresService {
       throw new BadRequestException('Este morador já está cadastrado neste condomínio (e-mail, documento ou nome/apartamento duplicado).');
     }
 
+    // Garante que tag/QR não estão em uso por outro morador OU visitante no
+    // mesmo condomínio. Duas pessoas com a mesma credencial é o pior bug
+    // possível em controle de acesso — "quem é quem?".
+    await this.assertCredencialDisponivel(dto.id_condominio, dto.tag_rfid, dto.qrcode_acesso, null);
+
     const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa);
     const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento);
 
@@ -522,6 +608,8 @@ export class MoradoresService {
         apartamento: aptoNum || null,
         foto_pessoa: fotoPessoaUrl,
         foto_documento: fotoDocumentoUrl,
+        tag_rfid: dto.tag_rfid ? dto.tag_rfid.trim() : null,
+        qrcode_acesso: dto.qrcode_acesso ? dto.qrcode_acesso.trim() : null,
       },
     });
 
@@ -556,6 +644,17 @@ export class MoradoresService {
     });
     if (!atual) throw new NotFoundException(`Morador ${id} não encontrado`);
 
+    // Valida duplicação de credenciais. Só dispara se o campo veio no dto e
+    // mudou — não bloqueia edições que mantêm a credencial atual.
+    const novaTag = dto.tag_rfid !== undefined ? dto.tag_rfid?.trim() : undefined;
+    const novoQr = dto.qrcode_acesso !== undefined ? dto.qrcode_acesso?.trim() : undefined;
+    await this.assertCredencialDisponivel(
+      atual.id_condominio ?? -1,
+      novaTag !== (atual as any).tag_rfid ? novaTag : undefined,
+      novoQr !== (atual as any).qrcode_acesso ? novoQr : undefined,
+      id,
+    );
+
     // Se o email mudou, valida unicidade no Users (login + email)
     const emailMudou = dto.email !== undefined && dto.email !== atual.email;
     if (emailMudou && dto.email) {
@@ -586,6 +685,8 @@ export class MoradoresService {
           }),
           ...(fotoPessoaUrl !== undefined && { foto_pessoa: fotoPessoaUrl }),
           ...(fotoDocumentoUrl !== undefined && { foto_documento: fotoDocumentoUrl }),
+          ...(novaTag !== undefined && { tag_rfid: novaTag || null }),
+          ...(novoQr !== undefined && { qrcode_acesso: novoQr || null }),
         },
       });
 

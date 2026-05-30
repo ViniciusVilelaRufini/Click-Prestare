@@ -9,6 +9,8 @@ import {
   Put,
 } from '@nestjs/common';
 import { CreateRegraAcessoDto, RegrasAcessoService } from './regras-acesso.service';
+import { ReqUser } from '../auth/req-user.decorator';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 @Controller('condominios/:idCondominio/regras-acesso')
 export class RegrasAcessoController {
@@ -20,28 +22,38 @@ export class RegrasAcessoController {
   }
 
   @Get(':id')
-  get(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findOne(id);
+  get(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.service.findOne(id, idCondominio);
   }
 
   @Post()
   create(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Body() dto: CreateRegraAcessoDto,
+    @ReqUser() user: JwtPayload,
   ) {
-    return this.service.create(idCondominio, dto);
+    return this.service.create(idCondominio, dto, user);
   }
 
   @Put(':id')
   update(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: Partial<CreateRegraAcessoDto>,
+    @ReqUser() user: JwtPayload,
   ) {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, idCondominio, user);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
+  remove(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.service.remove(id, idCondominio, user);
   }
 }

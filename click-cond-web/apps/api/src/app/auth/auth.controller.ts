@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, Post, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
@@ -9,6 +10,9 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  // Throttle estrito no login: 5 tentativas / minuto / IP. Adicional ao
+  // throttle global. Protege contra password spray e brute force básico.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login-portaria')
   @HttpCode(200)
   login(@Body() body: { login: string; senha: string }) {
