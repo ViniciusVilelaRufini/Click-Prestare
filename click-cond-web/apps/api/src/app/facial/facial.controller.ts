@@ -16,6 +16,7 @@ import {
   UpdateDeviceDto,
   WebhookEventDto,
 } from './facial.service';
+import { MockRelayService } from './mock-relay.service';
 
 @Controller('facial')
 export class FacialController {
@@ -92,6 +93,23 @@ export class FacialController {
     const limit = limitStr ? Number(limitStr) : 30;
     return this.service.listAcessosPessoa('morador', id, limit);
   }
+
+  // ----- Enrollment guiado (captura de UID/QR via leitor) -----
+
+  @Post('enroll/start')
+  startEnroll(@Body() body: { id_device: number }) {
+    return this.service.startEnrollCapture(body.id_device);
+  }
+
+  @Get('enroll/:sessionId')
+  pollEnroll(@Param('sessionId') sessionId: string) {
+    return this.service.pollEnrollCapture(sessionId);
+  }
+
+  @Delete('enroll/:sessionId')
+  cancelEnroll(@Param('sessionId') sessionId: string) {
+    return this.service.cancelEnrollCapture(sessionId);
+  }
 }
 
 @Controller('facial/webhook')
@@ -118,5 +136,43 @@ export class FacialSimulatorController {
   async listPersons(@Param('token') token: string) {
     const device = await this.service.findDeviceByToken(token);
     return this.service.listPersonsForDevice(device.id);
+  }
+}
+
+/**
+ * Mock de "botoeira/catraca genérica" para testes sem hardware.
+ *
+ * Fluxo: quando um Facial_Device tem IP "sim" (ou "simulador"), o
+ * triggerRelay redireciona internamente para POST /sim/relay/:deviceId/trigger
+ * — esse controller recebe e armazena em memória.
+ *
+ * O HTML do simulador faz polling em GET /sim/relay/:deviceId/events e exibe
+ * uma animação de "porta abrindo" cada vez que chega um novo evento.
+ *
+ * Permite testar a ponte RFID/QR → botoeira ponta-a-ponta sem hardware.
+ */
+@Controller('facial/sim/relay')
+export class MockRelayController {
+  constructor(private readonly mock: MockRelayService) {}
+
+  @Public()
+  @Post(':slug/trigger')
+  triggerBySlug(@Param('slug') slug: string, @Body() body: any) {
+    const ev = this.mock.record(slug, body ?? {});
+    return { ok: true, eventId: ev.id, receivedAt: ev.receivedAt };
+  }
+
+  @Public()
+  @Get(':slug/events')
+  list(@Param('slug') slug: string, @Query('since') sinceStr?: string) {
+    const since = sinceStr ? Number(sinceStr) : undefined;
+    return { events: this.mock.list(slug, since) };
+  }
+
+  @Public()
+  @Get(':slug/clear')
+  clear(@Param('slug') slug: string) {
+    this.mock.clear(slug);
+    return { ok: true };
   }
 }

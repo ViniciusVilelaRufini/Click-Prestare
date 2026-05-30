@@ -12,6 +12,7 @@ import {
   FacialDeviceClientService,
   FacialDeviceConfig,
 } from './facial-device-client.service';
+import { EnrollSessionService } from './enroll-session.service';
 
 export interface CreateDeviceDto {
   id_condominio: number;
@@ -49,7 +50,34 @@ export class FacialService {
     private readonly prisma: PrismaService,
     private readonly client: FacialDeviceClientService,
     private readonly notifications: NotificationsService,
+    private readonly enrollSessions: EnrollSessionService,
   ) {}
+
+  // ---------- Enrollment guiado (RFID/QR) ----------
+
+  /**
+   * Inicia sessão de captura. Operador apresenta o crachá no leitor; quando
+   * uma tag não cadastrada chega no webhook desse device, o UID é desviado
+   * para esta sessão em vez de processar como acesso. Portal faz polling.
+   */
+  async startEnrollCapture(idDevice: number) {
+    const device = await this.getDevice(idDevice);
+    if (device.tipo !== 'tag_reader' && device.tipo !== 'qrcode_reader') {
+      throw new BadRequestException(
+        'Captura guiada só funciona em leitores RFID ou QR',
+      );
+    }
+    return this.enrollSessions.start(idDevice);
+  }
+
+  pollEnrollCapture(sessionId: string) {
+    return this.enrollSessions.get(sessionId);
+  }
+
+  cancelEnrollCapture(sessionId: string) {
+    this.enrollSessions.cancel(sessionId);
+    return { ok: true };
+  }
 
   // ---------- Devices CRUD ----------
 
@@ -513,6 +541,21 @@ export class FacialService {
     }
 
     if (!idPessoa || !tipoPessoa) {
+      // Antes de negar, checa se há uma sessão de enrollment aguardando
+      // capturar um UID/QR justamente para este leitor. Se sim, desvia o
+      // valor para a sessão e responde "captured" sem registrar como acesso.
+      const isLeitor = device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
+      const valorLido = qrCodeLido ?? tagRfidLida ?? externalId;
+      if (isLeitor && valorLido) {
+        const captured = this.enrollSessions.consumeForDevice(device.id, valorLido);
+        if (captured) {
+          this.logger.log(
+            `Enrollment capture: sessão ${captured.id} recebeu ${valorLido} no device ${device.id}`,
+          );
+          return { ok: true, captured: true, sessionId: captured.id, value: valorLido };
+        }
+      }
+
       await this.prisma.acessos_Facial.create({
         data: {
           id_condominio: device.id_condominio,
@@ -829,6 +872,61 @@ export class FacialService {
           }
         } catch (err) {
           this.logger.warn(`Push de acesso falhou: ${err}`);
+        }
+      }
+    }
+
+    // === PONTE: leitor identificou → aciona dispositivo de abertura ===
+    //
+    // Leitores RFID e QR Code só LEEM credenciais — eles não abrem a porta
+    // sozinhos. Quando o webhook recebe uma identificação bem-sucedida
+    // desses tipos, automaticamente acionamos todas as botoeiras e catracas
+    // ativas do mesmo condomínio.
+    //
+    // Cenário típico: condomínio tem 1 leitor RFID na entrada + 1 botoeira
+    // que abre o portão. Morador encosta o crachá → leitor identifica →
+    // ponte aciona botoeira → portão abre.
+    //
+    // Para setups com múltiplas entradas/saídas e regras complexas, o
+    // operador deve usar Regras_Dispositivos (não implementado nesta versão).
+    // Apenas eventos de ENTRADA disparam acionamento — saídas não precisam.
+    const isLeitor = device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
+    if (isLeitor && evento === 'entrada') {
+      const aberturasParaAcionar = await this.prisma.facial_Devices.findMany({
+        where: {
+          id_condominio: device.id_condominio,
+          ativo: 1,
+          tipo: { in: ['botoeira', 'catraca'] },
+        },
+      });
+
+      for (const abertura of aberturasParaAcionar) {
+        try {
+          const result = await this.client.triggerRelay(this.toConfig(abertura));
+          await this.prisma.acessos_Facial.create({
+            data: {
+              id_condominio: device.id_condominio,
+              id_device: abertura.id,
+              tipo_dispositivo: abertura.tipo,
+              face_id: faceIdSalvo || 'ponte_auto',
+              tipo_pessoa: tipoPessoa,
+              id_pessoa: idPessoa,
+              nome_pessoa: result.ok
+                ? `${nomePessoa} (acionado por ${device.nome})`
+                : `${nomePessoa} (FALHA ao acionar ${abertura.nome})`,
+              evento: result.ok ? 'acionado_auto' : 'falha_acionamento',
+              timestamp: new Date(),
+            },
+          });
+          if (!result.ok) {
+            this.logger.warn(
+              `Ponte falhou: leitor ${device.id} identificou ${nomePessoa} mas trigger em ${abertura.id} (${abertura.nome}) deu erro: ${result.error ?? result.statusCode}`,
+            );
+          }
+        } catch (err: any) {
+          this.logger.warn(
+            `Ponte erro inesperado: leitor ${device.id} → abertura ${abertura.id}: ${err?.message ?? err}`,
+          );
         }
       }
     }

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simulador de Leitor RFID — Click Portaria</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 980px; margin: 0 auto; }
+    header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 24px; padding-bottom: 20px;
+      border-bottom: 1px solid #1e293b;
+    }
+    header h1 { font-size: 22px; font-weight: 600; color: #fff; }
+    header .subtitle { color: #64748b; font-size: 13px; margin-top: 4px; }
+    header .icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      display: flex; align-items: center; justify-content: center;
+      color: #22c55e; font-size: 22px;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
+    .panel {
+      background: #131b2e; border: 1px solid #1e293b;
+      border-radius: 16px; padding: 20px;
+    }
+    .panel h2 {
+      font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
+      text-transform: uppercase; color: #94a3b8; margin-bottom: 16px;
+    }
+    label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
+    input, select {
+      width: 100%; padding: 10px 12px;
+      background: #0a0e1a; border: 1px solid #1e293b;
+      border-radius: 8px; color: #e2e8f0; font-size: 14px;
+      margin-bottom: 12px;
+    }
+    input:focus, select:focus { outline: none; border-color: #22c55e; }
+    button {
+      width: 100%; padding: 12px; border-radius: 10px;
+      border: none; font-weight: 600; font-size: 14px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-primary { background: #22c55e; color: #052e16; }
+    .btn-primary:hover { background: #16a34a; }
+    .btn-secondary { background: #1e293b; color: #e2e8f0; }
+    .btn-secondary:hover { background: #334155; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .tag-card {
+      padding: 12px; border-radius: 10px;
+      background: #0a0e1a; border: 1px solid #1e293b;
+      margin-bottom: 8px; cursor: pointer; transition: all 0.15s;
+    }
+    .tag-card:hover { border-color: #22c55e; background: #0f172a; }
+    .tag-uid { font-family: ui-monospace, monospace; color: #22c55e; font-size: 13px; }
+    .tag-label { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .log {
+      background: #0a0e1a; border: 1px solid #1e293b;
+      border-radius: 10px; padding: 12px;
+      font-family: ui-monospace, monospace; font-size: 12px;
+      max-height: 320px; overflow-y: auto;
+    }
+    .log-entry { padding: 6px 0; border-bottom: 1px solid #1e293b; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-ok { color: #22c55e; }
+    .log-err { color: #ef4444; }
+    .log-muted { color: #64748b; }
+    .status {
+      display: inline-block; padding: 3px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; margin-left: 8px;
+    }
+    .status-on { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .status-off { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+    .direction-toggle {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+      background: #0a0e1a; padding: 4px; border-radius: 10px;
+      border: 1px solid #1e293b; margin-bottom: 12px;
+    }
+    .direction-toggle button {
+      padding: 8px; border-radius: 6px; background: transparent;
+      color: #64748b; font-weight: 500;
+    }
+    .direction-toggle button.active { background: #1e293b; color: #fff; }
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="icon">📡</div>
+      <div>
+        <h1>Simulador de Leitor RFID <span id="status" class="status status-off">desconectado</span></h1>
+        <div class="subtitle">Envia tags 125kHz/Mifare ao webhook como se fosse o leitor real</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Tag a apresentar</h2>
+        <label>UID da tag (hex ou decimal)</label>
+        <input id="tagInput" type="text" placeholder="ex: A1B2C3D4 ou 1234567890" />
+
+        <label>Direção</label>
+        <div class="direction-toggle">
+          <button id="dirIn" class="active" data-dir="entrada">⬇ Entrada</button>
+          <button id="dirOut" data-dir="saida">⬆ Saída</button>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-primary" id="btnSend">📡 Encostar tag</button>
+          <button class="btn-secondary" id="btnClear">Limpar</button>
+        </div>
+
+        <h2 style="margin-top:24px">Tags de teste (clique para carregar)</h2>
+        <div id="quickTags">
+          <div class="tag-card" data-uid="A1B2C3D4">
+            <div class="tag-uid">A1B2C3D4</div>
+            <div class="tag-label">Tag genérica de teste</div>
+          </div>
+          <div class="tag-card" data-uid="FFFFFFFF">
+            <div class="tag-uid">FFFFFFFF</div>
+            <div class="tag-label">UID máximo (teste de borda)</div>
+          </div>
+          <div class="tag-card" data-uid="00000000">
+            <div class="tag-uid">00000000</div>
+            <div class="tag-label">UID zerado (deve ser negado)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Configuração</h2>
+        <label>Webhook do leitor (cole a URL completa OU só o token)</label>
+        <input id="webhookInput" type="text" placeholder="http://localhost:3000/api/facial/webhook/TOKEN" />
+
+        <button class="btn-secondary" id="btnSave" style="margin-bottom:16px">Salvar e validar</button>
+
+        <h2>Log de envios</h2>
+        <div id="log" class="log">
+          <div class="log-entry log-muted">Aguardando primeiro envio…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'rfid_sim_webhook';
+    let direcao = 'entrada';
+
+    function extractToken(input) {
+      if (!input) return '';
+      const m = input.match(/webhook\/([A-Za-z0-9._-]+)/);
+      return m ? m[1] : input.trim();
+    }
+
+    function buildUrl(input) {
+      const token = extractToken(input);
+      if (!token) return '';
+      if (input.startsWith('http')) return input.trim();
+      return `${location.origin}/api/facial/webhook/${token}`;
+    }
+
+    function setStatus(ok) {
+      const el = document.getElementById('status');
+      el.textContent = ok ? 'conectado' : 'desconectado';
+      el.className = 'status ' + (ok ? 'status-on' : 'status-off');
+    }
+
+    function log(msg, level = 'muted') {
+      const el = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry log-' + level;
+      const time = new Date().toLocaleTimeString();
+      entry.textContent = `[${time}] ${msg}`;
+      el.insertBefore(entry, el.firstChild);
+      while (el.children.length > 30) el.removeChild(el.lastChild);
+    }
+
+    async function sendTag() {
+      const uid = document.getElementById('tagInput').value.trim();
+      if (!uid) { log('Digite ou selecione uma tag primeiro', 'err'); return; }
+
+      const url = buildUrl(document.getElementById('webhookInput').value);
+      if (!url) { log('Configure o webhook primeiro', 'err'); return; }
+
+      const payload = {
+        event: 'access',
+        direction: direcao,
+        card_uid: uid,
+        timestamp: new Date().toISOString(),
+      };
+
+      log(`→ Enviando UID ${uid} (${direcao})...`, 'muted');
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          log(`✓ ${data.tipo ?? 'OK'} #${data.id ?? '?'} — evento ${data.evento ?? '?'}`, 'ok');
+        } else {
+          log(`✗ HTTP ${res.status}: ${data.message ?? res.statusText}`, 'err');
+        }
+      } catch (err) {
+        log(`✗ Falha de rede: ${err.message}`, 'err');
+      }
+    }
+
+    document.getElementById('btnSend').addEventListener('click', sendTag);
+    document.getElementById('btnClear').addEventListener('click', () => {
+      document.getElementById('tagInput').value = '';
+    });
+    document.querySelectorAll('.tag-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.getElementById('tagInput').value = card.dataset.uid;
+      });
+    });
+    document.querySelectorAll('.direction-toggle button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.direction-toggle button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        direcao = btn.dataset.dir;
+      });
+    });
+    document.getElementById('btnSave').addEventListener('click', async () => {
+      const val = document.getElementById('webhookInput').value;
+      const url = buildUrl(val);
+      if (!url) { log('URL inválida', 'err'); return; }
+      localStorage.setItem(STORAGE_KEY, val);
+      log(`Webhook salvo: ${url}`, 'muted');
+      try {
+        const res = await fetch(url, { method: 'OPTIONS' });
+        setStatus(res.ok || res.status === 405 || res.status === 404);
+        log('Endpoint alcançável ✓', 'ok');
+      } catch {
+        setStatus(false);
+        log('Endpoint inacessível', 'err');
+      }
+    });
+
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      document.getElementById('webhookInput').value = saved;
+      document.getElementById('btnSave').click();
+    }
+  </script>
+</body>
+</html>

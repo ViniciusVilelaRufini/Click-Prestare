@@ -86,6 +86,25 @@ export class FacialDeviceClientService {
     statusCode?: number;
     error?: string;
   }> {
+    // Modo simulador: ip "sim" indica botoeira virtual (HTML).
+    // Em vez de tentar HTTP num IP que não existe, registra no mock interno
+    // para o HTML do simulador exibir. Permite o operador testar a ponte
+    // ponta-a-ponta sem hardware.
+    if (device.ip === 'sim' || device.ip === 'simulador') {
+      try {
+        const baseUrl = process.env.API_INTERNAL_URL ?? 'http://localhost:3000';
+        const res = await axios.post(
+          `${baseUrl}/api/facial/sim/relay/${device.id}/trigger`,
+          { deviceId: device.id, at: new Date().toISOString() },
+          { timeout: 3000 },
+        );
+        const ok = res.status >= 200 && res.status < 300;
+        return { ok, statusCode: res.status };
+      } catch (err: any) {
+        return { ok: false, error: err?.message ?? String(err) };
+      }
+    }
+
     try {
       const endpoint =
         this.relayEndpoints[device.fabricante] ?? this.relayEndpoints['genérico'];

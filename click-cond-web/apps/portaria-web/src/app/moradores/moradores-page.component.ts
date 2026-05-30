@@ -7,19 +7,24 @@ type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos'
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective, validators } from '../shared/input-mask.directive';
+import { EnrollCaptureComponent } from '../shared/enroll-capture.component';
+import { AuthService } from '../auth/auth.service';
 
 declare var require: any;
 
 @Component({
   selector: 'app-moradores-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective],
+  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent],
   templateUrl: './moradores-page.component.html',
 })
 export class MoradoresPageComponent implements OnInit {
   private api = inject(MoradoresApi);
   private aptApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
+  private auth = inject(AuthService);
+
+  idCondominioAtual = () => this.auth.porteiroInfo()?.id_condominio ?? null;
 
   constructor() {
     effect(() => {

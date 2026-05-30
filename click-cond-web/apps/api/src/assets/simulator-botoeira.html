@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simulador de Botoeira/Catraca — Click Portaria</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e1a; color: #e2e8f0;
+      min-height: 100vh; padding: 20px;
+    }
+    .container { max-width: 980px; margin: 0 auto; }
+    header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 24px; padding-bottom: 20px;
+      border-bottom: 1px solid #1e293b;
+    }
+    header h1 { font-size: 22px; font-weight: 600; color: #fff; }
+    header .subtitle { color: #64748b; font-size: 13px; margin-top: 4px; }
+    header .icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      display: flex; align-items: center; justify-content: center;
+      color: #f59e0b; font-size: 22px;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
+    .panel {
+      background: #131b2e; border: 1px solid #1e293b;
+      border-radius: 16px; padding: 20px;
+    }
+    .panel h2 {
+      font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
+      text-transform: uppercase; color: #94a3b8; margin-bottom: 16px;
+    }
+    label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
+    input {
+      width: 100%; padding: 10px 12px;
+      background: #0a0e1a; border: 1px solid #1e293b;
+      border-radius: 8px; color: #e2e8f0; font-size: 14px;
+      margin-bottom: 12px;
+    }
+    button {
+      width: 100%; padding: 12px; border-radius: 10px;
+      border: none; font-weight: 600; font-size: 14px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-primary { background: #f59e0b; color: #422006; }
+    .btn-primary:hover { background: #d97706; }
+    .btn-secondary { background: #1e293b; color: #e2e8f0; }
+    .btn-secondary:hover { background: #334155; }
+    .log {
+      background: #0a0e1a; border: 1px solid #1e293b;
+      border-radius: 10px; padding: 12px;
+      font-family: ui-monospace, monospace; font-size: 12px;
+      max-height: 280px; overflow-y: auto;
+    }
+    .log-entry { padding: 6px 0; border-bottom: 1px solid #1e293b; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-ok { color: #22c55e; }
+    .log-muted { color: #64748b; }
+    .status {
+      display: inline-block; padding: 3px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; margin-left: 8px;
+    }
+    .status-on { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .status-off { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+
+    .door-stage {
+      position: relative;
+      aspect-ratio: 4/3;
+      background: linear-gradient(180deg, #1a2342 0%, #0a0e1a 100%);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+      margin-bottom: 16px;
+    }
+    .door-frame {
+      position: absolute;
+      left: 50%; bottom: 0;
+      transform: translateX(-50%);
+      width: 50%; height: 80%;
+      background: #1e293b;
+      border-radius: 8px 8px 0 0;
+      box-shadow: inset 0 0 0 4px #334155;
+      overflow: hidden;
+    }
+    .door-panel {
+      position: absolute;
+      inset: 4px;
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-origin: left center;
+    }
+    .door-panel.open { transform: rotateY(-78deg); }
+    .door-handle {
+      position: absolute;
+      right: 10%; top: 50%;
+      width: 8px; height: 28px;
+      background: #fff;
+      border-radius: 4px;
+      transform: translateY(-50%);
+    }
+    .led {
+      position: absolute;
+      top: 20px; right: 20px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: #1e293b;
+      box-shadow: 0 0 0 3px #0a0e1a, 0 0 0 4px #1e293b;
+      transition: all 0.3s;
+    }
+    .led.green { background: #22c55e; box-shadow: 0 0 24px #22c55e, 0 0 0 3px #0a0e1a; }
+    .led.red { background: #ef4444; box-shadow: 0 0 24px #ef4444, 0 0 0 3px #0a0e1a; }
+    .stage-label {
+      position: absolute;
+      top: 16px; left: 20px;
+      font-size: 11px; color: #94a3b8;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .counter {
+      position: absolute;
+      bottom: 16px; left: 20px;
+      font-family: ui-monospace, monospace;
+      font-size: 12px; color: #64748b;
+    }
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="icon">🚪</div>
+      <div>
+        <h1>Simulador de Botoeira/Catraca <span id="status" class="status status-off">aguardando</span></h1>
+        <div class="subtitle">Recebe triggers da API e abre a porta visualmente</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="door-stage">
+          <div class="stage-label">Botoeira #<span id="slugLabel">—</span></div>
+          <div class="led" id="led"></div>
+          <div class="door-frame">
+            <div class="door-panel" id="door">
+              <div class="door-handle"></div>
+            </div>
+          </div>
+          <div class="counter">Aberturas: <span id="counter">0</span></div>
+        </div>
+
+        <button class="btn-secondary" id="btnTest">🧪 Simular trigger local (não passa pela ponte)</button>
+      </div>
+
+      <div class="panel">
+        <h2>Configuração</h2>
+        <label>ID do dispositivo (Facial_Devices.id)</label>
+        <input id="slugInput" type="text" placeholder="ex: 42" />
+
+        <label>URL da API</label>
+        <input id="apiInput" type="text" placeholder="http://localhost:3000" />
+
+        <button class="btn-primary" id="btnStart" style="margin-bottom:10px">▶ Iniciar escuta</button>
+        <button class="btn-secondary" id="btnStop">■ Parar</button>
+
+        <h2 style="margin-top:24px">Eventos recebidos</h2>
+        <div id="log" class="log">
+          <div class="log-entry log-muted">Inicie a escuta…</div>
+        </div>
+
+        <div style="margin-top:16px; font-size:11px; color:#64748b; line-height:1.5">
+          <b>Setup:</b> cadastre um terminal com tipo=botoeira ou catraca,
+          IP=<code>sim</code>, fabricante=qualquer. Anote o ID gerado e digite
+          acima. Quando o RFID/QR identificar alguém, a ponte aciona aqui.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'botoeira_sim_config';
+    let pollTimer = null;
+    let lastEventId = 0;
+    let counter = 0;
+    let openTimer = null;
+
+    function setStatus(label, ok) {
+      const el = document.getElementById('status');
+      el.textContent = label;
+      el.className = 'status ' + (ok ? 'status-on' : 'status-off');
+    }
+    function log(msg, level = 'muted') {
+      const el = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry log-' + level;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      el.insertBefore(entry, el.firstChild);
+      while (el.children.length > 30) el.removeChild(el.lastChild);
+    }
+
+    function openDoor() {
+      const door = document.getElementById('door');
+      const led = document.getElementById('led');
+      door.classList.add('open');
+      led.classList.remove('red');
+      led.classList.add('green');
+      counter++;
+      document.getElementById('counter').textContent = counter;
+      if (openTimer) clearTimeout(openTimer);
+      openTimer = setTimeout(() => {
+        door.classList.remove('open');
+        led.classList.remove('green');
+      }, 2500);
+    }
+
+    async function poll() {
+      const slug = document.getElementById('slugInput').value.trim();
+      const api = document.getElementById('apiInput').value.trim().replace(/\/$/, '');
+      if (!slug || !api) return;
+      try {
+        const url = `${api}/api/facial/sim/relay/${slug}/events?since=${lastEventId}`;
+        const res = await fetch(url);
+        if (!res.ok) { setStatus('erro ' + res.status, false); return; }
+        const data = await res.json();
+        if (data.events && data.events.length > 0) {
+          for (const ev of data.events.reverse()) {
+            if (ev.id > lastEventId) lastEventId = ev.id;
+            log(`✓ Acionamento recebido (event #${Math.floor(ev.id)})`, 'ok');
+            openDoor();
+          }
+        }
+        setStatus('escutando', true);
+      } catch (err) {
+        setStatus('offline', false);
+      }
+    }
+
+    document.getElementById('btnStart').addEventListener('click', () => {
+      const slug = document.getElementById('slugInput').value.trim();
+      const api = document.getElementById('apiInput').value.trim();
+      if (!slug || !api) { log('Preencha ID e API primeiro', 'muted'); return; }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ slug, api }));
+      document.getElementById('slugLabel').textContent = slug;
+      log(`Escuta iniciada para botoeira #${slug}`, 'ok');
+      lastEventId = 0;
+      if (pollTimer) clearInterval(pollTimer);
+      poll();
+      pollTimer = setInterval(poll, 1000);
+    });
+
+    document.getElementById('btnStop').addEventListener('click', () => {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+      setStatus('parada', false);
+      log('Escuta parada', 'muted');
+    });
+
+    document.getElementById('btnTest').addEventListener('click', async () => {
+      const slug = document.getElementById('slugInput').value.trim();
+      const api = document.getElementById('apiInput').value.trim().replace(/\/$/, '');
+      if (!slug || !api) { log('Configure ID e API primeiro', 'muted'); return; }
+      try {
+        const res = await fetch(`${api}/api/facial/sim/relay/${slug}/trigger`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manual: true, at: new Date().toISOString() }),
+        });
+        if (res.ok) log('Trigger manual enviado', 'ok');
+        else log('Erro HTTP ' + res.status, 'muted');
+      } catch (err) {
+        log('Falha: ' + err.message, 'muted');
+      }
+    });
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
+      if (saved) {
+        document.getElementById('slugInput').value = saved.slug;
+        document.getElementById('apiInput').value = saved.api;
+      } else {
+        document.getElementById('apiInput').value = location.origin;
+      }
+    } catch {}
+  </script>
+</body>
+</html>
