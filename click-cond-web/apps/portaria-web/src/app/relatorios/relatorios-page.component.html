@@ -278,9 +278,20 @@
             </thead>
             <tbody class="divide-y divide-white/5 text-xs text-white">
               @for (log of auditLogs(); track log.id) {
-                <tr class="hover:bg-white/[0.02] transition-colors">
+                <tr class="hover:bg-white/[0.02] transition-colors"
+                    [class.cursor-pointer]="log.detalhes"
+                    (click)="log.detalhes && toggleDetalhes(log.id)">
                   <td class="px-4 py-3.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">
-                    {{ formatarData(log.created_at) }}
+                    <div class="flex items-center gap-1.5">
+                      @if (log.detalhes) {
+                        <svg class="w-3 h-3 transition-transform" [class.rotate-90]="expandidos()[log.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                      } @else {
+                        <span class="w-3 h-3 inline-block"></span>
+                      }
+                      {{ formatarData(log.created_at) }}
+                    </div>
                   </td>
                   <td class="px-4 py-3.5">
                     <p class="font-medium text-white">{{ log.usuario_nome || 'Sistema' }}</p>
@@ -307,6 +318,14 @@
                     {{ log.ip || '-' }}
                   </td>
                 </tr>
+                @if (expandidos()[log.id] && log.detalhes) {
+                  <tr class="bg-black/30">
+                    <td colspan="6" class="px-4 py-3">
+                      <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Detalhes</div>
+                      <pre class="text-[11px] font-mono text-slate-300 bg-black/40 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words">{{ formatarDetalhes(log.detalhes) }}</pre>
+                    </td>
+                  </tr>
+                }
               }
               @if (auditLogs().length === 0) {
                 <tr>

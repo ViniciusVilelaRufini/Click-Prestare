@@ -30,17 +30,36 @@ export class RelatoriosPageComponent {
   readonly error = signal<string | null>(null);
 
   readonly modulosDisponiveis = [
-    { value: 'todos',        label: 'Todos os módulos' },
-    { value: 'visitantes',   label: 'Visitantes' },
-    { value: 'encomendas',   label: 'Encomendas' },
-    { value: 'moradores',    label: 'Moradores' },
-    { value: 'ocorrencias',  label: 'Ocorrências' },
-    { value: 'prestadores',  label: 'Prestadores' },
-    { value: 'financeiro',   label: 'Financeiro' },
-    { value: 'comunicados',  label: 'Comunicados' },
-    { value: 'assembleias',  label: 'Assembleias' },
-    { value: 'documentos',   label: 'Documentos' },
+    { value: 'todos',         label: 'Todos os módulos' },
+    { value: 'facial',        label: 'Controle de Acesso (Dispositivos)' },
+    { value: 'regras-acesso', label: 'Regras de Acesso' },
+    { value: 'visitantes',    label: 'Visitantes' },
+    { value: 'encomendas',    label: 'Encomendas' },
+    { value: 'moradores',     label: 'Moradores' },
+    { value: 'ocorrencias',   label: 'Ocorrências' },
+    { value: 'prestadores',   label: 'Prestadores' },
+    { value: 'financeiro',    label: 'Financeiro' },
+    { value: 'comunicados',   label: 'Comunicados' },
+    { value: 'assembleias',   label: 'Assembleias' },
+    { value: 'documentos',    label: 'Documentos' },
   ];
+
+  /** Toggle para expandir o JSON de detalhes de cada linha. */
+  readonly expandidos = signal<Record<number, boolean>>({});
+
+  toggleDetalhes(id: number) {
+    this.expandidos.update((m) => ({ ...m, [id]: !m[id] }));
+  }
+
+  formatarDetalhes(detalhes: string | object | null): string {
+    if (!detalhes) return '';
+    try {
+      const obj = typeof detalhes === 'string' ? JSON.parse(detalhes) : detalhes;
+      return JSON.stringify(obj, null, 2);
+    } catch {
+      return String(detalhes);
+    }
+  }
 
   setSubTab(tab: 'gerador' | 'auditoria') {
     this.activeSubTab.set(tab);
@@ -82,28 +101,41 @@ export class RelatoriosPageComponent {
 
   getAcaoColor(acao: string): string {
     const colors: Record<string, string> = {
-      CREATE:    'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
-      UPDATE:    'text-blue-400 bg-blue-400/10 border-blue-400/20',
-      DELETE:    'text-red-400 bg-red-400/10 border-red-400/20',
-      CHECK_IN:  'text-teal-400 bg-teal-400/10 border-teal-400/20',
-      CHECK_OUT: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-      RETIRADA:  'text-purple-400 bg-purple-400/10 border-purple-400/20',
-      RESPOSTA:  'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-      STATUS:    'text-sky-400 bg-sky-400/10 border-sky-400/20',
+      CREATE:           'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+      UPDATE:           'text-blue-400 bg-blue-400/10 border-blue-400/20',
+      DELETE:           'text-red-400 bg-red-400/10 border-red-400/20',
+      CHECK_IN:         'text-teal-400 bg-teal-400/10 border-teal-400/20',
+      CHECK_OUT:        'text-orange-400 bg-orange-400/10 border-orange-400/20',
+      RETIRADA:         'text-purple-400 bg-purple-400/10 border-purple-400/20',
+      RESPOSTA:         'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
+      STATUS:           'text-sky-400 bg-sky-400/10 border-sky-400/20',
+      // Decisões de controle de acesso físico — visualmente fortes
+      ACCESS_GRANTED:   'text-emerald-300 bg-emerald-500/15 border-emerald-500/30',
+      ACCESS_DENIED:    'text-red-300 bg-red-500/15 border-red-500/30',
+      MANUAL_OVERRIDE:  'text-amber-300 bg-amber-500/15 border-amber-500/30',
+      BRIDGE_TRIGGER:   'text-cyan-300 bg-cyan-500/15 border-cyan-500/30',
+      RULE_CHANGE:      'text-fuchsia-300 bg-fuchsia-500/15 border-fuchsia-500/30',
+      DEVICE_CHANGE:    'text-indigo-300 bg-indigo-500/15 border-indigo-500/30',
     };
     return colors[acao] ?? 'text-slate-400 bg-slate-400/10 border-slate-400/20';
   }
 
   getAcaoLabel(acao: string): string {
     const labels: Record<string, string> = {
-      CREATE:    'Criação',
-      UPDATE:    'Atualização',
-      DELETE:    'Remoção',
-      CHECK_IN:  'Check-in',
-      CHECK_OUT: 'Check-out',
-      RETIRADA:  'Retirada',
-      RESPOSTA:  'Resposta',
-      STATUS:    'Status',
+      CREATE:           'Criação',
+      UPDATE:           'Atualização',
+      DELETE:           'Remoção',
+      CHECK_IN:         'Check-in',
+      CHECK_OUT:        'Check-out',
+      RETIRADA:         'Retirada',
+      RESPOSTA:         'Resposta',
+      STATUS:           'Status',
+      ACCESS_GRANTED:   'Acesso liberado',
+      ACCESS_DENIED:    'Acesso negado',
+      MANUAL_OVERRIDE:  'Acionamento manual',
+      BRIDGE_TRIGGER:   'Acionamento automático',
+      RULE_CHANGE:      'Mudança de regra',
+      DEVICE_CHANGE:    'Mudança de dispositivo',
     };
     return labels[acao] ?? acao;
   }
@@ -124,6 +156,8 @@ export class RelatoriosPageComponent {
       'areas-sociais': 'Áreas Sociais',
       auth:            'Autenticação',
       sistema:         'Sistema',
+      facial:          'Controle de Acesso',
+      'regras-acesso': 'Regras de Acesso',
     };
     return labels[modulo] ?? modulo;
   }
