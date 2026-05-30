@@ -212,10 +212,19 @@
           <h2 class="text-lg font-semibold text-white">Linha do Tempo de Segurança</h2>
           <p class="text-xs text-slate-400 mt-0.5">Rastreabilidade completa de todas as alterações feitas no condomínio.</p>
         </div>
-        <button (click)="carregarAuditoria()" [disabled]="loadingAudit()" class="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white hover:bg-white/10 transition flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5" [class.animate-spin]="loadingAudit()" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18"/></svg>
-          Atualizar
-        </button>
+        <div class="flex gap-2">
+          <button (click)="exportarCsv()" [disabled]="exportandoCsv() || loadingAudit() || auditLogs().length === 0"
+                  class="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition flex items-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none">
+            <svg class="w-3.5 h-3.5" [class.animate-spin]="exportandoCsv()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+            </svg>
+            {{ exportandoCsv() ? 'Exportando...' : 'Exportar CSV' }}
+          </button>
+          <button (click)="carregarAuditoria()" [disabled]="loadingAudit()" class="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white hover:bg-white/10 transition flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" [class.animate-spin]="loadingAudit()" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18"/></svg>
+            Atualizar
+          </button>
+        </div>
       </div>
 
       <!-- Filtros -->
@@ -344,10 +353,36 @@
           </table>
         </div>
 
-        @if (auditLogs().length > 0) {
-          <p class="text-xs text-slate-500 text-right">
-            Exibindo {{ auditLogs().length }} registro(s) mais recentes
-          </p>
+        @if (total() > 0) {
+          <div class="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
+            <div class="flex items-center gap-2 text-xs text-slate-400">
+              <span>Por página:</span>
+              <select [ngModel]="tamanhoPagina()" (ngModelChange)="mudarTamanhoPagina(+$event)"
+                      class="bg-white/5 border border-white/10 rounded px-2 py-1 text-white text-xs focus:border-emerald-400 outline-none">
+                <option [ngValue]="25" class="bg-slate-900">25</option>
+                <option [ngValue]="50" class="bg-slate-900">50</option>
+                <option [ngValue]="100" class="bg-slate-900">100</option>
+                <option [ngValue]="200" class="bg-slate-900">200</option>
+              </select>
+              <span class="ml-2">
+                {{ ((pagina() - 1) * tamanhoPagina()) + 1 }}–{{ ((pagina() - 1) * tamanhoPagina()) + auditLogs().length }}
+                de {{ total() }}
+              </span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button (click)="paginaAnterior()" [disabled]="pagina() <= 1 || loadingAudit()"
+                      class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
+                ‹ Anterior
+              </button>
+              <span class="px-3 py-1.5 text-xs text-slate-400 font-mono">
+                {{ pagina() }} / {{ totalPaginas() }}
+              </span>
+              <button (click)="proximaPagina()" [disabled]="pagina() >= totalPaginas() || loadingAudit()"
+                      class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
+                Próxima ›
+              </button>
+            </div>
+          </div>
         }
       }
     </div>

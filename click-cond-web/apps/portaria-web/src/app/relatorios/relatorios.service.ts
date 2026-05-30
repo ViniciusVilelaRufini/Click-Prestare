@@ -28,11 +28,34 @@ export class RelatoriosApi {
     });
   }
 
-  getAuditoria(modulo?: string, dataInicio?: string, dataFim?: string): Observable<any[]> {
+  getAuditoria(
+    modulo?: string,
+    dataInicio?: string,
+    dataFim?: string,
+    page = 1,
+    pageSize = 50,
+  ): Observable<AuditoriaPage> {
+    let params = new HttpParams()
+      .set('page', String(page))
+      .set('pageSize', String(pageSize));
+    if (modulo && modulo !== 'todos') params = params.set('modulo', modulo);
+    if (dataInicio) params = params.set('dataInicio', dataInicio);
+    if (dataFim) params = params.set('dataFim', dataFim);
+    return this.http.get<AuditoriaPage>(`${this.base}/auditoria`, { params });
+  }
+
+  exportAuditoria(modulo?: string, dataInicio?: string, dataFim?: string): Observable<Blob> {
     let params = new HttpParams();
     if (modulo && modulo !== 'todos') params = params.set('modulo', modulo);
     if (dataInicio) params = params.set('dataInicio', dataInicio);
     if (dataFim) params = params.set('dataFim', dataFim);
-    return this.http.get<any[]>(`${this.base}/auditoria`, { params });
+    return this.http.get(`${this.base}/auditoria/export`, { params, responseType: 'blob' });
   }
+}
+
+export interface AuditoriaPage {
+  items: any[];
+  total: number;
+  page: number;
+  pageSize: number;
 }

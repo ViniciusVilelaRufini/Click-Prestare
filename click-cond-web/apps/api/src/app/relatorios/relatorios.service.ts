@@ -504,29 +504,105 @@ export class RelatoriosService {
     modulo?: string,
     dataInicio?: string,
     dataFim?: string,
-    take = 200,
+    page = 1,
+    pageSize = 50,
   ) {
     if (!this.prisma.isConnected) {
-      return [];
+      return { items: [], total: 0, page, pageSize };
     }
 
+    const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim);
+    const safeSize = Math.min(Math.max(pageSize, 1), 200);
+    const safePage = Math.max(page, 1);
+
+    const [items, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip: (safePage - 1) * safeSize,
+        take: safeSize,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return { items, total, page: safePage, pageSize: safeSize };
+  }
+
+  /**
+   * Export CSV do log filtrado. Ignora paginação — exporta tudo que bate
+   * com o filtro até um teto seguro (10k linhas) para não estourar memória.
+   * Pra exports maiores, o operador deve filtrar por data primeiro.
+   */
+  async exportAuditoriaCsv(
+    idCondominio: number,
+    modulo?: string,
+    dataInicio?: string,
+    dataFim?: string,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    if (!this.prisma.isConnected) {
+      return { buffer: Buffer.from('Data\n'), filename: 'auditoria_vazia.csv' };
+    }
+
+    const where = this.buildAuditWhere(idCondominio, modulo, dataInicio, dataFim);
+    const rows = await this.prisma.auditLog.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      take: 10_000,
+    });
+
+    const header = ['Data', 'Usuário', 'E-mail', 'Ação', 'Módulo', 'Entidade', 'Descrição', 'IP', 'Detalhes'];
+    const lines = [header.map(this.csvEscape).join(',')];
+
+    for (const r of rows) {
+      lines.push(
+        [
+          r.created_at?.toISOString() ?? '',
+          r.usuario_nome ?? '',
+          r.usuario_email ?? '',
+          r.acao ?? '',
+          r.modulo ?? '',
+          r.entidade_id != null ? String(r.entidade_id) : '',
+          r.descricao ?? '',
+          r.ip ?? '',
+          r.detalhes ?? '',
+        ]
+          .map(this.csvEscape)
+          .join(','),
+      );
+    }
+
+    // BOM para o Excel abrir UTF-8 sem corromper acento.
+    const csv = '﻿' + lines.join('\n');
+    const stamp = new Date().toISOString().slice(0, 10);
+    return {
+      buffer: Buffer.from(csv, 'utf8'),
+      filename: `auditoria_${idCondominio}_${stamp}.csv`,
+    };
+  }
+
+  private buildAuditWhere(
+    idCondominio: number,
+    modulo?: string,
+    dataInicio?: string,
+    dataFim?: string,
+  ) {
     const where: any = { id_condominio: idCondominio };
-
-    if (modulo && modulo !== 'todos') {
-      where.modulo = modulo;
-    }
-
+    if (modulo && modulo !== 'todos') where.modulo = modulo;
     if (dataInicio || dataFim) {
       where.created_at = {
         ...(dataInicio ? { gte: new Date(`${dataInicio}T00:00:00.000-03:00`) } : {}),
         ...(dataFim ? { lte: new Date(`${dataFim}T23:59:59.999-03:00`) } : {}),
       };
     }
+    return where;
+  }
 
-    return this.prisma.auditLog.findMany({
-      where,
-      orderBy: { created_at: 'desc' },
-      take,
-    });
+  private csvEscape(value: string): string {
+    if (value == null) return '';
+    const str = String(value);
+    if (/[",\n\r]/.test(str)) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
   }
 }

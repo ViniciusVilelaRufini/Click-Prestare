@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RelatoriosApi } from './relatorios.service';
@@ -16,11 +16,18 @@ export class RelatoriosPageComponent {
   readonly auditLogs = signal<any[]>([]);
   readonly loadingAudit = signal<boolean>(false);
   readonly errorAudit = signal<string | null>(null);
+  readonly exportandoCsv = signal<boolean>(false);
 
   // Filtros de auditoria
   readonly filtroModulo = signal<string>('todos');
   readonly filtroDataInicio = signal<string>('');
   readonly filtroDataFim = signal<string>('');
+
+  // Paginação
+  readonly pagina = signal<number>(1);
+  readonly tamanhoPagina = signal<number>(50);
+  readonly total = signal<number>(0);
+  readonly totalPaginas = computed(() => Math.max(1, Math.ceil(this.total() / this.tamanhoPagina())));
 
   // Gerador de relatórios
   readonly tipo = signal<'visitantes' | 'encomendas' | 'ocorrencias' | 'financeiro'>('visitantes');
@@ -75,9 +82,12 @@ export class RelatoriosPageComponent {
       this.filtroModulo(),
       this.filtroDataInicio() || undefined,
       this.filtroDataFim() || undefined,
+      this.pagina(),
+      this.tamanhoPagina(),
     ).subscribe({
       next: (data) => {
-        this.auditLogs.set(data || []);
+        this.auditLogs.set(data?.items ?? []);
+        this.total.set(data?.total ?? 0);
         this.loadingAudit.set(false);
       },
       error: (err) => {
@@ -89,6 +99,8 @@ export class RelatoriosPageComponent {
   }
 
   aplicarFiltros() {
+    // Mudou filtro: volta para a página 1.
+    this.pagina.set(1);
     this.carregarAuditoria();
   }
 
@@ -96,7 +108,55 @@ export class RelatoriosPageComponent {
     this.filtroModulo.set('todos');
     this.filtroDataInicio.set('');
     this.filtroDataFim.set('');
+    this.pagina.set(1);
     this.carregarAuditoria();
+  }
+
+  irParaPagina(p: number) {
+    if (p < 1 || p > this.totalPaginas()) return;
+    this.pagina.set(p);
+    this.carregarAuditoria();
+  }
+
+  proximaPagina() {
+    this.irParaPagina(this.pagina() + 1);
+  }
+
+  paginaAnterior() {
+    this.irParaPagina(this.pagina() - 1);
+  }
+
+  mudarTamanhoPagina(novo: number) {
+    this.tamanhoPagina.set(novo);
+    this.pagina.set(1);
+    this.carregarAuditoria();
+  }
+
+  exportarCsv() {
+    this.exportandoCsv.set(true);
+    this.api.exportAuditoria(
+      this.filtroModulo(),
+      this.filtroDataInicio() || undefined,
+      this.filtroDataFim() || undefined,
+    ).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const stamp = new Date().toISOString().slice(0, 10);
+        a.download = `auditoria_${stamp}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        this.exportandoCsv.set(false);
+      },
+      error: (err) => {
+        console.error(err);
+        this.errorAudit.set('Falha ao exportar CSV.');
+        this.exportandoCsv.set(false);
+      },
+    });
   }
 
   getAcaoColor(acao: string): string {
