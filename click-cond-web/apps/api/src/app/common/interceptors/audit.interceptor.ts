@@ -1,11 +1,16 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SKIP_AUDIT_KEY } from './skip-audit.decorator';
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest();
@@ -14,6 +19,16 @@ export class AuditInterceptor implements NestInterceptor {
     // Apenas operações de escrita
     const isWriteOperation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
     if (!isWriteOperation) {
+      return next.handle();
+    }
+
+    // Service do endpoint grava auditoria explícita com contexto rico —
+    // não duplica gravando log genérico aqui.
+    const skipAudit = this.reflector.getAllAndOverride<boolean>(SKIP_AUDIT_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (skipAudit) {
       return next.handle();
     }
 

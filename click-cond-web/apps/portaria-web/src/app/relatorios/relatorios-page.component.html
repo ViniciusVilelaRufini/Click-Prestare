@@ -330,8 +330,107 @@
                 @if (expandidos()[log.id] && log.detalhes) {
                   <tr class="bg-black/30">
                     <td colspan="6" class="px-4 py-3">
-                      <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Detalhes</div>
-                      <pre class="text-[11px] font-mono text-slate-300 bg-black/40 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words">{{ formatarDetalhes(log.detalhes) }}</pre>
+                      @let dt = parseDetalhes(log.detalhes);
+                      @let tipo = tipoDetalhes(dt);
+
+                      @if (tipo === 'visitante' && dt) {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <!-- Pessoa -->
+                          <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-blue-400 font-bold mb-2">
+                              {{ dt.visitante.tipo }}
+                            </div>
+                            <div class="text-sm font-semibold text-white">{{ dt.visitante.nome }}</div>
+                            @if (dt.visitante.documento) {
+                              <div class="text-[11px] text-slate-400 mt-0.5 font-mono">Doc: {{ dt.visitante.documento }}</div>
+                            }
+                          </div>
+
+                          <!-- Apartamento -->
+                          <div class="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-2">Apartamento</div>
+                            @if (dt.apartamento) {
+                              <div class="text-sm font-semibold text-white">{{ dt.apartamento.label }}</div>
+                              <div class="text-[11px] text-slate-400 mt-0.5">ID #{{ dt.apartamento.id }}</div>
+                            } @else {
+                              <div class="text-sm text-slate-500">Não vinculado</div>
+                            }
+                          </div>
+
+                          <!-- Convidado por -->
+                          <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Convidado por</div>
+                            @if (dt.convidadoPor) {
+                              <div class="text-sm font-semibold text-white">{{ dt.convidadoPor.nome || '—' }}</div>
+                              <div class="text-[11px] text-slate-400 mt-0.5">Morador #{{ dt.convidadoPor.id }}</div>
+                            } @else {
+                              <div class="text-sm text-slate-500">Sem convite registrado</div>
+                            }
+                          </div>
+
+                          <!-- Janela de validade -->
+                          @if (dt.janela?.inicio || dt.janela?.termino) {
+                            <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 md:col-span-2">
+                              <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold mb-2">Janela autorizada</div>
+                              <div class="text-xs text-white">
+                                {{ dt.janela.inicio || 'sem início' }} → {{ dt.janela.termino || 'sem fim' }}
+                              </div>
+                            </div>
+                          }
+
+                          <!-- Status -->
+                          <div class="rounded-lg bg-slate-500/5 border border-slate-500/20 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Status</div>
+                            <div class="text-xs space-y-0.5 text-slate-300">
+                              <div>Liberado: <span [class.text-emerald-400]="dt.status?.liberado" [class.text-slate-500]="!dt.status?.liberado">{{ dt.status?.liberado ? 'Sim' : 'Não' }}</span></div>
+                              @if (dt.status?.dataEntrada) { <div>Entrada: {{ dt.status.dataEntrada }}</div> }
+                              @if (dt.status?.dataSaida) { <div>Saída: {{ dt.status.dataSaida }}</div> }
+                              @if (dt.status?.codigoAcesso) { <div class="font-mono">QR: {{ dt.status.codigoAcesso }}</div> }
+                            </div>
+                          </div>
+                        </div>
+                      } @else if (tipo === 'manual-override' && dt) {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold mb-2">Dispositivo</div>
+                            <div class="text-sm font-semibold text-white">{{ dt.device_nome }}</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">{{ dt.device_tipo }} · {{ dt.device_ip }}</div>
+                          </div>
+                          <div class="rounded-lg p-3 border"
+                               [class.bg-emerald-500/5]="dt.success"
+                               [class.border-emerald-500/20]="dt.success"
+                               [class.bg-red-500/5]="!dt.success"
+                               [class.border-red-500/20]="!dt.success">
+                            <div class="text-[10px] uppercase tracking-wider font-bold mb-2"
+                                 [class.text-emerald-400]="dt.success"
+                                 [class.text-red-400]="!dt.success">Resultado</div>
+                            <div class="text-sm font-semibold text-white">{{ dt.success ? 'Sucesso' : 'Falha' }}</div>
+                            @if (dt.statusCode) {
+                              <div class="text-[11px] text-slate-400 mt-0.5 font-mono">HTTP {{ dt.statusCode }}</div>
+                            }
+                            @if (dt.error) {
+                              <div class="text-[11px] text-red-300 mt-0.5">{{ dt.error }}</div>
+                            }
+                          </div>
+                        </div>
+                      } @else if ((tipo === 'device-change' || tipo === 'rule-change') && dt?.changes) {
+                        <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Campos alterados</div>
+                          <div class="space-y-1.5">
+                            @for (key of dt.changes | keyvalue; track key.key) {
+                              <div class="flex items-center gap-2 text-xs">
+                                <span class="text-slate-500 font-mono w-32 shrink-0">{{ key.key }}</span>
+                                <span class="text-red-300 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
+                                <span class="text-slate-600">→</span>
+                                <span class="text-emerald-300 font-mono truncate">{{ key.value?.para ?? '—' }}</span>
+                              </div>
+                            }
+                          </div>
+                        </div>
+                      } @else {
+                        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Detalhes</div>
+                        <pre class="text-[11px] font-mono text-slate-300 bg-black/40 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words">{{ formatarDetalhes(log.detalhes) }}</pre>
+                      }
                     </td>
                   </tr>
                 }

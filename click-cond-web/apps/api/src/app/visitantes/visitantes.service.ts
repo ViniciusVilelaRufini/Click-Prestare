@@ -48,6 +48,67 @@ export class VisitantesService {
     return value;
   }
 
+  /**
+   * Carrega contexto rico de um visitante para a auditoria: apto, bloco,
+   * tipo (visitante/prestador), morador que convidou, janela de visita.
+   *
+   * O `detalhes` do auditLog mostra isso pro operador entender de relance:
+   * "quem foi liberado, em qual apto, por quem, em que data".
+   */
+  private async carregarContextoVisitante(idVisitante: number) {
+    const v = await this.prisma.visitantes.findUnique({
+      where: { id: idVisitante },
+      include: {
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+    });
+    if (!v) return null;
+
+    // Morador que convidou (campo `user` em Visitantes = id_user do morador)
+    let convidadoPor: { id: number; nome: string | null } | null = null;
+    if (v.user) {
+      const u = await this.prisma.users.findUnique({
+        where: { id: v.user },
+        select: { id: true, name: true },
+      });
+      if (u) convidadoPor = { id: u.id, nome: u.name };
+    }
+
+    const tipoLabel = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const fmtDate = (d: Date | null) =>
+      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+
+    return {
+      visitante: {
+        id: v.id,
+        nome: v.nome,
+        documento: v.doc_identificacao,
+        tipo: tipoLabel,
+      },
+      apartamento: v.apartamento
+        ? {
+            id: v.id_apartamento,
+            bloco: v.apartamento.bloco,
+            numero: v.apartamento.apto,
+            label: v.apartamento.bloco
+              ? `Bloco ${v.apartamento.bloco}, Apto ${v.apartamento.apto}`
+              : `Apto ${v.apartamento.apto}`,
+          }
+        : null,
+      convidadoPor,
+      janela: {
+        inicio: fmtDate(v.data_hora_inicio as any),
+        termino: fmtDate(v.data_hora_termino as any),
+      },
+      status: {
+        liberado: v.liberado === 1,
+        dataEntrada: fmtDate(v.data_entrada as any),
+        dataSaida: fmtDate(v.data_saida as any),
+        codigoAcesso: v.codigo_acesso,
+      },
+    };
+  }
+
   async findAll(idCondominio: number, search?: string) {
     if (!this.prisma.isConnected) {
       const mocks = [
@@ -674,13 +735,16 @@ export class VisitantesService {
     });
 
     const tipoLabel = visitante.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctxCreate = await this.carregarContextoVisitante(visitante.id);
+    const aptoLabelCreate = ctxCreate?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
       id_condominio: visitante.id_condominio,
       usuario_nome: 'Sistema / Portaria',
       acao: 'CREATE',
       modulo: 'visitantes',
       entidade_id: visitante.id,
-      descricao: `Novo agendamento criado para ${tipoLabel} "${visitante.nome}".`,
+      descricao: `Novo agendamento: ${tipoLabel} "${visitante.nome}" para ${aptoLabelCreate}`,
+      detalhes: ctxCreate ?? undefined,
     });
 
     // Notificar moradores
@@ -1090,13 +1154,16 @@ export class VisitantesService {
       data: { data_entrada: new Date(), data_saida: null, liberado: 1 },
     });
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctx = await this.carregarContextoVisitante(v.id);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
       usuario_nome: 'Portaria / Sistema',
       acao: 'CHECK_IN',
       modulo: 'visitantes',
       entidade_id: v.id,
-      descricao: `Check-in de ${label} "${v.nome}" registrado manualmente.`,
+      descricao: `Check-in de ${label} "${v.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
     });
     return { ok: true };
   }
@@ -1107,13 +1174,16 @@ export class VisitantesService {
       data: { liberado: 1, data_entrada: null, data_saida: null },
     });
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctx = await this.carregarContextoVisitante(v.id);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
       usuario_nome: 'Portaria / Morador',
       acao: 'UPDATE',
       modulo: 'visitantes',
       entidade_id: v.id,
-      descricao: `Acesso de ${label} "${v.nome}" liberado administrativamente.`,
+      descricao: `Acesso liberado: ${label} "${v.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
     });
     await this.desativarOutrosCodigos(v.id_condominio, v.id, v.nome, v.doc_identificacao);
     return { ok: true };
@@ -1125,13 +1195,16 @@ export class VisitantesService {
       data: { data_saida: new Date(), codigo_acesso: null, liberado: 0 },
     });
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctx = await this.carregarContextoVisitante(v.id);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
       usuario_nome: 'Portaria / Sistema',
       acao: 'CHECK_OUT',
       modulo: 'visitantes',
       entidade_id: v.id,
-      descricao: `Check-out de ${label} "${v.nome}" registrado manualmente.`,
+      descricao: `Check-out de ${label} "${v.nome}" do ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
     });
     return { ok: true };
   }

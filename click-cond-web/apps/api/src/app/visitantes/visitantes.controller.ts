@@ -7,6 +7,7 @@ import {
 
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('condominios/:idCondominio/visitantes')
 export class VisitantesController {
@@ -94,6 +95,7 @@ export class VisitantesController {
    * (nome, doc, fotos). Apartamento e datas pertencem a cada visita
    * individual e são editados por outro fluxo.
    */
+  @SkipAudit()
   @Put('pessoa/:idRef')
   atualizarPessoa(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -114,6 +116,7 @@ export class VisitantesController {
    * Remove TODAS as visitas dessa pessoa no condomínio + desinscreve do
    * terminal facial. Endpoint do botão "Remover" da lista.
    */
+  @SkipAudit()
   @Delete('pessoa/:idRef')
   removerPessoa(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -122,6 +125,7 @@ export class VisitantesController {
     return this.service.removerPessoa(idCondominio, idRef);
   }
 
+  @SkipAudit()
   @Post()
   create(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -172,16 +176,19 @@ export class VisitantesGlobalController {
     return this.service.validarCodigo(idCondominio, codigo);
   }
 
+  @SkipAudit()
   @Post('check-in')
   async checkIn(@Body('id', ParseIntPipe) id: number) {
     return this.service.checkIn(id);
   }
 
+  @SkipAudit()
   @Post('liberar')
   async liberarAcesso(@Body('id', ParseIntPipe) id: number) {
     return this.service.liberarAcesso(id);
   }
 
+  @SkipAudit()
   @Post('check-out')
   async checkOut(@Body('id', ParseIntPipe) id: number) {
     return this.service.checkOut(id);
@@ -220,6 +227,7 @@ export class VisitantesGlobalController {
     return list.map((v) => this.flatten(v));
   }
 
+  @SkipAudit()
   @Post('insert')
   async insert(@Body() body: { id_condominio: string; visitante: any }) {
     const idCondominio = Number(body.id_condominio);
@@ -241,6 +249,7 @@ export class VisitantesGlobalController {
     return saved;
   }
 
+  @SkipAudit()
   @Post('update')
   async update(@Body() body: { id_condominio: string; visitante: any }) {
     const vis = body.visitante;
