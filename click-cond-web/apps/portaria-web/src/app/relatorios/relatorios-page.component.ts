@@ -68,6 +68,11 @@ export class RelatoriosPageComponent {
     }
   }
 
+  /** Verifica se um objeto de diff tem pelo menos uma chave (usado no template). */
+  temChanges(changes: any): boolean {
+    return !!changes && typeof changes === 'object' && Object.keys(changes).length > 0;
+  }
+
   /** Parsing tipado do `detalhes` para renderização rica no template. */
   parseDetalhes(detalhes: string | object | null): any {
     if (!detalhes) return null;
@@ -84,10 +89,13 @@ export class RelatoriosPageComponent {
    */
   tipoDetalhes(
     detalhes: any,
-  ): 'visitante' | 'encomenda' | 'device-change' | 'rule-change' | 'manual-override' | 'generico' {
+  ): 'visitante' | 'encomenda' | 'morador' | 'morador-update' | 'device-change' | 'rule-change' | 'manual-override' | 'generico' {
     if (!detalhes) return 'generico';
     if (detalhes.visitante && detalhes.apartamento !== undefined) return 'visitante';
     if (detalhes.encomenda && detalhes.destinatario !== undefined) return 'encomenda';
+    // Update de morador grava { contexto, changes } — detectado antes do change-only
+    if (detalhes.contexto?.morador && detalhes.changes) return 'morador-update';
+    if (detalhes.morador && detalhes.credenciais !== undefined) return 'morador';
     if (detalhes.device_nome && detalhes.success !== undefined) return 'manual-override';
     if (detalhes.changes && typeof detalhes.changes === 'object') {
       // Distingue device de rule pelos campos no diff

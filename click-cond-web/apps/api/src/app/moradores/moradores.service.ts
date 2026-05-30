@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as crypto from 'crypto';
 
 export interface CreateMoradorDto {
@@ -35,7 +37,42 @@ export class MoradoresService {
     private readonly mail: MailService,
     private readonly storage: StorageService,
     private readonly facial: FacialService,
+    private readonly auditoria: AuditoriaService,
   ) {}
+
+  /**
+   * Contexto rico para auditoria de morador: identificação, apartamento,
+   * status de credenciais (RFID, QR, foto facial). Responde no painel:
+   * "qual morador, em qual apto, com quais credenciais habilitadas".
+   */
+  private async carregarContextoMorador(idMorador: number) {
+    const m = await this.prisma.moradores.findUnique({ where: { id: idMorador } });
+    if (!m) return null;
+
+    const aptoLabel = m.bloco
+      ? `Bloco ${m.bloco}, Apto ${m.apartamento}`
+      : (m.apartamento ? `Apto ${m.apartamento}` : null);
+
+    return {
+      morador: {
+        id: m.id,
+        nome: m.nome,
+        documento: m.documento,
+        email: m.email,
+        telefone: m.telefone,
+        tipo: m.tipo,
+      },
+      apartamento: aptoLabel
+        ? { bloco: m.bloco, numero: m.apartamento, label: aptoLabel }
+        : null,
+      credenciais: {
+        temTagRfid: !!(m as any).tag_rfid,
+        temQrCode: !!(m as any).qrcode_acesso,
+        temFacial: !!m.face_id,
+        statusFacial: m.face_sync_status,
+      },
+    };
+  }
 
   private fireFacialSync(idMorador: number) {
     this.facial
@@ -444,7 +481,7 @@ export class MoradoresService {
    * Criação simplificada: assumimos que o porteiro está só registrando dados
    * básicos. Cria um Users mínimo se ainda não existir e vincula via id_user.
    */
-  async create(dto: CreateMoradorDto) {
+  async create(dto: CreateMoradorDto, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       const newM = {
         id: MoradoresService.mockMoradores.length + 1,
@@ -621,10 +658,21 @@ export class MoradoresService {
       this.fireFacialSync(createdMorador.id);
     }
 
+    const ctx = await this.carregarContextoMorador(createdMorador.id);
+    await this.auditoria.registrar({
+      id_condominio: createdMorador.id_condominio ?? dto.id_condominio,
+      usuario_nome: operador?.nome ?? 'Portaria',
+      acao: 'CREATE',
+      modulo: 'moradores',
+      entidade_id: createdMorador.id,
+      descricao: `Cadastrou morador "${createdMorador.nome}"${ctx?.apartamento ? ' no ' + ctx.apartamento.label : ''}`,
+      detalhes: ctx ?? undefined,
+    });
+
     return createdMorador;
   }
 
-  async update(id: number, dto: Partial<CreateMoradorDto>) {
+  async update(id: number, dto: Partial<CreateMoradorDto>, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       const idx = MoradoresService.mockMoradores.findIndex(x => x.id === id);
       if (idx !== -1) {
@@ -717,22 +765,57 @@ export class MoradoresService {
       this.fireFacialSync(id);
     }
 
+    // Diff dos campos sensíveis para o log.
+    const camposAuditar = ['nome', 'documento', 'email', 'telefone', 'tipo', 'tag_rfid', 'qrcode_acesso'] as const;
+    const changes: Record<string, { de: any; para: any }> = {};
+    for (const k of camposAuditar) {
+      if (dto[k] !== undefined && (atual as any)[k] !== (result as any)[k]) {
+        changes[k] = { de: (atual as any)[k] ?? null, para: (result as any)[k] ?? null };
+      }
+    }
+    if (fotoPessoaUrl !== undefined && fotoPessoaUrl !== atual.foto_pessoa) {
+      changes['foto_pessoa'] = { de: '(anterior)', para: '(nova)' };
+    }
+    const ctx = await this.carregarContextoMorador(result.id);
+    await this.auditoria.registrar({
+      id_condominio: atual.id_condominio ?? -1,
+      usuario_nome: operador?.nome ?? 'Portaria',
+      acao: 'UPDATE',
+      modulo: 'moradores',
+      entidade_id: result.id,
+      descricao: `Atualizou morador "${result.nome}"${ctx?.apartamento ? ' (' + ctx.apartamento.label + ')' : ''}`,
+      detalhes: { contexto: ctx, changes },
+    });
+
     return result;
   }
 
-  async remove(id: number) {
+  async remove(id: number, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       MoradoresService.mockMoradores = MoradoresService.mockMoradores.filter(x => x.id !== id);
       return;
     }
+    // Carrega contexto ANTES de remover.
+    const ctx = await this.carregarContextoMorador(id);
     const morador = await this.prisma.moradores.findUnique({
       where: { id },
-      select: { face_id: true, id_condominio: true },
+      select: { face_id: true, id_condominio: true, nome: true },
     });
     try {
       await this.prisma.moradores.delete({ where: { id } });
     } catch {
       throw new NotFoundException(`Morador ${id} não encontrado`);
+    }
+    if (morador) {
+      await this.auditoria.registrar({
+        id_condominio: morador.id_condominio ?? -1,
+        usuario_nome: operador?.nome ?? 'Portaria',
+        acao: 'DELETE',
+        modulo: 'moradores',
+        entidade_id: id,
+        descricao: `Removeu morador "${morador.nome}"${ctx?.apartamento ? ' do ' + ctx.apartamento.label : ''}`,
+        detalhes: ctx ?? undefined,
+      });
     }
     if (morador?.face_id) {
       this.facial
@@ -741,7 +824,7 @@ export class MoradoresService {
     }
   }
 
-  async sendCredentials(id: number) {
+  async sendCredentials(id: number, operador?: JwtPayload) {
     const m = (await this.findOne(id)) as any;
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
@@ -758,6 +841,18 @@ export class MoradoresService {
       });
     }
     this.fireWelcomeEmail(m.email, m.nome, senhaInicial);
+
+    const ctx = await this.carregarContextoMorador(id);
+    await this.auditoria.registrar({
+      id_condominio: m.id_condominio ?? -1,
+      usuario_nome: operador?.nome ?? 'Portaria',
+      acao: 'STATUS',
+      modulo: 'moradores',
+      entidade_id: id,
+      descricao: `Reenviou credenciais para "${m.nome}" (${m.email})`,
+      detalhes: ctx ?? undefined,
+    });
+
     return { ok: true };
   }
 
