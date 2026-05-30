@@ -42,6 +42,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   late List<_MenuItem> _menu;
   String _saldo = '';
   Map<String, dynamic>? _summary;
+  int _currentTab = 0;
 
   @override
   void initState() {
@@ -123,64 +124,192 @@ class _MyCondominiumState extends State<MyCondominium> {
         .then((_) => _loadCond());
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildHomeTab(BuildContext context) {
     final saldoNeg = _saldo.contains('-');
-    return Scaffold(
-      backgroundColor: AppColors.bg(context),
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.primary,
-          onRefresh: _loadCond,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(child: _buildHeader(context)),
-              SliverToBoxAdapter(
-                  child: _isLoading
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                          child: AppSkeleton(width: double.infinity, height: 160, borderRadius: AppRadius.xxl),
-                        )
-                      : _buildStats(context, saldoNeg)),
-              const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                sliver: SliverToBoxAdapter(
-                  child: Row(
-                    children: [
-                      Expanded(child: Text('Gerenciar', style: AppTypography.title(context))),
-                      if (!_isLoading)
-                        Text('${_menu.length} módulos', style: AppTypography.tiny(context)),
-                    ],
-                  ),
+    return SafeArea(
+      child: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: _loadCond,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _buildHeader(context)),
+            SliverToBoxAdapter(
+                child: _isLoading
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                        child: AppSkeleton(width: double.infinity, height: 160, borderRadius: AppRadius.xxl),
+                      )
+                    : _buildStats(context, saldoNeg)),
+            const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  children: [
+                    Expanded(child: Text('Gerenciar', style: AppTypography.title(context))),
+                    if (!_isLoading)
+                      Text('${_menu.length} módulos', style: AppTypography.tiny(context)),
+                  ],
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xxxl),
-                sliver: _isLoading
-                    ? SliverList.separated(
-                        itemCount: 6,
-                        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (_, __) => AppSkeleton.listTile(context),
-                      )
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (_, i) {
-                            if (i.isOdd) return const SizedBox(height: AppSpacing.sm);
-                            final idx = i ~/ 2;
-                            return _MenuRow(
-                              item: _menu[idx],
-                              onTap: () => _navigate(_menu[idx].page),
-                            );
-                          },
-                          childCount: _menu.length * 2 - 1,
-                        ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xxxl),
+              sliver: _isLoading
+                  ? SliverList.separated(
+                      itemCount: 6,
+                      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                      itemBuilder: (_, __) => AppSkeleton.listTile(context),
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (_, i) {
+                          if (i.isOdd) return const SizedBox(height: AppSpacing.sm);
+                          final idx = i ~/ 2;
+                          return _MenuRow(
+                            item: _menu[idx],
+                            onTap: () => _navigate(_menu[idx].page),
+                          );
+                        },
+                        childCount: _menu.length * 2 - 1,
                       ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final financeiroPage = getUserType() == 'morador'
+        ? const MoradorFinanceiroView(hideAppBar: true)
+        : const ListFinanceiro(hideAppBar: true);
+
+    final tabs = [
+      _buildHomeTab(context),
+      const ListEncomendas(hideAppBar: true),
+      const ListVisitantes(hideAppBar: true),
+      financeiroPage,
+    ];
+
+    return Scaffold(
+      backgroundColor: AppColors.bg(context),
+      body: IndexedStack(
+        index: _currentTab,
+        children: tabs,
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(context),
+    );
+  }
+
+  Widget _buildBottomNavigationBar(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.4 : 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+        border: Border(
+          top: BorderSide(
+            color: AppColors.border(context),
+            width: 1,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildBottomNavItem(
+                index: 0,
+                icon: PhosphorIcons.house,
+                activeIcon: PhosphorIcons.houseFill,
+                label: 'Início',
+              ),
+              _buildBottomNavItem(
+                index: 1,
+                icon: PhosphorIcons.package,
+                activeIcon: PhosphorIcons.packageFill,
+                label: 'Encomendas',
+              ),
+              _buildBottomNavItem(
+                index: 2,
+                icon: PhosphorIcons.userList,
+                activeIcon: PhosphorIcons.userListFill,
+                label: 'Visitantes',
+              ),
+              _buildBottomNavItem(
+                index: 3,
+                icon: PhosphorIcons.wallet,
+                activeIcon: PhosphorIcons.walletFill,
+                label: 'Financeiro',
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavItem({
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+  }) {
+    final isSelected = _currentTab == index;
+    final activeColor = AppColors.primary;
+    final inactiveColor = AppColors.textSecondary(context);
+    
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _currentTab = index;
+          });
+        },
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                isSelected ? activeIcon : icon,
+                color: isSelected ? activeColor : inactiveColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: AppTypography.tiny(context).copyWith(
+                color: isSelected ? activeColor : inactiveColor,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 10,
+              ),
+            ),
+          ],
         ),
       ),
     );

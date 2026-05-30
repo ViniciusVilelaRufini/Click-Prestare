@@ -14,7 +14,8 @@ import 'package:intl/intl.dart';
 
 class ListEncomendas extends StatefulWidget {
   final bool allCondos;
-  const ListEncomendas({Key? key, this.allCondos = false}) : super(key: key);
+  final bool hideAppBar;
+  const ListEncomendas({Key? key, this.allCondos = false, this.hideAppBar = false}) : super(key: key);
 
   @override
   _ListEncomendasState createState() => _ListEncomendasState();
@@ -51,7 +52,8 @@ class _ListEncomendasState extends State<ListEncomendas> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Minhas Encomendas',
+      title: widget.hideAppBar ? null : 'Minhas Encomendas',
+      showBackButton: !widget.hideAppBar,
       body: _isLoading
           ? ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),

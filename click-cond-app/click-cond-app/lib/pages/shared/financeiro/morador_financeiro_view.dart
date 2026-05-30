@@ -17,7 +17,8 @@ import 'package:click/utils/utils.dart';
 enum FinanceiroViewMode { morador, condominio }
 
 class MoradorFinanceiroView extends StatefulWidget {
-  const MoradorFinanceiroView({Key? key}) : super(key: key);
+  final bool hideAppBar;
+  const MoradorFinanceiroView({Key? key, this.hideAppBar = false}) : super(key: key);
 
   @override
   _MoradorFinanceiroViewState createState() => _MoradorFinanceiroViewState();
@@ -131,19 +132,21 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      appBar: AppBar(
-        title: Text(getText('lb_financeiro')),
-        backgroundColor: AppColors.bg(context),
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(PhosphorIcons.downloadSimple),
-            onPressed: () {
-              displayMessage(context, "Exportar", "Relatório sendo gerado...");
-            },
-          )
-        ],
-      ),
+      appBar: widget.hideAppBar
+          ? null
+          : AppBar(
+              title: Text(getText('lb_financeiro')),
+              backgroundColor: AppColors.bg(context),
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(PhosphorIcons.downloadSimple),
+                  onPressed: () {
+                    displayMessage(context, "Exportar", "Relatório sendo gerado...");
+                  },
+                )
+              ],
+            ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
         : RefreshIndicator(

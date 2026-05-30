@@ -29,7 +29,8 @@ import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 enum FinanceiroViewMode { morador, condominio }
 
 class ListFinanceiro extends StatefulWidget {
-  const ListFinanceiro({Key? key}) : super(key: key);
+  final bool hideAppBar;
+  const ListFinanceiro({Key? key, this.hideAppBar = false}) : super(key: key);
   @override
   _ListFinanceiroPageState createState() => _ListFinanceiroPageState();
 }
@@ -178,8 +179,9 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
     return AppScaffold(
-      title: getText('lb_financeiro'),
-      actions: isSindico
+      title: widget.hideAppBar ? null : getText('lb_financeiro'),
+      showBackButton: !widget.hideAppBar,
+      actions: widget.hideAppBar ? null : (isSindico
           ? [
               PopupMenuButton<String>(
                 icon: Icon(PhosphorIcons.dotsThreeVertical, color: AppColors.textPrimary(context)),
@@ -196,7 +198,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                 ],
               )
             ]
-          : null,
+          : null),
       body: _isLoading
           ? _buildSkeleton(context)
           : RefreshIndicator(
