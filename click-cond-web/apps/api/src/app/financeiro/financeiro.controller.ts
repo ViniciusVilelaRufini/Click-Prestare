@@ -188,12 +188,6 @@ export class FinanceiroController {
     return this.service.handleAsaasWebhook(body);
   }
 
-  @Post('recorrencia/register-card')
-  @HttpCode(200)
-  registerRecurringCard(@ReqUser() payload: JwtPayload, @Body() body: { cardData: any }) {
-    return this.service.registerRecurringCard(Number(payload.user.id), body.cardData);
-  }
-
   @SkipAudit()
   @Post('rateio')
   @HttpCode(200)

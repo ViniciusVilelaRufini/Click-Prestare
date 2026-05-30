@@ -1331,11 +1331,6 @@ export class FinanceiroService implements OnModuleInit {
     return { success: true };
   }
 
-  async registerRecurringCard(idUser: number, cardData: any) {
-    this.logger.log(`Registrando recorrência de cartão para Usuário ID ${idUser}`);
-    return { success: true, message: 'Cartão de crédito registrado para recorrência mensal com sucesso!' };
-  }
-
   async createRateio(idCondominio: number, rateioData: { nome: string; valorTotal: number; data_vencimento: string; categoria: string }, operatorName: string, user?: JwtPayload) {
     if (user?.id_condominio) {
       assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
