@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException, OnModuleInit, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { MailService } from '../common/mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertSameTenant } from '../auth/tenant.util';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 
 @Injectable()
 export class FinanceiroService implements OnModuleInit {
@@ -13,6 +16,7 @@ export class FinanceiroService implements OnModuleInit {
     private readonly storage: StorageService,
     private readonly mail: MailService,
     private readonly notifications: NotificationsService,
+    private readonly auditoria: AuditoriaService,
   ) {}
 
   onModuleInit() {
@@ -21,11 +25,81 @@ export class FinanceiroService implements OnModuleInit {
     setInterval(() => this.runBillingRemindersJob(), 24 * 60 * 60 * 1000);
   }
 
+  /**
+   * Carrega um lançamento e valida que pertence ao condomínio do operador.
+   *
+   * Sem isso, qualquer síndico/porteiro autenticado consegue ler, editar
+   * ou apagar lançamentos de OUTROS condomínios passando o id solto.
+   * É o vetor mais crítico do módulo financeiro — mexe em fluxo de caixa.
+   */
+  private async getLancamentoForTenant(id: number, user?: JwtPayload) {
+    const lanc = await this.prisma.financeiro.findUnique({
+      where: { id: Number(id) },
+      select: { id: true, id_condominio: true, nome: true, valor: true, tipo: true, pago: true, status: true, id_usuario: true },
+    });
+    if (!lanc) throw new NotFoundException(`Lançamento ${id} não encontrado`);
+    assertSameTenant(lanc.id_condominio, user, `lançamento #${id}`);
+    return lanc;
+  }
+
+  /**
+   * Contexto rico de um lançamento financeiro para auditoria. Responde
+   * "qual lançamento, valor, vencimento, categoria, ligado a quem, pago?".
+   *
+   * Esse módulo movimenta dinheiro — sem rastro detalhado, fraude interna
+   * fica impune ("quem marcou X como pago às 23h?").
+   */
+  private async carregarContextoLancamento(idLanc: number) {
+    const l = await this.prisma.financeiro.findUnique({ where: { id: idLanc } });
+    if (!l) return null;
+
+    const formatReal = (n: number) =>
+      n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const fmtDate = (d: Date | null) =>
+      d ? new Date(d).toLocaleDateString('pt-BR') : null;
+
+    const valor = l.valor ? Number(l.valor) : 0;
+
+    return {
+      lancamento: {
+        id: l.id,
+        nome: l.nome,
+        tipo: l.tipo === 'D' ? 'Despesa' : 'Receita',
+        valor,
+        valorFormatado: formatReal(Math.abs(valor)),
+        categoria: l.categoria,
+        conta: l.conta,
+        descricao: l.descricao,
+        formaPagamento: l.forma_pagamento,
+      },
+      datas: {
+        lancamento: fmtDate(l.data),
+        vencimento: fmtDate(l.data_vencimento),
+      },
+      status: {
+        pago: l.pago === 1,
+        codigoStatus: l.status,
+        temBoleto: !!l.url_boleto,
+        temComprovante: !!l.photo,
+        temLinhaDigitavel: !!l.linha_digitavel,
+        temPix: !!l.pix_copia_cola,
+      },
+      vinculo: {
+        idUsuario: l.id_usuario,
+        cliente: l.cliente,
+        operadorRegistro: l.nome_operador,
+      },
+    };
+  }
+
   // ==========================================
   // CRUD PRINCIPAL
   // ==========================================
-  async insert(idCondominio: number, financeiro: any, operatorName: string) {
+  async insert(idCondominio: number, financeiro: any, operatorName: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
+
+    // Valida: id_condominio do body bate com JWT do operador.
+    assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
 
     let valor = 0;
     if (typeof financeiro.valor === 'number') {
@@ -98,7 +172,7 @@ export class FinanceiroService implements OnModuleInit {
       }
     }
 
-    await this.prisma.financeiro.create({
+    const criado = await this.prisma.financeiro.create({
       data: {
         nome: financeiro.nome || 'Lançamento sem nome',
         tipo: financeiro.tipo || 'C',
@@ -123,11 +197,29 @@ export class FinanceiroService implements OnModuleInit {
       },
     });
 
+    const ctx = await this.carregarContextoLancamento(criado.id);
+    const tipoLabel = criado.tipo === 'D' ? 'Despesa' : 'Receita';
+    await this.auditoria.registrar({
+      id_condominio: Number(idCondominio),
+      usuario_nome: operatorName,
+      acao: 'CREATE',
+      modulo: 'financeiro',
+      entidade_id: criado.id,
+      descricao: `Lançou ${tipoLabel}: ${criado.nome} — ${ctx?.lancamento.valorFormatado}`,
+      detalhes: ctx ?? undefined,
+    });
+
     return { success: true };
   }
 
-  async update(idCondominio: number, financeiro: any, operatorName: string) {
+  async update(idCondominio: number, financeiro: any, operatorName: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
+
+    // Valida: id_condominio do body bate com JWT, e lançamento existe nesse condomínio.
+    assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    if (financeiro?.id) {
+      await this.getLancamentoForTenant(Number(financeiro.id), user);
+    }
 
     let valor = 0;
     if (typeof financeiro.valor === 'number') {
@@ -197,6 +289,11 @@ export class FinanceiroService implements OnModuleInit {
       }
     }
 
+    // Carrega estado anterior pra computar diff antes do update.
+    const antes = await this.prisma.financeiro.findUnique({
+      where: { id: Number(financeiro.id) },
+    });
+
     await this.prisma.financeiro.updateMany({
       where: {
         id: Number(financeiro.id),
@@ -224,12 +321,54 @@ export class FinanceiroService implements OnModuleInit {
       },
     });
 
+    // Diff dos campos sensíveis. Valor e pago são os mais críticos: mudar
+    // valor é mudar quanto entra/sai; mudar pago é declarar pagamento.
+    const depois = await this.prisma.financeiro.findUnique({ where: { id: Number(financeiro.id) } });
+    const camposAuditar = ['nome', 'tipo', 'valor', 'categoria', 'pago', 'status', 'data', 'data_vencimento'] as const;
+    const changes: Record<string, { de: any; para: any }> = {};
+    if (antes && depois) {
+      for (const k of camposAuditar) {
+        const v1 = (antes as any)[k];
+        const v2 = (depois as any)[k];
+        const v1Norm = v1 instanceof Date ? v1.toISOString() : v1 != null ? String(v1) : null;
+        const v2Norm = v2 instanceof Date ? v2.toISOString() : v2 != null ? String(v2) : null;
+        if (v1Norm !== v2Norm) {
+          changes[k] = { de: v1Norm, para: v2Norm };
+        }
+      }
+    }
+    const ctx = await this.carregarContextoLancamento(Number(financeiro.id));
+    await this.auditoria.registrar({
+      id_condominio: Number(idCondominio),
+      usuario_nome: operatorName,
+      acao: 'UPDATE',
+      modulo: 'financeiro',
+      entidade_id: Number(financeiro.id),
+      descricao: `Editou lançamento: ${financeiro.nome ?? '(sem nome)'} — ${ctx?.lancamento.valorFormatado ?? ''}`,
+      detalhes: { contexto: ctx, changes },
+    });
+
     return { success: true };
   }
 
-  async remove(id: number) {
+  async remove(id: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
+    // Garante que o lançamento pertence ao condomínio do operador.
+    const lanc = await this.getLancamentoForTenant(id, user);
+    // Carrega contexto rico antes de remover (depois não existe mais).
+    const ctx = await this.carregarContextoLancamento(id);
     await this.prisma.financeiro.delete({ where: { id: Number(id) } });
+
+    await this.auditoria.registrar({
+      id_condominio: lanc.id_condominio,
+      usuario_nome: user?.nome ?? 'Sistema',
+      acao: 'DELETE',
+      modulo: 'financeiro',
+      entidade_id: id,
+      descricao: `Removeu lançamento: ${lanc.nome ?? '(sem nome)'} — ${ctx?.lancamento.valorFormatado ?? ''}`,
+      detalhes: ctx ?? undefined,
+    });
+
     return { success: true };
   }
 
@@ -242,15 +381,47 @@ export class FinanceiroService implements OnModuleInit {
       };
     }
 
+    // Validação de tenant: para porteiro/síndico tradicional, o JWT carrega
+    // id_condominio e precisa bater. Moradores no app não tem id_condominio
+    // no JWT — para eles a validação adicional vem abaixo (só vê o próprio).
+    const jwtPayload: JwtPayload | undefined = user?.id_condominio ? user : undefined;
+    if (jwtPayload) {
+      assertSameTenant(idCondominio, jwtPayload, `condomínio ${idCondominio}`);
+    }
+
     const result = await this.prisma.financeiro.findFirst({
       where: { id: Number(id), id_condominio: Number(idCondominio) },
     });
 
     if (!result) throw new NotFoundException('Lançamento não encontrado.');
 
+    // Morador só pode ver lançamentos vinculados a ele OU cobranças do seu apto.
+    // Sem isso, morador chuta IDs e lê dados financeiros de qualquer um.
     const isMorador = user?.typeAccess === 'Morador';
-    if (isMorador && result.nome && !result.nome.includes('Apto')) {
-      // Logic for isolation (dummy for now since id_usuario is missing)
+    if (isMorador) {
+      const userId = user?.id ?? user?.sub;
+      const podeVer = result.id_usuario === userId;
+      if (!podeVer && result.nome) {
+        // Para faturas de apto (nome "Apto X Bloco Y - Ref. ..."), verifica se o
+        // morador realmente mora nesse apto. Match por id_user em Moradores.
+        const moradorMatch = await this.prisma.moradores.findFirst({
+          where: {
+            id_user: userId,
+            id_condominio: Number(idCondominio),
+          },
+          select: { apartamento: true, bloco: true },
+        });
+        if (moradorMatch) {
+          const aptoTag = `Apto ${moradorMatch.apartamento} Bloco ${moradorMatch.bloco}`;
+          if (!result.nome.includes(aptoTag)) {
+            throw new ForbiddenException('Acesso negado: lançamento não pertence a você');
+          }
+        } else {
+          throw new ForbiddenException('Acesso negado: lançamento não pertence a você');
+        }
+      } else if (!podeVer) {
+        throw new ForbiddenException('Acesso negado: lançamento não pertence a você');
+      }
     }
 
     const fmt = (d?: Date | null) => d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
@@ -278,7 +449,10 @@ export class FinanceiroService implements OnModuleInit {
   // ==========================================
   // LISTAGEM E AGRUPAMENTO GERAL
   // ==========================================
-  async getAll(idCondominio: number, mesStr?: string, anoStr?: string, isSindico: boolean = true) {
+  async getAll(idCondominio: number, mesStr?: string, anoStr?: string, isSindico: boolean = true, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     if (!this.prisma.isConnected) {
       return {
         lancamentos: {
@@ -403,7 +577,10 @@ export class FinanceiroService implements OnModuleInit {
   // ==========================================
   // INADIMPLÊNCIA E TAXAS DE MORADORES
   // ==========================================
-  async getAllMoradores(idCondominio: number, mesStr: string, anoStr: string) {
+  async getAllMoradores(idCondominio: number, mesStr: string, anoStr: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     if (!this.prisma.isConnected) return { meses: [], blocos: [] };
 
     const meses = await this.getAllMeses(idCondominio);
@@ -479,7 +656,10 @@ export class FinanceiroService implements OnModuleInit {
     return { meses, blocos: listBlocos };
   }
 
-  async getAllInadimplentes(idCondominio: number) {
+  async getAllInadimplentes(idCondominio: number, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     if (!this.prisma.isConnected) {
       return {
         blocos: [
@@ -547,7 +727,10 @@ export class FinanceiroService implements OnModuleInit {
     return { blocos: listBlocos };
   }
 
-  async getInadimplenteDetail(idCondominio: number, apto: string, bloco: string) {
+  async getInadimplenteDetail(idCondominio: number, apto: string, bloco: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     if (!this.prisma.isConnected) {
       return [
         {
@@ -607,7 +790,10 @@ export class FinanceiroService implements OnModuleInit {
     return faturasDevendo;
   }
 
-  async notifyInadimplente(idCondominio: number, apto: string, bloco: string) {
+  async notifyInadimplente(idCondominio: number, apto: string, bloco: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     if (!this.prisma.isConnected) {
       return { success: true, message: 'Simulado com sucesso (modo offline).' };
     }
@@ -685,7 +871,10 @@ export class FinanceiroService implements OnModuleInit {
   // ==========================================
   // GRÁFICOS E COMPARTILHAMENTO DE ARQUIVOS
   // ==========================================
-  async getGrafico(idCondominio: number, mesStr: string, anoStr: string) {
+  async getGrafico(idCondominio: number, mesStr: string, anoStr: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     if (!this.prisma.isConnected) {
       return {
         meses: [{ mes: '05', ano: '2026', periodo: 'Maio/2026' }],
@@ -846,8 +1035,20 @@ export class FinanceiroService implements OnModuleInit {
     }));
   }
 
-  async uploadSharedFile(id: number, fileBase64: string, type: string) {
+  async uploadSharedFile(id: number, fileBase64: string, type: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { url: '' };
+
+    // Sem essa checagem, qualquer um anexa boleto/comprovante a lançamento alheio.
+    const lanc = await this.getLancamentoForTenant(id, user);
+
+    // Morador só pode anexar comprovante a lançamento dele próprio (id_usuario).
+    const isMorador = user?.typeAccess === 'Morador';
+    if (isMorador) {
+      const userId = user?.sub;
+      if (lanc.id_usuario && lanc.id_usuario !== userId) {
+        throw new ForbiddenException('Você só pode anexar arquivo a um lançamento seu');
+      }
+    }
 
     const prefix = type === 'boleto' ? 'boletos' : 'comprovantes';
 
@@ -890,15 +1091,43 @@ export class FinanceiroService implements OnModuleInit {
     return { url };
   }
 
-  async updateStatus(id: number, statusStr: string | number) {
+  async updateStatus(id: number, statusStr: string | number, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
+
+    // Marcar despesa como paga é a mutação MAIS sensível do módulo financeiro.
+    // Validação obrigatória: lançamento existe e pertence ao condomínio do operador.
+    const lanc = await this.getLancamentoForTenant(id, user);
 
     const status = String(statusStr);
     const isPago = status === '1' ? 1 : 0;
+    const statusAnterior = lanc.status;
+    const pagoAnterior = lanc.pago;
 
     await this.prisma.financeiro.update({
       where: { id: Number(id) },
       data: { status, pago: isPago },
+    });
+
+    // Auditoria sempre — mas com destaque pra mudança de pago (mais sensível).
+    const ctx = await this.carregarContextoLancamento(id);
+    await this.auditoria.registrar({
+      id_condominio: lanc.id_condominio,
+      usuario_nome: user?.nome ?? 'Sistema',
+      acao: 'STATUS',
+      modulo: 'financeiro',
+      entidade_id: id,
+      descricao: pagoAnterior !== isPago
+        ? (isPago === 1
+          ? `Marcou como PAGO: ${lanc.nome ?? '(sem nome)'} — ${ctx?.lancamento.valorFormatado ?? ''}`
+          : `Desfez pagamento: ${lanc.nome ?? '(sem nome)'} — ${ctx?.lancamento.valorFormatado ?? ''}`)
+        : `Alterou status do lançamento: ${lanc.nome ?? '(sem nome)'}`,
+      detalhes: {
+        contexto: ctx,
+        changes: {
+          status: { de: statusAnterior, para: status },
+          pago: { de: pagoAnterior === 1, para: isPago === 1 },
+        },
+      },
     });
 
     return { success: true };
@@ -969,22 +1198,74 @@ export class FinanceiroService implements OnModuleInit {
 
   async handleAsaasWebhook(body: any) {
     if (!this.prisma.isConnected) return { success: true };
-    this.logger.log(`Webhook recebido: ${JSON.stringify(body)}`);
+    this.logger.log(`Webhook recebido: ${body?.event} ref=${body?.payment?.externalReference}`);
 
-    if (body.event === 'PAYMENT_RECEIVED' || body.event === 'PAYMENT_CONFIRMED') {
-      const financeiroId = Number(body.payment.externalReference);
-      if (financeiroId) {
-        await this.prisma.financeiro.update({
-          where: { id: financeiroId },
-          data: {
-            status: '1', // Pago
-            pago: 1,
-            data: new Date(),
-          },
-        });
-        this.logger.log(`Pagamento confirmado via Webhook para Lançamento ID: ${financeiroId}`);
-      }
+    if (body.event !== 'PAYMENT_RECEIVED' && body.event !== 'PAYMENT_CONFIRMED') {
+      return { success: true, skipped: true };
     }
+
+    const financeiroId = Number(body?.payment?.externalReference);
+    if (!financeiroId) {
+      this.logger.warn(`Webhook Asaas sem externalReference válido — ignorado`);
+      return { success: true, skipped: true };
+    }
+
+    const lanc = await this.prisma.financeiro.findUnique({
+      where: { id: financeiroId },
+      select: { id: true, valor: true, pago: true, id_condominio: true, nome: true },
+    });
+    if (!lanc) {
+      this.logger.warn(`Webhook Asaas: lançamento ${financeiroId} não encontrado`);
+      return { success: true, skipped: true };
+    }
+
+    // Idempotência: se já está pago, não reprocessa (evita push duplicado
+    // se o Asaas reenviar o webhook).
+    if (lanc.pago === 1) {
+      this.logger.log(`Webhook Asaas: lançamento ${financeiroId} já pago — ignorado`);
+      return { success: true, alreadyPaid: true };
+    }
+
+    // Valida valor recebido contra valor cadastrado. Pagamento parcial NÃO
+    // deve marcar como pago. Asaas envia `payment.value` (valor original) e
+    // `payment.netValue` (líquido após taxa). Comparamos o valor bruto.
+    const valorRecebido = Number(body?.payment?.value ?? 0);
+    const valorEsperado = Math.abs(Number(lanc.valor ?? 0));
+    if (valorRecebido > 0 && valorEsperado > 0 && valorRecebido < valorEsperado - 0.01) {
+      this.logger.warn(
+        `Webhook Asaas: pagamento parcial detectado para lançamento ${financeiroId} ` +
+        `(recebido R$ ${valorRecebido.toFixed(2)}, esperado R$ ${valorEsperado.toFixed(2)}) — NÃO marcado como pago`,
+      );
+      return { success: true, partialPayment: true };
+    }
+
+    await this.prisma.financeiro.update({
+      where: { id: financeiroId },
+      data: {
+        status: '1',
+        pago: 1,
+        data: new Date(),
+      },
+    });
+    this.logger.log(`Pagamento confirmado via Webhook para Lançamento ID: ${financeiroId} (R$ ${valorRecebido.toFixed(2)})`);
+
+    // Auditoria: webhook é mutação financeira automatizada, precisa de rastro.
+    await this.auditoria.registrar({
+      id_condominio: lanc.id_condominio,
+      usuario_nome: 'Webhook Asaas',
+      acao: 'STATUS',
+      modulo: 'financeiro',
+      entidade_id: lanc.id,
+      descricao: `Pagamento confirmado via Asaas: ${lanc.nome}`,
+      detalhes: {
+        event: body.event,
+        valorRecebido,
+        valorEsperado,
+        asaasPaymentId: body?.payment?.id,
+        netValue: body?.payment?.netValue,
+      },
+    });
+
     return { success: true };
   }
 
@@ -993,7 +1274,10 @@ export class FinanceiroService implements OnModuleInit {
     return { success: true, message: 'Cartão de crédito registrado para recorrência mensal com sucesso!' };
   }
 
-  async createRateio(idCondominio: number, rateioData: { nome: string; valorTotal: number; data_vencimento: string; categoria: string }, operatorName: string) {
+  async createRateio(idCondominio: number, rateioData: { nome: string; valorTotal: number; data_vencimento: string; categoria: string }, operatorName: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
     const aptos = await this.prisma.apartamentos.findMany({
@@ -1013,29 +1297,57 @@ export class FinanceiroService implements OnModuleInit {
     };
     const dVenc = parseDate(rateioData.data_vencimento);
 
-    const createdCharges = [];
-    for (const apto of aptos) {
-      const charge = await this.prisma.financeiro.create({
-        data: {
-          nome: `Apto ${apto.apto} Bloco ${apto.bloco} - Rateio: ${rateioData.nome}`,
-          tipo: 'C',
-          valor: valorPorApto,
-          data_vencimento: dVenc,
-          categoria: rateioData.categoria ?? 'Geral',
-          descricao: `Rateio extraordinário referente a: ${rateioData.nome}`,
-          nome_operador: operatorName,
-          id_condominio: Number(idCondominio),
-          pago: 0,
-          status: '0',
+    // Transação: rateio é all-or-nothing. Se cair na metade, alguns aptos
+    // ficavam com cobrança e outros não, sem operador saber.
+    const createdCharges = await this.prisma.$transaction(
+      aptos.map((apto) =>
+        this.prisma.financeiro.create({
+          data: {
+            nome: `Apto ${apto.apto} Bloco ${apto.bloco} - Rateio: ${rateioData.nome}`,
+            tipo: 'C',
+            valor: valorPorApto,
+            data_vencimento: dVenc,
+            categoria: rateioData.categoria ?? 'Geral',
+            descricao: `Rateio extraordinário referente a: ${rateioData.nome}`,
+            nome_operador: operatorName,
+            id_condominio: Number(idCondominio),
+            pago: 0,
+            status: '0',
+          },
+        }),
+      ),
+    );
+
+    const formatReal = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    await this.auditoria.registrar({
+      id_condominio: Number(idCondominio),
+      usuario_nome: operatorName,
+      acao: 'CREATE',
+      modulo: 'financeiro',
+      entidade_id: null,
+      descricao: `Criou rateio "${rateioData.nome}" — ${formatReal(rateioData.valorTotal)} dividido em ${aptos.length} aptos (${formatReal(valorPorApto)} cada)`,
+      detalhes: {
+        rateio: {
+          nome: rateioData.nome,
+          categoria: rateioData.categoria,
+          valorTotal: rateioData.valorTotal,
+          valorTotalFormatado: formatReal(rateioData.valorTotal),
+          valorPorApto,
+          valorPorAptoFormatado: formatReal(valorPorApto),
+          dataVencimento: rateioData.data_vencimento,
+          quantidadeAptos: aptos.length,
+          aptos: aptos.slice(0, 20).map((a) => `${a.bloco}-${a.apto}`),
         },
-      });
-      createdCharges.push(charge);
-    }
+      },
+    });
 
     return { success: true, count: createdCharges.length, message: `Cobrança rateada criada para ${createdCharges.length} apartamentos.` };
   }
 
-  async createAcordoInadimplente(idCondominio: number, acordoData: { apto: string; bloco: string; parcelas: number; valorTotal: number }, operatorName: string) {
+  async createAcordoInadimplente(idCondominio: number, acordoData: { apto: string; bloco: string; parcelas: number; valorTotal: number }, operatorName: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
     const debitos = await this.prisma.financeiro.findMany({
@@ -1050,36 +1362,67 @@ export class FinanceiroService implements OnModuleInit {
 
     if (debitos.length === 0) return { success: false, message: 'Nenhum débito em aberto encontrado.' };
 
-    for (const deb of debitos) {
-      await this.prisma.financeiro.update({
-        where: { id: deb.id },
-        data: {
-          status: '3', // Renegociado
-          descricao: `Renegociado no acordo em lote pelo síndico.`,
-        },
-      });
-    }
-
     const valorParcela = Number(acordoData.valorTotal) / Number(acordoData.parcelas);
     const hoje = new Date();
 
+    // Transação: renegociar débitos e criar parcelas é all-or-nothing.
+    // Sem isso, fica débito como "renegociado" sem as parcelas correspondentes.
+    const parcelasOperations = [];
     for (let i = 1; i <= acordoData.parcelas; i++) {
       const vencimento = new Date(hoje.getFullYear(), hoje.getMonth() + i, 10);
-      await this.prisma.financeiro.create({
-        data: {
-          nome: `Apto ${acordoData.apto} Bloco ${acordoData.bloco} - Acordo Parc. ${i}/${acordoData.parcelas}`,
-          tipo: 'C',
-          valor: valorParcela,
-          data_vencimento: vencimento,
-          categoria: 'Acordo',
-          descricao: `Acordo de débitos anteriores parcelado pelo síndico. Parcela ${i} de ${acordoData.parcelas}`,
-          nome_operador: operatorName,
-          id_condominio: Number(idCondominio),
-          pago: 0,
-          status: '0',
-        },
-      });
+      parcelasOperations.push(
+        this.prisma.financeiro.create({
+          data: {
+            nome: `Apto ${acordoData.apto} Bloco ${acordoData.bloco} - Acordo Parc. ${i}/${acordoData.parcelas}`,
+            tipo: 'C',
+            valor: valorParcela,
+            data_vencimento: vencimento,
+            categoria: 'Acordo',
+            descricao: `Acordo de débitos anteriores parcelado pelo síndico. Parcela ${i} de ${acordoData.parcelas}`,
+            nome_operador: operatorName,
+            id_condominio: Number(idCondominio),
+            pago: 0,
+            status: '0',
+          },
+        }),
+      );
     }
+
+    await this.prisma.$transaction([
+      ...debitos.map((deb) =>
+        this.prisma.financeiro.update({
+          where: { id: deb.id },
+          data: {
+            status: '3',
+            descricao: `Renegociado no acordo em lote pelo síndico.`,
+          },
+        }),
+      ),
+      ...parcelasOperations,
+    ]);
+
+    const formatReal = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    await this.auditoria.registrar({
+      id_condominio: Number(idCondominio),
+      usuario_nome: operatorName,
+      acao: 'CREATE',
+      modulo: 'financeiro',
+      entidade_id: null,
+      descricao: `Acordo de inadimplência: Apto ${acordoData.apto} Bloco ${acordoData.bloco} — ${formatReal(acordoData.valorTotal)} em ${acordoData.parcelas}x de ${formatReal(valorParcela)}`,
+      detalhes: {
+        acordo: {
+          apto: acordoData.apto,
+          bloco: acordoData.bloco,
+          valorTotal: acordoData.valorTotal,
+          valorTotalFormatado: formatReal(acordoData.valorTotal),
+          parcelas: acordoData.parcelas,
+          valorParcela,
+          valorParcelaFormatado: formatReal(valorParcela),
+          debitosOriginaisRenegociados: debitos.length,
+          debitosOriginais: debitos.map((d) => ({ id: d.id, nome: d.nome, valor: Number(d.valor) })),
+        },
+      },
+    });
 
     return { success: true, message: `Acordo firmado com sucesso em ${acordoData.parcelas} parcelas de ${valorParcela.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` };
   }
@@ -1273,7 +1616,10 @@ export class FinanceiroService implements OnModuleInit {
     return { success: true };
   }
 
-  async parseOfxContent(idCondominio: number, ofxContent: string) {
+  async parseOfxContent(idCondominio: number, ofxContent: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
     const transactions: any[] = [];
     const stmttrnRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
     let match;
@@ -1373,7 +1719,16 @@ export class FinanceiroService implements OnModuleInit {
     };
   }
 
-  async confirmarConciliacao(idCondominio: number, reconciliations: { databaseId: number; dataPagamento: string }[]) {
+  async confirmarConciliacao(idCondominio: number, reconciliations: { databaseId: number; dataPagamento: string }[], user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
+    // Cada databaseId precisa pertencer ao condomínio — sem isso, atacante
+    // marca como pago lançamentos de outros condomínios em massa.
+    for (const rec of reconciliations) {
+      await this.getLancamentoForTenant(rec.databaseId, user);
+    }
+    const confirmados: number[] = [];
     for (const rec of reconciliations) {
       const parsedDate = new Date(rec.dataPagamento);
       const isDateValid = !isNaN(parsedDate.getTime());
@@ -1388,7 +1743,27 @@ export class FinanceiroService implements OnModuleInit {
           data: isDateValid ? parsedDate : new Date(),
         },
       });
+      confirmados.push(Number(rec.databaseId));
     }
-    return { success: true };
+
+    if (confirmados.length > 0) {
+      await this.auditoria.registrar({
+        id_condominio: Number(idCondominio),
+        usuario_nome: user?.nome ?? 'Sistema',
+        acao: 'STATUS',
+        modulo: 'financeiro',
+        entidade_id: null,
+        descricao: `Conciliação bancária: ${confirmados.length} lançamento(s) confirmado(s) como pagos`,
+        detalhes: {
+          conciliacao: {
+            quantidade: confirmados.length,
+            ids: confirmados,
+            reconciliations,
+          },
+        },
+      });
+    }
+
+    return { success: true, confirmados: confirmados.length };
   }
 }

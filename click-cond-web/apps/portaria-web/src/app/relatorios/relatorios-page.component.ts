@@ -45,7 +45,7 @@ export class RelatoriosPageComponent {
     { value: 'moradores',     label: 'Moradores' },
     { value: 'ocorrencias',   label: 'Ocorrências' },
     { value: 'prestadores',   label: 'Prestadores' },
-    { value: 'financeiro',    label: 'Financeiro' },
+    { value: 'financeiro',    label: 'Financeiro / Caixa' },
     { value: 'comunicados',   label: 'Comunicados' },
     { value: 'assembleias',   label: 'Assembleias' },
     { value: 'documentos',    label: 'Documentos' },
@@ -91,6 +91,7 @@ export class RelatoriosPageComponent {
     detalhes: any,
   ): 'visitante' | 'encomenda' | 'morador' | 'morador-update'
     | 'comunicado' | 'comunicado-update'
+    | 'financeiro' | 'financeiro-update' | 'rateio' | 'acordo' | 'conciliacao'
     | 'device-change' | 'rule-change' | 'manual-override' | 'generico' {
     if (!detalhes) return 'generico';
     if (detalhes.visitante && detalhes.apartamento !== undefined) return 'visitante';
@@ -98,8 +99,13 @@ export class RelatoriosPageComponent {
     // Updates gravam { contexto, changes } — detectados antes do change-only
     if (detalhes.contexto?.morador && detalhes.changes) return 'morador-update';
     if (detalhes.contexto?.comunicado && detalhes.changes) return 'comunicado-update';
+    if (detalhes.contexto?.lancamento && detalhes.changes) return 'financeiro-update';
     if (detalhes.morador && detalhes.credenciais !== undefined) return 'morador';
     if (detalhes.comunicado && detalhes.publicado !== undefined) return 'comunicado';
+    if (detalhes.lancamento && detalhes.datas !== undefined) return 'financeiro';
+    if (detalhes.rateio) return 'rateio';
+    if (detalhes.acordo) return 'acordo';
+    if (detalhes.conciliacao) return 'conciliacao';
     if (detalhes.device_nome && detalhes.success !== undefined) return 'manual-override';
     if (detalhes.changes && typeof detalhes.changes === 'object') {
       // Distingue device de rule pelos campos no diff

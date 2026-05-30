@@ -1,39 +1,41 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { FinanceiroService } from './financeiro.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { Public } from '../auth/public.decorator';
+import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('financeiro')
 export class FinanceiroController {
   constructor(private readonly service: FinanceiroService) {}
 
+  @SkipAudit()
   @Post('insert')
   @HttpCode(200)
   insert(
     @Body() body: { id_condominio: string | number; financeiro: any },
     @ReqUser() payload: JwtPayload,
   ) {
-    console.log("INSERT PAYLOAD:", JSON.stringify(body, null, 2));
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? 'Administrador';
-    return this.service.insert(Number(body.id_condominio), body.financeiro, operatorName);
+    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
+    return this.service.insert(Number(body.id_condominio), body.financeiro, operatorName, payload);
   }
 
+  @SkipAudit()
   @Post('update')
   @HttpCode(200)
   update(
     @Body() body: { id_condominio: string | number; financeiro: any },
     @ReqUser() payload: JwtPayload,
   ) {
-    console.log("UPDATE PAYLOAD:", JSON.stringify(body, null, 2));
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? 'Administrador';
-    return this.service.update(Number(body.id_condominio), body.financeiro, operatorName);
+    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
+    return this.service.update(Number(body.id_condominio), body.financeiro, operatorName, payload);
   }
 
+  @SkipAudit()
   @Post('remove')
   @HttpCode(200)
-  remove(@Body() body: { id: string | number }) {
-    return this.service.remove(Number(body.id));
+  remove(@Body() body: { id: string | number }, @ReqUser() payload: JwtPayload) {
+    return this.service.remove(Number(body.id), payload);
   }
 
   @Get('get-all')
@@ -44,12 +46,14 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
   ) {
     const isSindico = payload?.user?.typeAccess === 'Sindico';
-    return this.service.getAll(Number(idCondominio), mes, ano, isSindico);
+    return this.service.getAll(Number(idCondominio), mes, ano, isSindico, payload);
   }
 
   @Get('get')
   get(@Query('id_condominio') idCondominio: string, @Query('id') id: string, @ReqUser() payload: JwtPayload) {
-    return this.service.get(Number(idCondominio), Number(id), payload?.user);
+    // Para o get, o service espera payload.user para checagem de typeAccess de morador.
+    // Passa o payload inteiro pra que id_condominio também esteja disponível para tenant check.
+    return this.service.get(Number(idCondominio), Number(id), payload?.user ?? payload);
   }
 
   @Get('moradores/get-all')
@@ -57,13 +61,14 @@ export class FinanceiroController {
     @Query('id_condominio') idCondominio: string,
     @Query('mes') mes: string,
     @Query('ano') ano: string,
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.getAllMoradores(Number(idCondominio), mes, ano);
+    return this.service.getAllMoradores(Number(idCondominio), mes, ano, payload);
   }
 
   @Get('inadimplentes/get-all')
-  getAllInadimplentes(@Query('id_condominio') idCondominio: string) {
-    return this.service.getAllInadimplentes(Number(idCondominio));
+  getAllInadimplentes(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getAllInadimplentes(Number(idCondominio), payload);
   }
 
   @Get('inadimplente/get')
@@ -71,8 +76,9 @@ export class FinanceiroController {
     @Query('id_condominio') idCondominio: string,
     @Query('apto') apto: string,
     @Query('bloco') bloco: string,
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.getInadimplenteDetail(Number(idCondominio), apto, bloco);
+    return this.service.getInadimplenteDetail(Number(idCondominio), apto, bloco, payload);
   }
 
   @Post('inadimplente/notificar')
@@ -80,8 +86,9 @@ export class FinanceiroController {
     @Body('id_condominio') idCondominio: string | number,
     @Body('apto') apto: string,
     @Body('bloco') bloco: string,
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.notifyInadimplente(Number(idCondominio), apto, bloco);
+    return this.service.notifyInadimplente(Number(idCondominio), apto, bloco, payload);
   }
 
   @Get('grafico/get-all')
@@ -89,8 +96,9 @@ export class FinanceiroController {
     @Query('id_condominio') idCondominio: string,
     @Query('mes') mes: string,
     @Query('ano') ano: string,
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.getGrafico(Number(idCondominio), mes, ano);
+    return this.service.getGrafico(Number(idCondominio), mes, ano, payload);
   }
 
   @Get('get-by-user')
@@ -98,7 +106,9 @@ export class FinanceiroController {
     const typeAccess = payload?.typeAccess ?? payload?.user?.typeAccess;
     const isMorador = typeAccess === 'Morador';
     const currentUserId = payload?.user?.id ?? payload?.sub;
-    const targetUserId = isMorador ? (currentUserId ?? Number(idUser)) : Number(idUser);
+    // Morador SEMPRE recebe os próprios lançamentos, ignorando qualquer
+    // id_user que ele tente passar (impede ler dados de outro morador).
+    const targetUserId = isMorador ? Number(currentUserId) : Number(idUser);
     return this.service.getByUser(targetUserId, Number(idCondominio));
   }
 
@@ -134,20 +144,47 @@ export class FinanceiroController {
 
   @Post('upload-shared-file')
   @HttpCode(200)
-  uploadSharedFile(@Body() body: { id: string | number; file: string; type: string }) {
-    return this.service.uploadSharedFile(Number(body.id), body.file, body.type);
+  uploadSharedFile(
+    @Body() body: { id: string | number; file: string; type: string },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.uploadSharedFile(Number(body.id), body.file, body.type, payload);
   }
 
+  @SkipAudit()
   @Post('update-status')
   @HttpCode(200)
-  updateStatus(@Body() body: { id: string | number; status: string | number }) {
-    return this.service.updateStatus(Number(body.id), body.status);
+  updateStatus(
+    @Body() body: { id: string | number; status: string | number },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.updateStatus(Number(body.id), body.status, payload);
   }
 
   @Public()
+  @SkipAudit()
   @Post('webhook/asaas')
   @HttpCode(200)
-  handleAsaasWebhook(@Body() body: any) {
+  handleAsaasWebhook(
+    @Body() body: any,
+    @Headers('asaas-access-token') asaasToken?: string,
+  ) {
+    // Validação de token: Asaas envia o token configurado no painel via
+    // header `asaas-access-token`. Sem essa checagem, qualquer pessoa na
+    // internet manda POST com event=PAYMENT_RECEIVED e marca dívidas como
+    // pagas no nosso banco — fraude trivial.
+    //
+    // Configurar via env ASAAS_WEBHOOK_TOKEN no Railway, e usar o mesmo
+    // valor no painel do Asaas (Configurações → Webhooks).
+    const expected = process.env.ASAAS_WEBHOOK_TOKEN;
+    if (!expected) {
+      // Sem token configurado, recusa por padrão. Operador deve definir
+      // ASAAS_WEBHOOK_TOKEN antes de habilitar a integração em produção.
+      throw new UnauthorizedException('Webhook Asaas não configurado (ASAAS_WEBHOOK_TOKEN ausente)');
+    }
+    if (!asaasToken || asaasToken !== expected) {
+      throw new UnauthorizedException('Token de webhook Asaas inválido');
+    }
     return this.service.handleAsaasWebhook(body);
   }
 
@@ -157,39 +194,44 @@ export class FinanceiroController {
     return this.service.registerRecurringCard(Number(payload.user.id), body.cardData);
   }
 
+  @SkipAudit()
   @Post('rateio')
   @HttpCode(200)
   createRateio(
     @Body() body: { id_condominio: string | number; rateioData: any },
     @ReqUser() payload: JwtPayload,
   ) {
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? 'Administrador';
-    return this.service.createRateio(Number(body.id_condominio), body.rateioData, operatorName);
+    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
+    return this.service.createRateio(Number(body.id_condominio), body.rateioData, operatorName, payload);
   }
 
+  @SkipAudit()
   @Post('inadimplente/acordo')
   @HttpCode(200)
   createAcordoInadimplente(
     @Body() body: { id_condominio: string | number; acordoData: any },
     @ReqUser() payload: JwtPayload,
   ) {
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? 'Administrador';
-    return this.service.createAcordoInadimplente(Number(body.id_condominio), body.acordoData, operatorName);
+    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
+    return this.service.createAcordoInadimplente(Number(body.id_condominio), body.acordoData, operatorName, payload);
   }
 
   @Post('conciliacao/importar')
   @HttpCode(200)
   importarOfx(
     @Body() body: { id_condominio: string | number; ofxContent: string },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.parseOfxContent(Number(body.id_condominio), body.ofxContent);
+    return this.service.parseOfxContent(Number(body.id_condominio), body.ofxContent, payload);
   }
 
+  @SkipAudit()
   @Post('conciliacao/confirmar')
   @HttpCode(200)
   confirmarConciliacao(
     @Body() body: { id_condominio: string | number; reconciliations: { databaseId: number; dataPagamento: string }[] },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.confirmarConciliacao(Number(body.id_condominio), body.reconciliations);
+    return this.service.confirmarConciliacao(Number(body.id_condominio), body.reconciliations, payload);
   }
 }
