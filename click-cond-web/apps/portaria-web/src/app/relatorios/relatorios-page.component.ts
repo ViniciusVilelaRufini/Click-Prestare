@@ -89,13 +89,17 @@ export class RelatoriosPageComponent {
    */
   tipoDetalhes(
     detalhes: any,
-  ): 'visitante' | 'encomenda' | 'morador' | 'morador-update' | 'device-change' | 'rule-change' | 'manual-override' | 'generico' {
+  ): 'visitante' | 'encomenda' | 'morador' | 'morador-update'
+    | 'comunicado' | 'comunicado-update'
+    | 'device-change' | 'rule-change' | 'manual-override' | 'generico' {
     if (!detalhes) return 'generico';
     if (detalhes.visitante && detalhes.apartamento !== undefined) return 'visitante';
     if (detalhes.encomenda && detalhes.destinatario !== undefined) return 'encomenda';
-    // Update de morador grava { contexto, changes } — detectado antes do change-only
+    // Updates gravam { contexto, changes } — detectados antes do change-only
     if (detalhes.contexto?.morador && detalhes.changes) return 'morador-update';
+    if (detalhes.contexto?.comunicado && detalhes.changes) return 'comunicado-update';
     if (detalhes.morador && detalhes.credenciais !== undefined) return 'morador';
+    if (detalhes.comunicado && detalhes.publicado !== undefined) return 'comunicado';
     if (detalhes.device_nome && detalhes.success !== undefined) return 'manual-override';
     if (detalhes.changes && typeof detalhes.changes === 'object') {
       // Distingue device de rule pelos campos no diff

@@ -514,6 +514,64 @@
                             <div class="text-xs text-slate-500 italic">Nenhum campo sensível foi alterado.</div>
                           }
                         </div>
+                      } @else if (tipo === 'comunicado' && dt) {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div class="rounded-lg bg-sky-500/5 border border-sky-500/20 p-3 md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-sky-400 font-bold mb-2">Comunicado</div>
+                            <div class="text-sm font-semibold text-white">{{ dt.comunicado.titulo }}</div>
+                            @if (dt.comunicado.descricao) {
+                              <div class="text-[11px] text-slate-300 mt-2 line-clamp-4 whitespace-pre-wrap">{{ dt.comunicado.descricao }}</div>
+                              <div class="text-[10px] text-slate-500 mt-1">{{ dt.comunicado.tamanhoConteudo }} caracteres</div>
+                            }
+                          </div>
+                          <div class="space-y-3">
+                            <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
+                              <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Autor</div>
+                              @if (dt.autor) {
+                                <div class="text-sm font-semibold text-white">{{ dt.autor.nome }}</div>
+                                @if (dt.autor.email) {
+                                  <div class="text-[11px] text-slate-400 mt-0.5">{{ dt.autor.email }}</div>
+                                }
+                              } @else {
+                                <div class="text-sm text-slate-500">Não identificado</div>
+                              }
+                            </div>
+                            <div class="rounded-lg bg-slate-500/5 border border-slate-500/20 p-3">
+                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Publicação</div>
+                              <div class="text-xs text-slate-300">{{ dt.publicado.em }}</div>
+                              @if (dt.publicado.atualizadoEm && dt.publicado.atualizadoEm !== dt.publicado.em) {
+                                <div class="text-[11px] text-slate-500 mt-0.5">editado em {{ dt.publicado.atualizadoEm }}</div>
+                              }
+                            </div>
+                          </div>
+                        </div>
+                      } @else if (tipo === 'comunicado-update' && dt) {
+                        <div class="space-y-3">
+                          <div class="rounded-lg bg-sky-500/5 border border-sky-500/20 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-sky-400 font-bold mb-2">Comunicado</div>
+                            <div class="text-sm font-semibold text-white">{{ dt.contexto.comunicado.titulo }}</div>
+                            @if (dt.contexto.autor) {
+                              <div class="text-[11px] text-slate-400 mt-0.5">por {{ dt.contexto.autor.nome }}</div>
+                            }
+                          </div>
+                          @if (dt.changes && temChanges(dt.changes)) {
+                            <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Campos alterados</div>
+                              <div class="space-y-1.5">
+                                @for (key of dt.changes | keyvalue; track key.key) {
+                                  <div class="flex items-center gap-2 text-xs">
+                                    <span class="text-slate-500 font-mono w-40 shrink-0">{{ key.key }}</span>
+                                    <span class="text-red-300 line-through font-mono truncate max-w-xs">{{ key.value?.de ?? '—' }}</span>
+                                    <span class="text-slate-600">→</span>
+                                    <span class="text-emerald-300 font-mono truncate max-w-xs">{{ key.value?.para ?? '—' }}</span>
+                                  </div>
+                                }
+                              </div>
+                            </div>
+                          } @else {
+                            <div class="text-xs text-slate-500 italic">Nenhuma alteração relevante registrada.</div>
+                          }
+                        </div>
                       } @else if (tipo === 'manual-override' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">
