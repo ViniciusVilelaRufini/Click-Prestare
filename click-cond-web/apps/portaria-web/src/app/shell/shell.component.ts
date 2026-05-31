@@ -58,7 +58,7 @@ import { CommonModule } from '@angular/common';
       </div>
 
       <!-- Main content -->
-      <main class="flex-1 min-w-0 md:overflow-auto">
+      <main class="flex-1 min-w-0">
         <router-outlet />
       </main>
     </div>
