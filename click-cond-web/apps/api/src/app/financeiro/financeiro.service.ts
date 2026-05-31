@@ -348,7 +348,7 @@ export class FinanceiroService implements OnModuleInit {
         const pixData = await this.openPix.generateCharge(
           `financeiro_${criado.id}`,
           Math.abs(criado.valor ? Number(criado.valor) : 0),
-          criado.nome,
+          criado.nome ?? 'Cobrança',
         );
         if (pixData?.brCode) {
           criado = await this.prisma.financeiro.update({
@@ -1795,7 +1795,7 @@ export class FinanceiroService implements OnModuleInit {
 
     // Generate OpenPix charges for rateio items in background
     for (const charge of createdCharges) {
-      this.openPix.generateCharge(`financeiro_${charge.id}`, valorPorApto, charge.nome)
+      this.openPix.generateCharge(`financeiro_${charge.id}`, valorPorApto, charge.nome ?? 'Rateio')
         .then(async (pixData) => {
           if (pixData?.brCode) {
             await this.prisma.financeiro.update({
