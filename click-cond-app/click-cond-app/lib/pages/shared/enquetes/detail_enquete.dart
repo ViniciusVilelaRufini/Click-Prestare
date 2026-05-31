@@ -7,7 +7,6 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
-import 'package:click/widgets/cells/cell_votacao.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -74,9 +73,9 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
   }
 
   Color _statusColor(int status) {
-    if (status == 1) return AppColors.primary;
+    if (status == 1) return Colors.green;
     if (status == 2) return Colors.red;
-    return AppColors.textSecondary(context);
+    return Colors.orange;
   }
 
   String _statusLabel(int status) {
@@ -100,40 +99,8 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _section(getText('votacao_infos')),
-                      _StatusChip(
-                        label: _statusLabel(obj['votacao']['status'] as int),
-                        color: _statusColor(obj['votacao']['status'] as int),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(obj['votacao']['titulo'],
-                          style: AppTypography.title(context)),
                       const SizedBox(height: AppSpacing.sm),
-                      if ((obj['votacao']['descricao'] ?? '').toString().isNotEmpty)
-                        Text(obj['votacao']['descricao'],
-                            style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
-                      const SizedBox(height: AppSpacing.xl),
-                      _section(getText('escolha_opcao_desejada')),
-                      CellVotacao(
-                        item: obj['votacao'],
-                        title: getText('escolha_opcao_desejada'),
-                        hasArrow: true,
-                        isRegister: false,
-                        meusVotos: obj['meuVoto'],
-                        onPressedDelete: () {},
-                        onPressedChoice: (id) => insertVoto(id, obj['votacao']['id']),
-                      ),
-                      if (getUserType() == 'sindico' && obj['votacao']['status'] == 1) ...[
-                        const SizedBox(height: AppSpacing.xl),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: finish,
-                            icon: const Icon(PhosphorIcons.flagCheckered, size: 16),
-                            label: Text(getText('votacao_finalizar'),
-                                style: TextStyle(color: Colors.orange)),
-                          ),
-                        ),
-                      ],
+                      _buildPollCard(context),
                       const SizedBox(height: AppSpacing.xxxl),
                     ],
                   ),
@@ -141,10 +108,194 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
     );
   }
 
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Text(title.toUpperCase(),
-            style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary, letterSpacing: 0.8)),
+  Widget _buildPollCard(BuildContext context) {
+    final votacao = obj['votacao'];
+    final status = votacao['status'] as int;
+    final title = votacao['titulo'] ?? '';
+    final description = votacao['descricao'] ?? '';
+    final options = votacao['opcoes'] ?? [];
+    final myVotes = obj['meuVoto'] ?? [];
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border(context)),
+      ),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _StatusChip(
+                label: _statusLabel(status),
+                color: _statusColor(status),
+              ),
+              Row(
+                children: [
+                  Icon(
+                    PhosphorIcons.calendarBlank,
+                    size: 14,
+                    color: AppColors.textSecondary(context),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Até ${votacao['data_termino']}',
+                    style: AppTypography.caption(context).copyWith(
+                      color: AppColors.textSecondary(context),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            title,
+            style: AppTypography.title(context).copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary(context),
+            ),
+          ),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              description,
+              style: AppTypography.bodySecondary(context).copyWith(
+                color: AppColors.textSecondary(context),
+              ),
+            ),
+          ],
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+            child: Divider(height: 1),
+          ),
+          Text(
+            getText('escolha_opcao_desejada'),
+            style: AppTypography.bodySecondary(context).copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary(context),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          for (var opcao in options)
+            _buildOptionRow(
+              context,
+              votacao,
+              opcao.split(';')[0],
+              opcao.split(';')[1],
+              int.tryParse(opcao.split(';')[2]) ?? 0,
+              myVotes,
+            ),
+          if (getUserType() == 'sindico' && status == 1) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: Divider(height: 1),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: finish,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.orange,
+                ),
+                icon: const Icon(PhosphorIcons.flagCheckered, size: 16),
+                label: Text(
+                  getText('votacao_finalizar'),
+                  style: AppTypography.bodySecondary(context).copyWith(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionRow(
+    BuildContext context,
+    dynamic votacao,
+    String id,
+    String text,
+    int votesCount,
+    List<dynamic> myVotes,
+  ) {
+    final isSelected = myVotes.contains(id);
+    final isClosed = votacao['status'] != 1;
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: InkWell(
+        onTap: () {
+          if (isClosed) {
+            displayMessage(context, getText('alert_ops'), getText('votacao_fora_periodo'));
+          } else {
+            insertVoto(int.parse(id), votacao['id']);
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+          decoration: BoxDecoration(
+            color: isSelected 
+                ? AppColors.primary.withOpacity(0.08) 
+                : AppColors.surface(context),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.border(context),
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? PhosphorIcons.checkCircleFill : PhosphorIcons.circle,
+                color: isSelected ? AppColors.primary : AppColors.textTertiary(context),
+                size: 20,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  text,
+                  style: AppTypography.bodyMedium(context).copyWith(
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: AppColors.textPrimary(context),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isSelected 
+                      ? AppColors.primary.withOpacity(0.12) 
+                      : AppColors.bg(context),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  votesCount == 1 ? '1 voto' : '$votesCount votos',
+                  style: AppTypography.caption(context).copyWith(
+                    color: isSelected ? AppColors.primary : AppColors.textSecondary(context),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _section(String title) => Text(
+        title.toUpperCase(),
+        style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary, letterSpacing: 0.8),
       );
 }
 
@@ -158,12 +309,14 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Text(label,
-          style: AppTypography.caption(context).copyWith(color: color, fontWeight: FontWeight.w600)),
+      child: Text(
+        label,
+        style: AppTypography.caption(context).copyWith(color: color, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }
