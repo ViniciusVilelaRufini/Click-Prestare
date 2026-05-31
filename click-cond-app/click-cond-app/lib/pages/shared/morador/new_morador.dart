@@ -78,7 +78,15 @@ class _NewMoradorPageState extends State<NewMorador> {
       txtNome.text = widget.obj["nome"] ?? '';
       txtDocumento.text = widget.obj["documento"] ?? '';
       txtEmail.text = widget.obj["email"] ?? '';
-      txtDN.text = convertDateToString(widget.obj["data_nascimento"]);
+      if (widget.obj["data_nascimento"] != null && widget.obj["data_nascimento"].toString().isNotEmpty) {
+        try {
+          txtDN.text = convertDateToString(widget.obj["data_nascimento"].toString());
+        } catch (_) {
+          txtDN.text = '';
+        }
+      } else {
+        txtDN.text = '';
+      }
       txtTelefone.text = widget.obj["telefone"] ?? '';
       txtExtra1.text = widget.obj["extra1"] ?? '';
       txtExtra2.text = widget.obj["extra2"] ?? '';

@@ -1236,12 +1236,17 @@ export class MobileAuthService {
       documento: m.documento ?? '',
       email: m.email ?? '',
       telefone: m.telefone ?? '',
+      data_nascimento: m.data_nascimento ?? null,
       bloco: m.bloco ?? '',
       apartamento: m.apartamento ?? '',
       photo: m.foto_pessoa ?? m.user?.photo ?? '',
       foto_pessoa: m.foto_pessoa ?? '',
       vinculo: m.tipo ?? 'proprietario',
       tipo: m.tipo ?? 'proprietario',
+      extra1: m.extra1 ?? '',
+      extra2: m.extra2 ?? '',
+      extra3: m.extra3 ?? '',
+      extra4: m.extra4 ?? '',
     }));
   }
 
