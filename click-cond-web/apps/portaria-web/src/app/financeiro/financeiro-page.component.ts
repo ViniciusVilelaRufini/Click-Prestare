@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { FinanceiroApi, Lancamento } from './financeiro.service';
+import { FinanceiroApi, Fechamento, Lancamento } from './financeiro.service';
 import { AuthService } from '../auth/auth.service';
 
 @Component({
@@ -64,6 +64,33 @@ export class FinanceiroPageComponent implements OnInit {
   confirmarMotivo = '';
   confirmarFormaPagamento = '';
   confirmarIdentificador = '';
+
+  // Fechamento mensal — lista de competências fechadas do condomínio.
+  // O Map é por chave "MM-AAAA" para lookup O(1) na renderização.
+  readonly fechamentos = signal<Fechamento[]>([]);
+  readonly modalFecharMes = signal(false);
+  readonly modalReabrirMes = signal(false);
+  readonly processandoFechamento = signal(false);
+  readonly erroFechamento = signal<string | null>(null);
+  observacaoFechamento = '';
+  motivoReabertura = '';
+
+  /** True se o mês selecionado está fechado (e ativo). */
+  mesSelecionadoFechado(): boolean {
+    const [m, a] = this.selectedMesAno.split('|');
+    return this.fechamentos().some(
+      (f) => f.ativo === 1 && f.mes === Number(m) && f.ano === Number(a),
+    );
+  }
+
+  fechamentoDoMes(): Fechamento | null {
+    const [m, a] = this.selectedMesAno.split('|');
+    return (
+      this.fechamentos().find(
+        (f) => f.ativo === 1 && f.mes === Number(m) && f.ano === Number(a),
+      ) ?? null
+    );
+  }
 
   /** Formas de pagamento disponíveis no modal. */
   readonly formasPagamento = [
@@ -189,6 +216,70 @@ export class FinanceiroPageComponent implements OnInit {
 
     this.carregarDados();
     this.carregarInadimplencia();
+    this.carregarFechamentos();
+  }
+
+  carregarFechamentos() {
+    this.api.listarFechamentos().subscribe({
+      next: (lista) => this.fechamentos.set(lista ?? []),
+      error: () => this.fechamentos.set([]),
+    });
+  }
+
+  abrirModalFecharMes() {
+    this.observacaoFechamento = '';
+    this.erroFechamento.set(null);
+    this.modalFecharMes.set(true);
+  }
+
+  abrirModalReabrirMes() {
+    this.motivoReabertura = '';
+    this.erroFechamento.set(null);
+    this.modalReabrirMes.set(true);
+  }
+
+  cancelarModalFechamento() {
+    this.modalFecharMes.set(false);
+    this.modalReabrirMes.set(false);
+  }
+
+  confirmarFecharMes() {
+    const [m, a] = this.selectedMesAno.split('|');
+    this.processandoFechamento.set(true);
+    this.erroFechamento.set(null);
+    this.api.fecharMes(Number(m), Number(a), this.observacaoFechamento.trim() || undefined).subscribe({
+      next: () => {
+        this.processandoFechamento.set(false);
+        this.modalFecharMes.set(false);
+        this.carregarFechamentos();
+      },
+      error: (err) => {
+        this.processandoFechamento.set(false);
+        this.erroFechamento.set(err?.error?.message ?? 'Falha ao fechar competência.');
+      },
+    });
+  }
+
+  confirmarReabrirMes() {
+    const motivo = this.motivoReabertura.trim();
+    if (motivo.length < 10) {
+      this.erroFechamento.set('Motivo precisa ter pelo menos 10 caracteres.');
+      return;
+    }
+    const [m, a] = this.selectedMesAno.split('|');
+    this.processandoFechamento.set(true);
+    this.erroFechamento.set(null);
+    this.api.reabrirMes(Number(m), Number(a), motivo).subscribe({
+      next: () => {
+        this.processandoFechamento.set(false);
+        this.modalReabrirMes.set(false);
+        this.carregarFechamentos();
+      },
+      error: (err) => {
+        this.processandoFechamento.set(false);
+        this.erroFechamento.set(err?.error?.message ?? 'Falha ao reabrir competência.');
+      },
+    });
   }
 
   carregarDados() {

@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertSameTenant } from '../auth/tenant.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { FechamentoService } from './fechamento.service';
 
 @Injectable()
 export class FinanceiroService implements OnModuleInit {
@@ -17,6 +18,7 @@ export class FinanceiroService implements OnModuleInit {
     private readonly mail: MailService,
     private readonly notifications: NotificationsService,
     private readonly auditoria: AuditoriaService,
+    private readonly fechamento: FechamentoService,
   ) {}
 
   // Lock para impedir execução concorrente do job (se o intervalo se sobrepuser
@@ -231,6 +233,9 @@ export class FinanceiroService implements OnModuleInit {
     // Valida: id_condominio do body bate com JWT do operador.
     assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
 
+    // Bloqueia inserção em mês fechado. Checagem feita já com a data
+    // parseada para reaproveitar o helper, abaixo após o parsing.
+
     let valor = 0;
     if (typeof financeiro.valor === 'number') {
       valor = financeiro.valor;
@@ -258,6 +263,14 @@ export class FinanceiroService implements OnModuleInit {
 
     const dLanc = this.parseDataBR(financeiro.data);
     const dVenc = this.parseDataBR(financeiro.data_vencimento);
+
+    // Bloqueia insert em mês fechado.
+    await this.fechamento.assertPodeAlterar(
+      Number(idCondominio),
+      dLanc ?? dVenc,
+      'insert',
+      financeiro.nome,
+    );
 
     let isPago = 0;
     if (financeiro.pago !== undefined && financeiro.pago !== null) {
@@ -367,6 +380,30 @@ export class FinanceiroService implements OnModuleInit {
     const dLanc = this.parseDataBR(financeiro.data);
     const dVenc = this.parseDataBR(financeiro.data_vencimento);
 
+    // Bloqueia update se a competência ATUAL ou a NOVA está fechada. Sem
+    // checar a competência atual, operador poderia mover lançamento pra
+    // fora do mês fechado e depois editar.
+    const lancAtual = financeiro?.id
+      ? await this.prisma.financeiro.findUnique({
+          where: { id: Number(financeiro.id) },
+          select: { data: true, data_vencimento: true, nome: true },
+        })
+      : null;
+    if (lancAtual) {
+      await this.fechamento.assertPodeAlterar(
+        Number(idCondominio),
+        lancAtual.data ?? lancAtual.data_vencimento,
+        'update',
+        lancAtual.nome,
+      );
+    }
+    await this.fechamento.assertPodeAlterar(
+      Number(idCondominio),
+      dLanc ?? dVenc,
+      'update',
+      financeiro.nome,
+    );
+
     let isPago = 0;
     if (financeiro.pago !== undefined && financeiro.pago !== null) {
       isPago = Number(financeiro.pago) === 1 ? 1 : 0;
@@ -464,6 +501,19 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return { success: true };
     // Garante que o lançamento pertence ao condomínio do operador.
     const lanc = await this.getLancamentoForTenant(id, user);
+
+    // Bloqueia remoção em mês fechado.
+    const lancCompleto = await this.prisma.financeiro.findUnique({
+      where: { id: Number(id) },
+      select: { data: true, data_vencimento: true },
+    });
+    await this.fechamento.assertPodeAlterar(
+      lanc.id_condominio,
+      lancCompleto?.data ?? lancCompleto?.data_vencimento ?? null,
+      'delete',
+      lanc.nome,
+    );
+
     // Carrega contexto rico antes de remover (depois não existe mais).
     const ctx = await this.carregarContextoLancamento(id);
     await this.prisma.financeiro.delete({ where: { id: Number(id) } });
@@ -1231,11 +1281,20 @@ export class FinanceiroService implements OnModuleInit {
     const lanc = await this.getLancamentoForTenant(id, user);
 
     // Carrega o lançamento completo (precisamos do nome_operador para checar
-    // segregação de funções).
+    // segregação de funções, e da data para checar fechamento).
     const lancCompleto = await this.prisma.financeiro.findUnique({
       where: { id: Number(id) },
-      select: { nome_operador: true },
+      select: { nome_operador: true, data: true, data_vencimento: true },
     });
+
+    // Bloqueia em mês fechado, EXCETO cobrança de morador (pagamento atrasado
+    // de morador deve ser permitido mesmo após fechamento da competência).
+    await this.fechamento.assertPodeAlterar(
+      lanc.id_condominio,
+      lancCompleto?.data ?? lancCompleto?.data_vencimento ?? null,
+      'updateStatus',
+      lanc.nome,
+    );
 
     const status = String(statusStr);
     const isPago = status === '1' ? 1 : 0;

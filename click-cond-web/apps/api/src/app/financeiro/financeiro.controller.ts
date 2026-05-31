@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Headers, HttpCode, Post, Query, Res, UnauthorizedException } from '@nestjs/common';
 import type { Response } from 'express';
 import { FinanceiroService } from './financeiro.service';
+import { FechamentoService } from './fechamento.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { Public } from '../auth/public.decorator';
@@ -8,7 +9,10 @@ import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('financeiro')
 export class FinanceiroController {
-  constructor(private readonly service: FinanceiroService) {}
+  constructor(
+    private readonly service: FinanceiroService,
+    private readonly fechamento: FechamentoService,
+  ) {}
 
   @SkipAudit()
   @Post('insert')
@@ -259,5 +263,47 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
   ) {
     return this.service.confirmarConciliacao(Number(body.id_condominio), body.reconciliations, payload);
+  }
+
+  // ============== Fechamento Mensal ==============
+
+  @Get('fechamentos')
+  listarFechamentos(
+    @Query('id_condominio') idCondominio: string,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.fechamento.listar(Number(idCondominio), payload);
+  }
+
+  @SkipAudit()
+  @Post('fechamentos/fechar')
+  @HttpCode(200)
+  fecharMes(
+    @Body() body: { id_condominio: string | number; mes: number; ano: number; observacao?: string },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.fechamento.fechar(
+      Number(body.id_condominio),
+      Number(body.mes),
+      Number(body.ano),
+      payload,
+      body.observacao,
+    );
+  }
+
+  @SkipAudit()
+  @Post('fechamentos/reabrir')
+  @HttpCode(200)
+  reabrirMes(
+    @Body() body: { id_condominio: string | number; mes: number; ano: number; motivo: string },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.fechamento.reabrir(
+      Number(body.id_condominio),
+      Number(body.mes),
+      Number(body.ano),
+      body.motivo,
+      payload,
+    );
   }
 }

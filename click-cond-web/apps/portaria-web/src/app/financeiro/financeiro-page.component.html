@@ -43,6 +43,32 @@
         {{ exportandoCsv() ? 'Exportando...' : 'Exportar CSV' }}
       </button>
 
+      @if (mesSelecionadoFechado()) {
+        <button
+          (click)="abrirModalReabrirMes()"
+          class="flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-sm
+                 hover:bg-amber-500/20 transition active:scale-95 animate-fade-in"
+          title="Mês fechado. Reabrir exige motivo (vai pra auditoria)."
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+          </svg>
+          Reabrir competência
+        </button>
+      } @else {
+        <button
+          (click)="abrirModalFecharMes()"
+          class="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white font-semibold text-sm
+                 hover:bg-white/10 transition active:scale-95 animate-fade-in"
+          title="Fechar competência: bloqueia novas edições neste mês"
+        >
+          <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+          Fechar competência
+        </button>
+      }
+
       <button
         (click)="triggerOfxUpload()"
         class="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white font-semibold text-sm
@@ -68,6 +94,27 @@
     <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300 flex items-center justify-between gap-3">
       <span>{{ uploadError() }}</span>
       <button (click)="uploadError.set(null)" class="text-red-300 hover:text-white">✕</button>
+    </div>
+  }
+
+  <!-- Banner: competência fechada -->
+  @if (mesSelecionadoFechado() && fechamentoDoMes(); as fch) {
+    <div class="p-3 rounded-xl bg-amber-500/5 border border-amber-500/30 flex items-start gap-3">
+      <svg class="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+      </svg>
+      <div class="flex-1 text-sm">
+        <div class="text-amber-300 font-semibold">Competência fechada</div>
+        <div class="text-xs text-slate-400 mt-0.5">
+          Fechada por <strong class="text-slate-200">{{ fch.fechado_por }}</strong>
+          em {{ fch.fechado_em | date:'dd/MM/yyyy HH:mm' }}.
+          Edições e novos lançamentos estão bloqueados.
+          Pagamento atrasado de morador continua permitido.
+        </div>
+        @if (fch.observacao) {
+          <div class="text-xs text-slate-300 mt-1 italic">"{{ fch.observacao }}"</div>
+        }
+      </div>
     </div>
   }
 
@@ -888,6 +935,109 @@
             Confirmando...
           } @else {
             Confirmar pagamento
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Modal: Fechar Competência -->
+@if (modalFecharMes()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+    <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-amber-500/20 overflow-hidden shadow-2xl">
+      <div class="px-6 py-4 bg-amber-500/5 border-b border-amber-500/20 flex items-start gap-3">
+        <div class="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-sm font-semibold text-white">Fechar competência {{ selectedMesAno.replace('|', '/') }}</h3>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Vai bloquear novos lançamentos e edições para esse mês.
+            Pagamentos atrasados de moradores continuam permitidos.
+            Para mexer em algo depois, é preciso reabrir (com motivo).
+          </p>
+        </div>
+      </div>
+      <div class="px-6 py-5 space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Observação (opcional)</label>
+          <textarea [(ngModel)]="observacaoFechamento"
+                    rows="3"
+                    placeholder="Ex: Aprovado em assembleia de 15/06/2026, prestação de contas anexa."
+                    class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-amber-400/60 resize-none">
+          </textarea>
+        </div>
+        @if (erroFechamento()) {
+          <div class="rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-xs text-red-300">{{ erroFechamento() }}</div>
+        }
+      </div>
+      <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end gap-2">
+        <button (click)="cancelarModalFechamento()" [disabled]="processandoFechamento()"
+                class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-white font-medium disabled:opacity-40">
+          Cancelar
+        </button>
+        <button (click)="confirmarFecharMes()" [disabled]="processandoFechamento()"
+                class="px-5 py-2 text-sm rounded-lg font-medium text-slate-950 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 transition flex items-center gap-2">
+          @if (processandoFechamento()) {
+            <div class="w-3.5 h-3.5 border border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+            Fechando...
+          } @else {
+            Confirmar fechamento
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Modal: Reabrir Competência -->
+@if (modalReabrirMes()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+    <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-red-500/20 overflow-hidden shadow-2xl">
+      <div class="px-6 py-4 bg-red-500/5 border-b border-red-500/20 flex items-start gap-3">
+        <div class="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-sm font-semibold text-white">Reabrir competência {{ selectedMesAno.replace('|', '/') }}</h3>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Reabrir uma competência fechada é um ato grave — vai
+            permitir edições retroativas. O motivo fica registrado
+            <strong class="text-red-300">para sempre</strong> na auditoria.
+          </p>
+        </div>
+      </div>
+      <div class="px-6 py-5 space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Motivo da reabertura *</label>
+          <textarea [(ngModel)]="motivoReabertura"
+                    rows="4"
+                    placeholder="Ex: Lançamento de despesa de manutenção foi esquecido na competência. Aprovação extraordinária da assembleia de 20/06/2026."
+                    class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-red-400/60 resize-none">
+          </textarea>
+          <p class="text-[11px] text-slate-500 mt-1">Mínimo 10 caracteres.</p>
+        </div>
+        @if (erroFechamento()) {
+          <div class="rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-xs text-red-300">{{ erroFechamento() }}</div>
+        }
+      </div>
+      <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end gap-2">
+        <button (click)="cancelarModalFechamento()" [disabled]="processandoFechamento()"
+                class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-white font-medium disabled:opacity-40">
+          Cancelar
+        </button>
+        <button (click)="confirmarReabrirMes()" [disabled]="processandoFechamento()"
+                class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-red-500 hover:bg-red-400 disabled:opacity-50 transition flex items-center gap-2">
+          @if (processandoFechamento()) {
+            <div class="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin"></div>
+            Reabrindo...
+          } @else {
+            Confirmar reabertura
           }
         </button>
       </div>

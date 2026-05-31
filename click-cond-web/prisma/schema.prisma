@@ -805,6 +805,38 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+/// Fechamento mensal do livro caixa.
+///
+/// Quando o sindico apresenta a prestacao de contas em assembleia, ele
+/// "fecha" o mes — a partir dai o sistema bloqueia mutacoes nos
+/// lancamentos daquele periodo (insert/update/delete). Excecao:
+/// cobrancas de morador podem ser marcadas como pagas (pagamentos
+/// atrasados sao comuns).
+///
+/// Para corrigir algo num mes fechado, o operador precisa REABRIR
+/// explicitamente — esse evento fica registrado na propria tabela
+/// e na auditoria. Sem fechamento, qualquer auditoria fica suja
+/// (operador pode mexer em meses passados sem deixar rastro).
+model FechamentoMensal {
+  id                Int       @id @default(autoincrement())
+  id_condominio     Int
+  mes               Int       @db.TinyInt
+  ano               Int       @db.SmallInt
+  fechado_em        DateTime  @default(now()) @db.DateTime(0)
+  fechado_por       String    @db.VarChar(255)
+  observacao        String?   @db.Text
+  reaberto_em       DateTime? @db.DateTime(0)
+  reaberto_por      String?   @db.VarChar(255)
+  motivo_reabertura String?   @db.Text
+  ativo             Int       @default(1) @db.TinyInt
+  created_at        DateTime  @default(now()) @db.DateTime(0)
+  updated_at        DateTime  @default(now()) @updatedAt @db.DateTime(0)
+
+  @@unique([id_condominio, mes, ano], map: "uniq_fechamento_periodo")
+  @@index([id_condominio, ativo], map: "idx_fechamento_cond_ativo")
+  @@map("fechamentos_mensais")
+}
+
 model Facial_Devices {
   id            Int         @id @default(autoincrement())
   id_condominio Int

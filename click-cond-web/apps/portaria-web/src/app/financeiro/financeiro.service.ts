@@ -94,4 +94,35 @@ export class FinanceiroApi {
     const url = `${API_BASE}/financeiro/export-csv?id_condominio=${this.cid}&mes=${mes}&ano=${ano}`;
     return this.http.get(url, { responseType: 'blob' });
   }
+
+  // ============ Fechamento Mensal ============
+
+  listarFechamentos(): Observable<Fechamento[]> {
+    const url = `${API_BASE}/financeiro/fechamentos?id_condominio=${this.cid}`;
+    return this.http.get<Fechamento[]>(url);
+  }
+
+  fecharMes(mes: number, ano: number, observacao?: string): Observable<any> {
+    const url = `${API_BASE}/financeiro/fechamentos/fechar`;
+    return this.http.post(url, { id_condominio: this.cid, mes, ano, observacao });
+  }
+
+  reabrirMes(mes: number, ano: number, motivo: string): Observable<any> {
+    const url = `${API_BASE}/financeiro/fechamentos/reabrir`;
+    return this.http.post(url, { id_condominio: this.cid, mes, ano, motivo });
+  }
+}
+
+export interface Fechamento {
+  id: number;
+  id_condominio: number;
+  mes: number;
+  ano: number;
+  fechado_em: string;
+  fechado_por: string;
+  observacao: string | null;
+  reaberto_em: string | null;
+  reaberto_por: string | null;
+  motivo_reabertura: string | null;
+  ativo: number;
 }
