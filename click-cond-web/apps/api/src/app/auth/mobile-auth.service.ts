@@ -1225,6 +1225,9 @@ export class MobileAuthService {
     }
     const reais = await this.prisma.moradores.findMany({
       where: { id_condominio: Number(idCond) },
+      include: {
+        user: true,
+      },
       orderBy: { nome: 'asc' },
     });
     return reais.map(m => ({
@@ -1235,7 +1238,8 @@ export class MobileAuthService {
       telefone: m.telefone ?? '',
       bloco: m.bloco ?? '',
       apartamento: m.apartamento ?? '',
-      photo: '',
+      photo: m.foto_pessoa ?? m.user?.photo ?? '',
+      foto_pessoa: m.foto_pessoa ?? '',
       vinculo: m.tipo ?? 'proprietario',
       tipo: m.tipo ?? 'proprietario',
     }));
