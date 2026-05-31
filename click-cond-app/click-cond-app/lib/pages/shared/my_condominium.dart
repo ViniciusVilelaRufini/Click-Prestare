@@ -61,6 +61,18 @@ class _MyCondominiumState extends State<MyCondominium> {
     _loadCond();
   }
 
+  String _normalize(String str) {
+    var s = str.toLowerCase();
+    s = s.replaceAll(RegExp(r'[àáâãäå]'), 'a');
+    s = s.replaceAll(RegExp(r'[èéêë]'), 'e');
+    s = s.replaceAll(RegExp(r'[ìíîï]'), 'i');
+    s = s.replaceAll(RegExp(r'[òóôõöø]'), 'o');
+    s = s.replaceAll(RegExp(r'[ùúûü]'), 'u');
+    s = s.replaceAll(RegExp(r'[ç]'), 'c');
+    s = s.replaceAll(RegExp(r'[ñ]'), 'n');
+    return s;
+  }
+
   List<_MenuItem> _buildMenu() {
     final all = <_MenuItem>[
       _MenuItem(getText('lb_areas_sociais'), PhosphorIcons.usersFour, ListAreasSociais()),
@@ -87,10 +99,10 @@ class _MyCondominiumState extends State<MyCondominium> {
           i.label != getText('lb_assembleia_votacoes') &&
           i.label != getText('lb_enquetes') &&
           i.label != getText('lb_funcionarios_condominio')).toList();
-      list.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+      list.sort((a, b) => _normalize(a.label).compareTo(_normalize(b.label)));
       return list;
     }
-    all.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+    all.sort((a, b) => _normalize(a.label).compareTo(_normalize(b.label)));
     return all;
   }
 
