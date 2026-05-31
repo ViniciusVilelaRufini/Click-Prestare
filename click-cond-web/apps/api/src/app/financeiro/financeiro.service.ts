@@ -7,6 +7,7 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertSameTenant } from '../auth/tenant.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FechamentoService } from './fechamento.service';
+import { OpenPixService } from './openpix.service';
 
 @Injectable()
 export class FinanceiroService implements OnModuleInit {
@@ -19,6 +20,7 @@ export class FinanceiroService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly auditoria: AuditoriaService,
     private readonly fechamento: FechamentoService,
+    private readonly openPix: OpenPixService,
   ) {}
 
   // Lock para impedir execução concorrente do job (se o intervalo se sobrepuser
@@ -340,6 +342,21 @@ export class FinanceiroService implements OnModuleInit {
           id_usuario: idUsuario,
         },
       });
+
+      // Automatically generate OpenPix charge for unpaid Receitas
+      if (criado.tipo === 'C' && criado.pago === 0 && !criado.pix_copia_cola) {
+        const pixData = await this.openPix.generateCharge(
+          `financeiro_${criado.id}`,
+          Math.abs(criado.valor ? Number(criado.valor) : 0),
+          criado.nome,
+        );
+        if (pixData?.brCode) {
+          criado = await this.prisma.financeiro.update({
+            where: { id: criado.id },
+            data: { pix_copia_cola: pixData.brCode },
+          });
+        }
+      }
     } catch (err: any) {
       // Loga com stack pra diagnostico (Railway logs)
       this.logger.error(
@@ -1660,6 +1677,86 @@ export class FinanceiroService implements OnModuleInit {
     return { success: true };
   }
 
+  async handleOpenPixWebhook(body: any) {
+    if (!this.prisma.isConnected) return { success: true };
+    this.logger.log(`Webhook OpenPix recebido: ${body?.event} correlationID=${body?.charge?.correlationID}`);
+
+    if (body?.event !== 'OPENPIX:CHARGE_COMPLETED') {
+      return { success: true, skipped: true };
+    }
+
+    const correlationID = body?.charge?.correlationID;
+    if (!correlationID || !correlationID.startsWith('financeiro_')) {
+      this.logger.warn(`Webhook OpenPix sem correlationID válido — ignorado`);
+      return { success: true, skipped: true };
+    }
+
+    const financeiroId = Number(correlationID.replace('financeiro_', ''));
+    if (!financeiroId) {
+      this.logger.warn(`Webhook OpenPix: ID inválido extraído de ${correlationID}`);
+      return { success: true, skipped: true };
+    }
+
+    const lanc = await this.prisma.financeiro.findUnique({
+      where: { id: financeiroId },
+      select: { id: true, valor: true, pago: true, id_condominio: true, nome: true },
+    });
+    if (!lanc) {
+      this.logger.warn(`Webhook OpenPix: lançamento ${financeiroId} não encontrado`);
+      return { success: true, skipped: true };
+    }
+
+    if (lanc.pago === 1) {
+      this.logger.log(`Webhook OpenPix: lançamento ${financeiroId} já pago — ignorado`);
+      return { success: true, alreadyPaid: true };
+    }
+
+    const valorRecebido = Number(body?.charge?.value ?? 0) / 100;
+    const valorEsperado = Math.abs(Number(lanc.valor ?? 0));
+    if (valorRecebido > 0 && valorEsperado > 0 && valorRecebido < valorEsperado - 0.01) {
+      this.logger.warn(
+        `Webhook OpenPix: pagamento parcial detectado para lançamento ${financeiroId} ` +
+        `(recebido R$ ${valorRecebido.toFixed(2)}, esperado R$ ${valorEsperado.toFixed(2)}) — NÃO marcado como pago`,
+      );
+      return { success: true, partialPayment: true };
+    }
+
+    try {
+      await this.prisma.financeiro.update({
+        where: { id: financeiroId },
+        data: {
+          status: '1',
+          pago: 1,
+          data: new Date(),
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[openpixWebhook] Falha ao confirmar pagamento ${financeiroId}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      return { success: false, error: 'db_update_failed' };
+    }
+    this.logger.log(`Pagamento confirmado via Webhook OpenPix para Lançamento ID: ${financeiroId} (R$ ${valorRecebido.toFixed(2)})`);
+
+    await this.auditoria.registrar({
+      id_condominio: lanc.id_condominio,
+      usuario_nome: 'Webhook OpenPix',
+      acao: 'STATUS',
+      modulo: 'financeiro',
+      entidade_id: lanc.id,
+      descricao: `Pagamento confirmado via OpenPix: ${lanc.nome}`,
+      details: {
+        event: body.event,
+        valorRecebido,
+        valorEsperado,
+        correlationID,
+      },
+    } as any);
+
+    return { success: true };
+  }
+
   async createRateio(idCondominio: number, rateioData: { nome: string; valorTotal: number; data_vencimento: string; categoria: string }, operatorName: string, user?: JwtPayload) {
     if (user?.id_condominio) {
       assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
@@ -1695,6 +1792,20 @@ export class FinanceiroService implements OnModuleInit {
         }),
       ),
     );
+
+    // Generate OpenPix charges for rateio items in background
+    for (const charge of createdCharges) {
+      this.openPix.generateCharge(`financeiro_${charge.id}`, valorPorApto, charge.nome)
+        .then(async (pixData) => {
+          if (pixData?.brCode) {
+            await this.prisma.financeiro.update({
+              where: { id: charge.id },
+              data: { pix_copia_cola: pixData.brCode },
+            });
+          }
+        })
+        .catch((e) => this.logger.error(`Failed to generate OpenPix for rateio charge ${charge.id}: ${e}`));
+    }
 
     const formatReal = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     await this.auditoria.registrar({

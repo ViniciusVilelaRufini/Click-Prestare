@@ -266,10 +266,9 @@ export class EncomendasService implements OnModuleInit {
               ...(dto.destinatario_bloco ? { bloco: dto.destinatario_bloco } : {}),
             },
           },
-          fcm_token: { not: null },
           notif_encomendas: 1,
         },
-        select: { fcm_token: true, name: true },
+        select: { fcm_token: true, name: true, phone: true },
       });
 
       for (const morador of moradores) {
@@ -280,6 +279,11 @@ export class EncomendasService implements OnModuleInit {
             `Uma encomenda (${dto.descricao}) chegou para o seu apartamento.`,
             { id: encomenda.id.toString(), type: 'encomenda' },
           );
+        }
+        if (morador.phone) {
+          const transportadora = dto.transportadora ? `de ${dto.transportadora}` : 'entregador';
+          const waMessage = `Olá, ${morador.name}! Uma nova encomenda (${dto.descricao}) ${transportadora} chegou na portaria para o seu apartamento. Retire quando puder!`;
+          await this.notifications.sendWhatsApp(morador.phone, waMessage);
         }
       }
     } catch (error) {
@@ -391,10 +395,9 @@ export class EncomendasService implements OnModuleInit {
                 ...(e.destinatario_bloco ? { bloco: e.destinatario_bloco } : {}),
               },
             },
-            fcm_token: { not: null },
             notif_encomendas: 1,
           },
-          select: { fcm_token: true },
+          select: { fcm_token: true, name: true, phone: true },
         });
 
         for (const morador of moradores) {
@@ -405,6 +408,10 @@ export class EncomendasService implements OnModuleInit {
               `Você tem uma encomenda pendente (${e.descricao}) aguardando retirada.`,
               { id: e.id.toString(), type: 'encomenda' },
             );
+          }
+          if (morador.phone) {
+            const waMessage = `Olá, ${morador.name}! Lembramos que você tem uma encomenda pendente (${e.descricao}) aguardando retirada na portaria do condomínio.`;
+            await this.notifications.sendWhatsApp(morador.phone, waMessage);
           }
         }
       } catch (err) {

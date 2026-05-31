@@ -81,4 +81,53 @@ export class NotificationsService implements OnModuleInit {
       return null;
     }
   }
+
+  async sendWhatsApp(phone: string, text: string) {
+    const instanceId = process.env.Z_API_INSTANCE_ID;
+    const token = process.env.Z_API_TOKEN;
+    const clientToken = process.env.Z_API_CLIENT_TOKEN;
+
+    if (!instanceId || !token) {
+      this.logger.warn('Z-API credentials (Z_API_INSTANCE_ID / Z_API_TOKEN) missing. WhatsApp notification skipped.');
+      return null;
+    }
+
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length > 0 && !cleanPhone.startsWith('55') && cleanPhone.length <= 11) {
+      cleanPhone = '55' + cleanPhone;
+    }
+
+    if (cleanPhone.length < 10) {
+      this.logger.warn(`Invalid phone number format for WhatsApp: ${phone}`);
+      return null;
+    }
+
+    try {
+      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(clientToken ? { 'Client-Token': clientToken } : {}),
+        },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          message: text,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.warn(`Z-API WhatsApp send error status ${response.status}: ${errorText}`);
+        return null;
+      }
+
+      const resData = await response.json();
+      this.logger.log(`WhatsApp notification sent to ${cleanPhone} successfully.`);
+      return resData;
+    } catch (error: any) {
+      this.logger.error(`Failed to send WhatsApp message via Z-API: ${error?.message ?? error}`);
+      return null;
+    }
+  }
 }

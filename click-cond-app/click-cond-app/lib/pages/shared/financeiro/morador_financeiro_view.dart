@@ -412,17 +412,77 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        Clipboard.setData(ClipboardData(text: item['pix_copia_cola'].toString()));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Pix Copia e Cola copiado!"),
-                            backgroundColor: AppColors.primary,
+                        showModalBottomSheet(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                           ),
+                          builder: (context) {
+                            return Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "Pague com o Pix",
+                                    style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    "Escaneie o QR Code abaixo para pagar",
+                                    style: AppTypography.caption(context),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Container(
+                                    width: 200,
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade300),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${Uri.encodeComponent(item['pix_copia_cola'].toString())}",
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, progress) {
+                                          if (progress == null) return child;
+                                          return const Center(child: CircularProgressIndicator());
+                                        },
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const Center(child: Icon(Icons.qr_code, size: 64)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Clipboard.setData(ClipboardData(text: item['pix_copia_cola'].toString()));
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text("Pix Copia e Cola copiado!"),
+                                          backgroundColor: AppColors.primary,
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(double.infinity, 44),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                    child: const Text("Copiar Código Pix"),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         );
                       },
                       icon: const Icon(PhosphorIcons.qrCode, size: 16),
                       label: const Text(
-                        "Copiar Pix",
+                        "Pagar Pix",
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                       style: ElevatedButton.styleFrom(

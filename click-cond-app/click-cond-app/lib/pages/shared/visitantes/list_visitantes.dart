@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ListVisitantes extends StatefulWidget {
   final bool allCondos;
@@ -281,6 +282,103 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                 const SizedBox(height: AppSpacing.md),
                 AcessosFacialList(idVisitante: item['id']),
               ],
+
+              // Google Maps / Block route sharing section
+              const SizedBox(height: AppSpacing.lg),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border(context)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(PhosphorIcons.mapPin, color: AppColors.primary, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Mapeamento do Bloco',
+                          style: AppTypography.caption(context).copyWith(
+                            color: AppColors.textPrimary(context),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'Compartilhe a localização exata do seu bloco com o entregador ou visitante para facilitar a chegada.',
+                      style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context)),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(PhosphorIcons.navigationArrow, size: 16),
+                            label: const Text('Abrir Rota'),
+                            onPressed: () async {
+                              final cond = item['condominio_nome'] ?? 'Condomínio';
+                              final bloco = item['apto_bloco'] ?? item['bloco'] ?? '';
+                              final query = Uri.encodeComponent('$cond $bloco');
+                              final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+                              if (await canLaunchUrl(url)) {
+                                await launchUrl(url, mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(PhosphorIcons.shareNetwork, size: 16),
+                            label: const Text('Compartilhar'),
+                            onPressed: () async {
+                              final cond = item['condominio_nome'] ?? 'Condomínio';
+                              final bloco = item['apto_bloco'] ?? item['bloco'] ?? '';
+                              final query = Uri.encodeComponent('$cond $bloco');
+                              final mapsUrl = 'https://www.google.com/maps/search/?api=1&query=$query';
+                              final shareText = 'Olá! Aqui está a rota do Google Maps para o meu bloco ($bloco) no $cond: $mapsUrl';
+                              final whatsappUrl = Uri.parse('https://api.whatsapp.com/send?text=${Uri.encodeComponent(shareText)}');
+                              if (await canLaunchUrl(whatsappUrl)) {
+                                await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+                              } else {
+                                await Clipboard.setData(ClipboardData(text: shareText));
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Texto de compartilhamento copiado!'),
+                                      backgroundColor: AppColors.primary.withOpacity(0.9),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
 
               if (item['data_saida'] == null && !isExpired) ...[
                 const SizedBox(height: AppSpacing.lg),

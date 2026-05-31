@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/agenda/list_agenda.dart';
@@ -45,6 +47,11 @@ class _MyCondominiumState extends State<MyCondominium> {
   String _inadimplencia = '';
   Map<String, dynamic>? _summary;
   int _currentTab = 0;
+
+  double? _temp;
+  String? _weatherDesc;
+  IconData? _weatherIcon;
+  bool _weatherLoading = false;
 
   @override
   void initState() {
@@ -108,6 +115,13 @@ class _MyCondominiumState extends State<MyCondominium> {
           _inadimplencia = rawInadimplencia.replaceAll("R\$", Singleton.instance.getCurrentMoeda());
           _summary = results[1] as Map<String, dynamic>?;
         });
+
+        // Trigger weather fetch
+        final String city = cond['cidade'] ?? '';
+        final String stateCode = cond['uf'] ?? '';
+        if (city.isNotEmpty) {
+          _fetchWeather(city, stateCode);
+        }
       } else {
         _err();
       }
@@ -165,6 +179,126 @@ class _MyCondominiumState extends State<MyCondominium> {
         .then((_) => _loadCond());
   }
 
+  Future<void> _fetchWeather(String city, String stateCode) async {
+    if (city.isEmpty) return;
+    setState(() => _weatherLoading = true);
+    try {
+      final geoUrl = Uri.parse("https://nominatim.openstreetmap.org/search?city=${Uri.encodeComponent(city)}&state=${Uri.encodeComponent(stateCode)}&country=Brazil&format=json&limit=1");
+      final geoResponse = await http.get(geoUrl, headers: {'User-Agent': 'ClickCondominioWeatherApp/1.0'});
+      if (geoResponse.statusCode == 200) {
+        final geoData = jsonDecode(geoResponse.body) as List<dynamic>;
+        if (geoData.isNotEmpty) {
+          final lat = geoData[0]['lat'];
+          final lon = geoData[0]['lon'];
+
+          final weatherUrl = Uri.parse("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&timezone=auto");
+          final weatherResponse = await http.get(weatherUrl);
+          if (weatherResponse.statusCode == 200) {
+            final weatherData = jsonDecode(weatherResponse.body) as Map<String, dynamic>;
+            final current = weatherData['current'] as Map<String, dynamic>?;
+            if (current != null) {
+              final double temp = (current['temperature_2m'] ?? 0.0).toDouble();
+              final int code = current['weather_code'] ?? 0;
+              
+              String desc = "Limpo";
+              IconData icon = PhosphorIcons.sun;
+
+              if (code == 0) {
+                desc = "Céu Limpo";
+                icon = PhosphorIcons.sun;
+              } else if (code >= 1 && code <= 3) {
+                desc = "Parcialmente Nublado";
+                icon = PhosphorIcons.cloudSun;
+              } else if (code == 45 || code == 48) {
+                desc = "Névoa";
+                icon = PhosphorIcons.cloudFog;
+              } else if ((code >= 51 && code <= 55) || (code >= 61 && code <= 65) || (code >= 80 && code <= 82)) {
+                desc = "Chuva";
+                icon = PhosphorIcons.cloudRain;
+              } else if (code >= 71 && code <= 75) {
+                desc = "Neve";
+                icon = PhosphorIcons.snowflake;
+              } else if (code >= 95) {
+                desc = "Tempestade";
+                icon = PhosphorIcons.cloudLightning;
+              }
+
+              setState(() {
+                _temp = temp;
+                _weatherDesc = desc;
+                _weatherIcon = icon;
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("[Weather] Error: $e");
+    } finally {
+      setState(() => _weatherLoading = false);
+    }
+  }
+
+  Widget _buildWeatherWidget() {
+    if (_weatherLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+        child: AppSkeleton(width: double.infinity, height: 60, borderRadius: AppRadius.lg),
+      );
+    }
+
+    if (_temp == null) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.xl, AppSpacing.md, AppSpacing.xl, 0),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _weatherIcon ?? PhosphorIcons.sun,
+              color: AppColors.primary,
+              size: 28,
+            ),
+            AppSpacing.gapMd,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _weatherDesc ?? 'Tempo Limpo',
+                    style: AppTypography.bodySecondary(context).copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Previsão para ${_cond?['cidade'] ?? 'o condomínio'}',
+                    style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context)),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '${_temp!.toStringAsFixed(1)}°C',
+              style: AppTypography.title(context).copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHomeTab(BuildContext context) {
     final saldoNeg = _saldo.contains('-');
     return SafeArea(
@@ -182,6 +316,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                         child: AppSkeleton(width: double.infinity, height: 160, borderRadius: AppRadius.xxl),
                       )
                     : _buildStats(context, saldoNeg)),
+            SliverToBoxAdapter(child: _buildWeatherWidget()),
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),

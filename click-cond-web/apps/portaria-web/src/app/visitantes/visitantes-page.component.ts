@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal, effect, untracked } from '
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { VisitantesService, VisitanteDetalhes, PessoaEncontrada, Pessoa } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
@@ -20,6 +21,7 @@ export class VisitantesPageComponent implements OnInit {
   private aptApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
   private route = inject(ActivatedRoute);
+  private sanitizer = inject(DomSanitizer);
 
   constructor() {
     effect(() => {
@@ -720,5 +722,30 @@ export class VisitantesPageComponent implements OnInit {
       is_prestador: 0,
       tag_rfid: '',
     };
+  }
+
+  getMapUrl(d: any): SafeResourceUrl | null {
+    if (!d || !d.visitante) return null;
+    const cond = d.visitante.condominio;
+    const bloco = d.visitante.blocoAptoAtual || '';
+    const end = cond?.enderecoRel;
+    if (!end) return null;
+
+    const addressStr = `${end.rua || ''}, ${end.numero || ''}, ${end.cidade || ''} - ${end.uf || ''}`;
+    const query = `${addressStr} ${bloco ? ' ' + bloco : ''}`;
+    const url = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&t=&z=17&ie=UTF8&iwloc=&output=embed`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+  }
+
+  getShareRouteLink(d: any): string {
+    if (!d || !d.visitante) return '';
+    const cond = d.visitante.condominio;
+    const bloco = d.visitante.blocoAptoAtual || '';
+    const end = cond?.enderecoRel;
+    if (!end) return '';
+
+    const addressStr = `${end.rua || ''}, ${end.numero || ''}, ${end.cidade || ''} - ${end.uf || ''}`;
+    const query = `${addressStr} ${bloco ? ' ' + bloco : ''}`;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
   }
 }

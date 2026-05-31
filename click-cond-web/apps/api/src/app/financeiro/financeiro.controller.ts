@@ -224,6 +224,16 @@ export class FinanceiroController {
     return this.service.handleAsaasWebhook(body);
   }
 
+  @Public()
+  @SkipAudit()
+  @Post('webhook/openpix')
+  @HttpCode(200)
+  handleOpenPixWebhook(
+    @Body() body: any,
+  ) {
+    return this.service.handleOpenPixWebhook(body);
+  }
+
   @SkipAudit()
   @Post('rateio')
   @HttpCode(200)

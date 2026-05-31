@@ -1,4 +1,6 @@
 
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/utils/localizable/localizable.dart';
@@ -31,10 +33,55 @@ class _EditCondominioAddressPageState extends State<EditCondominioAddress> {
   final txtNumero = TextEditingController();
   final txtComplemento = TextEditingController();
 
+  String _lastCep = "";
+
   @override
   void initState(){
-    super.initState();        
+    super.initState();
+    txtCep.addListener(_onCepChanged);
     load();
+  }
+
+  void _onCepChanged() {
+    final cleanCep = txtCep.text.replaceAll(RegExp(r'\D'), '');
+    if (cleanCep.length == 8 && cleanCep != _lastCep) {
+      _lastCep = cleanCep;
+      _lookupCep(cleanCep);
+    }
+  }
+
+  Future<void> _lookupCep(String cep) async {
+    try {
+      final response = await http.get(Uri.parse("https://viacep.com.br/ws/$cep/json/"));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['erro'] != true) {
+          setState(() {
+            txtPais.text = "Brasil";
+            txtUF.text = data['uf'] ?? "";
+            txtCidade.text = data['localidade'] ?? "";
+            txtBairro.text = data['bairro'] ?? "";
+            txtRua.text = data['logradouro'] ?? "";
+          });
+        }
+      }
+    } catch (_) {
+      // Silently ignore errors
+    }
+  }
+
+  @override
+  void dispose() {
+    txtCep.removeListener(_onCepChanged);
+    txtCep.dispose();
+    txtPais.dispose();
+    txtUF.dispose();
+    txtCidade.dispose();
+    txtBairro.dispose();
+    txtRua.dispose();
+    txtNumero.dispose();
+    txtComplemento.dispose();
+    super.dispose();
   }
 
   load() async{    

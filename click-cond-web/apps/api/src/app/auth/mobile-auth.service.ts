@@ -640,6 +640,7 @@ export class MobileAuthService {
         include: {
           financeiro: { where: { pago: 1 } },
           apartamentos: true,
+          enderecoRel: true,
         },
       });
 
@@ -659,6 +660,8 @@ export class MobileAuthService {
         identificacao: c.identificacao ?? '',
         subsindico_nome: c.subsindico_nome ?? '',
         liberado_exclusao: c.liberado_exclusao ?? 0,
+        cidade: c.enderecoRel?.cidade ?? 'São Paulo',
+        uf: c.enderecoRel?.uf ?? 'SP',
       };
     } catch (e) {
       return mockCond;

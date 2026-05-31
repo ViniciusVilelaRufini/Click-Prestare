@@ -674,10 +674,9 @@ export class VisitantesService {
                 id_apto: dto.id_apartamento,
               },
             },
-            fcm_token: { not: null },
             notif_visitantes: 1,
           },
-          select: { fcm_token: true },
+          select: { fcm_token: true, name: true, phone: true },
         });
 
         for (const m of moradores) {
@@ -688,6 +687,11 @@ export class VisitantesService {
               `${dto.nome} acabou de chegar para o seu apartamento.`,
               { id: updated.id.toString(), type: 'visitante' },
             );
+          }
+          if (m.phone) {
+            const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
+            const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
+            await this.notifications.sendWhatsApp(m.phone, waMessage);
           }
         }
       } catch (error) {
@@ -756,10 +760,9 @@ export class VisitantesService {
               id_apto: dto.id_apartamento,
             },
           },
-          fcm_token: { not: null },
           notif_visitantes: 1,
         },
-        select: { fcm_token: true },
+        select: { fcm_token: true, name: true, phone: true },
       });
 
       for (const m of moradores) {
@@ -770,6 +773,11 @@ export class VisitantesService {
             `${dto.nome} acabou de chegar para o seu apartamento.`,
             { id: visitante.id.toString(), type: 'visitante' },
           );
+        }
+        if (m.phone) {
+          const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
+          const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
+          await this.notifications.sendWhatsApp(m.phone, waMessage);
         }
       }
     } catch (error) {
@@ -937,7 +945,20 @@ export class VisitantesService {
       include: {
         apartamento: { select: { id: true, bloco: true, apto: true } },
         criadoPor: { select: { name: true } },
-        condominio: { select: { nome: true } },
+        condominio: {
+          select: {
+            nome: true,
+            enderecoRel: {
+              select: {
+                cep: true,
+                rua: true,
+                numero: true,
+                cidade: true,
+                uf: true,
+              },
+            },
+          },
+        },
       },
     });
     if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);

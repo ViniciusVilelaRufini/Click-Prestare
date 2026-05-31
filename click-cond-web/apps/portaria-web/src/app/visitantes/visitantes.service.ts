@@ -31,7 +31,18 @@ export interface VisitanteDetalhes {
     blocoAptoAtual: string | null;
     face_id: string | null;
     face_sync_status: string | null;
-    condominio: string | null;
+    condominio: {
+      nome: string;
+      enderecoRel: {
+        cep: string | null;
+        rua: string | null;
+        numero: string | null;
+        complemento: string | null;
+        bairro: string | null;
+        cidade: string | null;
+        uf: string | null;
+      } | null;
+    } | null;
     criadoPor: string | null;
     data_hora_inicio: string | null;
     data_hora_termino: string | null;
