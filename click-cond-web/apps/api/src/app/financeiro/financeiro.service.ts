@@ -107,6 +107,44 @@ export class FinanceiroService implements OnModuleInit {
    * de NaN — datas inválidas iam pro banco como "Invalid Date" e
    * estouravam depois no toLocaleDateString.
    */
+  /**
+   * Verifica se o nome de um lançamento bate exatamente com um apartamento.
+   *
+   * Lançamentos de cobrança seguem o padrão "Apto X Bloco Y - Ref. MM/AAAA"
+   * (ou "Apto X Bloco Y - Rateio: ..." / "- Acordo Parc."). Esse helper
+   * garante MATCH EXATO de número de apto e bloco, em vez de substring.
+   *
+   * Antes: `nome.includes('Apto 10')` casava com Apto 10, 100, 101, 1010 →
+   * VAZAMENTO de dados financeiros entre apartamentos.
+   *
+   * Agora: regex com word boundaries. "Apto 10 Bloco A" NÃO casa com
+   * "Apto 100 Bloco A".
+   */
+  private nomeFaturaDeApto(nome: string | null | undefined, apto: string | null | undefined, bloco: string | null | undefined): boolean {
+    if (!nome || !apto) return false;
+    // Escapa caracteres regex no apto/bloco (defensivo — apto pode ter
+    // hífen ou outros símbolos em alguns condomínios).
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const aptoEsc = escape(apto.trim());
+
+    // Apartamento precisa estar entre "Apto " e fronteira de palavra (espaço,
+    // fim de string, ou pontuação).
+    const aptoRegex = new RegExp(`\\bApto\\s+${aptoEsc}\\b`, 'i');
+    if (!aptoRegex.test(nome)) return false;
+
+    // Se bloco informado, valida também. Se vazio/null, aceita lançamento
+    // sem bloco (apartamento sem bloco em condomínios pequenos).
+    const blocoNorm = bloco?.trim() ?? '';
+    if (blocoNorm) {
+      const blocoEsc = escape(blocoNorm);
+      const blocoRegex = new RegExp(`\\bBloco\\s+${blocoEsc}\\b`, 'i');
+      return blocoRegex.test(nome);
+    }
+    // Sem bloco no perfil: aceita só se o nome também não tiver bloco
+    // ("Apto 5 - Ref. 03/2026" sem "Bloco").
+    return !/\bBloco\s+\S/i.test(nome);
+  }
+
   private parseDataBR(dStr?: string | null): Date | null {
     if (!dStr) return null;
     let d: Date;
@@ -483,8 +521,9 @@ export class FinanceiroService implements OnModuleInit {
           select: { apartamento: true, bloco: true },
         });
         if (moradorMatch) {
-          const aptoTag = `Apto ${moradorMatch.apartamento} Bloco ${moradorMatch.bloco}`;
-          if (!result.nome.includes(aptoTag)) {
+          // Match exato — sem isso, morador de "Apto 10" lia faturas de
+          // "Apto 100/101/1010" no mesmo bloco.
+          if (!this.nomeFaturaDeApto(result.nome, moradorMatch.apartamento, moradorMatch.bloco)) {
             throw new ForbiddenException('Acesso negado: lançamento não pertence a você');
           }
         } else {
@@ -1074,15 +1113,13 @@ export class FinanceiroService implements OnModuleInit {
 
     const filteredList = list.filter(item => {
       if (item.id_usuario === idUser) return true;
+      // Match EXATO por apto+bloco (regex com word boundary).
+      // Antes usava includes() que casava "Apto 10" com 100/101/1010 →
+      // morador via faturas de apartamentos vizinhos com números similares.
       if (item.tipo === 'C') {
-        return moradoresList.some(m => {
-          const aptoOk = item.nome?.includes(`Apto ${m.apartamento}`) ?? false;
-          const temBloco = m.bloco !== null && m.bloco !== undefined && m.bloco.trim() !== '';
-          const blocoOk = temBloco
-            ? (item.nome?.includes(`Bloco ${m.bloco}`) ?? false)
-            : (!item.nome?.includes('Bloco') || item.nome?.includes('Bloco ') === false || item.nome?.includes('Bloco  '));
-          return aptoOk && blocoOk;
-        });
+        return moradoresList.some(m =>
+          this.nomeFaturaDeApto(item.nome, m.apartamento, m.bloco)
+        );
       }
       return false;
     });
@@ -1408,7 +1445,11 @@ export class FinanceiroService implements OnModuleInit {
     }
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
-    const debitos = await this.prisma.financeiro.findMany({
+    // Busca débitos com filtro amplo (contains) mas FILTRA na aplicação
+    // com match exato. Sem isso, "Apto 10 Bloco A" pegava TAMBÉM débitos de
+    // "Apto 100/101/1010 Bloco A" e renegociava em lote — apaga dívidas
+    // de outros apartamentos.
+    const candidatos = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
         pago: 0,
@@ -1417,6 +1458,10 @@ export class FinanceiroService implements OnModuleInit {
         },
       },
     });
+
+    const debitos = candidatos.filter((d) =>
+      this.nomeFaturaDeApto(d.nome, acordoData.apto, acordoData.bloco)
+    );
 
     if (debitos.length === 0) return { success: false, message: 'Nenhum débito em aberto encontrado.' };
 
