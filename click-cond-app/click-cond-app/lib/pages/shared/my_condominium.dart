@@ -227,13 +227,13 @@ class _MyCondominiumState extends State<MyCondominium> {
   @override
   Widget build(BuildContext context) {
     final financeiroPage = getUserType() == 'morador'
-        ? const MoradorFinanceiroView(hideAppBar: true)
-        : const ListFinanceiro(hideAppBar: true);
+        ? MoradorFinanceiroView(hideAppBar: true, showFab: _currentTab == 3)
+        : ListFinanceiro(hideAppBar: true, showFab: _currentTab == 3);
 
     final tabs = [
       _buildHomeTab(context),
       const ListEncomendas(hideAppBar: true),
-      const ListVisitantes(hideAppBar: true),
+      ListVisitantes(hideAppBar: true, showFab: _currentTab == 2),
       financeiroPage,
     ];
 

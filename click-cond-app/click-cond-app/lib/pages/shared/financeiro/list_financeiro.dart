@@ -30,7 +30,12 @@ enum FinanceiroViewMode { morador, condominio }
 
 class ListFinanceiro extends StatefulWidget {
   final bool hideAppBar;
-  const ListFinanceiro({Key? key, this.hideAppBar = false}) : super(key: key);
+  final bool showFab;
+  const ListFinanceiro({
+    Key? key, 
+    this.hideAppBar = false,
+    this.showFab = true,
+  }) : super(key: key);
   @override
   _ListFinanceiroPageState createState() => _ListFinanceiroPageState();
 }
@@ -408,7 +413,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                 ],
               ),
             ),
-      floatingActionButton: _buildFab(isSindico),
+      floatingActionButton: widget.showFab ? _buildFab(isSindico) : null,
     );
   }
 

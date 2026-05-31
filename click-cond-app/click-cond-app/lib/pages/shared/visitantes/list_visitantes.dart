@@ -19,7 +19,13 @@ import 'package:qr_flutter/qr_flutter.dart';
 class ListVisitantes extends StatefulWidget {
   final bool allCondos;
   final bool hideAppBar;
-  const ListVisitantes({Key? key, this.allCondos = false, this.hideAppBar = false}) : super(key: key);
+  final bool showFab;
+  const ListVisitantes({
+    Key? key, 
+    this.allCondos = false, 
+    this.hideAppBar = false,
+    this.showFab = true,
+  }) : super(key: key);
   @override
   _ListVisitantesPageState createState() => _ListVisitantesPageState();
 }
@@ -643,7 +649,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
       child: AppScaffold(
         title: widget.hideAppBar ? null : getText('visitantes_list'),
         showBackButton: !widget.hideAppBar,
-        floatingActionButton: canAdd
+        floatingActionButton: canAdd && widget.showFab
             ? FloatingActionButton.extended(
                 onPressed: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)))

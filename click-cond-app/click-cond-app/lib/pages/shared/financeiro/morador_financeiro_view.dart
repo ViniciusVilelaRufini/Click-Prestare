@@ -18,7 +18,12 @@ enum FinanceiroViewMode { morador, condominio }
 
 class MoradorFinanceiroView extends StatefulWidget {
   final bool hideAppBar;
-  const MoradorFinanceiroView({Key? key, this.hideAppBar = false}) : super(key: key);
+  final bool showFab;
+  const MoradorFinanceiroView({
+    Key? key, 
+    this.hideAppBar = false,
+    this.showFab = true,
+  }) : super(key: key);
 
   @override
   _MoradorFinanceiroViewState createState() => _MoradorFinanceiroViewState();
@@ -186,7 +191,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               ],
             ),
           ),
-      floatingActionButton: _viewMode == FinanceiroViewMode.morador
+      floatingActionButton: widget.showFab && _viewMode == FinanceiroViewMode.morador
         ? FloatingActionButton.extended(
             onPressed: () => _showContaFormModal(),
             icon: const Icon(PhosphorIcons.plus, color: Colors.white),
