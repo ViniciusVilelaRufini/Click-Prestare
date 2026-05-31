@@ -114,18 +114,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     
     final type = getUserType();
     
-    if (module == 'visits' && type == 'morador') {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const ListVisitantes(allCondos: true)))
-          .then((_) { if (mounted) _loadList(); });
-      return;
-    }
-    
-    if (module == 'packages' && type == 'morador') {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const ListEncomendas(allCondos: true)))
-          .then((_) { if (mounted) _loadList(); });
-      return;
-    }
-    
     Widget? page;
     if (module == 'debts') {
       page = type == 'morador' ? const MoradorFinanceiroView() : const ListInadimplestes();
