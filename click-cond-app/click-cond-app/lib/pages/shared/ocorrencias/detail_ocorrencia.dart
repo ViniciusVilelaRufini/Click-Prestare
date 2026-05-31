@@ -178,11 +178,14 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                 Icon(PhosphorIcons.user, size: 16, color: AppColors.textSecondary(context)),
                                 const SizedBox(width: 8),
                                 Text('Autor: ', style: AppTypography.captionMedium(context)),
-                                Text(
-                                  obj['criado_por'].toString(),
-                                  style: AppTypography.captionMedium(context).copyWith(
-                                    color: AppColors.textPrimary(context),
-                                    fontWeight: FontWeight.w600,
+                                Expanded(
+                                  child: Text(
+                                    obj['criado_por'].toString(),
+                                    style: AppTypography.captionMedium(context).copyWith(
+                                      color: AppColors.textPrimary(context),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
