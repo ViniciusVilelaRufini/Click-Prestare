@@ -303,42 +303,72 @@ export class FinanceiroService implements OnModuleInit {
       }
     }
 
-    const criado = await this.prisma.financeiro.create({
-      data: {
-        nome: financeiro.nome || 'Lançamento sem nome',
-        tipo: financeiro.tipo || 'C',
-        valor,
-        data: dLanc,
-        data_vencimento: dVenc,
-        categoria: financeiro.categoria ?? 'Geral',
-        conta: financeiro.conta ?? null,
-        descricao: financeiro.descricao ?? null,
-        cliente: financeiro.cliente ?? null,
-        forma_pagamento: financeiro.forma_pagamento ?? null,
-        parcelas: financeiro.parcelas ?? null,
-        nome_operador: operatorName,
-        id_condominio: Number(idCondominio),
-        photo: photoUrl,
-        pago: isPago,
-        url_boleto: financeiro.url_boleto ?? null,
-        status: financeiro.status ? String(financeiro.status) : '0',
-        linha_digitavel: financeiro.linha_digitavel ?? null,
-        pix_copia_cola: financeiro.pix_copia_cola ?? null,
-        id_usuario: idUsuario,
-      },
-    });
+    // Normaliza tipos: o app Flutter manda parcelas/status como int, mas o
+    // schema espera string (varchar). Esse mismatch pode estourar no Prisma
+    // de formas inesperadas em produção (TypeError JS engine "Must call super
+    // constructor..." foi reportado quando o decimal/string handling falhava).
+    const parcelasStr = financeiro.parcelas == null
+      ? null
+      : String(financeiro.parcelas);
+    const statusStr = financeiro.status == null
+      ? '0'
+      : String(financeiro.status);
 
-    const ctx = await this.carregarContextoLancamento(criado.id);
-    const tipoLabel = criado.tipo === 'D' ? 'Despesa' : 'Receita';
-    await this.auditoria.registrar({
-      id_condominio: Number(idCondominio),
-      usuario_nome: operatorName,
-      acao: 'CREATE',
-      modulo: 'financeiro',
-      entidade_id: criado.id,
-      descricao: `Lançou ${tipoLabel}: ${criado.nome} — ${ctx?.lancamento.valorFormatado}`,
-      detalhes: ctx ?? undefined,
-    });
+    let criado;
+    try {
+      criado = await this.prisma.financeiro.create({
+        data: {
+          nome: financeiro.nome || 'Lançamento sem nome',
+          tipo: financeiro.tipo || 'C',
+          valor,
+          data: dLanc,
+          data_vencimento: dVenc,
+          categoria: financeiro.categoria ?? 'Geral',
+          conta: financeiro.conta ?? null,
+          descricao: financeiro.descricao ?? null,
+          cliente: financeiro.cliente ?? null,
+          forma_pagamento: financeiro.forma_pagamento ?? null,
+          parcelas: parcelasStr,
+          nome_operador: operatorName,
+          id_condominio: Number(idCondominio),
+          photo: photoUrl,
+          pago: isPago,
+          url_boleto: financeiro.url_boleto ?? null,
+          status: statusStr,
+          linha_digitavel: financeiro.linha_digitavel ?? null,
+          pix_copia_cola: financeiro.pix_copia_cola ?? null,
+          id_usuario: idUsuario,
+        },
+      });
+    } catch (err: any) {
+      // Loga com stack pra diagnostico (Railway logs)
+      this.logger.error(
+        `[financeiro.insert] Falha ao criar lancamento: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel salvar o lancamento. Verifique os dados e tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
+
+    // Auditoria nao deve quebrar o insert se algo falhar nela.
+    try {
+      const ctx = await this.carregarContextoLancamento(criado.id);
+      const tipoLabel = criado.tipo === 'D' ? 'Despesa' : 'Receita';
+      await this.auditoria.registrar({
+        id_condominio: Number(idCondominio),
+        usuario_nome: operatorName,
+        acao: 'CREATE',
+        modulo: 'financeiro',
+        entidade_id: criado.id,
+        descricao: `Lançou ${tipoLabel}: ${criado.nome} — ${ctx?.lancamento.valorFormatado}`,
+        detalhes: ctx ?? undefined,
+      });
+    } catch (err: any) {
+      this.logger.warn(
+        `[financeiro.insert] Falha na auditoria (lancamento ja foi criado): ${err?.message ?? err}`,
+      );
+    }
 
     return { success: true };
   }
@@ -440,32 +470,47 @@ export class FinanceiroService implements OnModuleInit {
       where: { id: Number(financeiro.id) },
     });
 
-    await this.prisma.financeiro.updateMany({
-      where: {
-        id: Number(financeiro.id),
-        id_condominio: Number(idCondominio),
-      },
-      data: {
-        nome: financeiro.nome,
-        tipo: financeiro.tipo,
-        valor,
-        data: dLanc,
-        pago: isPago,
-        ...(dVenc !== null ? { data_vencimento: dVenc } : {}),
-        categoria: financeiro.categoria,
-        conta: financeiro.conta,
-        descricao: financeiro.descricao,
-        cliente: financeiro.cliente,
-        forma_pagamento: financeiro.forma_pagamento,
-        parcelas: financeiro.parcelas,
-        nome_operador: operatorName,
-        ...(photoUrl !== undefined ? { photo: photoUrl } : {}),
-        ...(financeiro.status !== undefined ? { status: String(financeiro.status) } : {}),
-        ...(financeiro.linha_digitavel !== undefined ? { linha_digitavel: financeiro.linha_digitavel } : {}),
-        ...(financeiro.pix_copia_cola !== undefined ? { pix_copia_cola: financeiro.pix_copia_cola } : {}),
-        id_usuario: idUsuario,
-      },
-    });
+    // Mesma normalizacao do insert: parcelas eh varchar no schema.
+    const parcelasStr = financeiro.parcelas == null
+      ? null
+      : String(financeiro.parcelas);
+
+    try {
+      await this.prisma.financeiro.updateMany({
+        where: {
+          id: Number(financeiro.id),
+          id_condominio: Number(idCondominio),
+        },
+        data: {
+          nome: financeiro.nome,
+          tipo: financeiro.tipo,
+          valor,
+          data: dLanc,
+          pago: isPago,
+          ...(dVenc !== null ? { data_vencimento: dVenc } : {}),
+          categoria: financeiro.categoria,
+          conta: financeiro.conta,
+          descricao: financeiro.descricao,
+          cliente: financeiro.cliente,
+          forma_pagamento: financeiro.forma_pagamento,
+          parcelas: parcelasStr,
+          nome_operador: operatorName,
+          ...(photoUrl !== undefined ? { photo: photoUrl } : {}),
+          ...(financeiro.status !== undefined ? { status: String(financeiro.status) } : {}),
+          ...(financeiro.linha_digitavel !== undefined ? { linha_digitavel: financeiro.linha_digitavel } : {}),
+          ...(financeiro.pix_copia_cola !== undefined ? { pix_copia_cola: financeiro.pix_copia_cola } : {}),
+          id_usuario: idUsuario,
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[financeiro.update] Falha ao atualizar lancamento: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel salvar as alteracoes. Verifique os dados e tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
 
     // Diff dos campos sensíveis. Valor e pago são os mais críticos: mudar
     // valor é mudar quanto entra/sai; mudar pago é declarar pagamento.

@@ -44,6 +44,25 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = exception.message;
     }
 
+    // Sanitiza: nao vaza mensagens de erro de runtime JS engine pro cliente.
+    // Essas mensagens (TypeError, RangeError do V8, "Must call super constructor",
+    // "Cannot read prop") sao incomprensiveis pro usuario e expoem internos.
+    // Substitui por mensagem generica e mantem o erro real nos logs.
+    const sanitizeRuntimeError = (m: string | string[]): string | string[] => {
+      const check = (s: string) =>
+        s.includes('super constructor') ||
+        s.includes('Cannot read prop') ||
+        s.includes('Cannot read properties') ||
+        /^TypeError:/.test(s) ||
+        /^RangeError:/.test(s) ||
+        /^ReferenceError:/.test(s);
+      if (Array.isArray(m)) {
+        return m.map((s) => (check(s) ? 'Erro interno do servidor. Tente novamente.' : s));
+      }
+      return check(m) ? 'Erro interno do servidor. Tente novamente.' : m;
+    };
+    message = sanitizeRuntimeError(message);
+
     const responseBody = {
       statusCode: httpStatus,
       timestamp: new Date().toISOString(),
@@ -55,6 +74,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
       `Http Status: ${httpStatus} Error: ${JSON.stringify(responseBody)}`,
       exception instanceof Error ? exception.stack : '',
     );
+
+    // Em erros 500 (não-HttpException), inclui o stack truncado no body
+    // de DEBUG_500 só pra dev — facilita diagnostico remoto sem precisar
+    // ver os logs do Railway. Em produção real isso seria removido, mas
+    // dado que estamos depurando o erro "Must call super constructor..."
+    // sem ter acesso aos logs do Railway, é a única forma rápida.
+    if (
+      process.env.INCLUDE_500_STACK === 'true' &&
+      httpStatus >= 500 &&
+      exception instanceof Error &&
+      exception.stack
+    ) {
+      (responseBody as any).debugStack = exception.stack.split('\n').slice(0, 10).join('\n');
+    }
 
     // Garante headers CORS na resposta de erro (Express bypassa o cors middleware
     // quando o filter responde direto via httpAdapter.reply).
