@@ -1,4 +1,5 @@
 import 'package:click/controllers/controller_condominio.dart';
+import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/agenda/list_agenda.dart';
 import 'package:click/pages/shared/areas%20sociais/list_areas_sociais.dart';
 import 'package:click/pages/shared/assembleias/list_assembleias.dart';
@@ -120,6 +121,43 @@ class _MyCondominiumState extends State<MyCondominium> {
   void _err() {
     displayMessage(context, getText('alert_error'), getText('alert_generic_error'))
         .then((_) { if (mounted) Navigator.pop(context); });
+  }
+
+  Future<void> _updateCondominiumPhoto() async {
+    if (getUserType() != 'sindico') return;
+
+    try {
+      final pickedFile = await getPhoto(context);
+      if (pickedFile == null) return;
+
+      setState(() => _isLoading = true);
+
+      final base64Photo = convertToBase64(pickedFile, 'image/png');
+
+      final info = await apiGetDetails("condominio/infos", 0);
+      if (info == null) throw 'Não foi possível carregar as informações do condomínio.';
+
+      final nome = info["nome"] ?? "";
+      final documento = info["identificacao"] ?? "";
+      final subsindico = info["subsindico_nome"] ?? "";
+      final dtIni = info["data_inicio_mandato"] ?? "";
+      final dtFim = info["data_termino_mandato"] ?? "";
+
+      await updateInfosCondominio(nome, documento, subsindico, dtIni, dtFim, base64Photo);
+      await _loadCond();
+      
+      if (mounted) {
+        displayMessage(context, getText('alert_success'), 'Imagem do condomínio atualizada com sucesso!');
+      }
+    } catch (e) {
+      if (mounted) {
+        displayMessage(context, getText('alert_error'), 'Erro ao atualizar imagem: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _navigate(Widget page) {
@@ -411,17 +449,41 @@ class _MyCondominiumState extends State<MyCondominium> {
           children: [
             Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  child: SizedBox(
-                    width: 56, height: 56,
-                    child: _cond != null && (_cond!['photo'] ?? '').toString().isNotEmpty
-                        ? Image.network(
-                            _cond!['photo'],
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _condFallback(),
-                          )
-                        : _condFallback(),
+                GestureDetector(
+                  onTap: getUserType() == 'sindico' ? _updateCondominiumPhoto : null,
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        child: SizedBox(
+                          width: 56, height: 56,
+                          child: _cond != null && (_cond!['photo'] ?? '').toString().isNotEmpty
+                              ? Image.network(
+                                  _cond!['photo'],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _condFallback(),
+                                )
+                              : _condFallback(),
+                        ),
+                      ),
+                      if (getUserType() == 'sindico')
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              PhosphorIcons.camera,
+                              size: 12,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 AppSpacing.gapMd,
