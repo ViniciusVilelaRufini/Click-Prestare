@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
-import 'package:http/http.dart' as http;
-
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 
 
 apiGetAllVisitantes(String search, {bool allCondos = false}) async {
@@ -18,7 +17,7 @@ apiGetAllVisitantes(String search, {bool allCondos = false}) async {
   var url = ApiConfig.buildUri('/visitantes/get-all', params);
   try{
       print('[apiGetAllVisitantes] URL: $url, allCondos: $allCondos, id_condominio: ${Singleton.instance.id_condominio}');
-      var response = await http.get(
+      var response = await ApiClient.get(
         url,
         headers: { "Authorization": getToken() }
       );
@@ -49,7 +48,7 @@ apiSaveVisitante(dynamic obj, bool isEdit) async {
   });
 
   try {
-    final response = await http.post(
+    final response = await ApiClient.post(
       url,
       headers: headers,
       body: body,
@@ -79,7 +78,7 @@ apiCheckInVisitante(int idVisitante) async {
   };
   final body = json.encode({'id': idVisitante});
   try {
-    final response = await http.post(
+    final response = await ApiClient.post(
       url,
       headers: headers,
       body: body,

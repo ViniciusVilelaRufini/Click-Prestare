@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
@@ -10,6 +10,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
+import 'package:click/utils/api_client.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -285,7 +286,7 @@ openFile(String path) async {
   try {
     OpenFilex.open(path);
   } catch (e) {
-    // falha silenciosa — arquivo pode não existir
+    // falha silenciosa â€” arquivo pode nÃ£o existir
   }
 }
 
@@ -304,7 +305,7 @@ convertToBase64(dynamic file, String type) {
       try {
         path = file.path;
       } catch (e) {
-        // Ignorar se não tiver a propriedade path
+        // Ignorar se nÃ£o tiver a propriedade path
       }
     }
     if (path != null) {
@@ -317,7 +318,7 @@ convertToBase64(dynamic file, String type) {
 
 Future<dynamic> fileFromImageUrl(String url) async {
   if (kIsWeb) return null;
-  final response = await http.get(Uri.parse(url)).timeout(_kHttpTimeout);
+  final response = await ApiClient.get(Uri.parse(url)).timeout(_kHttpTimeout);
   final documentDirectory = await getApplicationDocumentsDirectory();
   // ignore: undefined_class
   // final file = null.millisecondsSinceEpoch}.png'));
@@ -327,7 +328,7 @@ Future<dynamic> fileFromImageUrl(String url) async {
 
 Future<dynamic> fileFromPdfUrl(String url) async {
   if (kIsWeb) return null;
-  final response = await http.get(Uri.parse(url)).timeout(_kHttpTimeout);
+  final response = await ApiClient.get(Uri.parse(url)).timeout(_kHttpTimeout);
   final documentDirectory = await getApplicationDocumentsDirectory();
   return null;
 }

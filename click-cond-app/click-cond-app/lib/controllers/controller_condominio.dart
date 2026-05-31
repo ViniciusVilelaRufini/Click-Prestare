@@ -1,8 +1,9 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart';
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -182,7 +183,7 @@ updateMoedaCondominioApi(String idCondominio, String moeda) async {
 getDashboardSummary() async {
   final url = _buildUri('/dashboard/summary');
   try {
-    final response = await http.get(url, headers: _authHeaders()).timeout(_kTimeout);
+    final response = await ApiClient.get(url, headers: _authHeaders()).timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }

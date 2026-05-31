@@ -3,6 +3,7 @@ import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 
 
 loginFuncionario(String login, String password) async {  
@@ -28,7 +29,7 @@ loginFuncionario(String login, String password) async {
 getCondominiosFuncionario() async {
   var url = ApiConfig.buildUri('/funcionarios/list-condominios');
   try{
-      var response = await http.get(
+      var response = await ApiClient.get(
         url,
         headers: { "Authorization": getToken() }
       );
@@ -52,7 +53,7 @@ updateFuncionarioApi(dynamic funcionario) async {
   };
   var body = json.encode(data);
   try{
-    var response = await http.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
+    var response = await ApiClient.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
     if (response.statusCode == 200) {
       var parsed = jsonDecode(response.body) as Map<String, dynamic>;
       storageFuncionario(parsed);
@@ -73,7 +74,7 @@ updatePasswordFuncionarioApi(String senha) async {
   };
   var body = json.encode(data);
   try{
-    var response = await http.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
+    var response = await ApiClient.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
     if (response.statusCode == 200) {
       var parsed = jsonDecode(response.body) as Map<String, dynamic>;
       storageMorador(parsed);

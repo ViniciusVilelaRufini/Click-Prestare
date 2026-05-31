@@ -1,10 +1,11 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
@@ -31,25 +32,25 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
   final Map<String, Map<String, dynamic>> _categories = {
     'visitantes': {
       'label': 'Visitantes',
-      'desc': 'Histórico de controle de acesso de moradores e prestadores.',
+      'desc': 'HistÃ³rico de controle de acesso de moradores e prestadores.',
       'icon': PhosphorIcons.users,
       'color': Colors.blue,
     },
     'encomendas': {
       'label': 'Encomendas',
-      'desc': 'Entradas, entregas e pendências de mercadorias no condomínio.',
+      'desc': 'Entradas, entregas e pendÃªncias de mercadorias no condomÃ­nio.',
       'icon': PhosphorIcons.package,
       'color': AppColors.success,
     },
     'ocorrencias': {
-      'label': 'Ocorrências',
-      'desc': 'Histórico de ocorrências abertas pelos moradores e resoluções.',
+      'label': 'OcorrÃªncias',
+      'desc': 'HistÃ³rico de ocorrÃªncias abertas pelos moradores e resoluÃ§Ãµes.',
       'icon': PhosphorIcons.warningCircle,
       'color': Colors.amber,
     },
     'financeiro': {
       'label': 'Financeiro',
-      'desc': 'Fluxo de despesas, receitas e balanço do condomínio.',
+      'desc': 'Fluxo de despesas, receitas e balanÃ§o do condomÃ­nio.',
       'icon': PhosphorIcons.wallet,
       'color': Colors.purple,
     },
@@ -120,7 +121,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
         queryParams,
       );
 
-      final response = await http.get(
+      final response = await ApiClient.get(
         url,
         headers: {
           'Authorization': getToken(),
@@ -149,7 +150,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
           await showAppDialog(
             context,
             title: 'Erro ao gerar',
-            message: 'Não foi possível obter o relatório do servidor. Código: ${response.statusCode}',
+            message: 'NÃ£o foi possÃ­vel obter o relatÃ³rio do servidor. CÃ³digo: ${response.statusCode}',
             icon: PhosphorIcons.xCircle,
             iconColor: AppColors.error,
           );
@@ -163,8 +164,8 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
       if (mounted) {
         await showAppDialog(
           context,
-          title: 'Erro de comunicação',
-          message: 'Houve uma falha ao contatar o servidor de relatórios.',
+          title: 'Erro de comunicaÃ§Ã£o',
+          message: 'Houve uma falha ao contatar o servidor de relatÃ³rios.',
           icon: PhosphorIcons.warningCircle,
           iconColor: AppColors.error,
         );
@@ -175,14 +176,14 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Relatórios do Condomínio',
+      title: 'RelatÃ³rios do CondomÃ­nio',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Selecione uma categoria de relatório:',
+              'Selecione uma categoria de relatÃ³rio:',
               style: AppTypography.captionMedium(context).copyWith(
                 color: AppColors.textTertiary(context),
               ),
@@ -245,7 +246,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
             }).toList(),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Período (Opcional):',
+              'PerÃ­odo (Opcional):',
               style: AppTypography.captionMedium(context).copyWith(
                 color: AppColors.textTertiary(context),
               ),
@@ -270,7 +271,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'DATA INÍCIO',
+                            'DATA INÃCIO',
                             style: AppTypography.tiny(context).copyWith(
                               fontSize: 9,
                               color: AppColors.textTertiary(context),
@@ -335,7 +336,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                   },
                   icon: const Icon(PhosphorIcons.trash, size: 14, color: AppColors.error),
                   label: const Text(
-                    'Limpar período',
+                    'Limpar perÃ­odo',
                     style: TextStyle(color: AppColors.error, fontSize: 12),
                   ),
                 ),

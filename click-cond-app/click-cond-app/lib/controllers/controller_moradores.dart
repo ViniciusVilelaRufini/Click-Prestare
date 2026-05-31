@@ -1,8 +1,9 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -25,8 +26,7 @@ apiSaveApto(String route, String nameObj, dynamic obj, bool isEdit) async {
     nameObj: obj,
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -41,8 +41,7 @@ apiSaveApto(String route, String nameObj, dynamic obj, bool isEdit) async {
 apiGetAllMoradores(String tipo, String id_apto) async {
   final url = _buildUri('/apartamentos/get-moradores', {'id_apto': id_apto, 'tipo': tipo});
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -58,9 +57,12 @@ loginMorador(String login, String password) async {
   try {
     final url = _buildUri('/moradores/login');
     final body = json.encode({'login': login, 'password': password});
-    final response = await http
-        .post(url,
-            headers: {"Content-Type": "application/json"}, body: body)
+    // skip401Handling: nesse endpoint, 401 = senha errada (não token expirado).
+    // Sem isso, errar a senha mostraria snackbar "sessão expirou" pro usuário.
+    final response = await ApiClient.post(url,
+            headers: {"Content-Type": "application/json"},
+            body: body,
+            skip401Handling: true)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -77,8 +79,7 @@ loginMorador(String login, String password) async {
 getCondominiosMorador() async {
   final url = _buildUri('/moradores/list-condominios');
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -96,8 +97,7 @@ updateMoradorApi(dynamic morador) async {
     "morador": morador,
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -115,8 +115,7 @@ updatePasswordMoradorApi(String senha) async {
   final url = _buildUri('/moradores/new-password');
   final body = json.encode({"senha": senha});
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -141,8 +140,7 @@ updateAsinaturaMoradorApi(
     }
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -160,8 +158,7 @@ updateAsinaturaMoradorApi(
 apiGetAllMoradoresGeral(int idCondominio) async {
   final url = _buildUri('/moradores/get-all', {'id_condominio': idCondominio.toString()});
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -181,8 +178,7 @@ apiSendCredentialsGeral(String email, String nome, String documento) async {
     'documento': documento,
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return true;

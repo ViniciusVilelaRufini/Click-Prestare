@@ -1,8 +1,9 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 
 apiGetAllEncomendas({String? status, bool allCondos = false}) async {
   final Map<String, String> params = {};
@@ -15,7 +16,7 @@ apiGetAllEncomendas({String? status, bool allCondos = false}) async {
 
   var url = ApiConfig.buildUri('/encomendas/get-all', params);
   try {
-    var response = await http.get(
+    var response = await ApiClient.get(
       url,
       headers: {"Authorization": getToken()}
     );
@@ -35,7 +36,7 @@ apiGetAllEncomendas({String? status, bool allCondos = false}) async {
 apiRetirarEncomenda(int id, String retiradoPor) async {
   var url = ApiConfig.buildUri('/encomendas/retirar');
   try {
-    var response = await http.post(
+    var response = await ApiClient.post(
       url,
       headers: {
         "Authorization": getToken(),
@@ -55,7 +56,7 @@ apiRetirarEncomenda(int id, String retiradoPor) async {
 apiInsertEncomenda(Map<String, dynamic> obj) async {
   var url = ApiConfig.buildUri('/encomendas/insert');
   try {
-    var response = await http.post(
+    var response = await ApiClient.post(
       url,
       headers: {
         "Authorization": getToken(),

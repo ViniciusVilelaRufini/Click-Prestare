@@ -1,15 +1,16 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 
 
 apiGetAllFinanceiro(String route, String mes, String ano) async {
   var url = ApiConfig.buildUri('/'+route+'/get-all',{'id_condominio': Singleton.instance.id_condominio.toString(), 'mes':mes, 'ano':ano});
   try{
-      var response = await http.get(
+      var response = await ApiClient.get(
         url,
         headers: { "Authorization": getToken() }
       );
@@ -30,7 +31,7 @@ apiGetAllFinanceiro(String route, String mes, String ano) async {
 apiGetDetailsInadimplente(String route, String bloco, String apto) async {
   var url = ApiConfig.buildUri('/'+route+'/get',{'id_condominio': Singleton.instance.id_condominio.toString(), 'bloco': bloco, 'apto': apto});
   try{
-      var response = await http.get(
+      var response = await ApiClient.get(
         url,
         headers: { "Authorization": getToken() }
       );
@@ -49,7 +50,7 @@ apiGetDetailsInadimplente(String route, String bloco, String apto) async {
 apiUpdateFinanceiroStatus(int id, int status) async {
   var url = ApiConfig.buildUri('/financeiro/update-status');
   try {
-    var response = await http.post(
+    var response = await ApiClient.post(
       url,
       headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({ "id": id, "status": status })
@@ -63,7 +64,7 @@ apiUpdateFinanceiroStatus(int id, int status) async {
 apiUploadBoleto(int id, String fileBase64) async {
   var url = ApiConfig.buildUri('/financeiro/upload-shared-file');
   try {
-    var response = await http.post(
+    var response = await ApiClient.post(
       url,
       headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({ "id": id, "file": fileBase64, "type": "boleto" })
@@ -77,7 +78,7 @@ apiUploadBoleto(int id, String fileBase64) async {
 apiUploadComprovante(int id, String fileBase64) async {
   var url = ApiConfig.buildUri('/financeiro/upload-shared-file');
   try {
-    var response = await http.post(
+    var response = await ApiClient.post(
       url,
       headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({ "id": id, "file": fileBase64, "type": "comprovante" })
@@ -94,7 +95,7 @@ apiGetFinanceiroByUser() async {
     'id_user': getUserId()
   });
   try {
-    var response = await http.get(url, headers: { "Authorization": getToken() });
+    var response = await ApiClient.get(url, headers: { "Authorization": getToken() });
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
@@ -107,7 +108,7 @@ apiGetFinanceiroByUser() async {
 apiInsertMoradorFinanceiro(Map<String, dynamic> data) async {
   var url = ApiConfig.buildUri('/financeiro/morador/insert');
   try {
-    var response = await http.post(
+    var response = await ApiClient.post(
       url,
       headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({
@@ -124,7 +125,7 @@ apiInsertMoradorFinanceiro(Map<String, dynamic> data) async {
 apiUpdateMoradorFinanceiro(Map<String, dynamic> data) async {
   var url = ApiConfig.buildUri('/financeiro/morador/update');
   try {
-    var response = await http.post(
+    var response = await ApiClient.post(
       url,
       headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({
@@ -141,7 +142,7 @@ apiUpdateMoradorFinanceiro(Map<String, dynamic> data) async {
 apiRemoveMoradorFinanceiro(int id) async {
   var url = ApiConfig.buildUri('/financeiro/morador/remove');
   try {
-    var response = await http.post(
+    var response = await ApiClient.post(
       url,
       headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({ "id": id })

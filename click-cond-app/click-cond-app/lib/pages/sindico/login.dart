@@ -18,6 +18,7 @@ import '../../controllers/controller_funcionario.dart';
 import '../../controllers/controller_moradores.dart';
 import '../../utils/api_config.dart';
 import 'package:http/http.dart' as http;
+import 'package:click/utils/api_client.dart';
 import 'dart:convert';
 
 class LoginSindico extends StatefulWidget {
@@ -96,7 +97,7 @@ class _LoginSindicoPageState extends State<LoginSindico> {
     try {
       String? token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        await http.post(
+        await ApiClient.post(
           ApiConfig.buildUri('/users/update-fcm-token'),
           headers: {
             'Content-Type': 'application/json',

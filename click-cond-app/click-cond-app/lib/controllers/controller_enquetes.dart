@@ -3,6 +3,7 @@ import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 
 
 apiFinishEnquete(String id) async {
@@ -10,7 +11,7 @@ apiFinishEnquete(String id) async {
     var url = ApiConfig.buildUri('/assembleias/votacoes/finish');
     Map data = {'id': id};
     var body = json.encode(data);
-    var response = await http.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
+    var response = await ApiClient.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
     if (response.statusCode == 200) {
       return;
     } else {

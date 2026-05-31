@@ -1,6 +1,7 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
+import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -21,7 +22,7 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
     final endUri = isEdit ? 'update' : 'insert';
     final url = _buildUri('/$route/$endUri');
 
-    // Serializa o objeto: prefere obj.toJson() se existir, senão usa direto
+    // Serializa o objeto: prefere obj.toJson() se existir, senÃ£o usa direto
     final Map<String, dynamic> payload = {};
     payload['id_condominio'] = Singleton.instance.id_condominio.toString();
     try {
@@ -31,8 +32,7 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
     }
     final body = json.encode(payload);
 
-    response = await http
-        .post(
+    response = await ApiClient.post(
           url,
           headers: _authHeaders(withContentType: true),
           body: body,
@@ -40,14 +40,14 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
         )
         .timeout(_kTimeout);
   } catch (e) {
-    // Falha de rede / timeout / serialização — devolve mensagem amigável
-    return "Falha de comunicação com o servidor. Verifique sua conexão.";
+    // Falha de rede / timeout / serializaÃ§Ã£o â€” devolve mensagem amigÃ¡vel
+    return "Falha de comunicaÃ§Ã£o com o servidor. Verifique sua conexÃ£o.";
   }
 
   // Sucesso
   if (response.statusCode >= 200 && response.statusCode < 300) return "";
 
-  // Erro — tenta extrair message do body
+  // Erro â€” tenta extrair message do body
   try {
     final parsed = jsonDecode(response.body);
     if (parsed is Map && parsed["message"] != null) {
@@ -63,8 +63,7 @@ apiDeleteObject(String route, int idObj) async {
   final url = _buildUri('/$route/remove');
   final body = json.encode({"id": idObj});
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     return response.statusCode == 200;
   } catch (e) {
@@ -79,8 +78,7 @@ apiGetAll(String route) async {
     'id_apto': Singleton.instance.getIdApartamento(),
   });
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -99,8 +97,7 @@ apiGetDetails(String route, int idItem) async {
     'id': idItem.toString(),
   });
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -117,8 +114,7 @@ apiGetAllDocs(String route, int isAta) async {
     'is_ata': isAta.toString(),
   });
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -140,8 +136,7 @@ apiUpdateStatus(String route, int idItem, bool status, String motivo) async {
     "id_condominio": Singleton.instance.id_condominio.toString(),
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return "";
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -159,8 +154,7 @@ apiUpdateStatusOcorrManut(String route, int idItem, String status) async {
     "id_condominio": Singleton.instance.id_condominio.toString(),
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return "";
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -175,8 +169,7 @@ apiGetOcorrenciaMessages(int idOcorrencia) async {
     'id': idOcorrencia.toString(),
   });
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -196,8 +189,7 @@ apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
     "mensagem": mensagem,
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);

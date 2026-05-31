@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:click/utils/api_client.dart';
 
 final _kTimeout = ApiConfig.timeout;
 
@@ -93,7 +94,7 @@ updateSindico(String nome, String documento, String dn, String email,
     'photo': photo,
   });
   try {
-    final response = await http
+    final response = await ApiClient
         .post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
@@ -112,7 +113,7 @@ updatePasswordSindicoApi(String senha) async {
   final url = _buildUri('/sindico/new-password');
   final body = json.encode({"senha": senha});
   try {
-    final response = await http
+    final response = await ApiClient
         .post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
