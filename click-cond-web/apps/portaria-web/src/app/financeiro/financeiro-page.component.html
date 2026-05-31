@@ -629,60 +629,99 @@
 
 <!-- Modal Detalhe de Inadimplência -->
 @if (modalDetalhe()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fadeIn text-white">
-    <div class="w-full max-w-lg rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn text-white">
+    <div class="w-full max-w-lg rounded-3xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300">
       <!-- Header -->
-      <div class="p-4 border-b border-white/10 flex items-center justify-between bg-slate-900/80">
-        <div>
-          <h3 class="text-sm font-bold text-white uppercase tracking-wider">Histórico de Pendências</h3>
-          <p class="text-[11px] text-slate-400 mt-0.5">Bloco {{ selectedApto()?.bloco }} • Apartamento {{ selectedApto()?.apto }}</p>
+      <div class="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-slate-900/80">
+        <div class="flex items-center gap-3.5">
+          <div class="w-10 h-10 rounded-2xl bg-rose-500/10 flex items-center justify-center shrink-0 border border-rose-500/20 text-rose-500">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Histórico de Pendências</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Bloco {{ selectedApto()?.bloco }} • Apartamento {{ selectedApto()?.apto }}</p>
+          </div>
         </div>
-        <button (click)="modalDetalhe.set(false)" class="text-slate-400 hover:text-white transition">
+        <button (click)="modalDetalhe.set(false)" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
       </div>
 
       <!-- Conteúdo -->
-      <div class="p-5 flex-1 overflow-y-auto space-y-4">
+      <div class="p-6 flex-1 overflow-y-auto space-y-4">
         @if (loadingDetalhe()) {
-          <div class="flex flex-col items-center justify-center py-8 gap-3">
-            <div class="w-6 h-6 border-2 border-slate-500 border-t-rose-400 rounded-full animate-spin"></div>
-            <span class="text-xs text-slate-400">Carregando faturas pendentes...</span>
+          <div class="flex flex-col items-center justify-center py-10 gap-3">
+            <div class="w-7 h-7 border-2 border-slate-500 border-t-rose-500 rounded-full animate-spin"></div>
+            <span class="text-xs text-slate-400 font-medium">Carregando faturas pendentes...</span>
           </div>
         } @else {
-          <div class="space-y-2">
+          <div class="space-y-3">
             @for (fat of faturasSelected(); track fat.id) {
-              <div class="p-3 rounded-xl bg-slate-950/50 border border-white/5 flex items-center justify-between text-xs transition hover:border-rose-500/20">
-                <div class="space-y-1 text-left">
-                  <p class="text-slate-200 font-semibold">{{ fat.nome }}</p>
-                  <p class="text-[10px] text-slate-400">Vencimento: <span class="font-mono">{{ fat.data_vencimento }}</span></p>
+              <div class="p-4 rounded-2xl bg-slate-950/50 border border-white/5 border-l-4 border-l-rose-500/80 flex items-center justify-between text-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-white/10 hover:border-l-rose-500">
+                <div class="space-y-1.5 text-left">
+                  <p class="text-slate-100 font-bold text-sm tracking-tight">{{ fat.nome }}</p>
+                  <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>Vencimento: <strong class="font-mono text-slate-350">{{ fat.data_vencimento }}</strong></span>
+                  </div>
                 </div>
-                <div class="text-right">
-                  <p class="text-rose-400 font-bold font-mono">{{ fat.valorString }}</p>
-                  <span class="text-[9px] font-semibold text-rose-500/80 uppercase tracking-wide">Pendente</span>
+                <div class="text-right flex flex-col items-end gap-1.5 shrink-0 ml-4">
+                  <p class="text-rose-500 font-extrabold text-sm font-mono tracking-tight">{{ fat.valorString }}</p>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-bold uppercase tracking-wider text-[9px] border border-rose-500/20">
+                    Pendente
+                  </span>
                 </div>
               </div>
             } @empty {
-              <div class="text-center py-6">
-                <p class="text-slate-400 text-xs">Nenhuma pendência financeira encontrada.</p>
+              <div class="text-center py-10 space-y-2">
+                <svg class="w-10 h-10 text-slate-650 mx-auto opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p class="text-slate-400 text-xs font-medium">Nenhuma pendência financeira encontrada.</p>
               </div>
             }
           </div>
 
           <!-- Resultado do Envio de Cobrança -->
           @if (cobrancaResultado()) {
-            <div class="p-3.5 rounded-xl border text-xs text-left" [ngClass]="cobrancaResultado().success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'">
-              <div class="flex gap-2">
-                <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <div>
-                  <p class="font-bold">{{ cobrancaResultado().message }}</p>
+            <div class="p-4 rounded-2xl border text-xs text-left transition-all duration-300 animate-fadeIn"
+                 [ngClass]="cobrancaResultado().success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'">
+              <div class="flex gap-3">
+                <div class="shrink-0 mt-0.5">
+                  @if (cobrancaResultado().success) {
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                  } @else {
+                    <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                  }
+                </div>
+                <div class="flex-1">
+                  <p class="font-bold text-sm" [class.text-emerald-400]="cobrancaResultado().success" [class.text-rose-400]="!cobrancaResultado().success">
+                    {{ cobrancaResultado().message }}
+                  </p>
                   @if (cobrancaResultado().success && cobrancaResultado().moradoresNotificados > 0) {
-                    <ul class="list-disc list-inside mt-1.5 space-y-0.5 text-[11px] opacity-90">
-                      <li>Moradores notificados: <strong>{{ cobrancaResultado().moradoresNotificados }}</strong></li>
-                      <li>Notificações Push: <strong>{{ cobrancaResultado().pushEnviados }}</strong></li>
-                      <li>E-mails disparados: <strong>{{ cobrancaResultado().emailsEnviados }}</strong></li>
-                    </ul>
-                  @}
+                    <div class="mt-2.5 pt-2.5 border-t border-emerald-500/10 grid grid-cols-3 gap-2 text-center text-[10px]">
+                      <div class="bg-emerald-500/5 p-2 rounded-xl border border-emerald-500/10">
+                        <span class="block text-lg font-extrabold text-emerald-400 leading-none">{{ cobrancaResultado().moradoresNotificados }}</span>
+                        <span class="text-slate-400 block mt-1 font-medium">Moradores</span>
+                      </div>
+                      <div class="bg-emerald-500/5 p-2 rounded-xl border border-emerald-500/10">
+                        <span class="block text-lg font-extrabold text-emerald-400 leading-none">{{ cobrancaResultado().pushEnviados }}</span>
+                        <span class="text-slate-400 block mt-1 font-medium">Notif. Push</span>
+                      </div>
+                      <div class="bg-emerald-500/5 p-2 rounded-xl border border-emerald-500/10">
+                        <span class="block text-lg font-extrabold text-emerald-400 leading-none">{{ cobrancaResultado().emailsEnviados }}</span>
+                        <span class="text-slate-400 block mt-1 font-medium">E-mails</span>
+                      </div>
+                    </div>
+                  }
                 </div>
               </div>
             </div>
@@ -691,20 +730,23 @@
       </div>
 
       <!-- Footer -->
-      <div class="p-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-between gap-3">
-        <button (click)="modalDetalhe.set(false)" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">Fechar</button>
+      <div class="px-6 py-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-between gap-3">
+        <button (click)="modalDetalhe.set(false)" 
+                class="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+          Fechar
+        </button>
         
         <button
           (click)="enviarNotificacaoCobranca()"
           [disabled]="loadingDetalhe() || enviandoCobranca() || faturasSelected().length === 0"
-          class="px-4 py-2 rounded-xl bg-rose-500 text-white text-xs font-semibold hover:bg-rose-400 transition disabled:opacity-40 flex items-center gap-2"
+          class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-650 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-bold transition-all duration-300 shadow-lg shadow-rose-500/10 hover:shadow-rose-500/20 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2"
         >
           @if (enviandoCobranca()) {
-            <div class="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin"></div>
-            Enviando...
+            <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Enviando...</span>
           } @else {
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-            Notificar Morador
+            <span>Notificar Morador</span>
           }
         </button>
       </div>
