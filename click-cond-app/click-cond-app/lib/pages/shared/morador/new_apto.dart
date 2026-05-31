@@ -107,6 +107,8 @@ class _NewAptoPageState extends State<NewApto> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return AppScaffold(
       title: getText('lb_apartamento'),
       body: _isLoading
@@ -121,44 +123,156 @@ class _NewAptoPageState extends State<NewApto> {
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.15),
+                        ),
                       ),
                       child: Row(
                         children: [
                           Icon(PhosphorIcons.info, color: AppColors.primary, size: 20),
                           const SizedBox(width: AppSpacing.sm),
-                          Expanded(child: Text(getText('apto_desc'), style: AppTypography.body(context).copyWith(color: AppColors.primary))),
+                          Expanded(
+                            child: Text(
+                              getText('apto_desc'),
+                              style: AppTypography.body(context).copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                  ] else ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isDark 
+                              ? [AppColors.primary, AppColors.primary.withOpacity(0.7)]
+                              : [AppColors.primary, AppColors.primary.withOpacity(0.85)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.25),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              PhosphorIcons.door,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Apartamento ${txtApto.text}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Bloco ${txtBloco.text}',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                   ],
-                  _section(getText('lb_infos_apto')),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppInput(
-                          label: getText('lb_bloco'),
-                          controller: txtBloco,
-                          prefixIcon: PhosphorIcons.buildings,
-                          readOnly: !canEdit,
-                        ),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
                       ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: AppInput(
-                          label: getText('lb_apartamento'),
-                          controller: txtApto,
-                          prefixIcon: PhosphorIcons.door,
-                          readOnly: !canEdit,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              PhosphorIcons.info,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              getText('lb_infos_apto').toUpperCase(),
+                              style: AppTypography.captionMedium(context).copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: AppInput(
+                                label: getText('lb_bloco'),
+                                controller: txtBloco,
+                                prefixIcon: PhosphorIcons.buildings,
+                                readOnly: !canEdit,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: AppInput(
+                                label: getText('lb_apartamento'),
+                                controller: txtApto,
+                                prefixIcon: PhosphorIcons.door,
+                                readOnly: !canEdit,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
+                  
                   if (isEdit) ...[
                     const SizedBox(height: AppSpacing.xl),
                     _MoradorSection(
-                      title: '${getText('apto_proprietarios')} (${listProprietarios.length})',
+                      title: getText('apto_proprietarios'),
+                      roleName: 'Proprietário',
                       canEdit: canEdit,
                       list: listProprietarios,
                       onAdd: () => Navigator.push(
@@ -182,7 +296,8 @@ class _NewAptoPageState extends State<NewApto> {
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     _MoradorSection(
-                      title: '${getText('apto_inquilinos')} (${listInquilinos.length})',
+                      title: getText('apto_inquilinos'),
+                      roleName: 'Inquilino',
                       canEdit: canEdit,
                       list: listInquilinos,
                       onAdd: () => Navigator.push(
@@ -229,47 +344,213 @@ class _NewAptoPageState extends State<NewApto> {
             ),
     );
   }
-
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-        child: Text(title.toUpperCase(),
-            style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary, letterSpacing: 0.8)),
-      );
 }
 
 class _MoradorSection extends StatelessWidget {
   final String title;
+  final String roleName;
   final bool canEdit;
   final List<dynamic> list;
   final VoidCallback onAdd;
   final void Function(dynamic item) onTap;
 
-  const _MoradorSection({required this.title, required this.canEdit, required this.list, required this.onAdd, required this.onTap});
+  const _MoradorSection({
+    Key? key,
+    required this.title,
+    required this.roleName,
+    required this.canEdit,
+    required this.list,
+    required this.onAdd,
+    required this.onTap,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title.toUpperCase(),
-                style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary, letterSpacing: 0.8)),
-            if (canEdit)
-              IconButton(
-                onPressed: onAdd,
-                icon: Icon(PhosphorIcons.plusCircle, color: AppColors.primary, size: 22),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+            Text(
+              title.toUpperCase(),
+              style: AppTypography.captionMedium(context).copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                list.length.toString(),
+                style: AppTypography.tiny(context).copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Spacer(),
+            if (canEdit && list.isNotEmpty)
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onAdd,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      PhosphorIcons.plus,
+                      color: AppColors.primary,
+                      size: 16,
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
-        const SizedBox(height: AppSpacing.sm),
-        for (var item in list)
-          GestureDetector(
-            onTap: () => onTap(item),
-            child: CellMoradorApto(item: item),
-          ),
+        const SizedBox(height: AppSpacing.md),
+        if (list.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.005),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  PhosphorIcons.users,
+                  size: 28,
+                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.25),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Nenhum $roleName cadastrado',
+                  style: AppTypography.bodySecondary(context).copyWith(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                  ),
+                ),
+                if (canEdit) ...[
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: onAdd,
+                    icon: const Icon(PhosphorIcons.plus, size: 14),
+                    label: Text('Adicionar $roleName'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      backgroundColor: AppColors.primary.withOpacity(0.08),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          )
+        else
+          ...list.map((item) {
+            final String? photoUrl = (item['foto_pessoa'] ?? item['photo'])?.toString();
+            final String name = item['nome'] ?? 'Sem Nome';
+            final String telefone = item['celular'] ?? item['telefone'] ?? '';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.015),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => onTap(item),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.primary.withOpacity(0.1),
+                              image: (photoUrl != null && photoUrl.isNotEmpty)
+                                  ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
+                                  : null,
+                            ),
+                            child: (photoUrl == null || photoUrl.isEmpty)
+                                ? Center(
+                                    child: Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                      style: TextStyle(
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: AppTypography.body(context).copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                                if (telefone.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    telefone,
+                                    style: AppTypography.caption(context).copyWith(
+                                      color: isDark ? Colors.white60 : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (canEdit)
+                            Icon(
+                              PhosphorIcons.caretRight,
+                              color: (isDark ? Colors.white : Colors.black).withOpacity(0.3),
+                              size: 18,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
       ],
     );
   }
