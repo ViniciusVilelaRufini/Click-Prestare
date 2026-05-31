@@ -1,4 +1,4 @@
-﻿import 'package:click/theme/app_colors.dart';
+import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -37,7 +37,11 @@ class AppScaffold extends StatelessWidget {
           ? null
           : AppBar(
               title: title != null
-                  ? Text(title!, style: AppTypography.headline(context))
+                  ? FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(title!, style: AppTypography.headline(context)),
+                    )
                   : null,
               leading: showBackButton && Navigator.canPop(context)
                   ? IconButton(

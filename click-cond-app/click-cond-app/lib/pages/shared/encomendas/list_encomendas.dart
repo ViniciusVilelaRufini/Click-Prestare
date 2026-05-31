@@ -90,9 +90,13 @@ class _ListEncomendasState extends State<ListEncomendas> {
         children: [
           Icon(PhosphorIcons.package, size: 64, color: AppColors.textTertiary(context)),
           const SizedBox(height: AppSpacing.md),
-          Text(
-            'Nenhuma encomenda encontrada',
-            style: AppTypography.bodyMedium(context).copyWith(color: AppColors.textSecondary(context)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Text(
+              'Nenhuma encomenda encontrada',
+              style: AppTypography.bodyMedium(context).copyWith(color: AppColors.textSecondary(context)),
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ),
