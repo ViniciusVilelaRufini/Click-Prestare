@@ -794,29 +794,72 @@ export class FinanceiroService implements OnModuleInit {
       orderBy: [{ bloco: 'asc' }, { apto: 'asc' }],
     });
 
+    const startOfMonth = new Date(Number(anoStr), Number(mesStr) - 1, 1);
+    const endOfMonth = new Date(Number(anoStr), Number(mesStr), 0, 23, 59, 59, 999);
+
     const financeiroRecords = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
-        nome: {
-          contains: `- Ref. ${mesStr}/${anoStr}`
-        }
+        OR: [
+          {
+            nome: {
+              contains: `- Ref. ${mesStr}/${anoStr}`
+            }
+          },
+          {
+            nome: {
+              contains: `- Ref. ${mesStr}/${anoStr.slice(-2)}`
+            }
+          },
+          {
+            nome: {
+              contains: `- Ref. ${parseInt(mesStr)}`
+            }
+          },
+          {
+            data_vencimento: {
+              gte: startOfMonth,
+              lte: endOfMonth,
+            }
+          },
+          {
+            data: {
+              gte: startOfMonth,
+              lte: endOfMonth,
+            }
+          }
+        ]
       }
     });
 
-    const finMap = new Map<string, any>();
-    for (const fin of financeiroRecords) {
-      if (fin.nome) {
-        finMap.set(fin.nome.trim(), fin);
-      }
-    }
-
     const blocosMap: Record<string, any[]> = {};
-
     const fmtDate = (d?: Date | null) => d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
     for (const a of aptos) {
-      const matchName = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${mesStr}/${anoStr}`;
-      const fin = finMap.get(matchName);
+      const fin = financeiroRecords.find((f) => {
+        if (!this.nomeFaturaDeApto(f.nome, a.apto, a.bloco)) return false;
+
+        // Match by date
+        if (f.data_vencimento) {
+          const fDate = new Date(f.data_vencimento);
+          const fMes = String(fDate.getUTCMonth() + 1).padStart(2, '0');
+          const fAno = String(fDate.getUTCFullYear());
+          if (fMes === mesStr && fAno === anoStr) return true;
+        }
+        if (f.data) {
+          const fDate = new Date(f.data);
+          const fMes = String(fDate.getUTCMonth() + 1).padStart(2, '0');
+          const fAno = String(fDate.getUTCFullYear());
+          if (fMes === mesStr && fAno === anoStr) return true;
+        }
+
+        // Match by name formats
+        const matchName1 = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${mesStr}/${anoStr}`;
+        const matchName2 = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${mesStr}/${anoStr.slice(-2)}`;
+        const matchName3 = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${parseInt(mesStr)}`;
+        const normNome = f.nome?.trim();
+        return normNome === matchName1 || normNome === matchName2 || normNome === matchName3;
+      }) ?? null;
 
       const val = fin?.valor ? Number(fin.valor) : 0;
       const fmt = val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -884,30 +927,46 @@ export class FinanceiroService implements OnModuleInit {
       orderBy: [{ bloco: 'asc' }, { apto: 'asc' }],
     });
 
-    // Otimização: Carrega todos os lançamentos faturados pagos do condomínio de uma só vez
     const faturasPagas = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
         pago: 1,
-        nome: { contains: 'Ref.' },
       },
-      select: { nome: true },
+      select: { nome: true, data_vencimento: true },
     });
-
-    const setPagas = new Set(
-      faturasPagas.map(f => f.nome ? f.nome.trim() : '')
-    );
 
     const blocosMap: Record<string, any[]> = {};
 
     for (const a of aptos) {
-      // Checar em quantos dos meses faturados este apartamento possui `pago = 1`
+      const minhasPagas = faturasPagas.filter((f) =>
+        this.nomeFaturaDeApto(f.nome, a.apto, a.bloco)
+      );
+
       let pagosCount = 0;
       for (const m of meses) {
-        const matchName1 = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${m.mes}/${m.ano}`;
         const anoCurto = m.ano.slice(-2);
-        const matchName2 = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${m.mes}/${anoCurto}`;
-        if (setPagas.has(matchName1.trim()) || setPagas.has(matchName2.trim())) {
+        const match = minhasPagas.find((f) => {
+          // 1. Try to match by date
+          if (f.data_vencimento) {
+            const fDate = new Date(f.data_vencimento);
+            const fMes = String(fDate.getUTCMonth() + 1).padStart(2, '0');
+            const fAno = String(fDate.getUTCFullYear());
+            if (fMes === m.mes && fAno === m.ano) return true;
+          }
+          // 2. Try to match by name
+          const refMatch = f.nome?.match(/Ref\.\s*(\d{1,2})(?:\/(\d{2,4}))?/i);
+          if (refMatch) {
+            const [, refMes, refAno] = refMatch;
+            const refMesPad = refMes.padStart(2, '0');
+            if (refMesPad === m.mes) {
+              if (!refAno || refAno === m.ano || refAno === anoCurto) {
+                return true;
+              }
+            }
+          }
+          return false;
+        });
+        if (match) {
           pagosCount++;
         }
       }
@@ -963,9 +1022,6 @@ export class FinanceiroService implements OnModuleInit {
 
     const meses = await this.getAllMeses(idCondominio);
 
-    // 1 query só para todas as faturas de Ref. desse apto+bloco no condomínio,
-    // em vez de N findFirst em loop (era O(meses) round-trips no DB).
-    // Para 24 meses de histórico isso saiu de 24 queries para 1.
     const candidatas = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
@@ -973,27 +1029,34 @@ export class FinanceiroService implements OnModuleInit {
       },
     });
 
-    // Filtro fino na aplicação com match exato — sem isso, Apto 10 puxava
-    // faturas do Apto 100/101/1010 (mesmo vazamento corrigido em outros
-    // pontos no commit f71ea65).
     const minhas = candidatas.filter((f) =>
       this.nomeFaturaDeApto(f.nome, apto, bloco)
     );
 
-    // Indexa por "MM/AAAA" e "MM/AA" para casar com qualquer formato salvo.
-    const porRef = new Map<string, typeof minhas[number]>();
-    for (const f of minhas) {
-      const refMatch = f.nome?.match(/Ref\.\s*(\d{2})\/(\d{2,4})/i);
-      if (refMatch) {
-        const [, mes, anoQualquer] = refMatch;
-        porRef.set(`${mes}/${anoQualquer}`, f);
-      }
-    }
-
     const faturasDevendo: any[] = [];
     for (const m of meses) {
       const anoCurto = m.ano.slice(-2);
-      const fin = porRef.get(`${m.mes}/${m.ano}`) ?? porRef.get(`${m.mes}/${anoCurto}`) ?? null;
+      const fin = minhas.find((f) => {
+        // 1. Try to match by date
+        if (f.data_vencimento) {
+          const fDate = new Date(f.data_vencimento);
+          const fMes = String(fDate.getUTCMonth() + 1).padStart(2, '0');
+          const fAno = String(fDate.getUTCFullYear());
+          if (fMes === m.mes && fAno === m.ano) return true;
+        }
+        // 2. Try to match by name
+        const refMatch = f.nome?.match(/Ref\.\s*(\d{1,2})(?:\/(\d{2,4}))?/i);
+        if (refMatch) {
+          const [, refMes, refAno] = refMatch;
+          const refMesPad = refMes.padStart(2, '0');
+          if (refMesPad === m.mes) {
+            if (!refAno || refAno === m.ano || refAno === anoCurto) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }) ?? null;
 
       if (!fin || fin.pago === 0) {
         const val = fin ? Number(fin.valor) : 650;

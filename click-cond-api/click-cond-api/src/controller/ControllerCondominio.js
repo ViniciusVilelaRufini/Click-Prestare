@@ -65,6 +65,7 @@ module.exports = {
     try {
       var cond = await db.getCondominio(req.query.id_condominio);
       cond.saldo = doubleToReal.convertDoubleToReal(cond.saldo ?? 0);
+      cond.inadimplencia = doubleToReal.convertDoubleToReal(cond.inadimplencia ?? 0);
       return res.status(200).json( cond );
     } catch (err) {
       return res.status(500).json({ message: err.message });

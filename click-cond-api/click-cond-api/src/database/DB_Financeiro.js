@@ -87,7 +87,16 @@ module.exports = {
     const query = `select a.id as apto_id, a.bloco, a.apto, 
                       f.valor, f.id as financeiro_id, DATE_FORMAT(f.data, '%d/%m/%Y') as data, DATE_FORMAT(f.data_vencimento, '%d/%m/%Y') as data_vencimento, f.conta, f.descricao, f.pago
                     from Apartamentos a
-                    left join Financeiro f on (f.nome=concat('Apto ',a.apto,' Bloco ', a.bloco, ' - Ref. ', '${mes}', '/', '${ano}') and f.id_condominio=a.id_condominio)
+                    left join Financeiro f on (
+                      f.nome like concat('Apto ', a.apto, ' Bloco ', a.bloco, ' - Ref. %')
+                      and f.id_condominio=a.id_condominio
+                      and (
+                        (DATE_FORMAT(f.data_vencimento, '%m') = '${mes}' and DATE_FORMAT(f.data_vencimento, '%Y') = '${ano}')
+                        or f.nome = concat('Apto ',a.apto,' Bloco ', a.bloco, ' - Ref. ', '${mes}', '/', '${ano}')
+                        or f.nome = concat('Apto ',a.apto,' Bloco ', a.bloco, ' - Ref. ', '${mes}', '/', '${ano.slice(-2)}')
+                        or f.nome = concat('Apto ',a.apto,' Bloco ', a.bloco, ' - Ref. ', '${parseInt(mes)}')
+                      )
+                    )
                       where a.id_condominio=${id_cond} 
                     group by a.bloco, a.apto 
                     order by a.bloco, a.apto asc`;
@@ -96,55 +105,159 @@ module.exports = {
   },
 
   getAllInadimplentes: async function (id_cond, meses) {
-    const query = `select a.bloco, a.apto, ${meses.length} - count(distinct f.nome) as qtd
-                    from Apartamentos a
-                    left join Financeiro f on (
-                      f.nome in (
-                          ${ meses.map(mes =>
-                            `concat('Apto ',a.apto,' Bloco ', a.bloco, ' - Ref. ', '${mes.mes}', '/', '${mes.ano}')`
-                          )}                       
-                        ) 
-                      and 
-                      f.id_condominio=${id_cond}
-                      and f.pago=1
-                    )
-                      where a.id_condominio=${id_cond}
-                    group by a.bloco, a.apto 
-                    having count(distinct f.nome)!=${meses.length}`;
-                    console.log(query);
-    const { results } = await db.query(query);
+    if (!meses || meses.length === 0) return [];
+    
+    // Fetch all apartments
+    const aptosQuery = `select id, bloco, apto from Apartamentos where id_condominio = ${id_cond} order by bloco, apto asc`;
+    const { results: aptos } = await db.query(aptosQuery);
+
+    // Fetch all paid faturas
+    const faturasQuery = `select nome, data_vencimento from Financeiro where id_condominio = ${id_cond} and pago = 1`;
+    const { results: faturasPagas } = await db.query(faturasQuery);
+
+    const helper = {
+      nomeFaturaDeApto(nome, apto, bloco) {
+        if (!nome) return false;
+        const cleanNome = nome.toUpperCase();
+        const aptoRegex = new RegExp(`\\bAPTO\\s+${apto}\\b`, 'i');
+        if (!aptoRegex.test(cleanNome)) return false;
+        if (bloco) {
+          const blocoRegex = new RegExp(`\\bBLOCO\\s+${bloco}\\b`, 'i');
+          if (!blocoRegex.test(cleanNome)) return false;
+        }
+        return true;
+      }
+    };
+
+    const blocosMap = {};
+
+    for (const a of aptos) {
+      const minhasPagas = faturasPagas.filter((f) =>
+        helper.nomeFaturaDeApto(f.nome, a.apto, a.bloco)
+      );
+
+      let pagosCount = 0;
+      for (const m of meses) {
+        const anoCurto = m.ano.slice(-2);
+        const match = minhasPagas.find((f) => {
+          // 1. Try to match by date
+          if (f.data_vencimento) {
+            const fDate = new Date(f.data_vencimento);
+            const fMes = String(fDate.getUTCMonth() + 1).padStart(2, '0');
+            const fAno = String(fDate.getUTCFullYear());
+            if (fMes === m.mes && fAno === m.ano) return true;
+          }
+          // 2. Try to match by name
+          const refMatch = f.nome?.match(/Ref\.\s*(\d{1,2})(?:\/(\d{2,4}))?/i);
+          if (refMatch) {
+            const [, refMes, refAno] = refMatch;
+            const refMesPad = refMes.padStart(2, '0');
+            if (refMesPad === m.mes) {
+              if (!refAno || refAno === m.ano || refAno === anoCurto) {
+                return true;
+              }
+            }
+          }
+          return false;
+        });
+        if (match) {
+          pagosCount++;
+        }
+      }
+
+      const devendoCount = meses.length - pagosCount;
+      const blocoKey = a.bloco || 'Sem Bloco';
+      if (devendoCount > 0) {
+        if (!blocosMap[blocoKey]) blocosMap[blocoKey] = [];
+        blocosMap[blocoKey].push({
+          bloco: blocoKey,
+          apto: a.apto,
+          qtd: devendoCount,
+        });
+      }
+    }
+
+    // Convert map to list
+    const results = [];
+    for (const b of Object.keys(blocosMap)) {
+      for (const item of blocosMap[b]) {
+        results.push(item);
+      }
+    }
+
     return results;
   },
 
   getInadimplenteDetail: async function (id_cond, meses, apto, bloco) {
-    // meses.pop();
-    console.log(meses);
-    const query = `select a.bloco, a.apto, f.nome
+    if (!meses || meses.length === 0) return [];
+    const query = `select a.bloco, a.apto, f.nome, f.id, f.valor, f.pago, f.status,
+                    DATE_FORMAT(f.data_vencimento, '%d/%m/%Y') as data_vencimento
                     from Apartamentos a
-                    left join Financeiro f on(
-                        f.nome in (
-                            ${ meses.map(mes =>
-                              `concat('Apto ',a.apto,' Bloco ', a.bloco, ' - Ref. ', '${mes.mes}', '/', '${mes.ano.slice(-2)}')`
-                            )}                       
-                          ) 
-                        and 
-                        f.id_condominio=${id_cond}
-                      )
-                      where a.id_condominio=${id_cond} and a.apto='${apto}' and a.bloco='${bloco}'
-                    `;
-                    console.log(query);
+                    left join Financeiro f on (
+                        f.nome like concat('Apto ', a.apto, ' Bloco ', a.bloco, ' - Ref. %')
+                        and f.id_condominio=${id_cond}
+                    )
+                    where a.id_condominio=${id_cond} and a.apto='${apto}' and a.bloco='${bloco}'
+                  `;
     const { results } = await db.query(query);
-    console.log(results);
     var arr = [];
     meses.forEach(mes => {
-      var contains = false;
-      results.forEach(result => {
-        if(result.nome != null && result.nome.includes(mes.mes+'/'+mes.ano.slice(-2))){
-          contains = true;
-        }        
-      })
-      if(!contains){
-        arr.push(mes);
+      // Find a matched record that is PAID (pago = 1)
+      var paidMatch = results.find(result => {
+        if (!result.nome) return false;
+        
+        // 1. Try to match by date (DD/MM/YYYY)
+        if (result.data_vencimento) {
+          const parts = result.data_vencimento.split('/');
+          if (parts.length === 3) {
+            const rMes = parts[1];
+            const rAno = parts[2];
+            if (rMes === mes.mes && (rAno === mes.ano || rAno === mes.ano.slice(-2))) {
+              return result.pago === 1;
+            }
+          }
+        }
+        
+        // 2. Fallback to name pattern match
+        const hasRefYear = result.nome.includes(mes.mes+'/'+mes.ano.slice(-2)) || result.nome.includes(mes.mes+'/'+mes.ano);
+        const hasRefSingleMonth = result.nome.includes('Ref. ' + parseInt(mes.mes)) || result.nome.includes('Ref. ' + mes.mes);
+        return (hasRefYear || hasRefSingleMonth) && result.pago === 1;
+      });
+
+      // If it's NOT paid, it is inadimplente
+      if (!paidMatch) {
+        // Find if there is a pending record (pago = 0 or null)
+        var pendingMatch = results.find(result => {
+          if (!result.nome) return false;
+          
+          // 1. Try to match by date (DD/MM/YYYY)
+          if (result.data_vencimento) {
+            const parts = result.data_vencimento.split('/');
+            if (parts.length === 3) {
+              const rMes = parts[1];
+              const rAno = parts[2];
+              if (rMes === mes.mes && (rAno === mes.ano || rAno === mes.ano.slice(-2))) {
+                return true;
+              }
+            }
+          }
+          
+          // 2. Fallback to name pattern match
+          const hasRefYear = result.nome.includes(mes.mes+'/'+mes.ano.slice(-2)) || result.nome.includes(mes.mes+'/'+mes.ano);
+          const hasRefSingleMonth = result.nome.includes('Ref. ' + parseInt(mes.mes)) || result.nome.includes('Ref. ' + mes.mes);
+          return hasRefYear || hasRefSingleMonth;
+        });
+
+        arr.push({
+          mes: mes.mes,
+          ano: mes.ano,
+          periodo: mes.periodo,
+          id: pendingMatch ? pendingMatch.id : null,
+          valor: pendingMatch ? pendingMatch.valor : null,
+          status: pendingMatch ? pendingMatch.status : null,
+          pago: pendingMatch ? pendingMatch.pago : null,
+          data_vencimento: pendingMatch ? pendingMatch.data_vencimento : null
+        });
       }
     });
     return arr;
@@ -157,7 +270,7 @@ module.exports = {
                       DATE_FORMAT(COALESCE(t1.data, t1.data_vencimento, t1.created_at), '%Y') as ano
                     from Financeiro as t1
                     where t1.id_condominio=${id_cond}
-                    order by COALESCE(t1.data, t1.data_vencimento, t1.created_at) asc `;
+                    order by ano asc, mes asc `;
     const { results } = await db.query(query);
     return results;
   },

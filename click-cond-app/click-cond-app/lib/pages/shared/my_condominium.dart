@@ -41,6 +41,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   Map<String, dynamic>? _cond;
   late List<_MenuItem> _menu;
   String _saldo = '';
+  String _inadimplencia = '';
   Map<String, dynamic>? _summary;
   int _currentTab = 0;
 
@@ -99,9 +100,11 @@ class _MyCondominiumState extends State<MyCondominium> {
       if (results[0] is Map<String, dynamic>) {
         final cond = results[0] as Map<String, dynamic>;
         final raw = (cond['saldo'] ?? '').toString();
+        final rawInadimplencia = (cond['inadimplencia'] ?? '').toString();
         setState(() {
           _cond = cond;
           _saldo = raw.replaceAll("R\$", Singleton.instance.getCurrentMoeda());
+          _inadimplencia = rawInadimplencia.replaceAll("R\$", Singleton.instance.getCurrentMoeda());
           _summary = results[1] as Map<String, dynamic>?;
         });
       } else {
@@ -451,14 +454,14 @@ class _MyCondominiumState extends State<MyCondominium> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(getText('lb_saldo'),
+                        Text('Inadimplência'.toUpperCase(),
                             style: AppTypography.tiny(context).copyWith(
                                 color: Colors.white.withOpacity(0.7),
                                 letterSpacing: 1)),
                         AppSpacing.gapXs,
-                        Text(_saldo.isEmpty ? '${Singleton.instance.getCurrentMoeda()} 0,00' : _saldo,
+                        Text(_inadimplencia.isEmpty ? '${Singleton.instance.getCurrentMoeda()} 0,00' : _inadimplencia,
                             style: AppTypography.title(context).copyWith(
-                                color: saldoNeg ? const Color(0xFFFFB4BC) : Colors.white)),
+                                color: const Color(0xFFFFB4BC))),
                       ],
                     ),
                   ),

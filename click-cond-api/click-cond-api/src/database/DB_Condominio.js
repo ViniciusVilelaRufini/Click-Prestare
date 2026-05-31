@@ -88,6 +88,7 @@ module.exports = {
   getCondominio: async function (condominioId) {
     const query = `select c.id, c.photo, c.nome, sum(f.valor) as saldo, c.moeda,
                       (select count(id) from Apartamentos where id_condominio=c.id) as num_aptos,
+                      (select coalesce(sum(valor), 0) from Financeiro where id_condominio=c.id and pago=0) as inadimplencia,
                       DATE_FORMAT(c.vencimento, '%d/%m/%Y') as vencimento_condominio,
                       (DATEDIFF(c.vencimento, NOW()) + 1) as dias_restantes_condominio
                     from Condominios c

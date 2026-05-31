@@ -58,54 +58,112 @@ class _ListInadimplestesPageState extends State<ListInadimplestes> {
                     children: [
                       for (final bloco in blocos)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
                           child: Container(
                             decoration: BoxDecoration(
                               color: AppColors.surface(context),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.error.withOpacity(0.2)),
+                              border: Border.all(color: AppColors.error.withOpacity(0.15)),
                             ),
                             child: Theme(
-                              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                              data: Theme.of(context).copyWith(
+                                dividerColor: Colors.transparent,
+                                hoverColor: Colors.transparent,
+                                splashColor: Colors.transparent,
+                              ),
                               child: ExpansionTile(
-                                tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                                tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+                                iconColor: AppColors.error,
+                                collapsedIconColor: AppColors.textSecondary(context),
                                 title: Row(
                                   children: [
                                     Container(
-                                      width: 36, height: 36,
-                                      decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                                      child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 18),
+                                      width: 40, height: 40,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.error.withOpacity(0.08), 
+                                        borderRadius: BorderRadius.circular(10)
+                                      ),
+                                      child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 20),
                                     ),
                                     const SizedBox(width: AppSpacing.md),
                                     Expanded(
-                                      child: Text('${getText('lb_bloco')} ${bloco['bloco']}', style: AppTypography.bodyMedium(context)),
+                                      child: Text(
+                                        '${getText('lb_bloco')} ${bloco['bloco']}', 
+                                        style: AppTypography.bodyMedium(context).copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(20)),
-                                      child: Text('${bloco['aptos'].length}', style: AppTypography.tiny(context).copyWith(color: Colors.white)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.error, 
+                                        borderRadius: BorderRadius.circular(12)
+                                      ),
+                                      child: Text(
+                                        '${bloco['aptos'].length}', 
+                                        style: AppTypography.tiny(context).copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
                                 children: [
                                   for (final apto in bloco['aptos'])
-                                    InkWell(
-                                      onTap: () => Navigator.push(context,
-                                          MaterialPageRoute(builder: (_) => DetailInadimplente(apto: apto['apto'], bloco: apto['bloco']))),
-                                      child: Padding(
-                                        padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
-                                        child: Row(
-                                          children: [
-                                            Icon(PhosphorIcons.door, size: 16, color: AppColors.textSecondary(context)),
-                                            const SizedBox(width: 8),
-                                            Text('Apto ${apto['apto']}', style: AppTypography.body(context)),
-                                            const Spacer(),
-                                            Text(apto['total']?.toString() ?? '', style: AppTypography.captionMedium(context).copyWith(color: AppColors.error)),
-                                            const SizedBox(width: 8),
-                                            Icon(PhosphorIcons.caretRight, size: 14, color: AppColors.textTertiary(context)),
-                                          ],
+                                    Column(
+                                      children: [
+                                        const Divider(height: 1, color: Colors.white10, indent: AppSpacing.md, endIndent: AppSpacing.md),
+                                        InkWell(
+                                          onTap: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => DetailInadimplente(apto: apto['apto'].toString(), bloco: apto['bloco'].toString()),
+                                            ),
+                                          ).then((_) => loadList()),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.all(8),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.textSecondary(context).withOpacity(0.05),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Icon(PhosphorIcons.door, size: 18, color: AppColors.textSecondary(context)),
+                                                ),
+                                                const SizedBox(width: AppSpacing.md),
+                                                Text(
+                                                  'Apto ${apto['apto']}',
+                                                  style: AppTypography.bodyMedium(context).copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const Spacer(),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.error.withOpacity(0.08),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    border: Border.all(color: AppColors.error.withOpacity(0.25)),
+                                                  ),
+                                                  child: Text(
+                                                    '${apto['qtd']} ${apto['qtd'] == 1 ? 'mês em aberto' : 'meses em aberto'}',
+                                                    style: AppTypography.tiny(context).copyWith(
+                                                      color: AppColors.error,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: AppSpacing.md),
+                                                Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+                                              ],
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ),
                                 ],
                               ),

@@ -181,24 +181,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
     return AppScaffold(
       title: widget.hideAppBar ? null : getText('lb_financeiro'),
       showBackButton: !widget.hideAppBar,
-      actions: widget.hideAppBar ? null : (isSindico
-          ? [
-              PopupMenuButton<String>(
-                icon: Icon(PhosphorIcons.dotsThreeVertical, color: AppColors.textPrimary(context)),
-                onSelected: (v) {
-                  if (v == 'inadimplentes') {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => ListInadimplestes()));
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => FinanceiroRelatorio()));
-                  }
-                },
-                itemBuilder: (_) => [
-                  PopupMenuItem(value: 'inadimplentes', child: Text(getText('financeiro_inadimplentes'))),
-                  PopupMenuItem(value: 'relatorio', child: Text(getText('financeiro_nav_relatorio'))),
-                ],
-              )
-            ]
-          : null),
+      actions: null,
       body: _isLoading
           ? _buildSkeleton(context)
           : RefreshIndicator(
@@ -238,6 +221,30 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                             const SizedBox(height: AppSpacing.md),
                           ],
                           _buildViewToggle(),
+                          if (isSindico && _viewMode == FinanceiroViewMode.condominio) ...[
+                            const SizedBox(height: AppSpacing.md),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ActionCardButton(
+                                    label: getText('financeiro_inadimplentes'),
+                                    icon: PhosphorIcons.userList,
+                                    color: AppColors.error,
+                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListInadimplestes())).then((_) => loadList()),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: _ActionCardButton(
+                                    label: getText('financeiro_nav_relatorio'),
+                                    icon: PhosphorIcons.filePdf,
+                                    color: AppColors.primary,
+                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinanceiroRelatorio())),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           if (_viewMode == FinanceiroViewMode.condominio) ...[
                             const SizedBox(height: AppSpacing.lg),
                             _DashboardHeader(
@@ -951,6 +958,58 @@ class _LancamentoCard extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionCardButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionCardButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface(context),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  label,
+                  style: AppTypography.captionMedium(context).copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

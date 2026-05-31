@@ -669,13 +669,16 @@ class _CondominioCard extends StatelessWidget {
         ),
       );
     } else {
-      final saldo = (item['saldo'] ?? '').toString();
-      final isNegative = saldo.contains('-');
+      final numBlocos = item['num_blocos'] ?? 0;
+      final numAptos = item['num_aptos'] ?? 0;
+      final blocoText = numBlocos == 1 ? 'bloco' : 'blocos';
+      final aptoText = numAptos == 1 ? 'unidade' : 'unidades';
+
       subtitleWidget = Text(
-        saldo.isEmpty ? '—' : saldo,
+        '$numBlocos $blocoText · $numAptos $aptoText',
         style: AppTypography.caption(context).copyWith(
-          color: isNegative ? AppColors.error : AppColors.success,
-          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary(context),
+          fontWeight: FontWeight.normal,
         ),
       );
     }
