@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
@@ -32,8 +34,45 @@ class _SignupCondominuim2PageState extends State<SignupCondominuim2> {
   final txtNumero = TextEditingController();
   final txtComplemento = TextEditingController();
 
+  String _lastCep = "";
+
+  @override
+  void initState() {
+    super.initState();
+    txtCep.addListener(_onCepChanged);
+  }
+
+  void _onCepChanged() {
+    final cleanCep = txtCep.text.replaceAll(RegExp(r'\D'), '');
+    if (cleanCep.length == 8 && cleanCep != _lastCep) {
+      _lastCep = cleanCep;
+      _lookupCep(cleanCep);
+    }
+  }
+
+  Future<void> _lookupCep(String cep) async {
+    try {
+      final response = await http.get(Uri.parse("https://viacep.com.br/ws/$cep/json/"));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['erro'] != true) {
+          setState(() {
+            txtPais.text = "Brasil";
+            txtUF.text = data['uf'] ?? "";
+            txtCidade.text = data['localidade'] ?? "";
+            txtBairro.text = data['bairro'] ?? "";
+            txtRua.text = data['logradouro'] ?? "";
+          });
+        }
+      }
+    } catch (_) {
+      // Silently ignore errors
+    }
+  }
+
   @override
   void dispose() {
+    txtCep.removeListener(_onCepChanged);
     txtCep.dispose();
     txtPais.dispose();
     txtUF.dispose();
