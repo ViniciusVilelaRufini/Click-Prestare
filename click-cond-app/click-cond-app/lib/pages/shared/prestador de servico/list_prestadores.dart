@@ -602,25 +602,34 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  tabs: [
+                   tabs: [
                     Tab(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(PhosphorIcons.houseLine, size: 16),
-                          const SizedBox(width: 6),
-                          Text('No Local / Ativos (${listInside.length})'),
-                        ],
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(PhosphorIcons.houseLine, size: 16),
+                            const SizedBox(width: 6),
+                            Builder(builder: (ctx) {
+                              final w = MediaQuery.of(ctx).size.width;
+                              return Text(w < 385 ? 'Ativos (${listInside.length})' : 'No Local / Ativos (${listInside.length})');
+                            }),
+                          ],
+                        ),
                       ),
                     ),
                     Tab(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(PhosphorIcons.identificationCard, size: 16),
-                          const SizedBox(width: 6),
-                          Text('Cadastrados (${listCadastrados.length})'),
-                        ],
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(PhosphorIcons.identificationCard, size: 16),
+                            const SizedBox(width: 6),
+                            Text('Cadastrados (${listCadastrados.length})'),
+                          ],
+                        ),
                       ),
                     ),
                   ],
