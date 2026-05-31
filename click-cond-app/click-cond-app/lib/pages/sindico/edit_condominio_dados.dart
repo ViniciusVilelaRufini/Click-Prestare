@@ -153,7 +153,7 @@ class _EditCondominioDadosPageState extends State<EditCondominioDados> {
                           SizedBox(height: 10),   
                           TextFieldDefault(title: getText('signup_cond_fim_mandato'), keyboard: TextInputType.number, controller: txtTerminoMandato, mask: TextInputMask(mask: ['99/99/9999'],reverse: false)),
                           SizedBox(height: 10),
-                          Expanded(child: Container()),                                                       
+                          const SizedBox(height: 24),                                                       
                           DefaultButton(title: getText('btn_save'), hasArrow: false,                   
                             onPressed: () {
                               save();

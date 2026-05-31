@@ -161,7 +161,7 @@ class _EditSindicoPageState extends State<EditSindico> {
                           SizedBox(height: 10),   
                           // TextFieldDefault(title: "Senha", isPassword: true, controller: txtPassword),
                           // SizedBox(height: 10),  
-                          Expanded(child: Container()),                                                       
+                          const SizedBox(height: 24),                                                       
                           DefaultButton(title: getText('btn_save'), hasArrow: false,                   
                             onPressed: () {
                               save();

@@ -1,4 +1,4 @@
-﻿
+
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/utils/localizable/localizable.dart';
@@ -128,7 +128,7 @@ class _EditCondominioAddressPageState extends State<EditCondominioAddress> {
                         SizedBox(height: 10),   
                         TextFieldDefault(title: getText('signup_cond_complemento'), controller: txtComplemento),
                           SizedBox(height: 10),
-                          Expanded(child: Container()),                                                       
+                          const SizedBox(height: 24),                                                       
                           DefaultButton(title: getText('btn_save'), hasArrow: false,                   
                             onPressed: () {
                               save();
