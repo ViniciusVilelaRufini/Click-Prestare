@@ -1629,23 +1629,27 @@ export class MobileAuthService {
         ...(tipoNorm ? { tipo: tipoNorm } : {}),
       },
       include: {
+        apartamento: true,
         user: { include: { moradores: true } },
       },
     });
 
     return rels.map(r => {
-      const m = r.user.moradores[0];
+      const condId = r.apartamento?.id_condominio;
+      const m = (condId && r.user?.moradores)
+        ? (r.user.moradores.find(mor => mor.id_condominio === condId) ?? r.user.moradores[0])
+        : r.user?.moradores?.[0];
       return {
         id: m?.id ?? r.id_user, // Flutter usa esse id para abrir o detalhe
         id_user: r.id_user,
-        nome: m?.nome ?? r.user.name ?? '',
-        documento: m?.documento ?? r.user.cpf ?? '',
-        email: m?.email ?? r.user.email ?? '',
-        telefone: m?.telefone ?? r.user.phone ?? '',
+        nome: m?.nome ?? r.user?.name ?? '',
+        documento: m?.documento ?? r.user?.cpf ?? '',
+        email: m?.email ?? r.user?.email ?? '',
+        telefone: m?.telefone ?? r.user?.phone ?? '',
         data_nascimento: m?.data_nascimento ?? null,
         bloco: m?.bloco ?? '',
         apartamento: m?.apartamento ?? '',
-        photo: m?.foto_pessoa ?? r.user.photo ?? '',
+        photo: m?.foto_pessoa ?? r.user?.photo ?? '',
         foto_pessoa: m?.foto_pessoa ?? '',
         tipo: r.tipo ?? 'morador',
         extra1: m?.extra1 ?? '',
