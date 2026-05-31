@@ -867,19 +867,38 @@ export class FinanceiroService implements OnModuleInit {
     }
 
     const meses = await this.getAllMeses(idCondominio);
-    const faturasDevendo: any[] = [];
 
+    // 1 query só para todas as faturas de Ref. desse apto+bloco no condomínio,
+    // em vez de N findFirst em loop (era O(meses) round-trips no DB).
+    // Para 24 meses de histórico isso saiu de 24 queries para 1.
+    const candidatas = await this.prisma.financeiro.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        nome: { contains: `Apto ${apto} Bloco ${bloco} - Ref.` },
+      },
+    });
+
+    // Filtro fino na aplicação com match exato — sem isso, Apto 10 puxava
+    // faturas do Apto 100/101/1010 (mesmo vazamento corrigido em outros
+    // pontos no commit f71ea65).
+    const minhas = candidatas.filter((f) =>
+      this.nomeFaturaDeApto(f.nome, apto, bloco)
+    );
+
+    // Indexa por "MM/AAAA" e "MM/AA" para casar com qualquer formato salvo.
+    const porRef = new Map<string, typeof minhas[number]>();
+    for (const f of minhas) {
+      const refMatch = f.nome?.match(/Ref\.\s*(\d{2})\/(\d{2,4})/i);
+      if (refMatch) {
+        const [, mes, anoQualquer] = refMatch;
+        porRef.set(`${mes}/${anoQualquer}`, f);
+      }
+    }
+
+    const faturasDevendo: any[] = [];
     for (const m of meses) {
       const anoCurto = m.ano.slice(-2);
-      const matchName1 = `Apto ${apto} Bloco ${bloco} - Ref. ${m.mes}/${m.ano}`;
-      const matchName2 = `Apto ${apto} Bloco ${bloco} - Ref. ${m.mes}/${anoCurto}`;
-
-      const fin = await this.prisma.financeiro.findFirst({
-        where: {
-          id_condominio: Number(idCondominio),
-          OR: [{ nome: matchName1 }, { nome: matchName2 }],
-        },
-      });
+      const fin = porRef.get(`${m.mes}/${m.ano}`) ?? porRef.get(`${m.mes}/${anoCurto}`) ?? null;
 
       if (!fin || fin.pago === 0) {
         const val = fin ? Number(fin.valor) : 650;
