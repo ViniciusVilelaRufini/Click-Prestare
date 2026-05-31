@@ -1289,7 +1289,7 @@ export class FinanceiroService implements OnModuleInit {
         id_condominio: Number(idCondominio),
         OR: [
           { id_usuario: Number(idUser) },
-          { id_usuario: null }
+          { tipo: 'C' }
         ]
       },
       orderBy: { data_vencimento: 'desc' },
