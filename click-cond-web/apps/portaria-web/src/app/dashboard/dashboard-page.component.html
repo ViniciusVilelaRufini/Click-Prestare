@@ -612,7 +612,7 @@
 
   <!-- Modal de Detalhes do Evento -->
   @if (eventoSelecionado(); as ev) {
-    <div class="fixed inset-0 bg-slate-900/60 dark:bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4"
+    <div class="fixed inset-0 bg-slate-900/60 dark:bg-black/60 z-50 flex items-center justify-center p-4"
          (click)="fecharDetalhes()">
       
       <div class="relative w-full max-w-lg rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/80 dark:border-white/10 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
@@ -1040,7 +1040,7 @@
 
   <!-- Modal de Foto Ampliada -->
   @if (fotoAmpliadaUrl()) {
-    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4" (click)="fecharAmpliarFoto()">
+    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4" (click)="fecharAmpliarFoto()">
       <div class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
         <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-white">{{ fotoAmpliadaTitulo() }}</h3>
@@ -1057,7 +1057,7 @@
 
   <!-- Modal de Liberação Rápida de Visitante -->
   @if (showLiberarModal()) {
-    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" (click)="fecharModalLiberar()">
+    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" (click)="fecharModalLiberar()">
       <div class="w-full max-w-lg bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
         
         <!-- Header -->

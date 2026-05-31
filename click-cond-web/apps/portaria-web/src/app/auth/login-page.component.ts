@@ -19,7 +19,7 @@ import { AuthService } from './auth.service';
       <button
         type="button"
         (click)="toggleTheme()"
-        class="absolute top-6 right-6 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 shadow-md backdrop-blur-md active:scale-95 border"
+        class="absolute top-6 right-6 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 shadow-md active:scale-95 border"
         [ngClass]="isLight() 
           ? 'bg-white/80 border-slate-200 text-slate-700 hover:bg-slate-50' 
           : 'bg-slate-900/60 border-white/10 text-slate-400 hover:text-white hover:border-accent/40'"
@@ -157,7 +157,7 @@ import { AuthService } from './auth.service';
 
         <!-- Painel Direito (Formulário ou QR Code) -->
         <div 
-          class="w-full lg:w-[45%] flex flex-col justify-center items-center px-6 md:px-16 py-12 backdrop-blur-md transition-colors duration-500"
+          class="w-full lg:w-[45%] flex flex-col justify-center items-center px-6 md:px-16 py-12 transition-colors duration-500"
           [ngClass]="isLight() ? 'bg-white/75' : 'bg-slate-950/70'"
         >
           
@@ -346,7 +346,7 @@ import { AuthService } from './auth.service';
                 >
                   @if (qrToken()) {
                     @if (qrExpired()) {
-                      <div class="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                      <div class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center gap-3">
                         <span class="text-xs font-semibold text-slate-400">QR Code Expirado</span>
                         <button
                           type="button"

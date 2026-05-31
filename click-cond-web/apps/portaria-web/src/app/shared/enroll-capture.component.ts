@@ -44,7 +44,7 @@ interface EnrollSession {
     </button>
 
     @if (modalOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
            (click)="closeModal()">
         <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 p-6 shadow-2xl"
              (click)="$event.stopPropagation()">

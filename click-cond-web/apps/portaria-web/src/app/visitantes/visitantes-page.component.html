@@ -601,7 +601,7 @@
 
   <!-- Modal de Validação de Código (PIN) -->
   @if (showValidationModal()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in">
         
         <!-- Header do Modal -->
@@ -732,7 +732,7 @@
 
   <!-- Modal da Webcam para Captura -->
   @if (activeCamera()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
       <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in flex flex-col">
         <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-white">
@@ -766,7 +766,7 @@
 
    <!-- Modal de Detalhes do Visitante (timeline, stats) -->
   @if (detalhesLoading() || detalhesData() || detalhesError()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" (click)="fecharDetalhes()">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" (click)="fecharDetalhes()">
       <div class="relative w-full max-w-3xl max-h-[90vh] rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-graphite-200 overflow-hidden shadow-2xl animate-fade-in flex flex-col"
            (click)="$event.stopPropagation()">
 
@@ -990,7 +990,7 @@
 
   <!-- Modal de Foto Ampliada -->
   @if (fotoAmpliadaUrl()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4" (click)="fecharAmpliarFoto()">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" (click)="fecharAmpliarFoto()">
       <div class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
         <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-white">{{ fotoAmpliadaTitulo() }}</h3>

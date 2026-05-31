@@ -39,7 +39,7 @@ import { CommonModule } from '@angular/common';
 
       <!-- Backdrop overlay -->
       <div
-        class="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
+        class="md:hidden fixed inset-0 bg-black/60 z-40 transition-opacity duration-300"
         [class.opacity-0]="!isSidebarOpen()"
         [class.opacity-100]="isSidebarOpen()"
         [class.pointer-events-none]="!isSidebarOpen()"

@@ -8,7 +8,7 @@ import { ConfirmService } from './confirm.service';
   imports: [CommonModule],
   template: `
     @if (svc.state(); as s) {
-      <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 animate-fade-in"
            (click)="svc.resolve(false)">
         <div class="w-full max-w-md rounded-2xl bg-graphite border border-white/10 shadow-2xl overflow-hidden"
              (click)="$event.stopPropagation()">
