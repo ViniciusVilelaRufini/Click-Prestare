@@ -47,12 +47,30 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
   if (response.statusCode >= 200 && response.statusCode < 300) return "";
 
   // Erro — tenta extrair message do body
+  // ignore: avoid_print
+  print('[apiSaveObject] HTTP ${response.statusCode} body=${response.body}');
   try {
     final parsed = jsonDecode(response.body);
     if (parsed is Map && parsed["message"] != null) {
       final msg = parsed["message"];
-      if (msg is List) return msg.join(', ');
-      return msg.toString();
+      String msgStr;
+      if (msg is List) {
+        msgStr = msg.join(', ');
+      } else {
+        msgStr = msg.toString();
+      }
+      // Sanitiza: se a mensagem contem padroes de erro JS interno
+      // (dart2js / runtime), substitui por mensagem generica.
+      // 'Must call super constructor' eh um TypeError do JS engine.
+      if (msgStr.contains('super constructor') ||
+          msgStr.contains('Cannot read prop') ||
+          msgStr.startsWith('TypeError:') ||
+          msgStr.startsWith('RangeError:')) {
+        // ignore: avoid_print
+        print('[apiSaveObject] backend devolveu erro JS interno: $msgStr');
+        return 'Erro interno no servidor. Tente novamente em instantes.';
+      }
+      return msgStr;
     }
   } catch (_) {}
   return "Erro ${response.statusCode}";
