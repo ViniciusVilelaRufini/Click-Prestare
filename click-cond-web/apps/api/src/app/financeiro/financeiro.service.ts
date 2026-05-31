@@ -1178,8 +1178,14 @@ export class FinanceiroService implements OnModuleInit {
     }
 
     const meses = await this.getAllMeses(idCondominio);
-    const mes = Number(mesStr);
-    const ano = Number(anoStr);
+    let mes = mesStr ? Number(mesStr) : 5;
+    let ano = anoStr ? Number(anoStr) : 2026;
+
+    if (meses.length > 0 && (!mesStr || !anoStr)) {
+      const ult = meses[meses.length - 1];
+      mes = Number(ult.mes);
+      ano = Number(ult.ano);
+    }
 
     const dataIni = new Date(ano, mes - 1, 1);
     const dataFim = new Date(ano, mes, 0);
@@ -1360,17 +1366,27 @@ export class FinanceiroService implements OnModuleInit {
       throw new NotFoundException('Falha ao subir arquivo (storage indisponível).');
     }
 
-    if (type === 'boleto') {
-      await this.prisma.financeiro.update({
-        where: { id: Number(id) },
-        data: { url_boleto: url },
-      });
-    } else {
-      // comprovante, seta status = 2 (aguardando auditoria do sindico)
-      await this.prisma.financeiro.update({
-        where: { id: Number(id) },
-        data: { photo: url, status: '2' },
-      });
+    try {
+      if (type === 'boleto') {
+        await this.prisma.financeiro.update({
+          where: { id: Number(id) },
+          data: { url_boleto: url },
+        });
+      } else {
+        // comprovante, seta status = 2 (aguardando auditoria do sindico)
+        await this.prisma.financeiro.update({
+          where: { id: Number(id) },
+          data: { photo: url, status: '2' },
+        });
+      }
+    } catch (err: any) {
+      this.logger.error(
+        `[uploadSharedFile] Falha ao atualizar lancamento ${id}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel anexar o arquivo. Tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
     }
 
     return { url };
@@ -1918,19 +1934,31 @@ export class FinanceiroService implements OnModuleInit {
 
     const dVenc = this.parseDataBR(data.data_vencimento);
 
-    await this.prisma.financeiro.create({
-      data: {
-        nome: data.nome || `${data.categoria} Individual`,
-        tipo: 'D',
-        valor: valor,
-        data_vencimento: dVenc,
-        categoria: data.categoria || 'Outros',
-        pago: data.pago ? Number(data.pago) : 0,
-        status: data.pago ? '1' : '0',
-        id_condominio: Number(idCondominio),
-        id_usuario: Number(idUser),
-      },
-    });
+    // Mesmo padrao do insert principal: protege contra erros de runtime
+    // (Decimal/Prisma) que vazariam mensagens JS internas pro cliente.
+    try {
+      await this.prisma.financeiro.create({
+        data: {
+          nome: data.nome || `${data.categoria} Individual`,
+          tipo: 'D',
+          valor: valor,
+          data_vencimento: dVenc,
+          categoria: data.categoria || 'Outros',
+          pago: data.pago ? Number(data.pago) : 0,
+          status: data.pago ? '1' : '0',
+          id_condominio: Number(idCondominio),
+          id_usuario: Number(idUser),
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[insertMoradorConta] Falha: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel salvar a conta. Verifique os dados e tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
 
     return { success: true };
   }
@@ -1953,17 +1981,27 @@ export class FinanceiroService implements OnModuleInit {
     const dVenc = this.parseDataBR(data.data_vencimento);
     const isPago = data.pago ? Number(data.pago) : 0;
 
-    await this.prisma.financeiro.update({
-      where: { id: Number(data.id) },
-      data: {
-        nome: data.nome,
-        valor: valor,
-        data_vencimento: dVenc,
-        categoria: data.categoria,
-        pago: isPago,
-        status: isPago === 1 ? '1' : '0',
-      },
-    });
+    try {
+      await this.prisma.financeiro.update({
+        where: { id: Number(data.id) },
+        data: {
+          nome: data.nome,
+          valor: valor,
+          data_vencimento: dVenc,
+          categoria: data.categoria,
+          pago: isPago,
+          status: isPago === 1 ? '1' : '0',
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[updateMoradorConta] Falha: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel salvar as alteracoes. Verifique os dados e tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
 
     return { success: true };
   }

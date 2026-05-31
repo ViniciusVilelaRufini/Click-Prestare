@@ -50,7 +50,7 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
         final last = titlesTabs.last;
         tabSelected = last['periodo'];
         mes = last['mes'];
-        ano = (last['ano'] as String).substring((last['ano'] as String).length - 2);
+        ano = last['ano'].toString();
       }
       for (final categ in categorias) {
         chartData.add(ChartData(categ['categoria'], (categ['percentual'] as num).toDouble()));
@@ -63,7 +63,7 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
   }
 
   void changeMonth(String month, String newMes, String newAno) {
-    setState(() { tabSelected = month; mes = newMes; ano = newAno.substring(newAno.length - 2); });
+    setState(() { tabSelected = month; mes = newMes; ano = newAno; });
     loadList();
   }
 
@@ -83,22 +83,51 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(
-                      height: 28,
+                      height: 38,
                       child: ListView.separated(
                         controller: _scrollController,
                         scrollDirection: Axis.horizontal,
                         itemCount: titlesTabs.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+                        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
                         itemBuilder: (_, i) {
                           final t = titlesTabs[i];
                           final selected = tabSelected == t['periodo'];
                           return GestureDetector(
                             onTap: selected ? null : () => changeMonth(t['periodo'], t['mes'], t['ano']),
-                            child: Text(
-                              t['periodo'],
-                              style: AppTypography.captionMedium(context).copyWith(
-                                color: selected ? AppColors.primary : AppColors.textSecondary(context),
-                                decoration: selected ? TextDecoration.underline : null,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: selected 
+                                    ? AppColors.primary 
+                                    : AppColors.surface(context),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: selected 
+                                      ? AppColors.primary 
+                                      : AppColors.textSecondary(context).withOpacity(0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    PhosphorIcons.calendarBlank,
+                                    size: 14,
+                                    color: selected ? Colors.white : AppColors.textSecondary(context),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    t['periodo'],
+                                    style: AppTypography.caption(context).copyWith(
+                                      color: selected ? Colors.white : AppColors.textSecondary(context),
+                                      fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           );
