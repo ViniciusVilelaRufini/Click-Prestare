@@ -543,7 +543,10 @@ export class MobileAuthService {
         const debtsTotal = fins.reduce((acc, f) => acc + (Number(f.valor) || 0), 0);
 
         const occurrencesCount = await this.prisma.ocorrencias.count({
-          where: { id_condominio: { in: ids }, status: 'Pendente' },
+          where: {
+            id_condominio: { in: ids },
+            status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
+          },
         });
 
         return {
