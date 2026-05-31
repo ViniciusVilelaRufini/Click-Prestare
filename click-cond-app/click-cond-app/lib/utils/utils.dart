@@ -78,29 +78,95 @@ displayMessageWithReturn(BuildContext context, String title, String message) asy
 showConfirmDialog(BuildContext context, {String? text}) async {
   return await showDialog<bool>(
     context: context,
-    builder: (c) => AlertDialog(
-      title: Text(text ?? getText('alert_delete_description')),
-      actions: [
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () => Navigator.pop(c, true),
-          child: Text(getText('alert_sim')),
+    builder: (c) => Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      backgroundColor: AppColors.surface(c),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    PhosphorIcons.question,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Confirmação',
+                  style: AppTypography.title(c).copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary(c),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              text ?? getText('alert_delete_description'),
+              style: AppTypography.bodySecondary(c).copyWith(
+                color: AppColors.textSecondary(c),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: AppColors.border(c)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(c, false),
+                    child: Text(
+                      getText('alert_nao'),
+                      style: AppTypography.bodyMedium(c).copyWith(
+                        color: AppColors.textPrimary(c),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(c, true),
+                    child: Text(
+                      getText('alert_sim'),
+                      style: AppTypography.bodyMedium(c).copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Theme.of(context).primaryColor,
-          ),
-          onPressed: () => Navigator.pop(c, false),
-          child: Text(
-            getText('alert_nao'),
-            style: TextStyle(color: Theme.of(context).primaryColor),
-          ),
-        ),
-      ],
+      ),
     ),
   );
 }
