@@ -1,4 +1,3 @@
-import 'package:click/pages/shared/ocorrencias/list_ocorrencias_pendentes.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias_todos.dart';
 import 'package:click/pages/shared/ocorrencias/new_ocorrencia.dart';
 import 'package:click/theme/app_colors.dart';
@@ -18,12 +17,12 @@ class _ListOcorrenciasPageState extends State<ListOcorrencias> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 4,
       child: AppScaffold(
         title: getText('ocorrencia_abertura_nav'),
         floatingActionButton: FloatingActionButton(
           onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => NewOcorrencia(isEdit: false)))
+                  MaterialPageRoute(builder: (_) => const NewOcorrencia(isEdit: false)))
               .then((_) => setState(() {})),
           backgroundColor: AppColors.primary,
           child: const Icon(PhosphorIcons.plus, color: Colors.white),
@@ -32,20 +31,29 @@ class _ListOcorrenciasPageState extends State<ListOcorrencias> {
           children: [
             Container(
               color: AppColors.surface(context),
+              width: double.infinity,
               child: TabBar(
+                isScrollable: true,
                 indicatorColor: AppColors.primary,
                 labelColor: AppColors.primary,
                 unselectedLabelColor: AppColors.textSecondary(context),
-                labelStyle: AppTypography.captionMedium(context),
-                tabs: [
-                  Tab(text: getText('lb_todos')),
-                  Tab(text: getText('lb_pendentes')),
+                labelStyle: AppTypography.captionMedium(context).copyWith(fontWeight: FontWeight.bold),
+                tabs: const [
+                  Tab(text: 'Todas'),
+                  Tab(text: 'Pendentes'),
+                  Tab(text: 'Em andamento'),
+                  Tab(text: 'Solucionadas'),
                 ],
               ),
             ),
             const Expanded(
               child: TabBarView(
-                children: [ListOcorrenciasTodos(), ListOcorrenciasPendentes()],
+                children: [
+                  ListOcorrenciasTodos(),
+                  ListOcorrenciasTodos(statusFilter: 'Pendente'),
+                  ListOcorrenciasTodos(statusFilter: 'Em andamento'),
+                  ListOcorrenciasTodos(statusFilter: 'Solucionado'),
+                ],
               ),
             ),
           ],

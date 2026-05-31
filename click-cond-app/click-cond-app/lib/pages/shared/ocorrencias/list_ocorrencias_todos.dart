@@ -10,7 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListOcorrenciasTodos extends StatefulWidget {
-  const ListOcorrenciasTodos({Key? key}) : super(key: key);
+  final String? statusFilter;
+  const ListOcorrenciasTodos({Key? key, this.statusFilter}) : super(key: key);
   @override
   _ListOcorrenciasTodosPageState createState() => _ListOcorrenciasTodosPageState();
 }
@@ -40,8 +41,22 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
   }
 
   List<dynamic> _getFilteredList() {
-    if (_selectedMonth == null) return list;
-    return list.where((item) {
+    List<dynamic> temp = list;
+    if (widget.statusFilter != null) {
+      temp = temp.where((item) {
+        final s = (item['status']?.toString() ?? '').toLowerCase();
+        if (widget.statusFilter == 'Pendente') {
+          return s == 'pendente';
+        } else if (widget.statusFilter == 'Em andamento') {
+          return s == 'ciente' || s == 'em andamento' || s == 'em_andamento';
+        } else if (widget.statusFilter == 'Solucionado') {
+          return s == 'solucionado' || s == 'resolvida';
+        }
+        return true;
+      }).toList();
+    }
+    if (_selectedMonth == null) return temp;
+    return temp.where((item) {
       if (item['created_at'] == null) return false;
       try {
         final date = DateTime.parse(item['created_at'].toString());
@@ -164,11 +179,25 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(PhosphorIcons.warning, size: 48, color: AppColors.textTertiary(context)),
+                      Icon(
+                        widget.statusFilter == 'Solucionado'
+                            ? PhosphorIcons.checkCircle
+                            : PhosphorIcons.warning,
+                        size: 48,
+                        color: widget.statusFilter == 'Solucionado'
+                            ? const Color(0xFF22C55E)
+                            : AppColors.textTertiary(context),
+                      ),
                       const SizedBox(height: AppSpacing.md),
                       Text(
                         _selectedMonth == null 
-                            ? getText('alert_list_empty_generic')
+                            ? (widget.statusFilter == 'Pendente' 
+                                ? 'Nenhuma ocorrência pendente encontrada.' 
+                                : widget.statusFilter == 'Em andamento'
+                                    ? 'Nenhuma ocorrência em andamento encontrada.'
+                                    : widget.statusFilter == 'Solucionado'
+                                        ? 'Nenhuma ocorrência solucionada encontrada.'
+                                        : getText('alert_list_empty_generic'))
                             : 'Nenhuma ocorrência encontrada neste mês.',
                         style: AppTypography.caption(context),
                       ),
@@ -203,13 +232,41 @@ class _OcorrenciaCard extends StatelessWidget {
   const _OcorrenciaCard({required this.item, required this.onTap});
 
   Color _statusColor(dynamic status) {
-    final s = status?.toString() ?? '';
-    if (s == '1' || s.toLowerCase() == 'resolvida') return const Color(0xFF22C55E);
-    return const Color(0xFFF59E0B);
+    final s = (status?.toString() ?? '').toLowerCase();
+    if (s == 'solucionado' || s == 'resolvida') {
+      return const Color(0xFF22C55E); // Green
+    }
+    if (s == 'ciente' || s == 'em andamento' || s == 'em_andamento') {
+      return const Color(0xFF3B82F6); // Blue
+    }
+    return const Color(0xFFF59E0B); // Amber / Yellow
+  }
+
+  IconData _statusIcon(dynamic status) {
+    final s = (status?.toString() ?? '').toLowerCase();
+    if (s == 'solucionado' || s == 'resolvida') {
+      return PhosphorIcons.checkCircle;
+    }
+    if (s == 'ciente' || s == 'em andamento' || s == 'em_andamento') {
+      return PhosphorIcons.clock;
+    }
+    return PhosphorIcons.warning;
+  }
+
+  String _statusLabel(dynamic status) {
+    final s = (status?.toString() ?? '').toLowerCase();
+    if (s == 'solucionado' || s == 'resolvida') {
+      return 'Solucionada';
+    }
+    if (s == 'ciente' || s == 'em andamento' || s == 'em_andamento') {
+      return 'Em andamento';
+    }
+    return 'Pendente';
   }
 
   @override
   Widget build(BuildContext context) {
+    final statusVal = item['status'];
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -220,10 +277,10 @@ class _OcorrenciaCard extends StatelessWidget {
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(
-                color: _statusColor(item['status']).withOpacity(0.12),
+                color: _statusColor(statusVal).withOpacity(0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(PhosphorIcons.warning, color: _statusColor(item['status']), size: 22),
+              child: Icon(_statusIcon(statusVal), color: _statusColor(statusVal), size: 22),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -236,6 +293,22 @@ class _OcorrenciaCard extends StatelessWidget {
                         child: Text(item['tipo'] ?? item['descricao'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       const SizedBox(width: AppSpacing.sm),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _statusColor(statusVal).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          _statusLabel(statusVal),
+                          style: AppTypography.captionMedium(context).copyWith(
+                            color: _statusColor(statusVal),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
