@@ -1288,7 +1288,8 @@ export class MobileAuthService {
       data_nascimento: dobString,
       bloco: m.bloco ?? '',
       apartamento: m.apartamento ?? '',
-      photo: m.user?.photo ?? '',
+      photo: m.foto_pessoa ?? m.user?.photo ?? '',
+      foto_pessoa: m.foto_pessoa ?? '',
       vinculo: m.tipo ?? 'proprietario',
       tipo: m.tipo ?? 'proprietario',
       extra1: m.extra1 ?? '',
@@ -1356,6 +1357,7 @@ export class MobileAuthService {
               ...(mor.telefone !== undefined && { telefone: mor.telefone }),
               ...(mor.data_nascimento && { data_nascimento: new Date(mor.data_nascimento) }),
               ...(tipo && { tipo }),
+              ...(photoUrl !== null && { foto_pessoa: photoUrl }),
             },
           });
 
@@ -1625,11 +1627,20 @@ export class MobileAuthService {
       return {
         id: m?.id ?? r.id_user, // Flutter usa esse id para abrir o detalhe
         id_user: r.id_user,
-        nome: r.user.name ?? m?.nome ?? '',
-        email: r.user.email ?? m?.email ?? '',
-        telefone: r.user.phone ?? m?.telefone ?? '',
+        nome: m?.nome ?? r.user.name ?? '',
+        documento: m?.documento ?? r.user.cpf ?? '',
+        email: m?.email ?? r.user.email ?? '',
+        telefone: m?.telefone ?? r.user.phone ?? '',
+        data_nascimento: m?.data_nascimento ?? null,
+        bloco: m?.bloco ?? '',
+        apartamento: m?.apartamento ?? '',
+        photo: m?.foto_pessoa ?? r.user.photo ?? '',
+        foto_pessoa: m?.foto_pessoa ?? '',
         tipo: r.tipo ?? 'morador',
-        photo: r.user.photo ?? '',
+        extra1: m?.extra1 ?? '',
+        extra2: m?.extra2 ?? '',
+        extra3: m?.extra3 ?? '',
+        extra4: m?.extra4 ?? '',
       };
     });
   }
