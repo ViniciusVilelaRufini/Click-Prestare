@@ -403,8 +403,11 @@
               <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">Altere os filtros ou pesquisa para encontrar outros registros</p>
             </div>
           } @else {
-            <ul class="space-y-2">
+            <ul class="space-y-0">
               @for (e of eventosFiltrados(); track $index) {
+                @if ($index > 0) {
+                  <hr class="border-0 border-t border-slate-200/60 dark:border-white/5 mx-1" />
+                }
                  <li (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
                     [class]="modoCompacto() && eventosMaximizados()
