@@ -85,4 +85,9 @@ export class FinanceiroApi {
     const url = `${API_BASE}/financeiro/conciliacao/confirmar`;
     return this.http.post<any>(url, { id_condominio: this.cid, reconciliations });
   }
+
+  exportCsv(mes: string, ano: string): Observable<Blob> {
+    const url = `${API_BASE}/financeiro/export-csv?id_condominio=${this.cid}&mes=${mes}&ano=${ano}`;
+    return this.http.get(url, { responseType: 'blob' });
+  }
 }

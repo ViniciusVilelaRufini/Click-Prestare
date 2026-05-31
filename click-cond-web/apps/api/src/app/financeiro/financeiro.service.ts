@@ -1910,4 +1910,125 @@ export class FinanceiroService implements OnModuleInit {
 
     return { success: true, confirmados: confirmados.length };
   }
+
+  /**
+   * Export do livro caixa em CSV. Filtra pelo mês/ano (período passado pela
+   * URL) e gera um CSV UTF-8 com BOM (Excel abre direito com acento).
+   *
+   * Sem isso, o operador não conseguia gerar prestação de contas — única
+   * forma era olhar tela por tela e digitar. Síndico precisa apresentar
+   * relatório em assembleia.
+   */
+  async exportLivroCaixaCsv(
+    idCondominio: number,
+    mesStr?: string,
+    anoStr?: string,
+    user?: JwtPayload,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
+    if (!this.prisma.isConnected) {
+      return { buffer: Buffer.from('Data\n'), filename: 'livro_caixa_vazio.csv' };
+    }
+
+    // Resolve mês/ano: se não vier, usa o mês com lançamentos mais recente
+    // (mesma lógica do getAll, pra manter consistência com o que o operador
+    // está vendo na tela).
+    const mesesDisponiveis = await this.getAllMeses(idCondominio);
+    let mes = mesStr ? Number(mesStr) : null;
+    let ano = anoStr ? Number(anoStr) : null;
+    if ((!mes || !ano) && mesesDisponiveis.length > 0) {
+      const ult = mesesDisponiveis[mesesDisponiveis.length - 1];
+      mes = Number(ult.mes);
+      ano = Number(ult.ano);
+    }
+    mes = mes ?? new Date().getMonth() + 1;
+    ano = ano ?? new Date().getFullYear();
+
+    const dataIni = new Date(ano, mes - 1, 1);
+    const dataFim = new Date(ano, mes, 0);
+
+    const list = await this.prisma.financeiro.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        OR: [
+          { data: { gte: dataIni, lte: dataFim } },
+          { data_vencimento: { gte: dataIni, lte: dataFim } },
+        ],
+      },
+      orderBy: [{ data: 'asc' }, { data_vencimento: 'asc' }],
+    });
+
+    // Calcula saldo corrente igual o getAll faz na tela — operador espera
+    // ver o mesmo número que aparece no painel.
+    let saldoCorrente = 0;
+    const linhasDados: string[][] = [];
+
+    for (const item of list) {
+      let v = item.valor ? Number(item.valor) : 0;
+      if (item.tipo === 'D') v = -Math.abs(v);
+      else v = Math.abs(v);
+
+      if (item.pago === 1) saldoCorrente += v;
+
+      const fmtDate = (d: Date | null) =>
+        d ? d.toLocaleDateString('pt-BR') : '';
+      const fmtBRL = (n: number) =>
+        n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      linhasDados.push([
+        fmtDate(item.data),
+        fmtDate(item.data_vencimento),
+        item.tipo === 'D' ? 'Despesa' : 'Receita',
+        item.nome ?? '',
+        item.categoria ?? '',
+        item.conta ?? '',
+        item.cliente ?? '',
+        item.forma_pagamento ?? '',
+        item.descricao ?? '',
+        fmtBRL(v),
+        fmtBRL(saldoCorrente),
+        item.pago === 1 ? 'Pago' : 'Em aberto',
+        item.nome_operador ?? '',
+      ]);
+    }
+
+    const header = [
+      'Data Pagamento',
+      'Vencimento',
+      'Tipo',
+      'Descrição',
+      'Categoria',
+      'Conta',
+      'Cliente',
+      'Forma de Pagamento',
+      'Observação',
+      'Valor',
+      'Saldo Acumulado',
+      'Status',
+      'Operador',
+    ];
+    const lines = [header.map(this.csvEscape).join(',')];
+    for (const row of linhasDados) {
+      lines.push(row.map(this.csvEscape).join(','));
+    }
+
+    // BOM para o Excel reconhecer UTF-8 e renderizar acentos.
+    const csv = '﻿' + lines.join('\n');
+    const mesPad = String(mes).padStart(2, '0');
+    return {
+      buffer: Buffer.from(csv, 'utf8'),
+      filename: `livro_caixa_${idCondominio}_${mesPad}-${ano}.csv`,
+    };
+  }
+
+  private csvEscape(value: string): string {
+    if (value == null) return '';
+    const str = String(value);
+    if (/[",\n\r]/.test(str)) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  }
 }

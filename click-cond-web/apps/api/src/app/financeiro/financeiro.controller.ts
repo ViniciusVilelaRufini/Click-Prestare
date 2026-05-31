@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Headers, HttpCode, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Post, Query, Res, UnauthorizedException } from '@nestjs/common';
+import type { Response } from 'express';
 import { FinanceiroService } from './financeiro.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -89,6 +90,26 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
   ) {
     return this.service.notifyInadimplente(Number(idCondominio), apto, bloco, payload);
+  }
+
+  @Get('export-csv')
+  async exportCsv(
+    @Query('id_condominio') idCondominio: string,
+    @Res() res: Response,
+    @ReqUser() payload: JwtPayload,
+    @Query('mes') mes?: string,
+    @Query('ano') ano?: string,
+  ) {
+    const { buffer, filename } = await this.service.exportLivroCaixaCsv(
+      Number(idCondominio),
+      mes,
+      ano,
+      payload,
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 
   @Get('grafico/get-all')

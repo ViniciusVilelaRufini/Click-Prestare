@@ -48,6 +48,9 @@ export class FinanceiroPageComponent implements OnInit {
   readonly uploadingId = signal<number | null>(null);
   readonly uploadError = signal<string | null>(null);
 
+  // Export CSV
+  readonly exportandoCsv = signal(false);
+
   // Conciliação Bancária
   readonly modalConciliacao = signal(false);
   readonly ofxTransactions = signal<any[]>([]);
@@ -188,6 +191,28 @@ export class FinanceiroPageComponent implements OnInit {
   carregarInadimplencia() {
     this.api.listInadimplentes().subscribe(res => {
       this.inadimplentesBlocos.set(res?.blocos || []);
+    });
+  }
+
+  exportarCsv() {
+    if (this.exportandoCsv()) return;
+    const [m, a] = this.selectedMesAno.split('|');
+    this.exportandoCsv.set(true);
+    this.api.exportCsv(m, a).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `livro_caixa_${m}-${a}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        this.exportandoCsv.set(false);
+      },
+      error: () => {
+        this.exportandoCsv.set(false);
+      },
     });
   }
 

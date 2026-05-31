@@ -31,6 +31,19 @@
       </div>
 
       <button
+        (click)="exportarCsv()"
+        [disabled]="exportandoCsv() || loading()"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white font-semibold text-sm
+               hover:bg-white/10 transition active:scale-95 animate-fade-in disabled:opacity-40 disabled:pointer-events-none"
+        title="Exportar livro caixa do mês em CSV (abre no Excel)"
+      >
+        <svg class="w-4 h-4 text-emerald-400" [class.animate-spin]="exportandoCsv()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+        </svg>
+        {{ exportandoCsv() ? 'Exportando...' : 'Exportar CSV' }}
+      </button>
+
+      <button
         (click)="triggerOfxUpload()"
         class="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white font-semibold text-sm
                hover:bg-white/10 transition active:scale-95 animate-fade-in"
