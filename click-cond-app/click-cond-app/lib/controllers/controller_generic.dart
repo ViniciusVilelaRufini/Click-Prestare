@@ -49,6 +49,11 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
   // Erro — tenta extrair message do body
   // ignore: avoid_print
   print('[apiSaveObject] HTTP ${response.statusCode} body=${response.body}');
+  // Bodyzinho cru pra debug visivel ao usuario quando algo eh estranho
+  // (vai pra dialog quando dev mode).
+  final shortBody = response.body.length > 200
+      ? '${response.body.substring(0, 200)}...'
+      : response.body;
   try {
     final parsed = jsonDecode(response.body);
     if (parsed is Map && parsed["message"] != null) {
@@ -68,12 +73,14 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
           msgStr.startsWith('RangeError:')) {
         // ignore: avoid_print
         print('[apiSaveObject] backend devolveu erro JS interno: $msgStr');
-        return 'Erro interno no servidor. Tente novamente em instantes.';
+        // Inclui inicio do body no proprio erro pra dar pista ao usuario,
+        // que vai poder mandar print pra mim em vez de precisar de F12.
+        return 'Erro interno no servidor (HTTP ${response.statusCode}). Detalhes: $shortBody';
       }
       return msgStr;
     }
   } catch (_) {}
-  return "Erro ${response.statusCode}";
+  return "Erro HTTP ${response.statusCode}: $shortBody";
 }
 
 apiDeleteObject(String route, int idObj) async {
