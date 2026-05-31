@@ -82,7 +82,7 @@ class _SignupCondominuim3PageState extends State<SignupCondominuim3> {
               ],
             ),
             const SizedBox(height: AppSpacing.xl),
-            _PlanCard(context),
+            _buildSummaryCard(context),
             const SizedBox(height: AppSpacing.xl),
             _StepIndicator(step: 3, total: 3),
             const SizedBox(height: AppSpacing.lg),
@@ -99,58 +99,122 @@ class _SignupCondominuim3PageState extends State<SignupCondominuim3> {
     );
   }
 
-  Widget _PlanCard(BuildContext context) {
+  Widget _buildSummaryCard(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Revise os dados de cadastro:',
+          style: AppTypography.bodyMedium(context).copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary(context),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        
+        // Dados Gerais
+        _buildSectionCard(
+          context,
+          title: 'Informações Gerais',
+          icon: PhosphorIcons.info,
+          children: [
+            _buildDetailRow(context, 'CNPJ/Documento', widget.condominio.documento ?? ''),
+            _buildDetailRow(context, 'Subsíndico', widget.condominio.subsindico ?? ''),
+            _buildDetailRow(context, 'Início do Mandato', widget.condominio.inicioMandato ?? ''),
+            _buildDetailRow(context, 'Término do Mandato', widget.condominio.terminoMandato ?? ''),
+          ],
+        ),
+        
+        const SizedBox(height: AppSpacing.md),
+        
+        // Localização
+        _buildSectionCard(
+          context,
+          title: 'Endereço',
+          icon: PhosphorIcons.mapPin,
+          children: [
+            _buildDetailRow(context, 'CEP', widget.condominio.cep ?? ''),
+            _buildDetailRow(context, 'Rua/Número', '${widget.condominio.rua ?? ''}, ${widget.condominio.numero ?? ''}'),
+            if (widget.condominio.complemento != null && widget.condominio.complemento!.isNotEmpty)
+              _buildDetailRow(context, 'Complemento', widget.condominio.complemento ?? ''),
+            _buildDetailRow(context, 'Bairro', widget.condominio.bairro ?? ''),
+            _buildDetailRow(context, 'Cidade/UF', '${widget.condominio.cidade ?? ''} - ${widget.condominio.uf ?? ''}'),
+            _buildDetailRow(context, 'País', widget.condominio.pais ?? ''),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionCard(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.06),
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
+              Icon(icon, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: AppTypography.bodyMedium(context).copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
                 ),
-                child: const Icon(PhosphorIcons.star, color: AppColors.primary, size: 22),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Text(getText('signup_cond_valor_total'), style: AppTypography.headline(context)),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            getText('signup_cond_valor_mensal'),
-            style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context)),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: Divider(height: 1, thickness: 1),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          _InfoRow(PhosphorIcons.gift, getText('signup_cond_dias_gratuitos'), context),
-          const SizedBox(height: AppSpacing.sm),
-          _InfoRow(PhosphorIcons.xCircle, getText('signup_cond_cancele_label'), context),
+          ...children,
         ],
       ),
     );
   }
 
-  Widget _InfoRow(IconData icon, String text, BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: AppColors.primary),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            text,
-            style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+  Widget _buildDetailRow(BuildContext context, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: AppTypography.caption(context).copyWith(
+                color: AppColors.textSecondary(context),
+              ),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: AppTypography.bodySecondary(context).copyWith(
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary(context),
+              ),
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
