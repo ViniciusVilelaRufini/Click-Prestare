@@ -96,9 +96,17 @@ export class MoradoresMobileController {
   }
 
   @Get('get')
-  getMorador(@ReqUser() payload: JwtPayload, @Query('id') id: string) {
+  getMorador(
+    @ReqUser() payload: JwtPayload,
+    @Query('id') id: string,
+    @Query('id_condominio') idCondominio?: string,
+  ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.getMoradorById(Number(id), Number(idUser));
+    return this.service.getMoradorById(
+      Number(id),
+      Number(idUser),
+      idCondominio ? Number(idCondominio) : undefined,
+    );
   }
 
   @Post('insert')

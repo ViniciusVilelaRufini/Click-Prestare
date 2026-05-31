@@ -1250,16 +1250,24 @@ export class MobileAuthService {
     }));
   }
 
-  async getMoradorById(id: number, idUser: number) {
+  async getMoradorById(id: number, idUser: number, idCondominio?: number) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
     let m;
     if (id === 0) {
-      m = await this.prisma.moradores.findFirst({
-        where: { id_user: idUser },
-        include: { user: true },
-      });
+      if (idCondominio) {
+        m = await this.prisma.moradores.findFirst({
+          where: { id_user: idUser, id_condominio: idCondominio },
+          include: { user: true },
+        });
+      }
+      if (!m) {
+        m = await this.prisma.moradores.findFirst({
+          where: { id_user: idUser },
+          include: { user: true },
+        });
+      }
     } else {
       m = await this.prisma.moradores.findUnique({
         where: { id: Number(id) },
