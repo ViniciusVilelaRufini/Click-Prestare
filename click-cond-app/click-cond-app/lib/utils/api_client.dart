@@ -75,40 +75,50 @@ class ApiClient {
 
   /// Quando um endpoint protegido devolve 401, considera token expirado.
   /// Limpa storage e força navegação pra rota raiz (que vai exibir o login).
+  ///
+  /// Defensivo: todo o handler está dentro de try/catch porque dart2js
+  /// (Flutter Web) tem comportamento errático com WidgetsBinding/Navigator
+  /// quando chamado durante uma operação síncrona — se algo aqui jogar,
+  /// queremos que o request original prossiga e mostre o erro normal,
+  /// não que vire um TypeError JS confuso na tela ("super constructor...").
   static void _checkAuth(http.Response res) {
     if (res.statusCode != 401) return;
-    if (_handlingExpiration) return; // outro request já está cuidando
+    if (_handlingExpiration) return;
     _handlingExpiration = true;
 
-    // Limpa token + dados de usuário do storage local.
-    storageLogout();
+    try {
+      storageLogout();
+    } catch (_) {}
 
-    // Aguarda o frame atual terminar antes de navegar — evita "setState
-    // during build" se o 401 acontecer durante construção de tela.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final navState = NavigationService.navigatorKey.currentState;
-      if (navState == null) {
-        _handlingExpiration = false;
-        return;
-      }
+    try {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          final navState = NavigationService.navigatorKey.currentState;
+          if (navState == null) {
+            _handlingExpiration = false;
+            return;
+          }
 
-      // Avisa usuário (snackbar não bloqueante).
-      final ctx = navState.context;
-      ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(
-        const SnackBar(
-          content: Text('Sua sessão expirou. Faça login novamente.'),
-          duration: Duration(seconds: 4),
-        ),
-      );
+          final ctx = navState.context;
+          ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(
+            const SnackBar(
+              content: Text('Sua sessão expirou. Faça login novamente.'),
+              duration: Duration(seconds: 4),
+            ),
+          );
 
-      // Volta para a raiz limpando toda a pilha.
-      navState.pushNamedAndRemoveUntil('/', (_) => false);
-
-      // Reseta após um pequeno delay para permitir novos handles de 401
-      // em sessões futuras (sem isso, o segundo logout do app não funcionaria).
-      Future.delayed(const Duration(seconds: 2), () {
-        _handlingExpiration = false;
+          navState.pushNamedAndRemoveUntil('/', (_) => false);
+        } catch (_) {
+          // Engole — pior caso usuário vê o erro do request original.
+        } finally {
+          Future.delayed(const Duration(seconds: 2), () {
+            _handlingExpiration = false;
+          });
+        }
       });
-    });
+    } catch (_) {
+      // WidgetsBinding pode falhar se chamado fora do contexto Flutter.
+      _handlingExpiration = false;
+    }
   }
 }

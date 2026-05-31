@@ -106,8 +106,16 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
       } else {
         if (mounted) displayMessage(context, getText('alert_error'), res.toString());
       }
-    } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), e.toString());
+    } catch (e, st) {
+      // Loga stack trace pra debug em release/web (dart2js as vezes converte
+      // TypeError JS em mensagem indecifravel — sem o stack, vira caca preta).
+      // ignore: avoid_print
+      print('[save despesa] $e\n$st');
+      if (mounted) displayMessage(
+        context,
+        getText('alert_error'),
+        'Não foi possível salvar. Verifique os dados e tente novamente.',
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
