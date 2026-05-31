@@ -727,12 +727,24 @@ export class VisitantesPageComponent implements OnInit {
   getMapUrl(d: any): SafeResourceUrl | null {
     if (!d || !d.visitante) return null;
     const cond = d.visitante.condominio;
-    const bloco = d.visitante.blocoAptoAtual || '';
-    const end = cond?.enderecoRel;
-    if (!end) return null;
+    if (!cond) return null;
 
-    const addressStr = `${end.rua || ''}, ${end.numero || ''}, ${end.cidade || ''} - ${end.uf || ''}`;
-    const query = `${addressStr} ${bloco ? ' ' + bloco : ''}`;
+    const bloco = d.visitante.blocoAptoAtual || '';
+    let query = '';
+
+    if (typeof cond === 'object') {
+      const end = cond.enderecoRel;
+      if (end && (end.rua || end.cidade)) {
+        const addressStr = `${end.rua || ''}, ${end.numero || ''}, ${end.cidade || ''} - ${end.uf || ''}`;
+        query = `${addressStr} ${bloco ? ' ' + bloco : ''}`;
+      } else {
+        query = `${cond.nome || ''} ${bloco ? ' ' + bloco : ''}`;
+      }
+    } else if (typeof cond === 'string') {
+      query = `${cond} ${bloco ? ' ' + bloco : ''}`;
+    }
+
+    if (!query) return null;
     const url = `https://maps.google.com/maps?q=${encodeURIComponent(query)}&t=&z=17&ie=UTF8&iwloc=&output=embed`;
     return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
@@ -740,12 +752,29 @@ export class VisitantesPageComponent implements OnInit {
   getShareRouteLink(d: any): string {
     if (!d || !d.visitante) return '';
     const cond = d.visitante.condominio;
-    const bloco = d.visitante.blocoAptoAtual || '';
-    const end = cond?.enderecoRel;
-    if (!end) return '';
+    if (!cond) return '';
 
-    const addressStr = `${end.rua || ''}, ${end.numero || ''}, ${end.cidade || ''} - ${end.uf || ''}`;
-    const query = `${addressStr} ${bloco ? ' ' + bloco : ''}`;
+    const bloco = d.visitante.blocoAptoAtual || '';
+    let query = '';
+
+    if (typeof cond === 'object') {
+      const end = cond.enderecoRel;
+      if (end && (end.rua || end.cidade)) {
+        const addressStr = `${end.rua || ''}, ${end.numero || ''}, ${end.cidade || ''} - ${end.uf || ''}`;
+        query = `${addressStr} ${bloco ? ' ' + bloco : ''}`;
+      } else {
+        query = `${cond.nome || ''} ${bloco ? ' ' + bloco : ''}`;
+      }
+    } else if (typeof cond === 'string') {
+      query = `${cond} ${bloco ? ' ' + bloco : ''}`;
+    }
+
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  }
+
+  getCondominioNome(cond: any): string {
+    if (!cond) return '';
+    if (typeof cond === 'object') return cond.nome || '';
+    return String(cond);
   }
 }
