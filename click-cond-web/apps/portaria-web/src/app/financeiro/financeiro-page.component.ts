@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FinanceiroApi, Lancamento } from './financeiro.service';
+import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-financeiro-page',
@@ -11,6 +12,7 @@ import { FinanceiroApi, Lancamento } from './financeiro.service';
 })
 export class FinanceiroPageComponent implements OnInit {
   private api = inject(FinanceiroApi);
+  private auth = inject(AuthService);
 
   readonly loading = signal(true);
   readonly tab = signal<'lancamentos' | 'graficos' | 'inadimplencia'>('lancamentos');
@@ -50,6 +52,31 @@ export class FinanceiroPageComponent implements OnInit {
 
   // Export CSV
   readonly exportandoCsv = signal(false);
+
+  // Modal de confirmação de pagamento (segregação soft de funções).
+  // Aparece quando o operador marca como pago um lançamento que ele mesmo
+  // criou — exige motivo + forma de pagamento. Caso comum: porteiro abre
+  // "Conta de luz" e marca como pago porque o síndico pagou em dinheiro.
+  readonly modalConfirmarPagamento = signal(false);
+  readonly lancamentoAConfirmar = signal<Lancamento | null>(null);
+  readonly confirmando = signal(false);
+  readonly confirmarErro = signal<string | null>(null);
+  confirmarMotivo = '';
+  confirmarFormaPagamento = '';
+  confirmarIdentificador = '';
+
+  /** Formas de pagamento disponíveis no modal. */
+  readonly formasPagamento = [
+    { value: 'PIX', label: 'PIX' },
+    { value: 'Dinheiro', label: 'Dinheiro' },
+    { value: 'Transferência bancária', label: 'Transferência bancária' },
+    { value: 'Débito automático', label: 'Débito automático' },
+    { value: 'Cartão de crédito', label: 'Cartão de crédito' },
+    { value: 'Cartão de débito', label: 'Cartão de débito' },
+    { value: 'Boleto', label: 'Boleto' },
+    { value: 'Cheque', label: 'Cheque' },
+    { value: 'Outro', label: 'Outro' },
+  ];
 
   // Conciliação Bancária
   readonly modalConciliacao = signal(false);
@@ -224,19 +251,100 @@ export class FinanceiroPageComponent implements OnInit {
     return Object.keys(this.lancamentosMap());
   }
 
+  /**
+   * Verifica se o operador logado é o mesmo que criou o lançamento.
+   * Usado para decidir se mostra o modal de confirmação (segregação soft).
+   */
+  private isAutoAprovacao(item: Lancamento): boolean {
+    const nomeOperador = this.auth.porteiroInfo()?.nome?.trim().toLowerCase();
+    const nomeAutor = item.nome_operador?.trim().toLowerCase();
+    return !!nomeOperador && !!nomeAutor && nomeOperador === nomeAutor;
+  }
+
   // Ações Operacionais
   alternarPago(item: Lancamento) {
     const novoStatus = item.pago === 1 ? 0 : 1;
+    // Marcar como pago + autor mesmo: abre modal de justificativa.
+    // Desmarcar (pago→não pago) ou marcar lançamento de outro operador:
+    // segue direto sem modal.
+    if (novoStatus === 1 && this.isAutoAprovacao(item)) {
+      this.abrirModalConfirmarPagamento(item);
+      return;
+    }
     this.api.updateStatus(item.id, novoStatus).subscribe(() => {
       this.carregarDados();
     });
   }
 
   aprovarPagamento(id: number) {
-    // Status 1 = Aprovado/Pago
+    // Localiza o item nos lançamentos para detectar auto-aprovação.
+    const item = this.findLancamentoById(id);
+    if (item && this.isAutoAprovacao(item)) {
+      this.abrirModalConfirmarPagamento(item);
+      return;
+    }
     this.api.updateStatus(id, 1).subscribe(() => {
       this.carregarDados();
     });
+  }
+
+  private findLancamentoById(id: number): Lancamento | null {
+    const map = this.lancamentosMap();
+    for (const dia of Object.keys(map)) {
+      const found = map[dia].find((l) => l.id === id);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  abrirModalConfirmarPagamento(item: Lancamento) {
+    this.lancamentoAConfirmar.set(item);
+    this.confirmarMotivo = '';
+    this.confirmarFormaPagamento = 'PIX';
+    this.confirmarIdentificador = '';
+    this.confirmarErro.set(null);
+    this.modalConfirmarPagamento.set(true);
+  }
+
+  cancelarConfirmarPagamento() {
+    this.modalConfirmarPagamento.set(false);
+    this.lancamentoAConfirmar.set(null);
+  }
+
+  confirmarPagamento() {
+    const item = this.lancamentoAConfirmar();
+    if (!item) return;
+
+    const motivo = this.confirmarMotivo.trim();
+    if (motivo.length < 5) {
+      this.confirmarErro.set('Motivo precisa ter pelo menos 5 caracteres.');
+      return;
+    }
+    if (!this.confirmarFormaPagamento) {
+      this.confirmarErro.set('Selecione a forma de pagamento.');
+      return;
+    }
+
+    this.confirmando.set(true);
+    this.confirmarErro.set(null);
+    this.api
+      .updateStatus(item.id, 1, {
+        motivo,
+        formaPagamento: this.confirmarFormaPagamento,
+        identificadorComprovante: this.confirmarIdentificador.trim() || undefined,
+      })
+      .subscribe({
+        next: () => {
+          this.confirmando.set(false);
+          this.modalConfirmarPagamento.set(false);
+          this.lancamentoAConfirmar.set(null);
+          this.carregarDados();
+        },
+        error: (err) => {
+          this.confirmando.set(false);
+          this.confirmarErro.set(err?.error?.message ?? 'Falha ao confirmar pagamento.');
+        },
+      });
   }
 
   abrirModalLancamento() {

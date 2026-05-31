@@ -683,6 +683,45 @@
                           } @else {
                             <div class="text-xs text-slate-500 italic">Nenhum campo sensível alterado.</div>
                           }
+
+                          <!-- Justificativa de auto-aprovação (segregação soft de funções).
+                               Aparece quando o operador marca como pago um lançamento que ele
+                               mesmo criou — precisa registrar como o pagamento foi recebido. -->
+                          @if (dt.justificativa) {
+                            <div class="rounded-lg bg-amber-500/5 border border-amber-500/30 p-3">
+                              <div class="flex items-center gap-2 mb-2">
+                                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <span class="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
+                                  {{ dt.justificativa.autoAprovacao ? 'Auto-aprovação justificada' : 'Pagamento com justificativa' }}
+                                </span>
+                              </div>
+                              @if (dt.justificativa.formaPagamento) {
+                                <div class="text-xs mb-1">
+                                  <span class="text-slate-500">Forma:</span>
+                                  <span class="text-white ml-1 font-medium">{{ dt.justificativa.formaPagamento }}</span>
+                                </div>
+                              }
+                              @if (dt.justificativa.motivo) {
+                                <div class="text-xs">
+                                  <span class="text-slate-500">Motivo:</span>
+                                  <span class="text-slate-200 ml-1 italic">"{{ dt.justificativa.motivo }}"</span>
+                                </div>
+                              }
+                              @if (dt.justificativa.identificadorComprovante) {
+                                <div class="text-[11px] mt-1 font-mono">
+                                  <span class="text-slate-500">Comprovante:</span>
+                                  <span class="text-slate-300 ml-1">{{ dt.justificativa.identificadorComprovante }}</span>
+                                </div>
+                              }
+                              @if (dt.justificativa.autoAprovacao && dt.justificativa.autorOriginal && dt.justificativa.aprovadoPor) {
+                                <div class="text-[10px] mt-2 pt-2 border-t border-amber-500/20 text-slate-500">
+                                  Mesmo operador criou e marcou como pago: <span class="text-amber-300">{{ dt.justificativa.autorOriginal }}</span>
+                                </div>
+                              }
+                            </div>
+                          }
                         </div>
                       } @else if (tipo === 'rateio' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">

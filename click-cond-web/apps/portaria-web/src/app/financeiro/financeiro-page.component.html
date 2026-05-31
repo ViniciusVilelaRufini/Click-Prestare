@@ -800,3 +800,97 @@
   </div>
 }
 
+<!-- Modal de Confirmação de Pagamento (Segregação Soft de Funções) -->
+@if (modalConfirmarPagamento()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+    <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-amber-500/20 overflow-hidden shadow-2xl">
+      <!-- Header -->
+      <div class="px-6 py-4 bg-amber-500/5 border-b border-amber-500/20 flex items-start gap-3">
+        <div class="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-sm font-semibold text-white">Confirmar pagamento — exige justificativa</h3>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Você está marcando como pago um lançamento que você mesmo registrou.
+            Informe como o pagamento foi recebido (ex: dinheiro do morador, PIX direto, etc.)
+            para deixar registrado na auditoria.
+          </p>
+        </div>
+      </div>
+
+      <!-- Conteúdo -->
+      <div class="px-6 py-5 space-y-4">
+        @if (lancamentoAConfirmar(); as item) {
+          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Lançamento</div>
+            <div class="text-sm font-semibold text-white">{{ item.nome }}</div>
+            <div class="text-xs mt-1"
+                 [class.text-emerald-300]="item.tipo === 'C'"
+                 [class.text-red-300]="item.tipo === 'D'">
+              {{ item.valorString }}
+            </div>
+          </div>
+        }
+
+        <!-- Forma de pagamento -->
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Forma de pagamento *</label>
+          <select [(ngModel)]="confirmarFormaPagamento"
+                  class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-amber-400/60">
+            @for (f of formasPagamento; track f.value) {
+              <option [value]="f.value" class="bg-slate-900">{{ f.label }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Motivo -->
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Motivo / observação *</label>
+          <textarea [(ngModel)]="confirmarMotivo"
+                    rows="3"
+                    placeholder="Ex: Pago em dinheiro pelo morador na portaria, recibo arquivado. Ou: PIX recebido na conta do síndico, comprovante #ABC123."
+                    class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-amber-400/60 resize-none">
+          </textarea>
+          <p class="text-[11px] text-slate-500 mt-1">Mínimo 5 caracteres. Fica registrado para sempre na auditoria.</p>
+        </div>
+
+        <!-- Identificador (opcional) -->
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Identificador do comprovante (opcional)</label>
+          <input [(ngModel)]="confirmarIdentificador"
+                 type="text"
+                 placeholder="Ex: nº PIX, nº cheque, nº recibo"
+                 class="w-full px-3 py-2 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-amber-400/60" />
+        </div>
+
+        @if (confirmarErro()) {
+          <div class="rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-xs text-red-300">
+            {{ confirmarErro() }}
+          </div>
+        }
+      </div>
+
+      <!-- Footer -->
+      <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end gap-2">
+        <button (click)="cancelarConfirmarPagamento()"
+                [disabled]="confirmando()"
+                class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-white font-medium disabled:opacity-40">
+          Cancelar
+        </button>
+        <button (click)="confirmarPagamento()"
+                [disabled]="confirmando()"
+                class="px-5 py-2 text-sm rounded-lg font-medium text-slate-950 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 transition flex items-center gap-2">
+          @if (confirmando()) {
+            <div class="w-3.5 h-3.5 border border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+            Confirmando...
+          } @else {
+            Confirmar pagamento
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}

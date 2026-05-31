@@ -1218,21 +1218,68 @@ export class FinanceiroService implements OnModuleInit {
     return { url };
   }
 
-  async updateStatus(id: number, statusStr: string | number, user?: JwtPayload) {
+  async updateStatus(
+    id: number,
+    statusStr: string | number,
+    user?: JwtPayload,
+    extras?: { motivo?: string; formaPagamento?: string; identificadorComprovante?: string },
+  ) {
     if (!this.prisma.isConnected) return { success: true };
 
     // Marcar despesa como paga é a mutação MAIS sensível do módulo financeiro.
     // Validação obrigatória: lançamento existe e pertence ao condomínio do operador.
     const lanc = await this.getLancamentoForTenant(id, user);
 
+    // Carrega o lançamento completo (precisamos do nome_operador para checar
+    // segregação de funções).
+    const lancCompleto = await this.prisma.financeiro.findUnique({
+      where: { id: Number(id) },
+      select: { nome_operador: true },
+    });
+
     const status = String(statusStr);
     const isPago = status === '1' ? 1 : 0;
     const statusAnterior = lanc.status;
     const pagoAnterior = lanc.pago;
 
+    // === Segregação de funções (soft) ===
+    // Quando o operador marca como PAGO um lançamento que ele MESMO criou,
+    // exigimos um motivo (justificativa) e a forma de pagamento. Não bloqueia
+    // — só documenta. Cobre o caso comum: porteiro abre "Conta de luz" e
+    // marca como paga porque o síndico pagou em dinheiro.
+    //
+    // Match por nome do operador (não temos id_operador no schema). Não é
+    // perfeito (dois operadores com mesmo nome falham), mas é o que o schema
+    // atual permite sem migration.
+    const isAutoAprovacao =
+      pagoAnterior !== isPago &&
+      isPago === 1 &&
+      user?.nome &&
+      lancCompleto?.nome_operador &&
+      user.nome.trim().toLowerCase() === lancCompleto.nome_operador.trim().toLowerCase();
+
+    if (isAutoAprovacao) {
+      const motivo = extras?.motivo?.trim();
+      if (!motivo || motivo.length < 5) {
+        throw new BadRequestException(
+          'Para marcar como pago um lançamento que você mesmo criou, informe o motivo (ex: "Pago em dinheiro pelo morador", "PIX recebido na conta do síndico"). Mínimo 5 caracteres.',
+        );
+      }
+      if (!extras?.formaPagamento) {
+        throw new BadRequestException(
+          'Informe a forma de pagamento (PIX, dinheiro, transferência, etc.) ao marcar como pago um lançamento que você mesmo criou.',
+        );
+      }
+    }
+
     await this.prisma.financeiro.update({
       where: { id: Number(id) },
-      data: { status, pago: isPago },
+      data: {
+        status,
+        pago: isPago,
+        // Atualiza forma_pagamento se foi informada na confirmação.
+        ...(extras?.formaPagamento ? { forma_pagamento: extras.formaPagamento } : {}),
+      },
     });
 
     // Auditoria sempre — mas com destaque pra mudança de pago (mais sensível).
@@ -1254,6 +1301,19 @@ export class FinanceiroService implements OnModuleInit {
           status: { de: statusAnterior, para: status },
           pago: { de: pagoAnterior === 1, para: isPago === 1 },
         },
+        // Justificativa de auto-aprovação — fica no rastro pra sempre.
+        ...(isAutoAprovacao || extras?.motivo
+          ? {
+              justificativa: {
+                autoAprovacao: !!isAutoAprovacao,
+                motivo: extras?.motivo ?? null,
+                formaPagamento: extras?.formaPagamento ?? null,
+                identificadorComprovante: extras?.identificadorComprovante ?? null,
+                autorOriginal: lancCompleto?.nome_operador ?? null,
+                aprovadoPor: user?.nome ?? null,
+              },
+            }
+          : {}),
       },
     });
 

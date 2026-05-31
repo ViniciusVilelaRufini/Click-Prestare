@@ -66,9 +66,13 @@ export class FinanceiroApi {
     return this.http.post(url, { id_condominio: this.cid, financeiro: payload });
   }
 
-  updateStatus(id: number, status: string | number): Observable<any> {
+  updateStatus(
+    id: number,
+    status: string | number,
+    extras?: { motivo?: string; formaPagamento?: string; identificadorComprovante?: string },
+  ): Observable<any> {
     const url = `${API_BASE}/financeiro/update-status`;
-    return this.http.post(url, { id, status });
+    return this.http.post(url, { id, status, ...extras });
   }
 
   uploadSharedFile(id: number, fileBase64: string, type: string): Observable<any> {

@@ -176,10 +176,21 @@ export class FinanceiroController {
   @Post('update-status')
   @HttpCode(200)
   updateStatus(
-    @Body() body: { id: string | number; status: string | number },
+    @Body() body: {
+      id: string | number;
+      status: string | number;
+      // Campos opcionais — só obrigatórios quando autor=operador (segregação soft).
+      motivo?: string;
+      formaPagamento?: string;
+      identificadorComprovante?: string;
+    },
     @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.updateStatus(Number(body.id), body.status, payload);
+    return this.service.updateStatus(Number(body.id), body.status, payload, {
+      motivo: body.motivo,
+      formaPagamento: body.formaPagamento,
+      identificadorComprovante: body.identificadorComprovante,
+    });
   }
 
   @Public()
