@@ -5,6 +5,7 @@ import 'package:click/pages/settings/notification_settings.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
+import 'package:click/pages/shared/financeiro/list_inadimplentes.dart';
 import 'package:click/pages/shared/funcionarios/edit_funcionario.dart';
 import 'package:click/pages/shared/morador/assinatura_morador.dart';
 import 'package:click/pages/shared/morador/edit_morador.dart';
@@ -127,7 +128,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     
     Widget? page;
     if (module == 'debts') {
-      page = type == 'morador' ? const MoradorFinanceiroView() : const ListFinanceiro();
+      page = type == 'morador' ? const MoradorFinanceiroView() : const ListInadimplestes();
     } else if (module == 'occurrences') {
       page = const ListOcorrencias();
     } else if (module == 'visits') {
