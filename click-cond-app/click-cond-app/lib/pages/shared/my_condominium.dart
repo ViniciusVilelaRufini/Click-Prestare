@@ -310,13 +310,13 @@ class _MyCondominiumState extends State<MyCondominium> {
           slivers: [
             SliverToBoxAdapter(child: _buildHeader(context)),
             SliverToBoxAdapter(
-                child: _isLoading
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                        child: AppSkeleton(width: double.infinity, height: 160, borderRadius: AppRadius.xxl),
-                      )
-                    : _buildStats(context, saldoNeg)),
-            SliverToBoxAdapter(child: _buildWeatherWidget()),
+              child: _isLoading
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                      child: AppSkeleton(width: double.infinity, height: 160, borderRadius: AppRadius.xxl),
+                    )
+                  : _buildStats(context, saldoNeg),
+            ),
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
