@@ -11,6 +11,7 @@ import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ListEncomendas extends StatefulWidget {
   final bool allCondos;
@@ -54,6 +55,12 @@ class _ListEncomendasState extends State<ListEncomendas> {
     return AppScaffold(
       title: widget.hideAppBar ? null : 'Minhas Encomendas',
       showBackButton: !widget.hideAppBar,
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'register_tracking',
+        backgroundColor: AppColors.primary,
+        onPressed: () => _showRegisterTrackingDialog(context),
+        child: const Icon(PhosphorIcons.plus, color: Colors.black),
+      ),
       body: _isLoading
           ? ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -91,12 +98,182 @@ class _ListEncomendasState extends State<ListEncomendas> {
       ),
     );
   }
+
+  void _showRegisterTrackingDialog(BuildContext context) {
+    final formKey = GlobalKey<FormState>();
+    final txtDescricao = TextEditingController();
+    final txtCodigo = TextEditingController();
+    String selectedCarrier = 'Correios';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: AppColors.surface(context),
+              title: Text(
+                'Aviso de Encomenda',
+                style: AppTypography.bodyLarge(context).copyWith(fontWeight: FontWeight.bold),
+              ),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Cadastre o código de rastreamento para receber notificações automáticas de status e chegada.',
+                        style: AppTypography.caption(context),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: txtDescricao,
+                        decoration: InputDecoration(
+                          labelText: 'Descrição (Ex: Livro, Roupa)',
+                          labelStyle: AppTypography.caption(context),
+                          border: const OutlineInputBorder(),
+                        ),
+                        validator: (value) => value == null || value.isEmpty ? 'Campo obrigatório' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: selectedCarrier,
+                        decoration: InputDecoration(
+                          labelText: 'Transportadora',
+                          labelStyle: AppTypography.caption(context),
+                          border: const OutlineInputBorder(),
+                        ),
+                        items: ['Correios', 'Mercado Livre', 'Amazon', 'Loggi', 'Jadlog', 'Shopee', 'FedEx', 'DHL']
+                            .map((c) => DropdownMenuItem(value: c, child: Text(c, style: AppTypography.bodySecondary(context))))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => selectedCarrier = val);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: txtCodigo,
+                              decoration: InputDecoration(
+                                labelText: 'Código de Rastreio',
+                                labelStyle: AppTypography.caption(context),
+                                border: const OutlineInputBorder(),
+                              ),
+                              validator: (value) => value == null || value.isEmpty ? 'Campo obrigatório' : null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(PhosphorIcons.barcode, color: AppColors.primary),
+                            onPressed: () async {
+                              final scannedCode = await Navigator.push<String>(
+                                context,
+                                MaterialPageRoute(builder: (_) => _BarcodeScannerPage()),
+                              );
+                              if (scannedCode != null) {
+                                setState(() {
+                                  txtCodigo.text = scannedCode;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary(context))),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                  onPressed: () async {
+                    if (formKey.currentState?.validate() ?? false) {
+                      final success = await apiCadastrarRastreio(
+                        txtDescricao.text,
+                        selectedCarrier,
+                        txtCodigo.text,
+                      );
+                      if (success) {
+                        Navigator.pop(context);
+                        _loadList();
+                        displayMessage(context, 'Sucesso', 'Encomenda cadastrada com sucesso!');
+                      } else {
+                        displayMessage(context, 'Erro', 'Não foi possível cadastrar encomenda.');
+                      }
+                    }
+                  },
+                  child: const Text('Cadastrar', style: TextStyle(color: Colors.black)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _EncomendaCard extends StatelessWidget {
   final EncomendaModel encomenda;
 
   const _EncomendaCard({required this.encomenda});
+
+  Widget _buildBrandIcon(BuildContext context) {
+    final recebidoDe = (encomenda.recebidoDe ?? '').toLowerCase();
+    
+    IconData iconData = PhosphorIcons.package;
+    Color iconColor = AppColors.primary;
+    Color bgColor = AppColors.primary.withOpacity(0.1);
+
+    if (recebidoDe.contains('ifood') || recebidoDe.contains('food') || recebidoDe.contains('delivery') || recebidoDe.contains('pizza') || recebidoDe.contains('lanche')) {
+      iconData = PhosphorIcons.hamburger;
+      iconColor = Colors.red;
+      bgColor = Colors.red.withOpacity(0.1);
+    } else if (recebidoDe.contains('mercado livre') || recebidoDe.contains('mercado') || recebidoDe.contains('ml')) {
+      iconData = PhosphorIcons.handshake;
+      iconColor = const Color(0xFFFEE600);
+      bgColor = const Color(0xFFFEE600).withOpacity(0.1);
+    } else if (recebidoDe.contains('amazon')) {
+      iconData = PhosphorIcons.shoppingCart;
+      iconColor = const Color(0xFFFF9900);
+      bgColor = const Color(0xFFFF9900).withOpacity(0.1);
+    } else if (recebidoDe.contains('correios') || recebidoDe.contains('sedex') || recebidoDe.contains('pac')) {
+      iconData = PhosphorIcons.envelopeSimple;
+      iconColor = const Color(0xFF005DA5);
+      bgColor = const Color(0xFF005DA5).withOpacity(0.1);
+    } else if (recebidoDe.contains('shopee')) {
+      iconData = PhosphorIcons.shoppingBag;
+      iconColor = const Color(0xFFEE4D2D);
+      bgColor = const Color(0xFFEE4D2D).withOpacity(0.1);
+    } else if (recebidoDe.contains('dhl')) {
+      iconData = PhosphorIcons.truck;
+      iconColor = const Color(0xFFFFCC00);
+      bgColor = const Color(0xFFFFCC00).withOpacity(0.1);
+    } else if (recebidoDe.contains('fedex')) {
+      iconData = PhosphorIcons.truck;
+      iconColor = const Color(0xFF4D148C);
+      bgColor = const Color(0xFF4D148C).withOpacity(0.1);
+    }
+
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(iconData, color: iconColor, size: 28),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +284,8 @@ class _EncomendaCard extends StatelessWidget {
       statusColor = Colors.green;
     } else if (statusLower == 'cancelado' || statusLower == 'recusado') {
       statusColor = Colors.red;
+    } else if (statusLower == 'esperando') {
+      statusColor = Colors.blue;
     } else {
       statusColor = Colors.orange;
     }
@@ -119,6 +298,8 @@ class _EncomendaCard extends StatelessWidget {
       } catch (_) {
         dataFormatada = encomenda.recebidoEm!;
       }
+    } else if (statusLower == 'esperando') {
+      dataFormatada = 'Aguardando chegada';
     }
 
     return GestureDetector(
@@ -134,15 +315,7 @@ class _EncomendaCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(PhosphorIcons.package, color: AppColors.primary, size: 28),
-            ),
+            _buildBrandIcon(context),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -185,7 +358,7 @@ class _EncomendaCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          'Em: $dataFormatada',
+                          statusLower == 'esperando' ? dataFormatada : 'Em: $dataFormatada',
                           style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -414,6 +587,15 @@ class _EncomendaCard extends StatelessWidget {
                         label: 'Data de Recebimento',
                         value: dataFormatada,
                       ),
+                      if (encomenda.codigoRastreio != null && encomenda.codigoRastreio!.isNotEmpty) ...[
+                        const Divider(height: 24),
+                        _buildDetailRow(
+                          context,
+                          icon: PhosphorIcons.barcode,
+                          label: 'Código de Rastreio',
+                          value: encomenda.codigoRastreio!,
+                        ),
+                      ],
                       if (encomenda.retiradoPor != null) ...[
                         const Divider(height: 24),
                         _buildDetailRow(
@@ -562,6 +744,61 @@ class _EncomendaCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BarcodeScannerPage extends StatefulWidget {
+  @override
+  __BarcodeScannerPageState createState() => __BarcodeScannerPageState();
+}
+
+class __BarcodeScannerPageState extends State<_BarcodeScannerPage> {
+  final MobileScannerController _controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    facing: CameraFacing.back,
+  );
+  bool _scanned = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppScaffold(
+      title: 'Escanear Código',
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: _controller,
+            onDetect: (capture) {
+              if (_scanned) return;
+              final List<Barcode> barcodes = capture.barcodes;
+              if (barcodes.isNotEmpty) {
+                final code = barcodes.first.rawValue;
+                if (code != null && code.isNotEmpty) {
+                  setState(() => _scanned = true);
+                  Navigator.pop(context, code);
+                }
+              }
+            },
+          ),
+          // Borda do scanner no centro
+          Center(
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.primary, width: 3),
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

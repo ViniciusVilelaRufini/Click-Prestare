@@ -624,6 +624,7 @@ model Encomendas {
   foto_volume        String?     @db.VarChar(500)
   notificado         Int?        @default(0) @db.TinyInt
   notificado_em      DateTime?   @db.DateTime(0)
+  codigo_rastreio    String?     @db.VarChar(255)
   id_condominio      Int
   recebido_por_user  Int?
   entregue_por_user  Int?

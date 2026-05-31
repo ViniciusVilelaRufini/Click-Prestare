@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
@@ -68,6 +68,27 @@ apiInsertEncomenda(Map<String, dynamic> obj) async {
       })
     );
     return response.statusCode == 200;
+  } catch (e) {
+    return false;
+  }
+}
+
+apiCadastrarRastreio(String descricao, String recebidoDe, String codigoRastreio) async {
+  var url = ApiConfig.buildUri('/encomendas/cadastrar');
+  try {
+    var response = await ApiClient.post(
+      url,
+      headers: {
+        "Authorization": getToken(),
+        "Content-Type": "application/json"
+      },
+      body: jsonEncode({
+        "descricao": descricao,
+        "recebido_de": recebidoDe,
+        "codigo_rastreio": codigoRastreio
+      })
+    );
+    return response.statusCode == 201 || response.statusCode == 200;
   } catch (e) {
     return false;
   }

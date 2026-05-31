@@ -21,6 +21,7 @@ export interface Encomenda {
   status: EncomendaStatus;
   notificado?: number | null;
   notificado_em?: string | null;
+  codigo_rastreio?: string | null;
 }
 
 export interface CreateEncomenda {
@@ -28,6 +29,7 @@ export interface CreateEncomenda {
   destinatario_apto: string;
   destinatario_bloco?: string;
   recebido_de?: string;
+  codigo_rastreio?: string;
 }
 
 @Injectable({ providedIn: 'root' })

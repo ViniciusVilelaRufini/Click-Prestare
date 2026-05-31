@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import axios from 'axios';
 
 export interface CreateEncomendaDto {
   descricao: string;
@@ -12,16 +13,25 @@ export interface CreateEncomendaDto {
   recebido_de?: string;
   foto_volume?: string;
   id_condominio: number;
+  codigo_rastreio?: string;
 }
 
 @Injectable()
-export class EncomendasService {
+export class EncomendasService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly storage: StorageService,
     private readonly auditoria: AuditoriaService,
   ) {}
+
+  onModuleInit() {
+    // Verificar rastreamentos a cada 2 horas
+    setInterval(() => this.tickTrackingJob(), 2 * 60 * 60 * 1000);
+    
+    // Executar verificação inicial após 15 segundos do bootstrap
+    setTimeout(() => this.tickTrackingJob(), 15000);
+  }
 
   /**
    * Contexto rico para auditoria de uma encomenda: descrição, destinatário
@@ -197,19 +207,48 @@ export class EncomendasService {
 
     let encomenda;
     try {
-      encomenda = await this.prisma.encomendas.create({
-        data: {
-          descricao: dto.descricao,
-          destinatario_apto: dto.destinatario_apto,
-          destinatario_bloco: dto.destinatario_bloco ?? null,
-          recebido_de: dto.recebido_de ?? null,
-          foto_volume: fotoUrl,
-          status: 'Aguardando',
-          id_condominio: dto.id_condominio,
-          notificado: 1,
-          notificado_em: new Date(),
-        },
-      });
+      // Verificar se o morador ja cadastrou um rastreio esperado para esta encomenda
+      if (dto.codigo_rastreio && this.prisma.isConnected) {
+        const expected = await this.prisma.encomendas.findFirst({
+          where: {
+            id_condominio: dto.id_condominio,
+            codigo_rastreio: dto.codigo_rastreio,
+            status: 'Esperando',
+          },
+        });
+        if (expected) {
+          encomenda = await this.prisma.encomendas.update({
+            where: { id: expected.id },
+            data: {
+              descricao: dto.descricao || expected.descricao,
+              destinatario_apto: dto.destinatario_apto || expected.destinatario_apto,
+              destinatario_bloco: dto.destinatario_bloco ?? expected.destinatario_bloco,
+              recebido_de: dto.recebido_de ?? expected.recebido_de,
+              foto_volume: fotoUrl,
+              status: 'Aguardando',
+              notificado: 1,
+              notificado_em: new Date(),
+            },
+          });
+        }
+      }
+
+      if (!encomenda) {
+        encomenda = await this.prisma.encomendas.create({
+          data: {
+            descricao: dto.descricao,
+            destinatario_apto: dto.destinatario_apto,
+            destinatario_bloco: dto.destinatario_bloco ?? null,
+            recebido_de: dto.recebido_de ?? null,
+            foto_volume: fotoUrl,
+            status: 'Aguardando',
+            id_condominio: dto.id_condominio,
+            notificado: 1,
+            notificado_em: new Date(),
+            codigo_rastreio: dto.codigo_rastreio ?? null,
+          },
+        });
+      }
     } catch (err: any) {
       throw new BadRequestException(
         `Nao foi possivel registrar a encomenda. Tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
@@ -413,6 +452,109 @@ export class EncomendasService {
       return { success: true };
     } catch {
       throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    }
+  }
+
+  // Serviço periódico para buscar atualizações dos correios/transportadoras
+  async tickTrackingJob() {
+    if (!this.prisma.isConnected) return;
+    try {
+      const activeTracking = await this.prisma.encomendas.findMany({
+        where: {
+          status: 'Esperando',
+          codigo_rastreio: { not: null },
+        },
+      });
+
+      for (const enc of activeTracking) {
+        if (!enc.codigo_rastreio) continue;
+
+        try {
+          // Simulação para códigos de teste (ex: TEST1234)
+          if (enc.codigo_rastreio.toUpperCase().startsWith('TEST')) {
+            const ageMinutes = (Date.now() - new Date(enc.created_at).getTime()) / (1000 * 60);
+            // Simular alteração após 3 minutos
+            if (ageMinutes > 3.0 && enc.notificado === 0) {
+              const moradores = await this.prisma.users.findMany({
+                where: {
+                  moradores: {
+                    some: {
+                      id_condominio: enc.id_condominio,
+                      apartamento: enc.destinatario_apto,
+                      ...(enc.destinatario_bloco ? { bloco: enc.destinatario_bloco } : {}),
+                    },
+                  },
+                  fcm_token: { not: null },
+                  notif_encomendas: 1,
+                },
+                select: { fcm_token: true },
+              });
+
+              for (const morador of moradores) {
+                if (morador.fcm_token) {
+                  await this.notifications.sendPushNotification(
+                    morador.fcm_token,
+                    'Encomenda a Caminho!',
+                    `Sua encomenda "${enc.descricao}" (${enc.codigo_rastreio}) saiu para entrega!`,
+                    { id: enc.id.toString(), type: 'encomenda' },
+                  );
+                }
+              }
+
+              await this.prisma.encomendas.update({
+                where: { id: enc.id },
+                data: { notificado: 2 }, // 2 = saiu para entrega
+              });
+            }
+            continue;
+          }
+
+          // Consulta real na Linketrack pública
+          const url = `https://api.linketrack.com/v1/track?user=teste&token=1abcd09f9a73867d05c747731051b22e11afd590&codigo=${enc.codigo_rastreio}`;
+          const response = await axios.get(url, { timeout: 5000 });
+          if (response.status === 200 && response.data?.eventos?.length > 0) {
+            const lastEvent = response.data.eventos[0];
+            const eventStatus = lastEvent.status || '';
+
+            if (eventStatus.toLowerCase().includes('saiu para entrega') && enc.notificado === 0) {
+              const moradores = await this.prisma.users.findMany({
+                where: {
+                  moradores: {
+                    some: {
+                      id_condominio: enc.id_condominio,
+                      apartamento: enc.destinatario_apto,
+                      ...(enc.destinatario_bloco ? { bloco: enc.destinatario_bloco } : {}),
+                    },
+                  },
+                  fcm_token: { not: null },
+                  notif_encomendas: 1,
+                },
+                select: { fcm_token: true },
+              });
+
+              for (const morador of moradores) {
+                if (morador.fcm_token) {
+                  await this.notifications.sendPushNotification(
+                    morador.fcm_token,
+                    'Encomenda a Caminho!',
+                    `Sua encomenda "${enc.descricao}" (${enc.codigo_rastreio}) saiu para entrega!`,
+                    { id: enc.id.toString(), type: 'encomenda' },
+                  );
+                }
+              }
+
+              await this.prisma.encomendas.update({
+                where: { id: enc.id },
+                data: { notificado: 2 },
+              });
+            }
+          }
+        } catch (err: any) {
+          console.error(`Erro ao consultar rastreio ${enc.codigo_rastreio}:`, err.message || err);
+        }
+      }
+    } catch (e) {
+      console.error('Falha no job de rastreamento de encomendas:', e);
     }
   }
 }

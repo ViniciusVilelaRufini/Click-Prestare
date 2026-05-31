@@ -175,6 +175,23 @@
         <h2 class="text-sm font-semibold text-white">Receber nova encomenda</h2>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Scanner & Rastreamento -->
+        <div class="block md:col-span-2 space-y-1.5">
+          <span class="text-xs font-medium text-slate-400 block">Código de Rastreio / Etiqueta</span>
+          <div class="flex gap-2">
+            <input [(ngModel)]="novo.codigo_rastreio" placeholder="Opcional: Escaneie ou digite o código de rastreamento"
+              class="flex-1 px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
+            
+            <button type="button" (click)="startScan()"
+              class="px-4 py-2.5 rounded-lg text-sm font-medium text-emerald-450 bg-emerald-500/10 border border-emerald-400/20 hover:bg-emerald-550/20 transition flex items-center gap-1.5 shrink-0">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+              </svg>
+              Escanear Etiqueta
+            </button>
+          </div>
+        </div>
+
         <label class="block md:col-span-2">
           <span class="text-xs font-medium text-slate-400 mb-1.5 block">Descrição do volume *</span>
           <input [(ngModel)]="novo.descricao" placeholder="Ex: Caixa pequena Mercado Livre"
@@ -195,7 +212,7 @@
           <input [(ngModel)]="novo.recebido_de" placeholder="Ex: Correios, Mercado Livre, Amazon..."
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400/60" />
           <div class="flex flex-wrap gap-1.5 mt-2">
-            @for (t of ['Correios', 'Mercado Livre', 'Amazon', 'Loggi', 'Jadlog', 'Shopee', 'FedEx', 'DHL']; track t) {
+            @for (t of ['Correios', 'Mercado Livre', 'Amazon', 'iFood', 'Loggi', 'Jadlog', 'Shopee', 'FedEx', 'DHL']; track t) {
               <button type="button" (click)="novo.recebido_de = (novo.recebido_de === t ? '' : t)"
                 class="px-2.5 py-1 text-xs rounded-lg border transition duration-150"
                 [class.bg-emerald-500/10]="novo.recebido_de === t"
@@ -296,7 +313,15 @@
                     </span>
                   </div>
                 </td>
-                <td class="px-5 py-3 text-slate-400">{{ e.recebido_de || '—' }}</td>
+                 <td class="px-5 py-3">
+                  @if (e.recebido_de) {
+                    <span [class]="'inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded border ' + getBrandBadgeClass(e.recebido_de).bg + ' ' + getBrandBadgeClass(e.recebido_de).text + ' ' + getBrandBadgeClass(e.recebido_de).border">
+                      {{ e.recebido_de }}
+                    </span>
+                  } @else {
+                    <span class="text-slate-500 font-mono">—</span>
+                  }
+                </td>
                 <td class="px-5 py-3 text-slate-400 text-xs font-mono">{{ e.recebido_em | date: 'dd/MM HH:mm' }}</td>
                 <td class="px-5 py-3">
                   @if (e.status === 'Aguardando') {
@@ -635,6 +660,45 @@
           <button (click)="viewingProof.set(null)"
                   class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-emerald-500 hover:bg-emerald-600 transition">
             Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Modal de Scanner de Código de Barras -->
+  @if (isScanning) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in">
+      <div class="w-full max-w-sm rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl">
+        <!-- Header -->
+        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-white">Escanear Código de Barras / QR Code</h3>
+          <button (click)="stopScan()" class="text-slate-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <!-- Body -->
+        <div class="p-6 flex flex-col items-center justify-center space-y-4">
+          <p class="text-xs text-slate-400 text-center">Aproxime o código de barras ou QR Code da etiqueta na câmera</p>
+          
+          <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-emerald-500/30 bg-black">
+            <!-- Linha guia vermelha do scanner -->
+            <div class="absolute inset-x-0 top-1/2 h-0.5 bg-red-500 opacity-70 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+            
+            <video id="scanVideo" class="w-full h-full object-cover" autoplay playsinline></video>
+          </div>
+
+          @if (scanError) {
+            <p class="text-xs text-red-400 text-center bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 w-full">{{ scanError }}</p>
+          }
+        </div>
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end">
+          <button (click)="stopScan()"
+                  class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-slate-650 hover:bg-slate-600 transition">
+            Cancelar
           </button>
         </div>
       </div>

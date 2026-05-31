@@ -1989,4 +1989,32 @@ export class MobileAuthService {
       };
     }
   }
+
+  async cadastrarRastreioMorador(idUser: number, dto: { descricao: string; recebido_de?: string; codigo_rastreio: string }) {
+    if (!this.prisma.isConnected) {
+      throw new ServiceUnavailableException('Banco de dados indisponível.');
+    }
+    const morador = await this.prisma.moradores.findFirst({
+      where: { id_user: idUser },
+    });
+    if (!morador) {
+      throw new BadRequestException('Morador não encontrado para este usuário.');
+    }
+    if (!morador.id_condominio || !morador.apartamento) {
+      throw new BadRequestException('Morador não está vinculado a um condomínio e apartamento.');
+    }
+
+    return this.prisma.encomendas.create({
+      data: {
+        descricao: dto.descricao,
+        destinatario_apto: morador.apartamento,
+        destinatario_bloco: morador.bloco ?? null,
+        recebido_de: dto.recebido_de ?? 'Correios',
+        codigo_rastreio: dto.codigo_rastreio,
+        status: 'Esperando',
+        id_condominio: morador.id_condominio,
+        notificado: 0,
+      },
+    });
+  }
 }

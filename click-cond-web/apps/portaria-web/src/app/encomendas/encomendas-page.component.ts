@@ -452,8 +452,126 @@ export class EncomendasPageComponent implements OnInit {
     return Math.floor((ref - recebido) / 86400000);
   }
 
+  getBrandBadgeClass(recebidoDe: string | undefined): { bg: string, text: string, border: string } {
+    const val = (recebidoDe || '').toLowerCase();
+    if (val.includes('ifood') || val.includes('food') || val.includes('delivery')) {
+      return { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' };
+    }
+    if (val.includes('mercado livre') || val.includes('ml')) {
+      return { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20' };
+    }
+    if (val.includes('amazon')) {
+      return { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' };
+    }
+    if (val.includes('correios') || val.includes('sedex')) {
+      return { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' };
+    }
+    if (val.includes('shopee')) {
+      return { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' };
+    }
+    if (val.includes('dhl')) {
+      return { bg: 'bg-yellow-600/10', text: 'text-yellow-500', border: 'border-yellow-600/20' };
+    }
+    if (val.includes('fedex')) {
+      return { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' };
+    }
+    return { bg: 'bg-white/5', text: 'text-slate-350', border: 'border-white/10' };
+  }
+
   private estadoInicial(): CreateEncomenda {
-    return { descricao: '', destinatario_apto: '', destinatario_bloco: '', recebido_de: '' };
+    return { descricao: '', destinatario_apto: '', destinatario_bloco: '', recebido_de: '', codigo_rastreio: '' };
+  }
+
+  // Barcode / QR Code Scanner properties
+  isScanning = false;
+  scanError: string | null = null;
+  private codeReader: any;
+
+  async loadZXing(): Promise<any> {
+    if ((window as any).ZXing) return (window as any).ZXing;
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js';
+      script.onload = () => resolve((window as any).ZXing);
+      script.onerror = (e) => reject(e);
+      document.head.appendChild(script);
+    });
+  }
+
+  async startScan() {
+    try {
+      this.isScanning = true;
+      this.scanError = null;
+      const ZXing = await this.loadZXing();
+      this.codeReader = new ZXing.BrowserMultiFormatReader();
+      
+      const videoDevices = await this.codeReader.listVideoInputDevices();
+      if (videoDevices.length === 0) {
+        throw new Error('Nenhuma câmera encontrada.');
+      }
+      
+      const selectedDevice = videoDevices.find((device: any) => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('traseira') ||
+        device.label.toLowerCase().includes('rear')
+      ) || videoDevices[0];
+
+      setTimeout(() => {
+        const videoElement = document.getElementById('scanVideo') as HTMLVideoElement;
+        if (videoElement) {
+          this.codeReader.decodeFromVideoDevice(
+            selectedDevice.deviceId,
+            videoElement,
+            (result: any) => {
+              if (result) {
+                try {
+                  const context = new AudioContext();
+                  const osc = context.createOscillator();
+                  osc.type = 'sine';
+                  osc.frequency.value = 1000;
+                  osc.connect(context.destination);
+                  osc.start();
+                  setTimeout(() => osc.stop(), 100);
+                } catch {}
+
+                this.onBarcodeScanned(result.text);
+              }
+            }
+          );
+        }
+      }, 300);
+    } catch (err: any) {
+      console.error('Scan error:', err);
+      this.scanError = err?.message || 'Erro ao inicializar scanner de código.';
+      this.isScanning = false;
+    }
+  }
+
+  stopScan() {
+    if (this.codeReader) {
+      this.codeReader.reset();
+    }
+    this.isScanning = false;
+  }
+
+  onBarcodeScanned(code: string) {
+    this.novo.codigo_rastreio = code;
+    
+    const cleanCode = code.trim().toUpperCase();
+    if (/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(cleanCode)) {
+      this.novo.recebido_de = 'Correios';
+      this.novo.descricao = `Volume Correios (${cleanCode})`;
+    } else if (/^(ML|MLB)\d+/.test(cleanCode)) {
+      this.novo.recebido_de = 'Mercado Livre';
+      this.novo.descricao = `Volume Mercado Livre (${cleanCode})`;
+    } else if (cleanCode.startsWith('AMZN') || cleanCode.startsWith('AZ')) {
+      this.novo.recebido_de = 'Amazon';
+      this.novo.descricao = `Volume Amazon (${cleanCode})`;
+    } else {
+      this.novo.descricao = `Volume Escaneado (${cleanCode})`;
+    }
+    
+    this.stopScan();
   }
 
   // Camera & Photo properties
