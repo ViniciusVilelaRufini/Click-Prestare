@@ -226,6 +226,41 @@ export class CondominioMobileController {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.registerCondominio(body, Number(idUser));
   }
+
+  @Get('infos/get')
+  getInfos(@Query('id_condominio') idCond: string) {
+    return this.service.getInfosCondominio(Number(idCond));
+  }
+
+  @Get('address/get')
+  getAddress(@Query('id_condominio') idCond: string) {
+    return this.service.getAddressCondominio(Number(idCond));
+  }
+
+  @Post('update')
+  @HttpCode(200)
+  update(@Body() body: any) {
+    return this.service.updateInfosCondominio(body);
+  }
+
+  @Post('update-address')
+  @HttpCode(200)
+  updateAddress(@Body() body: any) {
+    return this.service.updateAddressCondominio(body);
+  }
+
+  @Post('update-moeda')
+  @HttpCode(200)
+  updateMoeda(@Body() body: any) {
+    return this.service.updateMoedaCondominio(body);
+  }
+
+  @Post('update-assinatura')
+  @HttpCode(200)
+  updateAssinatura(@ReqUser() payload: JwtPayload, @Body() body: any) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.updateAssinaturaCondominio(body, Number(idUser));
+  }
 }
 
 // ==========================================

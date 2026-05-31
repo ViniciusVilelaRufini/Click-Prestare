@@ -723,6 +723,235 @@ export class MobileAuthService {
     return { success: true, id: Date.now(), nome: nome };
   }
 
+  private parsePtBrDate(dateStr: string): Date | null {
+    if (!dateStr) return null;
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      const day = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const year = Number(parts[2]);
+      return new Date(year, month, day);
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  async getInfosCondominio(id: number) {
+    if (!this.prisma.isConnected) {
+      return {
+        nome: 'Condomínio Demo - Click Prestare',
+        identificacao: '12.345.678/0001-90',
+        subsindico_nome: 'Subsíndico Demo',
+        photo: '',
+        data_inicio_mandato: '01/01/2026',
+        data_termino_mandato: '31/12/2027',
+      };
+    }
+    const c = await this.prisma.condominios.findUnique({
+      where: { id },
+      select: {
+        nome: true,
+        identificacao: true,
+        subsindico_nome: true,
+        photo: true,
+        data_inicio_mandato: true,
+        data_termino_mandato: true,
+      },
+    });
+    if (!c) return null;
+    return {
+      nome: c.nome,
+      identificacao: c.identificacao ?? '',
+      subsindico_nome: c.subsindico_nome ?? '',
+      photo: c.photo ?? '',
+      data_inicio_mandato: c.data_inicio_mandato ? c.data_inicio_mandato.toLocaleDateString('pt-BR') : '',
+      data_termino_mandato: c.data_termino_mandato ? c.data_termino_mandato.toLocaleDateString('pt-BR') : '',
+    };
+  }
+
+  async getAddressCondominio(idCondominio: number) {
+    if (!this.prisma.isConnected) {
+      return {
+        cep: '01001-000',
+        pais: 'Brasil',
+        uf: 'SP',
+        cidade: 'São Paulo',
+        bairro: 'Sé',
+        rua: 'Praça da Sé',
+        numero: '100',
+        complemento: 'Lado Par',
+      };
+    }
+    const c = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: {
+        enderecoRel: {
+          select: {
+            cep: true,
+            pais: true,
+            uf: true,
+            cidade: true,
+            bairro: true,
+            rua: true,
+            numero: true,
+            complemento: true,
+          },
+        },
+      },
+    });
+    return c?.enderecoRel ?? null;
+  }
+
+  async updateInfosCondominio(body: any) {
+    const data = body.condominio || {};
+    const id = Number(data.id);
+    if (!id) throw new BadRequestException('ID do condomínio é obrigatório.');
+
+    if (!this.prisma.isConnected) return { success: true };
+
+    let photoUrl = data.photo;
+    if (photoUrl && this.storage.isDataUrl(photoUrl)) {
+      photoUrl = await this.storage.uploadDataUrl(photoUrl, `condominios/${id}`, 'profile');
+    }
+
+    const updateData: any = {};
+    if (data.nome !== undefined) updateData.nome = data.nome;
+    if (data.identificacao !== undefined) updateData.identificacao = data.identificacao;
+    if (data.subsindico_nome !== undefined) updateData.subsindico_nome = data.subsindico_nome;
+    if (data.inicio_mandato !== undefined) updateData.data_inicio_mandato = this.parsePtBrDate(data.inicio_mandato);
+    if (data.termino_mandato !== undefined) updateData.data_termino_mandato = this.parsePtBrDate(data.termino_mandato);
+    if (photoUrl !== undefined) updateData.photo = photoUrl;
+
+    await this.prisma.condominios.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return { success: true };
+  }
+
+  async updateAddressCondominio(body: any) {
+    const addr = body.address || {};
+    const idCondominio = Number(addr.idCondominio);
+    if (!idCondominio) throw new BadRequestException('ID do condomínio é obrigatório.');
+
+    if (!this.prisma.isConnected) return { success: true };
+
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { endereco: true },
+    });
+
+    if (!cond) throw new NotFoundException('Condomínio não encontrado.');
+
+    const updateData = {
+      cep: addr.cep,
+      rua: addr.rua,
+      numero: String(addr.numero ?? ''),
+      complemento: addr.complemento,
+      bairro: addr.bairro,
+      cidade: addr.cidade,
+      uf: addr.uf,
+      pais: addr.pais,
+    };
+
+    if (cond.endereco) {
+      await this.prisma.endereco.update({
+        where: { id: cond.endereco },
+        data: updateData,
+      });
+    } else {
+      const e = await this.prisma.endereco.create({
+        data: updateData,
+      });
+      await this.prisma.condominios.update({
+        where: { id: idCondominio },
+        data: { endereco: e.id },
+      });
+    }
+
+    return { success: true };
+  }
+
+  async updateMoedaCondominio(body: any) {
+    const data = body.condominio || {};
+    const id = Number(data.id);
+    if (!id) throw new BadRequestException('ID do condomínio é obrigatório.');
+
+    if (!this.prisma.isConnected) return { success: true };
+
+    await this.prisma.condominios.update({
+      where: { id },
+      data: { moeda: data.moeda },
+    });
+
+    return { success: true };
+  }
+
+  async updateAssinaturaCondominio(body: any, idUser: number) {
+    const data = body.assinatura || {};
+    const idCondominio = Number(data.id_condominio);
+    const idPlano = data.id_plano;
+    const codigo = data.codigo || '';
+    const plataforma = data.plataforma || 'Mobile';
+
+    if (!idCondominio) throw new BadRequestException('ID do condomínio é obrigatório.');
+    if (!idPlano) throw new BadRequestException('ID/Nome do plano é obrigatório.');
+
+    if (!this.prisma.isConnected) return { success: true };
+
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { vencimento: true },
+    });
+
+    if (!cond) throw new NotFoundException('Condomínio não encontrado.');
+
+    const plano = await this.prisma.planos.findFirst({
+      where: { nome: idPlano },
+    });
+    if (!plano) throw new NotFoundException('Plano não encontrado.');
+
+    const user = await this.prisma.users.findUnique({
+      where: { id: idUser },
+      select: { login: true },
+    });
+
+    const vencimento_atual = cond.vencimento;
+    const dias_restantes = vencimento_atual ? Math.ceil((vencimento_atual.getTime() - Date.now()) / 86400000) : 0;
+
+    let novoVencimento: Date;
+    if (dias_restantes > 0 && vencimento_atual) {
+      novoVencimento = new Date(vencimento_atual);
+      novoVencimento.setDate(novoVencimento.getDate() + plano.dias);
+    } else {
+      novoVencimento = new Date();
+      novoVencimento.setDate(novoVencimento.getDate() + plano.dias);
+    }
+
+    await this.prisma.condominios.update({
+      where: { id: idCondominio },
+      data: { vencimento: novoVencimento },
+    });
+
+    await this.prisma.assinaturas_Condominios.create({
+      data: {
+        id_condominio: idCondominio,
+        email_user: user?.login ?? null,
+        codigo: codigo,
+        data_ini: dias_restantes > 0 && vencimento_atual ? new Date(vencimento_atual.getTime() + 86400000) : new Date(),
+        data_fim: novoVencimento,
+        dias: plano.dias,
+        plano: plano.nome,
+        plataforma: plataforma,
+        valor: plano.valor,
+      },
+    });
+
+    return { success: true };
+  }
+
+
   // ==========================================
   // RECUPERAÇÃO DE SENHA
   // ==========================================
