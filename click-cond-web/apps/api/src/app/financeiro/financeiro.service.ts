@@ -2190,7 +2190,7 @@ export class FinanceiroService implements OnModuleInit {
         usuario_nome: user?.nome ?? 'Sistema',
         acao: 'STATUS',
         modulo: 'financeiro',
-        entidade_id: null,
+        entidade_id: undefined,
         descricao: `Conciliação bancária: ${confirmados.length} lançamento(s) confirmado(s) como pagos`,
         detalhes: {
           conciliacao: {
