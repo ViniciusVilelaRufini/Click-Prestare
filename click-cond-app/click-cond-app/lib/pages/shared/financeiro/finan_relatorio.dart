@@ -43,17 +43,26 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
     try {
       setState(() { _isLoading = true; chartData.clear(); });
       final locals = await apiGetAllFinanceiro("financeiro/grafico", mes, ano);
-      resultObj = locals;
-      categorias = locals['categorias'];
-      titlesTabs = locals['meses'];
-      if (tabSelected.isEmpty && titlesTabs.isNotEmpty) {
-        final last = titlesTabs.last;
-        tabSelected = last['periodo'];
-        mes = last['mes'];
-        ano = last['ano'].toString();
-      }
-      for (final categ in categorias) {
-        chartData.add(ChartData(categ['categoria'], (categ['percentual'] as num).toDouble()));
+      if (locals is Map) {
+        resultObj = locals;
+        categorias = locals['categorias'] ?? [];
+        titlesTabs = locals['meses'] ?? [];
+        if (tabSelected.isEmpty && titlesTabs.isNotEmpty) {
+          final last = titlesTabs.last;
+          tabSelected = last['periodo'];
+          mes = last['mes'];
+          ano = last['ano'].toString();
+        }
+        for (final categ in categorias) {
+          if (categ is Map) {
+            final rawPerc = categ['percentual'];
+            final double perc = rawPerc is num ? rawPerc.toDouble() : 0.0;
+            chartData.add(ChartData(categ['categoria'] ?? '', perc));
+          }
+        }
+      } else {
+        categorias = [];
+        titlesTabs = [];
       }
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));

@@ -1247,6 +1247,7 @@ export class FinanceiroService implements OnModuleInit {
         saldo: info.saldo,
         saldoReal: formatReal(info.saldo),
         tipo: info.tipo,
+        percentual: Number(perc.toFixed(2)),
         percentualString: perc.toFixed(2) + '%',
       };
     });
@@ -1455,15 +1456,25 @@ export class FinanceiroService implements OnModuleInit {
       }
     }
 
-    await this.prisma.financeiro.update({
-      where: { id: Number(id) },
-      data: {
-        status,
-        pago: isPago,
-        // Atualiza forma_pagamento se foi informada na confirmação.
-        ...(extras?.formaPagamento ? { forma_pagamento: extras.formaPagamento } : {}),
-      },
-    });
+    try {
+      await this.prisma.financeiro.update({
+        where: { id: Number(id) },
+        data: {
+          status,
+          pago: isPago,
+          // Atualiza forma_pagamento se foi informada na confirmação.
+          ...(extras?.formaPagamento ? { forma_pagamento: extras.formaPagamento } : {}),
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[updateStatus] Falha ao atualizar lancamento ${id}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel atualizar o status. Tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
 
     // Auditoria sempre — mas com destaque pra mudança de pago (mais sensível).
     const ctx = await this.carregarContextoLancamento(id);
@@ -1609,14 +1620,22 @@ export class FinanceiroService implements OnModuleInit {
       return { success: true, partialPayment: true };
     }
 
-    await this.prisma.financeiro.update({
-      where: { id: financeiroId },
-      data: {
-        status: '1',
-        pago: 1,
-        data: new Date(),
-      },
-    });
+    try {
+      await this.prisma.financeiro.update({
+        where: { id: financeiroId },
+        data: {
+          status: '1',
+          pago: 1,
+          data: new Date(),
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[asaasWebhook] Falha ao confirmar pagamento ${financeiroId}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      return { success: false, error: 'db_update_failed' };
+    }
     this.logger.log(`Pagamento confirmado via Webhook para Lançamento ID: ${financeiroId} (R$ ${valorRecebido.toFixed(2)})`);
 
     // Auditoria: webhook é mutação financeira automatizada, precisa de rastro.
@@ -2138,21 +2157,31 @@ export class FinanceiroService implements OnModuleInit {
       await this.getLancamentoForTenant(rec.databaseId, user);
     }
     const confirmados: number[] = [];
+    const falhas: number[] = [];
     for (const rec of reconciliations) {
       const parsedDate = new Date(rec.dataPagamento);
       const isDateValid = !isNaN(parsedDate.getTime());
 
-      await this.prisma.financeiro.update({
-        where: {
-          id: Number(rec.databaseId),
-          id_condominio: Number(idCondominio),
-        },
-        data: {
-          pago: 1,
-          data: isDateValid ? parsedDate : new Date(),
-        },
-      });
-      confirmados.push(Number(rec.databaseId));
+      try {
+        await this.prisma.financeiro.update({
+          where: {
+            id: Number(rec.databaseId),
+            id_condominio: Number(idCondominio),
+          },
+          data: {
+            pago: 1,
+            data: isDateValid ? parsedDate : new Date(),
+          },
+        });
+        confirmados.push(Number(rec.databaseId));
+      } catch (err: any) {
+        // Não falha a conciliação inteira se um item quebrar — registra
+        // o ID que falhou e segue. Operador vê quais não foram confirmados.
+        this.logger.warn(
+          `[confirmarConciliacao] Falha em ${rec.databaseId}: ${err?.message ?? err}`,
+        );
+        falhas.push(Number(rec.databaseId));
+      }
     }
 
     if (confirmados.length > 0) {
@@ -2173,7 +2202,12 @@ export class FinanceiroService implements OnModuleInit {
       });
     }
 
-    return { success: true, confirmados: confirmados.length };
+    return {
+      success: true,
+      confirmados: confirmados.length,
+      falhas: falhas.length,
+      ...(falhas.length > 0 ? { idsComFalha: falhas } : {}),
+    };
   }
 
   /**

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -195,19 +195,26 @@ export class EncomendasService {
       fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? null;
     }
 
-    const encomenda = await this.prisma.encomendas.create({
-      data: {
-        descricao: dto.descricao,
-        destinatario_apto: dto.destinatario_apto,
-        destinatario_bloco: dto.destinatario_bloco ?? null,
-        recebido_de: dto.recebido_de ?? null,
-        foto_volume: fotoUrl,
-        status: 'Aguardando',
-        id_condominio: dto.id_condominio,
-        notificado: 1,
-        notificado_em: new Date(),
-      },
-    });
+    let encomenda;
+    try {
+      encomenda = await this.prisma.encomendas.create({
+        data: {
+          descricao: dto.descricao,
+          destinatario_apto: dto.destinatario_apto,
+          destinatario_bloco: dto.destinatario_bloco ?? null,
+          recebido_de: dto.recebido_de ?? null,
+          foto_volume: fotoUrl,
+          status: 'Aguardando',
+          id_condominio: dto.id_condominio,
+          notificado: 1,
+          notificado_em: new Date(),
+        },
+      });
+    } catch (err: any) {
+      throw new BadRequestException(
+        `Nao foi possivel registrar a encomenda. Tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
 
     // Notificar moradores do apartamento
     try {

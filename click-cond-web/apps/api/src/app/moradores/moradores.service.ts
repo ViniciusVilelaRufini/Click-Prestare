@@ -631,24 +631,35 @@ export class MoradoresService {
       }
     }
 
-    const createdMorador = await this.prisma.moradores.create({
-      data: {
-        nome: dto.nome,
-        documento: dto.documento ?? null,
-        email: dto.email ?? null,
-        telefone: dto.telefone ?? null,
-        data_nascimento: dto.data_nascimento ? new Date(dto.data_nascimento) : null,
-        tipo: dto.tipo ?? 'proprietario',
-        id_user: userId,
-        id_condominio: dto.id_condominio,
-        bloco: bloco || null,
-        apartamento: aptoNum || null,
-        foto_pessoa: fotoPessoaUrl,
-        foto_documento: fotoDocumentoUrl,
-        tag_rfid: dto.tag_rfid ? dto.tag_rfid.trim() : null,
-        qrcode_acesso: dto.qrcode_acesso ? dto.qrcode_acesso.trim() : null,
-      },
-    });
+    let createdMorador;
+    try {
+      createdMorador = await this.prisma.moradores.create({
+        data: {
+          nome: dto.nome,
+          documento: dto.documento ?? null,
+          email: dto.email ?? null,
+          telefone: dto.telefone ?? null,
+          data_nascimento: dto.data_nascimento ? new Date(dto.data_nascimento) : null,
+          tipo: dto.tipo ?? 'proprietario',
+          id_user: userId,
+          id_condominio: dto.id_condominio,
+          bloco: bloco || null,
+          apartamento: aptoNum || null,
+          foto_pessoa: fotoPessoaUrl,
+          foto_documento: fotoDocumentoUrl,
+          tag_rfid: dto.tag_rfid ? dto.tag_rfid.trim() : null,
+          qrcode_acesso: dto.qrcode_acesso ? dto.qrcode_acesso.trim() : null,
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[moradores.create] Falha ao criar morador: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel cadastrar o morador. Verifique os dados e tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
 
     if (dto.sendCredentials && dto.email) {
       this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? (dto.documento || '123456') : undefined);
@@ -718,48 +729,59 @@ export class MoradoresService {
       }
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Atualiza moradores
-      const morador = await tx.moradores.update({
-        where: { id },
-        data: {
-          ...(dto.nome !== undefined && { nome: dto.nome }),
-          ...(dto.documento !== undefined && { documento: dto.documento }),
-          ...(dto.email !== undefined && { email: dto.email }),
-          ...(dto.telefone !== undefined && { telefone: dto.telefone }),
-          ...(dto.tipo !== undefined && { tipo: dto.tipo }),
-          ...(dto.data_nascimento !== undefined && {
-            data_nascimento: dto.data_nascimento ? new Date(dto.data_nascimento) : null,
-          }),
-          ...(fotoPessoaUrl !== undefined && { foto_pessoa: fotoPessoaUrl }),
-          ...(fotoDocumentoUrl !== undefined && { foto_documento: fotoDocumentoUrl }),
-          ...(novaTag !== undefined && { tag_rfid: novaTag || null }),
-          ...(novoQr !== undefined && { qrcode_acesso: novoQr || null }),
-        },
-      });
-
-      // Propaga para Users (login/email/phone/name/cpf/photo) para manter o acesso ao app e sincronizar a foto
-      const userPatch: any = {};
-      if (dto.nome !== undefined) userPatch.name = dto.nome;
-      if (dto.telefone !== undefined) userPatch.phone = dto.telefone;
-      if (dto.documento !== undefined) userPatch.cpf = dto.documento || null;
-      if (emailMudou) {
-        userPatch.email = dto.email || null;
-        userPatch.login = dto.email || null;
-      }
-      if (fotoPessoaUrl !== undefined) {
-        userPatch.photo = fotoPessoaUrl;
-        userPatch.profile_image = fotoPessoaUrl;
-      }
-      if (Object.keys(userPatch).length > 0 && atual.id_user) {
-        await tx.users.update({
-          where: { id: atual.id_user },
-          data: userPatch,
+    let result;
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
+        // Atualiza moradores
+        const morador = await tx.moradores.update({
+          where: { id },
+          data: {
+            ...(dto.nome !== undefined && { nome: dto.nome }),
+            ...(dto.documento !== undefined && { documento: dto.documento }),
+            ...(dto.email !== undefined && { email: dto.email }),
+            ...(dto.telefone !== undefined && { telefone: dto.telefone }),
+            ...(dto.tipo !== undefined && { tipo: dto.tipo }),
+            ...(dto.data_nascimento !== undefined && {
+              data_nascimento: dto.data_nascimento ? new Date(dto.data_nascimento) : null,
+            }),
+            ...(fotoPessoaUrl !== undefined && { foto_pessoa: fotoPessoaUrl }),
+            ...(fotoDocumentoUrl !== undefined && { foto_documento: fotoDocumentoUrl }),
+            ...(novaTag !== undefined && { tag_rfid: novaTag || null }),
+            ...(novoQr !== undefined && { qrcode_acesso: novoQr || null }),
+          },
         });
-      }
 
-      return morador;
-    });
+        // Propaga para Users (login/email/phone/name/cpf/photo) para manter o acesso ao app e sincronizar a foto
+        const userPatch: any = {};
+        if (dto.nome !== undefined) userPatch.name = dto.nome;
+        if (dto.telefone !== undefined) userPatch.phone = dto.telefone;
+        if (dto.documento !== undefined) userPatch.cpf = dto.documento || null;
+        if (emailMudou) {
+          userPatch.email = dto.email || null;
+          userPatch.login = dto.email || null;
+        }
+        if (fotoPessoaUrl !== undefined) {
+          userPatch.photo = fotoPessoaUrl;
+          userPatch.profile_image = fotoPessoaUrl;
+        }
+        if (Object.keys(userPatch).length > 0 && atual.id_user) {
+          await tx.users.update({
+            where: { id: atual.id_user },
+            data: userPatch,
+          });
+        }
+
+        return morador;
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[moradores.update] Falha ao atualizar morador ${id}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel atualizar o morador. Verifique os dados e tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
 
     if (fotoPessoaUrl !== undefined && fotoPessoaUrl) {
       this.fireFacialSync(id);
