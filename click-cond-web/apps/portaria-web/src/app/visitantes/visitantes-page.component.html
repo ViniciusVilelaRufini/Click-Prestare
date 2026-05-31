@@ -914,47 +914,7 @@
               </div>
             </div>
 
-            <!-- Google Maps - Condomínio / Bloco Mapping -->
-            @if (getMapUrl(d); as mapSrc) {
-              <div class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-4 space-y-3">
-                <div class="flex items-center justify-between">
-                  <h3 class="text-[10px] font-bold text-slate-500 dark:text-slate-450 uppercase tracking-wider flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                    Mapa de Acesso ao Bloco / Condomínio
-                  </h3>
-                  
-                  <a [href]="getShareRouteLink(d)" target="_blank"
-                     class="text-xs text-accent hover:underline flex items-center gap-1 font-medium">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                    </svg>
-                    Abrir no Google Maps
-                  </a>
-                </div>
 
-                <div class="aspect-video w-full rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-950">
-                  <iframe [src]="mapSrc" class="w-full h-full border-0" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-                </div>
-
-                @if (d.visitante.condominio?.enderecoRel; as addr) {
-                  <div class="text-[11px] text-slate-500 dark:text-slate-450 leading-relaxed bg-slate-100 dark:bg-white/[0.02] p-2.5 rounded-lg border border-slate-200/50 dark:border-white/5 flex items-start gap-2">
-                    <svg class="w-4 h-4 text-slate-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                    <div>
-                      <span class="font-medium text-slate-700 dark:text-slate-300 block">Endereço do Bloco:</span>
-                      {{ addr.rua }}, {{ addr.numero }} @if (addr.complemento) { ({{ addr.complemento }}) } - {{ addr.bairro || '' }}, {{ addr.cidade }}/{{ addr.uf }} - CEP {{ addr.cep }}
-                      @if (d.visitante.blocoAptoAtual) {
-                        <span class="font-bold text-accent block mt-1">Destino Final: Bloco {{ d.visitante.blocoAptoAtual }}</span>
-                      }
-                    </div>
-                  </div>
-                }
-              </div>
-            }
 
             <!-- Timeline -->
             <div class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-4">
