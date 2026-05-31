@@ -146,16 +146,69 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                     const SizedBox(height: AppSpacing.lg),
                     if (chartData.isNotEmpty)
                       Container(
-                        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface(context), 
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                         child: SfCircularChart(
                           margin: EdgeInsets.zero,
-                          legend: const Legend(isVisible: true),
+                          legend: Legend(
+                            isVisible: true,
+                            position: LegendPosition.bottom,
+                            textStyle: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context)),
+                          ),
+                          annotations: <CircularChartAnnotation>[
+                            CircularChartAnnotation(
+                              widget: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    getText('financeiro_resultado_periodo').toUpperCase(),
+                                    style: AppTypography.tiny(context).copyWith(
+                                      color: AppColors.textTertiary(context),
+                                      fontSize: 8,
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    resultObj != null ? _moeda(resultObj['saldoReal'] ?? 'R\$ 0,00') : 'R\$ 0,00',
+                                    style: AppTypography.bodyMedium(context).copyWith(
+                                      color: resultObj != null && (resultObj['saldoReal'] ?? '').toString().contains('-') 
+                                          ? AppColors.error 
+                                          : const Color(0xFF22C55E),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           series: [
-                            PieSeries<ChartData, String>(
+                            DoughnutSeries<ChartData, String>(
                               dataSource: chartData,
                               xValueMapper: (d, _) => d.x,
                               yValueMapper: (d, _) => d.y,
-                              dataLabelSettings: const DataLabelSettings(isVisible: true),
+                              innerRadius: '75%',
+                              radius: '90%',
+                              strokeWidth: 3,
+                              strokeColor: AppColors.surface(context),
+                              pointColorMapper: (d, i) {
+                                final colors = [
+                                  const Color(0xFF3B82F6), // Blue
+                                  const Color(0xFF10B981), // Emerald Green
+                                  const Color(0xFFF59E0B), // Amber
+                                  const Color(0xFFEF4444), // Red
+                                  const Color(0xFF8B5CF6), // Purple
+                                  const Color(0xFFEC4899), // Pink
+                                  const Color(0xFF14B8A6), // Teal
+                                  const Color(0xFF6366F1), // Indigo
+                                ];
+                                return colors[i % colors.length];
+                              },
+                              dataLabelSettings: const DataLabelSettings(isVisible: false),
                             )
                           ],
                         ),

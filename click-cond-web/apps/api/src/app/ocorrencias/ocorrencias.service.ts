@@ -70,17 +70,30 @@ export class OcorrenciasService {
     };
   }
 
-  create(dto: CreateOcorrenciaDto) {
-    return this.prisma.ocorrencias.create({
-      data: {
-        descricao: dto.descricao,
-        anexos: dto.anexos ?? null,
-        tipo: dto.tipo,
-        status: 'Pendente',
-        id_condominio: dto.id_condominio,
-        user: dto.user ?? null,
-      },
-    });
+  async create(dto: CreateOcorrenciaDto) {
+    // Normaliza tipo: app Flutter pode enviar como string mas schema eh Int.
+    const tipoNum = dto.tipo != null ? Number(dto.tipo) : null;
+
+    try {
+      return await this.prisma.ocorrencias.create({
+        data: {
+          descricao: dto.descricao,
+          anexos: dto.anexos ?? null,
+          tipo: tipoNum,
+          status: 'Pendente',
+          id_condominio: dto.id_condominio,
+          user: dto.user ?? null,
+        },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[ocorrencias.create] Falha: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Nao foi possivel registrar a ocorrencia. Verifique os dados e tente novamente. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
   }
 
   async updateStatus(id: number, status: OcorrenciaStatus) {
