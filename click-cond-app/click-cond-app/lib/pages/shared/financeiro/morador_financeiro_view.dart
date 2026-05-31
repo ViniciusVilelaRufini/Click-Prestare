@@ -125,6 +125,9 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       ano = now.year.toString();
     }
 
+    // Categorias que o morador pode criar manualmente (contas pessoais)
+    const personalCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
+
     List<dynamic> activeItems = _items.where((item) {
       var info = _getMesAno(item);
       return info['mes'] == mes && info['ano'] == ano;
@@ -160,7 +163,9 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 if (_viewMode == FinanceiroViewMode.morador) ...[
                   _buildSummaryCard(activeItems),
                   const SizedBox(height: 24),
-                  _buildSection("Condomínio", PhosphorIcons.buildings, activeItems),
+                  // Cobranças do síndico: qualquer item tipo 'C' cuja categoria
+                  // não é uma das categorias pessoais (Aluguel, Água, etc.)
+                  _buildCondoChargesSection(activeItems, personalCategories),
                   _buildSection("Aluguel", PhosphorIcons.house, activeItems),
                   _buildSection("Água", PhosphorIcons.drop, activeItems),
                   _buildSection("Luz", PhosphorIcons.lightning, activeItems),
@@ -246,6 +251,57 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           Text("${Singleton.instance.getCurrentMoeda()} ${totalPendente.toStringAsFixed(2)}", style: AppTypography.display(context).copyWith(color: Colors.white)),
         ],
       ),
+    );
+  }
+
+  Widget _buildCondoChargesSection(List<dynamic> activeItems, List<String> personalCategories) {
+    // Mostra cobranças do síndico: tipo 'C', sem id_usuario,
+    // e cuja categoria não é uma das categorias pessoais conhecidas.
+    var condoCharges = activeItems.where((i) {
+      final cat = (i['categoria'] ?? '').toString();
+      final tipo = (i['tipo'] ?? '').toString();
+      final idUsuario = i['id_usuario'];
+      // É cobrança do condomínio se: tipo C, sem dono pessoal,
+      // E a categoria não é uma categoria pessoal do morador
+      return tipo == 'C' && idUsuario == null && !personalCategories.contains(cat);
+    }).toList();
+
+    // Também inclui cobranças com categoria explícita "Condomínio"
+    var condoCatItems = activeItems.where((i) {
+      return (i['categoria'] ?? '').toString() == 'Condomínio';
+    }).toList();
+
+    // União sem duplicatas
+    final allIds = <dynamic>{};
+    final merged = <dynamic>[];
+    for (var item in [...condoCharges, ...condoCatItems]) {
+      if (allIds.add(item['id'])) merged.add(item);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Icon(PhosphorIcons.buildings, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              Text('Condomínio', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+        if (merged.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
+            child: Text('Nenhuma cobrança pendente', style: AppTypography.caption(context)),
+          )
+        else
+          ...merged.map((item) => _buildFinanceiroCard(item)).toList(),
+        const SizedBox(height: 16),
+      ],
     );
   }
 
