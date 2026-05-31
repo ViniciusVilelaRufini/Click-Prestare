@@ -1700,7 +1700,7 @@ export class FinanceiroService implements OnModuleInit {
       usuario_nome: operatorName,
       acao: 'CREATE',
       modulo: 'financeiro',
-      entidade_id: null,
+      entidade_id: undefined,
       descricao: `Criou rateio "${rateioData.nome}" — ${formatReal(rateioData.valorTotal)} dividido em ${aptos.length} aptos (${formatReal(valorPorApto)} cada)`,
       detalhes: {
         rateio: {
@@ -1791,7 +1791,7 @@ export class FinanceiroService implements OnModuleInit {
       usuario_nome: operatorName,
       acao: 'CREATE',
       modulo: 'financeiro',
-      entidade_id: null,
+      entidade_id: undefined,
       descricao: `Acordo de inadimplência: Apto ${acordoData.apto} Bloco ${acordoData.bloco} — ${formatReal(acordoData.valorTotal)} em ${acordoData.parcelas}x de ${formatReal(valorParcela)}`,
       detalhes: {
         acordo: {
