@@ -114,7 +114,7 @@ class _ListEncomendasState extends State<ListEncomendas> {
               backgroundColor: AppColors.surface(context),
               title: Text(
                 'Aviso de Encomenda',
-                style: AppTypography.bodyLarge(context).copyWith(fontWeight: FontWeight.bold),
+                style: AppTypography.body(context).copyWith(fontWeight: FontWeight.bold),
               ),
               content: Form(
                 key: formKey,
