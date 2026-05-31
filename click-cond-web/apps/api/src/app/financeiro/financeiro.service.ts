@@ -1296,14 +1296,16 @@ export class FinanceiroService implements OnModuleInit {
     });
 
     const filteredList = list.filter(item => {
-      if (item.id_usuario === idUser) return true;
-      // Match EXATO por apto+bloco (regex com word boundary).
-      // Antes usava includes() que casava "Apto 10" com 100/101/1010 →
-      // morador via faturas de apartamentos vizinhos com números similares.
+      // id_usuario pode ser number do Prisma vs number JS — usa Number() para garantir
+      if (item.id_usuario != null && Number(item.id_usuario) === Number(idUser)) return true;
       if (item.tipo === 'C') {
-        return moradoresList.some(m =>
+        const match = moradoresList.some(m =>
           this.nomeFaturaDeApto(item.nome, m.apartamento, m.bloco)
         );
+        if (!match) {
+          this.logger.debug(`[getByUser] item ID=${item.id} nome="${item.nome}" NÃO bateu com nenhum apartamento do morador ${idUser} (${moradoresList.map(m => `${m.apartamento}/${m.bloco}`).join(', ')})`);
+        }
+        return match;
       }
       return false;
     });

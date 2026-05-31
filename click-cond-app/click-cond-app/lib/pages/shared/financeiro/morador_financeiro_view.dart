@@ -163,9 +163,9 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 if (_viewMode == FinanceiroViewMode.morador) ...[
                   _buildSummaryCard(activeItems),
                   const SizedBox(height: 24),
-                  // Cobranças do síndico: qualquer item tipo 'C' cuja categoria
-                  // não é uma das categorias pessoais (Aluguel, Água, etc.)
-                  _buildCondoChargesSection(activeItems, personalCategories),
+                  // Cobranças do síndico: passa TODOS os itens (sem filtro de mês)
+                  // pois dívidas pendentes devem sempre aparecer independente do mês
+                  _buildCondoChargesSection(_items, personalCategories),
                   _buildSection("Aluguel", PhosphorIcons.house, activeItems),
                   _buildSection("Água", PhosphorIcons.drop, activeItems),
                   _buildSection("Luz", PhosphorIcons.lightning, activeItems),
