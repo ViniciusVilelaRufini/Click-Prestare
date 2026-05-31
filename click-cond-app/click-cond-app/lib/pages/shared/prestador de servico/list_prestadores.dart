@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/theme/app_colors.dart';
@@ -105,14 +106,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
               const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
-                    child: Text(
-                      (item['nome'] ?? 'P').substring(0, 1).toUpperCase(),
-                      style: AppTypography.headline(context).copyWith(color: AppColors.primary),
-                    ),
-                  ),
+                  _buildVisitanteAvatar(context, item, radius: 28),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
@@ -736,14 +730,7 @@ class _PrestadorCard extends StatelessWidget {
           children: [
             Stack(
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
-                  child: Text(
-                    (item['nome'] ?? 'P').substring(0, 1).toUpperCase(),
-                    style: AppTypography.bodyMedium(context).copyWith(color: AppColors.primary),
-                  ),
-                ),
+                _buildVisitanteAvatar(context, item, radius: 22),
                 if (isInside)
                   Positioned(
                     right: 0, bottom: 0,
@@ -882,4 +869,51 @@ class _EmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _getFotoVisitante(dynamic item) {
+  final raw = item['foto_pessoa'] ?? item['photo'];
+  if (raw == null) return null;
+  final s = raw.toString().trim();
+  if (s.isEmpty || s == 'null') return null;
+  return s;
+}
+
+Widget _buildVisitanteAvatar(BuildContext context, dynamic item, {double radius = 22}) {
+  final foto = _getFotoVisitante(item);
+  final nome = (item['nome'] ?? 'P').toString();
+
+  if (foto != null) {
+    ImageProvider? provider;
+    if (foto.startsWith('http://') || foto.startsWith('https://')) {
+      provider = NetworkImage(foto);
+    } else if (foto.startsWith('data:')) {
+      final commaIdx = foto.indexOf(',');
+      if (commaIdx > 0) {
+        try {
+          provider = MemoryImage(base64Decode(foto.substring(commaIdx + 1)));
+        } catch (_) {}
+      }
+    } else {
+      try {
+        provider = MemoryImage(base64Decode(foto));
+      } catch (_) {}
+    }
+    if (provider != null) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: AppColors.primary.withOpacity(0.1),
+        backgroundImage: provider,
+      );
+    }
+  }
+
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: AppColors.primary.withOpacity(0.1),
+    child: Text(
+      nome.substring(0, 1).toUpperCase(),
+      style: AppTypography.bodyMedium(context).copyWith(color: AppColors.primary),
+    ),
+  );
 }

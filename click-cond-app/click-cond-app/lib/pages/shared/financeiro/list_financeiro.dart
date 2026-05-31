@@ -449,9 +449,10 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
   }
 
   Widget _buildFab(bool isSindico) {
-    if (!isSindico) return FloatingActionButton(onPressed: loadList, child: const Icon(PhosphorIcons.arrowsClockwise));
+    if (!isSindico) return FloatingActionButton(heroTag: null, onPressed: loadList, child: const Icon(PhosphorIcons.arrowsClockwise));
 
     return SpeedDial(
+      heroTag: null,
       icon: PhosphorIcons.plus,
       activeIcon: PhosphorIcons.x,
       backgroundColor: AppColors.primary,

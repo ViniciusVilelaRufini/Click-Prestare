@@ -193,6 +193,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           ),
       floatingActionButton: widget.showFab && _viewMode == FinanceiroViewMode.morador
         ? FloatingActionButton.extended(
+            heroTag: null,
             onPressed: () => _showContaFormModal(),
             icon: const Icon(PhosphorIcons.plus, color: Colors.white),
             label: const Text("Nova Conta", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),

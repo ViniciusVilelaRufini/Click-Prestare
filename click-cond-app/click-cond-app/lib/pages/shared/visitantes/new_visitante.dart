@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:click/controllers/controller_generic.dart';
@@ -72,6 +73,10 @@ class _NewVisitantePageState extends State<NewVisitante> {
         txtObs.text = widget.reUseData!["observacoes"] ?? "";
         currentTipo = widget.reUseData!["is_visitante"] == 1 ? 'visitante' : 'prestador';
         idMyApartment = widget.reUseData!["apto_id"];
+        final rawPhoto = widget.reUseData!["foto_pessoa"] ?? widget.reUseData!["photo"];
+        imageFile = rawPhoto != null && rawPhoto.toString().isNotEmpty && rawPhoto.toString() != 'null'
+            ? rawPhoto.toString()
+            : null;
       }
     }
     if (getUserType() == 'morador') {
@@ -317,6 +322,41 @@ class _NewVisitantePageState extends State<NewVisitante> {
     throw getText('mudanca_selecione_apto');
   }
 
+  ImageProvider _getAvatarImageProvider() {
+    if (imageFile == null) {
+      return const AssetImage('assets/images/defaultUser.png');
+    }
+    if (imageFile is String) {
+      final s = imageFile.toString().trim();
+      if (s.isEmpty || s == 'null') {
+        return const AssetImage('assets/images/defaultUser.png');
+      }
+      if (s.startsWith('http://') || s.startsWith('https://')) {
+        return NetworkImage(s);
+      }
+      if (s.startsWith('data:')) {
+        final commaIdx = s.indexOf(',');
+        if (commaIdx > 0) {
+          try {
+            return MemoryImage(base64Decode(s.substring(commaIdx + 1)));
+          } catch (_) {}
+        }
+      }
+      // base64 puro
+      try {
+        return MemoryImage(base64Decode(s));
+      } catch (_) {}
+      return const AssetImage('assets/images/defaultUser.png');
+    }
+    
+    // Se for File/XFile
+    if (kIsWeb) {
+      return NetworkImage(imageFile.path);
+    } else {
+      return FileImage(io.File(imageFile.path));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
@@ -336,13 +376,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                           CircleAvatar(
                             radius: 52,
                             backgroundColor: AppColors.primary.withOpacity(0.1),
-                            backgroundImage: imageFile == null
-                                ? const AssetImage('assets/images/defaultUser.png')
-                                : (imageFile is String
-                                    ? NetworkImage(imageFile)
-                                    : (kIsWeb
-                                        ? NetworkImage(imageFile.path)
-                                        : FileImage(io.File(imageFile.path)))) as ImageProvider,
+                            backgroundImage: _getAvatarImageProvider(),
                           ),
                           Positioned(
                             bottom: 0, right: 0,

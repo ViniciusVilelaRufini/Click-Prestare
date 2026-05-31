@@ -651,6 +651,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
         showBackButton: !widget.hideAppBar,
         floatingActionButton: canAdd && widget.showFab
             ? FloatingActionButton.extended(
+                heroTag: null,
                 onPressed: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)))
                     .then((_) => loadList()),
