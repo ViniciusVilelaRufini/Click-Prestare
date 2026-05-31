@@ -72,6 +72,8 @@ export class FinanceiroService implements OnModuleInit {
     this.billingJobRunning = true;
     try {
       await this.runBillingRemindersJob();
+      await this.runRecurringBillingJob();
+      await this.runAutoWhatsAppDunningJob();
     } catch (err: any) {
       this.logger.error(`Job de lembretes falhou: ${err?.message ?? err}`);
     } finally {
@@ -2442,5 +2444,305 @@ export class FinanceiroService implements OnModuleInit {
       return '"' + str.replace(/"/g, '""') + '"';
     }
     return str;
+  }
+
+  async getConfigAuto(idCondominio: number, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
+    if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
+
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: Number(idCondominio) },
+      select: {
+        recorrencia_ativa: true,
+        valor_condominio: true,
+        dia_geracao: true,
+        dia_vencimento: true,
+        categoria_padrao: true,
+        cobranca_auto_whats: true,
+        dias_atraso_aviso_1: true,
+        dias_atraso_aviso_2: true,
+        dias_atraso_aviso_3: true,
+      },
+    });
+
+    return cond;
+  }
+
+  async updateConfigAuto(idCondominio: number, config: any, operatorName: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
+    if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
+
+    const updated = await this.prisma.condominios.update({
+      where: { id: Number(idCondominio) },
+      data: {
+        recorrencia_ativa: config.recorrencia_ativa ?? false,
+        valor_condominio: config.valor_condominio !== undefined ? Number(config.valor_condominio) : undefined,
+        dia_geracao: config.dia_geracao !== undefined ? Number(config.dia_geracao) : undefined,
+        dia_vencimento: config.dia_vencimento !== undefined ? Number(config.dia_vencimento) : undefined,
+        categoria_padrao: config.categoria_padrao !== undefined ? String(config.categoria_padrao) : undefined,
+        cobranca_auto_whats: config.cobranca_auto_whats ?? false,
+        dias_atraso_aviso_1: config.dias_atraso_aviso_1 !== undefined ? Number(config.dias_atraso_aviso_1) : undefined,
+        dias_atraso_aviso_2: config.dias_atraso_aviso_2 !== undefined ? Number(config.dias_atraso_aviso_2) : undefined,
+        dias_atraso_aviso_3: config.dias_atraso_aviso_3 !== undefined ? Number(config.dias_atraso_aviso_3) : undefined,
+      },
+    });
+
+    await this.auditoria.registrar({
+      id_condominio: Number(idCondominio),
+      usuario_nome: operatorName,
+      acao: 'UPDATE',
+      modulo: 'financeiro',
+      entidade_id: undefined,
+      descricao: `Atualizou configurações de cobrança automática e recorrência`,
+      detalhes: config,
+    });
+
+    return { success: true, config: updated };
+  }
+
+  async runRecurringBillingJob() {
+    if (!this.prisma.isConnected) return;
+    this.logger.log('Iniciando Job de Faturamento Recorrente...');
+
+    const hoje = new Date();
+    const diaAtual = hoje.getDate();
+    const mesAtual = hoje.getMonth() + 1;
+    const anoAtual = hoje.getFullYear();
+    const refStr = `${String(mesAtual).padStart(2, '0')}/${anoAtual}`;
+
+    // Busca todos os condomínios com recorrência ativa
+    const condominios = await this.prisma.condominios.findMany({
+      where: { recorrencia_ativa: true },
+      select: {
+        id: true,
+        nome: true,
+        valor_condominio: true,
+        dia_geracao: true,
+        dia_vencimento: true,
+        categoria_padrao: true,
+      },
+    });
+
+    for (const cond of condominios) {
+      if (cond.dia_geracao !== diaAtual) {
+        continue;
+      }
+
+      // Calcula data de vencimento da fatura
+      let vencMonth = mesAtual;
+      let vencYear = anoAtual;
+      if (cond.dia_vencimento < cond.dia_geracao) {
+        vencMonth += 1;
+        if (vencMonth > 12) {
+          vencMonth = 1;
+          vencYear += 1;
+        }
+      }
+      const dataVencimento = new Date(vencYear, vencMonth - 1, cond.dia_vencimento, 12, 0, 0, 0);
+
+      // Busca todos os apartamentos do condomínio
+      const aptos = await this.prisma.apartamentos.findMany({
+        where: { id_condominio: cond.id },
+      });
+
+      this.logger.log(`Gerando faturas recorrentes para o condomínio ${cond.nome} (${aptos.length} apartamentos)...`);
+
+      for (const apto of aptos) {
+        const faturaNome = `Apto ${apto.apto} Bloco ${apto.bloco} - ${cond.categoria_padrao} Ref. ${refStr}`;
+
+        // Evita gerar faturas duplicadas
+        const existe = await this.prisma.financeiro.findFirst({
+          where: {
+            id_condominio: cond.id,
+            nome: faturaNome,
+          },
+        });
+
+        if (existe) {
+          continue;
+        }
+
+        // Cria a fatura
+        let criado = await this.prisma.financeiro.create({
+          data: {
+            id_condominio: cond.id,
+            nome: faturaNome,
+            tipo: 'C',
+            valor: Number(cond.valor_condominio ?? 0),
+            data: hoje,
+            data_vencimento: dataVencimento,
+            pago: 0,
+            status: '0',
+            categoria: cond.categoria_padrao,
+            descricao: `Faturamento automático recorrente de taxa condominial referente a ${refStr}.`,
+            nome_operador: 'Sistema Click',
+          },
+        });
+
+        // Tenta gerar o Pix dinâmico via OpenPix
+        try {
+          const pixData = await this.openPix.generateCharge(
+            `financeiro_${criado.id}`,
+            Math.abs(Number(criado.valor)),
+            criado.nome ?? 'Cobrança',
+          );
+          if (pixData?.brCode) {
+            criado = await this.prisma.financeiro.update({
+              where: { id: criado.id },
+              data: { pix_copia_cola: pixData.brCode },
+            });
+          }
+        } catch (pixErr) {
+          this.logger.error(`[runRecurringBillingJob] Erro OpenPix para fatura ${criado.id}: ${pixErr}`);
+        }
+
+        // Notifica moradores do apartamento
+        const moradores = await this.prisma.users.findMany({
+          where: {
+            moradores: {
+              some: { id_condominio: cond.id, apartamento: apto.apto, bloco: apto.bloco },
+            },
+          },
+          select: { fcm_token: true, email: true, name: true, phone: true },
+        });
+
+        const valorFmt = Number(criado.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const textMessage = `Olá! A taxa condominial de seu apartamento (Apto ${apto.apto} Bloco ${apto.bloco}) referente a ${refStr} no valor de ${valorFmt} foi emitida e vence em ${dataVencimento.toLocaleDateString('pt-BR')}.`;
+
+        for (const morador of moradores) {
+          // 1. Push
+          if (morador.fcm_token) {
+            try {
+              await this.notifications.sendPushNotification(
+                morador.fcm_token,
+                'Nova Fatura Emitida',
+                textMessage,
+                { id: criado.id.toString(), type: 'financeiro' },
+              );
+            } catch (_) {}
+          }
+          // 2. WhatsApp (Z-API)
+          const cleanPhone = morador.phone?.replace(/\D/g, '');
+          if (cleanPhone && cleanPhone.length >= 10) {
+            try {
+              let whatsMsg = textMessage;
+              if (criado.pix_copia_cola) {
+                whatsMsg += `\n\nVocê pode pagar copiando o código Pix abaixo:\n\n${criado.pix_copia_cola}`;
+              }
+              await this.notifications.sendWhatsApp(cleanPhone, whatsMsg);
+            } catch (whatsErr) {
+              this.logger.error(`[runRecurringBillingJob] Erro WhatsApp para ${morador.name}: ${whatsErr}`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  async runAutoWhatsAppDunningJob() {
+    if (!this.prisma.isConnected) return;
+    this.logger.log('Iniciando Job de Régua de Cobrança Automática via WhatsApp...');
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const hojeStr = hoje.toISOString().slice(0, 10);
+
+    // Busca todos os condomínios com cobrança automatizada via WhatsApp ativa
+    const condominios = await this.prisma.condominios.findMany({
+      where: { cobranca_auto_whats: true },
+      select: {
+        id: true,
+        nome: true,
+        dias_atraso_aviso_1: true,
+        dias_atraso_aviso_2: true,
+        dias_atraso_aviso_3: true,
+      },
+    });
+
+    for (const cond of condominios) {
+      // Busca faturas vencidas em aberto deste condomínio
+      const faturas = await this.prisma.financeiro.findMany({
+        where: {
+          id_condominio: cond.id,
+          pago: 0,
+          tipo: 'C',
+          data_vencimento: { lt: hoje, not: null },
+        },
+        select: {
+          id: true,
+          nome: true,
+          valor: true,
+          data_vencimento: true,
+          pix_copia_cola: true,
+        },
+      });
+
+      for (const fat of faturas) {
+        if (!fat.data_vencimento) continue;
+
+        const venc = new Date(fat.data_vencimento);
+        venc.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((hoje.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24));
+
+        let avisoTipo: 'aviso_1' | 'aviso_2' | 'aviso_3' | null = null;
+
+        if (diffDays === cond.dias_atraso_aviso_1) {
+          avisoTipo = 'aviso_1';
+        } else if (diffDays === cond.dias_atraso_aviso_2) {
+          avisoTipo = 'aviso_2';
+        } else if (diffDays === cond.dias_atraso_aviso_3) {
+          avisoTipo = 'aviso_3';
+        }
+
+        if (!avisoTipo) continue;
+
+        // Dedup: evita reenvio no mesmo dia
+        const dedupKey = `${fat.id}:${avisoTipo}:${hojeStr}`;
+        if (this.lembretesEnviados.has(dedupKey)) {
+          continue;
+        }
+
+        const aptoMatch = fat.nome?.match(/Apto\s+(\S+)\s+Bloco\s+(\S+)/i);
+        if (!aptoMatch) continue;
+        const [, apto, bloco] = aptoMatch;
+
+        const moradores = await this.prisma.users.findMany({
+          where: {
+            moradores: {
+              some: { id_condominio: cond.id, apartamento: apto, bloco: bloco },
+            },
+          },
+          select: { name: true, phone: true },
+        });
+
+        const valorFmt = Number(fat.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const textMessage = avisoTipo === 'aviso_1'
+          ? `Lembrete de Cobrança: Identificamos que a fatura "${fat.nome}" no valor de ${valorFmt} venceu em ${venc.toLocaleDateString('pt-BR')} (atraso de ${diffDays} dia).`
+          : avisoTipo === 'aviso_2'
+          ? `Aviso de Atraso: A fatura "${fat.nome}" (${valorFmt}) está vencida há ${diffDays} dias. Por favor, regularize o quanto antes.`
+          : `Notificação Importante: A fatura "${fat.nome}" (${valorFmt}) está vencida há ${diffDays} dias no sistema. Evite suspensão de serviços ou protesto.`;
+
+        for (const morador of moradores) {
+          const cleanPhone = morador.phone?.replace(/\D/g, '');
+          if (cleanPhone && cleanPhone.length >= 10) {
+            try {
+              let whatsMsg = `Olá, ${morador.name}!\n\n${textMessage}`;
+              if (fat.pix_copia_cola) {
+                whatsMsg += `\n\nPara facilitar, efetue o pagamento copiando o código Pix abaixo:\n\n${fat.pix_copia_cola}`;
+              }
+              await this.notifications.sendWhatsApp(cleanPhone, whatsMsg);
+            } catch (whatsErr) {
+              this.logger.error(`[runAutoWhatsAppDunningJob] Erro WhatsApp para ${morador.name}: ${whatsErr}`);
+            }
+          }
+        }
+
+        this.lembretesEnviados.add(dedupKey);
+      }
+    }
   }
 }

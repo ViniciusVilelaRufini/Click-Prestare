@@ -111,6 +111,16 @@ export class FinanceiroApi {
     const url = `${API_BASE}/financeiro/fechamentos/reabrir`;
     return this.http.post(url, { id_condominio: this.cid, mes, ano, motivo });
   }
+
+  getConfigAuto(): Observable<any> {
+    const url = `${API_BASE}/financeiro/config-auto?id_condominio=${this.cid}`;
+    return this.http.get<any>(url);
+  }
+
+  updateConfigAuto(config: any): Observable<any> {
+    const url = `${API_BASE}/financeiro/config-auto`;
+    return this.http.post<any>(url, { id_condominio: this.cid, config });
+  }
 }
 
 export interface Fechamento {

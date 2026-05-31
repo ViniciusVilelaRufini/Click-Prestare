@@ -208,6 +208,63 @@ export class FinanceiroPageComponent implements OnInit {
     }
   }
 
+  // Configuração Automática de Recorrência e Régua de Cobrança
+  readonly modalConfigAuto = signal(false);
+  readonly savingConfigAuto = signal(false);
+  readonly configAutoErro = signal<string | null>(null);
+  configAutoData = {
+    recorrencia_ativa: false,
+    valor_condominio: 0,
+    dia_geracao: 1,
+    dia_vencimento: 10,
+    categoria_padrao: 'Taxa Condominial',
+    cobranca_auto_whats: false,
+    dias_atraso_aviso_1: 1,
+    dias_atraso_aviso_2: 5,
+    dias_atraso_aviso_3: 10,
+  };
+
+  abrirModalConfigAuto() {
+    this.configAutoErro.set(null);
+    this.api.getConfigAuto().subscribe({
+      next: (res) => {
+        if (res) {
+          this.configAutoData = {
+            recorrencia_ativa: res.recorrencia_ativa ?? false,
+            valor_condominio: Number(res.valor_condominio ?? 0),
+            dia_geracao: res.dia_geracao ?? 1,
+            dia_vencimento: res.dia_vencimento ?? 10,
+            categoria_padrao: res.categoria_padrao ?? 'Taxa Condominial',
+            cobranca_auto_whats: res.cobranca_auto_whats ?? false,
+            dias_atraso_aviso_1: res.dias_atraso_aviso_1 ?? 1,
+            dias_atraso_aviso_2: res.dias_atraso_aviso_2 ?? 5,
+            dias_atraso_aviso_3: res.dias_atraso_aviso_3 ?? 10,
+          };
+        }
+        this.modalConfigAuto.set(true);
+      },
+      error: (err) => {
+        this.configAutoErro.set(err?.error?.message ?? 'Falha ao buscar configurações.');
+        this.modalConfigAuto.set(true);
+      }
+    });
+  }
+
+  salvarConfigAuto() {
+    this.savingConfigAuto.set(true);
+    this.configAutoErro.set(null);
+    this.api.updateConfigAuto(this.configAutoData).subscribe({
+      next: () => {
+        this.savingConfigAuto.set(false);
+        this.modalConfigAuto.set(false);
+      },
+      error: (err) => {
+        this.savingConfigAuto.set(false);
+        this.configAutoErro.set(err?.error?.message ?? 'Falha ao salvar configurações.');
+      }
+    });
+  }
+
   ngOnInit() {
     // Configura o mês atual inicialmente
     const hoje = new Date();

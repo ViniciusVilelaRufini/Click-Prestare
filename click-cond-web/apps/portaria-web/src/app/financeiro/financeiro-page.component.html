@@ -81,6 +81,19 @@
       </button>
 
       <button
+        (click)="abrirModalConfigAuto()"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white font-semibold text-sm
+               hover:bg-white/10 transition active:scale-95 animate-fade-in"
+        title="Configurar geração automática de condomínio e cobrança via WhatsApp"
+      >
+        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Cobrança Automática
+      </button>
+
+      <button
         (click)="abrirModalLancamento()"
         class="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-semibold text-sm
                hover:bg-emerald-400 shadow-lg shadow-emerald-500/10 transition active:scale-95"
@@ -1080,6 +1093,174 @@
             Reabrindo...
           } @else {
             Confirmar reabertura
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Modal: Configuração de Cobrança Automática -->
+@if (modalConfigAuto()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in text-white">
+    <div class="w-full max-w-2xl rounded-3xl bg-graphite-200 border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <!-- Header -->
+      <div class="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-slate-900/40">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Cobrança e Faturamento Automático</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Configure a geração mensal e a régua de alertas automáticos via WhatsApp</p>
+          </div>
+        </div>
+        <button (click)="modalConfigAuto.set(false)" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Conteúdo -->
+      <div class="p-6 flex-1 overflow-y-auto space-y-6">
+        @if (configAutoErro()) {
+          <div class="p-3.5 rounded-2xl bg-red-400/10 border border-red-400/20 text-xs text-red-300">
+            {{ configAutoErro() }}
+          </div>
+        }
+
+        <!-- Seção 1: Geração Recorrente (Faturamento Mensal) -->
+        <div class="p-5 rounded-2xl bg-slate-900/40 border border-white/5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <h4 class="text-xs font-bold uppercase text-slate-200 tracking-wider">Faturamento Automático</h4>
+            </div>
+            <!-- Toggle Ativar/Desativar -->
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="configAutoData.recorrencia_ativa" class="sr-only peer">
+              <div class="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-450 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-slate-950"></div>
+              <span class="ml-2 text-xs text-slate-400 font-medium select-none">Ativo</span>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" [class.opacity-50]="!configAutoData.recorrencia_ativa">
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Valor da Taxa (R$)</label>
+              <input
+                type="number"
+                [disabled]="!configAutoData.recorrencia_ativa"
+                [(ngModel)]="configAutoData.valor_condominio"
+                placeholder="R$ 0,00"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Dia de Geração</label>
+              <select
+                [disabled]="!configAutoData.recorrencia_ativa"
+                [(ngModel)]="configAutoData.dia_geracao"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+              >
+                @for (d of [1, 2, 5, 10, 15, 20, 25]; track d) {
+                  <option [value]="d" class="bg-slate-900 text-white">Todo dia {{ d }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Dia de Vencimento</label>
+              <select
+                [disabled]="!configAutoData.recorrencia_ativa"
+                [(ngModel)]="configAutoData.dia_vencimento"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+              >
+                @for (d of [1, 5, 10, 15, 20, 25, 28, 30]; track d) {
+                  <option [value]="d" class="bg-slate-900 text-white">Todo dia {{ d }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div [class.opacity-50]="!configAutoData.recorrencia_ativa">
+            <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Categoria Padrão</label>
+            <input
+              type="text"
+              [disabled]="!configAutoData.recorrencia_ativa"
+              [(ngModel)]="configAutoData.categoria_padrao"
+              placeholder="Ex: Taxa Condominial"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
+            />
+          </div>
+        </div>
+
+        <!-- Seção 2: Régua de Cobrança (WhatsApp / Z-API) -->
+        <div class="p-5 rounded-2xl bg-slate-900/40 border border-white/5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+              <h4 class="text-xs font-bold uppercase text-slate-200 tracking-wider">WhatsApp Dunning (Cobrança Automática)</h4>
+            </div>
+            <!-- Toggle Ativar/Desativar -->
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" [(ngModel)]="configAutoData.cobranca_auto_whats" class="sr-only peer">
+              <div class="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-450 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-slate-950"></div>
+              <span class="ml-2 text-xs text-slate-400 font-medium select-none">Ativo</span>
+            </label>
+          </div>
+
+          <p class="text-[11px] text-slate-400" [class.opacity-50]="!configAutoData.cobranca_auto_whats">
+            Defina em quantos dias de atraso o sistema deve disparar as mensagens automáticas de lembrete pelo WhatsApp contendo a cobrança Pix.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" [class.opacity-50]="!configAutoData.cobranca_auto_whats">
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">1º Aviso (Dias de Atraso)</label>
+              <input
+                type="number"
+                [disabled]="!configAutoData.cobranca_auto_whats"
+                [(ngModel)]="configAutoData.dias_atraso_aviso_1"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">2º Aviso (Dias de Atraso)</label>
+              <input
+                type="number"
+                [disabled]="!configAutoData.cobranca_auto_whats"
+                [(ngModel)]="configAutoData.dias_atraso_aviso_2"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">3º Aviso (Dias de Atraso)</label>
+              <input
+                type="number"
+                [disabled]="!configAutoData.cobranca_auto_whats"
+                [(ngModel)]="configAutoData.dias_atraso_aviso_3"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-end gap-3">
+        <button (click)="modalConfigAuto.set(false)" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">
+          Cancelar
+        </button>
+        <button
+          (click)="salvarConfigAuto()"
+          [disabled]="savingConfigAuto()"
+          class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/10 disabled:opacity-50"
+        >
+          @if (savingConfigAuto()) {
+            <div class="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+            <span>Salvando...</span>
+          } @else {
+            <span>Salvar Configuração</span>
           }
         </button>
       </div>

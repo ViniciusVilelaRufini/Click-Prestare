@@ -149,6 +149,19 @@ model Condominios {
   acessosFacial        Acessos_Facial[]
   regrasAcesso         Regras_Acesso[]
 
+  // Recorrência Automática
+  recorrencia_ativa     Boolean                   @default(false)
+  valor_condominio      Decimal                   @default(0.00) @db.Decimal(10, 2)
+  dia_geracao           Int                       @default(1)
+  dia_vencimento        Int                       @default(10)
+  categoria_padrao      String                    @default("Taxa Condominial") @db.VarChar(100)
+
+  // Régua de Cobrança Automática
+  cobranca_auto_whats   Boolean                   @default(false)
+  dias_atraso_aviso_1   Int                       @default(1)
+  dias_atraso_aviso_2   Int                       @default(5)
+  dias_atraso_aviso_3   Int                       @default(10)
+
   @@index([endereco], map: "fk_cond_endereco")
 }
 

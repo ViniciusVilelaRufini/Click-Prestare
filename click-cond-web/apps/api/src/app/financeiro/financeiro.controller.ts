@@ -126,6 +126,21 @@ export class FinanceiroController {
     return this.service.getGrafico(Number(idCondominio), mes, ano, payload);
   }
 
+  @Get('config-auto')
+  getConfigAuto(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getConfigAuto(Number(idCondominio), payload);
+  }
+
+  @Post('config-auto')
+  @HttpCode(200)
+  updateConfigAuto(
+    @Body() body: { id_condominio: string | number; config: any },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
+    return this.service.updateConfigAuto(Number(body.id_condominio), body.config, operatorName, payload);
+  }
+
   @Get('get-by-user')
   getByUser(@Query('id_user') idUser: string, @Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
     const typeAccess = payload?.typeAccess ?? payload?.user?.typeAccess;
