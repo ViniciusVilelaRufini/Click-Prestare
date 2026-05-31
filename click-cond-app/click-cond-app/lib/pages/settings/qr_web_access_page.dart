@@ -1,13 +1,13 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:click/utils/api_client.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/api_config.dart';
-import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -41,14 +41,14 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
 
     final String? code = barcodes.first.rawValue;
     if (code == null || !code.startsWith('qr_')) {
-      // Ignorar QR codes invÃ¡lidos que nÃ£o comeÃ§am com nosso prefixo de sessÃ£o
+      // Ignorar QR codes inválidos que não começam com nosso prefixo de sessão
       return;
     }
 
     setState(() => _isProcessing = true);
     _scannerController.stop();
 
-    // Mostrar loader de autorizaÃ§Ã£o
+    // Mostrar loader de autorização
     _showProcessingDialog();
 
     try {
@@ -73,12 +73,12 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
           await showAppDialog(
             context,
             title: 'Sucesso!',
-            message: 'Acesso web autorizado com sucesso! O painel no computador serÃ¡ liberado em instantes.',
+            message: 'Acesso web autorizado com sucesso! O painel no computador será liberado em instantes.',
             icon: PhosphorIcons.checkCircleFill,
             iconColor: AppColors.success,
           );
           if (mounted) {
-            Navigator.of(context).pop(); // Retorna para configuraÃ§Ãµes
+            Navigator.of(context).pop(); // Retorna para configurações
           }
           return;
         }
@@ -87,8 +87,8 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
       final errorMsg = _getErrorMessage(response);
       await _showErrorAndResume(errorMsg);
     } catch (e) {
-      Navigator.of(context).pop(); // Fecha loader se der exceÃ§Ã£o
-      await _showErrorAndResume('NÃ£o foi possÃ­vel conectar ao servidor. Verifique sua conexÃ£o.');
+      Navigator.of(context).pop(); // Fecha loader se der exceção
+      await _showErrorAndResume('Não foi possível conectar ao servidor. Verifique sua conexão.');
     }
   }
 
@@ -97,7 +97,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
       final body = jsonDecode(response.body);
       return body['message'] ?? 'Erro desconhecido ao autorizar login.';
     } catch (_) {
-      return 'Erro na autorizaÃ§Ã£o do login (${response.statusCode}).';
+      return 'Erro na autorização do login (${response.statusCode}).';
     }
   }
 
@@ -138,7 +138,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
   Future<void> _showErrorAndResume(String message) async {
     await showAppDialog(
       context,
-      title: 'Falha na AutorizaÃ§Ã£o',
+      title: 'Falha na Autorização',
       message: message,
       icon: PhosphorIcons.warningCircleFill,
       iconColor: AppColors.error,
@@ -156,16 +156,16 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
       title: 'Acesso Web por QR Code',
       body: Stack(
         children: [
-          // Visualizador da CÃ¢mera do Mobile Scanner
+          // Visualizador da Câmera do Mobile Scanner
           MobileScanner(
             controller: _scannerController,
             onDetect: _onDetect,
           ),
 
-          // MÃ¡scara Escura TranslÃºcida com Janela Central Transparente
+          // Máscara Escura Translúcida com Janela Central Transparente
           _buildScannerOverlay(context),
 
-          // Controles Flutuantes da CÃ¢mera (ex: Lanterna) e InstruÃ§Ãµes
+          // Controles Flutuantes da Câmera (ex: Lanterna) e Instruções
           Positioned(
             bottom: AppSpacing.xxxl,
             left: AppSpacing.xl,
@@ -180,7 +180,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
                   child: Text(
-                    'Aponte a cÃ¢mera para o QR Code que aparece na tela de login do console web.',
+                    'Aponte a câmera para o QR Code que aparece na tela de login do console web.',
                     style: AppTypography.bodySecondary(context).copyWith(color: Colors.white),
                     textAlign: TextAlign.center,
                   ),
@@ -189,7 +189,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // BotÃ£o da Lanterna
+                    // Botão da Lanterna
                     CircleAvatar(
                       radius: 28,
                       backgroundColor: Colors.black.withOpacity(0.8),

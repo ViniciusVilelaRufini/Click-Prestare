@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
@@ -22,7 +22,7 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
     final endUri = isEdit ? 'update' : 'insert';
     final url = _buildUri('/$route/$endUri');
 
-    // Serializa o objeto: prefere obj.toJson() se existir, senÃ£o usa direto
+    // Serializa o objeto: prefere obj.toJson() se existir, senão usa direto
     final Map<String, dynamic> payload = {};
     payload['id_condominio'] = Singleton.instance.id_condominio.toString();
     try {
@@ -37,17 +37,16 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
           headers: _authHeaders(withContentType: true),
           body: body,
           encoding: utf8,
-        )
-        .timeout(_kTimeout);
+        ).timeout(_kTimeout);
   } catch (e) {
-    // Falha de rede / timeout / serializaÃ§Ã£o â€” devolve mensagem amigÃ¡vel
-    return "Falha de comunicaÃ§Ã£o com o servidor. Verifique sua conexÃ£o.";
+    // Falha de rede / timeout / serialização — devolve mensagem amigável
+    return "Falha de comunicação com o servidor. Verifique sua conexão.";
   }
 
   // Sucesso
   if (response.statusCode >= 200 && response.statusCode < 300) return "";
 
-  // Erro â€” tenta extrair message do body
+  // Erro — tenta extrair message do body
   try {
     final parsed = jsonDecode(response.body);
     if (parsed is Map && parsed["message"] != null) {

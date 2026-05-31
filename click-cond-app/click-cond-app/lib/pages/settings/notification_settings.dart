@@ -1,4 +1,4 @@
-﻿import 'package:click/theme/app_colors.dart';
+import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/api_config.dart';
@@ -7,7 +7,6 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class NotificationSettingsPage extends StatefulWidget {
@@ -76,7 +75,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'NotificaÃ§Ãµes',
+      title: 'Notificações',
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Padding(
@@ -85,13 +84,13 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Escolha quais avisos vocÃª deseja receber no seu celular.',
+                    'Escolha quais avisos você deseja receber no seu celular.',
                     style: AppTypography.bodySecondary(context),
                   ),
                   const SizedBox(height: AppSpacing.xxl),
                   _buildSwitch(
                     title: 'Encomendas',
-                    subtitle: 'Receba avisos quando chegar um pacote para vocÃª.',
+                    subtitle: 'Receba avisos quando chegar um pacote para você.',
                     value: _encomendas,
                     icon: PhosphorIcons.package,
                     onChanged: (val) {
@@ -102,7 +101,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   const Divider(height: AppSpacing.xxl),
                   _buildSwitch(
                     title: 'Comunicados',
-                    subtitle: 'Avisos importantes do sÃ­ndico e condomÃ­nio.',
+                    subtitle: 'Avisos importantes do síndico e condomínio.',
                     value: _comunicados,
                     icon: PhosphorIcons.megaphone,
                     onChanged: (val) {
@@ -112,8 +111,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   ),
                   const Divider(height: AppSpacing.xxl),
                   _buildSwitch(
-                    title: 'OcorrÃªncias',
-                    subtitle: 'Saiba quando sua ocorrÃªncia for respondida.',
+                    title: 'Ocorrências',
+                    subtitle: 'Saiba quando sua ocorrência for respondida.',
                     value: _ocorrencias,
                     icon: PhosphorIcons.warningCircle,
                     onChanged: (val) {
@@ -124,7 +123,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                   const Divider(height: AppSpacing.xxl),
                   _buildSwitch(
                     title: 'Visitantes',
-                    subtitle: 'Receba avisos quando alguÃ©m chegar para vocÃª.',
+                    subtitle: 'Receba avisos quando alguém chegar para você.',
                     value: _visitantes,
                     icon: PhosphorIcons.userList,
                     onChanged: (val) {

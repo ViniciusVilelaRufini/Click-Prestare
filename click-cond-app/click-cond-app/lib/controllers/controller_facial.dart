@@ -1,11 +1,10 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:click/utils/local_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
 
-/// Retorna o histÃ³rico de acessos faciais de um visitante.
-/// Lista vazia se a integraÃ§Ã£o nÃ£o estiver ativa ou o visitante nÃ£o tiver
+/// Retorna o histórico de acessos faciais de um visitante.
+/// Lista vazia se a integração não estiver ativa ou o visitante não tiver
 /// passado por nenhum terminal ainda.
 Future<List<dynamic>> apiGetAcessosVisitante(int idVisitante, {int limit = 30}) async {
   final url = ApiConfig.buildUri(
@@ -30,7 +29,7 @@ Future<List<dynamic>> apiGetAcessosVisitante(int idVisitante, {int limit = 30}) 
   }
 }
 
-/// Retorna o histÃ³rico de acessos faciais de um morador.
+/// Retorna o histórico de acessos faciais de um morador.
 Future<List<dynamic>> apiGetAcessosMorador(int idMorador, {int limit = 30}) async {
   final url = ApiConfig.buildUri(
     '/facial/acessos/morador/$idMorador',
