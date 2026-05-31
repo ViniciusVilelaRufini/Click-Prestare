@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:click/utils/localizable/localizable.dart';
+import 'package:click/theme/app_colors.dart';
+import 'package:click/theme/app_typography.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -227,30 +230,104 @@ validateFieldIsEmpty(String campo, String message) {
 getPhoto(BuildContext context) async {
   final exit = await showDialog<String>(
     context: context,
-    builder: (c) => AlertDialog(
-      title: Text(getText('alert_photo_choice'), textScaleFactor: 1.0),
-      actions: [
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Theme.of(context).primaryColor,
-          ),
-          onPressed: () => Navigator.pop(c, "camera"),
-          child: Text(
-            getText('alert_photo_camera'),
-            textScaleFactor: 1.0,
-            style: TextStyle(color: Theme.of(context).primaryColor),
-          ),
+    builder: (c) => Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      backgroundColor: AppColors.surface(c),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    PhosphorIcons.camera,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Adicionar foto',
+                  style: AppTypography.title(c).copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              getText('alert_photo_choice'),
+              style: AppTypography.bodySecondary(c),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: AppColors.border(c)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(c, "camera"),
+                    icon: Icon(
+                      PhosphorIcons.camera,
+                      color: AppColors.textPrimary(c),
+                      size: 18,
+                    ),
+                    label: Text(
+                      getText('alert_photo_camera'),
+                      style: AppTypography.body(c).copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary(c),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(c, "galeria"),
+                    icon: const Icon(
+                      PhosphorIcons.image,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      getText('alert_photo_galeria'),
+                      style: AppTypography.body(c).copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).primaryColor,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () => Navigator.pop(c, "galeria"),
-          child: Text(getText('alert_photo_galeria'), textScaleFactor: 1.0),
-        ),
-      ],
+      ),
     ),
   );
   return await pickImage(
