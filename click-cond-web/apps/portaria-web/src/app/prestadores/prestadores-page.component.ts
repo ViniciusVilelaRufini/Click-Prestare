@@ -186,7 +186,7 @@ export class PrestadoresPageComponent implements OnInit {
 
   abrirNovo() {
     this.editingId = null;
-    this.novo = { nome: '', telefone: '', categorias: '', foto_pessoa: undefined, foto_documento: undefined };
+    this.novo = { nome: '', telefone: '', categorias: '', dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
     this.categoriasSelecionadas.set(new Set());
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
@@ -205,6 +205,7 @@ export class PrestadoresPageComponent implements OnInit {
       categorias: p.categorias ?? '',
       foto_pessoa: p.foto_pessoa ?? undefined,
       foto_documento: p.foto_documento ?? undefined,
+      dias_semana: p.dias_semana ?? '',
     };
     const cats = (p.categorias ?? '').split(';').map((x) => x.trim()).filter(Boolean);
     this.categoriasSelecionadas.set(new Set(cats));
@@ -374,5 +375,53 @@ export class PrestadoresPageComponent implements OnInit {
   fecharAmpliarFoto() {
     this.fotoAmpliadaUrl.set(null);
     this.fotoAmpliadaTitulo.set('');
+  }
+
+  diasSemanaSelecionados(): string[] {
+    return (this.novo.dias_semana ?? '').split(',').filter(Boolean);
+  }
+
+  isDiaSelecionado(dia: string): boolean {
+    return this.diasSemanaSelecionados().includes(dia);
+  }
+
+  toggleDiaSemana(dia: string) {
+    const selecionados = this.diasSemanaSelecionados();
+    if (selecionados.includes(dia)) {
+      this.novo.dias_semana = selecionados.filter((d) => d !== dia).join(',');
+    } else {
+      this.novo.dias_semana = [...selecionados, dia].join(',');
+    }
+  }
+
+  aplicarPresetDias(preset: 'semana' | 'fim-semana' | 'todos' | 'nenhum') {
+    if (preset === 'semana') {
+      this.novo.dias_semana = 'seg,ter,qua,qui,sex';
+    } else if (preset === 'fim-semana') {
+      this.novo.dias_semana = 'sab,dom';
+    } else if (preset === 'todos') {
+      this.novo.dias_semana = 'seg,ter,qua,qui,sex,sab,dom';
+    } else {
+      this.novo.dias_semana = '';
+    }
+  }
+
+  formatarDiasSemanaExtenso(diasStr: string | null | undefined): string {
+    if (!diasStr) return 'Nenhum dia permitido';
+    const dias = diasStr.split(',').filter(Boolean);
+    if (dias.length === 7) return 'Todos os dias';
+    if (dias.length === 5 && !dias.includes('sab') && !dias.includes('dom')) return 'Segunda a Sexta';
+    if (dias.length === 2 && dias.includes('sab') && dias.includes('dom')) return 'Finais de semana';
+    
+    const mapa: { [key: string]: string } = {
+      seg: 'Seg',
+      ter: 'Ter',
+      qua: 'Qua',
+      qui: 'Qui',
+      sex: 'Sex',
+      sab: 'Sáb',
+      dom: 'Dom'
+    };
+    return dias.map((d) => mapa[d] || d).join(', ');
   }
 }

@@ -158,6 +158,61 @@
             </div>
           }
         </div>
+
+        <!-- Dias Autorizados -->
+        <div class="block md:col-span-3 border-t border-white/5 pt-4 mt-2">
+          <span class="text-xs font-medium text-slate-400 mb-2.5 block">Dias de Acesso Autorizados</span>
+          
+          <!-- Presets -->
+          <div class="flex items-center gap-1.5 mb-3 flex-wrap">
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider mr-1">Presets Rápidos:</span>
+            <button type="button" (click)="aplicarPresetDias('semana')"
+                    class="px-2.5 py-1 text-[11px] rounded-lg border border-accent/20 bg-accent/5 hover:bg-accent/10 transition text-accent">
+              Segunda a Sexta
+            </button>
+            <button type="button" (click)="aplicarPresetDias('fim-semana')"
+                    class="px-2.5 py-1 text-[11px] rounded-lg border border-amber-400/20 bg-amber-400/5 hover:bg-amber-400/10 transition text-amber-400">
+              Fim de Semana
+            </button>
+            <button type="button" (click)="aplicarPresetDias('todos')"
+                    class="px-2.5 py-1 text-[11px] rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300">
+              Todos os dias
+            </button>
+            <button type="button" (click)="aplicarPresetDias('nenhum')"
+                    class="px-2.5 py-1 text-[11px] rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition text-red-400">
+              Limpar
+            </button>
+          </div>
+
+          <!-- Days selector buttons -->
+          <div class="flex flex-wrap gap-2">
+            @for (dia of [
+              { key: 'seg', label: 'Segunda-feira' },
+              { key: 'ter', label: 'Terça-feira' },
+              { key: 'qua', label: 'Quarta-feira' },
+              { key: 'qui', label: 'Quinta-feira' },
+              { key: 'sex', label: 'Sexta-feira' },
+              { key: 'sab', label: 'Sábado' },
+              { key: 'dom', label: 'Domingo' }
+            ]; track dia.key) {
+              <button type="button" (click)="toggleDiaSemana(dia.key)"
+                      class="px-3.5 py-2 text-xs rounded-xl font-medium border transition-all flex items-center gap-2 select-none"
+                      [class.bg-accent]="isDiaSelecionado(dia.key)"
+                      [class.text-white]="isDiaSelecionado(dia.key)"
+                      [class.border-accent]="isDiaSelecionado(dia.key)"
+                      [class.shadow-md]="isDiaSelecionado(dia.key)"
+                      [class.bg-graphite]="!isDiaSelecionado(dia.key)"
+                      [class.text-slate-400]="!isDiaSelecionado(dia.key)"
+                      [class.border-white/10]="!isDiaSelecionado(dia.key)"
+                      [class.hover:border-white/20]="!isDiaSelecionado(dia.key)">
+                <span class="w-2 h-2 rounded-full transition-all"
+                      [class.bg-white]="isDiaSelecionado(dia.key)"
+                      [class.bg-slate-600]="!isDiaSelecionado(dia.key)"></span>
+                {{ dia.label }}
+              </button>
+            }
+          </div>
+        </div>
       </div>
 
       <!-- Fotos (Pessoa e Documento) -->
@@ -321,6 +376,14 @@
             <p class="mt-4 text-[11px] text-slate-600">Sem categorias</p>
           }
 
+          <div class="mt-3 flex items-center gap-1.5 text-xs text-slate-400">
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <span>Acesso:</span>
+            <span class="text-slate-300 font-medium truncate">{{ formatarDiasSemanaExtenso(p.dias_semana) }}</span>
+          </div>
+
           <div class="mt-5 pt-3 border-t border-white/5 flex items-center justify-end gap-2">
             <button (click)="abrirEditar(p); $event.stopPropagation()"
                     class="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition flex items-center gap-1.5">
@@ -449,6 +512,32 @@
             } @else {
               <span class="text-xs text-slate-500">Nenhuma categoria informada</span>
             }
+          </div>
+
+          <!-- Dias Permitidos -->
+          <div class="space-y-1.5">
+            <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Dias de Acesso Permitidos</span>
+            <div class="flex flex-wrap gap-1.5">
+              @for (dia of [
+                { key: 'seg', label: 'Seg' },
+                { key: 'ter', label: 'Ter' },
+                { key: 'qua', label: 'Qua' },
+                { key: 'qui', label: 'Qui' },
+                { key: 'sex', label: 'Sex' },
+                { key: 'sab', label: 'Sáb' },
+                { key: 'dom', label: 'Dom' }
+              ]; track dia.key) {
+                <span class="px-2.5 py-1 text-xs rounded-lg border font-medium transition"
+                      [class.bg-accent/15]="(dp.dias_semana ?? '').includes(dia.key)"
+                      [class.text-accent]="(dp.dias_semana ?? '').includes(dia.key)"
+                      [class.border-accent/30]="(dp.dias_semana ?? '').includes(dia.key)"
+                      [class.bg-white/5]="!(dp.dias_semana ?? '').includes(dia.key)"
+                      [class.text-slate-500]="!(dp.dias_semana ?? '').includes(dia.key)"
+                      [class.border-white/5]="!(dp.dias_semana ?? '').includes(dia.key)">
+                  {{ dia.label }}
+                </span>
+              }
+            </div>
           </div>
 
           <!-- Foto de Documento se houver -->

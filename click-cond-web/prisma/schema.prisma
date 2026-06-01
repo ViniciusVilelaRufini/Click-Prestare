@@ -531,6 +531,7 @@ model Prestadores_servico {
   id_condominio Int
   foto_documento String?     @db.LongText
   foto_pessoa    String?     @db.LongText
+  dias_semana    String?     @db.VarChar(100)
   created_at    DateTime    @default(now()) @db.DateTime(0)
   updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
   condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_prest_cond")

@@ -693,7 +693,7 @@
       <!-- Header -->
       <div class="px-6 py-5 border-b border-white/[0.07] flex items-center justify-between bg-white/[0.02]">
         <div class="flex items-center gap-3.5">
-          <div class="w-11 h-11 rounded-2xl bg-amber-500/10 flex items-center justify-center shrink-0 border border-amber-500/20 text-amber-400 shadow-inner shadow-amber-500/5">
+          <div class="w-11 h-11 rounded-2xl bg-slate-500/10 flex items-center justify-center shrink-0 border border-slate-500/20 text-slate-400">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
@@ -721,24 +721,24 @@
               <div class="group relative flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.025] border border-white/[0.07] hover:border-white/15 hover:bg-white/[0.04] transition-all duration-200">
                 <!-- Barra de status -->
                 <span class="absolute left-0 top-3 bottom-3 w-1 rounded-full"
-                      [class.bg-amber-500]="fat.status === '2' || fat.atrasado"
-                      [class.bg-blue-500]="fat.status !== '2' && !fat.atrasado"></span>
+                      [class.bg-rose-400]="fat.status === '2' || fat.atrasado"
+                      [class.bg-slate-300]="fat.status !== '2' && !fat.atrasado"></span>
 
                 <!-- Left info -->
                 <div class="space-y-2 pl-2 min-w-0">
                   <h4 class="text-[13px] font-bold text-slate-100 tracking-tight truncate">{{ formatFaturaNome(fat.nome) }}</h4>
                   <div class="flex items-center gap-2.5 flex-wrap">
                     @if (fat.status === '2') {
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 font-semibold text-[9px] uppercase tracking-wider">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Auditoria
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-500/10 border border-slate-500/20 text-slate-400 font-semibold text-[9px] uppercase tracking-wider">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Auditoria
                       </span>
                     } @else if (fat.atrasado) {
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 font-semibold text-[9px] uppercase tracking-wider">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Atrasada
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 font-semibold text-[9px] uppercase tracking-wider">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>Atrasada
                       </span>
                     } @else {
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 font-semibold text-[9px] uppercase tracking-wider">
-                        <span class="w-1 h-1 rounded-full bg-blue-400"></span>A Vencer
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-500/10 border border-slate-500/20 text-slate-400 font-semibold text-[9px] uppercase tracking-wider">
+                        <span class="w-1 h-1 rounded-full bg-slate-400"></span>A Vencer
                       </span>
                     }
                     <span class="text-[10px] text-slate-500 font-medium">Venc. <strong class="font-mono text-slate-300 font-semibold">{{ fat.data_vencimento }}</strong></span>
@@ -747,9 +747,7 @@
 
                 <!-- Right actions/price -->
                 <div class="flex items-center gap-3.5 shrink-0">
-                  <span class="font-extrabold text-[15px] font-mono tracking-tight"
-                        [class.text-amber-300]="fat.status === '2' || fat.atrasado"
-                        [class.text-blue-300]="fat.status !== '2' && !fat.atrasado">
+                  <span class="font-extrabold text-[15px] font-mono tracking-tight text-slate-100">
                     {{ fat.valorString }}
                   </span>
 
@@ -758,7 +756,7 @@
                     @if (fat.url_comprovante) {
                       <a [href]="fat.url_comprovante" target="_blank"
                          title="Ver Comprovante de Pagamento"
-                         class="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-400 border border-amber-500/15 transition-all active:scale-90 flex items-center justify-center cursor-pointer">
+                         class="p-2 rounded-xl bg-slate-500/10 hover:bg-slate-600 hover:text-white text-slate-400 border border-slate-500/15 transition-all active:scale-90 flex items-center justify-center cursor-pointer">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
                         </svg>
@@ -849,7 +847,7 @@
         <button
           (click)="enviarNotificacaoCobranca()"
           [disabled]="loadingDetalhe() || enviandoCobranca() || faturasSelected().length === 0"
-          class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-bold transition-all duration-300 shadow-lg shadow-rose-500/20 hover:shadow-rose-500/30 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2"
+          class="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent/90 text-white text-xs font-semibold transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2"
         >
           @if (enviandoCobranca()) {
             <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

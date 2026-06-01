@@ -9,6 +9,7 @@ export interface CreatePrestadorDto {
   id_condominio: number;
   foto_pessoa?: string;
   foto_documento?: string;
+  dias_semana?: string;
 }
 
 @Injectable()
@@ -78,6 +79,7 @@ export class PrestadoresService {
         id_condominio: dto.id_condominio,
         foto_pessoa: dto.foto_pessoa ?? null,
         foto_documento: dto.foto_documento ?? null,
+        dias_semana: dto.dias_semana ?? null,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -101,6 +103,7 @@ export class PrestadoresService {
           categorias: dto.categorias ?? existing.categorias,
           foto_pessoa: fotoPes ?? existing.foto_pessoa,
           foto_documento: fotoDoc ?? existing.foto_documento,
+          dias_semana: dto.dias_semana !== undefined ? dto.dias_semana : existing.dias_semana,
         },
       });
     }
@@ -113,6 +116,7 @@ export class PrestadoresService {
         id_condominio: dto.id_condominio,
         foto_pessoa: fotoPes,
         foto_documento: fotoDoc,
+        dias_semana: dto.dias_semana ?? null,
       },
     });
   }
@@ -134,6 +138,7 @@ export class PrestadoresService {
           ...(dto.categorias !== undefined && { categorias: dto.categorias }),
           ...(fotoPes !== undefined && { foto_pessoa: fotoPes }),
           ...(fotoDoc !== undefined && { foto_documento: fotoDoc }),
+          ...(dto.dias_semana !== undefined && { dias_semana: dto.dias_semana }),
         },
       });
     } catch {

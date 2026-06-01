@@ -12,6 +12,7 @@ export interface Prestador {
   id_condominio: number;
   foto_pessoa?: string | null;
   foto_documento?: string | null;
+  dias_semana?: string | null;
 }
 export interface CreatePrestador {
   nome: string;
@@ -19,6 +20,7 @@ export interface CreatePrestador {
   categorias?: string;
   foto_pessoa?: string;
   foto_documento?: string;
+  dias_semana?: string;
 }
 
 @Injectable({ providedIn: 'root' })
