@@ -1021,7 +1021,8 @@ export class FinanceiroService implements OnModuleInit {
           valorString: 'R$ 650,00',
           nome: `Apto ${apto} Bloco ${bloco} - Ref. 03/2026`,
           data_vencimento: '10/03/2026',
-          pago: 0
+          pago: 0,
+          pix_copia_cola: '',
         },
         {
           mes: '04',
@@ -1031,7 +1032,8 @@ export class FinanceiroService implements OnModuleInit {
           valorString: 'R$ 650,00',
           nome: `Apto ${apto} Bloco ${bloco} - Ref. 04/2026`,
           data_vencimento: '10/04/2026',
-          pago: 0
+          pago: 0,
+          pix_copia_cola: '',
         }
       ];
     }
@@ -1076,7 +1078,8 @@ export class FinanceiroService implements OnModuleInit {
         valorString: val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
         data_vencimento: f.data_vencimento ? f.data_vencimento.toLocaleDateString('pt-BR') : '',
         pago: 0,
-        atrasado
+        atrasado,
+        pix_copia_cola: f.pix_copia_cola ?? '',
       };
     });
 
@@ -1138,7 +1141,7 @@ export class FinanceiroService implements OnModuleInit {
           await this.mail.sendBillingReminder(
             morador.email,
             morador.name || 'Morador',
-            pendingFaturas.length > 1 ? `${pendingFaturas.length} faturas pendentes (Acumulado)` : maisAntiga.nome,
+            pendingFaturas.length > 1 ? `${pendingFaturas.length} faturas pendentes (Acumulado)` : (maisAntiga.nome || ''),
             maisAntiga.data_vencimento,
             totalFormatted,
             maisAntiga.pix_copia_cola || undefined,
