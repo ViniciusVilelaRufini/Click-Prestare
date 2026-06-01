@@ -193,29 +193,52 @@ class _ListEncomendasState extends State<ListEncomendas> {
                 ),
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary(context))),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                  onPressed: () async {
-                    if (formKey.currentState?.validate() ?? false) {
-                      final success = await apiCadastrarRastreio(
-                        txtDescricao.text,
-                        selectedCarrier,
-                        txtCodigo.text,
-                      );
-                      if (success) {
-                        Navigator.pop(context);
-                        _loadList();
-                        displayMessage(context, 'Sucesso', 'Encomenda cadastrada com sucesso!');
-                      } else {
-                        displayMessage(context, 'Erro', 'Não foi possível cadastrar encomenda.');
-                      }
-                    }
-                  },
-                  child: const Text('Cadastrar', style: TextStyle(color: Colors.black)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AppColors.textTertiary(context).withOpacity(0.3)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      child: Text('Cancelar', style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        elevation: 0,
+                      ),
+                      onPressed: () async {
+                        if (formKey.currentState?.validate() ?? false) {
+                          final success = await apiCadastrarRastreio(
+                            txtDescricao.text,
+                            selectedCarrier,
+                            txtCodigo.text,
+                          );
+                          if (success) {
+                            Navigator.pop(context);
+                            _loadList();
+                            displayMessage(context, 'Sucesso', 'Encomenda cadastrada com sucesso!');
+                          } else {
+                            displayMessage(context, 'Erro', 'Não foi possível cadastrar encomenda.');
+                          }
+                        }
+                      },
+                      child: const Text(
+                        'Cadastrar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             );

@@ -558,70 +558,86 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
               ],
 
                    const SizedBox(height: 20),
-              // Botões de ação: Registrar Entrada (se autorizado/agendado) + Editar + Fechar
-              Row(
+              // Botões de ação
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                        side: BorderSide(color: AppColors.textTertiary(context).withOpacity(0.3)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: Text('Fechar', style: AppTypography.body(context)),
-                    ),
-                  ),
-                  // Botão REGISTRAR ENTRADA: aparece somente para visitantes autorizados sem data_entrada
+                  // Botão REGISTRAR ENTRADA: em destaque e tela cheia para fácil clique
                   if (canAdd && item['data_entrada'] == null && item['data_saida'] == null && !isExpired) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           Navigator.pop(ctx);
                           await _registrarEntrada(item);
                         },
-                        icon: const Icon(PhosphorIcons.signIn, size: 18, color: Colors.white),
-                        label: Text(
+                        icon: const Icon(PhosphorIcons.signIn, size: 20, color: Colors.white),
+                        label: const Text(
                           'Registrar Entrada',
-                          style: AppTypography.body(context).copyWith(
+                          style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                            fontSize: 15,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.success,
-                          minimumSize: const Size.fromHeight(48),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
                         ),
                       ),
                     ),
+                    const SizedBox(height: 12),
                   ],
-                  if (canAdd && item['data_saida'] == null && !isExpired) ...[
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => NewVisitante(
-                              isEdit: true,
-                              myId: item['id'],
+                  // Botões secundários: Fechar + Editar
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                            side: BorderSide(color: AppColors.textTertiary(context).withOpacity(0.3)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          child: Text('Fechar', style: AppTypography.body(context)),
+                        ),
+                      ),
+                      if (canAdd && item['data_saida'] == null && !isExpired) ...[
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => NewVisitante(
+                                  isEdit: true,
+                                  myId: item['id'],
+                                ),
+                              ),
+                            ).then((_) => loadList());
+                          },
+                          icon: const Icon(PhosphorIcons.pencilSimple, color: Colors.white, size: 18),
+                          label: const Text(
+                            'Editar',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ).then((_) => loadList());
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        minimumSize: const Size(48, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                      ),
-                      child: const Icon(PhosphorIcons.pencilSimple, color: Colors.white, size: 18),
-                    ),
-                  ],
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            elevation: 0,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 8),

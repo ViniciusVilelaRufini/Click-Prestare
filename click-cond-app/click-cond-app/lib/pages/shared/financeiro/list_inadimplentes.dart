@@ -135,29 +135,37 @@ class _ListInadimplestesPageState extends State<ListInadimplestes> {
                                                   child: Icon(PhosphorIcons.door, size: 18, color: AppColors.textSecondary(context)),
                                                 ),
                                                 const SizedBox(width: AppSpacing.md),
-                                                Text(
-                                                  'Apto ${apto['apto']}',
-                                                  style: AppTypography.bodyMedium(context).copyWith(
-                                                    fontWeight: FontWeight.bold,
+                                                Expanded(
+                                                  child: Text(
+                                                    'Apto ${apto['apto']}',
+                                                    style: AppTypography.bodyMedium(context).copyWith(
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
                                                 ),
-                                                const Spacer(),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.error.withOpacity(0.08),
-                                                    borderRadius: BorderRadius.circular(12),
-                                                    border: Border.all(color: AppColors.error.withOpacity(0.25)),
-                                                  ),
-                                                  child: Text(
-                                                    '${apto['qtd']} ${apto['qtd'] == 1 ? 'mês em aberto' : 'meses em aberto'}',
-                                                    style: AppTypography.tiny(context).copyWith(
-                                                      color: AppColors.error,
-                                                      fontWeight: FontWeight.bold,
+                                                const SizedBox(width: 8),
+                                                Flexible(
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: AppColors.error.withOpacity(0.08),
+                                                      borderRadius: BorderRadius.circular(12),
+                                                      border: Border.all(color: AppColors.error.withOpacity(0.25)),
+                                                    ),
+                                                    child: FittedBox(
+                                                      fit: BoxFit.scaleDown,
+                                                      child: Text(
+                                                        '${apto['qtd']} ${apto['qtd'] == 1 ? 'mês em aberto' : 'meses em aberto'}',
+                                                        style: AppTypography.tiny(context).copyWith(
+                                                          color: AppColors.error,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                                const SizedBox(width: AppSpacing.md),
+                                                const SizedBox(width: 8),
                                                 Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
                                               ],
                                             ),
