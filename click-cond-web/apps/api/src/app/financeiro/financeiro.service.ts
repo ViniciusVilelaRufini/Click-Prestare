@@ -626,21 +626,30 @@ export class FinanceiroService implements OnModuleInit {
       const podeVer = result.id_usuario === userId;
       if (!podeVer && result.nome) {
         // Para faturas de apto (nome "Apto X Bloco Y - Ref. ..."), verifica se o
-        // morador realmente mora nesse apto. Match por id_user em Moradores.
-        const moradorMatch = await this.prisma.moradores.findFirst({
+        // morador realmente mora nesse apto. Match por id_user em Moradores e Apartamentos_Users.
+        const moradoresList = await this.prisma.moradores.findMany({
           where: {
-            id_user: userId,
+            id_user: Number(userId),
             id_condominio: Number(idCondominio),
           },
           select: { apartamento: true, bloco: true },
         });
-        if (moradorMatch) {
-          // Match exato — sem isso, morador de "Apto 10" lia faturas de
-          // "Apto 100/101/1010" no mesmo bloco.
-          if (!this.nomeFaturaDeApto(result.nome, moradorMatch.apartamento, moradorMatch.bloco)) {
-            throw new ForbiddenException('Acesso negado: lançamento não pertence a você');
-          }
-        } else {
+        const auList = await this.prisma.apartamentos_Users.findMany({
+          where: {
+            id_user: Number(userId),
+            apartamento: { id_condominio: Number(idCondominio) },
+          },
+          include: { apartamento: true },
+        });
+        const userUnits = [
+          ...moradoresList.map(m => ({ bloco: m.bloco, apartamento: m.apartamento })),
+          ...auList.map(au => ({ bloco: au.apartamento?.bloco, apartamento: au.apartamento?.apto })),
+        ].filter(unit => unit.apartamento != null && unit.apartamento !== '');
+
+        const match = userUnits.some(unit =>
+          this.nomeFaturaDeApto(result.nome, unit.apartamento, unit.bloco)
+        );
+        if (!match) {
           throw new ForbiddenException('Acesso negado: lançamento não pertence a você');
         }
       } else if (!podeVer) {
@@ -1248,10 +1257,21 @@ export class FinanceiroService implements OnModuleInit {
       ];
     }
 
-    // Busca os vínculos de apartamento do morador
+    // Busca os vínculos de apartamento do morador via moradores
     const moradoresList = await this.prisma.moradores.findMany({
       where: { id_user: Number(idUser) },
     });
+
+    // Busca os vínculos de apartamento do morador via Apartamentos_Users
+    const auList = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: Number(idUser) },
+      include: { apartamento: true },
+    });
+
+    const userUnits = [
+      ...moradoresList.map(m => ({ bloco: m.bloco, apartamento: m.apartamento })),
+      ...auList.map(au => ({ bloco: au.apartamento?.bloco, apartamento: au.apartamento?.apto })),
+    ].filter(unit => unit.apartamento != null && unit.apartamento !== '');
 
     const list = await this.prisma.financeiro.findMany({
       where: {
@@ -1268,11 +1288,11 @@ export class FinanceiroService implements OnModuleInit {
       // id_usuario pode ser number do Prisma vs number JS — usa Number() para garantir
       if (item.id_usuario != null && Number(item.id_usuario) === Number(idUser)) return true;
       if (item.tipo === 'C') {
-        const match = moradoresList.some(m =>
+        const match = userUnits.some(m =>
           this.nomeFaturaDeApto(item.nome, m.apartamento, m.bloco)
         );
         if (!match) {
-          this.logger.debug(`[getByUser] item ID=${item.id} nome="${item.nome}" NÃO bateu com nenhum apartamento do morador ${idUser} (${moradoresList.map(m => `${m.apartamento}/${m.bloco}`).join(', ')})`);
+          this.logger.debug(`[getByUser] item ID=${item.id} nome="${item.nome}" NÃO bateu com nenhum apartamento do morador ${idUser} (${userUnits.map(m => `${m.apartamento}/${m.bloco}`).join(', ')})`);
         }
         return match;
       }
@@ -2445,6 +2465,26 @@ export class FinanceiroService implements OnModuleInit {
       },
     });
 
+    // Se a recorrência foi ativada, gera as faturas imediatamente para o mês configurado (se for mês atual ou passado)
+    if (updated.recorrencia_ativa) {
+      const hoje = new Date();
+      const anoAtual = hoje.getFullYear();
+      const mesAtual = hoje.getMonth() + 1;
+
+      const mesTarget = updated.mes_inicio_recorrencia !== null ? updated.mes_inicio_recorrencia : mesAtual;
+      const anoTarget = updated.ano_inicio_recorrencia !== null ? updated.ano_inicio_recorrencia : anoAtual;
+
+      if (anoTarget < anoAtual || (anoTarget === anoAtual && mesTarget <= mesAtual)) {
+        this.gerarFaturasRecorrentesParaMes(updated.id, mesTarget, anoTarget, true)
+          .then(() => {
+            this.logger.log(`[updateConfigAuto] Faturamento automático inicial gerado com sucesso para condomínio ${idCondominio} Ref. ${mesTarget}/${anoTarget}`);
+          })
+          .catch((err) => {
+            this.logger.error(`[updateConfigAuto] Erro ao gerar faturamento automático inicial para condomínio ${idCondominio}: ${err}`);
+          });
+      }
+    }
+
     await this.auditoria.registrar({
       id_condominio: Number(idCondominio),
       usuario_nome: operatorName,
@@ -2512,148 +2552,165 @@ export class FinanceiroService implements OnModuleInit {
     const diaAtual = hoje.getDate();
     const mesAtual = hoje.getMonth() + 1;
     const anoAtual = hoje.getFullYear();
-    const refStr = `${String(mesAtual).padStart(2, '0')}/${anoAtual}`;
 
     // Busca todos os condomínios com recorrência ativa
     const condominios = await this.prisma.condominios.findMany({
       where: { recorrencia_ativa: true },
       select: {
         id: true,
-        nome: true,
-        valor_condominio: true,
         dia_geracao: true,
-        dia_vencimento: true,
-        categoria_padrao: true,
-        mes_inicio_recorrencia: true,
-        ano_inicio_recorrencia: true,
       },
     });
 
     for (const cond of condominios) {
-      if (cond.dia_geracao !== diaAtual) {
-        continue;
+      if (cond.dia_geracao === diaAtual) {
+        await this.gerarFaturasRecorrentesParaMes(cond.id, mesAtual, anoAtual, false);
       }
+    }
+  }
 
-      // Valida se já chegou no mês/ano de início da recorrência (se configurado)
+  async gerarFaturasRecorrentesParaMes(condId: number, mes: number, ano: number, force = false) {
+    if (!this.prisma.isConnected) return;
+
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: condId },
+    });
+
+    if (!cond || !cond.recorrencia_ativa) return;
+
+    const refStr = `${String(mes).padStart(2, '0')}/${ano}`;
+
+    // Valida se já chegou no mês/ano de início da recorrência (se configurado)
+    if (!force) {
       if (cond.ano_inicio_recorrencia !== null && cond.ano_inicio_recorrencia !== undefined) {
-        if (anoAtual < cond.ano_inicio_recorrencia) {
-          continue;
+        if (ano < cond.ano_inicio_recorrencia) {
+          return;
         }
-        if (anoAtual === cond.ano_inicio_recorrencia && cond.mes_inicio_recorrencia !== null && cond.mes_inicio_recorrencia !== undefined) {
-          if (mesAtual < cond.mes_inicio_recorrencia) {
-            continue;
+        if (ano === cond.ano_inicio_recorrencia && cond.mes_inicio_recorrencia !== null && cond.mes_inicio_recorrencia !== undefined) {
+          if (mes < cond.mes_inicio_recorrencia) {
+            return;
           }
         }
       }
+    }
 
-      // Calcula data de vencimento da fatura
-      let vencMonth = mesAtual;
-      let vencYear = anoAtual;
-      if (cond.dia_vencimento < cond.dia_geracao) {
-        vencMonth += 1;
-        if (vencMonth > 12) {
-          vencMonth = 1;
-          vencYear += 1;
-        }
+    // Calcula data de vencimento da fatura
+    let vencMonth = mes;
+    let vencYear = ano;
+    if (cond.dia_vencimento < cond.dia_geracao) {
+      vencMonth += 1;
+      if (vencMonth > 12) {
+        vencMonth = 1;
+        vencYear += 1;
       }
-      const dataVencimento = new Date(vencYear, vencMonth - 1, cond.dia_vencimento, 12, 0, 0, 0);
+    }
+    const dataVencimento = new Date(vencYear, vencMonth - 1, cond.dia_vencimento, 12, 0, 0, 0);
+    const hoje = new Date();
 
-      // Busca todos os apartamentos do condomínio que NÃO ignoram a recorrência
-      const aptos = await this.prisma.apartamentos.findMany({
-        where: { 
+    // Busca todos os apartamentos do condomínio que NÃO ignoram a recorrência
+    const aptos = await this.prisma.apartamentos.findMany({
+      where: { 
+        id_condominio: cond.id,
+        ignorar_recorrencia: false,
+      },
+    });
+
+    this.logger.log(`[gerarFaturasRecorrentesParaMes] Gerando faturas recorrentes para o condomínio ${cond.nome} (${aptos.length} apartamentos) ref ${refStr}...`);
+
+    for (const apto of aptos) {
+      const faturaNome = `Apto ${apto.apto} Bloco ${apto.bloco} - ${cond.categoria_padrao} Ref. ${refStr}`;
+
+      // Evita gerar faturas duplicadas
+      const existe = await this.prisma.financeiro.findFirst({
+        where: {
           id_condominio: cond.id,
-          ignorar_recorrencia: false,
+          nome: faturaNome,
         },
       });
 
-      this.logger.log(`Gerando faturas recorrentes para o condomínio ${cond.nome} (${aptos.length} apartamentos)...`);
+      if (existe) {
+        continue;
+      }
 
-      for (const apto of aptos) {
-        const faturaNome = `Apto ${apto.apto} Bloco ${apto.bloco} - ${cond.categoria_padrao} Ref. ${refStr}`;
+      // Cria a fatura
+      let criado = await this.prisma.financeiro.create({
+        data: {
+          id_condominio: cond.id,
+          nome: faturaNome,
+          tipo: 'C',
+          valor: Number(cond.valor_condominio ?? 0),
+          data: hoje,
+          data_vencimento: dataVencimento,
+          pago: 0,
+          status: '0',
+          categoria: cond.categoria_padrao,
+          descricao: `Faturamento automático recorrente de taxa condominial referente a ${refStr}.`,
+          nome_operador: 'Sistema Click',
+        },
+      });
 
-        // Evita gerar faturas duplicadas
-        const existe = await this.prisma.financeiro.findFirst({
-          where: {
-            id_condominio: cond.id,
-            nome: faturaNome,
-          },
-        });
-
-        if (existe) {
-          continue;
+      // Tenta gerar o Pix dinâmico via OpenPix
+      try {
+        const pixData = await this.openPix.generateCharge(
+          `financeiro_${criado.id}`,
+          Math.abs(Number(criado.valor)),
+          criado.nome ?? 'Cobrança',
+        );
+        if (pixData?.brCode) {
+          criado = await this.prisma.financeiro.update({
+            where: { id: criado.id },
+            data: { pix_copia_cola: pixData.brCode },
+          });
         }
+      } catch (pixErr) {
+        this.logger.error(`[gerarFaturasRecorrentesParaMes] Erro OpenPix para fatura ${criado.id}: ${pixErr}`);
+      }
 
-        // Cria a fatura
-        let criado = await this.prisma.financeiro.create({
-          data: {
-            id_condominio: cond.id,
-            nome: faturaNome,
-            tipo: 'C',
-            valor: Number(cond.valor_condominio ?? 0),
-            data: hoje,
-            data_vencimento: dataVencimento,
-            pago: 0,
-            status: '0',
-            categoria: cond.categoria_padrao,
-            descricao: `Faturamento automático recorrente de taxa condominial referente a ${refStr}.`,
-            nome_operador: 'Sistema Click',
-          },
-        });
-
-        // Tenta gerar o Pix dinâmico via OpenPix
-        try {
-          const pixData = await this.openPix.generateCharge(
-            `financeiro_${criado.id}`,
-            Math.abs(Number(criado.valor)),
-            criado.nome ?? 'Cobrança',
-          );
-          if (pixData?.brCode) {
-            criado = await this.prisma.financeiro.update({
-              where: { id: criado.id },
-              data: { pix_copia_cola: pixData.brCode },
-            });
-          }
-        } catch (pixErr) {
-          this.logger.error(`[runRecurringBillingJob] Erro OpenPix para fatura ${criado.id}: ${pixErr}`);
-        }
-
-        // Notifica moradores do apartamento
-        const moradores = await this.prisma.users.findMany({
-          where: {
-            moradores: {
-              some: { id_condominio: cond.id, apartamento: apto.apto, bloco: apto.bloco },
+      // Notifica moradores do apartamento (relacional e legado)
+      const moradores = await this.prisma.users.findMany({
+        where: {
+          OR: [
+            {
+              apartamentosUsers: {
+                some: { id_apto: apto.id },
+              },
             },
-          },
-          select: { fcm_token: true, email: true, name: true, phone: true },
-        });
+            {
+              moradores: {
+                some: { id_condominio: cond.id, apartamento: apto.apto, bloco: apto.bloco },
+              },
+            },
+          ],
+        },
+        select: { fcm_token: true, email: true, name: true, phone: true },
+      });
 
-        const valorFmt = Number(criado.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        const textMessage = `Olá! A taxa condominial de seu apartamento (Apto ${apto.apto} Bloco ${apto.bloco}) referente a ${refStr} no valor de ${valorFmt} foi emitida e vence em ${dataVencimento.toLocaleDateString('pt-BR')}.`;
+      const valorFmt = Number(criado.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const textMessage = `Olá! A taxa condominial de seu apartamento (Apto ${apto.apto} Bloco ${apto.bloco}) referente a ${refStr} no valor de ${valorFmt} foi emitida e vence em ${dataVencimento.toLocaleDateString('pt-BR')}.`;
 
-        for (const morador of moradores) {
-          // 1. Push
-          if (morador.fcm_token) {
-            try {
-              await this.notifications.sendPushNotification(
-                morador.fcm_token,
-                'Nova Fatura Emitida',
-                textMessage,
-                { id: criado.id.toString(), type: 'financeiro' },
-              );
-            } catch (_) {}
-          }
-          // 2. WhatsApp (Z-API)
-          const cleanPhone = morador.phone?.replace(/\D/g, '');
-          if (cleanPhone && cleanPhone.length >= 10) {
-            try {
-              let whatsMsg = textMessage;
-              if (criado.pix_copia_cola) {
-                whatsMsg += `\n\nVocê pode pagar copiando o código Pix abaixo:\n\n${criado.pix_copia_cola}`;
-              }
-              await this.notifications.sendWhatsApp(cleanPhone, whatsMsg);
-            } catch (whatsErr) {
-              this.logger.error(`[runRecurringBillingJob] Erro WhatsApp para ${morador.name}: ${whatsErr}`);
+      for (const morador of moradores) {
+        // 1. Push
+        if (morador.fcm_token) {
+          try {
+            await this.notifications.sendPushNotification(
+              morador.fcm_token,
+              'Nova Fatura Emitida',
+              textMessage,
+              { id: criado.id.toString(), type: 'financeiro' },
+            );
+          } catch (_) {}
+        }
+        // 2. WhatsApp (Z-API)
+        const cleanPhone = morador.phone?.replace(/\D/g, '');
+        if (cleanPhone && cleanPhone.length >= 10) {
+          try {
+            let whatsMsg = textMessage;
+            if (criado.pix_copia_cola) {
+              whatsMsg += `\n\nVocê pode pagar copiando o código Pix abaixo:\n\n${criado.pix_copia_cola}`;
             }
+            await this.notifications.sendWhatsApp(cleanPhone, whatsMsg);
+          } catch (whatsErr) {
+            this.logger.error(`[gerarFaturasRecorrentesParaMes] Erro WhatsApp para ${morador.name}: ${whatsErr}`);
           }
         }
       }
