@@ -72,6 +72,14 @@ export class AreasSociaisApi {
     return this.http.get<AgendamentoArea[]>(url);
   }
 
+  // Criar agendamento em nome de um morador (síndico/porteiro via web)
+  insertAgendamento(agendamento: any): Observable<any> {
+    const url = `${API_BASE}/areasSociais/agendamento/insert`;
+    return this.http.post(url, {
+      agendamento: { ...agendamento, agendarPeloSindico: true },
+    });
+  }
+
   // Atualizar status de um agendamento (Aprovar/Recusar)
   updateStatus(id: number, isAccept: boolean, motivo: string = ''): Observable<any> {
     const url = `${API_BASE}/areasSociais/agendamento/update-status`;

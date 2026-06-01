@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AgendamentoArea, AreaSocial, AreasSociaisApi } from './areas-sociais.service';
+import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ConfirmService } from '../shared/confirm.service';
 
 @Component({
@@ -12,6 +13,7 @@ import { ConfirmService } from '../shared/confirm.service';
 })
 export class AreasSociaisPageComponent implements OnInit {
   private api = inject(AreasSociaisApi);
+  private apartamentosApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
 
   readonly areas = signal<AreaSocial[]>([]);
@@ -29,6 +31,29 @@ export class AreasSociaisPageComponent implements OnInit {
   readonly fotoErro = signal<string | null>(null);
   readonly modoUrl = signal(false); // alterna entre upload de arquivo e colar URL
   readonly salvando = signal(false);
+
+  // Modal de Reserva (síndico/porteiro agenda em nome do morador)
+  readonly modalReserva = signal(false);
+  readonly areaReserva = signal<AreaSocial | null>(null);
+  readonly apartamentos = signal<Apartamento[]>([]);
+  readonly apartamentosCarregando = signal(false);
+  readonly buscaApto = signal('');
+  readonly reservando = signal(false);
+  readonly reservaErro = signal<string | null>(null);
+  readonly reservaSucesso = signal(false);
+  novaReserva: { id_apartamento: number | null; data: string; horaDe: string; horaAte: string } = {
+    id_apartamento: null, data: '', horaDe: '', horaAte: ''
+  };
+
+  // Apartamentos filtrados pela busca digitada no modal de reserva.
+  readonly apartamentosFiltrados = computed(() => {
+    const q = this.buscaApto().toLowerCase().trim();
+    const list = this.apartamentos();
+    if (!q) return list;
+    return list.filter(a =>
+      a.apto.toLowerCase().includes(q) || (a.bloco ?? '').toLowerCase().includes(q)
+    );
+  });
 
   readonly pendentesCount = computed(() =>
     this.agendamentos().filter(a => a.status === 'pendente').length
@@ -156,6 +181,90 @@ export class AreasSociaisPageComponent implements OnInit {
       error: (e) => {
         this.salvando.set(false);
         this.fotoErro.set(`Falha ao cadastrar: ${e?.error?.message ?? e?.message ?? 'erro'}`);
+      },
+    });
+  }
+
+  // ==========================================
+  // RESERVA EM NOME DO MORADOR (síndico/porteiro)
+  // ==========================================
+  abrirModalReserva(area: AreaSocial) {
+    this.areaReserva.set(area);
+    this.novaReserva = { id_apartamento: null, data: '', horaDe: '', horaAte: '' };
+    this.buscaApto.set('');
+    this.reservaErro.set(null);
+    this.reservaSucesso.set(false);
+    this.reservando.set(false);
+    this.modalReserva.set(true);
+
+    // Carrega a lista de apartamentos só na primeira abertura.
+    if (this.apartamentos().length === 0) {
+      this.apartamentosCarregando.set(true);
+      this.apartamentosApi.list().subscribe({
+        next: (list) => {
+          this.apartamentos.set(list);
+          this.apartamentosCarregando.set(false);
+        },
+        error: () => {
+          this.apartamentosCarregando.set(false);
+          this.reservaErro.set('Não foi possível carregar os apartamentos.');
+        },
+      });
+    }
+  }
+
+  fecharModalReserva() {
+    this.modalReserva.set(false);
+  }
+
+  selecionarApto(id: number) {
+    this.novaReserva.id_apartamento = id;
+  }
+
+  /** Valida o formulário de reserva antes de habilitar o envio. */
+  reservaValida(): boolean {
+    const r = this.novaReserva;
+    if (!r.id_apartamento || !r.data || !r.horaDe || !r.horaAte) return false;
+    // hora fim deve ser maior que hora início
+    return this.minutos(r.horaAte) > this.minutos(r.horaDe);
+  }
+
+  private minutos(hhmm: string): number {
+    const [h, m] = (hhmm ?? '00:00').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  salvarReserva() {
+    if (this.reservando() || !this.reservaValida()) return;
+    const area = this.areaReserva();
+    if (!area) return;
+
+    this.reservando.set(true);
+    this.reservaErro.set(null);
+
+    // O input nativo entrega YYYY-MM-DD; o backend espera DD/MM/YYYY.
+    const [ano, mes, dia] = this.novaReserva.data.split('-');
+    const dataBr = `${dia}/${mes}/${ano}`;
+
+    const payload = {
+      id_area_social: area.id,
+      id_apartamento: this.novaReserva.id_apartamento,
+      data: dataBr,                        // DD/MM/YYYY
+      horaDe: this.novaReserva.horaDe,     // HH:mm
+      horaAte: this.novaReserva.horaAte,   // HH:mm
+    };
+
+    this.api.insertAgendamento(payload).subscribe({
+      next: () => {
+        this.reservando.set(false);
+        this.reservaSucesso.set(true);
+        this.carregarDados();
+        // Fecha após um instante mostrando o sucesso.
+        setTimeout(() => this.modalReserva.set(false), 1200);
+      },
+      error: (e) => {
+        this.reservando.set(false);
+        this.reservaErro.set(e?.error?.message ?? e?.message ?? 'Falha ao criar a reserva.');
       },
     });
   }

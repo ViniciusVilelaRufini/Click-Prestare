@@ -260,8 +260,26 @@ export class AreasSociaisService {
   async insertAgendamento(agendamento: any, userId: number, typeAccess: string) {
     if (!this.prisma.isConnected) return { success: true };
 
-    // Validação de isolamento para moradores
-    if (typeAccess === 'Morador') {
+    // Reserva feita pelo síndico/porteiro em nome de um morador (via web).
+    // Neste caso a reserva deve pertencer ao morador do apartamento escolhido
+    // (para aparecer em "minhas reservas" e disparar push para ele), e a
+    // checagem de isolamento de morador não se aplica.
+    const peloSindico = !!agendamento.agendarPeloSindico;
+    let donoReservaId = Number(userId);
+
+    if (peloSindico) {
+      // Resolve o morador vinculado ao apartamento; se não houver, mantém o
+      // próprio operador como dono para que a reserva ainda seja registrada.
+      const vinculo = await this.prisma.apartamentos_Users.findFirst({
+        where: { id_apto: Number(agendamento.id_apartamento) },
+        select: { id_user: true },
+        orderBy: { id: 'asc' },
+      });
+      if (vinculo?.id_user) {
+        donoReservaId = vinculo.id_user;
+      }
+    } else if (typeAccess === 'Morador') {
+      // Validação de isolamento para moradores
       const aptosUser = await this.prisma.apartamentos_Users.findMany({
         where: { id_user: Number(userId) },
         select: { id_apto: true },
@@ -306,17 +324,21 @@ export class AreasSociaisService {
       throw new BadRequestException('Este espaço já possui um agendamento ativo que conflita com o horário solicitado.');
     }
 
-    // Definir status inicial baseado na regra da área
+    // Definir status inicial baseado na regra da área.
+    // Reserva criada pelo síndico/porteiro já entra aprovada (a própria
+    // criação pela administração equivale à aprovação).
     const area = await this.prisma.areas_Sociais.findUnique({
       where: { id: Number(agendamento.id_area_social) },
     });
 
-    const statusInicial = area?.precisa_autorizacao === 1 ? 'pendente' : 'aprovado';
+    const statusInicial = peloSindico
+      ? 'aprovado'
+      : area?.precisa_autorizacao === 1 ? 'pendente' : 'aprovado';
 
     await this.prisma.areas_Sociais_Agendamentos.create({
       data: {
         id_area_social: Number(agendamento.id_area_social),
-        id_user: Number(userId),
+        id_user: donoReservaId,
         id_apartamento: Number(agendamento.id_apartamento),
         data: dataObj,
         hora_de: horaDeObj,
