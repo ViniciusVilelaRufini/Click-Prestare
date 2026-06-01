@@ -717,14 +717,19 @@
               <div class="group relative flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.025] border border-white/[0.07] hover:border-white/15 hover:bg-white/[0.04] transition-all duration-200">
                 <!-- Barra de status -->
                 <span class="absolute left-0 top-3 bottom-3 w-1 rounded-full"
-                      [class.bg-rose-500]="fat.atrasado"
-                      [class.bg-blue-500]="!fat.atrasado"></span>
+                      [class.bg-amber-500]="fat.status === '2'"
+                      [class.bg-rose-500]="fat.status !== '2' && fat.atrasado"
+                      [class.bg-blue-500]="fat.status !== '2' && !fat.atrasado"></span>
 
                 <!-- Left info -->
                 <div class="space-y-2 pl-2 min-w-0">
                   <h4 class="text-[13px] font-bold text-slate-100 tracking-tight truncate">{{ formatFaturaNome(fat.nome) }}</h4>
                   <div class="flex items-center gap-2.5 flex-wrap">
-                    @if (fat.atrasado) {
+                    @if (fat.status === '2') {
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 font-semibold text-[9px] uppercase tracking-wider">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Auditoria
+                      </span>
+                    } @else if (fat.atrasado) {
                       <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 font-semibold text-[9px] uppercase tracking-wider">
                         <span class="w-1 h-1 rounded-full bg-rose-400"></span>Atrasada
                       </span>
@@ -740,15 +745,26 @@
                 <!-- Right actions/price -->
                 <div class="flex items-center gap-3.5 shrink-0">
                   <span class="font-extrabold text-[15px] font-mono tracking-tight"
-                        [class.text-rose-300]="fat.atrasado"
-                        [class.text-blue-300]="!fat.atrasado">
+                        [class.text-amber-300]="fat.status === '2'"
+                        [class.text-rose-300]="fat.status !== '2' && fat.atrasado"
+                        [class.text-blue-300]="fat.status !== '2' && !fat.atrasado">
                     {{ fat.valorString }}
                   </span>
 
                   <div class="flex items-center gap-1.5">
+                    <!-- Ver Comprovante -->
+                    @if (fat.url_comprovante) {
+                      <a [href]="fat.url_comprovante" target="_blank"
+                         title="Ver Comprovante de Pagamento"
+                         class="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-400 border border-amber-500/15 transition-all active:scale-90 flex items-center justify-center cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                        </svg>
+                      </a>
+                    }
                     <!-- Baixar (Pago) -->
                     <button (click)="alterarStatusFatura(fat)"
-                            title="Dar Baixa (Pago)"
+                            [title]="fat.status === '2' ? 'Aprovar Pagamento' : 'Dar Baixa (Pago)'"
                             class="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/15 transition-all active:scale-90 cursor-pointer">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>

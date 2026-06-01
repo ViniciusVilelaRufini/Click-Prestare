@@ -566,16 +566,17 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
     }
   }
 
-  Widget _buildStatusBadge(dynamic status, int pago) {
+  Widget _buildStatusBadge(dynamic status, dynamic pago) {
     Color color = Colors.orange;
     String text = "Pendente";
 
-    final statusInt = status is int ? status : int.tryParse(status.toString()) ?? 0;
+    int intStatus = status is int ? status : (int.tryParse(status?.toString() ?? '') ?? 0);
+    int intPago = pago is int ? pago : (int.tryParse(pago?.toString() ?? '') ?? 0);
 
-    if (pago == 1) {
+    if (intPago == 1) {
       color = Colors.green;
       text = "Pago";
-    } else if (statusInt == 2) {
+    } else if (intStatus == 2) {
       color = Colors.blue;
       text = "Verificando";
     }
