@@ -46,8 +46,12 @@ export class AssembleiasService {
 
     let horaObj: Date | undefined;
     if (assembleia.hora) {
-      const [h, m] = assembleia.hora.split(':').map(Number);
-      horaObj = new Date(1970, 0, 1, h, m, 0);
+      const match = String(assembleia.hora).match(/(\d{2}):(\d{2})/);
+      if (match) {
+        const h = Number(match[1]);
+        const m = Number(match[2]);
+        horaObj = new Date(1970, 0, 1, h, m, 0);
+      }
     }
 
     // Verificar se o usuário existe para evitar erro de FK (especialmente em ambiente local onde o ID 1 pode não existir)
@@ -93,8 +97,12 @@ export class AssembleiasService {
 
     let horaObj: Date | undefined;
     if (assembleia.hora) {
-      const [h, m] = assembleia.hora.split(':').map(Number);
-      horaObj = new Date(1970, 0, 1, h, m, 0);
+      const match = String(assembleia.hora).match(/(\d{2}):(\d{2})/);
+      if (match) {
+        const h = Number(match[1]);
+        const m = Number(match[2]);
+        horaObj = new Date(1970, 0, 1, h, m, 0);
+      }
     }
 
     // Verificar se o usuário existe para evitar erro de FK

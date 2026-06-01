@@ -15,6 +15,15 @@ export class AreasSociaisService {
     private readonly storage: StorageService,
   ) {}
 
+  private parseTime(timeStr: string | null | undefined): [number, number] {
+    const s = String(timeStr ?? '00:00').trim();
+    const match = s.match(/(\d{2}):(\d{2})/);
+    if (match) {
+      return [Number(match[1]), Number(match[2])];
+    }
+    return [0, 0];
+  }
+
   /**
    * Resolve a imagem recebida do front em uma URL curta que caiba no
    * `varchar(500)` da coluna. Se vier um data URL (upload de arquivo),
@@ -295,8 +304,8 @@ export class AreasSociaisService {
     const dataObj = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
 
     // Criar datas para hora_de e hora_ate
-    const [hDe, mDe] = (agendamento.horaDe ?? '00:00').split(':').map(Number);
-    const [hAte, mAte] = (agendamento.horaAte ?? '00:00').split(':').map(Number);
+    const [hDe, mDe] = this.parseTime(agendamento.horaDe);
+    const [hAte, mAte] = this.parseTime(agendamento.horaAte);
 
     const horaDeObj = new Date(1970, 0, 1, hDe, mDe, 0);
     const horaAteObj = new Date(1970, 0, 1, hAte, mAte, 0);
@@ -527,8 +536,8 @@ export class AreasSociaisService {
     const pFim = manutencao.data_termino.split('/');
     const dFim = new Date(Number(pFim[2]), Number(pFim[1]) - 1, Number(pFim[0]));
 
-    const [hI, mI] = (manutencao.hora_inicio ?? '00:00').split(':').map(Number);
-    const [hF, mF] = (manutencao.hora_termino ?? '00:00').split(':').map(Number);
+    const [hI, mI] = this.parseTime(manutencao.hora_inicio);
+    const [hF, mF] = this.parseTime(manutencao.hora_termino);
 
     await this.prisma.areas_Sociais_Manutencoes.create({
       data: {
@@ -553,8 +562,8 @@ export class AreasSociaisService {
     const pFim = manutencao.data_termino.split('/');
     const dFim = new Date(Number(pFim[2]), Number(pFim[1]) - 1, Number(pFim[0]));
 
-    const [hI, mI] = (manutencao.hora_inicio ?? '00:00').split(':').map(Number);
-    const [hF, mF] = (manutencao.hora_termino ?? '00:00').split(':').map(Number);
+    const [hI, mI] = this.parseTime(manutencao.hora_inicio);
+    const [hF, mF] = this.parseTime(manutencao.hora_termino);
 
     await this.prisma.areas_Sociais_Manutencoes.update({
       where: { id: Number(manutencao.id) },
