@@ -958,10 +958,12 @@ export class FinanceiroService implements OnModuleInit {
         pago: 0,
         tipo: 'C', // Apenas Receitas (cobranças) pendentes
       },
-      select: { nome: true },
+      select: { nome: true, data_vencimento: true },
     });
 
     const blocosMap: Record<string, any[]> = {};
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
 
     for (const a of aptos) {
       const minhasPendentes = faturasPendentes.filter((f) =>
@@ -971,11 +973,28 @@ export class FinanceiroService implements OnModuleInit {
       const devendoCount = minhasPendentes.length;
       const blocoKey = a.bloco || 'Sem Bloco';
       if (devendoCount > 0) {
+        let atrasadas = 0;
+        let aVencer = 0;
+
+        for (const f of minhasPendentes) {
+          const dataVenc = f.data_vencimento ? new Date(f.data_vencimento) : null;
+          if (dataVenc) {
+            dataVenc.setHours(0, 0, 0, 0);
+          }
+          if (dataVenc && dataVenc < hoje) {
+            atrasadas++;
+          } else {
+            aVencer++;
+          }
+        }
+
         if (!blocosMap[blocoKey]) blocosMap[blocoKey] = [];
         blocosMap[blocoKey].push({
           bloco: blocoKey,
           apto: a.apto,
           qtd: devendoCount,
+          atrasadas,
+          aVencer,
         });
       }
     }
@@ -1039,6 +1058,14 @@ export class FinanceiroService implements OnModuleInit {
 
       const val = f.valor ? Number(f.valor) : 0;
 
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const dataVenc = f.data_vencimento ? new Date(f.data_vencimento) : null;
+      if (dataVenc) {
+        dataVenc.setHours(0, 0, 0, 0);
+      }
+      const atrasado = dataVenc ? dataVenc < hoje : false;
+
       return {
         mes: mStr,
         ano: String(y),
@@ -1049,6 +1076,7 @@ export class FinanceiroService implements OnModuleInit {
         valorString: val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
         data_vencimento: f.data_vencimento ? f.data_vencimento.toLocaleDateString('pt-BR') : '',
         pago: 0,
+        atrasado
       };
     });
 
