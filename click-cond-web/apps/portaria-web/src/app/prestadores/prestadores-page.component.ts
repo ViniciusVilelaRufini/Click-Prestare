@@ -377,6 +377,22 @@ export class PrestadoresPageComponent implements OnInit {
     this.fotoAmpliadaTitulo.set('');
   }
 
+  // Ordem fixa dos dias usada para renderizar os badges no card.
+  readonly diasSemanaOrdem: { key: string; abrev: string; nome: string }[] = [
+    { key: 'seg', abrev: 'S', nome: 'Segunda' },
+    { key: 'ter', abrev: 'T', nome: 'Terça' },
+    { key: 'qua', abrev: 'Q', nome: 'Quarta' },
+    { key: 'qui', abrev: 'Q', nome: 'Quinta' },
+    { key: 'sex', abrev: 'S', nome: 'Sexta' },
+    { key: 'sab', abrev: 'S', nome: 'Sábado' },
+    { key: 'dom', abrev: 'D', nome: 'Domingo' },
+  ];
+
+  /** Retorna o conjunto de dias permitidos de um prestador para uso no template. */
+  diasPermitidosSet(diasStr: string | null | undefined): Set<string> {
+    return new Set((diasStr ?? '').split(',').filter(Boolean));
+  }
+
   diasSemanaSelecionados(): string[] {
     return (this.novo.dias_semana ?? '').split(',').filter(Boolean);
   }
