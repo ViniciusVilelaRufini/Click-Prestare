@@ -732,6 +732,43 @@ export class MoradoresService {
     let result;
     try {
       result = await this.prisma.$transaction(async (tx) => {
+        let bloco: string | undefined = undefined;
+        let aptoNum: string | undefined = undefined;
+
+        if (dto.id_apartamento !== undefined) {
+          if (atual.id_user) {
+            await tx.apartamentos_Users.deleteMany({
+              where: { id_user: atual.id_user },
+            });
+          }
+
+          if (dto.id_apartamento > 0) {
+            const aptoObj = await tx.apartamentos.findUnique({
+              where: { id: Number(dto.id_apartamento) },
+            });
+            if (aptoObj) {
+              bloco = aptoObj.bloco || '';
+              aptoNum = aptoObj.apto || '';
+
+              if (atual.id_user) {
+                const dataVenc = new Date();
+                dataVenc.setDate(dataVenc.getDate() + 45);
+                await tx.apartamentos_Users.create({
+                  data: {
+                    id_apto: aptoObj.id,
+                    id_user: atual.id_user,
+                    tipo: dto.tipo || atual.tipo || 'proprietario',
+                    vencimento: dataVenc,
+                  },
+                });
+              }
+            }
+          } else {
+            bloco = '';
+            aptoNum = '';
+          }
+        }
+
         // Atualiza moradores
         const morador = await tx.moradores.update({
           where: { id },
@@ -748,6 +785,8 @@ export class MoradoresService {
             ...(fotoDocumentoUrl !== undefined && { foto_documento: fotoDocumentoUrl }),
             ...(novaTag !== undefined && { tag_rfid: novaTag || null }),
             ...(novoQr !== undefined && { qrcode_acesso: novoQr || null }),
+            ...(bloco !== undefined && { bloco: bloco || null }),
+            ...(aptoNum !== undefined && { apartamento: aptoNum || null }),
           },
         });
 
@@ -908,13 +947,42 @@ export class MoradoresService {
     for (const item of linhas) {
       if (!item.nome) continue;
       try {
+        let idApto = 0;
+        const blocoStr = item.quadra?.toString().trim() || item.bloco?.toString().trim() || '';
+        const aptoStr = item.lote?.toString().trim() || item.apartamento?.toString().trim() || '';
+
+        if (blocoStr || aptoStr) {
+          // Tenta encontrar o apartamento no condominio
+          const dbApto = await this.prisma.apartamentos.findFirst({
+            where: {
+              id_condominio: idCondominio,
+              bloco: blocoStr || null,
+              apto: aptoStr || null,
+            },
+          });
+
+          if (dbApto) {
+            idApto = dbApto.id;
+          } else {
+            // Se nao encontrar, cria-o automaticamente
+            const novoApto = await this.prisma.apartamentos.create({
+              data: {
+                id_condominio: idCondominio,
+                bloco: blocoStr || null,
+                apto: aptoStr || null,
+              },
+            });
+            idApto = novoApto.id;
+          }
+        }
+
         const m = await this.create({
           nome: item.nome,
           documento: item.documento?.toString() || undefined,
           email: item.email?.toString() || undefined,
           telefone: item.telefone?.toString() || undefined,
           tipo: item.tipo?.toString() || 'proprietario',
-          id_apartamento: 0,
+          id_apartamento: idApto,
           id_condominio: idCondominio,
           sendCredentials: item.sendCredentials !== false,
         });

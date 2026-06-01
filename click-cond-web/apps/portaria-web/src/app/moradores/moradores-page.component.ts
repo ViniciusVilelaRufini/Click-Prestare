@@ -394,6 +394,26 @@ export class MoradoresPageComponent implements OnInit {
     });
   }
 
+  vincularApartamentoRapido(m: Morador, idApto: number) {
+    if (!idApto) {
+      alert('Selecione um apartamento válido.');
+      return;
+    }
+    this.api.update(m.id, { id_apartamento: idApto }).subscribe({
+      next: (updated) => {
+        this.moradores.update(list => list.map(item => item.id === m.id ? { ...item, id_apartamento: updated.id_apartamento, bloco: updated.bloco, apartamento: updated.apartamento } : item));
+        const current = this.selectedMorador();
+        if (current && current.id === m.id) {
+          this.selectedMorador.set({ ...current, id_apartamento: updated.id_apartamento, bloco: updated.bloco, apartamento: updated.apartamento });
+        }
+        alert('Vínculo de unidade atualizado com sucesso!');
+      },
+      error: (e) => {
+        alert(e?.error?.message ?? e?.message ?? 'Erro ao atualizar vínculo');
+      }
+    });
+  }
+
   iniciais(nome: string): string {
     return nome.trim().split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('');
   }
