@@ -449,11 +449,11 @@
         <span class="text-xl font-extrabold text-white leading-none mt-1">{{ resumoInadimplencia().aptosPendentes }}</span>
       </div>
       <div class="bg-graphite-200 border rounded-2xl px-4 py-3.5 flex flex-col gap-0.5"
-           [class.border-rose-500/20]="resumoInadimplencia().totalAtrasadas > 0"
+           [class.border-amber-500/20]="resumoInadimplencia().totalAtrasadas > 0"
            [class.border-white/5]="resumoInadimplencia().totalAtrasadas === 0">
         <span class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Faturas atrasadas</span>
         <span class="text-xl font-extrabold leading-none mt-1"
-              [class.text-rose-400]="resumoInadimplencia().totalAtrasadas > 0"
+              [class.text-amber-500]="resumoInadimplencia().totalAtrasadas > 0"
               [class.text-white]="resumoInadimplencia().totalAtrasadas === 0">{{ resumoInadimplencia().totalAtrasadas }}</span>
       </div>
       <div class="bg-graphite-200 border border-white/5 rounded-2xl px-4 py-3.5 flex flex-col gap-0.5">
@@ -480,13 +480,13 @@
       <div class="flex items-center gap-3 flex-wrap">
         <button
           (click)="apenasAtrasadas.set(!apenasAtrasadas())"
-          [class.bg-rose-500]="apenasAtrasadas()"
-          [class.text-white]="apenasAtrasadas()"
+          [class.bg-amber-500]="apenasAtrasadas()"
+          [class.text-slate-950]="apenasAtrasadas()"
           [class.bg-white/5]="!apenasAtrasadas()"
           [class.text-slate-400]="!apenasAtrasadas()"
           class="px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
         >
-          <span class="w-1.5 h-1.5 rounded-full" [class.bg-white]="apenasAtrasadas()" [class.bg-rose-400]="!apenasAtrasadas()"></span>
+          <span class="w-1.5 h-1.5 rounded-full" [class.bg-slate-950]="apenasAtrasadas()" [class.bg-amber-400]="!apenasAtrasadas()"></span>
           Só atrasadas
         </button>
         <span class="w-px h-5 bg-white/10"></span>
@@ -523,15 +523,15 @@
     } @else {
       <!-- Legenda -->
       <div class="flex items-center gap-4 mb-3 px-1 text-[10px] text-slate-500">
-        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-400"></span>Com atraso</span>
-        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-400"></span>Só a vencer</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Com atraso</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Só a vencer</span>
         <span class="hidden sm:inline text-slate-600">— clique em um apartamento para ver detalhes e cobrar</span>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in">
         @for (blocoInfo of getFilteredInadimplentes(); track blocoInfo.bloco) {
           <div class="p-5 rounded-2xl bg-graphite-200 border flex flex-col"
-               [class.border-rose-500/20]="blocoInfo.aptos.some(a => a.atrasadas > 0)"
+               [class.border-amber-500/20]="blocoInfo.aptos.some(a => a.atrasadas > 0)"
                [class.border-blue-500/20]="!blocoInfo.aptos.some(a => a.atrasadas > 0)">
             <!-- Cabeçalho do bloco -->
             <div class="flex items-center justify-between gap-2 border-b border-white/5 pb-3 mb-3">
@@ -540,11 +540,11 @@
                 <span class="text-[10px] text-slate-500 font-medium shrink-0">{{ blocoInfo.aptos.length }} pendente{{ blocoInfo.aptos.length > 1 ? 's' : '' }}</span>
               </div>
               @if (blocoInfo.aptos.some(a => a.atrasadas > 0)) {
-                <span class="text-[10px] px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 font-semibold uppercase tracking-wide shrink-0">
+                <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wide shrink-0">
                   Atenção
                 </span>
               } @else {
-                <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-semibold uppercase tracking-wide shrink-0">
+                <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wide shrink-0">
                   Pendente
                 </span>
               }
@@ -557,25 +557,29 @@
                   (click)="abrirDetalhesApto(apto)"
                   [title]="'Apartamento ' + apto.apto + (apto.atrasadas > 0 ? ' — ' + apto.atrasadas + ' atrasada' + (apto.atrasadas > 1 ? 's' : '') : '') + (apto.aVencer > 0 ? (apto.atrasadas > 0 ? ', ' : ' — ') + apto.aVencer + ' a vencer' : '')"
                   class="group inadimplente-chip flex items-center gap-1.5 pl-2 pr-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition active:scale-95 cursor-pointer"
-                  [class.bg-rose-500/10]="apto.atrasadas > 0"
-                  [class.border-rose-500/20]="apto.atrasadas > 0"
-                  [class.text-rose-200]="apto.atrasadas > 0"
-                  [class.hover:bg-rose-500/20]="apto.atrasadas > 0"
+                  [class.bg-amber-500/10]="apto.atrasadas > 0"
+                  [class.border-amber-500/30]="apto.atrasadas > 0"
+                  [class.text-amber-800]="apto.atrasadas > 0"
+                  [class.dark:text-amber-300]="apto.atrasadas > 0"
+                  [class.hover:bg-amber-500/20]="apto.atrasadas > 0"
                   [class.bg-blue-500/10]="apto.atrasadas === 0"
-                  [class.border-blue-500/20]="apto.atrasadas === 0"
-                  [class.text-blue-200]="apto.atrasadas === 0"
+                  [class.border-blue-500/30]="apto.atrasadas === 0"
+                  [class.text-blue-800]="apto.atrasadas === 0"
+                  [class.dark:text-blue-300]="apto.atrasadas === 0"
                   [class.hover:bg-blue-500/20]="apto.atrasadas === 0"
                 >
                   <span class="w-1.5 h-1.5 rounded-full shrink-0"
-                        [class.bg-rose-400]="apto.atrasadas > 0"
-                        [class.bg-blue-400]="apto.atrasadas === 0"></span>
+                        [class.bg-amber-500]="apto.atrasadas > 0"
+                        [class.bg-blue-500]="apto.atrasadas === 0"></span>
                   <span>{{ apto.apto }}</span>
                   @if ((apto.atrasadas + apto.aVencer) > 1) {
                     <span class="ml-0.5 px-1 rounded text-[9px] leading-tight font-bold"
-                          [class.bg-rose-500/25]="apto.atrasadas > 0"
-                          [class.text-rose-100]="apto.atrasadas > 0"
+                          [class.bg-amber-500/25]="apto.atrasadas > 0"
+                          [class.text-amber-900]="apto.atrasadas > 0"
+                          [class.dark:text-amber-100]="apto.atrasadas > 0"
                           [class.bg-blue-500/25]="apto.atrasadas === 0"
-                          [class.text-blue-100]="apto.atrasadas === 0">{{ apto.atrasadas + apto.aVencer }}</span>
+                          [class.text-blue-900]="apto.atrasadas === 0"
+                          [class.dark:text-blue-100]="apto.atrasadas === 0">{{ apto.atrasadas + apto.aVencer }}</span>
                   }
                 </button>
               }
@@ -689,7 +693,7 @@
       <!-- Header -->
       <div class="px-6 py-5 border-b border-white/[0.07] flex items-center justify-between bg-white/[0.02]">
         <div class="flex items-center gap-3.5">
-          <div class="w-11 h-11 rounded-2xl bg-rose-500/10 flex items-center justify-center shrink-0 border border-rose-500/20 text-rose-400 shadow-inner shadow-rose-500/5">
+          <div class="w-11 h-11 rounded-2xl bg-amber-500/10 flex items-center justify-center shrink-0 border border-amber-500/20 text-amber-400 shadow-inner shadow-amber-500/5">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
@@ -717,8 +721,7 @@
               <div class="group relative flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.025] border border-white/[0.07] hover:border-white/15 hover:bg-white/[0.04] transition-all duration-200">
                 <!-- Barra de status -->
                 <span class="absolute left-0 top-3 bottom-3 w-1 rounded-full"
-                      [class.bg-amber-500]="fat.status === '2'"
-                      [class.bg-rose-500]="fat.status !== '2' && fat.atrasado"
+                      [class.bg-amber-500]="fat.status === '2' || fat.atrasado"
                       [class.bg-blue-500]="fat.status !== '2' && !fat.atrasado"></span>
 
                 <!-- Left info -->
@@ -730,8 +733,8 @@
                         <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Auditoria
                       </span>
                     } @else if (fat.atrasado) {
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 font-semibold text-[9px] uppercase tracking-wider">
-                        <span class="w-1 h-1 rounded-full bg-rose-400"></span>Atrasada
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 font-semibold text-[9px] uppercase tracking-wider">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>Atrasada
                       </span>
                     } @else {
                       <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 font-semibold text-[9px] uppercase tracking-wider">
@@ -745,8 +748,7 @@
                 <!-- Right actions/price -->
                 <div class="flex items-center gap-3.5 shrink-0">
                   <span class="font-extrabold text-[15px] font-mono tracking-tight"
-                        [class.text-amber-300]="fat.status === '2'"
-                        [class.text-rose-300]="fat.status !== '2' && fat.atrasado"
+                        [class.text-amber-300]="fat.status === '2' || fat.atrasado"
                         [class.text-blue-300]="fat.status !== '2' && !fat.atrasado">
                     {{ fat.valorString }}
                   </span>
