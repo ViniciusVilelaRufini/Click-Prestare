@@ -30,6 +30,16 @@ const usersRouter = require('./src/routes/users');
 
 const app = express();
 
+// Strip /api prefix if present (since mobile app sends /api/...)
+app.use((req, res, next) => {
+	if (req.url.startsWith('/api/')) {
+		req.url = req.url.substring(4);
+	} else if (req.url === '/api') {
+		req.url = '/';
+	}
+	next();
+});
+
 app.use(compression());
 app.use(cors());
 app.use(session({ secret: process.env.SESSION_SECRET || 'dev-session-secret' }));
