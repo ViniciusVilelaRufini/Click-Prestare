@@ -714,6 +714,12 @@ export class FinanceiroService implements OnModuleInit {
       ano = Number(ult.ano);
     }
 
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: Number(idCondominio) },
+      select: { chave_pix: true },
+    });
+    const condChavePix = cond?.chave_pix ?? '';
+
     // Montar intervalo
     const dataIni = new Date(ano, mes - 1, 1);
     const dataFim = new Date(ano, mes, 0); // último dia do mês
@@ -787,6 +793,7 @@ export class FinanceiroService implements OnModuleInit {
         url_comprovante: item.photo,
         linha_digitavel: item.linha_digitavel,
         pix_copia_cola: item.pix_copia_cola,
+        chave_pix: condChavePix,
       };
 
       if (!lancamentosMap[chave]) {
