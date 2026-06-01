@@ -263,12 +263,25 @@ export class MoradoresService {
     }
     const m = await this.prisma.moradores.findUnique({
       where: { id },
-      include: { user: { select: { photo: true } } },
+      include: {
+        user: {
+          select: {
+            photo: true,
+            apartamentosUsers: {
+              select: {
+                id_apto: true,
+              },
+            },
+          },
+        },
+      },
     });
     if (!m) throw new NotFoundException(`Morador ${id} não encontrado`);
     const fotoFinal = m.foto_pessoa ?? m.user?.photo ?? null;
+    const idAptoMapped = m.user?.apartamentosUsers?.[0]?.id_apto ?? 0;
     return {
       ...m,
+      id_apartamento: idAptoMapped,
       photo: fotoFinal,
       foto_pessoa: fotoFinal,
       foto_documento: m.foto_documento ?? null,
@@ -680,7 +693,7 @@ export class MoradoresService {
       detalhes: ctx ?? undefined,
     });
 
-    return createdMorador;
+    return this.findOne(createdMorador.id);
   }
 
   async update(id: number, dto: Partial<CreateMoradorDto>, operador?: JwtPayload) {
@@ -848,7 +861,7 @@ export class MoradoresService {
       detalhes: { contexto: ctx, changes },
     });
 
-    return result;
+    return this.findOne(result.id);
   }
 
   async remove(id: number, operador?: JwtPayload) {
