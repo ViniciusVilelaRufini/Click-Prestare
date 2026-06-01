@@ -1,5 +1,21 @@
 const db = require('./MySQL.js');
 const { default: slugify } = require('slugify');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+
+/**
+ * Verifica a senha em texto puro contra o hash armazenado.
+ * Suporta hashes bcrypt ($2a/$2b/$2y...) e hashes MD5 legados (32 hex chars).
+ */
+function verifyPassword(plain, stored) {
+  if (!stored) return false;
+  if (stored.startsWith('$2')) {
+    return bcrypt.compareSync(plain, stored);
+  }
+  // Legado: senhas antigas guardadas como MD5
+  const md5 = crypto.createHash('md5').update(plain).digest('hex');
+  return md5 === stored;
+}
 
 module.exports = {
   insertUser: async function(email, password, photo){
@@ -57,15 +73,17 @@ module.exports = {
   },
 
   login: async function (login, password) {
-    const query = `select u.id, s.name, u.photo                           
-                    from Sindicos s 
+    const query = `select u.id, s.name, u.photo, u.password
+                    from Sindicos s
                     inner join Users u on u.id = s.id_user
-                    where u.login='${login}' and password=MD5('${password}')`;
+                    where u.login='${login}'`;
     const result = await db.query(query);
-    if (!result.results[0]) {
+    const user = result.results[0];
+    if (!user || !verifyPassword(password, user.password)) {
       throw new Error('Login ou Senha incorretos');
     }
-    return result.results[0];
+    delete user.password;
+    return user;
   },
 
   internalLogin: async function (login) {

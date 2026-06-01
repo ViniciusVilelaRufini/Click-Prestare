@@ -507,13 +507,24 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
     );
   }
 
+  /// Converte um valor da API (num, String ou null) em double de forma segura.
+  double _parseValor(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0;
+  }
+
+  /// Interpreta o campo "pago", que pode vir como int (0/1) ou String ("0"/"1").
+  bool _isPago(dynamic value) {
+    if (value is num) return value == 1;
+    return value?.toString() == '1';
+  }
+
   Widget _buildPersonalSummaryCard() {
     double totalPendente = 0;
     for (var item in _personalLancamentos) {
-      if (item['pago'] == 0) {
-        if (item['valor'] != null) {
-          totalPendente += (item['valor'] as num).toDouble();
-        }
+      if (!_isPago(item['pago'])) {
+        totalPendente += _parseValor(item['valor']);
       }
     }
 
@@ -589,7 +600,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
   }
 
   Widget _buildPersonalFinanceiroCard(dynamic item) {
-    bool isPago = item['pago'] == 1;
+    bool isPago = _isPago(item['pago']);
     final statusVal = item['status'];
     final statusInt = statusVal is int ? statusVal : int.tryParse(statusVal.toString()) ?? 0;
     bool isVerifying = statusInt == 2;
@@ -1015,7 +1026,7 @@ class _LancamentoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCredito = item['tipo'] == 'C';
-    final isPago = item['pago'] == 1;
+    final isPago = item['pago'] is num ? item['pago'] == 1 : item['pago']?.toString() == '1';
     final isVerifying = item['status'] == 2;
     final color = isCredito ? const Color(0xFF22C55E) : AppColors.error;
     final statusColor = isPago ? Colors.green : (isVerifying ? Colors.blue : Colors.orange);

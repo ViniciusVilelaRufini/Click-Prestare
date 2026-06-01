@@ -380,12 +380,31 @@ module.exports = {
   },
 
   getByUser: async function (id_user, id_cond) {
-    const query = `select id, nome, tipo, valor, categoria, url_boleto, url_comprovante, status,
-                    DATE_FORMAT(data_vencimento, '%d/%m/%Y') as data_vencimento,
-                    DATE_FORMAT(data, '%d/%m/%Y') as data, pago
-                    from Financeiro
-                    where id_condominio=${id_cond} and (id_usuario=${id_user} or id_usuario is null)
-                    order by data_vencimento desc`;
+    // Apartamento (apto/bloco) do morador, para casar taxas antigas que ficaram
+    // sem id_usuario preenchido mas cujo nome é "Apto X Bloco Y".
+    const moradorRes = await db.query(
+      `select apartamento, bloco from Moradores where id_user=${id_user} and id_condominio=${id_cond} limit 1`
+    );
+    const morador = moradorRes.results && moradorRes.results[0];
+
+    // Casa o nome do lançamento ("Apto 101 Bloco A - ...") com o apto do morador.
+    // Só vale quando há morador vinculado; senão, nunca casa (evita vazamento).
+    const aptoMatch = morador
+      ? `t1.nome like 'Apto ${String(morador.apartamento).replace(/'/g, "''")} Bloco ${String(morador.bloco).replace(/'/g, "''")} %'`
+      : '0=1';
+
+    const query = `select t1.id, t1.nome, t1.tipo, t1.valor, t1.categoria, t1.url_boleto, t1.url_comprovante, t1.status,
+                    DATE_FORMAT(t1.data_vencimento, '%d/%m/%Y') as data_vencimento,
+                    DATE_FORMAT(t1.data, '%d/%m/%Y') as data, t1.pago, c.chave_pix
+                    from Financeiro as t1
+                    left join Condominios as c on t1.id_condominio = c.id
+                    where t1.id_condominio=${id_cond}
+                      and (
+                        t1.id_usuario=${id_user}
+                        or (t1.id_usuario is null and t1.nome not like 'Apto %')
+                        or (t1.id_usuario is null and ${aptoMatch})
+                      )
+                    order by t1.data_vencimento desc`;
     const { results } = await db.query(query);
     return results;
   },

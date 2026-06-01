@@ -13,6 +13,7 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/local_storage.dart';
 
 enum FinanceiroViewMode { morador, condominio }
 
@@ -48,6 +49,35 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     return clean.startsWith('apto ') && clean.contains('bloco');
   }
 
+  bool _isFaturaDesteMorador(dynamic item) {
+    final nome = (item['nome'] ?? '').toString();
+    final idUsuario = item['id_usuario'];
+    final loggedUserId = getUserId();
+    
+    // Se o id_usuario bater com o do morador logado, é dele!
+    if (idUsuario != null && idUsuario.toString() == loggedUserId) {
+      return true;
+    }
+    
+    // Se for uma fatura de apartamento (inicia com "Apto" e contém "Bloco"),
+    // mas está órfã (sem id_usuario), podemos tentar associar pelo apartamento e bloco do Singleton.
+    if (_isFaturaDeApto(nome)) {
+      final cleanNome = nome.toLowerCase();
+      final myApto = Singleton.instance.apartamento?.toString().toLowerCase() ?? '';
+      final myBloco = Singleton.instance.bloco?.toString().toLowerCase() ?? '';
+      
+      if (myApto.isNotEmpty && myBloco.isNotEmpty) {
+        final aptoPat = 'apto $myApto';
+        final blocoPat = 'bloco $myBloco';
+        return cleanNome.contains(aptoPat) && cleanNome.contains(blocoPat);
+      }
+    }
+    
+    // Se idUsuario for nulo e NÃO for fatura de apartamento, então é uma despesa/receita global do condomínio.
+    // Essas despesas globais NÃO devem aparecer no "Meu Financeiro", apenas na aba "Condomínio".
+    return false;
+  }
+
   _loadData() async {
     try {
       setState(() => _isLoading = true);
@@ -77,9 +107,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       if (data is List) {
         for (var item in data) {
           if (item is Map) {
-            final idUsuario = item['id_usuario'];
-            final tipo = item['tipo'];
-            if (idUsuario != null || tipo == 'C') {
+            if (_isFaturaDesteMorador(item)) {
               filteredItems.add(item);
             }
           }
@@ -235,6 +263,13 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
+  /// Converte um valor da API (num, String ou null) em double de forma segura.
+  double _parseValorMorador(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0;
+  }
+
   Widget _buildSummaryCard(List<dynamic> activeItems) {
     double totalPendente = 0;
     for(var item in activeItems) {
@@ -269,26 +304,21 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   }
 
   Widget _buildCondoChargesSection(List<dynamic> activeItems, List<String> personalCategories) {
-    // Mostra cobranças do síndico: tipo 'C', sem id_usuario,
-    // e cuja categoria não é uma das categorias pessoais conhecidas.
+    // Mostra cobranças do síndico: tipo 'C' e cuja categoria não é uma das categorias pessoais conhecidas,
+    // ou categoria explícita "Condomínio" ou "Taxa Condominial".
     var condoCharges = activeItems.where((i) {
       final cat = (i['categoria'] ?? '').toString();
       final tipo = (i['tipo'] ?? '').toString();
-      final idUsuario = i['id_usuario'];
-      // É cobrança do condomínio se: tipo C, sem dono pessoal,
+      // É cobrança do condomínio se: tipo C, OU categoria Condomínio/Taxa Condominial,
       // E a categoria não é uma categoria pessoal do morador
-      return tipo == 'C' && idUsuario == null && !personalCategories.contains(cat);
-    }).toList();
-
-    // Também inclui cobranças com categoria explícita "Condomínio"
-    var condoCatItems = activeItems.where((i) {
-      return (i['categoria'] ?? '').toString() == 'Condomínio';
+      return (tipo == 'C' || cat == 'Condomínio' || cat == 'Taxa Condominial') &&
+          !personalCategories.contains(cat);
     }).toList();
 
     // União sem duplicatas
     final allIds = <dynamic>{};
     final merged = <dynamic>[];
-    for (var item in [...condoCharges, ...condoCatItems]) {
+    for (var item in condoCharges) {
       if (allIds.add(item['id'])) merged.add(item);
     }
 
@@ -763,7 +793,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   _showContaFormModal([dynamic item]) {
     final isEditing = item != null;
     final txtNome = TextEditingController(text: isEditing ? item['nome'] : '');
-    final txtValor = TextEditingController(text: isEditing ? (item['valor'] as num).toStringAsFixed(2) : '');
+    final txtValor = TextEditingController(text: isEditing ? _parseValorMorador(item['valor']).toStringAsFixed(2) : '');
     final txtVencimento = TextEditingController(text: isEditing ? item['data_vencimento'] : '');
     final allowedCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
     

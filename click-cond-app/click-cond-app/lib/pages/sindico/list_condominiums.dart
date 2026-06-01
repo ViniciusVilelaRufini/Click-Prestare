@@ -109,6 +109,13 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     )).then((_) { if (mounted) _loadList(); });
   }
 
+  /// Converte um valor da API (que pode vir como num, String ou null) em double.
+  double _toDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0;
+  }
+
   void _onDashboardTap(String module) {
     if (_list.isEmpty) return;
     
@@ -448,7 +455,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               Expanded(
                 child: _DashboardCard(
                   title: 'Inadimplência',
-                  value: 'R\$ ${(_summary!['debts']['total'] ?? 0).toStringAsFixed(2)}',
+                  value: 'R\$ ${_toDouble(_summary!['debts']['total']).toStringAsFixed(2)}',
                   subtitle: '${_summary!['debts']['count']} pendências',
                   icon: PhosphorIcons.money,
                   color: AppColors.error,
