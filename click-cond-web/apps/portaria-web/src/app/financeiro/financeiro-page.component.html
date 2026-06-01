@@ -1267,6 +1267,16 @@
             />
           </div>
 
+          <div>
+            <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Chave Pix do Condomínio (para pagamento manual)</label>
+            <input
+              type="text"
+              [(ngModel)]="configAutoData.chave_pix"
+              placeholder="Ex: CNPJ, E-mail, Telefone ou Chave Aleatória"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+            />
+          </div>
+
           <!-- Seleção de Apartamentos Excluídos -->
           <div [class.opacity-50]="!configAutoData.recorrencia_ativa" class="space-y-2">
             <label class="block text-[11px] font-medium text-slate-400">Excluir Apartamentos da Geração Automática</label>

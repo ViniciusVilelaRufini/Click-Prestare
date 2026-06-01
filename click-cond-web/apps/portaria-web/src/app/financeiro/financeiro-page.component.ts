@@ -226,6 +226,7 @@ export class FinanceiroPageComponent implements OnInit {
     dias_atraso_aviso_1: 1,
     dias_atraso_aviso_2: 5,
     dias_atraso_aviso_3: 10,
+    chave_pix: '',
   };
 
   abrirModalConfigAuto() {
@@ -256,6 +257,7 @@ export class FinanceiroPageComponent implements OnInit {
             dias_atraso_aviso_1: res.dias_atraso_aviso_1 ?? 1,
             dias_atraso_aviso_2: res.dias_atraso_aviso_2 ?? 5,
             dias_atraso_aviso_3: res.dias_atraso_aviso_3 ?? 10,
+            chave_pix: res.chave_pix ?? '',
           };
         }
         this.modalConfigAuto.set(true);

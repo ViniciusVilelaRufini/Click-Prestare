@@ -157,6 +157,7 @@ model Condominios {
   categoria_padrao      String                    @default("Taxa Condominial") @db.VarChar(100)
   mes_inicio_recorrencia Int?
   ano_inicio_recorrencia Int?
+  chave_pix             String?                   @db.VarChar(255)
 
   // Régua de Cobrança Automática
   cobranca_auto_whats   Boolean                   @default(false)

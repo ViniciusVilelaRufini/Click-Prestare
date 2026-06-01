@@ -1280,10 +1280,17 @@ export class FinanceiroService implements OnModuleInit {
           id: 1, nome: 'Taxa de Condomínio - Maio', tipo: 'C', valorReal: 'R$ 650,00',
           data_vencimento: '10/05/2026', data: '10/05/2026', pago: 1,
           url_boleto: 'https://example.com/boleto.pdf', url_comprovante: '', status: '1',
-          id_usuario: null, categoria: 'Condomínio'
+          id_usuario: null, categoria: 'Condomínio', chave_pix: 'sindico@pix.com'
         },
       ];
     }
+
+    // Busca a chave Pix do condomínio
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: Number(idCondominio) },
+      select: { chave_pix: true },
+    });
+    const condChavePix = cond?.chave_pix ?? '';
 
     // Busca os vínculos de apartamento do morador via moradores
     const moradoresList = await this.prisma.moradores.findMany({
@@ -1343,6 +1350,7 @@ export class FinanceiroService implements OnModuleInit {
       pix_copia_cola: item.pix_copia_cola ?? '',
       id_usuario: item.id_usuario,
       categoria: item.categoria ?? 'Outros',
+      chave_pix: condChavePix,
     }));
   }
 
@@ -2464,6 +2472,7 @@ export class FinanceiroService implements OnModuleInit {
         dias_atraso_aviso_3: true,
         mes_inicio_recorrencia: true,
         ano_inicio_recorrencia: true,
+        chave_pix: true,
       },
     });
 
@@ -2490,6 +2499,7 @@ export class FinanceiroService implements OnModuleInit {
         dias_atraso_aviso_3: config.dias_atraso_aviso_3 !== undefined ? Number(config.dias_atraso_aviso_3) : undefined,
         mes_inicio_recorrencia: config.mes_inicio_recorrencia !== undefined ? (config.mes_inicio_recorrencia ? Number(config.mes_inicio_recorrencia) : null) : undefined,
         ano_inicio_recorrencia: config.ano_inicio_recorrencia !== undefined ? (config.ano_inicio_recorrencia ? Number(config.ano_inicio_recorrencia) : null) : undefined,
+        chave_pix: config.chave_pix !== undefined ? (config.chave_pix ? String(config.chave_pix) : null) : undefined,
       },
     });
 

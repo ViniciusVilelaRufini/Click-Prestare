@@ -493,6 +493,94 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         elevation: 0,
                       ),
                     ),
+                  )
+                else if (item['chave_pix'] != null && item['chave_pix'].toString().trim().isNotEmpty)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                          ),
+                          builder: (context) {
+                            return Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "Chave Pix do Condomínio",
+                                    style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "Utilize a chave Pix abaixo para realizar o pagamento manual:",
+                                    textAlign: TextAlign.center,
+                                    style: AppTypography.bodyMedium(context),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surface(context),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: AppColors.border(context)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: SelectableText(
+                                            item['chave_pix'].toString(),
+                                            style: AppTypography.bodyMedium(context).copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              fontFamily: 'monospace',
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Clipboard.setData(ClipboardData(text: item['chave_pix'].toString()));
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text("Chave Pix copiada com sucesso!"),
+                                          backgroundColor: AppColors.primary,
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(double.infinity, 44),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                    child: const Text("Copiar Chave Pix"),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      icon: const Icon(PhosphorIcons.copy, size: 16),
+                      label: const Text(
+                        "Copiar Pix",
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
+                      ),
+                    ),
                   ),
                 if (item['linha_digitavel'] != null && item['linha_digitavel'].toString().trim().isNotEmpty) ...[
                   const SizedBox(width: 8),
