@@ -4,13 +4,14 @@ import 'package:flutter/foundation.dart';
 class ApiConfig {
   /// Mude para 'true' para usar o servidor do Railway (Nuvem)
   /// Mude para 'false' para usar o servidor local (Seu PC)
-  static const bool isProduction = true;
+  static const bool isProduction = false;
 
   /// Host dinâmico
   static String get host {
     if (isProduction) return "click-prestare-production.up.railway.app";
-    if (kIsWeb) return "localhost:3000";
-    return "192.168.3.74:3000";
+    if (kIsWeb) return "localhost:3003";
+    // 10.0.2.2 é o endereço especial para acessar o localhost do seu PC de dentro do Emulador Android
+    return "10.0.2.2:3003";
   }
 
   /// HTTPS é obrigatório no Railway (Produção)
