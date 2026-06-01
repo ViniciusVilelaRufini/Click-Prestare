@@ -34,6 +34,7 @@ export class FinanceiroPageComponent implements OnInit {
 
   readonly searchInadimplencia = signal('');
   readonly sortInadimplencia = signal<'apto' | 'qtd'>('apto');
+  readonly apenasAtrasadas = signal(false);
 
   // Modais
   readonly modalLancamento = signal(false);
@@ -116,9 +117,10 @@ export class FinanceiroPageComponent implements OnInit {
   getFilteredInadimplentes() {
     const query = this.searchInadimplencia().toLowerCase().trim();
     const sortBy = this.sortInadimplencia();
+    const soAtrasadas = this.apenasAtrasadas();
     const blocks = this.inadimplentesBlocos();
 
-    if (!query && sortBy === 'apto') {
+    if (!query && sortBy === 'apto' && !soAtrasadas) {
       return blocks;
     }
 
@@ -130,6 +132,9 @@ export class FinanceiroPageComponent implements OnInit {
           b.bloco.toLowerCase().includes(query)
         );
       }
+      if (soAtrasadas) {
+        filteredAptos = filteredAptos.filter(a => (a.atrasadas || 0) > 0);
+      }
       if (sortBy === 'qtd') {
         filteredAptos.sort((x, y) => (y.qtd || 0) - (x.qtd || 0));
       } else {
@@ -140,6 +145,27 @@ export class FinanceiroPageComponent implements OnInit {
         aptos: filteredAptos
       };
     }).filter(b => b.aptos.length > 0);
+  }
+
+  // Resumo agregado da aba de inadimplência, calculado sobre a lista já
+  // filtrada (respeita busca e o toggle "só atrasadas") para refletir o que
+  // o operador está vendo na tela.
+  resumoInadimplencia() {
+    const blocos = this.getFilteredInadimplentes();
+    let aptosPendentes = 0;
+    let totalAtrasadas = 0;
+    let blocosAtencao = 0;
+    for (const b of blocos) {
+      aptosPendentes += b.aptos.length;
+      let temAtraso = false;
+      for (const a of b.aptos) {
+        const atr = a.atrasadas || 0;
+        totalAtrasadas += atr;
+        if (atr > 0) temAtraso = true;
+      }
+      if (temAtraso) blocosAtencao++;
+    }
+    return { aptosPendentes, totalAtrasadas, blocosAtencao };
   }
 
   // Filtros Dinâmicos do Livro Caixa
