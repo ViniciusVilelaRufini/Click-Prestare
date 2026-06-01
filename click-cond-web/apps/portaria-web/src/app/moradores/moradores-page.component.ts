@@ -9,6 +9,7 @@ import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective, validators } from '../shared/input-mask.directive';
 import { EnrollCaptureComponent } from '../shared/enroll-capture.component';
 import { AuthService } from '../auth/auth.service';
+import { ToastService } from '../shared/toast.service';
 
 declare var require: any;
 
@@ -23,6 +24,7 @@ export class MoradoresPageComponent implements OnInit {
   private aptApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
   private auth = inject(AuthService);
+  private toast = inject(ToastService);
 
   idCondominioAtual = () => this.auth.porteiroInfo()?.id_condominio ?? null;
 
@@ -378,7 +380,7 @@ export class MoradoresPageComponent implements OnInit {
   }
   async sendCredentials(m: Morador) {
     if (!m.email) {
-      alert('Este morador não possui e-mail cadastrado.');
+      this.toast.warning('Este morador não possui e-mail cadastrado.');
       return;
     }
     const ok = await this.confirm.ask({
@@ -389,14 +391,14 @@ export class MoradoresPageComponent implements OnInit {
     });
     if (!ok) return;
     this.api.sendCredentials(m.id).subscribe({
-      next: () => alert('Credenciais enviadas com sucesso!'),
-      error: () => alert('Houve um erro ao enviar as credenciais.'),
+      next: () => this.toast.success('Credenciais enviadas com sucesso!'),
+      error: () => this.toast.error('Houve um erro ao enviar as credenciais.'),
     });
   }
 
   vincularApartamentoRapido(m: Morador, idApto: number) {
     if (!idApto) {
-      alert('Selecione um apartamento válido.');
+      this.toast.warning('Selecione um apartamento válido.');
       return;
     }
     this.api.update(m.id, { id_apartamento: idApto }).subscribe({
@@ -406,10 +408,10 @@ export class MoradoresPageComponent implements OnInit {
         if (current && current.id === m.id) {
           this.selectedMorador.set({ ...current, id_apartamento: updated.id_apartamento, bloco: updated.bloco, apartamento: updated.apartamento });
         }
-        alert('Vínculo de unidade atualizado com sucesso!');
+        this.toast.success('Vínculo de unidade atualizado com sucesso!');
       },
       error: (e) => {
-        alert(e?.error?.message ?? e?.message ?? 'Erro ao atualizar vínculo');
+        this.toast.error(e?.error?.message ?? e?.message ?? 'Erro ao atualizar vínculo');
       }
     });
   }
@@ -477,7 +479,7 @@ export class MoradoresPageComponent implements OnInit {
         link.download = res.filename || 'moradores.xlsx';
         link.click();
       },
-      error: () => alert('Erro ao exportar planilha'),
+      error: () => this.toast.error('Erro ao exportar planilha'),
     });
   }
 
@@ -534,7 +536,7 @@ export class MoradoresPageComponent implements OnInit {
               }
             });
           } catch {
-            alert('Para arquivos .xlsx nativos, por favor converta para .csv ou baixe nosso template em CSV padronizado.');
+            this.toast.warning('Para arquivos .xlsx nativos, por favor converta para .csv ou baixe nosso template em CSV padronizado.');
             this.bulkStatus.set('idle');
             return;
           }
@@ -542,7 +544,7 @@ export class MoradoresPageComponent implements OnInit {
         this.bulkLinhas.set(linhas);
         this.bulkStatus.set('ready');
       } catch {
-        alert('Erro ao decodificar a planilha.');
+        this.toast.error('Erro ao decodificar a planilha.');
         this.bulkStatus.set('idle');
       }
     };
@@ -560,7 +562,7 @@ export class MoradoresPageComponent implements OnInit {
         this.carregar();
       },
       error: () => {
-        alert('Erro ao importar em lote');
+        this.toast.error('Erro ao importar em lote');
         this.bulkStatus.set('ready');
       },
     });
