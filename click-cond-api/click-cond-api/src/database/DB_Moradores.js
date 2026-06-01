@@ -62,8 +62,13 @@ module.exports = {
   },
 
   insertMorador: async function (nome, email, telefone, data_nascimento, documento, tipo, id_apto, idUser, extra1, extra2, extra3, extra4, idCondominio) {
-    let dt = data_nascimento.split("/");
-    dt = dt[2]+"-"+dt[1]+"-"+dt[0];
+    let dt = null;
+    if (data_nascimento && data_nascimento.includes("/")) {
+      const parts = data_nascimento.split("/");
+      dt = parts[2]+"-"+parts[1]+"-"+parts[0];
+    } else if (data_nascimento && data_nascimento.includes("-")) {
+      dt = data_nascimento;
+    }
 
     nome = nome.replaceAll("'","''");
     extra1 = extra1.replaceAll("'","''");
@@ -77,7 +82,7 @@ module.exports = {
 
     const query = `insert into Moradores (
             nome, documento, email, telefone, data_nascimento, id_user, id_condominio, bloco, apartamento, extra1, extra2, extra3, extra4)
-            values ('${nome}','${documento}','${email}','${telefone}', '${dt}', '${idUser}', '${idCondominio}', '${bloco}', '${apartamento}', 
+            values ('${nome}','${documento}','${email}','${telefone}', ${dt ? `'${dt}'` : 'NULL'}, '${idUser}', '${idCondominio}', '${bloco}', '${apartamento}', 
                   '${extra1 ?? ''}', '${extra2 ?? ''}', '${extra3 ?? ''}', '${extra4 ?? ''}'
                   )`;
     await db.query(query);
@@ -108,8 +113,13 @@ module.exports = {
   },
 
   updateMorador: async function (nome, documento, email, telefone, data_nascimento, extra1, extra2, extra3, extra4, idUser) {
-    data_nascimento = data_nascimento.split("/");
-    data_nascimento = data_nascimento[2]+"-"+data_nascimento[1]+"-"+data_nascimento[0];
+    let dt = null;
+    if (data_nascimento && data_nascimento.includes("/")) {
+      const parts = data_nascimento.split("/");
+      dt = parts[2]+"-"+parts[1]+"-"+parts[0];
+    } else if (data_nascimento && data_nascimento.includes("-")) {
+      dt = data_nascimento;
+    }
 
     nome = nome.replaceAll("'","''");
     extra1 = extra1.replaceAll("'","''");
@@ -122,7 +132,7 @@ module.exports = {
                     documento='${documento}',
                     email='${email}',
                     telefone='${telefone}',
-                    data_nascimento='${data_nascimento}',                  
+                    data_nascimento=${dt ? `'${dt}'` : 'NULL'},                  
                     extra1='${extra1 ?? ''}',
                     extra2='${extra2 ?? ''}',
                     extra3='${extra3 ?? ''}',
@@ -132,12 +142,38 @@ module.exports = {
     await db.query(query);
   },
     
-  get: async function (id) {
-    const query = `select u.id, u.photo, m.nome, m.documento, m.email, m.telefone, m.extra1, m.extra2, m.extra3, m.extra4,
+  get: async function (id, idCondominio) {
+    let query = `select u.id, u.photo, m.nome, m.documento, m.email, m.telefone, m.extra1, m.extra2, m.extra3, m.extra4,
                     DATE_FORMAT(data_nascimento, '%d/%m/%Y') as data_nascimento
                     from Moradores m
                       inner join Users u on m.id_user = u.id
                       where u.id=${id}`;
+    
+    // 1. Se idCondominio for fornecido e válido, tenta buscar dele
+    if (idCondominio && parseInt(idCondominio) > 0) {
+      const queryCondo = query + ` and m.id_condominio=${idCondominio}`;
+      const { results } = await db.query(queryCondo);
+      if (results && results.length > 0) {
+        return results[0];
+      }
+    }
+
+    // 2. Busca de algum condomínio ao qual o usuário está de fato vinculado através de um apartamento ativo
+    const queryActiveCondo = `select u.id, u.photo, m.nome, m.documento, m.email, m.telefone, m.extra1, m.extra2, m.extra3, m.extra4,
+                    DATE_FORMAT(data_nascimento, '%d/%m/%Y') as data_nascimento
+                    from Moradores m
+                      inner join Users u on m.id_user = u.id
+                      inner join Apartamentos_Users au on au.id_user = u.id
+                      inner join Apartamentos apto on au.id_apto = apto.id and apto.id_condominio = m.id_condominio
+                      inner join Condominios c on apto.id_condominio = c.id
+                      where u.id=${id} and c.ativo=1
+                      order by m.id desc`;
+    const { results: activeResults } = await db.query(queryActiveCondo);
+    if (activeResults && activeResults.length > 0) {
+      return activeResults[0];
+    }
+
+    // 3. Fallback absoluto caso não ache nenhum vínculo ativo
     const { results } = await db.query(query);
     return results[0];
   },

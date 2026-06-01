@@ -19,27 +19,37 @@ module.exports = {
   },
 
   insertSindico: async function (nome, email, date_birth, phone, doc_identification, userId) {
-    date_birth = date_birth.split("/");
-    date_birth = date_birth[2]+"-"+date_birth[1]+"-"+date_birth[0];
+    let dt = null;
+    if (date_birth && date_birth.includes("/")) {
+      const parts = date_birth.split("/");
+      dt = parts[2]+"-"+parts[1]+"-"+parts[0];
+    } else if (date_birth && date_birth.includes("-")) {
+      dt = date_birth;
+    }
 
     nome = nome.replaceAll("'","''");
 
     const querySindico = `insert into Sindicos (
             name, email, date_birth, phone, doc_identification, id_user)
-            values ('${nome}','${email}','${date_birth}','${phone}','${doc_identification}', '${userId}')`;
+            values ('${nome}','${email}',${dt ? `'${dt}'` : 'NULL'},'${phone}','${doc_identification}', '${userId}')`;
     await db.query(querySindico);
   },
 
   updateSindico: async function (nome, email, date_birth, phone, doc_identification, userId) {
-    date_birth = date_birth.split("/");
-    date_birth = date_birth[2]+"-"+date_birth[1]+"-"+date_birth[0];
+    let dt = null;
+    if (date_birth && date_birth.includes("/")) {
+      const parts = date_birth.split("/");
+      dt = parts[2]+"-"+parts[1]+"-"+parts[0];
+    } else if (date_birth && date_birth.includes("-")) {
+      dt = date_birth;
+    }
 
     nome = nome.replaceAll("'","''");
     
     const querySindico = `update Sindicos set 
                      name='${nome}',
                      email='${email}',
-                     date_birth='${date_birth}',
+                     date_birth=${dt ? `'${dt}'` : 'NULL'},
                      phone='${phone}',
                      doc_identification='${doc_identification}'                   
                     where id_user=${userId}`;

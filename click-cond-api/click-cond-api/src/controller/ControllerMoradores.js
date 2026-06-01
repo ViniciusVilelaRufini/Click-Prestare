@@ -77,7 +77,8 @@ module.exports = {
       if(req.session.user.typeAccess == "Morador"){
         userId = req.session.user.id;
       }
-      const result = await db.get(userId);
+      const idCondominio = req.query.id_condominio || (req.session.user ? req.session.user.id_condominio : undefined);
+      const result = await db.get(userId, idCondominio);
       return res.status(200).json(result);
     } catch (err) {
       return res.status(500).json({ message: err.message });

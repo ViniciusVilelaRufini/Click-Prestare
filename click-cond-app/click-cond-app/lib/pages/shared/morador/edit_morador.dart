@@ -14,6 +14,7 @@ import 'package:click/widgets/alerts/modal_cupertino.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:easy_mask/easy_mask.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -163,7 +164,15 @@ class _EditMoradorPageState extends State<EditMorador> {
                   _section(getText('funcionario_infos_pessoais')),
                   AppInput(label: getText('user_nome_completo'), controller: txtNome, prefixIcon: PhosphorIcons.user, textCapitalization: TextCapitalization.words),
                   const SizedBox(height: AppSpacing.md),
-                  AppInput(label: getText('user_documento'), controller: txtDocumento, prefixIcon: PhosphorIcons.identificationCard),
+                  AppInput(
+                    label: getText('user_documento'),
+                    controller: txtDocumento,
+                    prefixIcon: PhosphorIcons.identificationCard,
+                    keyboard: TextInputType.number,
+                    formatters: [
+                      TextInputMask(mask: ['999.999.999-99', '99.999.999/9999-99'])
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.md),
                   AppInput(
                     label: getText('data_nascimento'),
@@ -183,7 +192,15 @@ class _EditMoradorPageState extends State<EditMorador> {
                   _section(getText('signup_infos_contato')),
                   AppInput(label: getText('email'), controller: txtEmail, prefixIcon: PhosphorIcons.envelope, keyboard: TextInputType.emailAddress),
                   const SizedBox(height: AppSpacing.md),
-                  AppInput(label: getText('telefone'), controller: txtTelefone, prefixIcon: PhosphorIcons.phone, keyboard: TextInputType.phone),
+                  AppInput(
+                    label: getText('telefone'),
+                    controller: txtTelefone,
+                    prefixIcon: PhosphorIcons.phone,
+                    keyboard: TextInputType.phone,
+                    formatters: [
+                      TextInputMask(mask: ['(99) 9999-9999', '(99) 99999-9999'])
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   AppButton(
                     label: getText('btn_save'),

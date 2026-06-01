@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart';
 import 'package:click/pages/singleton.dart';
@@ -105,9 +105,9 @@ updateMoradorApi(dynamic morador) async {
       return "";
     }
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-    throw parsed["message"] ?? "Houve um erro, tente novamente!";
+    return parsed["message"] ?? "Houve um erro, tente novamente!";
   } catch (e) {
-    throw "Houve um erro, tente novamente!";
+    rethrow;
   }
 }
 
