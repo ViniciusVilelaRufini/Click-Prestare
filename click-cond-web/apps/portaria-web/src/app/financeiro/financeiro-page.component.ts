@@ -504,6 +504,18 @@ export class FinanceiroPageComponent implements OnInit {
     });
   }
 
+  formatFaturaNome(nome: string): string {
+    if (!nome) return '';
+    return nome.replace(/^Apto\s+\S+\s+Bloco\s+\S+\s*-\s*/i, '')
+               .replace(/^Apto\s+\S+\s+Bloco\s+Bloco\s+\S+\s*-\s*/i, '');
+  }
+
+  formatBlocoNome(bloco: string): string {
+    if (!bloco) return 'Sem Bloco';
+    const clean = bloco.replace(/^bloco\s+/i, '').trim();
+    return `Bloco ${clean}`;
+  }
+
   aprovarPagamento(id: number) {
     // Localiza o item nos lançamentos para detectar auto-aprovação.
     const item = this.findLancamentoById(id);

@@ -675,7 +675,7 @@
           </div>
           <div>
             <h3 class="text-sm font-bold text-white uppercase tracking-wider">Histórico de Pendências</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Bloco {{ selectedApto()?.bloco }} • Apartamento {{ selectedApto()?.apto }}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5 font-medium">{{ formatBlocoNome(selectedApto()?.bloco) }} • Apartamento {{ selectedApto()?.apto }}</p>
           </div>
         </div>
         <button (click)="modalDetalhe.set(false)" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
@@ -691,55 +691,51 @@
             <span class="text-xs text-slate-400 font-medium">Carregando faturas pendentes...</span>
           </div>
         } @else {
-          <div class="space-y-3">
+          <div class="space-y-1">
             @for (fat of faturasSelected(); track fat.id) {
-              <div class="p-4 rounded-2xl bg-slate-950/50 border border-white/5 border-l-4 flex flex-col gap-3.5 text-xs transition-all duration-300 hover:shadow-md hover:border-white/10"
-                   [class.border-l-rose-500/80]="fat.atrasado"
-                   [class.border-l-blue-500/80]="!fat.atrasado">
-                
-                <!-- Top Row: Info & Value/Badge -->
-                <div class="flex justify-between items-start">
-                  <div class="space-y-1.5 text-left">
-                    <p class="text-slate-100 font-bold text-sm tracking-tight">{{ fat.nome }}</p>
-                    <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
-                      <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                      </svg>
-                      <span>Vencimento: <strong class="font-mono text-slate-350">{{ fat.data_vencimento }}</strong></span>
-                    </div>
-                  </div>
-                  <div class="text-right flex flex-col items-end gap-1.5 shrink-0 ml-4">
-                    <p class="font-extrabold text-sm font-mono tracking-tight"
-                       [class.text-rose-500]="fat.atrasado"
-                       [class.text-blue-400]="!fat.atrasado">{{ fat.valorString }}</p>
+              <div class="py-4 border-b border-white/5 flex items-center justify-between last:border-0 hover:bg-white/[0.01] px-2 rounded-xl transition">
+                <!-- Left info -->
+                <div class="space-y-1">
+                  <h4 class="text-xs font-bold text-slate-200 tracking-tight">{{ formatFaturaNome(fat.nome) }}</h4>
+                  <div class="flex items-center gap-2 text-[10px] text-slate-400">
+                    <span>Vencimento: <strong class="font-mono text-slate-350">{{ fat.data_vencimento }}</strong></span>
+                    <span class="w-1 h-1 rounded-full bg-slate-600"></span>
                     @if (fat.atrasado) {
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 font-bold uppercase tracking-wider text-[9px] border border-rose-500/20">
-                        Atrasada
-                      </span>
+                      <span class="text-rose-400 font-medium text-[9px] uppercase tracking-wider">Atrasada</span>
                     } @else {
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 font-bold uppercase tracking-wider text-[9px] border border-blue-500/20">
-                        A Vencer
-                      </span>
+                      <span class="text-blue-400 font-medium text-[9px] uppercase tracking-wider">A Vencer</span>
                     }
                   </div>
                 </div>
 
-                <!-- Bottom Row: Action Buttons -->
-                <div class="flex items-center justify-end gap-2 pt-2.5 border-t border-white/[0.04] w-full">
-                  <button (click)="alterarStatusFatura(fat)"
-                          class="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 text-[10px] font-bold transition flex items-center gap-1.5 cursor-pointer">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Dar Baixa (Pago)
-                  </button>
-                  <button (click)="removerFatura(fat)"
-                          class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 text-[10px] font-bold transition flex items-center gap-1.5 cursor-pointer">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                    Remover Cobrança
-                  </button>
+                <!-- Right actions/price -->
+                <div class="flex items-center gap-4 shrink-0">
+                  <div class="text-right">
+                    <span class="font-extrabold text-sm font-mono tracking-tight"
+                          [class.text-rose-450]="fat.atrasado"
+                          [class.text-blue-400]="!fat.atrasado">
+                      {{ fat.valorString }}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center gap-1.5">
+                    <!-- Baixar (Pago) -->
+                    <button (click)="alterarStatusFatura(fat)"
+                            title="Dar Baixa (Pago)"
+                            class="p-2 rounded-xl bg-emerald-500/5 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/10 transition cursor-pointer">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </button>
+                    <!-- Remover -->
+                    <button (click)="removerFatura(fat)"
+                            title="Remover Cobrança"
+                            class="p-2 rounded-xl bg-rose-500/5 hover:bg-rose-500 hover:text-white text-rose-400 border border-rose-500/10 transition cursor-pointer">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             } @empty {
