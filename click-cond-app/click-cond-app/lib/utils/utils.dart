@@ -460,18 +460,30 @@ convertToBase64(dynamic file, String type) {
 
 Future<dynamic> fileFromImageUrl(String url) async {
   if (kIsWeb) return null;
-  final response = await http.get(Uri.parse(url)).timeout(_kHttpTimeout);
-  final documentDirectory = await getApplicationDocumentsDirectory();
-  // ignore: undefined_class
-  // final file = null.millisecondsSinceEpoch}.png'));
-  // file.writeAsBytesSync(response.bodyBytes);
+  // Sem URL valida nao ha o que baixar. Sem essa guarda, um lancamento sem
+  // comprovante (photo vazio) fazia http.get(Uri.parse('')) estourar, e a
+  // tela de Despesa mostrava "Houve um erro" mesmo apos carregar os campos.
+  final uri = Uri.tryParse(url);
+  if (url.trim().isEmpty || uri == null || !uri.hasScheme) return null;
+  try {
+    await http.get(uri).timeout(_kHttpTimeout);
+  } catch (_) {
+    // Download do comprovante e best-effort; nunca deve quebrar o load.
+    return null;
+  }
+  // (Escrita do arquivo local desativada — retornamos null de qualquer forma.)
   return null;
 }
 
 Future<dynamic> fileFromPdfUrl(String url) async {
   if (kIsWeb) return null;
-  final response = await http.get(Uri.parse(url)).timeout(_kHttpTimeout);
-  final documentDirectory = await getApplicationDocumentsDirectory();
+  final uri = Uri.tryParse(url);
+  if (url.trim().isEmpty || uri == null || !uri.hasScheme) return null;
+  try {
+    await http.get(uri).timeout(_kHttpTimeout);
+  } catch (_) {
+    return null;
+  }
   return null;
 }
 

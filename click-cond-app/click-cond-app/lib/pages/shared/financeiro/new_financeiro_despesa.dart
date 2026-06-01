@@ -61,17 +61,28 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
     try {
       setState(() => _isLoading = true);
       var obj = await apiGetDetails('financeiro', widget.id!);
+      if (obj == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
       txtFornecedor.text = obj['cliente'] ?? '';
       txtCategoria.text = obj['categoria'] ?? '';
       txtPagamento.text = obj['data'] ?? '';
-      txtValor.text = obj['valor'].toString().replaceAll("-", "").replaceAll(" ", "");
+      txtValor.text = (obj['valor'] ?? '').toString().replaceAll("-", "").replaceAll(" ", "");
       txtFormaPagamento.text = obj['forma_pagamento'] ?? '';
       txtParcelas.text = obj['parcelas'] != null ? obj['parcelas'].toString() : '';
       txtConta.text = obj['conta'] ?? '';
       txtDescricao.text = obj['descricao'] ?? '';
-      imageFile = await fileFromImageUrl(obj['photo'] ?? '');
+      // Best-effort: nunca deixa o comprovante quebrar o carregamento da tela.
+      try {
+        imageFile = await fileFromImageUrl(obj['photo'] ?? '');
+      } catch (_) {
+        imageFile = null;
+      }
       if (mounted) setState(() {});
-    } catch (e) {
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[load despesa] $e\n$st');
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
