@@ -387,12 +387,20 @@ class _MyCondominiumState extends State<MyCondominium> {
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      extendBody: true,
-      body: IndexedStack(
-        index: _currentTab,
-        children: tabs,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentTab,
+            children: tabs,
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildBottomNavigationBar(context),
+          ),
+        ],
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
