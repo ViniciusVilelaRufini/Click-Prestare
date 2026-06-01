@@ -40,6 +40,27 @@ export class MoradoresService {
     private readonly auditoria: AuditoriaService,
   ) {}
 
+  private parseDate(dateStr: string | Date | null | undefined): Date | null {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+    const s = String(dateStr).trim();
+    if (!s || s === 'null' || s === 'undefined') return null;
+
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+      const parts = s.split(' ')[0].split('/');
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      const parsed = new Date(year, month, day);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    const parsed = new Date(s);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   /**
    * Contexto rico para auditoria de morador: identificação, apartamento,
    * status de credenciais (RFID, QR, foto facial). Responde no painel:
@@ -501,8 +522,7 @@ export class MoradoresService {
         nome: dto.nome,
         documento: dto.documento || null,
         email: dto.email || null,
-        telefone: dto.telefone || null,
-        data_nascimento: dto.data_nascimento ? new Date(dto.data_nascimento) : null,
+        data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
         tipo: dto.tipo || 'proprietario',
         bloco: 'A',
         apartamento: '101',
@@ -651,8 +671,7 @@ export class MoradoresService {
           nome: dto.nome,
           documento: dto.documento ?? null,
           email: dto.email ?? null,
-          telefone: dto.telefone ?? null,
-          data_nascimento: dto.data_nascimento ? new Date(dto.data_nascimento) : null,
+          data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
           tipo: dto.tipo ?? 'proprietario',
           id_user: userId,
           id_condominio: dto.id_condominio,
@@ -792,7 +811,7 @@ export class MoradoresService {
             ...(dto.telefone !== undefined && { telefone: dto.telefone }),
             ...(dto.tipo !== undefined && { tipo: dto.tipo }),
             ...(dto.data_nascimento !== undefined && {
-              data_nascimento: dto.data_nascimento ? new Date(dto.data_nascimento) : null,
+              data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
             }),
             ...(fotoPessoaUrl !== undefined && { foto_pessoa: fotoPessoaUrl }),
             ...(fotoDocumentoUrl !== undefined && { foto_documento: fotoDocumentoUrl }),

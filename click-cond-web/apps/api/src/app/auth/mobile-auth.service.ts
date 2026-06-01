@@ -16,6 +16,27 @@ export class MobileAuthService {
     private readonly storage: StorageService,
   ) {}
 
+  private parseDate(dateStr: string | Date | null | undefined): Date | null {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date) return dateStr;
+    const s = String(dateStr).trim();
+    if (!s || s === 'null' || s === 'undefined') return null;
+
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+      const parts = s.split(' ')[0].split('/');
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      const parsed = new Date(year, month, day);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    const parsed = new Date(s);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   private async verifyPassword(senhaRaw: string, stored: string | null | undefined, userId: number): Promise<boolean> {
     if (!stored) return false;
 
@@ -1377,7 +1398,7 @@ export class MobileAuthService {
               ...(mor.documento !== undefined && { documento: mor.documento }),
               ...(mor.email !== undefined && { email: mor.email }),
               ...(mor.telefone !== undefined && { telefone: mor.telefone }),
-              ...(mor.data_nascimento && { data_nascimento: new Date(mor.data_nascimento) }),
+              ...(mor.data_nascimento && { data_nascimento: this.parseDate(mor.data_nascimento) }),
               ...(tipo && { tipo }),
               ...(photoUrl !== null && { foto_pessoa: photoUrl }),
             },
@@ -1540,7 +1561,7 @@ export class MobileAuthService {
           documento: mor.documento ?? null,
           email: mor.email ?? null,
           telefone: mor.telefone ?? null,
-          data_nascimento: mor.data_nascimento ? new Date(mor.data_nascimento) : null,
+          data_nascimento: mor.data_nascimento ? this.parseDate(mor.data_nascimento) : null,
           tipo,
           id_user: userId,
           id_condominio: idCondominio,
