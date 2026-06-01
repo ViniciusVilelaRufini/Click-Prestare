@@ -663,22 +663,22 @@
 
 <!-- Modal Detalhe de Inadimplência -->
 @if (modalDetalhe()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn text-white">
-    <div class="w-full max-w-lg rounded-3xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300">
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in text-white">
+    <div class="w-full max-w-lg rounded-3xl bg-graphite-200 border border-white/10 shadow-2xl shadow-black/40 overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300">
       <!-- Header -->
-      <div class="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-slate-900/80">
+      <div class="px-6 py-5 border-b border-white/[0.07] flex items-center justify-between bg-white/[0.02]">
         <div class="flex items-center gap-3.5">
-          <div class="w-10 h-10 rounded-2xl bg-rose-500/10 flex items-center justify-center shrink-0 border border-rose-500/20 text-rose-500">
+          <div class="w-11 h-11 rounded-2xl bg-rose-500/10 flex items-center justify-center shrink-0 border border-rose-500/20 text-rose-400 shadow-inner shadow-rose-500/5">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Histórico de Pendências</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5 font-medium">{{ formatBlocoNome(selectedApto()?.bloco) }} • Apartamento {{ selectedApto()?.apto }}</p>
+            <h3 class="text-sm font-bold text-white uppercase tracking-[0.12em]">Histórico de Pendências</h3>
+            <p class="text-[11px] text-slate-400 mt-1 font-medium">{{ formatBlocoNome(selectedApto()?.bloco) }} • Apartamento {{ selectedApto()?.apto }}</p>
           </div>
         </div>
-        <button (click)="modalDetalhe.set(false)" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
+        <button (click)="modalDetalhe.set(false)" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all active:scale-90">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
       </div>
@@ -686,51 +686,57 @@
       <!-- Conteúdo -->
       <div class="p-6 flex-1 overflow-y-auto space-y-4">
         @if (loadingDetalhe()) {
-          <div class="flex flex-col items-center justify-center py-10 gap-3">
-            <div class="w-7 h-7 border-2 border-slate-500 border-t-rose-500 rounded-full animate-spin"></div>
+          <div class="flex flex-col items-center justify-center py-12 gap-3">
+            <div class="w-7 h-7 border-2 border-slate-600 border-t-rose-500 rounded-full animate-spin"></div>
             <span class="text-xs text-slate-400 font-medium">Carregando faturas pendentes...</span>
           </div>
         } @else {
-          <div class="space-y-1">
+          <div class="space-y-2.5">
             @for (fat of faturasSelected(); track fat.id) {
-              <div class="py-4 border-b border-white/5 flex items-center justify-between last:border-0 hover:bg-white/[0.01] px-2 rounded-xl transition">
+              <div class="group relative flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.025] border border-white/[0.07] hover:border-white/15 hover:bg-white/[0.04] transition-all duration-200">
+                <!-- Barra de status -->
+                <span class="absolute left-0 top-3 bottom-3 w-1 rounded-full"
+                      [class.bg-rose-500]="fat.atrasado"
+                      [class.bg-blue-500]="!fat.atrasado"></span>
+
                 <!-- Left info -->
-                <div class="space-y-1">
-                  <h4 class="text-xs font-bold text-slate-200 tracking-tight">{{ formatFaturaNome(fat.nome) }}</h4>
-                  <div class="flex items-center gap-2 text-[10px] text-slate-400">
-                    <span>Vencimento: <strong class="font-mono text-slate-350">{{ fat.data_vencimento }}</strong></span>
-                    <span class="w-1 h-1 rounded-full bg-slate-600"></span>
+                <div class="space-y-2 pl-2 min-w-0">
+                  <h4 class="text-[13px] font-bold text-slate-100 tracking-tight truncate">{{ formatFaturaNome(fat.nome) }}</h4>
+                  <div class="flex items-center gap-2.5 flex-wrap">
                     @if (fat.atrasado) {
-                      <span class="text-rose-400 font-medium text-[9px] uppercase tracking-wider">Atrasada</span>
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 font-semibold text-[9px] uppercase tracking-wider">
+                        <span class="w-1 h-1 rounded-full bg-rose-400"></span>Atrasada
+                      </span>
                     } @else {
-                      <span class="text-blue-400 font-medium text-[9px] uppercase tracking-wider">A Vencer</span>
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 font-semibold text-[9px] uppercase tracking-wider">
+                        <span class="w-1 h-1 rounded-full bg-blue-400"></span>A Vencer
+                      </span>
                     }
+                    <span class="text-[10px] text-slate-500 font-medium">Venc. <strong class="font-mono text-slate-300 font-semibold">{{ fat.data_vencimento }}</strong></span>
                   </div>
                 </div>
 
                 <!-- Right actions/price -->
-                <div class="flex items-center gap-4 shrink-0">
-                  <div class="text-right">
-                    <span class="font-extrabold text-sm font-mono tracking-tight"
-                          [class.text-rose-450]="fat.atrasado"
-                          [class.text-blue-400]="!fat.atrasado">
-                      {{ fat.valorString }}
-                    </span>
-                  </div>
+                <div class="flex items-center gap-3.5 shrink-0">
+                  <span class="font-extrabold text-[15px] font-mono tracking-tight"
+                        [class.text-rose-300]="fat.atrasado"
+                        [class.text-blue-300]="!fat.atrasado">
+                    {{ fat.valorString }}
+                  </span>
 
                   <div class="flex items-center gap-1.5">
                     <!-- Baixar (Pago) -->
                     <button (click)="alterarStatusFatura(fat)"
                             title="Dar Baixa (Pago)"
-                            class="p-2 rounded-xl bg-emerald-500/5 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/10 transition cursor-pointer">
+                            class="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/15 transition-all active:scale-90 cursor-pointer">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
                       </svg>
                     </button>
                     <!-- Remover -->
                     <button (click)="removerFatura(fat)"
                             title="Remover Cobrança"
-                            class="p-2 rounded-xl bg-rose-500/5 hover:bg-rose-500 hover:text-white text-rose-400 border border-rose-500/10 transition cursor-pointer">
+                            class="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 border border-rose-500/15 transition-all active:scale-90 cursor-pointer">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                       </svg>
@@ -739,18 +745,21 @@
                 </div>
               </div>
             } @empty {
-              <div class="text-center py-10 space-y-2">
-                <svg class="w-10 h-10 text-slate-650 mx-auto opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <p class="text-slate-400 text-xs font-medium">Nenhuma pendência financeira encontrada.</p>
+              <div class="text-center py-12 space-y-3">
+                <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto">
+                  <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <p class="text-slate-300 text-xs font-semibold">Nenhuma pendência financeira</p>
+                <p class="text-slate-500 text-[11px]">Este apartamento está em dia com o condomínio.</p>
               </div>
             }
           </div>
 
           <!-- Resultado do Envio de Cobrança -->
           @if (cobrancaResultado()) {
-            <div class="p-4 rounded-2xl border text-xs text-left transition-all duration-300 animate-fadeIn"
+            <div class="p-4 rounded-2xl border text-xs text-left transition-all duration-300 animate-fade-in"
                  [ngClass]="cobrancaResultado().success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'">
               <div class="flex gap-3">
                 <div class="shrink-0 mt-0.5">
@@ -792,16 +801,16 @@
       </div>
 
       <!-- Footer -->
-      <div class="px-6 py-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-between gap-3">
-        <button (click)="modalDetalhe.set(false)" 
-                class="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+      <div class="px-6 py-4 border-t border-white/[0.07] bg-white/[0.02] flex items-center justify-between gap-3">
+        <button (click)="modalDetalhe.set(false)"
+                class="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all active:scale-95">
           Fechar
         </button>
-        
+
         <button
           (click)="enviarNotificacaoCobranca()"
           [disabled]="loadingDetalhe() || enviandoCobranca() || faturasSelected().length === 0"
-          class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-650 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-bold transition-all duration-300 shadow-lg shadow-rose-500/10 hover:shadow-rose-500/20 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2"
+          class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-bold transition-all duration-300 shadow-lg shadow-rose-500/20 hover:shadow-rose-500/30 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2"
         >
           @if (enviandoCobranca()) {
             <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
