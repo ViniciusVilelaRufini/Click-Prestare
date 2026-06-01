@@ -466,6 +466,41 @@ export class FinanceiroPageComponent implements OnInit {
     }
     this.api.updateStatus(item.id, novoStatus).subscribe(() => {
       this.carregarDados();
+      this.carregarInadimplencia();
+      const apto = this.selectedApto();
+      if (apto) {
+        this.abrirDetalhesApto(apto);
+      }
+    });
+  }
+
+  alterarStatusFatura(fat: any) {
+    this.api.getLancamento(fat.id).subscribe({
+      next: (lanc) => {
+        this.alternarPago(lanc);
+      },
+      error: (err) => {
+        alert(err?.error?.message ?? 'Falha ao buscar detalhes do lançamento.');
+      }
+    });
+  }
+
+  removerFatura(fat: any) {
+    if (!confirm(`Deseja realmente remover a cobrança "${fat.nome}" no valor de ${fat.valorString}? Esta ação não pode ser desfeita e será registrada na auditoria.`)) {
+      return;
+    }
+    this.api.remove(fat.id).subscribe({
+      next: () => {
+        this.carregarDados();
+        this.carregarInadimplencia();
+        const apto = this.selectedApto();
+        if (apto) {
+          this.abrirDetalhesApto(apto);
+        }
+      },
+      error: (err) => {
+        alert(err?.error?.message ?? 'Falha ao remover cobrança.');
+      }
     });
   }
 
@@ -532,6 +567,11 @@ export class FinanceiroPageComponent implements OnInit {
           this.modalConfirmarPagamento.set(false);
           this.lancamentoAConfirmar.set(null);
           this.carregarDados();
+          this.carregarInadimplencia();
+          const apto = this.selectedApto();
+          if (apto) {
+            this.abrirDetalhesApto(apto);
+          }
         },
         error: (err) => {
           this.confirmando.set(false);

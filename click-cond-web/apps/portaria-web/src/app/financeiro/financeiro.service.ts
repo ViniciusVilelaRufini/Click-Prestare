@@ -131,6 +131,16 @@ export class FinanceiroApi {
     const url = `${API_BASE}/financeiro/apartamento-recorrencia`;
     return this.http.post<any>(url, { id_condominio: this.cid, aptoId, ignorar });
   }
+
+  getLancamento(id: number): Observable<any> {
+    const url = `${API_BASE}/financeiro/get?id_condominio=${this.cid}&id=${id}`;
+    return this.http.get<any>(url);
+  }
+
+  remove(id: number): Observable<any> {
+    const url = `${API_BASE}/financeiro/remove`;
+    return this.http.post<any>(url, { id });
+  }
 }
 
 export interface Fechamento {
