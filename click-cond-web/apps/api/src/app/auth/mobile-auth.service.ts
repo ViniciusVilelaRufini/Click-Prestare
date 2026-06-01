@@ -572,8 +572,19 @@ export class MobileAuthService {
       const visitsCount = await this.prisma.visitantes.count({
         where: {
           id_apartamento: { in: aptoIds },
-          data_hora_inicio: { gte: hojeIni, lte: hojeFim },
           is_prestador: { not: 1 },
+          OR: [
+            {
+              data_entrada: { not: null },
+              data_saida: null,
+            },
+            {
+              data_entrada: { gte: hojeIni, lte: hojeFim },
+            },
+            {
+              data_hora_inicio: { gte: hojeIni, lte: hojeFim },
+            },
+          ],
         },
       });
 
