@@ -45,6 +45,12 @@ android {
         versionName flutterVersionName
     }
 
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     signingConfigs {
         release {
             keyAlias localProperties.getProperty('keyAlias')
