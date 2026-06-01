@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:http/http.dart' as http;
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
@@ -344,7 +345,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             ),
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xxxl),
+              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, 120),
               sliver: _isLoading
                   ? SliverList.separated(
                       itemCount: 6,
@@ -386,6 +387,7 @@ class _MyCondominiumState extends State<MyCondominium> {
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
+      extendBody: true,
       body: IndexedStack(
         index: _currentTab,
         children: tabs,
@@ -397,56 +399,69 @@ class _MyCondominiumState extends State<MyCondominium> {
   Widget _buildBottomNavigationBar(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.4 : 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-        border: Border(
-          top: BorderSide(
-            color: AppColors.border(context),
-            width: 1,
-          ),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.only(
+          left: 18,
+          right: 18,
+          bottom: 12,
+          top: 8,
         ),
-      ),
-      child: SafeArea(
-        top: false,
         child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildBottomNavItem(
-                index: 0,
-                icon: PhosphorIcons.house,
-                activeIcon: PhosphorIcons.houseFill,
-                label: 'Início',
-              ),
-              _buildBottomNavItem(
-                index: 1,
-                icon: PhosphorIcons.package,
-                activeIcon: PhosphorIcons.packageFill,
-                label: 'Encomendas',
-              ),
-              _buildBottomNavItem(
-                index: 2,
-                icon: PhosphorIcons.userList,
-                activeIcon: PhosphorIcons.userListFill,
-                label: 'Visitantes',
-              ),
-              _buildBottomNavItem(
-                index: 3,
-                icon: PhosphorIcons.wallet,
-                activeIcon: PhosphorIcons.walletFill,
-                label: 'Financeiro',
+          height: 68,
+          decoration: BoxDecoration(
+            color: AppColors.surface(context).withOpacity(isDark ? 0.82 : 0.90),
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+              width: 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildBottomNavItem(
+                      index: 0,
+                      icon: PhosphorIcons.house,
+                      activeIcon: PhosphorIcons.houseFill,
+                      label: 'Início',
+                    ),
+                    _buildBottomNavItem(
+                      index: 1,
+                      icon: PhosphorIcons.package,
+                      activeIcon: PhosphorIcons.packageFill,
+                      label: 'Encomendas',
+                    ),
+                    _buildBottomNavItem(
+                      index: 2,
+                      icon: PhosphorIcons.userList,
+                      activeIcon: PhosphorIcons.userListFill,
+                      label: 'Visitantes',
+                    ),
+                    _buildBottomNavItem(
+                      index: 3,
+                      icon: PhosphorIcons.wallet,
+                      activeIcon: PhosphorIcons.walletFill,
+                      label: 'Financeiro',
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),

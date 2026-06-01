@@ -857,7 +857,12 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
             Expanded(
               child: _isLoading
                   ? ListView.separated(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      padding: const EdgeInsets.only(
+                        left: AppSpacing.lg,
+                        right: AppSpacing.lg,
+                        top: AppSpacing.lg,
+                        bottom: 120,
+                      ),
                       itemCount: 8,
                       separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                       itemBuilder: (_, __) => AppSkeleton.listTile(context),
@@ -870,7 +875,12 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                           child: listInside.isEmpty
                               ? _EmptyState('Nenhum visitante no local no momento.', PhosphorIcons.houseLine)
                               : ListView.separated(
-                                  padding: const EdgeInsets.all(AppSpacing.lg),
+                                  padding: const EdgeInsets.only(
+                                    left: AppSpacing.lg,
+                                    right: AppSpacing.lg,
+                                    top: AppSpacing.lg,
+                                    bottom: 120,
+                                  ),
                                   itemCount: listInside.length,
                                   separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                                   itemBuilder: (_, i) => _VisitanteCard(
@@ -885,7 +895,12 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                           child: listCadastrados.isEmpty
                               ? _EmptyState('Nenhum visitante cadastrado.', PhosphorIcons.identificationCard)
                               : ListView.separated(
-                                  padding: const EdgeInsets.all(AppSpacing.lg),
+                                  padding: const EdgeInsets.only(
+                                    left: AppSpacing.lg,
+                                    right: AppSpacing.lg,
+                                    top: AppSpacing.lg,
+                                    bottom: 120,
+                                  ),
                                   itemCount: listCadastrados.length,
                                   separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                                   itemBuilder: (_, i) => _VisitanteCard(

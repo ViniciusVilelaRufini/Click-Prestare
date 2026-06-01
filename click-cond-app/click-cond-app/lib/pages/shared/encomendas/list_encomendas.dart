@@ -63,7 +63,12 @@ class _ListEncomendasState extends State<ListEncomendas> {
       ),
       body: _isLoading
           ? ListView.separated(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.only(
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
+                top: AppSpacing.lg,
+                bottom: 120,
+              ),
               itemCount: 6,
               separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
               itemBuilder: (_, __) => AppSkeleton.listTile(context),
@@ -73,7 +78,12 @@ class _ListEncomendasState extends State<ListEncomendas> {
               child: _encomendas.isEmpty
                   ? _buildEmptyState()
                   : ListView.builder(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      padding: const EdgeInsets.only(
+                        left: AppSpacing.lg,
+                        right: AppSpacing.lg,
+                        top: AppSpacing.lg,
+                        bottom: 120,
+                      ),
                       itemCount: _encomendas.length,
                       itemBuilder: (context, index) {
                         return _EncomendaCard(encomenda: _encomendas[index]);
