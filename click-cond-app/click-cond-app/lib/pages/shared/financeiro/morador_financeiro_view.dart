@@ -43,6 +43,11 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     _loadData();
   }
 
+  bool _isFaturaDeApto(String name) {
+    final clean = name.toLowerCase().trim();
+    return clean.startsWith('apto ') && clean.contains('bloco');
+  }
+
   _loadData() async {
     try {
       setState(() => _isLoading = true);
@@ -56,8 +61,11 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           lancamentos.forEach((k, v) {
             if (v is List) {
               for (var item in v) {
-                if (item is Map && item['tipo'] == 'D' && item['id_apto'] == null) {
-                  condoItems.add(item);
+                if (item is Map) {
+                  final nome = (item['nome'] ?? '').toString();
+                  if (!_isFaturaDeApto(nome)) {
+                    condoItems.add(item);
+                  }
                 }
               }
             }
