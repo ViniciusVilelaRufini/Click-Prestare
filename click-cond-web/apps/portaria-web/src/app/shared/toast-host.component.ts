@@ -9,7 +9,7 @@ import { ToastService } from './toast.service';
   template: `
     <div class="fixed top-6 right-6 z-[10000] flex flex-col gap-3 w-full max-w-md pointer-events-none">
       @for (t of svc.toasts(); track t.id) {
-        <div class="pointer-events-auto flex items-start gap-3 p-4 rounded-xl border bg-graphite/90 backdrop-blur-md border-white/10 shadow-2xl animate-slide-in"
+        <div class="pointer-events-auto flex items-start gap-3 p-4 rounded-xl border bg-slate-900/95 backdrop-blur-md border-white/10 shadow-2xl animate-slide-in"
              [class.border-emerald-500\/30]="t.type === 'success'"
              [class.border-rose-500\/30]="t.type === 'error'"
              [class.border-amber-500\/30]="t.type === 'warning'"
@@ -60,13 +60,13 @@ import { ToastService } from './toast.service';
 
           <!-- Message -->
           <div class="flex-1 min-w-0 pt-0.5">
-            <p class="text-sm font-medium text-white">{{ t.message }}</p>
+            <p class="text-sm font-medium toast-text-white">{{ t.message }}</p>
           </div>
 
           <!-- Close Button -->
           <button type="button" 
                   (click)="svc.remove(t.id)"
-                  class="text-slate-400 hover:text-white rounded-lg p-1 hover:bg-white/5 transition pointer-events-auto">
+                  class="toast-close-btn rounded-lg p-1 transition pointer-events-auto">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -88,6 +88,17 @@ import { ToastService } from './toast.service';
     }
     .animate-slide-in {
       animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    /* Garantir contraste do Toast em Light/Dark mode */
+    .toast-text-white {
+      color: #ffffff !important;
+    }
+    .toast-close-btn {
+      color: #94a3b8 !important;
+    }
+    .toast-close-btn:hover {
+      color: #ffffff !important;
+      background-color: rgba(255, 255, 255, 0.1) !important;
     }
   `]
 })
