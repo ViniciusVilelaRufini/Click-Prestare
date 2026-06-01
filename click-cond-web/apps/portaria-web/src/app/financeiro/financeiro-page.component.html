@@ -1183,6 +1183,46 @@
             </div>
           </div>
 
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" [class.opacity-50]="!configAutoData.recorrencia_ativa">
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Mês de Início</label>
+              <select
+                [disabled]="!configAutoData.recorrencia_ativa"
+                [(ngModel)]="configAutoData.mes_inicio_recorrencia"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+              >
+                <option [value]="null">Qualquer Mês (Imediato)</option>
+                <option [value]="1">Janeiro</option>
+                <option [value]="2">Fevereiro</option>
+                <option [value]="3">Março</option>
+                <option [value]="4">Abril</option>
+                <option [value]="5">Maio</option>
+                <option [value]="6">Junho</option>
+                <option [value]="7">Julho</option>
+                <option [value]="8">Agosto</option>
+                <option [value]="9">Setembro</option>
+                <option [value]="10">Outubro</option>
+                <option [value]="11">Novembro</option>
+                <option [value]="12">Dezembro</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Ano de Início</label>
+              <select
+                [disabled]="!configAutoData.recorrencia_ativa"
+                [(ngModel)]="configAutoData.ano_inicio_recorrencia"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+              >
+                <option [value]="null">Qualquer Ano (Imediato)</option>
+                <option [value]="2026">2026</option>
+                <option [value]="2027">2027</option>
+                <option [value]="2028">2028</option>
+                <option [value]="2029">2029</option>
+                <option [value]="2030">2030</option>
+              </select>
+            </div>
+          </div>
+
           <div [class.opacity-50]="!configAutoData.recorrencia_ativa">
             <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Categoria Padrão</label>
             <input
@@ -1192,6 +1232,35 @@
               placeholder="Ex: Taxa Condominial"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
             />
+          </div>
+
+          <!-- Seleção de Apartamentos Excluídos -->
+          <div [class.opacity-50]="!configAutoData.recorrencia_ativa" class="space-y-2">
+            <label class="block text-[11px] font-medium text-slate-400">Excluir Apartamentos da Geração Automática</label>
+            <div class="p-3.5 rounded-xl bg-slate-900/60 border border-white/10 space-y-2">
+              <div class="text-[10px] text-slate-500 mb-1">Selecione as unidades que NÃO devem receber faturamento automático:</div>
+              <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1">
+                @for (apto of apartamentosConfig(); track apto.id) {
+                  <button
+                    type="button"
+                    [disabled]="!configAutoData.recorrencia_ativa"
+                    (click)="toggleApartamentoRecorrencia(apto)"
+                    [class.bg-rose-500/10]="apto.ignorar_recorrencia"
+                    [class.border-rose-500/35]="apto.ignorar_recorrencia"
+                    [class.text-rose-400]="apto.ignorar_recorrencia"
+                    [class.bg-white/5]="!apto.ignorar_recorrencia"
+                    [class.border-white/10]="!apto.ignorar_recorrencia"
+                    [class.text-slate-350]="!apto.ignorar_recorrencia"
+                    class="px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    <span>Apto {{ apto.apto }}{{ apto.bloco ? ' Bloco ' + apto.bloco : '' }}</span>
+                    @if (apto.ignorar_recorrencia) {
+                      <span class="text-[9px] font-bold px-1 rounded bg-rose-500/20 text-rose-500 uppercase">Excluído</span>
+                    }
+                  </button>
+                }
+              </div>
+            </div>
           </div>
         </div>
 

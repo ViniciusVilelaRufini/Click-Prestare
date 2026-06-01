@@ -155,6 +155,8 @@ model Condominios {
   dia_geracao           Int                       @default(1)
   dia_vencimento        Int                       @default(10)
   categoria_padrao      String                    @default("Taxa Condominial") @db.VarChar(100)
+  mes_inicio_recorrencia Int?
+  ano_inicio_recorrencia Int?
 
   // Régua de Cobrança Automática
   cobranca_auto_whats   Boolean                   @default(false)
@@ -171,6 +173,7 @@ model Apartamentos {
   apto          String?                      @db.VarChar(50)
   fracao        String?                      @db.VarChar(50)
   id_condominio Int
+  ignorar_recorrencia Boolean                @default(false)
   created_at    DateTime                     @default(now()) @db.DateTime(0)
   updated_at    DateTime                     @default(now()) @updatedAt @db.DateTime(0)
   condominio    Condominios                  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_apto_cond")

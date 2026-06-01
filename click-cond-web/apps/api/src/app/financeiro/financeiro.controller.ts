@@ -141,6 +141,20 @@ export class FinanceiroController {
     return this.service.updateConfigAuto(Number(body.id_condominio), body.config, operatorName, payload);
   }
 
+  @Get('apartamentos-config')
+  getApartamentosConfig(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getApartamentosConfig(Number(idCondominio), payload);
+  }
+
+  @Post('apartamento-recorrencia')
+  @HttpCode(200)
+  updateApartamentoRecorrencia(
+    @Body() body: { id_condominio: string | number; aptoId: string | number; ignorar: boolean },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.updateApartamentoRecorrencia(Number(body.id_condominio), Number(body.aptoId), body.ignorar, payload);
+  }
+
   @Get('get-by-user')
   getByUser(@Query('id_user') idUser: string, @Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
     const typeAccess = payload?.typeAccess ?? payload?.user?.typeAccess;

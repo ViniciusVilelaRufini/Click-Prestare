@@ -121,6 +121,16 @@ export class FinanceiroApi {
     const url = `${API_BASE}/financeiro/config-auto`;
     return this.http.post<any>(url, { id_condominio: this.cid, config });
   }
+
+  getApartamentosConfig(): Observable<any> {
+    const url = `${API_BASE}/financeiro/apartamentos-config?id_condominio=${this.cid}`;
+    return this.http.get<any>(url);
+  }
+
+  updateApartamentoRecorrencia(aptoId: number, ignorar: boolean): Observable<any> {
+    const url = `${API_BASE}/financeiro/apartamento-recorrencia`;
+    return this.http.post<any>(url, { id_condominio: this.cid, aptoId, ignorar });
+  }
 }
 
 export interface Fechamento {

@@ -2414,6 +2414,8 @@ export class FinanceiroService implements OnModuleInit {
         dias_atraso_aviso_1: true,
         dias_atraso_aviso_2: true,
         dias_atraso_aviso_3: true,
+        mes_inicio_recorrencia: true,
+        ano_inicio_recorrencia: true,
       },
     });
 
@@ -2438,6 +2440,8 @@ export class FinanceiroService implements OnModuleInit {
         dias_atraso_aviso_1: config.dias_atraso_aviso_1 !== undefined ? Number(config.dias_atraso_aviso_1) : undefined,
         dias_atraso_aviso_2: config.dias_atraso_aviso_2 !== undefined ? Number(config.dias_atraso_aviso_2) : undefined,
         dias_atraso_aviso_3: config.dias_atraso_aviso_3 !== undefined ? Number(config.dias_atraso_aviso_3) : undefined,
+        mes_inicio_recorrencia: config.mes_inicio_recorrencia !== undefined ? (config.mes_inicio_recorrencia ? Number(config.mes_inicio_recorrencia) : null) : undefined,
+        ano_inicio_recorrencia: config.ano_inicio_recorrencia !== undefined ? (config.ano_inicio_recorrencia ? Number(config.ano_inicio_recorrencia) : null) : undefined,
       },
     });
 
@@ -2452,6 +2456,52 @@ export class FinanceiroService implements OnModuleInit {
     });
 
     return { success: true, config: updated };
+  }
+
+  async getApartamentosConfig(idCondominio: number, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
+    if (!this.prisma.isConnected) return [];
+
+    const aptos = await this.prisma.apartamentos.findMany({
+      where: { id_condominio: Number(idCondominio) },
+      select: {
+        id: true,
+        apto: true,
+        bloco: true,
+        ignorar_recorrencia: true,
+      },
+      orderBy: [{ bloco: 'asc' }, { apto: 'asc' }],
+    });
+
+    return aptos;
+  }
+
+  async updateApartamentoRecorrencia(idCondominio: number, aptoId: number, ignorar: boolean, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
+    if (!this.prisma.isConnected) return { success: false };
+
+    // Certifica que o apartamento pertence ao condomínio
+    const apto = await this.prisma.apartamentos.findFirst({
+      where: {
+        id: Number(aptoId),
+        id_condominio: Number(idCondominio),
+      },
+    });
+
+    if (!apto) {
+      throw new NotFoundException('Apartamento não encontrado neste condomínio');
+    }
+
+    await this.prisma.apartamentos.update({
+      where: { id: Number(aptoId) },
+      data: { ignorar_recorrencia: ignorar },
+    });
+
+    return { success: true };
   }
 
   async runRecurringBillingJob() {
@@ -2474,12 +2524,26 @@ export class FinanceiroService implements OnModuleInit {
         dia_geracao: true,
         dia_vencimento: true,
         categoria_padrao: true,
+        mes_inicio_recorrencia: true,
+        ano_inicio_recorrencia: true,
       },
     });
 
     for (const cond of condominios) {
       if (cond.dia_geracao !== diaAtual) {
         continue;
+      }
+
+      // Valida se já chegou no mês/ano de início da recorrência (se configurado)
+      if (cond.ano_inicio_recorrencia !== null && cond.ano_inicio_recorrencia !== undefined) {
+        if (anoAtual < cond.ano_inicio_recorrencia) {
+          continue;
+        }
+        if (anoAtual === cond.ano_inicio_recorrencia && cond.mes_inicio_recorrencia !== null && cond.mes_inicio_recorrencia !== undefined) {
+          if (mesAtual < cond.mes_inicio_recorrencia) {
+            continue;
+          }
+        }
       }
 
       // Calcula data de vencimento da fatura
@@ -2494,9 +2558,12 @@ export class FinanceiroService implements OnModuleInit {
       }
       const dataVencimento = new Date(vencYear, vencMonth - 1, cond.dia_vencimento, 12, 0, 0, 0);
 
-      // Busca todos os apartamentos do condomínio
+      // Busca todos os apartamentos do condomínio que NÃO ignoram a recorrência
       const aptos = await this.prisma.apartamentos.findMany({
-        where: { id_condominio: cond.id },
+        where: { 
+          id_condominio: cond.id,
+          ignorar_recorrencia: false,
+        },
       });
 
       this.logger.log(`Gerando faturas recorrentes para o condomínio ${cond.nome} (${aptos.length} apartamentos)...`);

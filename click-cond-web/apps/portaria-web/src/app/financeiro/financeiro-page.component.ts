@@ -212,12 +212,16 @@ export class FinanceiroPageComponent implements OnInit {
   readonly modalConfigAuto = signal(false);
   readonly savingConfigAuto = signal(false);
   readonly configAutoErro = signal<string | null>(null);
-  configAutoData = {
+  readonly apartamentosConfig = signal<any[]>([]);
+
+  configAutoData: any = {
     recorrencia_ativa: false,
     valor_condominio: 0,
     dia_geracao: 1,
     dia_vencimento: 10,
     categoria_padrao: 'Taxa Condominial',
+    mes_inicio_recorrencia: null,
+    ano_inicio_recorrencia: null,
     cobranca_auto_whats: false,
     dias_atraso_aviso_1: 1,
     dias_atraso_aviso_2: 5,
@@ -226,6 +230,17 @@ export class FinanceiroPageComponent implements OnInit {
 
   abrirModalConfigAuto() {
     this.configAutoErro.set(null);
+
+    // Buscar apartamentos config
+    this.api.getApartamentosConfig().subscribe({
+      next: (aptos) => {
+        this.apartamentosConfig.set(aptos || []);
+      },
+      error: () => {
+        this.apartamentosConfig.set([]);
+      }
+    });
+
     this.api.getConfigAuto().subscribe({
       next: (res) => {
         if (res) {
@@ -235,6 +250,8 @@ export class FinanceiroPageComponent implements OnInit {
             dia_geracao: res.dia_geracao ?? 1,
             dia_vencimento: res.dia_vencimento ?? 10,
             categoria_padrao: res.categoria_padrao ?? 'Taxa Condominial',
+            mes_inicio_recorrencia: res.mes_inicio_recorrencia ?? null,
+            ano_inicio_recorrencia: res.ano_inicio_recorrencia ?? null,
             cobranca_auto_whats: res.cobranca_auto_whats ?? false,
             dias_atraso_aviso_1: res.dias_atraso_aviso_1 ?? 1,
             dias_atraso_aviso_2: res.dias_atraso_aviso_2 ?? 5,
@@ -250,10 +267,36 @@ export class FinanceiroPageComponent implements OnInit {
     });
   }
 
+  toggleApartamentoRecorrencia(apto: any) {
+    const novoStatus = !apto.ignorar_recorrencia;
+    this.api.updateApartamentoRecorrencia(apto.id, novoStatus).subscribe({
+      next: () => {
+        const list = this.apartamentosConfig().map(a => {
+          if (a.id === apto.id) {
+            return { ...a, ignorar_recorrencia: novoStatus };
+          }
+          return a;
+        });
+        this.apartamentosConfig.set(list);
+      },
+      error: (err) => {
+        alert(err?.error?.message ?? 'Falha ao alterar configuração do apartamento.');
+      }
+    });
+  }
+
   salvarConfigAuto() {
     this.savingConfigAuto.set(true);
     this.configAutoErro.set(null);
-    this.api.updateConfigAuto(this.configAutoData).subscribe({
+
+    // Ajustar campos opcionais caso venham como strings vazias ou nulas do select
+    const payload = {
+      ...this.configAutoData,
+      mes_inicio_recorrencia: this.configAutoData.mes_inicio_recorrencia ? Number(this.configAutoData.mes_inicio_recorrencia) : null,
+      ano_inicio_recorrencia: this.configAutoData.ano_inicio_recorrencia ? Number(this.configAutoData.ano_inicio_recorrencia) : null,
+    };
+
+    this.api.updateConfigAuto(payload).subscribe({
       next: () => {
         this.savingConfigAuto.set(false);
         this.modalConfigAuto.set(false);
