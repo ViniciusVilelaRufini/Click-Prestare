@@ -1,13 +1,43 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { StorageService } from '../common/storage/storage.service';
+
+const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
 
 @Injectable()
 export class AreasSociaisService {
+  private readonly logger = new Logger(AreasSociaisService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Resolve a imagem recebida do front em uma URL curta que caiba no
+   * `varchar(500)` da coluna. Se vier um data URL (upload de arquivo),
+   * sobe para o storage (R2) e usa a URL pública retornada. Se o upload
+   * falhar ou o storage estiver desativado (e portanto devolver o próprio
+   * data URL gigante), caímos na imagem padrão para nunca estourar a coluna.
+   */
+  private async resolveImagem(imagem: unknown): Promise<string> {
+    const valor = typeof imagem === 'string' ? imagem : '';
+
+    if (this.storage.isDataUrl(valor)) {
+      const uploaded = await this.storage.uploadDataUrl(valor, 'areas-sociais');
+      if (uploaded && !this.storage.isDataUrl(uploaded) && uploaded.length <= 500) {
+        return uploaded;
+      }
+      this.logger.warn('Upload da imagem da área falhou ou storage desativado; usando imagem padrão.');
+      return DEFAULT_AREA_IMAGE;
+    }
+
+    // URL comum digitada manualmente — respeita o limite da coluna.
+    if (valor.length > 500) return DEFAULT_AREA_IMAGE;
+    return valor;
+  }
 
   // ==========================================
   // GESTÃO DE ÁREAS SOCIAIS
@@ -17,11 +47,8 @@ export class AreasSociaisService {
       return { success: true };
     }
 
-    // Se a imagem for um base64 longo, evitamos estourar o varchar(500)
-    let imagemUrl = areaSocial.imagem ?? '';
-    if (imagemUrl.startsWith('data:image')) {
-      imagemUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
-    }
+    // Upload do arquivo de imagem (data URL) ou validação da URL informada.
+    const imagemUrl = await this.resolveImagem(areaSocial.imagem);
 
     const horariosStr = typeof areaSocial.horarios === 'string'
       ? areaSocial.horarios
@@ -48,10 +75,7 @@ export class AreasSociaisService {
       return { success: true };
     }
 
-    let imagemUrl = areaSocial.imagem ?? '';
-    if (imagemUrl.startsWith('data:image')) {
-      imagemUrl = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
-    }
+    const imagemUrl = await this.resolveImagem(areaSocial.imagem);
 
     const horariosStr = typeof areaSocial.horarios === 'string'
       ? areaSocial.horarios

@@ -23,6 +23,13 @@ export class AreasSociaisPageComponent implements OnInit {
   readonly modalAberto = signal(false);
   novaArea: any = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true };
 
+  // Upload da foto do espaço
+  readonly fotoPreview = signal<string | null>(null);
+  readonly fotoNome = signal<string | null>(null);
+  readonly fotoErro = signal<string | null>(null);
+  readonly modoUrl = signal(false); // alterna entre upload de arquivo e colar URL
+  readonly salvando = signal(false);
+
   readonly pendentesCount = computed(() =>
     this.agendamentos().filter(a => a.status === 'pendente').length
   );
@@ -70,6 +77,11 @@ export class AreasSociaisPageComponent implements OnInit {
 
   abrirModalArea() {
     this.novaArea = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true };
+    this.fotoPreview.set(null);
+    this.fotoNome.set(null);
+    this.fotoErro.set(null);
+    this.modoUrl.set(false);
+    this.salvando.set(false);
     this.modalAberto.set(true);
   }
 
@@ -77,7 +89,53 @@ export class AreasSociaisPageComponent implements OnInit {
     this.modalAberto.set(false);
   }
 
+  /** Lê o arquivo escolhido, valida e gera o preview/base64 enviado ao backend. */
+  onFotoSelecionada(event: Event) {
+    this.fotoErro.set(null);
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      this.fotoErro.set('Selecione um arquivo de imagem (JPG, PNG, WEBP...).');
+      input.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      this.fotoErro.set('Imagem maior que 5MB. Comprima e tente novamente.');
+      input.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => this.fotoErro.set('Falha ao ler o arquivo.');
+    reader.onload = () => {
+      const dataUrl = String(reader.result ?? '');
+      this.novaArea.imagem = dataUrl; // backend faz o upload e troca pela URL final
+      this.fotoPreview.set(dataUrl);
+      this.fotoNome.set(file.name);
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
+
+  removerFoto() {
+    this.novaArea.imagem = '';
+    this.fotoPreview.set(null);
+    this.fotoNome.set(null);
+    this.fotoErro.set(null);
+  }
+
+  alternarModoImagem() {
+    this.modoUrl.update(v => !v);
+    // ao trocar de modo, limpa o que estava preenchido para evitar confusão
+    this.removerFoto();
+  }
+
   salvarArea() {
+    if (this.salvando()) return;
+    this.salvando.set(true);
+
     const payload = {
       nome: this.novaArea.nome,
       capacidade: this.novaArea.capacidade,
@@ -89,9 +147,16 @@ export class AreasSociaisPageComponent implements OnInit {
       }))
     };
 
-    this.api.insertArea(payload).subscribe(() => {
-      this.fecharModal();
-      this.carregarDados();
+    this.api.insertArea(payload).subscribe({
+      next: () => {
+        this.salvando.set(false);
+        this.fecharModal();
+        this.carregarDados();
+      },
+      error: (e) => {
+        this.salvando.set(false);
+        this.fotoErro.set(`Falha ao cadastrar: ${e?.error?.message ?? e?.message ?? 'erro'}`);
+      },
     });
   }
 }
