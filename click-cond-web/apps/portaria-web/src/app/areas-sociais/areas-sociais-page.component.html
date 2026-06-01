@@ -479,6 +479,23 @@
           <!-- Data -->
           <div>
             <label class="block text-xs font-medium text-slate-400 mb-1.5">Data da reserva</label>
+            <!-- Atalhos de data -->
+            <div class="flex flex-wrap gap-2 mb-2">
+              <button type="button" (click)="definirDataRelativa(0)"
+                      [class.bg-accent]="dataRelativaAtiva(0)" [class.text-slate-950]="dataRelativaAtiva(0)"
+                      [class.bg-white/5]="!dataRelativaAtiva(0)" [class.text-slate-300]="!dataRelativaAtiva(0)"
+                      class="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:bg-white/10">Hoje</button>
+              <button type="button" (click)="definirDataRelativa(1)"
+                      [class.bg-accent]="dataRelativaAtiva(1)" [class.text-slate-950]="dataRelativaAtiva(1)"
+                      [class.bg-white/5]="!dataRelativaAtiva(1)" [class.text-slate-300]="!dataRelativaAtiva(1)"
+                      class="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:bg-white/10">Amanhã</button>
+              <button type="button" (click)="definirDataRelativa(2)"
+                      [class.bg-accent]="dataRelativaAtiva(2)" [class.text-slate-950]="dataRelativaAtiva(2)"
+                      [class.bg-white/5]="!dataRelativaAtiva(2)" [class.text-slate-300]="!dataRelativaAtiva(2)"
+                      class="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:bg-white/10">Depois de amanhã</button>
+              <button type="button" (click)="definirProximoSabado()"
+                      class="px-3 py-1.5 rounded-lg text-xs font-semibold transition bg-white/5 text-slate-300 hover:bg-white/10">Próx. sábado</button>
+            </div>
             <input
               [(ngModel)]="novaReserva.data"
               type="date"
@@ -488,25 +505,52 @@
           </div>
 
           <!-- Horários -->
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Início</label>
-              <input
-                [(ngModel)]="novaReserva.horaDe"
-                type="time"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
-                       focus:outline-none focus:border-accent transition [color-scheme:dark]"
-              />
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Horário</label>
+            <!-- Períodos prontos -->
+            <div class="flex flex-wrap gap-2 mb-2">
+              @for (p of periodosPreset; track p.label) {
+                <button type="button" (click)="definirPeriodo(p.de, p.ate)"
+                        [class.bg-accent]="periodoAtivo(p.de, p.ate)" [class.text-slate-950]="periodoAtivo(p.de, p.ate)"
+                        [class.bg-white/5]="!periodoAtivo(p.de, p.ate)" [class.text-slate-300]="!periodoAtivo(p.de, p.ate)"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:bg-white/10 flex flex-col items-start leading-tight">
+                  <span>{{ p.label }}</span>
+                  <span class="text-[9px] font-normal opacity-70">{{ p.de }}–{{ p.ate }}</span>
+                </button>
+              }
             </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Término</label>
-              <input
-                [(ngModel)]="novaReserva.horaAte"
-                type="time"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
-                       focus:outline-none focus:border-accent transition [color-scheme:dark]"
-              />
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <span class="block text-[10px] text-slate-500 mb-1">Início</span>
+                <input
+                  [(ngModel)]="novaReserva.horaDe"
+                  type="time"
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                         focus:outline-none focus:border-accent transition [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <span class="block text-[10px] text-slate-500 mb-1">Término</span>
+                <input
+                  [(ngModel)]="novaReserva.horaAte"
+                  type="time"
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                         focus:outline-none focus:border-accent transition [color-scheme:dark]"
+                />
+              </div>
             </div>
+
+            <!-- Durações rápidas a partir do início -->
+            @if (novaReserva.horaDe) {
+              <div class="flex flex-wrap items-center gap-2 mt-2">
+                <span class="text-[10px] text-slate-500">Duração:</span>
+                <button type="button" (click)="definirDuracao(1)" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/5 text-slate-300 hover:bg-white/10 transition">1h</button>
+                <button type="button" (click)="definirDuracao(2)" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/5 text-slate-300 hover:bg-white/10 transition">2h</button>
+                <button type="button" (click)="definirDuracao(3)" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/5 text-slate-300 hover:bg-white/10 transition">3h</button>
+                <button type="button" (click)="definirDuracao(4)" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/5 text-slate-300 hover:bg-white/10 transition">4h</button>
+              </div>
+            }
           </div>
 
           @if (novaReserva.horaDe && novaReserva.horaAte && !reservaValida() && novaReserva.id_apartamento && novaReserva.data) {

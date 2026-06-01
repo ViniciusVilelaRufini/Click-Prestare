@@ -221,6 +221,64 @@ export class AreasSociaisPageComponent implements OnInit {
     this.novaReserva.id_apartamento = id;
   }
 
+  // ---- Predefinições de data ----
+  /** Atalhos de data: 0 = hoje, 1 = amanhã, ou próximo sábado. */
+  private toInputDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dia}`;
+  }
+
+  definirDataRelativa(diasAdiante: number) {
+    const d = new Date();
+    d.setDate(d.getDate() + diasAdiante);
+    this.novaReserva.data = this.toInputDate(d);
+  }
+
+  /** Próximo sábado (se hoje for sábado, pega o da semana seguinte). */
+  definirProximoSabado() {
+    const d = new Date();
+    const diff = (6 - d.getDay() + 7) % 7 || 7;
+    d.setDate(d.getDate() + diff);
+    this.novaReserva.data = this.toInputDate(d);
+  }
+
+  /** Marca o chip de data relativa ativo (compara com hoje/amanhã/etc). */
+  dataRelativaAtiva(diasAdiante: number): boolean {
+    const d = new Date();
+    d.setDate(d.getDate() + diasAdiante);
+    return this.novaReserva.data === this.toInputDate(d);
+  }
+
+  // ---- Predefinições de horário ----
+  /** Períodos prontos mais usados para reserva de espaços. */
+  readonly periodosPreset: { label: string; de: string; ate: string }[] = [
+    { label: 'Manhã', de: '08:00', ate: '12:00' },
+    { label: 'Tarde', de: '14:00', ate: '18:00' },
+    { label: 'Noite', de: '18:00', ate: '22:00' },
+    { label: 'Dia todo', de: '08:00', ate: '22:00' },
+  ];
+
+  definirPeriodo(de: string, ate: string) {
+    this.novaReserva.horaDe = de;
+    this.novaReserva.horaAte = ate;
+  }
+
+  periodoAtivo(de: string, ate: string): boolean {
+    return this.novaReserva.horaDe === de && this.novaReserva.horaAte === ate;
+  }
+
+  /** A partir do início escolhido, define o término somando X horas. */
+  definirDuracao(horas: number) {
+    const inicio = this.novaReserva.horaDe || '08:00';
+    this.novaReserva.horaDe = inicio;
+    const fim = Math.min(this.minutos(inicio) + horas * 60, 23 * 60 + 59);
+    const h = String(Math.floor(fim / 60)).padStart(2, '0');
+    const m = String(fim % 60).padStart(2, '0');
+    this.novaReserva.horaAte = `${h}:${m}`;
+  }
+
   /** Valida o formulário de reserva antes de habilitar o envio. */
   reservaValida(): boolean {
     const r = this.novaReserva;
