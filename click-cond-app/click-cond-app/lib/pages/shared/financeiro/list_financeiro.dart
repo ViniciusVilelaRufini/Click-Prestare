@@ -783,9 +783,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
               _buildStatusBadge(item['status'], item['pago']),
               Row(
                 children: [
-                  if (!isPago && !isVerifying &&
-                      (item['pix_copia_cola'] == null || item['pix_copia_cola'].toString().trim().isEmpty) &&
-                      (item['linha_digitavel'] == null || item['linha_digitavel'].toString().trim().isEmpty))
+                  if (!isPago && !isVerifying)
                     ElevatedButton.icon(
                       onPressed: () => _uploadComprovante(item['id']),
                       icon: const Icon(PhosphorIcons.uploadSimple, size: 16),

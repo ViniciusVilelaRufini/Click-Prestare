@@ -314,9 +314,12 @@ export class FinanceiroService implements OnModuleInit {
     const parcelasStr = financeiro.parcelas == null
       ? null
       : String(financeiro.parcelas);
-    const statusStr = financeiro.status == null
+    let statusStr = financeiro.status == null
       ? '0'
       : String(financeiro.status);
+    if (isPago === 1) {
+      statusStr = '1';
+    }
 
     let criado;
     try {
@@ -489,6 +492,15 @@ export class FinanceiroService implements OnModuleInit {
       where: { id: Number(financeiro.id) },
     });
 
+    let finalStatus = antes?.status ?? '0';
+    if (isPago === 1) {
+      finalStatus = '1';
+    } else if (financeiro.status !== undefined && financeiro.status !== null) {
+      finalStatus = String(financeiro.status);
+    } else if (antes?.pago === 1 && isPago === 0) {
+      finalStatus = '0';
+    }
+
     // Mesma normalizacao do insert: parcelas eh varchar no schema.
     const parcelasStr = financeiro.parcelas == null
       ? null
@@ -515,7 +527,7 @@ export class FinanceiroService implements OnModuleInit {
           parcelas: parcelasStr,
           nome_operador: operatorName,
           ...(photoUrl !== undefined ? { photo: photoUrl } : {}),
-          ...(financeiro.status !== undefined ? { status: String(financeiro.status) } : {}),
+          status: finalStatus,
           ...(financeiro.linha_digitavel !== undefined ? { linha_digitavel: financeiro.linha_digitavel } : {}),
           ...(financeiro.pix_copia_cola !== undefined ? { pix_copia_cola: financeiro.pix_copia_cola } : {}),
           id_usuario: idUsuario,
@@ -673,7 +685,9 @@ export class FinanceiroService implements OnModuleInit {
       forma_pagamento: result.forma_pagamento,
       parcelas: result.parcelas,
       photo: result.photo,
+      url_comprovante: result.photo,
       pago: result.pago,
+      status: result.status,
       linha_digitavel: result.linha_digitavel,
       pix_copia_cola: result.pix_copia_cola,
     };
@@ -915,6 +929,8 @@ export class FinanceiroService implements OnModuleInit {
         linha_digitavel: fin?.linha_digitavel ?? '',
         pix_copia_cola: fin?.pix_copia_cola ?? '',
         url_boleto: fin?.url_boleto ?? '',
+        status: fin?.status ?? '0',
+        url_comprovante: fin?.photo ?? '',
         mes: mesStr,
         ano: anoStr,
       };
@@ -1030,6 +1046,8 @@ export class FinanceiroService implements OnModuleInit {
           data_vencimento: '10/03/2026',
           pago: 0,
           pix_copia_cola: '',
+          status: '0',
+          url_comprovante: '',
         },
         {
           mes: '04',
@@ -1041,6 +1059,8 @@ export class FinanceiroService implements OnModuleInit {
           data_vencimento: '10/04/2026',
           pago: 0,
           pix_copia_cola: '',
+          status: '0',
+          url_comprovante: '',
         }
       ];
     }
@@ -1087,6 +1107,8 @@ export class FinanceiroService implements OnModuleInit {
         pago: 0,
         atrasado,
         pix_copia_cola: f.pix_copia_cola ?? '',
+        status: f.status,
+        url_comprovante: f.photo ?? '',
       };
     });
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -46,6 +47,7 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
   static const _categories = ["Condomínio", "Aluguel", "Água", "Luz", "Internet", "Outros"];
   String _selectedCategoria = _categories[0];
   String? _urlBoleto;
+  String? _urlComprovante;
   var list = [];
   var listBlocos = [];
   bool _isPago = false;
@@ -97,6 +99,7 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
       txtPixCopiaCola.text = widget.apto['pix_copia_cola'] ?? '';
       _selectedCategoria = _sanitizeCategory(widget.apto['categoria']);
       _urlBoleto = widget.apto['url_boleto'];
+      _urlComprovante = widget.apto['url_comprovante'] ?? widget.apto['photo'];
     } else if (widget.id != null) {
       load();
     }
@@ -179,6 +182,7 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
       txtPixCopiaCola.text = obj['pix_copia_cola']?.toString() ?? '';
       _selectedCategoria = _sanitizeCategory(obj['categoria']);
       _urlBoleto = obj['url_boleto'];
+      _urlComprovante = obj['url_comprovante'] ?? obj['photo'];
       id = obj['id'];
       if (mounted) setState(() {});
     } catch (e) {
@@ -414,6 +418,16 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
                     },
                     icon: PhosphorIcons.filePdf,
                   ),
+                  if (_urlComprovante != null && _urlComprovante!.toString().trim().isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _section("Comprovante Anexado"),
+                    AppButton(
+                      label: "Visualizar Comprovante",
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () => launchUrl(Uri.parse(_urlComprovante!), mode: LaunchMode.externalApplication),
+                      icon: PhosphorIcons.eye,
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   _section("Pix Copia e Cola"),
                   AppInput(

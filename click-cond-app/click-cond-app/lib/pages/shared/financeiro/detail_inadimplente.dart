@@ -8,6 +8,7 @@ import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 
 class DetailInadimplente extends StatefulWidget {
@@ -205,25 +206,60 @@ class _MonthCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.orange.withOpacity(0.3),
-                      ),
-                    ),
-                    child: Text(
-                      'Pendente',
-                      style: AppTypography.tiny(context).copyWith(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  (() {
+                    final statusVal = item['status'];
+                    final statusInt = statusVal is int ? statusVal : int.tryParse(statusVal.toString()) ?? 0;
+                    if (statusInt == 2) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.blue.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Text(
+                          'Auditoria',
+                          style: AppTypography.tiny(context).copyWith(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    } else {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.orange.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Text(
+                          'Pendente',
+                          style: AppTypography.tiny(context).copyWith(
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    }
+                  })(),
                 ],
               ),
+              if (item['url_comprovante'] != null && item['url_comprovante'].toString().trim().isNotEmpty) ...[
+                const SizedBox(width: AppSpacing.sm),
+                IconButton(
+                  icon: Icon(PhosphorIcons.eye, color: AppColors.primary),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () {
+                    launchUrl(Uri.parse(item['url_comprovante'].toString()), mode: LaunchMode.externalApplication);
+                  },
+                ),
+              ],
               const SizedBox(width: AppSpacing.sm),
               Icon(
                 PhosphorIcons.caretRight,
