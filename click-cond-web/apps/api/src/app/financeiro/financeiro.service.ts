@@ -938,59 +938,28 @@ export class FinanceiroService implements OnModuleInit {
       };
     }
 
-    const meses = await this.getAllMeses(idCondominio);
-    if (meses.length === 0) return { blocos: [] };
-
     const aptos = await this.prisma.apartamentos.findMany({
       where: { id_condominio: Number(idCondominio) },
       orderBy: [{ bloco: 'asc' }, { apto: 'asc' }],
     });
 
-    const faturasPagas = await this.prisma.financeiro.findMany({
+    const faturasPendentes = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
-        pago: 1,
+        pago: 0,
+        tipo: 'C', // Apenas Receitas (cobranças) pendentes
       },
-      select: { nome: true, data_vencimento: true },
+      select: { nome: true },
     });
 
     const blocosMap: Record<string, any[]> = {};
 
     for (const a of aptos) {
-      const minhasPagas = faturasPagas.filter((f) =>
+      const minhasPendentes = faturasPendentes.filter((f) =>
         this.nomeFaturaDeApto(f.nome, a.apto, a.bloco)
       );
 
-      let pagosCount = 0;
-      for (const m of meses) {
-        const anoCurto = m.ano.slice(-2);
-        const match = minhasPagas.find((f) => {
-          // 1. Try to match by date
-          if (f.data_vencimento) {
-            const fDate = new Date(f.data_vencimento);
-            const fMes = String(fDate.getUTCMonth() + 1).padStart(2, '0');
-            const fAno = String(fDate.getUTCFullYear());
-            if (fMes === m.mes && fAno === m.ano) return true;
-          }
-          // 2. Try to match by name
-          const refMatch = f.nome?.match(/Ref\.\s*(\d{1,2})(?:\/(\d{2,4}))?/i);
-          if (refMatch) {
-            const [, refMes, refAno] = refMatch;
-            const refMesPad = refMes.padStart(2, '0');
-            if (refMesPad === m.mes) {
-              if (!refAno || refAno === m.ano || refAno === anoCurto) {
-                return true;
-              }
-            }
-          }
-          return false;
-        });
-        if (match) {
-          pagosCount++;
-        }
-      }
-
-      const devendoCount = meses.length - pagosCount;
+      const devendoCount = minhasPendentes.length;
       const blocoKey = a.bloco || 'Sem Bloco';
       if (devendoCount > 0) {
         if (!blocosMap[blocoKey]) blocosMap[blocoKey] = [];
@@ -1039,12 +1008,11 @@ export class FinanceiroService implements OnModuleInit {
       ];
     }
 
-    const meses = await this.getAllMeses(idCondominio);
-
     const candidatas = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
-        nome: { contains: `Apto ${apto} Bloco ${bloco} - Ref.` },
+        pago: 0,
+        tipo: 'C', // Apenas Receitas (cobranças) pendentes
       },
     });
 
@@ -1052,46 +1020,28 @@ export class FinanceiroService implements OnModuleInit {
       this.nomeFaturaDeApto(f.nome, apto, bloco)
     );
 
-    const faturasDevendo: any[] = [];
-    for (const m of meses) {
-      const anoCurto = m.ano.slice(-2);
-      const fin = minhas.find((f) => {
-        // 1. Try to match by date
-        if (f.data_vencimento) {
-          const fDate = new Date(f.data_vencimento);
-          const fMes = String(fDate.getUTCMonth() + 1).padStart(2, '0');
-          const fAno = String(fDate.getUTCFullYear());
-          if (fMes === m.mes && fAno === m.ano) return true;
-        }
-        // 2. Try to match by name
-        const refMatch = f.nome?.match(/Ref\.\s*(\d{1,2})(?:\/(\d{2,4}))?/i);
-        if (refMatch) {
-          const [, refMes, refAno] = refMatch;
-          const refMesPad = refMes.padStart(2, '0');
-          if (refMesPad === m.mes) {
-            if (!refAno || refAno === m.ano || refAno === anoCurto) {
-              return true;
-            }
-          }
-        }
-        return false;
-      }) ?? null;
+    const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-      if (!fin || fin.pago === 0) {
-        const val = fin ? Number(fin.valor) : 650;
-        faturasDevendo.push({
-          mes: m.mes,
-          ano: m.ano,
-          periodo: m.periodo,
-          id: fin?.id ?? null,
-          nome: fin ? fin.nome : `Apto ${apto} Bloco ${bloco} - Ref. ${m.mes}/${m.ano}`,
-          valor: val,
-          valorString: val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-          data_vencimento: fin && fin.data_vencimento ? new Date(fin.data_vencimento).toLocaleDateString('pt-BR') : `10/${m.mes}/${m.ano}`,
-          pago: 0,
-        });
-      }
-    }
+    const faturasDevendo = minhas.map((f) => {
+      const refDate = f.data_vencimento || f.data || f.created_at || new Date();
+      const m = refDate.getMonth() + 1;
+      const y = refDate.getFullYear();
+      const mStr = m < 10 ? '0' + m : String(m);
+
+      const val = f.valor ? Number(f.valor) : 0;
+
+      return {
+        mes: mStr,
+        ano: String(y),
+        periodo: `${mesesNomes[m - 1]}/${y}`,
+        id: f.id,
+        nome: f.nome,
+        valor: val,
+        valorString: val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        data_vencimento: f.data_vencimento ? f.data_vencimento.toLocaleDateString('pt-BR') : '',
+        pago: 0,
+      };
+    });
 
     return faturasDevendo;
   }
