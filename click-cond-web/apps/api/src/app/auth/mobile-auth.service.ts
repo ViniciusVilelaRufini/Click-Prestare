@@ -331,7 +331,9 @@ export class MobileAuthService {
           condominio: {
             include: {
               financeiro: { where: { pago: 1 }, select: { valor: true, created_at: true } },
-              apartamentos: true,
+              // Conta os apartamentos sem carregar todas as linhas (antes: apartamentos:true
+              // trazia os 200+ aptos só para contar/num_aptos).
+              _count: { select: { apartamentos: true } },
             },
           },
         },
@@ -357,7 +359,7 @@ export class MobileAuthService {
 
         // Garante que financeiro seja tratado como array mesmo se vier nulo/indefinido
         const financeiro = c.financeiro ?? [];
-        const apartamentos = c.apartamentos ?? [];
+        const totalAptos = (c as any)._count?.apartamentos ?? 0;
 
         const saldoNum = financeiro.reduce((acc, f) => acc + (Number(f.valor) || 0), 0);
         const saldoStr = saldoNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -368,7 +370,7 @@ export class MobileAuthService {
           id: c.id,
           nome: c.nome,
           num_blocos: c.num_blocos ?? 1,
-          num_aptos: apartamentos.length > 0 ? apartamentos.length : (c.num_aptos ?? 0),
+          num_aptos: totalAptos > 0 ? totalAptos : (c.num_aptos ?? 0),
           moeda: c.moeda ?? 'R$',
           updatedAt: c.updated_at ? c.updated_at.toLocaleDateString('pt-BR') : '',
           photo: c.photo ?? '',
