@@ -118,7 +118,8 @@ class _MyCondominiumState extends State<MyCondominium> {
     try {
       final results = await Future.wait<dynamic>([
         getCondominio(widget.id),
-        getDashboardSummary(),
+        // Resumo escopado ao condomínio aberto (visitas/encomendas deste condomínio).
+        getDashboardSummary(widget.id),
       ]);
 
       if (!mounted) return;

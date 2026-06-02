@@ -180,8 +180,14 @@ updateMoedaCondominioApi(String idCondominio, String moeda) async {
   }
 }
 
-getDashboardSummary() async {
-  final url = _buildUri('/dashboard/summary');
+// [idCondominio] opcional: quando informado, o resumo (visitas/encomendas) é
+// filtrado por aquele condomínio (dashboard dentro de um condomínio). Sem ele,
+// o backend agrega todos os condomínios do morador (tela "Resumo Geral").
+getDashboardSummary([dynamic idCondominio]) async {
+  final url = _buildUri('/dashboard/summary',
+      (idCondominio != null && idCondominio.toString().isNotEmpty)
+          ? {'id_condominio': idCondominio.toString()}
+          : null);
   try {
     final response = await ApiClient.get(url, headers: _authHeaders()).timeout(_kTimeout);
     if (response.statusCode == 200) {

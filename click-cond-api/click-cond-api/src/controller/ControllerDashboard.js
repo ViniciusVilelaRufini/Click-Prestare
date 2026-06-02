@@ -58,7 +58,9 @@ module.exports = {
       if (typeAccess === 'Sindico') {
         summary = await db.getSyndicSummary(id);
       } else if (typeAccess === 'Morador') {
-        summary = await db.getResidentSummary(id);
+        // id_condominio opcional: dentro de um condomínio, escopa o resumo a ele;
+        // na tela "Resumo Geral" (sem o param) agrega todos os condomínios.
+        summary = await db.getResidentSummary(id, req.query.id_condominio);
       }
 
       return res.status(200).json(summary);

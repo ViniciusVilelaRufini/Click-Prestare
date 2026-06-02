@@ -105,33 +105,42 @@ module.exports = {
     };
   },
 
-  getResidentSummary: async function (userId) {
+  getResidentSummary: async function (userId, idCondominio) {
+    // idCondominio opcional: quando o morador está dentro de um condomínio, o
+    // resumo deve refletir SÓ aquele condomínio (o morador pode ter aptos em
+    // vários condomínios). Sem o filtro, o card mostrava o total de todos os
+    // condomínios em todos eles. Na tela "Resumo Geral" (sem idCondominio),
+    // mantém a agregação de todos.
+    const hasCond = idCondominio != null && String(idCondominio).trim() !== '';
+
     // Visitantes atualmente "NO LOCAL" nos apartamentos vinculados ao morador:
     // entraram (data_entrada preenchida) e ainda não saíram (data_saida nula).
-    // Mesma definição de "No Local / Ativos" usada na lista de visitantes do app
-    // (antes contava por DATE(data_hora_inicio)=CURDATE(), perdendo quem entrou
-    // em outro dia e continua no condomínio).
+    // Mesma definição de "No Local / Ativos" usada na lista de visitantes do app.
     const queryVisits = `SELECT count(distinct v.id) as count
                          FROM Visitantes v
                          INNER JOIN Apartamentos_Users au ON au.id_apto = v.id_apartamento
-                         WHERE au.id_user = ? AND v.data_entrada IS NOT NULL AND v.data_saida IS NULL`;
-    
-    // Pending packages linked to the resident across all linked apartments
-    const queryPackages = `SELECT count(*) as count 
+                         WHERE au.id_user = ? AND v.data_entrada IS NOT NULL AND v.data_saida IS NULL
+                         ${hasCond ? 'AND v.id_condominio = ?' : ''}`;
+    const visitsParams = hasCond ? [userId, idCondominio] : [userId];
+
+    // Encomendas "Aguardando" para os aptos do morador.
+    const queryPackages = `SELECT count(*) as count
                            FROM Encomendas e
                            INNER JOIN (
-                             SELECT apto.id_condominio, apto.bloco, apto.apto 
+                             SELECT apto.id_condominio, apto.bloco, apto.apto
                              FROM Apartamentos_Users au
                              INNER JOIN Apartamentos apto ON apto.id = au.id_apto
                              WHERE au.id_user = ?
-                           ) user_apto ON e.id_condominio = user_apto.id_condominio 
+                             ${hasCond ? 'AND apto.id_condominio = ?' : ''}
+                           ) user_apto ON e.id_condominio = user_apto.id_condominio
                                        AND e.destinatario_bloco = user_apto.bloco COLLATE utf8mb4_unicode_ci
                                        AND e.destinatario_apto = user_apto.apto COLLATE utf8mb4_unicode_ci
                            WHERE e.status = 'Aguardando'`;
+    const packagesParams = hasCond ? [userId, idCondominio] : [userId];
 
     const [visits, packages] = await Promise.all([
-      db.queryParam(queryVisits, [userId]),
-      db.queryParam(queryPackages, [userId])
+      db.queryParam(queryVisits, visitsParams),
+      db.queryParam(queryPackages, packagesParams)
     ]);
 
     return {
