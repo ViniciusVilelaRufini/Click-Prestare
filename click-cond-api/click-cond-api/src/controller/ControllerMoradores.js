@@ -32,6 +32,41 @@ module.exports = {
     }
   },
 
+  // Cadastro de familiar (tipo "Membro") feito pelo próprio morador.
+  // Autorização: apenas o Proprietário do apartamento informado pode cadastrar.
+  async insertFamiliar(req, res) {
+    try {
+      const idUserLogado = req.session.user.id;
+      const { nome, email, telefone, documento, id_apto, photo, data_nascimento,
+              extra1, extra2, extra3, extra4 } = req.body.morador;
+
+      // Só o proprietário do apto pode adicionar membros da família.
+      const isProprietario = await db.isProprietarioDoApto(idUserLogado, id_apto);
+      if (!isProprietario) {
+        return res.status(403).json({ message: 'Apenas o proprietário do apartamento pode cadastrar familiares.' });
+      }
+
+      // Senha inicial: documento quando houver, senão valor padrão.
+      const senha = (documento && documento.trim() !== '') ? documento : '123456';
+      const userId = await db.insertUser(email, senha);
+      await db.insertMorador(nome, email, telefone, data_nascimento, documento, 'Membro', id_apto, userId,
+        extra1, extra2, extra3, extra4, req.body.id_condominio);
+
+      if (photo != null) {
+        const urlPhotoProfile = await saveToAWS(photo, `condominios/${req.body.id_condominio}/moradores`, 'profile');
+        await db.updateProfilePhoto(urlPhotoProfile.url, userId);
+      }
+
+      // Só envia e-mail de boas-vindas quando o morador optou por dar acesso ao app.
+      if (req.body.morador.sendCredentials && email) {
+        mail.mailWelcomeMorador(email, nome, senha).catch(e => console.log('Erro ao enviar email de welcome:', e));
+      }
+      return res.json();
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
   async getAll(req, res) {
     try {
       const result = await db.getAll(req.query.id_condominio, req.query.offset);

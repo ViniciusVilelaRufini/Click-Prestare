@@ -45,20 +45,41 @@ module.exports = {
   },
 
   insertUser: async function(email, password){
-    const query = `insert into Users (login, password, is_morador)
-                        values ('${email}',  MD5('${password}'), 1)`;
+    // Login sintético quando não há e-mail (ex.: familiar sem acesso ao app):
+    // mantém o NOT NULL/unique de Users.login sem expor um e-mail real.
+    const login = (email && email.trim() !== '')
+      ? email
+      : `familiar_${Date.now()}_${Math.floor(Math.random()*100000)}@noemail.local`;
 
-    await db.query(query).then((response) => {  
+    const query = `insert into Users (login, password, is_morador)
+                        values ('${login}',  MD5('${password}'), 1)`;
+
+    await db.query(query).then((response) => {
       if(response.status == 'Error'){
         if (response.error.sqlMessage.includes('user_login')) {
           throw new Error('E-mail já cadastrado!');
         }
         throw new Error('Houve um erro ao realizar o seu cadastro. Por favor, tente novamente!');
       }
-    });  
+    });
 
-    const result2 = await db.query(`select id from Users where login='${email}'`);
+    const result2 = await db.query(`select id from Users where login='${login}'`);
     return result2.results[0].id;
+  },
+
+  // Confirma se o usuário logado pode gerenciar o apartamento como morador principal
+  // (proprietário). Usado para autorizar o cadastro de familiares.
+  // OBS: a base tem dados legados inconsistentes em Apartamentos_Users.tipo
+  // ('Proprietário', 'morador', null, e variantes). Tratamos como proprietário
+  // qualquer vínculo que NÃO seja explicitamente Inquilino ou dependente.
+  isProprietarioDoApto: async function (idUser, idApto) {
+    const query = `select 1 from Apartamentos_Users
+                    where id_user=? and id_apto=?
+                      and (tipo is null
+                           or lower(tipo) not in ('inquilino', 'dependente', 'membro'))
+                    limit 1`;
+    const { results } = await db.queryParam(query, [idUser, idApto]);
+    return results && results.length > 0;
   },
 
   insertMorador: async function (nome, email, telefone, data_nascimento, documento, tipo, id_apto, idUser, extra1, extra2, extra3, extra4, idCondominio) {
@@ -70,11 +91,12 @@ module.exports = {
       dt = data_nascimento;
     }
 
-    nome = nome.replaceAll("'","''");
-    extra1 = extra1.replaceAll("'","''");
-    extra2 = extra2.replaceAll("'","''");
-    extra3 = extra3.replaceAll("'","''");
-    extra4 = extra4.replaceAll("'","''");
+    const esc = (v) => (v == null ? '' : String(v).replaceAll("'", "''"));
+    nome = esc(nome);
+    extra1 = esc(extra1);
+    extra2 = esc(extra2);
+    extra3 = esc(extra3);
+    extra4 = esc(extra4);
 
     const aptoInfo = await db.query(`select bloco, apto from Apartamentos where id=${id_apto}`);
     const bloco = aptoInfo.results[0]?.bloco || '';
@@ -87,11 +109,10 @@ module.exports = {
                   )`;
     await db.query(query);
 
-    const queryIdUser = `select id from Users where login='${email}'`;
-    const { results } = await db.query(queryIdUser);
-    
+    // idUser já foi criado por insertUser; usamos direto (evita re-query por e-mail,
+    // que falha quando o login é sintético para familiares sem e-mail).
     const query2 = `insert into Apartamentos_Users (id_apto, id_user, tipo, vencimento)
-      values (${id_apto},${results[0].id},'${tipo}', DATE_ADD(NOW(), INTERVAL 45 day))`;
+      values (${id_apto},${idUser},'${tipo}', DATE_ADD(NOW(), INTERVAL 45 day))`;
     await db.query(query2);
   },
 
@@ -198,6 +219,7 @@ module.exports = {
                     DATE_FORMAT(c.vencimento, '%d/%m/%Y') as vencimento_condominio,
                     (DATEDIFF(c.vencimento, NOW()) + 1) as dias_restantes_condominio,
                     apto.id as apto_id, apto.apto as apto, apto.bloco as apto_bloco,
+                    au.tipo as apto_tipo,
                     DATE_FORMAT(au.vencimento, '%d/%m/%Y') as vencimento_morador,
                     (DATEDIFF(au.vencimento, NOW()) + 1) as dias_restantes_morador
                     from Apartamentos_Users au 

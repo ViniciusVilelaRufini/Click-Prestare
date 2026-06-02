@@ -433,8 +433,17 @@ class Localizable_PtPt {
     LocalizableModel(key: 'apto_fracao', text: 'Fração ideal'), 
     LocalizableModel(key: 'apto_proprietarios', text: 'Proprietários:'), 
     LocalizableModel(key: 'apto_inquilinos', text: 'Inquilinos:'), 
-    LocalizableModel(key: 'apto_usuario_criado_msg', text: 'Usuário criado!\nInforme que a senha padrão será o número do documento e que ao entrar na conta a senha poderá ser alterada.'), 
-    
+    LocalizableModel(key: 'apto_usuario_criado_msg', text: 'Usuário criado!\nInforme que a senha padrão será o número do documento e que ao entrar na conta a senha poderá ser alterada.'),
+    LocalizableModel(key: 'lb_meu_apartamento', text: 'O Meu Apartamento'),
+    LocalizableModel(key: 'apto_membros', text: 'Família'),
+    LocalizableModel(key: 'lb_membro', text: 'Membro da Família'),
+    LocalizableModel(key: 'apto_add_membro', text: 'Adicionar Membro'),
+    LocalizableModel(key: 'apto_voce_proprietario', text: 'É o proprietário'),
+    LocalizableModel(key: 'apto_voce_inquilino', text: 'É inquilino'),
+    LocalizableModel(key: 'apto_voce_membro', text: 'É membro da família'),
+    LocalizableModel(key: 'apto_familiar_criado_msg', text: 'Familiar registado com sucesso!'),
+    LocalizableModel(key: 'apto_so_proprietario_add', text: 'Apenas o proprietário pode registar familiares.'),
+
     //MUDANCA
     LocalizableModel(key: 'mudanca_nav', text: 'Movendo agendas'),  
     LocalizableModel(key: 'mudanca_nav_edit', text: 'Editar Mudança'),

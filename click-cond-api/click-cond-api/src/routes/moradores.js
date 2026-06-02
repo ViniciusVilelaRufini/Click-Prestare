@@ -6,6 +6,7 @@ const validate = require('../validations/ValidationMorador.js');
 
 router.post('/login', controller.login);
 router.post('/insert', jwt({ typeAccess: ['Sindico', 'Funcionario'] }), validate.validateInsert, controller.insert);
+router.post('/insert-familiar', jwt({ typeAccess: ['Morador'] }), validate.validateInsertFamiliar, controller.insertFamiliar);
 router.post('/recovery-password', validate.validateRecovery, controller.recoveryPassword);
 router.post('/new-password', jwt({ typeAccess: ['Morador'] }), controller.newPassword);
 router.get('/get-all', jwt({ typeAccess: ['Sindico', 'Funcionario'] }), controller.getAll);

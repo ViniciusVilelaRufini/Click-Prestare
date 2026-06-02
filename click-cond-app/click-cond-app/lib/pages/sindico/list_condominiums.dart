@@ -90,6 +90,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     Singleton.instance.apartamento = item["apto"] ?? '';
     Singleton.instance.id_apartamento = item["apto_id"] ?? -1;
     Singleton.instance.bloco = item["apto_bloco"] ?? '';
+    Singleton.instance.apto_tipo = item["apto_tipo"];
     Singleton.instance.dias_restantes_morador = item["dias_restantes_morador"] ?? 10;
     Singleton.instance.vencimento_morador = item["vencimento_morador"] ?? "";
     Singleton.instance.moeda = item["moeda"] ?? "";

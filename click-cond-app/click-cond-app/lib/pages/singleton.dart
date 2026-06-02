@@ -9,6 +9,16 @@ class Singleton {
   var id_apartamento;
   var apartamento;
   var bloco;
+  var apto_tipo; // vínculo do morador no apto: Proprietário/Inquilino/Membro/morador/null
+
+  /// O morador logado é o "dono" do apto (pode cadastrar familiares)?
+  /// Dados legados usam tipos inconsistentes; tratamos como proprietário tudo que
+  /// NÃO for explicitamente Inquilino/dependente/Membro.
+  bool isProprietarioApto() {
+    final t = (apto_tipo ?? '').toString().toLowerCase().trim();
+    if (t.isEmpty) return true;
+    return !(t == 'inquilino' || t == 'dependente' || t == 'membro');
+  }
   var vencimento_morador = "";
   var dias_restantes_morador = 10;
   var moeda = "R\$";

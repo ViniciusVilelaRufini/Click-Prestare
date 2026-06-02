@@ -3,6 +3,8 @@ import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
+import 'package:click/controllers/controller_moradores.dart';
+import 'package:click/utils/local_storage.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -109,6 +111,12 @@ class _NewMoradorPageState extends State<NewMorador> {
       return;
     }
 
+    // E-mail só é obrigatório quando o usuário opta por enviar credenciais/acesso ao app.
+    if (_sendCredentials && txtEmail.text.trim().isEmpty) {
+      displayMessage(context, getText('alert'), 'Informe o e-mail para enviar o acesso ao app.');
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -131,12 +139,14 @@ class _NewMoradorPageState extends State<NewMorador> {
         sendCredentials: _sendCredentials,
       );
 
-      final res = await apiSaveObject(
-        'moradores',
-        'morador',
-        morador,
-        widget.isEdit,
-      );
+      // Quando é o próprio morador cadastrando um familiar (tipo "Membro"),
+      // usamos o endpoint restrito ao proprietário; síndico/funcionário seguem o fluxo padrão.
+      final bool isFamiliarByMorador =
+          !widget.isEdit && getUserType() == 'morador' && widget.tipo == 'Membro';
+
+      final res = isFamiliarByMorador
+          ? await apiSaveFamiliar(morador)
+          : await apiSaveObject('moradores', 'morador', morador, widget.isEdit);
 
       if (!mounted) return;
 
@@ -145,7 +155,9 @@ class _NewMoradorPageState extends State<NewMorador> {
           await displayMessage(
             context,
             getText('alert_success'),
-            getText('apto_usuario_criado_msg'),
+            isFamiliarByMorador
+                ? getText('apto_familiar_criado_msg')
+                : getText('apto_usuario_criado_msg'),
           );
         }
         if (mounted) Navigator.of(context).pop(true);
@@ -192,7 +204,7 @@ class _NewMoradorPageState extends State<NewMorador> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: widget.tipo,
+      title: widget.tipo == 'Membro' ? getText('lb_membro') : widget.tipo,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(

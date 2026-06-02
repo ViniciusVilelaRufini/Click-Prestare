@@ -38,6 +38,27 @@ apiSaveApto(String route, String nameObj, dynamic obj, bool isEdit) async {
   }
 }
 
+// Cadastro de familiar (tipo "Membro") feito pelo próprio morador proprietário.
+// Retorna "" em caso de sucesso, ou a mensagem de erro do backend.
+apiSaveFamiliar(dynamic morador) async {
+  final url = _buildUri('/moradores/insert-familiar');
+  final body = json.encode({
+    "id_condominio": Singleton.instance.id_condominio.toString(),
+    "morador": morador,
+  });
+  try {
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+        .timeout(_kTimeout);
+    if (response.statusCode == 200) {
+      return "";
+    }
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    return parsed["message"] ?? "Houve um erro, tente novamente!";
+  } catch (e) {
+    return "Houve um erro, tente novamente!";
+  }
+}
+
 apiGetAllMoradores(String tipo, String id_apto) async {
   final url = _buildUri('/apartamentos/get-moradores', {'id_apto': id_apto, 'tipo': tipo});
   try {

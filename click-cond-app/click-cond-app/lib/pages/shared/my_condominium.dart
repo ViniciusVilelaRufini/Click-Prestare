@@ -14,6 +14,7 @@ import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/funcionarios/list_funcionarios.dart';
 import 'package:click/pages/shared/morador/list_moradores.dart';
 import 'package:click/pages/shared/morador/list_moradores_geral.dart';
+import 'package:click/pages/shared/morador/my_apartamento_view.dart';
 import 'package:click/pages/shared/mudancas/list_mudancas.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/sindico/relatorios_page.dart';
@@ -88,7 +89,11 @@ class _MyCondominiumState extends State<MyCondominium> {
       _MenuItem(getText('lb_prestadores_servico'), PhosphorIcons.handshake, ListPrestadores()),
       _MenuItem(getText('lb_agendar_mudanca'), PhosphorIcons.truck, ListMudancas()),
       _MenuItem(getText('lb_cadastrar_visitante'), PhosphorIcons.userPlus, ListVisitantes()),
-      _MenuItem(getText('lb_apartamentos'), PhosphorIcons.house, ListMoradores()),
+      // Morador vê apenas o próprio apartamento ("Meu Apartamento"); síndico/funcionário
+      // continuam com a lista de blocos/apartamentos do condomínio.
+      getUserType() == 'morador'
+          ? _MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.house, const MyApartamentoView())
+          : _MenuItem(getText('lb_apartamentos'), PhosphorIcons.house, ListMoradores()),
     ];
     if (getUserType() == 'sindico') {
       all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral()));
