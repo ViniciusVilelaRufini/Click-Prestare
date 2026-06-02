@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -1239,53 +1239,63 @@ export class VisitantesService {
     userType?: string,
   ) {
     const conditions: any[] = [];
+    const typeLower = (userType ?? '').toLowerCase();
+
+    // ===== ISOLAMENTO DE DADOS =====
+    // Fonte da verdade: o servidor decide quais apartamentos o usuário pode ver.
+    // Nunca confiar só no id_apto vindo do client.
+    if (!userId) return [];
 
     if (idCondominio) {
-      conditions.push({ id_condominio: Number(idCondominio) });
-      if (idApto) {
-        conditions.push({ id_apartamento: Number(idApto) });
-      }
-    } else if (userId && userType) {
-      const typeLower = userType.toLowerCase();
-      if (typeLower === 'morador') {
-        conditions.push({
-          OR: [
-            {
-              apartamento: {
-                users: {
-                  some: {
-                    id_user: userId,
-                  },
-                },
-              },
-            },
-            {
-              user: userId,
-            },
-          ],
-        });
-      } else if (typeLower === 'sindico') {
-        const managed = await this.prisma.sindicos_Condominios.findMany({
-          where: { id_user: userId },
-          select: { id_condominio: true },
-        });
-        const condoIds = managed.map((m) => m.id_condominio);
-        conditions.push({
-          id_condominio: { in: condoIds },
-        });
-      } else if (typeLower === 'funcionario') {
-        const func = await this.prisma.funcionarios.findFirst({
-          where: { id_user: userId },
-          select: { id_condominio: true },
-        });
-        if (func) {
-          conditions.push({
-            id_condominio: func.id_condominio,
-          });
+      const condId = Number(idCondominio);
+      conditions.push({ id_condominio: condId });
+
+      // Aptos vinculados ao usuário NESTE condomínio.
+      const vinc = await this.prisma.apartamentos_Users.findMany({
+        where: { id_user: Number(userId), apartamento: { id_condominio: condId } },
+        select: { id_apto: true },
+      });
+      const aptosPermitidos = [...new Set(vinc.map((v) => v.id_apto))];
+
+      // Restrito quando: é morador (sempre), ou é síndico/funcionário TAMBÉM vinculado a apto.
+      const restrito = typeLower === 'morador' || aptosPermitidos.length > 0;
+
+      if (restrito) {
+        if (aptosPermitidos.length === 0) return []; // morador sem apto vinculado
+        if (idApto) {
+          // Pediu um apto específico: só pode se for dele.
+          if (!aptosPermitidos.includes(Number(idApto))) {
+            throw new ForbiddenException('Acesso negado: este apartamento não pertence a você.');
+          }
+          conditions.push({ id_apartamento: Number(idApto) });
         } else {
-          return [];
+          conditions.push({ id_apartamento: { in: aptosPermitidos } });
         }
+      } else {
+        // Síndico/funcionário gestor (sem vínculo de morador): vê todos do condomínio,
+        // podendo opcionalmente focar num apto.
+        if (idApto) conditions.push({ id_apartamento: Number(idApto) });
       }
+    } else if (typeLower === 'morador') {
+      conditions.push({
+        OR: [
+          { apartamento: { users: { some: { id_user: Number(userId) } } } },
+          { user: Number(userId) },
+        ],
+      });
+    } else if (typeLower === 'sindico') {
+      const managed = await this.prisma.sindicos_Condominios.findMany({
+        where: { id_user: Number(userId) },
+        select: { id_condominio: true },
+      });
+      conditions.push({ id_condominio: { in: managed.map((m) => m.id_condominio) } });
+    } else if (typeLower === 'funcionario') {
+      const func = await this.prisma.funcionarios.findFirst({
+        where: { id_user: Number(userId) },
+        select: { id_condominio: true },
+      });
+      if (!func) return [];
+      conditions.push({ id_condominio: func.id_condominio });
     } else {
       return [];
     }

@@ -42,26 +42,32 @@ module.exports = {
       const user = req.session.user;
 
       let filterUserId = null;
+      let idAptosPermitidos = null; // lista de aptos quando o usuário é restrito
 
-      // Enforce data isolation for residents
-      if (user.typeAccess === 'Morador') {
-        filterUserId = user.id;
+      // Isolamento de dados: a fonte da verdade é o servidor.
+      // Morador é SEMPRE restrito ao(s) próprio(s) apto(s). Síndico/Funcionário também
+      // ficam restritos SE estiverem vinculados como morador de algum apto deste condomínio;
+      // caso contrário (gestor sem vínculo) veem todos do condomínio.
+      if (id_condominio) {
+        const userAptos = await dbAptos.getApartmentsByUser(user.id, id_condominio);
+        const restrito = user.typeAccess === 'Morador' || userAptos.length > 0;
 
-        if (id_condominio) {
-          const userAptos = await dbAptos.getApartmentsByUser(user.id, id_condominio);
-          
+        if (restrito) {
+          filterUserId = user.id;
+          if (userAptos.length === 0) {
+            return res.status(200).json([]); // morador sem apto vinculado
+          }
           if (id_apto && !userAptos.includes(parseInt(id_apto))) {
-            console.warn(`[SECURITY] Resident ${user.id} attempted to access Apto ${id_apto} without permission.`);
+            console.warn(`[SECURITY] User ${user.id} (${user.typeAccess}) tentou acessar Apto ${id_apto} sem permissão.`);
             return res.status(403).json({ message: "Acesso negado: Este apartamento não pertence a você." });
           }
-
-          if (!id_apto && userAptos.length > 0) {
-            id_apto = userAptos[0];
+          if (!id_apto) {
+            idAptosPermitidos = userAptos; // filtra por TODOS os aptos do usuário
           }
         }
       }
 
-      const result = await db.getAll(id_condominio, req.query.offset || 0, id_apto, req.query.search, filterUserId);
+      const result = await db.getAll(id_condominio, req.query.offset || 0, id_apto, req.query.search, filterUserId, idAptosPermitidos);
       return res.status(200).json(result);
     } catch (err) {
       return res.status(500).json({ message: err.message });

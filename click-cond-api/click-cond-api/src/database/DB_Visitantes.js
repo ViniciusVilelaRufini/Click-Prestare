@@ -22,7 +22,7 @@ module.exports = {
     return { id: result.results.insertId, codigo_acesso: pin };
   },
 
-  getAll: async function (id_cond, offset, id_apto, search, userId) {
+  getAll: async function (id_cond, offset, id_apto, search, userId, idAptos) {
     let query = `select v.id, v.nome, v.doc_identificacao, 
                     DATE_FORMAT(v.data_hora_inicio, '%d/%m/%Y') as data_hora,
                     DATE_FORMAT(v.data_entrada, '%H:%i') as hora_entrada,
@@ -43,10 +43,14 @@ module.exports = {
       query += ` and v.id_condominio=${id_cond}`;
     }
     if (id_apto) {
-      query += ` and v.id_apartamento=${id_apto}`;
+      query += ` and v.id_apartamento=${Number(id_apto)}`;
+    } else if (Array.isArray(idAptos) && idAptos.length > 0) {
+      // Usuário restrito sem apto específico: filtra por TODOS os aptos dele.
+      const ids = idAptos.map((x) => Number(x)).filter((n) => !Number.isNaN(n));
+      if (ids.length > 0) query += ` and v.id_apartamento in (${ids.join(',')})`;
     }
     if (userId) {
-      query += ` and (v.id_apartamento in (select id_apto from Apartamentos_Users where id_user=${userId}) or v.user=${userId})`;
+      query += ` and (v.id_apartamento in (select id_apto from Apartamentos_Users where id_user=${Number(userId)}) or v.user=${Number(userId)})`;
     }
     if (search) {
       query += ` and (v.nome like '%${search}%' or v.doc_identificacao like '%${search}%' or apto.apto like '%${search}%')`;
