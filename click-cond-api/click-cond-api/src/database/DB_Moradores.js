@@ -82,6 +82,39 @@ module.exports = {
     return results && results.length > 0;
   },
 
+  // Vincula um usuário JÁ EXISTENTE (ex.: o síndico) a um apartamento como morador,
+  // sem criar conta nova. Cria Moradores + Apartamentos_Users e marca is_morador=1.
+  // Idempotente: lança erro se o vínculo já existir.
+  linkExistingUserAsMorador: async function (idUser, idApto, tipo) {
+    const t = (tipo && String(tipo).trim()) ? String(tipo).trim() : 'proprietario';
+    const dup = await db.queryParam(
+      `select 1 from Apartamentos_Users where id_user=? and id_apto=? limit 1`,
+      [idUser, idApto]
+    );
+    if (dup.results && dup.results.length > 0) {
+      throw new Error('Você já está vinculado a este apartamento.');
+    }
+
+    const aptoRes = await db.query(`select id, bloco, apto, id_condominio from Apartamentos where id=${Number(idApto)}`);
+    const a = aptoRes.results && aptoRes.results[0];
+    if (!a) throw new Error('Apartamento não encontrado.');
+
+    const userRes = await db.query(`select name, email, phone, cpf from Users where id=${Number(idUser)}`);
+    const usr = (userRes.results && userRes.results[0]) || {};
+    const esc = (v) => (v == null ? '' : String(v).replaceAll("'", "''"));
+
+    await db.query(`insert into Moradores (nome, documento, email, telefone, tipo, id_user, id_condominio, bloco, apartamento)
+      values ('${esc(usr.name) || 'Síndico'}', '${esc(usr.cpf)}', '${esc(usr.email)}', '${esc(usr.phone)}',
+              '${esc(t)}', ${Number(idUser)}, ${a.id_condominio}, '${esc(a.bloco)}', '${esc(a.apto)}')`);
+
+    await db.query(`insert into Apartamentos_Users (id_apto, id_user, tipo, vencimento)
+      values (${a.id}, ${Number(idUser)}, '${esc(t)}', DATE_ADD(NOW(), INTERVAL 45 day))`);
+
+    await db.query(`update Users set is_morador=1 where id=${Number(idUser)}`);
+
+    return { success: true, id_condominio: a.id_condominio, apto_id: a.id, apto: a.apto, apto_bloco: a.bloco, apto_tipo: t };
+  },
+
   insertMorador: async function (nome, email, telefone, data_nascimento, documento, tipo, id_apto, idUser, extra1, extra2, extra3, extra4, idCondominio) {
     let dt = null;
     if (data_nascimento && data_nascimento.includes("/")) {

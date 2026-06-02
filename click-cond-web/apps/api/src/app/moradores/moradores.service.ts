@@ -200,6 +200,82 @@ export class MoradoresService {
     await Promise.all(checks);
   }
 
+  /** Síndicos do condomínio, para o painel escolher quem vincular como morador. */
+  async listSindicosCondominio(idCondominio: number) {
+    if (!this.prisma.isConnected) return [];
+    const rels = await this.prisma.sindicos_Condominios.findMany({
+      where: { id_condominio: Number(idCondominio) },
+      include: { user: { include: { sindicos: true } } },
+    });
+    return rels.map((r) => ({
+      id_user: r.id_user,
+      nome: r.user?.sindicos?.[0]?.name ?? r.user?.name ?? '',
+      email: r.user?.email ?? null,
+    }));
+  }
+
+  /**
+   * Vincula um usuário JÁ EXISTENTE (ex.: um síndico) a um apartamento como morador,
+   * sem criar conta nova: cria Apartamentos_Users + Moradores e marca is_morador=1.
+   * Idempotente. Valida que o apartamento pertence ao condomínio do path (tenant).
+   */
+  async linkExistingUser(
+    idCondominio: number,
+    body: { id_user: number; id_apartamento: number; tipo?: string },
+  ) {
+    if (!this.prisma.isConnected) {
+      throw new BadRequestException('Banco indisponível. Tente novamente em instantes.');
+    }
+    const idUser = Number(body.id_user);
+    const idApto = Number(body.id_apartamento);
+    if (!idUser || !idApto) throw new BadRequestException('Usuário e apartamento são obrigatórios.');
+
+    const tipo = String(body.tipo || 'proprietario')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim() || 'proprietario';
+
+    const apto = await this.prisma.apartamentos.findUnique({ where: { id: idApto } });
+    if (!apto) throw new NotFoundException('Apartamento não encontrado.');
+    if (apto.id_condominio !== Number(idCondominio)) {
+      throw new BadRequestException('Este apartamento não pertence ao condomínio.');
+    }
+
+    const user = await this.prisma.users.findUnique({ where: { id: idUser } });
+    if (!user) throw new NotFoundException('Usuário não encontrado.');
+
+    const already = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: idUser, id_apto: idApto },
+    });
+    if (already) throw new BadRequestException(`${user.name ?? 'Este usuário'} já está vinculado a este apartamento.`);
+
+    const venc = new Date();
+    venc.setDate(venc.getDate() + 45);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.apartamentos_Users.create({
+        data: { id_apto: apto.id, id_user: idUser, tipo, vencimento: venc },
+      });
+      await tx.moradores.create({
+        data: {
+          nome: user.name ?? 'Síndico',
+          documento: user.cpf ?? null,
+          email: user.email ?? null,
+          telefone: user.phone ?? null,
+          tipo,
+          id_user: idUser,
+          id_condominio: apto.id_condominio,
+          bloco: apto.bloco || null,
+          apartamento: apto.apto || null,
+        },
+      });
+      await tx.users.update({ where: { id: idUser }, data: { is_morador: 1 } });
+    });
+
+    return { success: true, id_condominio: apto.id_condominio, apto_id: apto.id, apto_tipo: tipo };
+  }
+
   /**
    * Moradores no schema legado têm FK para Users e podem ter id_condominio.
    * Para a portaria, listamos moradores diretamente filtrados por id_condominio

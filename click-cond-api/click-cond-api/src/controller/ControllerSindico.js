@@ -1,5 +1,6 @@
 const db = require('../database/DB_Sindico');
 const dbUsers = require('../database/DB_Users');
+const dbMoradores = require('../database/DB_Moradores');
 const dbFinanceiro = require('../database/DB_Financeiro');
 const jwt = require('jsonwebtoken');
 const config = require('../configs/config');
@@ -94,9 +95,31 @@ module.exports = {
   },
 
   async getData(req, res) {
-    try {      
-      var user = await db.getData(req.session.user.id);  
+    try {
+      var user = await db.getData(req.session.user.id);
       return res.json(user);
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  // Auto-vínculo: o próprio síndico logado se cadastra como morador de um apto.
+  async linkMorador(req, res) {
+    try {
+      const idUser = req.session.user.id;
+      const { id_apartamento, tipo } = req.body;
+      if (!id_apartamento) return res.status(400).json({ message: 'Apartamento não informado.' });
+      const r = await dbMoradores.linkExistingUserAsMorador(idUser, id_apartamento, tipo || 'proprietario');
+      return res.status(200).json(r);
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+  },
+
+  async listSindicos(req, res) {
+    try {
+      const list = await db.listSindicosCondominio(req.query.id_condominio);
+      return res.status(200).json(list);
     } catch (err) {
       return res.status(500).json({ message: err.message });
     }

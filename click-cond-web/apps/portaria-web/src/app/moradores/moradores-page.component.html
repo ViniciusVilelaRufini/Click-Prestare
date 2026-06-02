@@ -27,6 +27,12 @@
         Importar Excel
       </button>
 
+      <button (click)="abrirVincularSindico()" title="Cadastrar um síndico do condomínio como morador"
+              class="px-3.5 py-2.5 rounded-xl text-xs font-medium text-amber-400 bg-amber-400/10 border border-amber-400/20 hover:bg-amber-400/20 transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        Vincular síndico
+      </button>
+
       <button (click)="showForm ? cancelarForm() : abrirNovo()"
               class="px-4 py-2.5 rounded-xl font-medium text-sm text-white bg-accent hover:bg-accent-600 transition flex items-center gap-2">
         @if (showForm) {
@@ -428,10 +434,87 @@
     }
   </div>
 
+  <!-- Modal: Vincular síndico como morador -->
+  @if (showVincularSindico()) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in">
+      <div class="w-full max-w-md rounded-2xl bg-graphite border border-white/10 shadow-2xl flex flex-col overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-graphite-200">
+          <div class="flex items-center gap-3">
+            <div class="p-2 rounded-lg bg-amber-400/10 text-amber-400">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-white">Vincular síndico como morador</h3>
+              <p class="text-xs text-slate-400">Cadastra um síndico do condomínio como residente de um apartamento.</p>
+            </div>
+          </div>
+          <button (click)="fecharVincularSindico()" class="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-white/5">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="px-6 py-5 space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Síndico</label>
+            @if (sindicosLoading()) {
+              <p class="text-sm text-slate-500">Carregando síndicos…</p>
+            } @else if (sindicos().length === 0) {
+              <p class="text-sm text-slate-500">Nenhum síndico encontrado neste condomínio.</p>
+            } @else {
+              <select [(ngModel)]="vincSindicoId"
+                      class="w-full px-3 py-2.5 rounded-xl bg-graphite-200 border border-white/10 text-sm text-white focus:border-accent outline-none">
+                <option [ngValue]="null" disabled>Selecione o síndico</option>
+                @for (s of sindicos(); track s.id_user) {
+                  <option [ngValue]="s.id_user">{{ s.nome }}@if (s.email) { — {{ s.email }} }</option>
+                }
+              </select>
+            }
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Apartamento</label>
+            <select [(ngModel)]="vincAptoId"
+                    class="w-full px-3 py-2.5 rounded-xl bg-graphite-200 border border-white/10 text-sm text-white focus:border-accent outline-none">
+              <option [ngValue]="null" disabled>Selecione o apartamento</option>
+              @for (a of apartamentos(); track a.id) {
+                <option [ngValue]="a.id">{{ a.bloco ? 'Bloco ' + a.bloco + ' - ' : '' }}Apto {{ a.apto }}</option>
+              }
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Vínculo</label>
+            <div class="flex gap-2">
+              <button type="button" (click)="vincTipo = 'proprietario'"
+                      [class]="vincTipo === 'proprietario' ? 'flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-accent text-white' : 'flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-graphite-200 text-slate-300 border border-white/10'">
+                Proprietário
+              </button>
+              <button type="button" (click)="vincTipo = 'inquilino'"
+                      [class]="vincTipo === 'inquilino' ? 'flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-accent text-white' : 'flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-graphite-200 text-slate-300 border border-white/10'">
+                Inquilino
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-white/10 flex justify-end gap-2 bg-graphite-200">
+          <button (click)="fecharVincularSindico()"
+                  class="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-300 bg-white/5 hover:bg-white/10 transition">
+            Cancelar
+          </button>
+          <button (click)="salvarVinculoSindico()" [disabled]="vincularSaving()"
+                  class="px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-accent hover:bg-accent-600 transition disabled:opacity-50">
+            {{ vincularSaving() ? 'Vinculando…' : 'Vincular' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
   @if (showBulkModal) {
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in">
       <div class="w-full max-w-3xl rounded-2xl bg-graphite border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-        
+
         <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-graphite-200">
           <div class="flex items-center gap-3">
             <div class="p-2 rounded-lg bg-accent/10 text-accent">

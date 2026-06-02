@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CreateMorador, Morador, MoradoresApi, MoradorAtividade } from './moradores.service';
+import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
@@ -165,10 +165,59 @@ export class MoradoresPageComponent implements OnInit {
   editingId: number | null = null;
   readonly saving = signal(false);
 
+  // === Vincular síndico como morador ===
+  readonly showVincularSindico = signal(false);
+  readonly sindicos = signal<SindicoOption[]>([]);
+  readonly sindicosLoading = signal(false);
+  readonly vincularSaving = signal(false);
+  vincSindicoId: number | null = null;
+  vincAptoId: number | null = null;
+  vincTipo = 'proprietario';
+
   ngOnInit() {
     this.carregar();
     this.aptApi.list().subscribe({
       next: (data) => this.apartamentos.set(data),
+    });
+  }
+
+  abrirVincularSindico() {
+    this.vincSindicoId = null;
+    this.vincAptoId = null;
+    this.vincTipo = 'proprietario';
+    this.showVincularSindico.set(true);
+    this.sindicosLoading.set(true);
+    this.api.listSindicos().subscribe({
+      next: (data) => { this.sindicos.set(data); this.sindicosLoading.set(false); },
+      error: () => { this.sindicos.set([]); this.sindicosLoading.set(false); },
+    });
+  }
+
+  fecharVincularSindico() {
+    this.showVincularSindico.set(false);
+  }
+
+  salvarVinculoSindico() {
+    if (!this.vincSindicoId || !this.vincAptoId) {
+      this.toast.warning('Selecione o síndico e o apartamento.');
+      return;
+    }
+    this.vincularSaving.set(true);
+    this.api.linkUser({
+      id_user: this.vincSindicoId,
+      id_apartamento: this.vincAptoId,
+      tipo: this.vincTipo,
+    }).subscribe({
+      next: () => {
+        this.vincularSaving.set(false);
+        this.showVincularSindico.set(false);
+        this.toast.success('Síndico vinculado como morador!');
+        this.carregar();
+      },
+      error: (e) => {
+        this.vincularSaving.set(false);
+        this.toast.error(e?.error?.message ?? 'Não foi possível vincular.');
+      },
     });
   }
 

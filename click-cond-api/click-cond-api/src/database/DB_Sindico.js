@@ -115,13 +115,27 @@ module.exports = {
 
   
   listCondominios: async function (id) {
+    // Subselect do vínculo de morador do síndico naquele condomínio (apto mais recente),
+    // para devolver os campos de apartamento quando o síndico também é morador.
+    const linkApto = (col) => `(
+      select ap.${col} from Apartamentos_Users au
+        inner join Apartamentos ap on ap.id = au.id_apto
+        where au.id_user = sc.id_user and ap.id_condominio = c.id
+        order by au.id desc limit 1)`;
     const query = `select c.id, c.num_blocos, c.moeda,
-                    DATE_FORMAT(c.updated_at, '%d/%m/%Y às %H:%i') as updatedAt, 
+                    DATE_FORMAT(c.updated_at, '%d/%m/%Y às %H:%i') as updatedAt,
                     c.nome, c.photo, sum(f.valor) as saldo,
                     (SELECT DATE_FORMAT(created_at, '%d/%m/%Y') FROM Financeiro WHERE id_condominio = c.id ORDER BY id DESC LIMIT 1) as data_financeiro,
                     (select count(id) from Apartamentos where id_condominio=c.id) as num_aptos,
                     DATE_FORMAT(c.vencimento, '%d/%m/%Y') as vencimento_condominio,
-                    (DATEDIFF(c.vencimento, NOW()) + 1) as dias_restantes_condominio
+                    (DATEDIFF(c.vencimento, NOW()) + 1) as dias_restantes_condominio,
+                    ${linkApto('id')} as apto_id,
+                    ${linkApto('apto')} as apto,
+                    ${linkApto('bloco')} as apto_bloco,
+                    (select au.tipo from Apartamentos_Users au
+                       inner join Apartamentos ap on ap.id = au.id_apto
+                       where au.id_user = sc.id_user and ap.id_condominio = c.id
+                       order by au.id desc limit 1) as apto_tipo
                     from Sindicos_Condominios sc
                       inner join Condominios c on sc.id_condominio = c.id
                       left join Financeiro f on (f.id_condominio=c.id and f.pago=1 )
@@ -130,7 +144,16 @@ module.exports = {
                     order by c.created_at desc`;
     const { results } = await db.query(query);
     return results;
-  }, 
+  },
+
+  listSindicosCondominio: async function (idCond) {
+    const query = `select s.id_user, s.name as nome, s.email
+                    from Sindicos_Condominios sc
+                      inner join Sindicos s on s.id_user = sc.id_user
+                    where sc.id_condominio=${Number(idCond)}`;
+    const { results } = await db.query(query);
+    return results;
+  },
   
   getData: async function (id) {
     const query = `select name, email,  DATE_FORMAT(date_birth, '%d/%m/%Y') as date_birth, phone, doc_identification from Sindicos where id_user=${id}`;    

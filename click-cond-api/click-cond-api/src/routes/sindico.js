@@ -11,6 +11,8 @@ router.post('/recovery-password', validate.validateRecovery, controller.recovery
 router.post('/new-password', jwt({ typeAccess: ['Sindico'] }), controller.newPassword);
 router.get('/list-condominios', jwt({ typeAccess: ['Sindico'] }), controller.listCondominios);
 router.get('/get', jwt({ typeAccess: ['Sindico'] }), controller.getData);
+router.post('/link-morador', jwt({ typeAccess: ['Sindico'] }), controller.linkMorador);
+router.get('/list-sindicos', jwt({ typeAccess: ['Sindico', 'Funcionario'] }), controller.listSindicos);
 
 
 module.exports = router;

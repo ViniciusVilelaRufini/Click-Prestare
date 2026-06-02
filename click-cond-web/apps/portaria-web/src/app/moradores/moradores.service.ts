@@ -83,6 +83,22 @@ export class MoradoresApi {
   importBulk(linhas: any[]): Observable<{ ok: boolean; total: number; criados: any[] }> {
     return this.http.post<{ ok: boolean; total: number; criados: any[] }>(`${this.base}/import-bulk`, { linhas });
   }
+
+  // Síndicos do condomínio (para vincular um deles como morador).
+  listSindicos(): Observable<SindicoOption[]> {
+    return this.http.get<SindicoOption[]>(`${this.base}/sindicos`);
+  }
+
+  // Vincula um usuário existente (síndico) a um apartamento como morador.
+  linkUser(dto: { id_user: number; id_apartamento: number; tipo?: string }): Observable<any> {
+    return this.http.post(`${this.base}/link-user`, dto);
+  }
+}
+
+export interface SindicoOption {
+  id_user: number;
+  nome: string;
+  email: string | null;
 }
 
 // === Tipos da resposta de GET /:id/atividade =====================

@@ -60,6 +60,14 @@ export class SindicoMobileController {
     const pwd = body.password ?? body.senha ?? '';
     return this.service.updatePassword(Number(idUser), pwd, 'Sindico');
   }
+
+  // Vincula o próprio síndico logado como morador de um apartamento (auto-vínculo).
+  @Post('link-morador')
+  @HttpCode(200)
+  linkMorador(@ReqUser() payload: JwtPayload, @Body() body: { id_apartamento: number; tipo?: string }) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.linkUserAsMorador(Number(idUser), Number(body.id_apartamento), body.tipo);
+  }
 }
 
 // ==========================================

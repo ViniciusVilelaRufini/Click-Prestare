@@ -300,7 +300,9 @@ export class MobileAuthService {
         id: 1, nome: 'Condomínio Premium', num_blocos: 2, num_aptos: 40, moeda: 'R$',
         updatedAt: '14/05/2026 às 12:00', photo: '', saldo: '15.500,00',
         data_financeiro: '14/05/2026', vencimento_condominio: '30/12/2026',
-        dias_restantes_condominio: 200
+        dias_restantes_condominio: 200,
+        apto_id: null, apto: '', apto_bloco: '', apto_tipo: null,
+        vencimento_morador: '', dias_restantes_morador: 0,
       }];
     }
 
@@ -317,17 +319,33 @@ export class MobileAuthService {
         },
       });
 
+      // Vínculos de morador do síndico (caso ele também more em algum condomínio).
+      // Mapeia por id_condominio → vínculo mais recente, para devolver os campos de
+      // apartamento e ligar as funções de morador no app daquele condomínio.
+      const aptoLinks = await this.prisma.apartamentos_Users.findMany({
+        where: { id_user: idUser },
+        include: { apartamento: { select: { id: true, apto: true, bloco: true, id_condominio: true } } },
+        orderBy: { created_at: 'desc' },
+      });
+      const linkByCond = new Map<number, typeof aptoLinks[number]>();
+      for (const l of aptoLinks) {
+        const cid = l.apartamento?.id_condominio;
+        if (cid != null && !linkByCond.has(cid)) linkByCond.set(cid, l);
+      }
+
       const resultList = rels.map(r => {
         const c = r.condominio;
         if (!c || c.ativo === 0) return null;
-        
+
         // Garante que financeiro seja tratado como array mesmo se vier nulo/indefinido
         const financeiro = c.financeiro ?? [];
         const apartamentos = c.apartamentos ?? [];
 
         const saldoNum = financeiro.reduce((acc, f) => acc + (Number(f.valor) || 0), 0);
         const saldoStr = saldoNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        
+
+        const link = linkByCond.get(c.id);
+
         return {
           id: c.id,
           nome: c.nome,
@@ -340,6 +358,13 @@ export class MobileAuthService {
           data_financeiro: financeiro.length > 0 ? financeiro[financeiro.length - 1].created_at.toLocaleDateString('pt-BR') : '-',
           vencimento_condominio: c.vencimento ? c.vencimento.toLocaleDateString('pt-BR') : '',
           dias_restantes_condominio: c.vencimento ? Math.ceil((c.vencimento.getTime() - Date.now()) / 86400000) : 100,
+          // Campos de morador (quando o síndico está vinculado a um apto deste condomínio).
+          apto_id: link?.apartamento?.id ?? null,
+          apto: link?.apartamento?.apto ?? '',
+          apto_bloco: link?.apartamento?.bloco ?? '',
+          apto_tipo: link?.tipo ?? null,
+          vencimento_morador: link?.vencimento ? link.vencimento.toLocaleDateString('pt-BR') : '',
+          dias_restantes_morador: link?.vencimento ? Math.ceil((link.vencimento.getTime() - Date.now()) / 86400000) : 0,
         };
       }).filter(Boolean);
 
@@ -349,6 +374,82 @@ export class MobileAuthService {
     }
 
     return [];
+  }
+
+  /**
+   * Vincula um usuário JÁ EXISTENTE (ex.: o próprio síndico) a um apartamento como
+   * morador, sem criar conta nova: cria Apartamentos_Users + Moradores e marca
+   * is_morador=1. Idempotente (bloqueia vínculo duplicado no mesmo apto).
+   */
+  async linkUserAsMorador(idUser: number, idApto: number, tipoRaw?: string) {
+    if (!this.prisma.isConnected) {
+      throw new ServiceUnavailableException('Banco indisponível. Tente novamente em instantes.');
+    }
+    if (!idApto) throw new BadRequestException('Apartamento não informado.');
+
+    const tipo = String(tipoRaw || 'proprietario')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim() || 'proprietario';
+
+    const apto = await this.prisma.apartamentos.findUnique({ where: { id: Number(idApto) } });
+    if (!apto) throw new NotFoundException('Apartamento não encontrado.');
+
+    const user = await this.prisma.users.findUnique({ where: { id: Number(idUser) } });
+    if (!user) throw new NotFoundException('Usuário não encontrado.');
+
+    // Idempotência: já vinculado a este apto?
+    const already = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: Number(idUser), id_apto: Number(idApto) },
+    });
+    if (already) throw new BadRequestException('Você já está vinculado a este apartamento.');
+
+    const venc = new Date();
+    venc.setDate(venc.getDate() + 45);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.apartamentos_Users.create({
+        data: { id_apto: apto.id, id_user: Number(idUser), tipo, vencimento: venc },
+      });
+      await tx.moradores.create({
+        data: {
+          nome: user.name ?? 'Síndico',
+          documento: user.cpf ?? null,
+          email: user.email ?? null,
+          telefone: user.phone ?? null,
+          tipo,
+          id_user: Number(idUser),
+          id_condominio: apto.id_condominio,
+          bloco: apto.bloco || null,
+          apartamento: apto.apto || null,
+        },
+      });
+      await tx.users.update({ where: { id: Number(idUser) }, data: { is_morador: 1 } });
+    });
+
+    return {
+      success: true,
+      id_condominio: apto.id_condominio,
+      apto_id: apto.id,
+      apto: apto.apto ?? '',
+      apto_bloco: apto.bloco ?? '',
+      apto_tipo: tipo,
+    };
+  }
+
+  /** Lista os síndicos de um condomínio (para o web escolher quem vincular). */
+  async listSindicosCondominio(idCond: number) {
+    if (!this.prisma.isConnected) return [];
+    const rels = await this.prisma.sindicos_Condominios.findMany({
+      where: { id_condominio: Number(idCond) },
+      include: { user: { include: { sindicos: true } } },
+    });
+    return rels.map((r) => ({
+      id_user: r.id_user,
+      nome: r.user?.sindicos?.[0]?.name ?? r.user?.name ?? '',
+      email: r.user?.email ?? null,
+    }));
   }
 
   // ==========================================

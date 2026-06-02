@@ -15,6 +15,7 @@ import 'package:click/pages/shared/funcionarios/list_funcionarios.dart';
 import 'package:click/pages/shared/morador/list_moradores.dart';
 import 'package:click/pages/shared/morador/list_moradores_geral.dart';
 import 'package:click/pages/shared/morador/my_apartamento_view.dart';
+import 'package:click/pages/sindico/link_self_morador_sheet.dart';
 import 'package:click/pages/shared/mudancas/list_mudancas.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/sindico/relatorios_page.dart';
@@ -54,6 +55,16 @@ class _MyCondominiumState extends State<MyCondominium> {
   String? _weatherDesc;
   IconData? _weatherIcon;
   bool _weatherLoading = false;
+
+  /// True quando há um apartamento vinculado ao usuário neste condomínio
+  /// (morador sempre; síndico apenas se já se vinculou como morador).
+  bool get _temApto {
+    final id = Singleton.instance.id_apartamento;
+    return id != null && id is int && id > 0;
+  }
+
+  /// Síndico que também é morador deste condomínio (vinculado a um apto).
+  bool get _sindicoEhMorador => getUserType() == 'sindico' && _temApto;
 
   @override
   void initState() {
@@ -98,6 +109,11 @@ class _MyCondominiumState extends State<MyCondominium> {
     if (getUserType() == 'sindico') {
       all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral()));
       all.add(_MenuItem('Relatórios', PhosphorIcons.filePdf, const RelatoriosPage()));
+      // Quando o síndico também é morador deste condomínio (vinculado a um apto),
+      // ganha o item "Meu Apartamento" como o morador.
+      if (_sindicoEhMorador) {
+        all.add(_MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.houseLine, const MyApartamentoView()));
+      }
     }
     if (getUserType() == 'funcionario') {
       final list = all.where((i) =>
@@ -196,6 +212,19 @@ class _MyCondominiumState extends State<MyCondominium> {
   void _navigate(Widget page) {
     Navigator.push(context, MaterialPageRoute(builder: (_) => page))
         .then((_) => _loadCond());
+  }
+
+  /// Abre o fluxo de auto-vínculo do síndico como morador. Em sucesso, popula o
+  /// Singleton com o apto vinculado e reconstrói o menu (libera "Meu Apartamento").
+  Future<void> _onLinkSelfMorador() async {
+    final res = await showLinkSelfMoradorSheet(context);
+    if (res == null || !mounted) return;
+    Singleton.instance.id_apartamento = res['apto_id'];
+    Singleton.instance.apartamento = (res['apto'] ?? '').toString();
+    Singleton.instance.bloco = (res['apto_bloco'] ?? '').toString();
+    Singleton.instance.apto_tipo = res['apto_tipo'];
+    setState(() => _menu = _buildMenu());
+    displayMessage(context, getText('alert_success'), 'Vínculo criado! Você agora é morador deste apartamento.');
   }
 
   Future<void> _fetchWeather(String city, String stateCode) async {
@@ -718,6 +747,35 @@ class _MyCondominiumState extends State<MyCondominium> {
                   ),
                 ],
               ),
+              // Se o síndico também mora aqui, oferece o auto-vínculo como morador.
+              if (!_temApto) ...[
+                AppSpacing.gapLg,
+                Material(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    onTap: _onLinkSelfMorador,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md, vertical: AppSpacing.md),
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIcons.houseLine, color: Colors.white, size: 18),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text('Vincular-me como morador',
+                                style: AppTypography.bodyMedium(context)
+                                    .copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+                          ),
+                          Icon(PhosphorIcons.caretRight,
+                              color: Colors.white.withOpacity(0.8), size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ] else if (type == 'morador') ...[
               AppSpacing.gapXl,
               Container(height: 1, color: Colors.white.withOpacity(0.2)),

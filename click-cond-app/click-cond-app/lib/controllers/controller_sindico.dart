@@ -128,3 +128,23 @@ updatePasswordSindicoApi(String senha) async {
     throw "Houve um erro, tente novamente!";
   }
 }
+
+// Vincula o próprio síndico logado como morador de um apartamento.
+// Retorna o Map {id_condominio, apto_id, apto, apto_bloco, apto_tipo} em sucesso,
+// ou lança a mensagem de erro do backend.
+apiLinkSindicoMorador(dynamic idApartamento, String tipo) async {
+  final url = _buildUri('/sindico/link-morador');
+  final body = json.encode({'id_apartamento': idApartamento.toString(), 'tipo': tipo});
+  try {
+    final response = await ApiClient
+        .post(url, headers: _authHeaders(withContentType: true), body: body)
+        .timeout(_kTimeout);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    throw parsed["message"] ?? "Houve um erro, tente novamente!";
+  } catch (e) {
+    throw e is String ? e : "Houve um erro, tente novamente!";
+  }
+}

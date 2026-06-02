@@ -25,6 +25,13 @@ export class MoradoresController {
     return this.service.exportExcel(idCondominio);
   }
 
+  // Síndicos do condomínio (para o admin/porteiro escolher quem vincular como morador).
+  // Declarado antes de @Get(':id') para não ser capturado como id.
+  @Get('sindicos')
+  listSindicos(@Param('idCondominio', ParseIntPipe) idCondominio: number) {
+    return this.service.listSindicosCondominio(idCondominio);
+  }
+
   @Post('import-bulk')
   importBulk(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -61,6 +68,16 @@ export class MoradoresController {
     @ReqUser() user: JwtPayload,
   ) {
     return this.service.create({ ...body, id_condominio: idCondominio }, user);
+  }
+
+  // Vincula um usuário existente (síndico) a um apartamento como morador.
+  @SkipAudit()
+  @Post('link-user')
+  linkUser(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Body() body: { id_user: number; id_apartamento: number; tipo?: string },
+  ) {
+    return this.service.linkExistingUser(idCondominio, body);
   }
 
   @SkipAudit()
