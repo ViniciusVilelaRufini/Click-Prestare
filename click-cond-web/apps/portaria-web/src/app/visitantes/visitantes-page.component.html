@@ -353,7 +353,68 @@
         <p class="text-xs text-slate-500 mt-1">Clique em "Cadastrar visitante" para começar</p>
       </div>
     } @else {
-      <table class="w-full text-sm">
+      <!-- MOBILE / janela estreita: cards -->
+      <div class="lg:hidden divide-y divide-white/5">
+        @for (v of visitantesPaginados(); track v.id) {
+          <div (click)="abrirDetalhes(v)" class="p-4 hover:bg-white/[0.03] transition cursor-pointer">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden">
+                @if (v.foto_pessoa) {
+                  <img [src]="v.foto_pessoa" class="w-full h-full object-cover" />
+                } @else {
+                  <span class="text-xs font-semibold text-accent">{{ iniciais(v.nome) }}</span>
+                }
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-medium text-white truncate">{{ v.nome }}</span>
+                  <span class="text-[11px] px-2 py-0.5 rounded-md border"
+                        [class.text-accent]="!v.is_prestador" [class.bg-accent/10]="!v.is_prestador" [class.border-accent/20]="!v.is_prestador"
+                        [class.text-amber-400]="v.is_prestador" [class.bg-amber-400/10]="v.is_prestador" [class.border-amber-400/20]="v.is_prestador">
+                    {{ v.is_prestador ? 'Prestador' : 'Visitante' }}
+                  </span>
+                </div>
+                <div class="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+                  @switch (getStatusVisitante(v)) {
+                    @case ('presente') { <span class="inline-flex items-center gap-1 text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>No condomínio</span> }
+                    @case ('liberado') { <span class="inline-flex items-center gap-1 text-cyan-400"><span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>Liberado</span> }
+                    @case ('autorizado') { <span class="inline-flex items-center gap-1 text-sky-400"><span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>Autorizado</span> }
+                    @case ('agendado') { <span class="inline-flex items-center gap-1 text-amber-400"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Agendado</span> }
+                    @case ('saiu') { <span class="inline-flex items-center gap-1 text-slate-500"><span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>Saiu</span> }
+                  }
+                  @if ($any(v).apartamentosVisitados?.length) {
+                    @for (a of $any(v).apartamentosVisitados; track a.id) {
+                      <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-white/5 font-mono text-slate-300">{{ a.label }}</span>
+                    }
+                  }
+                </div>
+                <div class="mt-1 flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap">
+                  @if (v.doc_identificacao) { <span>{{ v.doc_identificacao }}</span> }
+                  @if ($any(v).ultEntrada) { <span>{{ $any(v).ultEntrada | date: 'dd/MM HH:mm' }}</span> }
+                  @if (v.codigo_acesso) { <span class="text-emerald-400">PIN {{ pinsRevelados().has(v.id) ? v.codigo_acesso : '••••••' }}</span> }
+                </div>
+                <div class="mt-2.5 flex items-center gap-2 flex-wrap" (click)="$event.stopPropagation()">
+                  @if (getStatusVisitante(v) === 'presente') {
+                    <button (click)="darBaixa(v)" class="px-2.5 py-1 text-xs rounded bg-red-500/10 text-red-400 border border-red-500/20 font-medium">Dar Baixa</button>
+                  } @else if (getStatusVisitante(v) === 'liberado' || getStatusVisitante(v) === 'autorizado' || getStatusVisitante(v) === 'agendado') {
+                    <button (click)="registrarEntradaManual(v)" class="px-2.5 py-1 text-xs rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">Registrar Entrada</button>
+                  }
+                  <button (click)="abrirNovaVisita($any(v))" class="px-2.5 py-1 text-xs rounded bg-accent/10 text-accent border border-accent/20 font-medium">Nova Visita</button>
+                  <button (click)="abrirEditar(v)" title="Editar" class="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-white/5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                  </button>
+                  <button (click)="removerPessoa($any(v))" title="Remover" class="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- DESKTOP: tabela -->
+      <table class="hidden lg:table w-full text-sm">
         <thead class="bg-white/[0.02] text-slate-400 uppercase text-[11px] tracking-wider border-b border-white/10">
           <tr>
             <th class="text-left px-5 py-3 font-medium">Pessoa</th>

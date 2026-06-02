@@ -262,7 +262,63 @@
     </div>
   } @else {
     <div class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-sm">
-      <div class="overflow-x-auto">
+      <!-- MOBILE / janela estreita: cards -->
+      <div class="lg:hidden divide-y divide-white/5">
+        @for (e of encomendasPaginadas(); track e.id) {
+          <div class="p-4" [class.cursor-pointer]="e.retirado_assinatura || e.retirado_foto"
+               (click)="(e.retirado_assinatura || e.retirado_foto) ? abrirComprovante(e) : null">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-medium text-white leading-tight">{{ e.descricao }}</p>
+                @if (e.codigo_rastreio) { <p class="text-[10px] text-slate-500 font-mono mt-0.5">{{ e.codigo_rastreio }}</p> }
+              </div>
+              @if (e.status === 'Aguardando') {
+                <span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/20 text-amber-400 shrink-0">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Aguardando
+                </span>
+              } @else {
+                <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 shrink-0">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>Retirada
+                </span>
+              }
+            </div>
+            <div class="mt-2 flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+              <span class="inline-flex items-center gap-1 font-mono text-slate-300">
+                <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                {{ e.destinatario_bloco ? e.destinatario_bloco + ' / ' : '' }}{{ e.destinatario_apto }}
+              </span>
+              @if (e.recebido_de) {
+                <span [class]="'inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded border ' + getBrandBadgeClass(e.recebido_de).bg + ' ' + getBrandBadgeClass(e.recebido_de).text + ' ' + getBrandBadgeClass(e.recebido_de).border">{{ e.recebido_de }}</span>
+              }
+              <span class="font-mono">{{ e.recebido_em | date: 'dd/MM HH:mm' }}</span>
+              @if (e.status === 'Aguardando' && diasArmazenada(e) >= 7) {
+                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-red-500/10 border border-red-500/20 text-red-400">{{ diasArmazenada(e) }}d - Crítico</span>
+              } @else if (e.status === 'Aguardando' && diasArmazenada(e) >= 3) {
+                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500/10 border border-amber-400/20 text-amber-400">{{ diasArmazenada(e) }}d</span>
+              }
+            </div>
+            <div class="mt-2.5 flex items-center gap-2 flex-wrap" (click)="$event.stopPropagation()">
+              @if (e.status === 'Aguardando') {
+                @if (!e.notificado) {
+                  <button (click)="notificar(e)" class="px-2 py-1 text-[11px] rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">Notificar</button>
+                } @else {
+                  <span class="inline-flex items-center gap-1 text-[11px] text-emerald-400"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>Notificado</span>
+                }
+                <button (click)="abrirRetirada(e)" class="px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-400/10 text-emerald-400 border border-emerald-400/20">Marcar retirada</button>
+              }
+              <button (click)="imprimir(e)" title="Imprimir etiqueta" class="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/5 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+              </button>
+              <button (click)="remover(e)" title="Remover" class="p-1.5 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- DESKTOP: tabela -->
+      <div class="hidden lg:block overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-white/[0.02] text-slate-400 uppercase text-[11px] tracking-wider border-b border-white/10">
             <tr>
