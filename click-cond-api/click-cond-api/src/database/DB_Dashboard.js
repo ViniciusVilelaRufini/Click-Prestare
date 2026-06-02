@@ -106,11 +106,15 @@ module.exports = {
   },
 
   getResidentSummary: async function (userId) {
-    // Visits for today across all linked apartments/condos
-    const queryVisits = `SELECT count(distinct v.id) as count 
+    // Visitantes atualmente "NO LOCAL" nos apartamentos vinculados ao morador:
+    // entraram (data_entrada preenchida) e ainda não saíram (data_saida nula).
+    // Mesma definição de "No Local / Ativos" usada na lista de visitantes do app
+    // (antes contava por DATE(data_hora_inicio)=CURDATE(), perdendo quem entrou
+    // em outro dia e continua no condomínio).
+    const queryVisits = `SELECT count(distinct v.id) as count
                          FROM Visitantes v
                          INNER JOIN Apartamentos_Users au ON au.id_apto = v.id_apartamento
-                         WHERE au.id_user = ? AND DATE(v.data_hora_inicio) = CURDATE()`;
+                         WHERE au.id_user = ? AND v.data_entrada IS NOT NULL AND v.data_saida IS NULL`;
     
     // Pending packages linked to the resident across all linked apartments
     const queryPackages = `SELECT count(*) as count 
