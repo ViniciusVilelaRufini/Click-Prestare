@@ -286,6 +286,9 @@ export class VisitantesPageComponent implements OnInit {
       if (params['novo'] === 'true') {
         this.abrirNovo();
       }
+      if (params['validar'] === 'true') {
+        this.abrirValidador();
+      }
     });
   }
 
