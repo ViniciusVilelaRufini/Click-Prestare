@@ -53,12 +53,37 @@ module.exports = {
   },
 
   getMoradores: async function (id_apto, tipo) {
-    const query = `select u.id, u.photo, m.nome, m.documento, m.data_nascimento, m.email, m.telefone,  m.extra1, m.extra2, m.extra3, m.extra4 
-                    from Moradores m
-                    inner join Users u on m.id_user = u.id
-                    inner join Apartamentos_Users au on au.id_user = u.id
+    // Fonte canônica = Apartamentos_Users (vínculo real). LEFT JOIN Moradores para o perfil,
+    // assim vínculos "órfãos" (sem ficha) ainda aparecem, batendo com a contagem do card/app.
+    // Filtro de tipo robusto a acento/caixa e a valores legados ('Proprietário'/'morador'/null).
+    const norm = (t) => `lower(trim(convert(${t} using utf8)))`;
+    let tipoCond = '';
+    if (tipo) {
+      const t = String(tipo).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+      if (t === 'inquilino') {
+        tipoCond = ` and ${norm('au.tipo')} = 'inquilino'`;
+      } else if (t === 'membro') {
+        tipoCond = ` and ${norm('au.tipo')} in ('membro','dependente')`;
+      } else { // proprietario: inclui legados morador/null/vazio/Proprietário
+        tipoCond = ` and (au.tipo is null or trim(au.tipo)='' or ${norm('au.tipo')} in ('proprietario','morador') or ${norm('au.tipo')} like 'propriet%rio')`;
+      }
+    }
+    // ANY_VALUE evita erro de only_full_group_by ao deduplicar por usuário
+    // (caso haja mais de um vínculo do mesmo user no apto).
+    const query = `select u.id, any_value(u.photo) as photo,
+                      any_value(coalesce(m.nome, u.name)) as nome,
+                      any_value(coalesce(m.documento, u.cpf)) as documento,
+                      any_value(m.data_nascimento) as data_nascimento,
+                      any_value(coalesce(m.email, u.email)) as email,
+                      any_value(coalesce(m.telefone, u.phone)) as telefone,
+                      any_value(m.extra1) as extra1, any_value(m.extra2) as extra2,
+                      any_value(m.extra3) as extra3, any_value(m.extra4) as extra4
+                    from Apartamentos_Users au
                     inner join Apartamentos a on a.id = au.id_apto
-                      where au.tipo='${tipo}' and au.id_apto=${id_apto} and m.id_condominio = a.id_condominio`;
+                    inner join Users u on u.id = au.id_user
+                    left join Moradores m on m.id_user = au.id_user and m.id_condominio = a.id_condominio
+                      where au.id_apto=${Number(id_apto)}${tipoCond}
+                    group by u.id`;
 
     const { results } = await db.query(query);
     return results;

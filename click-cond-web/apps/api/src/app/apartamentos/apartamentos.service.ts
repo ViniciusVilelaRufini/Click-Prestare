@@ -42,7 +42,7 @@ export class ApartamentosService {
           : {}),
       },
       include: {
-        _count: { select: { users: true } },
+        users: { select: { id_user: true } },
       },
     });
 
@@ -59,7 +59,8 @@ export class ApartamentosService {
       apto: a.apto,
       fracao: a.fracao,
       id_condominio: a.id_condominio,
-      qtdMoradores: a._count.users,
+      // Contagem canônica = usuários distintos vinculados (Apartamentos_Users), igual ao modal/app.
+      qtdMoradores: new Set(a.users.map((u) => u.id_user)).size,
     }));
   }
 

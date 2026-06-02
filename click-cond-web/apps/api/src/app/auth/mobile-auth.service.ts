@@ -16,6 +16,24 @@ export class MobileAuthService {
     private readonly storage: StorageService,
   ) {}
 
+  /**
+   * Normaliza o vínculo (tipo) do morador para o vocabulário canônico:
+   * 'proprietario' | 'inquilino' | 'membro'. Trata dados legados/sujos:
+   * 'Proprietário'/'morador'/null/'' → 'proprietario'; 'dependente' → 'membro'.
+   * Usado para comparar tipos de forma robusta a acento/caixa.
+   */
+  private normalizeTipo(raw: string | null | undefined): 'proprietario' | 'inquilino' | 'membro' {
+    const t = (raw ?? '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim();
+    if (t === 'inquilino') return 'inquilino';
+    if (t === 'membro' || t === 'dependente') return 'membro';
+    // 'proprietario', 'morador', '', null e variantes corrompidas → proprietario
+    return 'proprietario';
+  }
+
   private parseDate(dateStr: string | Date | null | undefined): Date | null {
     if (!dateStr) return null;
     if (dateStr instanceof Date) return dateStr;
@@ -1724,7 +1742,6 @@ export class MobileAuthService {
       where: { id_condominio: Number(idCond) },
       include: {
         users: { include: { user: true } },
-        _count: { select: { users: true } },
       },
     });
 
@@ -1735,44 +1752,56 @@ export class MobileAuthService {
       return (a.bloco ?? '').localeCompare(b.bloco ?? '');
     });
 
-    return reais.map(a => ({
-      id: a.id,
-      bloco: a.bloco ?? '',
-      apto: a.apto ?? '',
-      numero: a.apto ?? '',
-      fracao: a.fracao ?? '',
-      id_condominio: a.id_condominio,
-      qtdMoradores: a._count.users,
-      moradores: a.users.map(u => u.user.name ?? '').filter(Boolean).join(', '),
-    }));
+    return reais.map(a => {
+      // Contagem canônica = vínculos distintos por usuário (não há unique em Apartamentos_Users).
+      const idsUnicos = new Set(a.users.map(u => u.id_user));
+      const nomes = Array.from(
+        new Map(a.users.map(u => [u.id_user, u.user?.name ?? ''])).values()
+      ).filter(Boolean);
+      return {
+        id: a.id,
+        bloco: a.bloco ?? '',
+        apto: a.apto ?? '',
+        numero: a.apto ?? '',
+        fracao: a.fracao ?? '',
+        id_condominio: a.id_condominio,
+        qtdMoradores: idsUnicos.size,
+        moradores: nomes.join(', '),
+      };
+    });
   }
 
   async getMoradoresApto(idApto: number, tipo?: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
-    // Normaliza filtro de tipo: "Proprietário" -> "proprietario"
-    const tipoNorm = tipo
-      ? tipo.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
-      : undefined;
+    // Filtro de tipo opcional, comparado de forma robusta (normalizado x normalizado),
+    // pois o banco tem valores legados/sujos ('Proprietário'/'morador'/null/'dependente').
+    const tipoFiltro = tipo ? this.normalizeTipo(tipo) : undefined;
 
+    // Sem `tipo` no WHERE: trazemos todos os vínculos do apto e filtramos em JS.
     const rels = await this.prisma.apartamentos_Users.findMany({
-      where: {
-        id_apto: Number(idApto),
-        ...(tipoNorm ? { tipo: tipoNorm } : {}),
-      },
+      where: { id_apto: Number(idApto) },
       include: {
         apartamento: true,
         user: { include: { moradores: true } },
       },
     });
 
-    return rels.map(r => {
+    // De-dup por id_user (não há unique em Apartamentos_Users) e aplica o filtro de tipo.
+    const seen = new Set<number>();
+    const result: any[] = [];
+    for (const r of rels) {
+      if (seen.has(r.id_user)) continue;
+      const tipoNorm = this.normalizeTipo(r.tipo);
+      if (tipoFiltro && tipoNorm !== tipoFiltro) continue;
+      seen.add(r.id_user);
+
       const condId = r.apartamento?.id_condominio;
       const m = (condId && r.user?.moradores)
         ? (r.user.moradores.find(mor => mor.id_condominio === condId) ?? r.user.moradores[0])
         : r.user?.moradores?.[0];
-      return {
+      result.push({
         id: m?.id ?? r.id_user, // Flutter usa esse id para abrir o detalhe
         id_user: r.id_user,
         nome: m?.nome ?? r.user?.name ?? '',
@@ -1784,13 +1813,14 @@ export class MobileAuthService {
         apartamento: m?.apartamento ?? '',
         photo: m?.foto_pessoa ?? r.user?.photo ?? '',
         foto_pessoa: m?.foto_pessoa ?? '',
-        tipo: r.tipo ?? 'morador',
+        tipo: tipoNorm,
         extra1: m?.extra1 ?? '',
         extra2: m?.extra2 ?? '',
         extra3: m?.extra3 ?? '',
         extra4: m?.extra4 ?? '',
-      };
-    });
+      });
+    }
+    return result;
   }
 
   async saveApto(body: any, isEdit: boolean) {

@@ -284,10 +284,59 @@ export class MoradoresService {
    */
   async findAll(idCondominio: number, search?: string, idApto?: number) {
     if (!this.prisma.isConnected) {
-      return MoradoresService.mockMoradores.filter(m => 
+      return MoradoresService.mockMoradores.filter(m =>
         !search || m.nome.toLowerCase().includes(search.toLowerCase()) || (m.documento || '').includes(search)
       );
     }
+
+    // Quando filtra por apartamento, a fonte canônica é Apartamentos_Users (o vínculo real
+    // morador↔apto), com LEFT JOIN em Moradores para o perfil. Assim a lista inclui vínculos
+    // "órfãos" (sem ficha em Moradores) e bate exatamente com a contagem do card/app.
+    if (idApto) {
+      const rels = await this.prisma.apartamentos_Users.findMany({
+        where: { id_apto: Number(idApto) },
+        include: {
+          apartamento: true,
+          user: { include: { moradores: true } },
+        },
+      });
+      const seen = new Set<number>();
+      const out: any[] = [];
+      for (const r of rels) {
+        if (seen.has(r.id_user)) continue;
+        seen.add(r.id_user);
+        const condId = r.apartamento?.id_condominio ?? idCondominio;
+        const m = r.user?.moradores?.find((mor) => mor.id_condominio === condId) ?? r.user?.moradores?.[0];
+        const fotoFinal = m?.foto_pessoa ?? r.user?.photo ?? null;
+        out.push({
+          id: m?.id ?? r.id_user,
+          nome: m?.nome ?? r.user?.name ?? '',
+          documento: m?.documento ?? r.user?.cpf ?? null,
+          email: m?.email ?? r.user?.email ?? null,
+          telefone: m?.telefone ?? r.user?.phone ?? null,
+          data_nascimento: m?.data_nascimento ?? null,
+          tipo: r.tipo ?? m?.tipo ?? null,
+          bloco: m?.bloco ?? r.apartamento?.bloco ?? null,
+          apartamento: m?.apartamento ?? r.apartamento?.apto ?? null,
+          id_apartamento: Number(idApto),
+          id_condominio: condId,
+          photo: fotoFinal,
+          foto_pessoa: fotoFinal,
+          foto_documento: m?.foto_documento ?? null,
+          face_id: m?.face_id ?? null,
+          face_sync_status: m?.face_sync_status ?? null,
+        });
+      }
+      // Busca textual local (mesmo comportamento da query condo-wide).
+      if (!search) return out;
+      const q = search.toLowerCase();
+      return out.filter(
+        (o) =>
+          (o.nome ?? '').toLowerCase().includes(q) ||
+          (o.documento ?? '').toLowerCase().includes(q),
+      );
+    }
+
     const list = await this.prisma.moradores.findMany({
       where: {
         id_condominio: idCondominio,
