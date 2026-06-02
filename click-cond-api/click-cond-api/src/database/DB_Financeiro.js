@@ -59,9 +59,9 @@ module.exports = {
                       DATE_FORMAT(COALESCE(t1.data, t1.data_vencimento, t1.created_at), '%m') as mes,
                       DATE_FORMAT(COALESCE(t1.data, t1.data_vencimento, t1.created_at), '%Y') as ano
                     from Financeiro as t1
-                    where t1.id_condominio=${id_cond} 
-                      and COALESCE(t1.data, t1.data_vencimento, t1.created_at) <= '${ano}-${mes}-31'
+                    where t1.id_condominio=${id_cond}
                       and COALESCE(t1.data, t1.data_vencimento, t1.created_at) >= '${ano}-${mes}-01'
+                      and COALESCE(t1.data, t1.data_vencimento, t1.created_at) < '${ano}-${mes}-01' + interval 1 month
                       ${getPendentes == false ? 'and t1.pago=1' : ''}
                     order by COALESCE(t1.data, t1.data_vencimento, t1.created_at) asc, t1.created_at desc`;
     const { results } = await db.query(query);
@@ -74,9 +74,9 @@ module.exports = {
                       DATE_FORMAT(COALESCE(t1.data, t1.data_vencimento, t1.created_at), '%m') as mes,
                       DATE_FORMAT(COALESCE(t1.data, t1.data_vencimento, t1.created_at), '%Y') as ano
                     from Financeiro as t1
-                    where t1.id_condominio=${id_cond} 
-                      and COALESCE(t1.data, t1.data_vencimento, t1.created_at) <= '${ano}-${mes}-31' 
-                      and COALESCE(t1.data, t1.data_vencimento, t1.created_at) >= '${ano}-${mes}-01' 
+                    where t1.id_condominio=${id_cond}
+                      and COALESCE(t1.data, t1.data_vencimento, t1.created_at) >= '${ano}-${mes}-01'
+                      and COALESCE(t1.data, t1.data_vencimento, t1.created_at) < '${ano}-${mes}-01' + interval 1 month
                       and t1.pago = 1
                     order by t1.categoria asc`;
     const { results } = await db.query(query);
@@ -393,6 +393,12 @@ module.exports = {
       ? `t1.nome like 'Apto ${String(morador.apartamento).replace(/'/g, "''")} Bloco ${String(morador.bloco).replace(/'/g, "''")} %'`
       : '0=1';
 
+    // "Meu Financeiro" mostra apenas cobranças do próprio usuário:
+    //  - lançamentos com id_usuario do usuário (inclui taxas de apto já vinculadas), ou
+    //  - taxas de apto sem id_usuario cujo nome case com o apartamento do morador
+    //    (cobre co-moradores e taxas antigas não vinculadas).
+    // Despesas/receitas gerais do condomínio (id_usuario null, nome não-apto)
+    // pertencem à aba "Condomínio" e NÃO devem aparecer aqui.
     const query = `select t1.id, t1.nome, t1.tipo, t1.valor, t1.categoria, t1.url_boleto, t1.url_comprovante, t1.status,
                     DATE_FORMAT(t1.data_vencimento, '%d/%m/%Y') as data_vencimento,
                     DATE_FORMAT(t1.data, '%d/%m/%Y') as data, t1.pago, c.chave_pix
@@ -401,8 +407,7 @@ module.exports = {
                     where t1.id_condominio=${id_cond}
                       and (
                         t1.id_usuario=${id_user}
-                        or (t1.id_usuario is null and t1.nome not like 'Apto %')
-                        or (t1.id_usuario is null and ${aptoMatch})
+                        or (t1.id_usuario is null and t1.nome like 'Apto %' and ${aptoMatch})
                       )
                     order by t1.data_vencimento desc`;
     const { results } = await db.query(query);
