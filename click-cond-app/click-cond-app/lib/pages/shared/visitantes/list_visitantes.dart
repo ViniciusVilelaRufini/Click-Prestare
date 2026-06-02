@@ -606,33 +606,35 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                       ),
                       if (canAdd && item['data_saida'] == null && !isExpired) ...[
                         const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => NewVisitante(
-                                  isEdit: true,
-                                  myId: item['id'],
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => NewVisitante(
+                                    isEdit: true,
+                                    myId: item['id'],
+                                  ),
                                 ),
+                              ).then((_) => loadList());
+                            },
+                            icon: const Icon(PhosphorIcons.pencilSimple, color: Colors.white, size: 18),
+                            label: const Text(
+                              'Editar',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
                               ),
-                            ).then((_) => loadList());
-                          },
-                          icon: const Icon(PhosphorIcons.pencilSimple, color: Colors.white, size: 18),
-                          label: const Text(
-                            'Editar',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
                             ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            minimumSize: const Size.fromHeight(48),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            elevation: 0,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              elevation: 0,
+                            ),
                           ),
                         ),
                       ],
