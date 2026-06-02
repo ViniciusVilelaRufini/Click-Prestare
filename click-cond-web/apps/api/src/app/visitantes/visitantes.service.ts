@@ -1257,24 +1257,17 @@ export class VisitantesService {
       });
       const aptosPermitidos = [...new Set(vinc.map((v) => v.id_apto))];
 
-      // Restrito quando: é morador (sempre), ou é síndico/funcionário TAMBÉM vinculado a apto.
-      const restrito = typeLower === 'morador' || aptosPermitidos.length > 0;
-
-      if (restrito) {
-        if (aptosPermitidos.length === 0) return []; // morador sem apto vinculado
-        if (idApto) {
-          // Pediu um apto específico: só pode se for dele.
-          if (!aptosPermitidos.includes(Number(idApto))) {
-            throw new ForbiddenException('Acesso negado: este apartamento não pertence a você.');
-          }
-          conditions.push({ id_apartamento: Number(idApto) });
-        } else {
-          conditions.push({ id_apartamento: { in: aptosPermitidos } });
+      // No APP, TODOS (morador, síndico e funcionário) só veem visitantes dos próprios
+      // apartamentos vinculados. A gestão da portaria (ver todos) é só no console web.
+      // Sem vínculo de apto neste condomínio → não vê nada.
+      if (aptosPermitidos.length === 0) return [];
+      if (idApto) {
+        if (!aptosPermitidos.includes(Number(idApto))) {
+          throw new ForbiddenException('Acesso negado: este apartamento não pertence a você.');
         }
+        conditions.push({ id_apartamento: Number(idApto) });
       } else {
-        // Síndico/funcionário gestor (sem vínculo de morador): vê todos do condomínio,
-        // podendo opcionalmente focar num apto.
-        if (idApto) conditions.push({ id_apartamento: Number(idApto) });
+        conditions.push({ id_apartamento: { in: aptosPermitidos } });
       }
     } else if (typeLower === 'morador') {
       conditions.push({

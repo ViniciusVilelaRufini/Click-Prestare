@@ -44,26 +44,22 @@ module.exports = {
       let filterUserId = null;
       let idAptosPermitidos = null; // lista de aptos quando o usuário é restrito
 
-      // Isolamento de dados: a fonte da verdade é o servidor.
-      // Morador é SEMPRE restrito ao(s) próprio(s) apto(s). Síndico/Funcionário também
-      // ficam restritos SE estiverem vinculados como morador de algum apto deste condomínio;
-      // caso contrário (gestor sem vínculo) veem todos do condomínio.
+      // Isolamento de dados no APP: TODOS (morador, síndico, funcionário) só veem
+      // visitantes dos próprios apartamentos vinculados. A gestão da portaria (ver
+      // todos) é só no console web. Sem vínculo de apto → não vê nada.
+      // A fonte da verdade é o servidor (nunca confia no id_apto do client).
       if (id_condominio) {
         const userAptos = await dbAptos.getApartmentsByUser(user.id, id_condominio);
-        const restrito = user.typeAccess === 'Morador' || userAptos.length > 0;
-
-        if (restrito) {
-          filterUserId = user.id;
-          if (userAptos.length === 0) {
-            return res.status(200).json([]); // morador sem apto vinculado
-          }
-          if (id_apto && !userAptos.includes(parseInt(id_apto))) {
-            console.warn(`[SECURITY] User ${user.id} (${user.typeAccess}) tentou acessar Apto ${id_apto} sem permissão.`);
-            return res.status(403).json({ message: "Acesso negado: Este apartamento não pertence a você." });
-          }
-          if (!id_apto) {
-            idAptosPermitidos = userAptos; // filtra por TODOS os aptos do usuário
-          }
+        filterUserId = user.id;
+        if (userAptos.length === 0) {
+          return res.status(200).json([]);
+        }
+        if (id_apto && !userAptos.includes(parseInt(id_apto))) {
+          console.warn(`[SECURITY] User ${user.id} (${user.typeAccess}) tentou acessar Apto ${id_apto} sem permissão.`);
+          return res.status(403).json({ message: "Acesso negado: Este apartamento não pertence a você." });
+        }
+        if (!id_apto) {
+          idAptosPermitidos = userAptos; // filtra por TODOS os aptos do usuário
         }
       }
 
