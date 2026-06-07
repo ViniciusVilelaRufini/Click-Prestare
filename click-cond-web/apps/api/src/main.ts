@@ -62,17 +62,28 @@ async function bootstrap() {
     ? allowedOriginsEnv.split(',').map((o) => o.trim()).filter(Boolean)
     : defaultOrigins;
 
-  app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      // Permite qualquer localhost (Flutter web usa porta dinâmica)
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error(`Origem não permitida por CORS: ${origin}`));
-    },
-    credentials: true,
+  // Assinatura (req, callback): dá acesso à URL para liberar rotas públicas.
+  app.enableCors((req: any, callback: (err: Error | null, options?: any) => void) => {
+    const origin: string | undefined = req.headers?.origin;
+
+    // Endpoints públicos de webhook/simulador de dispositivos: chamados por
+    // hardware (catraca/leitor) e pelas páginas de simulador a partir de
+    // QUALQUER host. Não há cookie/credencial — libera qualquer origem.
+    const path: string = req.originalUrl || req.url || '';
+    if (/^\/api\/facial\/(webhook|sim|simulator)\b/.test(path)) {
+      return callback(null, { origin: true, credentials: false });
+    }
+
+    // Demais rotas: whitelist (mantém credentials para o cookie/JWT do console).
+    if (!origin) return callback(null, { origin: true, credentials: true });
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, { origin: true, credentials: true });
+    }
+    // Permite qualquer localhost (Flutter web usa porta dinâmica)
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, { origin: true, credentials: true });
+    }
+    return callback(new Error(`Origem não permitida por CORS: ${origin}`));
   });
 
   const globalPrefix = 'api';
