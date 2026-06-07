@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <title>Simulador de Acesso — Click Portaria</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -294,7 +297,8 @@
           log('err', `✗ ${res.status} Negado — ${Array.isArray(motivo) ? motivo.join('; ') : motivo}`);
         }
       } catch (err) {
-        log('err', `✗ Falha de rede: ${err.message}. (CORS? Verifique se a URL/host está correto.)`);
+        log('err', `✗ Falha de rede: ${err.message}.`);
+        log('info', '↳ Se persistir: recarregue esta página com Ctrl+Shift+R (cache antigo) e confira se a URL de webhook está completa e acessível.');
       }
     }
 
