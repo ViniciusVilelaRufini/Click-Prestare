@@ -802,7 +802,11 @@ export class FacialService {
     });
 
     if (regrasDispositivo.length > 0) {
-      let possuiRegraAplicavel = false;
+      // Modelo WHITELIST: se um terminal TEM regras ativas, ele é restrito.
+      // O acesso só passa se EXISTIR alguma regra que cubra simultaneamente
+      // o sentido (entrada/saida), o horário e a categoria da pessoa atuais.
+      // Se nenhuma regra cobre, NEGA — inclusive sentidos não contemplados.
+      // Ex.: regra "apenas entrada" ⇒ a SAÍDA não tem regra que a cubra ⇒ negada.
       let permitido = false;
 
       // Obtém o horário do evento em formato HH:MM (ajustando a data e a timezone se necessário)
@@ -828,18 +832,18 @@ export class FacialService {
           }
         }
 
-        // Se a regra é válida para esta direção e hora, ela passa a ser uma regra ativa/aplicável
-        possuiRegraAplicavel = true;
-
-        // 3. Validar se a categoria da pessoa é permitida
+        // 3. Esta regra cobre o sentido e o horário. Autoriza se a categoria
+        //    da pessoa estiver permitida nela.
         if (tipoPessoa === 'morador' && r.permitir_morador === 1) permitido = true;
         if (tipoPessoa === 'visitante' && r.permitir_visitante === 1) permitido = true;
         if (tipoPessoa === 'prestador' && r.permitir_prestador === 1) permitido = true;
         if (tipoPessoa === 'funcionario' && r.permitir_funcionario === 1) permitido = true;
+
+        if (permitido) break; // já achou uma regra que libera; não precisa olhar o resto
       }
 
-      // Se temos regras aplicáveis para este sentido e horário, mas nenhuma autorizou o usuário
-      if (possuiRegraAplicavel && !permitido) {
+      // Terminal tem regras ativas e NENHUMA autorizou este sentido/horário/categoria
+      if (!permitido) {
         await this.prisma.acessos_Facial.create({
           data: {
             id_condominio: device.id_condominio,
@@ -855,15 +859,14 @@ export class FacialService {
           },
         });
 
-        const sentidoLabel = evento === 'entrada' ? 'Entrada' : evento === 'saida' ? 'Saída' : evento;
+        const sentidoLabel = evento === 'entrada' ? 'entrada' : evento === 'saida' ? 'saída' : evento;
+        const categoriaLabel =
+          tipoPessoa === 'morador' ? 'Moradores'
+          : tipoPessoa === 'prestador' ? 'Prestadores'
+          : tipoPessoa === 'funcionario' ? 'Funcionários'
+          : 'Visitantes';
         throw new BadRequestException(
-          `Acesso negado: terminal restrito para ${
-            tipoPessoa === 'morador'
-              ? 'Moradores'
-              : tipoPessoa === 'prestador'
-              ? 'Prestadores'
-              : 'Visitantes'
-          } no sentido de ${sentidoLabel} neste horário`
+          `Acesso negado: as regras deste terminal não permitem ${sentidoLabel} para ${categoriaLabel} neste horário.`
         );
       }
     }
