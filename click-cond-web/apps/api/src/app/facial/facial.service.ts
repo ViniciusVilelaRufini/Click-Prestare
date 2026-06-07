@@ -873,8 +873,17 @@ export class FacialService {
       }
     }
 
-    // Controle de Anti-passback (Evita registro duplicado sequencial de entrada ou saída)
-    if (evento === 'entrada' || evento === 'saida') {
+    // Controle de Anti-passback (Evita registro duplicado sequencial de entrada ou saída).
+    //
+    // Para VISITANTE/PRESTADOR o estado real é data_entrada/data_saida do próprio
+    // registro, já validado acima (saída exige entrada ativa; entrada não duplica).
+    // Basear o anti-passback no histórico de eventos aqui causava falso bloqueio:
+    // um evento de saída antigo em Acessos_Facial barrava nova saída mesmo o
+    // visitante estando DENTRO (data_saida=null) — agravado por registros
+    // duplicados da mesma pessoa. Por isso só aplicamos este anti-passback a
+    // morador/funcionário, que não têm data_entrada/data_saida persistidas.
+    const aplicarAntiPassbackEvento = tipoPessoa === 'morador' || tipoPessoa === 'funcionario';
+    if (aplicarAntiPassbackEvento && (evento === 'entrada' || evento === 'saida')) {
       const ultimoAcesso = await this.prisma.acessos_Facial.findFirst({
         where: {
           tipo_pessoa: tipoPessoa,
