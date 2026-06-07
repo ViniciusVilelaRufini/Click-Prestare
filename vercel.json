@@ -6,6 +6,10 @@
       "destination": "https://click-prestare-production.up.railway.app/api/:path*"
     },
     {
+      "source": "/simulador-acesso.html",
+      "destination": "https://click-prestare-production.up.railway.app/simulador-acesso.html"
+    },
+    {
       "source": "/:path*",
       "destination": "/index.html"
     }
