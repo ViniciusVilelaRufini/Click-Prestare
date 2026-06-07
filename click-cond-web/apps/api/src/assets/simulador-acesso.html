@@ -216,13 +216,26 @@
 
     // ---- URL de webhook ----
     function parseUrl(raw) {
-      const url = (raw || '').trim();
+      let url = (raw || '').trim();
       if (!url) return { ok: false, msg: 'Aguardando URL…' };
       try {
         const u = new URL(url);
         const m = u.pathname.match(/\/api\/facial\/webhook\/([^/?#]+)/);
         if (!m) return { ok: false, msg: 'URL não parece um webhook de dispositivo (/api/facial/webhook/…).' };
-        return { ok: true, msg: `Pronto · ${u.host} · token …${m[1].slice(-6)}`, url };
+
+        // Mixed Content: esta página é servida por HTTPS. Um fetch para http://
+        // (inseguro) em host remoto é BLOQUEADO pelo navegador antes de sair
+        // (vira "Failed to fetch"). O botão "Copiar URL Webhook" gera http:// —
+        // então promovemos para https:// automaticamente (exceto localhost).
+        const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(u.hostname);
+        let upgraded = false;
+        if (location.protocol === 'https:' && u.protocol === 'http:' && !isLocal) {
+          u.protocol = 'https:';
+          url = u.toString();
+          upgraded = true;
+        }
+        const aviso = upgraded ? ' · http→https (Mixed Content)' : '';
+        return { ok: true, msg: `Pronto · ${u.host} · token …${m[1].slice(-6)}${aviso}`, url };
       } catch {
         return { ok: false, msg: 'URL inválida.' };
       }
