@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simulador de Acesso — Click Portaria</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0e1a; --panel: #131b2e; --border: #1e293b; --border2: #334155;
+      --text: #e2e8f0; --muted: #94a3b8; --muted2: #64748b;
+      --green: #22c55e; --red: #ef4444; --amber: #f59e0b; --blue: #3b82f6;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; padding: 24px;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 24px; padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    header .icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--blue); font-size: 24px;
+    }
+    header h1 { font-size: 22px; font-weight: 600; color: #fff; }
+    header .subtitle { color: var(--muted2); font-size: 13px; margin-top: 4px; }
+
+    .config {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px; margin-bottom: 20px;
+    }
+    .config h2, .panel h2 {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input, select {
+      width: 100%; padding: 11px 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 14px;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--blue); }
+    .hint { font-size: 11px; color: var(--muted2); margin-top: 6px; line-height: 1.5; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 140px; }
+    .url-status {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; margin-top: 10px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); }
+    .dot.ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .dot.bad { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+    .grid { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+    .devices { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 560px) { .devices { grid-template-columns: 1fr; } }
+
+    .device {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px; display: flex; flex-direction: column;
+    }
+    .device .dev-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .device .dev-emoji { font-size: 26px; }
+    .device .dev-name { font-size: 15px; font-weight: 600; color: #fff; }
+    .device .dev-desc { font-size: 12px; color: var(--muted2); margin-bottom: 14px; min-height: 32px; }
+    .device input { margin-bottom: 12px; }
+
+    .btn-pair { display: flex; gap: 10px; }
+    button {
+      flex: 1; padding: 13px 10px; border-radius: 10px;
+      border: none; font-weight: 700; font-size: 14px;
+      cursor: pointer; transition: transform 0.08s, filter 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:active { transform: scale(0.96); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; filter: none; transform: none; }
+    .btn-in { background: var(--green); color: #052e16; }
+    .btn-out { background: var(--amber); color: #422006; }
+    .btn-full { width: 100%; flex: none; background: var(--blue); color: #fff; margin-top: 4px; }
+    .btn-ghost { background: var(--border); color: var(--text); }
+
+    .panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px;
+    }
+    .log {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px;
+      font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 12px;
+      max-height: 460px; overflow-y: auto;
+    }
+    .log-entry { padding: 7px 0; border-bottom: 1px solid var(--border); white-space: pre-wrap; word-break: break-word; line-height: 1.4; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { color: var(--muted2); }
+    .log-sent { color: var(--blue); }
+    .log-ok { color: var(--green); }
+    .log-err { color: var(--red); }
+    .log-info { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="icon">🎛️</div>
+      <div>
+        <h1>Simulador de Acesso</h1>
+        <div class="subtitle">Dispara eventos de entrada/saída para o webhook do dispositivo. Os acessos aparecem no console web em tempo real.</div>
+      </div>
+    </header>
+
+    <div class="config">
+      <h2>1 · Cole a URL de Webhook do dispositivo</h2>
+      <label>No console web, abra o card do dispositivo e clique em <b>“Copiar URL Webhook”</b>. Cole aqui:</label>
+      <input id="webhookUrl" type="text" placeholder="https://click-prestare-production.up.railway.app/api/facial/webhook/abc123..." />
+      <div class="url-status"><span class="dot" id="urlDot"></span><span id="urlMsg">Aguardando URL…</span></div>
+      <div class="hint">A URL já contém o host e o token do dispositivo — a página dispara direto para lá. Funciona contra produção (Railway) ou um servidor local, conforme a URL colada.</div>
+    </div>
+
+    <div class="grid">
+      <div class="devices">
+
+        <!-- CATRACA -->
+        <div class="device">
+          <div class="dev-head">
+            <span class="dev-emoji">🚧</span>
+            <span class="dev-name">Catraca Eletrônica</span>
+          </div>
+          <div class="dev-desc">Identifica por credencial e libera o giro. Escolha o método e a credencial.</div>
+          <label>Método</label>
+          <select id="catracaMetodo">
+            <option value="card_uid">Tag RFID (card_uid)</option>
+            <option value="qrcode">QR Code (qrcode)</option>
+            <option value="external_id">ID da pessoa (external_id)</option>
+          </select>
+          <label>Credencial</label>
+          <input id="catracaCred" type="text" placeholder="ex: 04A3B2C1  /  morador_12" />
+          <div class="btn-pair">
+            <button class="btn-in"  onclick="disparar('catraca','entrada')">⬇ Entrada</button>
+            <button class="btn-out" onclick="disparar('catraca','saida')">⬆ Saída</button>
+          </div>
+        </div>
+
+        <!-- LEITOR DE TAG RFID -->
+        <div class="device">
+          <div class="dev-head">
+            <span class="dev-emoji">📟</span>
+            <span class="dev-name">Leitor de Tag RFID</span>
+          </div>
+          <div class="dev-desc">Encosta o crachá/tag. Envia o UID da tag (card_uid).</div>
+          <label>UID da Tag</label>
+          <input id="tagUid" type="text" placeholder="ex: 04A3B2C1" />
+          <div class="btn-pair">
+            <button class="btn-in"  onclick="disparar('tag','entrada')">⬇ Entrada</button>
+            <button class="btn-out" onclick="disparar('tag','saida')">⬆ Saída</button>
+          </div>
+        </div>
+
+        <!-- LEITOR DE QR CODE -->
+        <div class="device">
+          <div class="dev-head">
+            <span class="dev-emoji">🔳</span>
+            <span class="dev-name">Leitor de QR Code</span>
+          </div>
+          <div class="dev-desc">Lê o QR/PIN de acesso do morador ou visitante (qrcode).</div>
+          <label>Código / PIN</label>
+          <input id="qrValue" type="text" placeholder="ex: 8472  /  qr-abc123" />
+          <div class="btn-pair">
+            <button class="btn-in"  onclick="disparar('qr','entrada')">⬇ Entrada</button>
+            <button class="btn-out" onclick="disparar('qr','saida')">⬆ Saída</button>
+          </div>
+        </div>
+
+        <!-- BOTOEIRA -->
+        <div class="device">
+          <div class="dev-head">
+            <span class="dev-emoji">🔘</span>
+            <span class="dev-name">Botoeira</span>
+          </div>
+          <div class="dev-desc">Botão físico de abertura — sem credencial. Dispara um acionamento.</div>
+          <label>&nbsp;</label>
+          <input type="text" value="acionamento manual" disabled style="opacity:.5" />
+          <button class="btn-full" onclick="disparar('botoeira','entrada')">🔘 Acionar Botoeira</button>
+        </div>
+
+      </div>
+
+      <div class="panel">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+          <h2 style="margin:0;">Eventos enviados</h2>
+          <button class="btn-ghost" style="flex:none; padding:6px 12px; font-size:12px;" onclick="limpar()">Limpar</button>
+        </div>
+        <div id="log" class="log">
+          <div class="log-entry log-info">Cole a URL de webhook acima e clique em um botão para disparar.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'simulador_acesso_url';
+    const $ = (id) => document.getElementById(id);
+
+    // ---- URL de webhook ----
+    function parseUrl(raw) {
+      const url = (raw || '').trim();
+      if (!url) return { ok: false, msg: 'Aguardando URL…' };
+      try {
+        const u = new URL(url);
+        const m = u.pathname.match(/\/api\/facial\/webhook\/([^/?#]+)/);
+        if (!m) return { ok: false, msg: 'URL não parece um webhook de dispositivo (/api/facial/webhook/…).' };
+        return { ok: true, msg: `Pronto · ${u.host} · token …${m[1].slice(-6)}`, url };
+      } catch {
+        return { ok: false, msg: 'URL inválida.' };
+      }
+    }
+
+    function refreshUrlStatus() {
+      const r = parseUrl($('webhookUrl').value);
+      const dot = $('urlDot');
+      dot.className = 'dot ' + (r.ok ? 'ok' : ($('webhookUrl').value.trim() ? 'bad' : ''));
+      $('urlMsg').textContent = r.msg;
+      localStorage.setItem(STORAGE_KEY, $('webhookUrl').value.trim());
+      return r;
+    }
+    $('webhookUrl').addEventListener('input', refreshUrlStatus);
+
+    // ---- Log ----
+    function log(level, msg) {
+      const el = $('log');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry log-' + level;
+      const t = new Date().toLocaleTimeString();
+      entry.innerHTML = `<span class="log-time">[${t}]</span> ` + msg.replace(/</g, '&lt;');
+      el.insertBefore(entry, el.firstChild);
+      while (el.children.length > 60) el.removeChild(el.lastChild);
+    }
+    function limpar() { $('log').innerHTML = ''; log('info', 'Log limpo.'); }
+
+    // ---- Montagem do payload por dispositivo ----
+    function montarPayload(tipo, sentido) {
+      const base = {
+        event: sentido,                  // 'entrada' | 'saida'
+        direction: sentido === 'entrada' ? 'in' : 'out',
+        timestamp: new Date().toISOString(),
+      };
+      if (tipo === 'catraca') {
+        const metodo = $('catracaMetodo').value;        // card_uid | qrcode | external_id
+        const cred = $('catracaCred').value.trim();
+        base[metodo] = cred;
+        if (metodo === 'external_id') base.confidence = 99;
+      } else if (tipo === 'tag') {
+        base.card_uid = $('tagUid').value.trim();
+      } else if (tipo === 'qr') {
+        base.qrcode = $('qrValue').value.trim();
+      } else if (tipo === 'botoeira') {
+        base.event = 'acionamento';
+        base.external_id = 'botoeira_fisica';
+      }
+      return base;
+    }
+
+    // ---- Disparo ----
+    async function disparar(tipo, sentido) {
+      const r = refreshUrlStatus();
+      if (!r.ok) { log('err', '✗ Cole uma URL de webhook válida primeiro.'); return; }
+
+      const payload = montarPayload(tipo, sentido);
+      const label = tipo === 'botoeira' ? 'Botoeira (acionamento)' : `${tipo.toUpperCase()} · ${sentido}`;
+      log('sent', `→ ${label}\n${JSON.stringify(payload)}`);
+
+      try {
+        const res = await fetch(r.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        let body = null;
+        try { body = await res.json(); } catch {}
+        if (res.ok) {
+          log('ok', `✓ ${res.status} Autorizado — ${JSON.stringify(body || { ok: true })}`);
+        } else {
+          const motivo = (body && (body.message || body.error)) || `HTTP ${res.status}`;
+          log('err', `✗ ${res.status} Negado — ${Array.isArray(motivo) ? motivo.join('; ') : motivo}`);
+        }
+      } catch (err) {
+        log('err', `✗ Falha de rede: ${err.message}. (CORS? Verifique se a URL/host está correto.)`);
+      }
+    }
+
+    // ---- Restaurar URL salva ----
+    (function init() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) $('webhookUrl').value = saved;
+      refreshUrlStatus();
+    })();
+  </script>
+</body>
+</html>
