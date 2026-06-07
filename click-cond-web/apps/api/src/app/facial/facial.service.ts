@@ -597,9 +597,10 @@ export class FacialService {
         nomePessoa = morador.nome;
         faceIdSalvo = qrCodeLido;
       } else {
-        const visitante = await this.prisma.visitantes.findFirst({
-          where: { codigo_acesso: qrCodeLido, id_condominio: device.id_condominio }
-        });
+        const visitante = await this.findVisitanteByCredencial(
+          { codigo_acesso: qrCodeLido, id_condominio: device.id_condominio },
+          evento,
+        );
         if (visitante) {
           tipoPessoa = visitante.is_prestador === 1 ? 'prestador' : 'visitante';
           idPessoa = visitante.id;
@@ -617,9 +618,10 @@ export class FacialService {
         nomePessoa = morador.nome;
         faceIdSalvo = tagRfidLida;
       } else {
-        const visitante = await this.prisma.visitantes.findFirst({
-          where: { tag_rfid: tagRfidLida, id_condominio: device.id_condominio }
-        });
+        const visitante = await this.findVisitanteByCredencial(
+          { tag_rfid: tagRfidLida, id_condominio: device.id_condominio },
+          evento,
+        );
         if (visitante) {
           tipoPessoa = visitante.is_prestador === 1 ? 'prestador' : 'visitante';
           idPessoa = visitante.id;
@@ -1144,6 +1146,39 @@ export class FacialService {
     const match = externalId.match(/^(morador|visitante)_(\d+)$/);
     if (!match) return { tipo: 'desconhecido', id: 0 };
     return { tipo: match[1], id: Number(match[2]) };
+  }
+
+  /**
+   * Escolhe o registro de visitante CORRETO quando a mesma credencial (tag/QR)
+   * aparece em vários registros da mesma pessoa (várias visitas).
+   *
+   * - SAÍDA: prioriza quem está DENTRO (data_entrada != null, data_saida == null).
+   *   Um findFirst ingênuo pegava um registro sem entrada ativa e negava a saída.
+   * - ENTRADA/demais: prioriza quem está liberado e ainda NÃO entrou nem saiu
+   *   (a visita "agendada/pronta"); senão o registro mais recente.
+   */
+  private async findVisitanteByCredencial(
+    where: { id_condominio: number; codigo_acesso?: string; tag_rfid?: string },
+    evento: string,
+  ) {
+    const candidatos = await this.prisma.visitantes.findMany({ where });
+    if (candidatos.length <= 1) return candidatos[0] ?? null;
+
+    if (evento === 'saida') {
+      // Está dentro agora = entrou e não saiu. Entre vários, o de entrada mais recente.
+      const dentro = candidatos
+        .filter((v) => v.data_entrada && !v.data_saida)
+        .sort((a, b) => (b.data_entrada!.getTime() - a.data_entrada!.getTime()));
+      if (dentro.length) return dentro[0];
+    } else {
+      // Entrada: prefere visita liberada e ainda não usada (sem entrada/saída).
+      const prontos = candidatos
+        .filter((v) => v.liberado === 1 && !v.data_entrada && !v.data_saida)
+        .sort((a, b) => b.id - a.id);
+      if (prontos.length) return prontos[0];
+    }
+    // Fallback: registro mais recente.
+    return candidatos.sort((a, b) => b.id - a.id)[0];
   }
 
   private normalizeEvento(event?: string, direction?: string): string {
