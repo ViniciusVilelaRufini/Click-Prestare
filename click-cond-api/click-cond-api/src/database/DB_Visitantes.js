@@ -15,8 +15,11 @@ module.exports = {
       }
     }
     
-    const query = `insert into Visitantes (nome, doc_identificacao, data_hora_inicio, data_hora_termino, is_visitante, is_prestador, user, id_apartamento, id_condominio, avisar, foto_documento, foto_pessoa, codigo_acesso)
-						values ('${visitante.nome}','${visitante.doc_identificacao}','${visitante.data_inicio}','${visitante.data_termino}',${visitante.is_visitante}, ${visitante.is_prestador}, ${user_id}, ${visitante.id_apartamento}, ${id_condominio}, 1, '${visitante.foto_documento || ''}', '${visitante.foto_pessoa || ''}', '${pin}')`;
+    // liberado=1: visitante criado pelo morador/app já nasce autorizado (mesma
+    // regra do backend NestJS). Sem isso, a validação do PIN (que exige
+    // liberado=1) nega "não foi autorizada pelo morador ou portaria".
+    const query = `insert into Visitantes (nome, doc_identificacao, data_hora_inicio, data_hora_termino, is_visitante, is_prestador, user, id_apartamento, id_condominio, avisar, foto_documento, foto_pessoa, codigo_acesso, liberado)
+						values ('${visitante.nome}','${visitante.doc_identificacao}','${visitante.data_inicio}','${visitante.data_termino}',${visitante.is_visitante}, ${visitante.is_prestador}, ${user_id}, ${visitante.id_apartamento}, ${id_condominio}, 1, '${visitante.foto_documento || ''}', '${visitante.foto_pessoa || ''}', '${pin}', 1)`;
             console.log(query);
     const result = await db.query(query);
     return { id: result.results.insertId, codigo_acesso: pin };
