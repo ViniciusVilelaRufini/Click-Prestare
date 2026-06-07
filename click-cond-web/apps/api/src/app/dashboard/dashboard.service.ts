@@ -34,6 +34,10 @@ export interface DashboardSummary {
       // Novos para Visitante / Acesso Facial
       metodoLiberacao?: 'facial' | 'pin' | 'manual';
       metodoLabel?: string;
+      // Texto do subtítulo conforme o tipo de dispositivo do acesso
+      // (ex.: "Reconhecido pelo terminal facial", "Lido pelo leitor de tag RFID").
+      reconhecimentoLabel?: string;
+      tipoDispositivo?: string;
       confianca?: number;
       terminalNome?: string;
       historicoAcessos?: {
@@ -276,7 +280,7 @@ export class DashboardService {
           evento,
           timestamp: a.timestamp.toISOString(),
           metodo: 'facial',
-          metodoLabel: 'Terminal Facial',
+          metodoLabel: labelMetodoDispositivo(a.tipo_dispositivo),
           confianca: a.confianca ?? undefined,
           terminalNome: deviceById.get(a.id_device) ?? `Terminal #${a.id_device}`,
         });
@@ -456,6 +460,15 @@ export class DashboardService {
           a.evento === 'falha_acionamento' ? 'tentou acionar (falhou)' :
           'entrou';
 
+        // Label do dispositivo conforme o tipo real do acesso (tipo_dispositivo),
+        // para não dizer "terminal facial" quando foi catraca/leitor/botoeira.
+        const dispLabel = labelDispositivo(a.tipo_dispositivo);          // ex.: "catraca"
+        const dispMetodoLabel = labelMetodoDispositivo(a.tipo_dispositivo); // ex.: "Catraca Eletrônica"
+        const reconheceuVerbo =
+          a.tipo_dispositivo === 'facial' ? 'Reconhecido pelo'
+          : a.tipo_dispositivo === 'tag_reader' || a.tipo_dispositivo === 'qrcode_reader' ? 'Lido pelo'
+          : 'Registrado pelo';
+
         let foto: string | undefined;
         let aptoStr = '';
         let documento: string | undefined;
@@ -496,7 +509,7 @@ export class DashboardService {
                     : 'entrada') as 'entrada' | 'saida' | 'negado',
                 timestamp: row.timestamp.toISOString(),
                 metodo: 'facial' as const,
-                metodoLabel: 'Terminal Facial',
+                metodoLabel: labelMetodoDispositivo(row.tipo_dispositivo),
                 confianca: row.confianca ?? undefined,
                 terminalNome: deviceById.get(row.id_device) ?? `Terminal #${row.id_device}`,
               }))
@@ -509,7 +522,7 @@ export class DashboardService {
           descricao:
             a.tipo_pessoa === 'operador'
               ? `${a.nome_pessoa} ${acao} ${terminalNome}`
-              : `${a.nome_pessoa} ${acao} pelo terminal facial${confiancaPct}`,
+              : `${a.nome_pessoa} ${acao} pelo ${dispLabel}${confiancaPct}`,
           quando: a.timestamp.toISOString(),
           direcao:
             a.evento === 'saida' ? 'saida' :
@@ -521,8 +534,8 @@ export class DashboardService {
             documento,
             blocoApto: aptoStr || undefined,
             tipoPessoa: a.tipo_pessoa as any,
-            status: a.evento === 'entrada' ? 'Entrada via terminal facial' :
-                    a.evento === 'saida' ? 'Saída via terminal facial' :
+            status: a.evento === 'entrada' ? `Entrada via ${dispLabel}` :
+                    a.evento === 'saida' ? `Saída via ${dispLabel}` :
                     'Acesso negado',
             dataEntrada: a.evento === 'entrada' ? a.timestamp.toISOString() : undefined,
             dataSaida: a.evento === 'saida' ? a.timestamp.toISOString() : undefined,
@@ -532,7 +545,10 @@ export class DashboardService {
               : undefined,
             fotoPessoa: foto,
             metodoLiberacao: 'facial',
-            metodoLabel: 'Terminal Facial',
+            metodoLabel: dispMetodoLabel,
+            // Subtítulo do card: "Reconhecido pelo terminal facial" / "Lido pelo leitor de tag RFID" etc.
+            reconhecimentoLabel: `${reconheceuVerbo} ${dispLabel}`,
+            tipoDispositivo: a.tipo_dispositivo || 'facial',
             confianca: a.confianca ?? undefined,
             terminalNome,
             historicoAcessos,
@@ -555,5 +571,32 @@ export class DashboardService {
       totalMoradores,
       ultimosEventos: sortedEvents,
     };
+  }
+}
+
+/**
+ * Rótulo legível (minúsculo, para frases) do tipo de dispositivo de acesso.
+ * Ex.: "pelo {labelDispositivo}" → "pelo terminal facial" / "pela catraca".
+ */
+function labelDispositivo(tipo?: string | null): string {
+  switch (tipo) {
+    case 'catraca': return 'catraca';
+    case 'botoeira': return 'botoeira';
+    case 'tag_reader': return 'leitor de tag RFID';
+    case 'qrcode_reader': return 'leitor de QR Code';
+    case 'facial':
+    default: return 'terminal facial';
+  }
+}
+
+/** Rótulo "título" do dispositivo (para chips/labels). */
+function labelMetodoDispositivo(tipo?: string | null): string {
+  switch (tipo) {
+    case 'catraca': return 'Catraca Eletrônica';
+    case 'botoeira': return 'Botoeira';
+    case 'tag_reader': return 'Leitor de Tag RFID';
+    case 'qrcode_reader': return 'Leitor de QR Code';
+    case 'facial':
+    default: return 'Terminal Facial';
   }
 }
