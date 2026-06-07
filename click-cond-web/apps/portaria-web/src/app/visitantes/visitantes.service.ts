@@ -184,6 +184,7 @@ export class VisitantesService {
       foto_documento: string;
       is_visitante: number;
       is_prestador: number;
+      tag_rfid: string | null;
     }>,
   ): Observable<{ ok: boolean; atualizados: number }> {
     return this.http.put<{ ok: boolean; atualizados: number }>(`${this.base}/pessoa/${idRef}`, dto);

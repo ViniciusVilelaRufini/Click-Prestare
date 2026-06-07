@@ -107,6 +107,7 @@ export class VisitantesController {
       foto_documento?: string;
       is_visitante?: number;
       is_prestador?: number;
+      tag_rfid?: string | null;
     },
   ) {
     return this.service.atualizarPessoa(idCondominio, idRef, body);

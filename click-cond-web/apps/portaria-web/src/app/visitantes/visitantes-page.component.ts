@@ -453,6 +453,7 @@ export class VisitantesPageComponent implements OnInit {
         foto_documento: this.novo.foto_documento ?? undefined,
         is_visitante: this.novo.is_visitante,
         is_prestador: this.novo.is_prestador,
+        tag_rfid: (this.novo.tag_rfid ?? '').trim() || null,
       }).subscribe({
         next: () => {
           this.saving.set(false);

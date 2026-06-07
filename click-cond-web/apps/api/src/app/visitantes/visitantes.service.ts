@@ -367,6 +367,9 @@ export class VisitantesService {
         face_id: principal.face_id,
         face_sync_status: principal.face_sync_status,
 
+        // Tag RFID (credencial) — dado da pessoa, usado na edição e no badge
+        tag_rfid: principal.tag_rfid ?? null,
+
         // Status atual (agregado de TODAS as visitas)
         noLocal,
         temPinAtivo,
@@ -517,6 +520,7 @@ export class VisitantesService {
       foto_documento?: string;
       is_visitante?: number;
       is_prestador?: number;
+      tag_rfid?: string | null;
     },
   ) {
     const ref = await this.prisma.visitantes.findUnique({
@@ -541,6 +545,12 @@ export class VisitantesService {
     if (fotoDoc !== undefined) data.foto_documento = fotoDoc;
     if (dto.is_visitante !== undefined) data.is_visitante = dto.is_visitante;
     if (dto.is_prestador !== undefined) data.is_prestador = dto.is_prestador;
+    // Tag RFID (credencial): string vazia limpa a tag (null). É dado da pessoa,
+    // então propaga para todas as visitas dela (mesmo `where`).
+    if (dto.tag_rfid !== undefined) {
+      const t = (dto.tag_rfid ?? '').toString().trim();
+      data.tag_rfid = t.length > 0 ? t : null;
+    }
 
     const result = await this.prisma.visitantes.updateMany({ where, data });
 
