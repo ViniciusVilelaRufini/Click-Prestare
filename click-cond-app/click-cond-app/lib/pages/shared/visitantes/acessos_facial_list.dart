@@ -86,6 +86,8 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
         return (icon: PhosphorIcons.bell, label: 'Botoeira');
       case 'facial':
         return (icon: PhosphorIcons.scan, label: 'Facial');
+      case 'pin':
+        return (icon: PhosphorIcons.key, label: 'PIN / Manual');
       default:
         // Eventos antigos/sem tipo definido: rótulo genérico para não ficar vazio.
         return (icon: PhosphorIcons.signIn, label: 'Acesso');

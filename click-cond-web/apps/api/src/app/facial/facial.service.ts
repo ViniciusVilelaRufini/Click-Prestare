@@ -1148,22 +1148,136 @@ export class FacialService {
   }
 
   async listAcessosPessoa(tipo: 'morador' | 'visitante', idPessoa: number, limit = 30) {
-    const list = await this.prisma.acessos_Facial.findMany({
-      where: { tipo_pessoa: tipo, id_pessoa: idPessoa },
-      orderBy: { timestamp: 'desc' },
-      take: Math.min(limit, 100),
+    if (tipo === 'morador') {
+      const list = await this.prisma.acessos_Facial.findMany({
+        where: { tipo_pessoa: tipo, id_pessoa: idPessoa },
+        orderBy: { timestamp: 'desc' },
+        take: Math.min(limit, 100),
+      });
+      return list.map((a) => {
+        let observacao = null;
+        const match = a.nome_pessoa.match(/\(([^)]+)\)/);
+        if (match) {
+          observacao = match[1];
+        }
+        return {
+          ...a,
+          observacao,
+        };
+      });
+    }
+
+    // Para visitantes, precisamos consolidar o histórico completo (acessos faciais + PIN/manual) de todas as visitas da mesma identidade
+    const v = await this.prisma.visitantes.findUnique({
+      where: { id: idPessoa },
     });
-    return list.map((a) => {
+    if (!v) return [];
+
+    const todasVisitas = await this.prisma.visitantes.findMany({
+      where: {
+        id_condominio: v.id_condominio,
+        nome: v.nome,
+        doc_identificacao: v.doc_identificacao || undefined,
+      },
+      orderBy: { created_at: 'desc' },
+    });
+    const todosVisIds = todasVisitas.map((x) => x.id);
+
+    const acessosFacial = todosVisIds.length > 0
+      ? await this.prisma.acessos_Facial.findMany({
+          where: {
+            tipo_pessoa: 'visitante',
+            id_pessoa: { in: todosVisIds },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 100,
+        })
+      : [];
+
+    // Deduplicação (evita duplicar se casar com acesso facial)
+    const DEDUP_MS = 15_000;
+    const facialBuckets = new Set<string>();
+    for (const a of acessosFacial) {
+      const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b}`);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
+    }
+    const isDup = (idVis: number, evento: 'entrada' | 'saida', ts: Date) => {
+      const b = Math.floor(ts.getTime() / DEDUP_MS);
+      return facialBuckets.has(`${idVis}:${evento}:${b}`);
+    };
+
+    type MergedEntry = {
+      id: number;
+      id_condominio: number;
+      id_device?: number | null;
+      tipo_dispositivo?: string | null;
+      face_id?: string | null;
+      tipo_pessoa: 'visitante';
+      id_pessoa: number;
+      nome_pessoa: string;
+      evento: 'entrada' | 'saida' | 'negado';
+      confianca?: number | null;
+      timestamp: Date;
+      observacao?: string | null;
+    };
+
+    const mergedList: MergedEntry[] = [];
+
+    // Adiciona acessos faciais
+    for (const a of acessosFacial) {
       let observacao = null;
       const match = a.nome_pessoa.match(/\(([^)]+)\)/);
       if (match) {
         observacao = match[1];
       }
-      return {
-        ...a,
+      mergedList.push({
+        id: a.id,
+        id_condominio: a.id_condominio,
+        id_device: a.id_device,
+        tipo_dispositivo: a.tipo_dispositivo,
+        face_id: a.face_id,
+        tipo_pessoa: 'visitante',
+        id_pessoa: a.id_pessoa!,
+        nome_pessoa: a.nome_pessoa,
+        evento: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada',
+        confianca: a.confianca,
+        timestamp: a.timestamp,
         observacao,
-      };
-    });
+      });
+    }
+
+    // Adiciona entradas/saídas por PIN/manual
+    for (const reg of todasVisitas) {
+      if (reg.data_entrada && !isDup(reg.id, 'entrada', reg.data_entrada)) {
+        mergedList.push({
+          id: reg.id * 1000 + 1,
+          id_condominio: reg.id_condominio,
+          tipo_dispositivo: 'pin',
+          tipo_pessoa: 'visitante',
+          id_pessoa: reg.id,
+          nome_pessoa: reg.nome,
+          evento: 'entrada',
+          timestamp: reg.data_entrada,
+        });
+      }
+      if (reg.data_saida && !isDup(reg.id, 'saida', reg.data_saida)) {
+        mergedList.push({
+          id: reg.id * 1000 + 2,
+          id_condominio: reg.id_condominio,
+          tipo_dispositivo: 'pin',
+          tipo_pessoa: 'visitante',
+          id_pessoa: reg.id,
+          nome_pessoa: reg.nome,
+          evento: 'saida',
+          timestamp: reg.data_saida,
+        });
+      }
+    }
+
+    mergedList.sort((x, y) => y.timestamp.getTime() - x.timestamp.getTime());
+    return mergedList.slice(0, limit);
   }
 
   // ---------- Helpers ----------
