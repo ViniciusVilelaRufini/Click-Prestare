@@ -102,6 +102,84 @@ export class PrestadoresPageComponent implements OnInit {
   // PINs revelados na seção "Prestadores com acesso".
   readonly pinsAcessoRevelados = signal<Set<number>>(new Set());
 
+  // ===== Edição de prestador-com-acesso (registro Visitantes is_prestador=1) =====
+  // Modal próprio, separado do form de cadastro (Prestadores_servico). Edita os
+  // dados da pessoa via atualizarPessoa (nome/doc/foto/tag); unidade é só leitura.
+  readonly editAcesso = signal<Pessoa | null>(null);
+  editAcessoForm: { nome: string; doc_identificacao: string; tag_rfid: string; foto_pessoa?: string } =
+    { nome: '', doc_identificacao: '', tag_rfid: '' };
+  readonly editAcessoFoto = signal<string | null>(null);
+  readonly savingAcesso = signal(false);
+  readonly errorAcesso = signal<string | null>(null);
+
+  abrirEditarAcesso(p: Pessoa) {
+    this.editAcessoForm = {
+      nome: p.nome ?? '',
+      doc_identificacao: p.doc_identificacao ?? '',
+      tag_rfid: (p as any).tag_rfid ?? '',
+      foto_pessoa: undefined,
+    };
+    this.editAcessoFoto.set(p.foto_pessoa ?? null);
+    this.errorAcesso.set(null);
+    this.editAcesso.set(p);
+  }
+
+  cancelarEditAcesso() {
+    this.editAcesso.set(null);
+    this.editAcessoFoto.set(null);
+    this.errorAcesso.set(null);
+  }
+
+  onFotoAcessoSelecionada(event: any) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      const dataUrl = e.target.result as string;
+      this.editAcessoFoto.set(dataUrl);
+      this.editAcessoForm.foto_pessoa = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  salvarAcesso() {
+    const p = this.editAcesso();
+    if (!p) return;
+    if (!this.editAcessoForm.nome?.trim()) {
+      this.errorAcesso.set('Informe o nome.');
+      return;
+    }
+    this.savingAcesso.set(true);
+    this.visitantesApi.atualizarPessoa(p.id, {
+      nome: this.editAcessoForm.nome,
+      doc_identificacao: this.editAcessoForm.doc_identificacao,
+      tag_rfid: (this.editAcessoForm.tag_rfid ?? '').trim() || null,
+      is_prestador: 1,
+      ...(this.editAcessoForm.foto_pessoa !== undefined && { foto_pessoa: this.editAcessoForm.foto_pessoa }),
+    }).subscribe({
+      next: () => {
+        this.savingAcesso.set(false);
+        this.cancelarEditAcesso();
+        this.carregar();
+      },
+      error: (e) => {
+        this.savingAcesso.set(false);
+        this.errorAcesso.set(e?.error?.message ?? e?.message ?? 'Erro ao salvar');
+      },
+    });
+  }
+
+  async removerAcesso(p: Pessoa) {
+    const ok = await this.confirm.ask({
+      title: 'Remover prestador',
+      message: `${p.nome} e TODAS as suas visitas/registros serão removidos. Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Remover',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.visitantesApi.removerPessoa(p.id).subscribe({ next: () => this.carregar() });
+  }
+
   togglePinAcesso(id: number, event: Event) {
     event.stopPropagation();
     const current = new Set(this.pinsAcessoRevelados());
