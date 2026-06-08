@@ -14,8 +14,8 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
           Gestão de acesso
         </a>
-        <h1 class="text-2xl font-semibold text-white tracking-tight">Cadastro de empresas / profissionais</h1>
-        <p class="text-sm text-slate-400 mt-0.5">Empresas e profissionais autorizados pelo condomínio (telefone, categorias, dias)</p>
+        <h1 class="text-2xl font-semibold text-white tracking-tight">Cadastro de Funcionários</h1>
+        <p class="text-sm text-slate-400 mt-0.5">Funcionários e profissionais autorizados pelo condomínio (telefone, categorias, dias)</p>
       </div>
     </div>
     <button (click)="showForm ? cancelarForm() : abrirNovo()"
@@ -25,7 +25,7 @@
         Cancelar
       } @else {
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        Cadastrar prestador
+        Cadastrar funcionário
       }
     </button>
   </div>
@@ -108,12 +108,12 @@
       <div class="flex items-center gap-2 mb-4">
         <div class="w-1 h-5 rounded-full bg-accent"></div>
         <h2 class="text-sm font-semibold text-white">
-          {{ editingId ? 'Editar prestador' : 'Cadastrar novo prestador' }}
+          {{ editingId ? 'Editar funcionário' : 'Cadastrar novo funcionário' }}
         </h2>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Nome / Empresa *</span>
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Nome / Funcionário *</span>
           <input [(ngModel)]="novo.nome" placeholder="Ex: João Encanador"
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
         </label>
@@ -417,8 +417,8 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01"/>
         </svg>
       </div>
-      <p class="text-sm text-slate-300 font-medium">Nenhum prestador encontrado</p>
-      <p class="text-xs text-slate-500 mt-1">Cadastre empresas autorizadas a entrar no condomínio</p>
+      <p class="text-sm text-slate-300 font-medium">Nenhum funcionário encontrado</p>
+      <p class="text-xs text-slate-500 mt-1">Cadastre funcionários autorizados a entrar no condomínio</p>
     </div>
   } @else {
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -527,7 +527,7 @@
         <p class="text-xs text-slate-400">
           Exibindo <span class="text-white font-medium">{{ exibindoInicio() }}</span> a 
           <span class="text-white font-medium">{{ exibindoFim() }}</span> de 
-          <span class="text-white font-medium">{{ prestadoresFiltrados().length }}</span> prestadores
+          <span class="text-white font-medium">{{ prestadoresFiltrados().length }}</span> funcionários
         </p>
         
         <div class="flex items-center gap-2">
@@ -574,7 +574,7 @@
             <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            <h3 class="text-sm font-semibold text-white">Detalhes do Prestador</h3>
+            <h3 class="text-sm font-semibold text-white">Detalhes do Funcionário</h3>
           </div>
           <button (click)="detalhesPrestador.set(null)" class="text-slate-400 hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -664,7 +664,7 @@
           <!-- Foto de Documento se houver -->
           @if (dp.foto_documento) {
             <div class="space-y-1.5 pt-2">
-              <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Documento do Prestador</span>
+              <span class="text-xs font-medium text-slate-500 uppercase tracking-wider block">Documento do Funcionário</span>
               <button (click)="abrirAmpliarFoto(dp.foto_documento, 'Documento de ' + dp.nome)"
                       class="w-full py-2 px-3 text-xs rounded-lg font-medium bg-accent/10 hover:bg-accent/20 border border-accent/20 text-accent transition flex items-center justify-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -741,7 +741,7 @@
     <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in flex flex-col">
       <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
         <h3 class="text-sm font-semibold text-white">
-          Capturando Foto - {{ activeCamera() === 'pessoa' ? 'Prestador' : 'Documento (RG)' }}
+          Capturando Foto - {{ activeCamera() === 'pessoa' ? 'Funcionário' : 'Documento (RG)' }}
         </h3>
         <button (click)="fecharCamera()" class="text-slate-400 hover:text-white transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -792,7 +792,7 @@
     <div class="w-full max-w-md rounded-2xl border border-white/10 bg-graphite shadow-2xl animate-fade-in" (click)="$event.stopPropagation()">
       <div class="px-6 py-4 border-b border-white/10 flex items-center gap-2">
         <div class="w-1 h-5 rounded-full bg-accent"></div>
-        <h3 class="text-sm font-semibold text-white">Editar prestador</h3>
+        <h3 class="text-sm font-semibold text-white">Editar funcionário</h3>
       </div>
       <div class="p-6 space-y-4">
         <!-- Foto -->
