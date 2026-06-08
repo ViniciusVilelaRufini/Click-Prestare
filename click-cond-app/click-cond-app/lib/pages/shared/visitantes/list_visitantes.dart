@@ -766,16 +766,22 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
         title: widget.hideAppBar ? null : getText('visitantes_list'),
         showBackButton: !widget.hideAppBar,
         floatingActionButton: canAdd && widget.showFab
-            ? FloatingActionButton.extended(
-                heroTag: null,
-                onPressed: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)))
-                    .then((_) => loadList()),
-                backgroundColor: AppColors.primary,
-                icon: const Icon(PhosphorIcons.userPlus, color: Colors.white, size: 20),
-                label: const Text(
-                  'Cadastrar novo visitante',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            // Quando embutido no IndexedStack (hideAppBar), a navbar flutuante
+            // ocupa ~88px na base. Sobe o FAB com margem inferior para ele nao
+            // ficar ATRAS da ilha translucida e vazar o azul pela borda dela.
+            ? Container(
+                margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
+                child: FloatingActionButton.extended(
+                  heroTag: null,
+                  onPressed: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)))
+                      .then((_) => loadList()),
+                  backgroundColor: AppColors.primary,
+                  icon: const Icon(PhosphorIcons.userPlus, color: Colors.white, size: 20),
+                  label: const Text(
+                    'Cadastrar novo visitante',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
                 ),
               )
             : null,

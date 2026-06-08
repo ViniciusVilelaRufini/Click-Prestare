@@ -228,12 +228,16 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             ),
           ),
       floatingActionButton: widget.showFab && _viewMode == FinanceiroViewMode.morador
-        ? FloatingActionButton.extended(
-            heroTag: null,
-            onPressed: () => _showContaFormModal(),
-            icon: const Icon(PhosphorIcons.plus, color: Colors.white),
-            label: const Text("Nova Conta", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            backgroundColor: AppColors.primary,
+        ? Container(
+            // Sobe o FAB acima da ilha flutuante quando embutido no IndexedStack.
+            margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
+            child: FloatingActionButton.extended(
+              heroTag: null,
+              onPressed: () => _showContaFormModal(),
+              icon: const Icon(PhosphorIcons.plus, color: Colors.white),
+              label: const Text("Nova Conta", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              backgroundColor: AppColors.primary,
+            ),
           )
         : null,
     );

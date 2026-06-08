@@ -55,11 +55,15 @@ class _ListEncomendasState extends State<ListEncomendas> {
     return AppScaffold(
       title: widget.hideAppBar ? null : 'Minhas Encomendas',
       showBackButton: !widget.hideAppBar,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'register_tracking',
-        backgroundColor: AppColors.primary,
-        onPressed: () => _showRegisterTrackingDialog(context),
-        child: const Icon(PhosphorIcons.plus, color: Colors.black),
+      floatingActionButton: Container(
+        // Sobe o FAB acima da ilha flutuante quando embutido no IndexedStack.
+        margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
+        child: FloatingActionButton(
+          heroTag: 'register_tracking',
+          backgroundColor: AppColors.primary,
+          onPressed: () => _showRegisterTrackingDialog(context),
+          child: const Icon(PhosphorIcons.plus, color: Colors.black),
+        ),
       ),
       body: _isLoading
           ? ListView.separated(

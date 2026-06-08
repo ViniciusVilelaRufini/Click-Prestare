@@ -413,7 +413,16 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                 ],
               ),
             ),
-      floatingActionButton: widget.showFab ? _buildFab(isSindico) : null,
+      floatingActionButton: widget.showFab
+          // FAB simples (morador) sobe acima da ilha flutuante quando embutido.
+          // SpeedDial (sindico) gerencia seu proprio overlay; nao envolver.
+          ? (isSindico
+              ? _buildFab(isSindico)
+              : Container(
+                  margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
+                  child: _buildFab(isSindico),
+                ))
+          : null,
     );
   }
 

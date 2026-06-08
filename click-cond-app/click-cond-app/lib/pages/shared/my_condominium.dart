@@ -464,10 +464,11 @@ class _MyCondominiumState extends State<MyCondominium> {
           bottom: 12,
           top: 8,
         ),
-        child: Container(
-          height: 68,
+        child: DecoratedBox(
+          // Sombra fica no nivel externo; cor/borda vao DENTRO do ClipRRect
+          // para que nada (nem o blur, nem a pilula azul do item ativo) vaze
+          // pelos cantos arredondados da ilha.
           decoration: BoxDecoration(
-            color: AppColors.surface(context).withOpacity(isDark ? 0.82 : 0.90),
             borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
@@ -476,16 +477,24 @@ class _MyCondominiumState extends State<MyCondominium> {
                 offset: const Offset(0, 8),
               ),
             ],
-            border: Border.all(
-              color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
-              width: 1,
-            ),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(22),
+            clipBehavior: Clip.antiAlias,
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Padding(
+              child: Container(
+                height: 68,
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context)
+                      .withOpacity(isDark ? 0.82 : 0.90),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.black.withOpacity(0.06),
+                    width: 1,
+                  ),
+                ),
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
