@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { VisitantesService, VisitanteDetalhes, PessoaEncontrada, Pessoa } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
@@ -12,7 +12,7 @@ import { InputMaskDirective } from '../shared/input-mask.directive';
 @Component({
   selector: 'app-visitantes-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective],
+  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink],
   templateUrl: './visitantes-page.component.html',
   styleUrl: './visitantes-page.component.css',
 })
@@ -32,6 +32,11 @@ export class VisitantesPageComponent implements OnInit {
       });
     });
   }
+
+  // Modo da página: 'visitante' (default) ou 'prestador' (mesma UI, filtrada por
+  // is_prestador=1; cadastro nasce is_prestador=1). Lido de route.data.
+  readonly modo = signal<'visitante' | 'prestador'>('visitante');
+  readonly isPrestadorModo = computed(() => this.modo() === 'prestador');
 
   // Lista agregada por pessoa (1 pessoa = 1 linha). Fonte da página /visitantes.
   readonly pessoas = signal<Pessoa[]>([]);
@@ -210,10 +215,14 @@ export class VisitantesPageComponent implements OnInit {
   });
 
   // Apenas VISITANTES (is_prestador=0). Prestadores com acesso ficam na aba
-  // Prestadores; aqui são escondidos (o registro permanece na tabela, intacto
-  // para o controle de acesso). Base de KPIs e da lista.
+  // Base de KPIs e da lista, filtrada pelo MODO da página:
+  // - 'visitante': só is_prestador=0 (prestadores ficam na aba Prestadores)
+  // - 'prestador': só is_prestador=1 (mesma UI, voltada a prestadores)
+  // O registro permanece na tabela em ambos os casos (acesso intacto).
   readonly visitantesPessoas = computed(() =>
-    this.pessoas().filter((p) => !p.is_prestador),
+    this.modo() === 'prestador'
+      ? this.pessoas().filter((p) => p.is_prestador === 1)
+      : this.pessoas().filter((p) => !p.is_prestador),
   );
 
   // KPIs do topo — agora contam PESSOAS únicas, não registros de visita.
@@ -270,6 +279,10 @@ export class VisitantesPageComponent implements OnInit {
   readonly saving = signal(false);
 
   ngOnInit() {
+    // Define o modo da página a partir da rota (data: { modo: 'prestador' }).
+    this.route.data.subscribe((d) => {
+      this.modo.set(d['modo'] === 'prestador' ? 'prestador' : 'visitante');
+    });
     this.carregar();
     this.aptApi.list().subscribe({
       next: (data) => {
@@ -716,12 +729,13 @@ export class VisitantesPageComponent implements OnInit {
   }
 
   private estadoInicial(): CreateVisitante {
+    const prest = this.modo() === 'prestador';
     return {
       nome: '',
       doc_identificacao: '',
       id_apartamento: 0,
-      is_visitante: 1,
-      is_prestador: 0,
+      is_visitante: prest ? 0 : 1,
+      is_prestador: prest ? 1 : 0,
       tag_rfid: '',
     };
   }

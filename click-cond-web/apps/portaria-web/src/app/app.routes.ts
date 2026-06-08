@@ -29,13 +29,24 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'visitantes',
+        data: { modo: 'visitante' },
         loadComponent: () =>
           import('./visitantes/visitantes-page.component').then(
             (m) => m.VisitantesPageComponent,
           ),
       },
       {
+        // Gestão de acesso de prestadores (mesma UI de Visitantes, is_prestador=1).
         path: 'prestadores',
+        data: { modo: 'prestador' },
+        loadComponent: () =>
+          import('./visitantes/visitantes-page.component').then(
+            (m) => m.VisitantesPageComponent,
+          ),
+      },
+      {
+        // Cadastro fixo de empresas/profissionais (Prestadores_servico).
+        path: 'prestadores/cadastro',
         loadComponent: () =>
           import('./prestadores/prestadores-page.component').then(
             (m) => m.PrestadoresPageComponent,

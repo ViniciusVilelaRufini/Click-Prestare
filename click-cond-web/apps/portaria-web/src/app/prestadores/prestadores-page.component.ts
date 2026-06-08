@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { CreatePrestador, Prestador, PrestadoresApi } from './prestadores.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective } from '../shared/input-mask.directive';
@@ -11,7 +12,7 @@ import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.servi
 @Component({
   selector: 'app-prestadores-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective],
+  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink],
   templateUrl: './prestadores-page.component.html',
 })
 export class PrestadoresPageComponent implements OnInit {
