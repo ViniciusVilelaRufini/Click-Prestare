@@ -54,6 +54,20 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly validating = signal(false);
   readonly checkingIn = signal(false);
 
+  readonly copiaSucessoTexto = signal<string | null>(null);
+  private copiaSucessoTimeout?: any;
+
+  copiarTexto(texto: string, label: string) {
+    if (!texto) return;
+    navigator.clipboard.writeText(texto).then(() => {
+      this.copiaSucessoTexto.set(`${label} copiado!`);
+      if (this.copiaSucessoTimeout) clearTimeout(this.copiaSucessoTimeout);
+      this.copiaSucessoTimeout = setTimeout(() => {
+        this.copiaSucessoTexto.set(null);
+      }, 2000);
+    });
+  }
+
   abrirValidador() {
     this.showValidationModal.set(true);
     this.pinCode.set('');

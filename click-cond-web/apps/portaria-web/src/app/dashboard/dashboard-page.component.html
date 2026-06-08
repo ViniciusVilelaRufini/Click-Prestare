@@ -1235,8 +1235,15 @@
   <!-- Modal de Validação de PIN -->
   @if (showValidationModal()) {
     <div class="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" (click)="fecharValidador()">
-      <div class="w-full max-w-md bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
+      <div class="w-full max-w-md bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col relative" (click)="$event.stopPropagation()">
         
+        @if (copiaSucessoTexto()) {
+          <div class="absolute top-16 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-emerald-500 text-white text-[11px] font-bold rounded-full shadow-lg z-[100] animate-bounce flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            {{ copiaSucessoTexto() }}
+          </div>
+        }
+
         <!-- Header do Modal -->
         <div class="px-6 py-4 border-b border-slate-200/60 dark:border-white/5 flex items-center justify-between bg-slate-50/[0.3] dark:bg-white/[0.01]">
           <div class="flex items-center gap-2">
@@ -1316,10 +1323,29 @@
                   <div class="w-11 h-11 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0">
                     <span class="text-xs font-bold text-accent">{{ iniciais(validationResult().nome) }}</span>
                   </div>
-                  <div>
-                    <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight">{{ validationResult().nome }}</h4>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5 group cursor-pointer hover:bg-slate-200/50 dark:hover:bg-white/5 px-2 py-1 -mx-2 rounded-lg transition"
+                         (click)="copiarTexto(validationResult().nome, 'Nome')"
+                         title="Clique para copiar o Nome">
+                      <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight truncate">{{ validationResult().nome }}</h4>
+                      <svg class="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                      </svg>
+                    </div>
                     <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
-                      <span class="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400">{{ validationResult().doc_identificacao || 'Sem documento' }}</span>
+                      @if (validationResult().doc_identificacao) {
+                        <button (click)="copiarTexto(validationResult().doc_identificacao, 'Documento')"
+                                class="flex items-center gap-1 text-xs font-mono font-semibold text-slate-550 dark:text-slate-400 hover:text-accent transition hover:bg-slate-200/50 dark:hover:bg-white/5 px-1.5 py-0.5 -mx-1.5 rounded-md"
+                                title="Clique para copiar o Documento">
+                          <span class="text-[10px] text-slate-400 dark:text-slate-500 font-sans font-normal uppercase">Doc:</span>
+                          <span>{{ validationResult().doc_identificacao }}</span>
+                          <svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                          </svg>
+                        </button>
+                      } @else {
+                        <span class="text-xs font-mono font-semibold text-slate-550 dark:text-slate-400">Sem documento</span>
+                      }
                       <span class="text-slate-400">·</span>
                       <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md border tracking-wider uppercase"
                             [class.text-accent]="validationResult().is_visitante === 1"

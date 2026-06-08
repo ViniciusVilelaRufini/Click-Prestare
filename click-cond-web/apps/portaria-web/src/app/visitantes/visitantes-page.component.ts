@@ -71,6 +71,20 @@ export class VisitantesPageComponent implements OnInit {
   readonly detalhesLoading = signal(false);
   readonly detalhesError = signal<string | null>(null);
 
+  readonly copiaSucessoTexto = signal<string | null>(null);
+  private copiaSucessoTimeout?: any;
+
+  copiarTexto(texto: string, label: string) {
+    if (!texto) return;
+    navigator.clipboard.writeText(texto).then(() => {
+      this.copiaSucessoTexto.set(`${label} copiado!`);
+      if (this.copiaSucessoTimeout) clearTimeout(this.copiaSucessoTimeout);
+      this.copiaSucessoTimeout = setTimeout(() => {
+        this.copiaSucessoTexto.set(null);
+      }, 2000);
+    });
+  }
+
   // Lookup de pessoa existente no formulário (mesmo doc)
   readonly pessoaEncontrada = signal<PessoaEncontrada | null>(null);
 

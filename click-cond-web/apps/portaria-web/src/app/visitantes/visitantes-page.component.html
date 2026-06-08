@@ -481,9 +481,9 @@
                   }
                 </div>
                 <div class="mt-1 flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap">
-                  @if (v.doc_identificacao) { <span>{{ v.doc_identificacao }}</span> }
+                  @if (v.doc_identificacao) { <span>Doc: {{ v.doc_identificacao }}</span> }
                   @if ($any(v).ultEntrada) { <span>{{ $any(v).ultEntrada | date: 'dd/MM HH:mm' }}</span> }
-                  @if (v.codigo_acesso) { <span class="text-emerald-400">PIN {{ pinsRevelados().has(v.id) ? v.codigo_acesso : '••••••' }}</span> }
+                  @if (v.codigo_acesso) { <span class="text-emerald-400">PIN: {{ pinsRevelados().has(v.id) ? v.codigo_acesso : '••••••' }}</span> }
                   @if (v.tag_rfid) {
                     <span class="inline-flex items-center gap-1 text-blue-300">
                       <svg class="w-3 h-3 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
@@ -575,12 +575,14 @@
                     @if (v.codigo_acesso || v.tag_rfid) {
                       <div class="flex items-center gap-1.5 flex-wrap mt-1">
                         @if (v.codigo_acesso) {
-                          <span class="inline-flex items-center gap-1 text-[10px] font-mono select-none bg-emerald-500/[0.08] border border-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-md">
+                          <span class="inline-flex items-center gap-1 text-[10px] font-mono bg-emerald-500/[0.08] border border-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-md">
                             <svg class="w-3 h-3 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
                             </svg>
                             <span class="text-emerald-400/70">PIN</span>
-                            <span class="font-semibold tracking-wide">{{ pinsRevelados().has(v.id) ? v.codigo_acesso : '••••••' }}</span>
+                            <span class="font-semibold tracking-wide cursor-pointer hover:text-white transition"
+                                  (click)="copiarTexto(v.codigo_acesso, 'PIN'); $event.stopPropagation()"
+                                  title="Clique para copiar o PIN">{{ pinsRevelados().has(v.id) ? v.codigo_acesso : '••••••' }}</span>
                             <button (click)="togglePin(v.id, $event)"
                                     class="text-emerald-400/60 hover:text-emerald-300 transition focus:outline-none -mr-0.5"
                                     title="Mostrar/Ocultar PIN">
@@ -622,9 +624,20 @@
                   </div>
                 </div>
               </td>
-              <td class="px-5 py-3 text-slate-400 font-mono text-xs">
+              <td class="px-5 py-3 text-slate-400 font-mono text-xs" (click)="$event.stopPropagation()">
                 <div class="flex items-center gap-2">
-                  <span>{{ v.doc_identificacao || '—' }}</span>
+                  @if (v.doc_identificacao) {
+                    <button (click)="copiarTexto(v.doc_identificacao, 'Documento')"
+                            class="hover:text-accent transition flex items-center gap-1.5"
+                            title="Clique para copiar o Documento">
+                      <span>{{ v.doc_identificacao }}</span>
+                      <svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                      </svg>
+                    </button>
+                  } @else {
+                    <span>—</span>
+                  }
                   @if (v.foto_documento) {
                     <button (click)="abrirAmpliarFoto(v.foto_documento, 'Documento de ' + v.nome, $event)"
                             class="text-accent hover:text-accent-500 transition focus:outline-none p-0.5"
@@ -974,6 +987,12 @@
         }
 
         @if (detalhesData(); as d) {
+          @if (copiaSucessoTexto()) {
+            <div class="absolute top-20 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-emerald-500 text-white text-[11px] font-bold rounded-full shadow-lg z-[100] animate-bounce flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              {{ copiaSucessoTexto() }}
+            </div>
+          }
           <!-- Header -->
           <div class="px-6 py-5 bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 flex items-start gap-4">
             <div class="w-14 h-14 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
@@ -986,7 +1005,14 @@
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <h2 class="text-lg font-bold text-slate-800 dark:text-white truncate">{{ d.visitante.nome }}</h2>
+                <div class="flex items-center gap-1.5 group cursor-pointer hover:bg-slate-200/50 dark:hover:bg-white/5 px-2 py-0.5 -mx-2 rounded-lg transition"
+                     (click)="copiarTexto(d.visitante.nome, 'Nome')"
+                     title="Clique para copiar o Nome">
+                  <h2 class="text-lg font-bold text-slate-800 dark:text-white truncate">{{ d.visitante.nome }}</h2>
+                  <svg class="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                  </svg>
+                </div>
                 @if (d.visitante.is_prestador === 1) {
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 uppercase">Prestador</span>
                 } @else {
@@ -996,28 +1022,46 @@
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-600 dark:text-green-400 uppercase">Facial sincr.</span>
                 }
               </div>
-              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">
-                {{ d.visitante.doc_identificacao || '—' }}
-                @if (d.visitante.condominio) { · {{ getCondominioNome(d.visitante.condominio) }} }
-              </p>
-              <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+              <div class="mt-1 flex items-center">
+                @if (d.visitante.doc_identificacao) {
+                  <button (click)="copiarTexto(d.visitante.doc_identificacao, 'Documento')"
+                          class="flex items-center gap-1 text-xs font-mono font-semibold text-slate-500 dark:text-slate-400 hover:text-accent transition hover:bg-slate-200/50 dark:hover:bg-white/5 px-1.5 py-0.5 -mx-1.5 rounded-md"
+                          title="Clique para copiar o Documento">
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-sans font-normal uppercase">CPF/Doc:</span>
+                    <span>{{ d.visitante.doc_identificacao }}</span>
+                    <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                    </svg>
+                  </button>
+                } @else {
+                  <span class="text-xs font-mono text-slate-500 dark:text-slate-400">Sem documento</span>
+                }
+                @if (d.visitante.condominio) {
+                  <span class="text-xs text-slate-400 font-mono ml-2">· {{ getCondominioNome(d.visitante.condominio) }}</span>
+                }
+              </div>
+              <div class="flex items-center gap-1.5 mt-2.5 flex-wrap">
                 @if (d.visitante.codigo_acesso) {
-                  <span class="inline-flex items-center gap-1 text-[11px] font-mono select-none bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-300 px-2 py-1 rounded-md">
-                    <svg class="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <button (click)="copiarTexto(d.visitante.codigo_acesso, 'PIN')"
+                          class="inline-flex items-center gap-1 text-[11px] font-mono cursor-pointer hover:bg-emerald-500/20 active:scale-95 transition bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-300 px-2.5 py-1 rounded-md"
+                          title="Clique para copiar o PIN">
+                    <svg class="w-3.5 h-3.5 text-emerald-550 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
                     </svg>
-                    <span class="text-emerald-600/60 dark:text-emerald-400/70 font-sans font-medium">PIN</span>
+                    <span class="text-emerald-600/60 dark:text-emerald-400/70 font-sans font-semibold uppercase">PIN:</span>
                     <span class="font-bold tracking-widest">{{ d.visitante.codigo_acesso }}</span>
-                  </span>
+                  </button>
                 }
                 @if (d.visitante.tag_rfid) {
-                  <span class="inline-flex items-center gap-1 text-[11px] font-mono select-none bg-blue-500/10 border border-blue-500/25 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-md" title="Tag RFID (credencial)">
-                    <svg class="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <button (click)="copiarTexto(d.visitante.tag_rfid, 'Tag RFID')"
+                          class="inline-flex items-center gap-1 text-[11px] font-mono cursor-pointer hover:bg-blue-500/20 active:scale-95 transition bg-blue-500/10 border border-blue-500/25 text-blue-600 dark:text-blue-300 px-2.5 py-1 rounded-md"
+                          title="Clique para copiar a Tag RFID">
+                    <svg class="w-3.5 h-3.5 text-blue-550 dark:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                     </svg>
-                    <span class="text-blue-600/60 dark:text-blue-400/70 font-sans font-medium">Tag</span>
+                    <span class="text-blue-600/60 dark:text-blue-400/70 font-sans font-semibold uppercase">Tag:</span>
                     <span class="font-bold tracking-wide">{{ d.visitante.tag_rfid }}</span>
-                  </span>
+                  </button>
                 }
               </div>
               @if (d.visitante.is_prestador === 1 && (d.visitante.categorias || d.visitante.dias_semana)) {

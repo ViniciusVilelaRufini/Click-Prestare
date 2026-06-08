@@ -958,6 +958,7 @@ export class VisitantesService {
       apto_bloco: v.apartamento?.bloco ?? null,
       morador_nome: v.criadoPor?.name ?? 'Morador',
       status_vigencia: status,
+      codigo_acesso: v.codigo_acesso,
     };
   }
 
