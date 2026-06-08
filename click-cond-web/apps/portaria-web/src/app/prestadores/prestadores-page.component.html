@@ -327,6 +327,63 @@
     <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300">{{ error() }}</div>
   }
 
+  <!-- Prestadores com acesso (vindos do app/portaria — registros de visita com PIN) -->
+  @if (prestadoresAcesso().length > 0) {
+    <div class="space-y-3">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+        </svg>
+        <h2 class="text-sm font-semibold text-white">Prestadores com acesso</h2>
+        <span class="text-xs text-slate-500">· entrada liberada via app / portaria (PIN, catraca)</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        @for (p of prestadoresAcesso(); track p.id) {
+          <div class="p-4 rounded-2xl bg-graphite-200 border border-white/10 flex items-start gap-3">
+            <div class="w-10 h-10 rounded-full bg-accent/15 text-accent flex items-center justify-center text-sm font-semibold shrink-0">
+              {{ (p.nome || '?').charAt(0).toUpperCase() }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-medium text-white truncate">{{ p.nome }}</span>
+                @if (p.noLocal) {
+                  <span class="px-1.5 py-0.5 text-[10px] rounded-md bg-emerald-400/15 text-emerald-400 border border-emerald-400/20">No condomínio</span>
+                } @else if (p.liberado === 1) {
+                  <span class="px-1.5 py-0.5 text-[10px] rounded-md bg-accent/15 text-accent border border-accent/20">Liberado</span>
+                } @else {
+                  <span class="px-1.5 py-0.5 text-[10px] rounded-md bg-white/5 text-slate-400 border border-white/10">Histórico</span>
+                }
+              </div>
+              <div class="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                </svg>
+                <span>{{ p.apartamentoAtual || 'Unidade não definida' }}</span>
+              </div>
+              @if (p.codigo_acesso) {
+                <div class="mt-1.5 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                  </svg>
+                  <span class="text-xs font-semibold text-accent tracking-wider">
+                    PIN: {{ pinsAcessoRevelados().has(p.id) ? formatarPin(p.codigo_acesso) : '••••••' }}
+                  </span>
+                  <button (click)="togglePinAcesso(p.id, $event)" class="text-slate-500 hover:text-slate-300 transition" type="button"
+                          [title]="pinsAcessoRevelados().has(p.id) ? 'Ocultar PIN' : 'Revelar PIN'">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    </svg>
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
   <!-- Cards -->
   @if (loading()) {
     <div class="p-12 text-center rounded-2xl bg-graphite-200 border border-white/10">

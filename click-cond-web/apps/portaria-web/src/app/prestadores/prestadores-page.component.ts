@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { CreatePrestador, Prestador, PrestadoresApi } from './prestadores.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective } from '../shared/input-mask.directive';
-import { VisitantesService } from '../visitantes/visitantes.service';
+import { VisitantesService, Pessoa } from '../visitantes/visitantes.service';
 import { Visitante } from '../visitantes/visitante.model';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 
@@ -32,6 +32,9 @@ export class PrestadoresPageComponent implements OnInit {
 
   readonly prestadores = signal<Prestador[]>([]);
   readonly visitantes = signal<Visitante[]>([]);
+  // Prestadores com acesso (registros Visitantes is_prestador=1, agregados por
+  // pessoa — trazem PIN/status/apartamento). Mostrados em seção própria.
+  readonly pessoasAcesso = signal<Pessoa[]>([]);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -80,6 +83,37 @@ export class PrestadoresPageComponent implements OnInit {
         v.nome.toLowerCase().trim() === p.nome.toLowerCase().trim()
     );
   });
+
+  // Prestadores com acesso ativo (vindos do app/portaria, tabela Visitantes
+  // is_prestador=1). Seção somente leitura; honra apenas a busca.
+  readonly prestadoresAcesso = computed(() => {
+    const term = this.search().toLowerCase().trim();
+    let list = this.pessoasAcesso().filter((p) => !!p.is_prestador);
+    if (term) {
+      list = list.filter(
+        (p) =>
+          p.nome.toLowerCase().includes(term) ||
+          (p.doc_identificacao && p.doc_identificacao.toLowerCase().includes(term))
+      );
+    }
+    return list;
+  });
+
+  // PINs revelados na seção "Prestadores com acesso".
+  readonly pinsAcessoRevelados = signal<Set<number>>(new Set());
+
+  togglePinAcesso(id: number, event: Event) {
+    event.stopPropagation();
+    const current = new Set(this.pinsAcessoRevelados());
+    if (current.has(id)) current.delete(id);
+    else current.add(id);
+    this.pinsAcessoRevelados.set(current);
+  }
+
+  formatarPin(codigo: string | null | undefined): string {
+    const c = (codigo ?? '').toString();
+    return c.length === 6 ? `${c.slice(0, 3)}-${c.slice(3)}` : c;
+  }
 
   readonly pagina = signal(1);
   readonly itensPorPagina = 12;
@@ -196,6 +230,10 @@ export class PrestadoresPageComponent implements OnInit {
     });
     this.visitantesApi.list().subscribe({
       next: (data) => { this.visitantes.set(data); }
+    });
+    // Prestadores com acesso (agregados por pessoa — PIN/status/apartamento).
+    this.visitantesApi.listarPessoas().subscribe({
+      next: (data) => { this.pessoasAcesso.set(data); }
     });
   }
 

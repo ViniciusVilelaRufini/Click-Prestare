@@ -89,24 +89,6 @@
       }
     </div>
 
-    <!-- Tipo Filter -->
-    <div class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10">
-      @for (t of [
-        {key:'todos', label:'Todos Tipos'},
-        {key:'visitante', label:'Visitantes'},
-        {key:'prestador', label:'Prestadores'}
-      ]; track t.key) {
-        <button (click)="$any(tipoFilter).set(t.key)"
-                class="px-3 py-1.5 text-xs rounded-lg transition"
-                [class.bg-accent]="tipoFilter() === t.key"
-                [class.text-white]="tipoFilter() === t.key"
-                [class.text-slate-400]="tipoFilter() !== t.key"
-                [class.hover:text-slate-200]="tipoFilter() !== t.key">
-          {{ t.label }}
-        </button>
-      }
-    </div>
-
     <div class="flex-1 flex gap-2 min-w-[260px]">
       <div class="flex-1 relative">
         <svg class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

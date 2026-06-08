@@ -26,7 +26,6 @@ export class VisitantesPageComponent implements OnInit {
   constructor() {
     effect(() => {
       this.viewFilter();
-      this.tipoFilter();
       this.search();
       untracked(() => {
         this.pagina.set(1);
@@ -41,7 +40,6 @@ export class VisitantesPageComponent implements OnInit {
   readonly error = signal<string | null>(null);
   readonly search = signal('');
   readonly viewFilter = signal<'todos' | 'ativos' | 'liberados' | 'historico'>('todos');
-  readonly tipoFilter = signal<'todos' | 'visitante' | 'prestador'>('todos');
   readonly pinsRevelados = signal<Set<number>>(new Set());
 
   readonly showValidationModal = signal(false);
@@ -211,24 +209,32 @@ export class VisitantesPageComponent implements OnInit {
     return list;
   });
 
+  // Apenas VISITANTES (is_prestador=0). Prestadores com acesso ficam na aba
+  // Prestadores; aqui são escondidos (o registro permanece na tabela, intacto
+  // para o controle de acesso). Base de KPIs e da lista.
+  readonly visitantesPessoas = computed(() =>
+    this.pessoas().filter((p) => !p.is_prestador),
+  );
+
   // KPIs do topo — agora contam PESSOAS únicas, não registros de visita.
   readonly visitantesAtivos = computed(() =>
-    this.pessoas().filter((p) => p.noLocal),
+    this.visitantesPessoas().filter((p) => p.noLocal),
   );
   readonly visitantesLiberados = computed(() =>
-    this.pessoas().filter((p) => !p.noLocal && (p as any).liberado === 1),
+    this.visitantesPessoas().filter((p) => !p.noLocal && (p as any).liberado === 1),
   );
   readonly visitantesHistorico = computed(() =>
-    this.pessoas().filter((p) => !p.noLocal && (p as any).liberado !== 1),
+    this.visitantesPessoas().filter((p) => !p.noLocal && (p as any).liberado !== 1),
   );
-  readonly totalPessoas = computed(() => this.pessoas().length);
+  readonly totalPessoas = computed(() => this.visitantesPessoas().length);
   /**
    * Lista de pessoas filtradas (1 pessoa = 1 linha). Renderizada na tabela.
    * Substitui o antigo visitantesFiltrados — agora a lista representa
    * identidades, não visitas.
    */
   readonly pessoasFiltradas = computed(() => {
-    let list = this.pessoas();
+    // Base já sem prestadores (eles aparecem na aba Prestadores).
+    let list = this.visitantesPessoas();
 
     // 1. Filtrar por status
     const f = this.viewFilter();
@@ -240,15 +246,7 @@ export class VisitantesPageComponent implements OnInit {
       list = list.filter((p) => !p.noLocal && (p as any).liberado !== 1);
     }
 
-    // 2. Filtrar por tipo (visitante vs prestador)
-    const t = this.tipoFilter();
-    if (t === 'visitante') {
-      list = list.filter((p) => !p.is_prestador);
-    } else if (t === 'prestador') {
-      list = list.filter((p) => !!p.is_prestador);
-    }
-
-    // 3. Busca por nome ou documento
+    // 2. Busca por nome ou documento
     const term = this.search().toLowerCase().trim();
     if (term) {
       list = list.filter((p) =>
