@@ -213,6 +213,105 @@
           <input [(ngModel)]="novo.tag_rfid" placeholder="Ex: 0010257321"
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
         </label>
+
+        <!-- Prestador Specific Fields (Categories & Days of week) -->
+        @if (novo.is_prestador) {
+          <div class="block md:col-span-2 border-t border-white/5 pt-4 mt-2">
+            <span class="text-xs font-medium text-slate-400 mb-2 block">Categorias</span>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+              @for (cat of categoriasPredefinidas; track cat) {
+                <label class="flex items-center gap-2 px-3 py-2 rounded-xl bg-graphite border border-white/10 hover:border-white/20 cursor-pointer select-none transition">
+                  <input type="checkbox" 
+                         [checked]="categoriasSelecionadas().has(cat)"
+                         (change)="toggleCategoriaSelecionada(cat)"
+                         class="rounded border-white/20 bg-graphite text-accent focus:ring-accent" />
+                  <span class="text-xs text-slate-300 font-medium">{{ cat }}</span>
+                </label>
+              }
+            </div>
+            
+            <div class="mt-3 flex gap-2 items-center">
+              <input #customCat type="text" placeholder="Outra categoria..."
+                     (keyup.enter)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
+                     class="px-3 py-1.5 text-xs rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60 transition w-48" />
+              <button type="button" 
+                      (click)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
+                      class="px-3 py-1.5 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300">
+                Adicionar
+              </button>
+            </div>
+
+            @if (categoriasCustomSelecionadas().length > 0) {
+              <div class="mt-2.5 flex flex-wrap gap-1.5">
+                @for (c of categoriasCustomSelecionadas(); track c) {
+                  <span class="px-2 py-1 text-xs rounded-lg bg-accent/10 border border-accent/25 text-accent flex items-center gap-1.5">
+                    {{ c }}
+                    <button type="button" (click)="toggleCategoriaSelecionada(c)" class="hover:text-red-400 transition">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </span>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Dias Autorizados -->
+          <div class="block md:col-span-2 border-t border-white/5 pt-4 mt-2">
+            <span class="text-xs font-medium text-slate-400 mb-2.5 block">Dias de Acesso Autorizados</span>
+            
+            <!-- Presets -->
+            <div class="flex items-center gap-1.5 mb-3 flex-wrap">
+              <span class="text-[10px] text-slate-500 uppercase tracking-wider mr-1">Presets Rápidos:</span>
+              <button type="button" (click)="aplicarPresetDias('semana')"
+                      class="px-2.5 py-1 text-[11px] rounded-lg border border-accent/20 bg-accent/5 hover:bg-accent/10 transition text-accent">
+                Segunda a Sexta
+              </button>
+              <button type="button" (click)="aplicarPresetDias('fim-semana')"
+                      class="px-2.5 py-1 text-[11px] rounded-lg border border-amber-400/20 bg-amber-400/5 hover:bg-amber-400/10 transition text-amber-400">
+                Fim de Semana
+              </button>
+              <button type="button" (click)="aplicarPresetDias('todos')"
+                      class="px-2.5 py-1 text-[11px] rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300">
+                Todos os dias
+              </button>
+              <button type="button" (click)="aplicarPresetDias('nenhum')"
+                      class="px-2.5 py-1 text-[11px] rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition text-red-400">
+                Limpar
+              </button>
+            </div>
+
+            <!-- Days selector buttons -->
+            <div class="flex flex-wrap gap-2">
+              @for (dia of [
+                { key: 'seg', label: 'Segunda-feira' },
+                { key: 'ter', label: 'Terça-feira' },
+                { key: 'qua', label: 'Quarta-feira' },
+                { key: 'qui', label: 'Quinta-feira' },
+                { key: 'sex', label: 'Sexta-feira' },
+                { key: 'sab', label: 'Sábado' },
+                { key: 'dom', label: 'Domingo' }
+              ]; track dia.key) {
+                <button type="button" (click)="toggleDiaSemana(dia.key)"
+                        class="px-3.5 py-2 text-xs rounded-xl font-medium border transition-all flex items-center gap-2 select-none"
+                        [class.bg-accent]="isDiaSelecionado(dia.key)"
+                        [class.text-white]="isDiaSelecionado(dia.key)"
+                        [class.border-accent]="isDiaSelecionado(dia.key)"
+                        [class.shadow-md]="isDiaSelecionado(dia.key)"
+                        [class.bg-graphite]="!isDiaSelecionado(dia.key)"
+                        [class.text-slate-400]="!isDiaSelecionado(dia.key)"
+                        [class.border-white/10]="!isDiaSelecionado(dia.key)"
+                        [class.hover:border-white/20]="!isDiaSelecionado(dia.key)">
+                  <span class="w-2 h-2 rounded-full transition-all"
+                        [class.bg-white]="isDiaSelecionado(dia.key)"
+                        [class.bg-slate-600]="!isDiaSelecionado(dia.key)"></span>
+                  {{ dia.label }}
+                </button>
+              }
+            </div>
+          </div>
+        }
       </div>
 
       <!-- Fotos (Pessoa e Documento) -->
@@ -392,6 +491,17 @@
                     </span>
                   }
                 </div>
+                @if (v.is_prestador && (v.categorias || v.dias_semana)) {
+                  <div class="mt-1.5 text-[10px] text-amber-400/85 font-medium flex flex-wrap gap-1 items-center">
+                    @if (v.categorias) {
+                      <span class="bg-amber-500/10 dark:bg-amber-400/5 px-1 py-0.5 rounded border border-amber-400/20 truncate max-w-[200px]" [title]="v.categorias.split(';').join(', ')">{{ v.categorias.split(';').join(', ') }}</span>
+                    }
+                    @if (v.dias_semana) {
+                      <span class="text-slate-400">·</span>
+                      <span class="text-slate-400">{{ formatarDiasSemanaExtenso(v.dias_semana) }}</span>
+                    }
+                  </div>
+                }
                 <div class="mt-2.5 flex items-center gap-2 flex-wrap" (click)="$event.stopPropagation()">
                   @if (getStatusVisitante(v) === 'presente') {
                     <button (click)="darBaixa(v)" class="px-2.5 py-1 text-xs rounded bg-red-500/10 text-red-400 border border-red-500/20 font-medium">Dar Baixa</button>
@@ -495,6 +605,17 @@
                             <span class="text-blue-400/70">Tag</span>
                             <span class="font-semibold tracking-wide">{{ v.tag_rfid }}</span>
                           </span>
+                        }
+                      </div>
+                    }
+                    @if (v.is_prestador && (v.categorias || v.dias_semana)) {
+                      <div class="text-[10px] text-amber-400/85 font-medium flex flex-wrap gap-1 mt-1 items-center">
+                        @if (v.categorias) {
+                          <span class="bg-amber-500/10 dark:bg-amber-400/5 px-1 py-0.5 rounded border border-amber-400/20 truncate max-w-[200px]" [title]="v.categorias.split(';').join(', ')">{{ v.categorias.split(';').join(', ') }}</span>
+                        }
+                        @if (v.dias_semana) {
+                          <span class="text-slate-405">·</span>
+                          <span class="text-slate-400">{{ formatarDiasSemanaExtenso(v.dias_semana) }}</span>
                         }
                       </div>
                     }
@@ -899,6 +1020,22 @@
                   </span>
                 }
               </div>
+              @if (d.visitante.is_prestador === 1 && (d.visitante.categorias || d.visitante.dias_semana)) {
+                <div class="mt-2.5 flex flex-col gap-1 text-xs">
+                  @if (d.visitante.categorias) {
+                    <div>
+                      <span class="text-slate-500 dark:text-slate-400">Categorias: </span>
+                      <span class="font-semibold text-slate-800 dark:text-white">{{ d.visitante.categorias.split(';').join(', ') }}</span>
+                    </div>
+                  }
+                  @if (d.visitante.dias_semana) {
+                    <div>
+                      <span class="text-slate-500 dark:text-slate-400">Dias permitidos: </span>
+                      <span class="font-semibold text-slate-800 dark:text-white">{{ formatarDiasSemanaExtenso(d.visitante.dias_semana) }}</span>
+                    </div>
+                  }
+                </div>
+              }
             </div>
             <button (click)="fecharDetalhes()" class="text-slate-450 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition shrink-0">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>

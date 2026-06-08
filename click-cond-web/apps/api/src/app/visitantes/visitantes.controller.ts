@@ -108,6 +108,8 @@ export class VisitantesController {
       is_visitante?: number;
       is_prestador?: number;
       tag_rfid?: string | null;
+      dias_semana?: string;
+      categorias?: string;
     },
   ) {
     return this.service.atualizarPessoa(idCondominio, idRef, body);

@@ -50,6 +50,8 @@ export interface VisitanteDetalhes {
     data_entrada: string | null;
     data_saida: string | null;
     tag_rfid: string | null;
+    dias_semana?: string | null;
+    categorias?: string | null;
     created_at: string;
   };
   stats: {
@@ -105,6 +107,8 @@ export interface Pessoa {
 
   // tag_rfid herdada do registro principal (não é alias — é dado real)
   tag_rfid?: string | null;
+  dias_semana?: string | null;
+  categorias?: string | null;
 
   ultEntrada: string | null;
   ultSaida: string | null;
@@ -185,6 +189,8 @@ export class VisitantesService {
       is_visitante: number;
       is_prestador: number;
       tag_rfid: string | null;
+      dias_semana?: string | null;
+      categorias?: string | null;
     }>,
   ): Observable<{ ok: boolean; atualizados: number }> {
     return this.http.put<{ ok: boolean; atualizados: number }>(`${this.base}/pessoa/${idRef}`, dto);

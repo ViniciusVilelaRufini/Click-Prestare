@@ -16,6 +16,8 @@ export interface CreateVisitanteDto {
   id_condominio: number;
   foto_documento?: string;
   foto_pessoa?: string;
+  dias_semana?: string;
+  categorias?: string;
 }
 
 export interface UpdateVisitanteDto extends Partial<CreateVisitanteDto> {
@@ -258,6 +260,8 @@ export class VisitantesService {
       face_sync_status: melhor.face_sync_status,
       face_enrolled_at: melhor.face_enrolled_at?.toISOString() ?? null,
       totalVisitasAnteriores: candidatos.length,
+      dias_semana: melhor.dias_semana ?? null,
+      categorias: melhor.categorias ?? null,
     };
   }
 
@@ -402,6 +406,8 @@ export class VisitantesService {
         codigo_acesso: temPinAtivo ? principal.codigo_acesso : null,
 
         created_at: principal.created_at.toISOString(),
+        dias_semana: principal.dias_semana ?? null,
+        categorias: principal.categorias ?? null,
       });
     }
 
@@ -451,6 +457,8 @@ export class VisitantesService {
       id_condominio: ref.id_condominio,
       data_hora_inicio: dto.data_hora_inicio,
       data_hora_termino: dto.data_hora_termino,
+      dias_semana: ref.dias_semana ?? undefined,
+      categorias: ref.categorias ?? undefined,
     });
   }
 
@@ -545,6 +553,8 @@ export class VisitantesService {
     if (fotoDoc !== undefined) data.foto_documento = fotoDoc;
     if (dto.is_visitante !== undefined) data.is_visitante = dto.is_visitante;
     if (dto.is_prestador !== undefined) data.is_prestador = dto.is_prestador;
+    if ((dto as any).dias_semana !== undefined) data.dias_semana = (dto as any).dias_semana;
+    if ((dto as any).categorias !== undefined) data.categorias = (dto as any).categorias;
     // Tag RFID (credencial): string vazia limpa a tag (null). É dado da pessoa,
     // então propaga para todas as visitas dela (mesmo `where`).
     if (dto.tag_rfid !== undefined) {
@@ -659,6 +669,8 @@ export class VisitantesService {
           face_sync_status: faceSyncHerdado ?? existingActive.face_sync_status,
           face_enrolled_at: faceEnrolledHerdado ?? existingActive.face_enrolled_at,
           liberado: 1,
+          dias_semana: dto.dias_semana !== undefined ? dto.dias_semana : existingActive.dias_semana,
+          categorias: dto.categorias !== undefined ? dto.categorias : existingActive.categorias,
         },
       });
 
@@ -745,6 +757,8 @@ export class VisitantesService {
         face_sync_status: faceSyncHerdado,
         face_enrolled_at: faceEnrolledHerdado,
         liberado: 1,
+        dias_semana: dto.dias_semana ?? null,
+        categorias: dto.categorias ?? null,
       },
     });
 
@@ -828,6 +842,8 @@ export class VisitantesService {
           ...(dto.id_apartamento !== undefined && { id_apartamento: dto.id_apartamento }),
           ...(fotoDoc !== undefined && { foto_documento: fotoDoc }),
           ...(fotoPes !== undefined && { foto_pessoa: fotoPes }),
+          ...(dto.dias_semana !== undefined && { dias_semana: dto.dias_semana }),
+          ...(dto.categorias !== undefined && { categorias: dto.categorias }),
         },
       });
       if (fotoPes !== undefined && fotoPes) {
@@ -1162,6 +1178,8 @@ export class VisitantesService {
         data_entrada: v.data_entrada?.toISOString() ?? null,
         data_saida: v.data_saida?.toISOString() ?? null,
         created_at: v.created_at.toISOString(),
+        dias_semana: v.dias_semana ?? null,
+        categorias: v.categorias ?? null,
       },
       stats: {
         totalEntradas,

@@ -74,6 +74,103 @@ export class VisitantesPageComponent implements OnInit {
   // Lookup de pessoa existente no formulário (mesmo doc)
   readonly pessoaEncontrada = signal<PessoaEncontrada | null>(null);
 
+  readonly categoriasSelecionadas = signal<Set<string>>(new Set());
+  readonly categoriasPredefinidas = [
+    'Elétrica',
+    'Hidráulica',
+    'Reformas',
+    'Pintura',
+    'Jardinagem',
+    'Limpeza',
+    'Segurança',
+    'Marcenaria',
+    'Ar Condicionado',
+    'Chaveiro'
+  ];
+
+  readonly categoriasCustomSelecionadas = computed(() => {
+    return Array.from(this.categoriasSelecionadas()).filter(
+      (c) => !this.categoriasPredefinidas.includes(c)
+    );
+  });
+
+  readonly diasSemanaOrdem: { key: string; abrev: string; nome: string }[] = [
+    { key: 'seg', abrev: 'S', nome: 'Segunda' },
+    { key: 'ter', abrev: 'T', nome: 'Terça' },
+    { key: 'qua', abrev: 'Q', nome: 'Quarta' },
+    { key: 'qui', abrev: 'Q', nome: 'Quinta' },
+    { key: 'sex', abrev: 'S', nome: 'Sexta' },
+    { key: 'sab', abrev: 'S', nome: 'Sábado' },
+    { key: 'dom', abrev: 'D', nome: 'Domingo' },
+  ];
+
+  diasSemanaSelecionados(): string[] {
+    return (this.novo.dias_semana ?? '').split(',').filter(Boolean);
+  }
+
+  isDiaSelecionado(dia: string): boolean {
+    return this.diasSemanaSelecionados().includes(dia);
+  }
+
+  toggleDiaSemana(dia: string) {
+    const selecionados = this.diasSemanaSelecionados();
+    if (selecionados.includes(dia)) {
+      this.novo.dias_semana = selecionados.filter((d) => d !== dia).join(',');
+    } else {
+      this.novo.dias_semana = [...selecionados, dia].join(',');
+    }
+  }
+
+  aplicarPresetDias(preset: 'semana' | 'fim-semana' | 'todos' | 'nenhum') {
+    if (preset === 'semana') {
+      this.novo.dias_semana = 'seg,ter,qua,qui,sex';
+    } else if (preset === 'fim-semana') {
+      this.novo.dias_semana = 'sab,dom';
+    } else if (preset === 'todos') {
+      this.novo.dias_semana = 'seg,ter,qua,qui,sex,sab,dom';
+    } else {
+      this.novo.dias_semana = '';
+    }
+  }
+
+  toggleCategoriaSelecionada(cat: string) {
+    const current = new Set(this.categoriasSelecionadas());
+    if (current.has(cat)) {
+      current.delete(cat);
+    } else {
+      current.add(cat);
+    }
+    this.categoriasSelecionadas.set(current);
+  }
+
+  adicionarCustomCategoria(val: string) {
+    const clean = val.trim();
+    if (!clean) return;
+    const formatted = clean.charAt(0).toUpperCase() + clean.slice(1);
+    const current = new Set(this.categoriasSelecionadas());
+    current.add(formatted);
+    this.categoriasSelecionadas.set(current);
+  }
+
+  formatarDiasSemanaExtenso(diasStr: string | null | undefined): string {
+    if (!diasStr) return 'Nenhum dia permitido';
+    const dias = diasStr.split(',').filter(Boolean);
+    if (dias.length === 7) return 'Todos os dias';
+    if (dias.length === 5 && !dias.includes('sab') && !dias.includes('dom')) return 'Segunda a Sexta';
+    if (dias.length === 2 && dias.includes('sab') && dias.includes('dom')) return 'Finais de semana';
+    
+    const mapa: { [key: string]: string } = {
+      seg: 'Seg',
+      ter: 'Ter',
+      qua: 'Qua',
+      qui: 'Qui',
+      sex: 'Sex',
+      sab: 'Sáb',
+      dom: 'Dom'
+    };
+    return dias.map((d) => mapa[d] || d).join(', ');
+  }
+
   // Modos do formulário:
   //   - editandoIdentidade=true: alterando dados da pessoa (nome/foto/doc)
   //     -> salva via atualizarPessoa(), reflete em TODAS as visitas
@@ -324,6 +421,7 @@ export class VisitantesPageComponent implements OnInit {
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(null);
     this.novo = this.estadoInicial();
+    this.categoriasSelecionadas.set(new Set());
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
     this.pessoaEncontrada.set(null);
@@ -348,7 +446,11 @@ export class VisitantesPageComponent implements OnInit {
       is_prestador: p.is_prestador ?? 0,
       foto_pessoa: p.foto_pessoa ?? undefined,
       foto_documento: p.foto_documento ?? undefined,
+      dias_semana: p.dias_semana ?? '',
+      categorias: p.categorias ?? '',
     } as CreateVisitante;
+    const cats = (p.categorias ?? '').split(';').map((x) => x.trim()).filter(Boolean);
+    this.categoriasSelecionadas.set(new Set(cats));
     this.fotoPessoaBase64.set(p.foto_pessoa ?? null);
     this.fotoDocumentoBase64.set(p.foto_documento ?? null);
     this.pessoaEncontrada.set(null);
@@ -397,6 +499,8 @@ export class VisitantesPageComponent implements OnInit {
       foto_pessoa: v.foto_pessoa ?? undefined,
       foto_documento: v.foto_documento ?? undefined,
       tag_rfid: (v as any).tag_rfid ?? '',
+      dias_semana: (v as any).dias_semana ?? '',
+      categorias: (v as any).categorias ?? '',
       data_hora_inicio: v.data_hora_inicio
         ? new Date(v.data_hora_inicio).toISOString().slice(0, 16)
         : undefined,
@@ -404,6 +508,8 @@ export class VisitantesPageComponent implements OnInit {
         ? new Date(v.data_hora_termino).toISOString().slice(0, 16)
         : undefined,
     } as CreateVisitante;
+    const cats = ((v as any).categorias ?? '').split(';').map((x: string) => x.trim()).filter(Boolean);
+    this.categoriasSelecionadas.set(new Set(cats));
     this.fotoPessoaBase64.set(v.foto_pessoa ?? null);
     this.fotoDocumentoBase64.set(v.foto_documento ?? null);
     this.error.set(null);
@@ -423,6 +529,8 @@ export class VisitantesPageComponent implements OnInit {
   }
 
   salvar() {
+    this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
+
     // Modo: Nova Visita para pessoa existente (form curto, só apto+validade)
     const novaPara = this.novaVisitaPara();
     if (novaPara) {
@@ -465,6 +573,8 @@ export class VisitantesPageComponent implements OnInit {
         is_visitante: this.novo.is_visitante,
         is_prestador: this.novo.is_prestador,
         tag_rfid: (this.novo.tag_rfid ?? '').trim() || null,
+        dias_semana: this.novo.dias_semana,
+        categorias: this.novo.categorias,
       }).subscribe({
         next: () => {
           this.saving.set(false);

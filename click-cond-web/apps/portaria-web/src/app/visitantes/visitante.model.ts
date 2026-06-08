@@ -18,6 +18,8 @@ export interface Visitante {
   face_id?: string | null;
   face_sync_status?: string | null;
   tag_rfid?: string | null;
+  dias_semana?: string | null;
+  categorias?: string | null;
   created_at: string;
 }
 
@@ -32,4 +34,6 @@ export interface CreateVisitante {
   foto_pessoa?: string | null;
   foto_documento?: string | null;
   tag_rfid?: string;
+  dias_semana?: string;
+  categorias?: string;
 }
