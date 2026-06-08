@@ -420,13 +420,26 @@ class _MyCondominiumState extends State<MyCondominium> {
       financeiroPage,
     ];
 
+    // Altura ocupada pela navbar flutuante (container 68 + top 8 + bottom 12)
+    // somada ao safe area inferior. As páginas recebem esse espaço via
+    // MediaQuery para que listas/FABs não fiquem escondidos atrás da ilha.
+    final navBarSpace = 68.0 + 8.0 + 12.0;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       body: Stack(
         children: [
-          IndexedStack(
-            index: _currentTab,
-            children: tabs,
+          MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              padding: MediaQuery.of(context).padding.copyWith(
+                    bottom: bottomInset + navBarSpace,
+                  ),
+            ),
+            child: IndexedStack(
+              index: _currentTab,
+              children: tabs,
+            ),
           ),
           Positioned(
             left: 0,
@@ -528,31 +541,41 @@ class _MyCondominiumState extends State<MyCondominium> {
             _currentTab = index;
           });
         },
+        borderRadius: BorderRadius.circular(16),
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            // Pílula do ícone: padding contido para não espremer/estourar com
+            // 4 itens em telas estreitas. Largura segue o ícone, centralizada.
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
+                color: isSelected
+                    ? AppColors.primary.withOpacity(0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
                 isSelected ? activeIcon : icon,
                 color: isSelected ? activeColor : inactiveColor,
-                size: 24,
+                size: 22,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: AppTypography.tiny(context).copyWith(
                 color: isSelected ? activeColor : inactiveColor,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 fontSize: 10,
+                height: 1.1,
               ),
             ),
           ],
