@@ -182,6 +182,7 @@ model Apartamentos {
   agendamentos  Areas_Sociais_Agendamentos[]
   mudancas      Mudancas[]
   visitantes    Visitantes[]
+  prestadores   Prestadores_servico[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
 }
@@ -531,14 +532,17 @@ model Prestadores_servico {
   telefone      String?     @db.VarChar(50)
   categorias    String?     @db.VarChar(500)
   id_condominio Int
+  id_apartamento Int?
   foto_documento String?     @db.LongText
   foto_pessoa    String?     @db.LongText
   dias_semana    String?     @db.VarChar(100)
   created_at    DateTime    @default(now()) @db.DateTime(0)
   updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
   condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_prest_cond")
+  apartamento   Apartamentos? @relation(fields: [id_apartamento], references: [id], onDelete: SetNull, map: "fk_prest_apto")
 
   @@index([id_condominio])
+  @@index([id_apartamento])
 }
 
 model Agenda {

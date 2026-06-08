@@ -10,6 +10,8 @@ export interface Prestador {
   telefone: string | null;
   categorias: string | null;
   id_condominio: number;
+  id_apartamento?: number | null;
+  apartamento?: { bloco: string | null; apto: string | null } | null;
   foto_pessoa?: string | null;
   foto_documento?: string | null;
   dias_semana?: string | null;
@@ -18,6 +20,7 @@ export interface CreatePrestador {
   nome: string;
   telefone?: string;
   categorias?: string;
+  id_apartamento?: number;
   foto_pessoa?: string;
   foto_documento?: string;
   dias_semana?: string;

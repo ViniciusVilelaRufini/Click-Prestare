@@ -7,6 +7,7 @@ export interface CreatePrestadorDto {
   telefone?: string;
   categorias?: string;
   id_condominio: number;
+  id_apartamento?: number;
   foto_pessoa?: string;
   foto_documento?: string;
   dias_semana?: string;
@@ -55,6 +56,7 @@ export class PrestadoresService {
             }
           : {}),
       },
+      include: { apartamento: { select: { bloco: true, apto: true } } },
       orderBy: { nome: 'asc' },
     });
   }
@@ -64,7 +66,10 @@ export class PrestadoresService {
       return { id, nome: 'Prestador Exemplo', telefone: '(11) 99999-9999', categorias: 'Geral', id_condominio: 1 };
     }
 
-    const p = await this.prisma.prestadores_servico.findUnique({ where: { id: Number(id) } });
+    const p = await this.prisma.prestadores_servico.findUnique({
+      where: { id: Number(id) },
+      include: { apartamento: { select: { bloco: true, apto: true } } },
+    });
     if (!p) throw new NotFoundException(`Prestador ${id} não encontrado`);
     return p;
   }
@@ -101,6 +106,7 @@ export class PrestadoresService {
         data: {
           telefone: dto.telefone ?? existing.telefone,
           categorias: dto.categorias ?? existing.categorias,
+          id_apartamento: dto.id_apartamento ?? existing.id_apartamento,
           foto_pessoa: fotoPes ?? existing.foto_pessoa,
           foto_documento: fotoDoc ?? existing.foto_documento,
           dias_semana: dto.dias_semana !== undefined ? dto.dias_semana : existing.dias_semana,
@@ -114,6 +120,7 @@ export class PrestadoresService {
         telefone: dto.telefone ?? null,
         categorias: dto.categorias ?? null,
         id_condominio: dto.id_condominio,
+        id_apartamento: dto.id_apartamento ?? null,
         foto_pessoa: fotoPes,
         foto_documento: fotoDoc,
         dias_semana: dto.dias_semana ?? null,
@@ -136,6 +143,7 @@ export class PrestadoresService {
           ...(dto.nome !== undefined && { nome: dto.nome }),
           ...(dto.telefone !== undefined && { telefone: dto.telefone }),
           ...(dto.categorias !== undefined && { categorias: dto.categorias }),
+          ...(dto.id_apartamento !== undefined && { id_apartamento: dto.id_apartamento }),
           ...(fotoPes !== undefined && { foto_pessoa: fotoPes }),
           ...(fotoDoc !== undefined && { foto_documento: fotoDoc }),
           ...(dto.dias_semana !== undefined && { dias_semana: dto.dias_semana }),

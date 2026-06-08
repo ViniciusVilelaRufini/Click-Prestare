@@ -11,8 +11,14 @@ export class PrestadoresMobileController {
   }
 
   @Get('get')
-  getOne(@Query('id') id: string) {
-    return this.service.findOne(Number(id));
+  async getOne(@Query('id') id: string) {
+    const p: any = await this.service.findOne(Number(id));
+    // Achata o apartamento em apto_bloco/apto para o app pré-preencher a unidade na edição.
+    if (p && p.apartamento) {
+      p.apto_bloco = p.apartamento.bloco ?? null;
+      p.apto = p.apartamento.apto ?? null;
+    }
+    return p;
   }
 
   @Post('insert')
@@ -25,6 +31,7 @@ export class PrestadoresMobileController {
       nome: data.nome,
       telefone: data.telefone,
       categorias: data.categorias,
+      id_apartamento: data.id_apartamento != null ? Number(data.id_apartamento) : undefined,
     });
   }
 
@@ -37,6 +44,7 @@ export class PrestadoresMobileController {
       nome: data.nome,
       telefone: data.telefone,
       categorias: data.categorias,
+      id_apartamento: data.id_apartamento != null ? Number(data.id_apartamento) : undefined,
     });
   }
 

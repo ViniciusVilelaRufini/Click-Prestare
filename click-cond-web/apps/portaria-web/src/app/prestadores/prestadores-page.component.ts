@@ -6,6 +6,7 @@ import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective } from '../shared/input-mask.directive';
 import { VisitantesService } from '../visitantes/visitantes.service';
 import { Visitante } from '../visitantes/visitante.model';
+import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 
 @Component({
   selector: 'app-prestadores-page',
@@ -17,6 +18,7 @@ export class PrestadoresPageComponent implements OnInit {
   private api = inject(PrestadoresApi);
   private confirm = inject(ConfirmService);
   private visitantesApi = inject(VisitantesService);
+  private aptApi = inject(ApartamentosApi);
 
   constructor() {
     effect(() => {
@@ -30,6 +32,7 @@ export class PrestadoresPageComponent implements OnInit {
 
   readonly prestadores = signal<Prestador[]>([]);
   readonly visitantes = signal<Visitante[]>([]);
+  readonly apartamentos = signal<Apartamento[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly search = signal('');
@@ -171,7 +174,19 @@ export class PrestadoresPageComponent implements OnInit {
   editingId: number | null = null;
   readonly saving = signal(false);
 
-  ngOnInit() { this.carregar(); }
+  ngOnInit() {
+    this.carregar();
+    // Lista de apartamentos para o seletor de unidade (mesmo padrão de Visitantes).
+    this.aptApi.list().subscribe({
+      next: (data) => {
+        data.sort((a, b) => {
+          if (a.bloco === b.bloco) return a.apto.localeCompare(b.apto, 'pt', { numeric: true });
+          return (a.bloco ?? '').localeCompare(b.bloco ?? '');
+        });
+        this.apartamentos.set(data);
+      },
+    });
+  }
 
   carregar() {
     this.loading.set(true);
@@ -186,7 +201,7 @@ export class PrestadoresPageComponent implements OnInit {
 
   abrirNovo() {
     this.editingId = null;
-    this.novo = { nome: '', telefone: '', categorias: '', dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
+    this.novo = { nome: '', telefone: '', categorias: '', id_apartamento: 0, dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
     this.categoriasSelecionadas.set(new Set());
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
@@ -203,6 +218,7 @@ export class PrestadoresPageComponent implements OnInit {
       nome: p.nome,
       telefone: p.telefone ?? '',
       categorias: p.categorias ?? '',
+      id_apartamento: p.id_apartamento ?? 0,
       foto_pessoa: p.foto_pessoa ?? undefined,
       foto_documento: p.foto_documento ?? undefined,
       dias_semana: p.dias_semana ?? '',
@@ -224,7 +240,8 @@ export class PrestadoresPageComponent implements OnInit {
 
   salvar() {
     if (!this.novo.nome?.trim()) { this.error.set('Nome é obrigatório.'); return; }
-    
+    if (!this.novo.id_apartamento) { this.error.set('Selecione a unidade de destino.'); return; }
+
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
     
     this.saving.set(true);
