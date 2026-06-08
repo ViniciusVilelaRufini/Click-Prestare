@@ -748,6 +748,34 @@ export class FacialService {
           }
         }
 
+        // Validação de dias da semana autorizados
+        if (v.dias_semana) {
+          const diasPermitidos = v.dias_semana.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
+          if (diasPermitidos.length > 0) {
+            const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+            const diaSemanaAtual = mapDias[now.getDay()];
+            if (!diasPermitidos.includes(diaSemanaAtual)) {
+              await this.prisma.acessos_Facial.create({
+                data: {
+                  id_condominio: device.id_condominio,
+                  id_device: device.id,
+                  tipo_dispositivo: device.tipo,
+                  face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+                  tipo_pessoa: tipoPessoa,
+                  id_pessoa: idPessoa,
+                  nome_pessoa: `${nomePessoa} (Bloqueado por dia da semana não autorizado)`,
+                  evento: 'negado',
+                  confianca,
+                  timestamp,
+                },
+              });
+              throw new BadRequestException(
+                'Acesso negado: Entrada não permitida no dia de hoje.'
+              );
+            }
+          }
+        }
+
         if (v.liberado !== 1) {
           await this.prisma.acessos_Facial.create({
             data: {

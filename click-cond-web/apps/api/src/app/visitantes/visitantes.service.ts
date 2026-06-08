@@ -934,6 +934,18 @@ export class VisitantesService {
       throw new BadRequestException('Acesso negado: O período de validade deste código ainda não iniciou.');
     }
 
+    // Validação de dias da semana autorizados
+    if (v.dias_semana) {
+      const diasPermitidos = v.dias_semana.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
+      if (diasPermitidos.length > 0) {
+        const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+        const diaSemanaAtual = mapDias[now.getDay()];
+        if (!diasPermitidos.includes(diaSemanaAtual)) {
+          throw new BadRequestException('Acesso negado: Entrada não permitida no dia de hoje.');
+        }
+      }
+    }
+
     if (v.liberado !== 1) {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
