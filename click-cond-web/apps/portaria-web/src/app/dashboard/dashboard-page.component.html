@@ -590,18 +590,18 @@
               <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300">Cadastrar Visitante</span>
             </a>
 
-            <a routerLink="/comunicados" [queryParams]="{novo: 'true'}"
+            <button (click)="abrirModalBaixa()"
                class="flex flex-col items-center gap-2 p-3 rounded-xl
-                      bg-slate-50 hover:bg-slate-200/50 dark:bg-white/5 dark:hover:bg-white/10 
-                      border border-slate-200/60 hover:border-slate-350 dark:border-transparent dark:hover:border-white/20 
+                      bg-slate-50 hover:bg-rose-500/5 dark:bg-white/5 dark:hover:bg-rose-500/10
+                      border border-slate-200/60 hover:border-rose-500/30 dark:border-transparent dark:hover:border-rose-500/20
                       transition-all text-center group active:scale-95 duration-150"
-               title="Publicar novo comunicado aos moradores">
-              <svg class="w-5 h-5 text-slate-500 dark:text-slate-300 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               title="Registrar saída de visitante ou prestador">
+              <svg class="w-5 h-5 text-rose-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
               </svg>
-              <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300">Novo Comunicado</span>
-            </a>
+              <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300">Dar Baixa</span>
+            </button>
           </div>
         </div>
 
@@ -1401,6 +1401,122 @@
               </div>
             </div>
           }
+        </div>
+
+      </div>
+    </div>
+  }
+
+  <!-- Modal de Dar Baixa Rápida -->
+  @if (showBaixaModal()) {
+    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" (click)="fecharModalBaixa()">
+      <div class="w-full max-w-lg bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col relative" (click)="$event.stopPropagation()">
+
+        <!-- Header do Modal -->
+        <div class="px-6 py-4 border-b border-slate-200/60 dark:border-white/5 flex items-center justify-between bg-slate-50/[0.3] dark:bg-white/[0.01]">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+            <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Registrar Baixa (Saída)</h3>
+          </div>
+          <button (click)="fecharModalBaixa()" class="text-slate-400 hover:text-slate-650 dark:hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+
+          <!-- Campo de Busca -->
+          <div class="relative">
+            <input
+              type="text"
+              placeholder="Buscar por nome ou documento..."
+              [ngModel]="buscaPessoaBaixa()"
+              (ngModelChange)="buscaPessoaBaixa.set($event)"
+              class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-white/10 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-rose-500 transition" />
+            <svg class="w-5 h-5 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+          </div>
+
+          <!-- Mensagens de Erro / Sucesso -->
+          @if (erroBaixa()) {
+            <div class="p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/40 dark:border-rose-500/20 text-rose-600 dark:text-rose-450 text-xs font-semibold rounded-xl flex items-start gap-2">
+              <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span>{{ erroBaixa() }}</span>
+            </div>
+          }
+          @if (sucessoBaixa()) {
+            <div class="p-3.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/40 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-450 text-xs font-semibold rounded-xl flex items-start gap-2">
+              <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+              <span>{{ sucessoBaixa() }}</span>
+            </div>
+          }
+
+          <!-- Lista de Pessoas no Local -->
+          <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+            @if (carregandoBaixa()) {
+              <div class="flex flex-col items-center justify-center py-8 gap-2 text-slate-400">
+                <div class="w-6 h-6 border-2 border-slate-300 border-t-accent rounded-full animate-spin"></div>
+                <span class="text-xs font-semibold uppercase tracking-wider">Carregando...</span>
+              </div>
+            } @else if (filtradasBaixa().length === 0) {
+              <div class="text-center py-8 text-slate-400 dark:text-slate-500 text-sm">
+                Ninguém no condomínio encontrado com este filtro.
+              </div>
+            } @else {
+              @for (p of filtradasBaixa(); track p.id) {
+                <div class="flex items-center justify-between p-3 rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-50/[0.2] dark:bg-white/[0.01] hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                      @if (p.foto_pessoa) {
+                        <img [src]="p.foto_pessoa" class="w-full h-full object-cover" />
+                      } @else {
+                        <span class="text-xs font-bold text-slate-500 dark:text-slate-400">{{ iniciais(p.nome) }}</span>
+                      }
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-slate-800 dark:text-white text-sm leading-tight">{{ p.nome }}</h4>
+                      <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        @if (p.doc_identificacao) {
+                          <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400">Doc: {{ p.doc_identificacao }}</span>
+                          <span class="text-slate-300 dark:text-white/10">·</span>
+                        }
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wider uppercase"
+                              [class.text-accent]="p.is_visitante === 1"
+                              [class.bg-accent/10]="p.is_visitante === 1"
+                              [class.border-accent/15]="p.is_visitante === 1"
+                              [class.text-amber-500]="p.is_prestador === 1"
+                              [class.bg-amber-500/10]="p.is_prestador === 1"
+                              [class.border-amber-500/15]="p.is_prestador === 1">
+                          {{ p.is_prestador === 1 ? 'Prestador' : 'Visitante' }}
+                        </span>
+                        @if (p.apartamentoAtual) {
+                          <span class="text-slate-300 dark:text-white/10">·</span>
+                          <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Apto {{ p.apartamentoAtual }}</span>
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  <button (click)="confirmarBaixa(p)"
+                          [disabled]="registrandoSaida()"
+                          class="px-3 py-1.5 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50">
+                    Dar Baixa
+                  </button>
+                </div>
+              }
+            }
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end bg-slate-50/[0.3] dark:bg-white/[0.01]">
+          <button (click)="fecharModalBaixa()"
+                  class="px-4 py-2 text-xs font-bold text-slate-650 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors">
+            Fechar
+          </button>
         </div>
 
       </div>

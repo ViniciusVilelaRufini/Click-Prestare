@@ -54,6 +54,25 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly validating = signal(false);
   readonly checkingIn = signal(false);
 
+  // Estados do Modal de Dar Baixa Rápida
+  readonly showBaixaModal = signal(false);
+  readonly buscaPessoaBaixa = signal('');
+  readonly pessoasNoLocal = signal<Pessoa[]>([]);
+  readonly carregandoBaixa = signal(false);
+  readonly registrandoSaida = signal(false);
+  readonly erroBaixa = signal<string | null>(null);
+  readonly sucessoBaixa = signal<string | null>(null);
+
+  readonly filtradasBaixa = computed(() => {
+    const busca = this.buscaPessoaBaixa().toLowerCase().trim();
+    const lista = this.pessoasNoLocal();
+    if (!busca) return lista;
+    return lista.filter(p => 
+      p.nome.toLowerCase().includes(busca) || 
+      (p.doc_identificacao && p.doc_identificacao.toLowerCase().includes(busca))
+    );
+  });
+
   readonly copiaSucessoTexto = signal<string | null>(null);
   private copiaSucessoTimeout?: any;
 
@@ -305,6 +324,63 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     if (this.showValidationModal()) {
       this.fecharValidador();
     }
+    if (this.showBaixaModal()) {
+      this.fecharModalBaixa();
+    }
+  }
+
+  abrirModalBaixa() {
+    this.showBaixaModal.set(true);
+    this.buscaPessoaBaixa.set('');
+    this.pessoasNoLocal.set([]);
+    this.erroBaixa.set(null);
+    this.sucessoBaixa.set(null);
+    this.carregandoBaixa.set(true);
+
+    this.visitantesService.listarPessoas().subscribe({
+      next: (data) => {
+        const noLocalList = data.filter(p => p.noLocal);
+        this.pessoasNoLocal.set(noLocalList);
+        this.carregandoBaixa.set(false);
+      },
+      error: (e) => {
+        this.erroBaixa.set('Falha ao carregar pessoas no condomínio: ' + (e?.message ?? e));
+        this.carregandoBaixa.set(false);
+      }
+    });
+  }
+
+  fecharModalBaixa() {
+    this.showBaixaModal.set(false);
+    this.buscaPessoaBaixa.set('');
+    this.pessoasNoLocal.set([]);
+    this.erroBaixa.set(null);
+    this.sucessoBaixa.set(null);
+  }
+
+  confirmarBaixa(p: Pessoa) {
+    this.registrandoSaida.set(true);
+    this.erroBaixa.set(null);
+    this.sucessoBaixa.set(null);
+
+    this.visitantesService.checkOut(p.id).subscribe({
+      next: () => {
+        this.registrandoSaida.set(false);
+        this.sucessoBaixa.set(`Saída de ${p.nome} registrada com sucesso!`);
+        this.load();
+        
+        // Remove da lista local para atualização instantânea
+        this.pessoasNoLocal.update(lista => lista.filter(x => x.id !== p.id));
+        
+        setTimeout(() => {
+          this.sucessoBaixa.set(null);
+        }, 3000);
+      },
+      error: (e) => {
+        this.registrandoSaida.set(false);
+        this.erroBaixa.set('Falha ao registrar saída: ' + (e?.error?.message ?? e?.message ?? e));
+      }
+    });
   }
 
   private clockInterval?: ReturnType<typeof setInterval>;
