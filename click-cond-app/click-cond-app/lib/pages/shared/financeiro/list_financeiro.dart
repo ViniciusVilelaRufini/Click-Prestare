@@ -588,9 +588,9 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
 
   Widget _buildViewToggle() {
     final isSindico = getUserType() == 'sindico';
-    // Síndico vê CONDOMÍNIO + INADIMPLÊNCIA (e MEU FINANCEIRO se também for morador,
-    // i.e. tiver lançamentos pessoais). Morador puro vê só MEU FINANCEIRO.
-    final mostrarMeu = !isSindico || _personalLancamentos.isNotEmpty;
+    // MEU FINANCEIRO aparece sempre — se o síndico também é morador, ele PRECISA
+    // ver as próprias dívidas (mesmo sem cobranças pendentes no momento).
+    // Síndico ganha também CONDOMÍNIO + INADIMPLÊNCIA.
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -599,15 +599,14 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
       ),
       child: Row(
         children: [
-          if (mostrarMeu)
-            _ToggleItem(
-              label: 'MEU FINANCEIRO',
-              isSelected: _viewMode == FinanceiroViewMode.morador,
-              onTap: () {
-                setState(() => _viewMode = FinanceiroViewMode.morador);
-                _applyFilter();
-              },
-            ),
+          _ToggleItem(
+            label: 'MEU FINANCEIRO',
+            isSelected: _viewMode == FinanceiroViewMode.morador,
+            onTap: () {
+              setState(() => _viewMode = FinanceiroViewMode.morador);
+              _applyFilter();
+            },
+          ),
           if (isSindico) ...[
             _ToggleItem(
               label: 'CONDOMÍNIO',
