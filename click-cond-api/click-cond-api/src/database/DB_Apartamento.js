@@ -91,12 +91,20 @@ module.exports = {
 
   getApartmentsByUser: async function (userId, idCondominio) {
     const query = `
-      SELECT au.id_apto 
+      SELECT au.id_apto
       FROM Apartamentos_Users au
       INNER JOIN Apartamentos a ON a.id = au.id_apto
       WHERE au.id_user = ? AND a.id_condominio = ?
     `;
     const { results } = await db.queryParam(query, [userId, idCondominio]);
+    return results.map(r => r.id_apto);
+  },
+
+  // Todos os aptos vinculados ao usuário (qualquer condomínio). Usado no isolamento
+  // do app quando a requisição não envia id_condominio (ex.: síndico).
+  getAllApartmentsByUser: async function (userId) {
+    const query = `SELECT au.id_apto FROM Apartamentos_Users au WHERE au.id_user = ?`;
+    const { results } = await db.queryParam(query, [userId]);
     return results.map(r => r.id_apto);
   },
 

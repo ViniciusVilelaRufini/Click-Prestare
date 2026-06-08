@@ -1249,58 +1249,38 @@ export class VisitantesService {
     userType?: string,
   ) {
     const conditions: any[] = [];
-    const typeLower = (userType ?? '').toLowerCase();
 
-    // ===== ISOLAMENTO DE DADOS =====
+    // ===== ISOLAMENTO DE DADOS (APP) =====
     // Fonte da verdade: o servidor decide quais apartamentos o usuário pode ver.
-    // Nunca confiar só no id_apto vindo do client.
+    // No APP, TODOS (morador, síndico e funcionário) só veem visitantes/prestadores
+    // dos apartamentos a que estão VINCULADOS (Apartamentos_Users). "Ver todos" do
+    // condomínio é exclusivo do console web. Esta é a ÚNICA regra — com ou sem
+    // id_condominio (o app omite id_condominio p/ síndico, e isso não pode vazar).
+    // O userType não é usado no filtro (mantido na assinatura por compat. do controller).
     if (!userId) return [];
 
-    if (idCondominio) {
-      const condId = Number(idCondominio);
-      conditions.push({ id_condominio: condId });
+    const condId = idCondominio ? Number(idCondominio) : undefined;
+    if (condId) conditions.push({ id_condominio: condId });
 
-      // Aptos vinculados ao usuário NESTE condomínio.
-      const vinc = await this.prisma.apartamentos_Users.findMany({
-        where: { id_user: Number(userId), apartamento: { id_condominio: condId } },
-        select: { id_apto: true },
-      });
-      const aptosPermitidos = [...new Set(vinc.map((v) => v.id_apto))];
+    // Aptos vinculados ao usuário (escopados ao condomínio quando informado).
+    const vinc = await this.prisma.apartamentos_Users.findMany({
+      where: {
+        id_user: Number(userId),
+        ...(condId ? { apartamento: { id_condominio: condId } } : {}),
+      },
+      select: { id_apto: true },
+    });
+    const aptosPermitidos = [...new Set(vinc.map((v) => v.id_apto))];
 
-      // No APP, TODOS (morador, síndico e funcionário) só veem visitantes dos próprios
-      // apartamentos vinculados. A gestão da portaria (ver todos) é só no console web.
-      // Sem vínculo de apto neste condomínio → não vê nada.
-      if (aptosPermitidos.length === 0) return [];
-      if (idApto) {
-        if (!aptosPermitidos.includes(Number(idApto))) {
-          throw new ForbiddenException('Acesso negado: este apartamento não pertence a você.');
-        }
-        conditions.push({ id_apartamento: Number(idApto) });
-      } else {
-        conditions.push({ id_apartamento: { in: aptosPermitidos } });
+    // Sem vínculo de apto → não vê nada.
+    if (aptosPermitidos.length === 0) return [];
+    if (idApto) {
+      if (!aptosPermitidos.includes(Number(idApto))) {
+        throw new ForbiddenException('Acesso negado: este apartamento não pertence a você.');
       }
-    } else if (typeLower === 'morador') {
-      conditions.push({
-        OR: [
-          { apartamento: { users: { some: { id_user: Number(userId) } } } },
-          { user: Number(userId) },
-        ],
-      });
-    } else if (typeLower === 'sindico') {
-      const managed = await this.prisma.sindicos_Condominios.findMany({
-        where: { id_user: Number(userId) },
-        select: { id_condominio: true },
-      });
-      conditions.push({ id_condominio: { in: managed.map((m) => m.id_condominio) } });
-    } else if (typeLower === 'funcionario') {
-      const func = await this.prisma.funcionarios.findFirst({
-        where: { id_user: Number(userId) },
-        select: { id_condominio: true },
-      });
-      if (!func) return [];
-      conditions.push({ id_condominio: func.id_condominio });
+      conditions.push({ id_apartamento: Number(idApto) });
     } else {
-      return [];
+      conditions.push({ id_apartamento: { in: aptosPermitidos } });
     }
 
     if (search) {

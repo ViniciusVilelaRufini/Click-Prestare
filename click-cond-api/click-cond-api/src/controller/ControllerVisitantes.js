@@ -47,26 +47,27 @@ module.exports = {
       const id_condominio = req.query.id_condominio;
       const user = req.session.user;
 
-      let filterUserId = null;
       let idAptosPermitidos = null; // lista de aptos quando o usuário é restrito
 
       // Isolamento de dados no APP: TODOS (morador, síndico, funcionário) só veem
-      // visitantes dos próprios apartamentos vinculados. A gestão da portaria (ver
-      // todos) é só no console web. Sem vínculo de apto → não vê nada.
-      // A fonte da verdade é o servidor (nunca confia no id_apto do client).
-      if (id_condominio) {
-        const userAptos = await dbAptos.getApartmentsByUser(user.id, id_condominio);
-        filterUserId = user.id;
-        if (userAptos.length === 0) {
-          return res.status(200).json([]);
-        }
-        if (id_apto && !userAptos.includes(parseInt(id_apto))) {
-          console.warn(`[SECURITY] User ${user.id} (${user.typeAccess}) tentou acessar Apto ${id_apto} sem permissão.`);
-          return res.status(403).json({ message: "Acesso negado: Este apartamento não pertence a você." });
-        }
-        if (!id_apto) {
-          idAptosPermitidos = userAptos; // filtra por TODOS os aptos do usuário
-        }
+      // visitantes/prestadores dos próprios apartamentos vinculados. A gestão da
+      // portaria (ver todos) é só no console web. Sem vínculo de apto → não vê nada.
+      // A fonte da verdade é o servidor (nunca confia no id_apto do client). O
+      // isolamento roda SEMPRE — inclusive quando id_condominio não vem (síndico),
+      // senão vazaria todos os condomínios.
+      const filterUserId = user.id;
+      const userAptos = id_condominio
+        ? await dbAptos.getApartmentsByUser(user.id, id_condominio)
+        : await dbAptos.getAllApartmentsByUser(user.id);
+      if (userAptos.length === 0) {
+        return res.status(200).json([]);
+      }
+      if (id_apto && !userAptos.includes(parseInt(id_apto))) {
+        console.warn(`[SECURITY] User ${user.id} (${user.typeAccess}) tentou acessar Apto ${id_apto} sem permissão.`);
+        return res.status(403).json({ message: "Acesso negado: Este apartamento não pertence a você." });
+      }
+      if (!id_apto) {
+        idAptosPermitidos = userAptos; // filtra por TODOS os aptos do usuário
       }
 
       const result = await db.getAll(id_condominio, req.query.offset || 0, id_apto, req.query.search, filterUserId, idAptosPermitidos);
