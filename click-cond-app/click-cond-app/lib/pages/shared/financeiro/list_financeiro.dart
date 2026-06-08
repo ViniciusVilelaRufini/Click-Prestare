@@ -26,7 +26,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
-enum FinanceiroViewMode { morador, condominio, inadimplencia }
+enum FinanceiroViewMode { morador, condominio }
 
 class ListFinanceiro extends StatefulWidget {
   final bool hideAppBar;
@@ -60,12 +60,6 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
   String ano = '';
   String _searchQuery = '';
   FinanceiroViewMode _viewMode = FinanceiroViewMode.condominio;
-
-  // Dashboard de Inadimplência (síndico).
-  Map<String, dynamic> _inadResumo = {};
-  List<dynamic> _inadEventos = [];
-  List<dynamic> _inadBlocos = [];
-  bool _inadLoading = false;
 
   @override
   void initState() {
@@ -127,23 +121,6 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
     }
   }
 
-  Future<void> loadInadimplencia() async {
-    try {
-      setState(() => _inadLoading = true);
-      final dynamic d = await apiGetInadimplenciaDashboard(mes, ano);
-      if (d is Map) {
-        _inadResumo = (d['resumo'] is Map) ? Map<String, dynamic>.from(d['resumo']) : {};
-        _inadEventos = (d['eventos'] is List) ? d['eventos'] : [];
-        _inadBlocos = (d['blocos'] is List) ? d['blocos'] : [];
-        if (titlesTabs.isEmpty && d['meses'] is List) titlesTabs = d['meses'];
-      }
-    } catch (e) {
-      _inadResumo = {}; _inadEventos = []; _inadBlocos = [];
-    } finally {
-      if (mounted) setState(() => _inadLoading = false);
-    }
-  }
-
   void _applyFilter() {
     final Map<String, dynamic> filtered = {};
     final query = _searchQuery.toLowerCase();
@@ -179,11 +156,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
 
   void changeMonth(String month, String newMes, String newAno) {
     setState(() { tabSelected = month; mes = newMes; ano = newAno; });
-    if (_viewMode == FinanceiroViewMode.inadimplencia) {
-      loadInadimplencia();
-    } else {
-      loadList();
-    }
+    loadList();
   }
 
   int getCountStatus(int pago) {
@@ -226,7 +199,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_viewMode == FinanceiroViewMode.condominio || _viewMode == FinanceiroViewMode.inadimplencia) ...[
+                          if (_viewMode == FinanceiroViewMode.condominio) ...[
                             SizedBox(
                               height: 38,
                               child: ListView.separated(
@@ -282,10 +255,6 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                             const SizedBox(height: AppSpacing.lg),
                           ],
                           _buildViewToggle(),
-                          if (_viewMode == FinanceiroViewMode.inadimplencia) ...[
-                            const SizedBox(height: AppSpacing.lg),
-                            _buildInadimplenciaDashboard(),
-                          ],
                           if (isSindico && _viewMode == FinanceiroViewMode.condominio) ...[
                             const SizedBox(height: AppSpacing.md),
                             Row(
@@ -296,6 +265,17 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                                     icon: PhosphorIcons.filePdf,
                                     color: AppColors.primary,
                                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinanceiroRelatorio())),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: _ActionCardButton(
+                                    label: getText('financeiro_inadimplentes'),
+                                    icon: PhosphorIcons.userList,
+                                    color: AppColors.error,
+                                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                                      builder: (_) => InadimplenciaDashboardPage(mes: mes, ano: ano),
+                                    )).then((_) => loadList()),
                                   ),
                                 ),
                               ],
@@ -508,89 +488,11 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
     );
   }
 
-  Widget _buildInadimplenciaDashboard() {
-    if (_inadLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    final r = _inadResumo;
-    final moeda = Singleton.instance.getCurrentMoeda();
-    String money(dynamic v) => (v ?? '$moeda 0,00').toString().replaceAll("R\$", moeda);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Cards de resumo
-        Row(
-          children: [
-            Expanded(child: _InadKpiCard(
-              label: 'Arrecadado', value: money(r['totalArrecadado']),
-              icon: PhosphorIcons.checkCircle, color: const Color(0xFF22C55E))),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: _InadKpiCard(
-              label: 'Pendente', value: money(r['totalPendente']),
-              icon: PhosphorIcons.clock, color: const Color(0xFFF59E0B))),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(child: _InadKpiCard(
-              label: 'Aptos devendo',
-              value: '${r['qtdAptosDevendo'] ?? 0}/${r['totalAptos'] ?? 0}',
-              icon: PhosphorIcons.buildings, color: AppColors.error)),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: _InadKpiCard(
-              label: 'Inadimplência',
-              value: '${r['percInadimplencia'] ?? 0}%',
-              icon: PhosphorIcons.chartPie, color: AppColors.primary)),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.lg),
-
-        // Feed de eventos / atividade recente
-        if (_inadEventos.isNotEmpty) ...[
-          Text('ATIVIDADE RECENTE', style: AppTypography.captionMedium(context).copyWith(
-            color: AppColors.textSecondary(context), letterSpacing: 0.8)),
-          const SizedBox(height: AppSpacing.sm),
-          ..._inadEventos.take(8).map((e) => _InadEventoTile(evento: e)),
-          const SizedBox(height: AppSpacing.lg),
-        ],
-
-        // Lista por bloco
-        Text('POR BLOCO', style: AppTypography.captionMedium(context).copyWith(
-          color: AppColors.textSecondary(context), letterSpacing: 0.8)),
-        const SizedBox(height: AppSpacing.sm),
-        if (_inadBlocos.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
-            child: Column(children: [
-              Icon(PhosphorIcons.checkCircle, size: 40, color: AppColors.success.withOpacity(0.6)),
-              const SizedBox(height: AppSpacing.sm),
-              Text('Nenhuma inadimplência neste período.', textAlign: TextAlign.center,
-                style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
-            ]),
-          )
-        else
-          ..._inadBlocos.map((b) => _InadBlocoTile(
-            bloco: b,
-            onTapApto: (bloco, apto) => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => DetailInadimplente(bloco: bloco, apto: apto)))
-              .then((_) => loadInadimplencia()),
-          )),
-      ],
-    );
-  }
-
   Widget _buildViewToggle() {
     final isSindico = getUserType() == 'sindico';
     // MEU FINANCEIRO aparece sempre — se o síndico também é morador, ele PRECISA
-    // ver as próprias dívidas (mesmo sem cobranças pendentes no momento).
-    // Síndico ganha também CONDOMÍNIO + INADIMPLÊNCIA.
+    // ver as próprias dívidas. Síndico ganha também CONDOMÍNIO. A Inadimplência
+    // não fica no toggle: é um botão ao lado de "Resumo".
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -607,7 +509,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
               _applyFilter();
             },
           ),
-          if (isSindico) ...[
+          if (isSindico)
             _ToggleItem(
               label: 'CONDOMÍNIO',
               isSelected: _viewMode == FinanceiroViewMode.condominio,
@@ -616,15 +518,6 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                 _applyFilter();
               },
             ),
-            _ToggleItem(
-              label: 'INADIMPLÊNCIA',
-              isSelected: _viewMode == FinanceiroViewMode.inadimplencia,
-              onTap: () {
-                setState(() => _viewMode = FinanceiroViewMode.inadimplencia);
-                if (_inadResumo.isEmpty) loadInadimplencia();
-              },
-            ),
-          ],
         ],
       ),
     );
@@ -1266,6 +1159,167 @@ class _ActionCardButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ===== Tela de Inadimplência (dashboard) =====
+// Aberta pelo botão "Inadimplência" ao lado de "Resumo" no Financeiro do síndico.
+class InadimplenciaDashboardPage extends StatefulWidget {
+  final String mes;
+  final String ano;
+  const InadimplenciaDashboardPage({Key? key, this.mes = '', this.ano = ''}) : super(key: key);
+  @override
+  State<InadimplenciaDashboardPage> createState() => _InadimplenciaDashboardPageState();
+}
+
+class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage> {
+  bool _loading = true;
+  Map<String, dynamic> _resumo = {};
+  List<dynamic> _eventos = [];
+  List<dynamic> _blocos = [];
+  List<dynamic> _meses = [];
+  String _mes = '';
+  String _ano = '';
+  String _periodo = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _mes = widget.mes;
+    _ano = widget.ano;
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      setState(() => _loading = true);
+      final dynamic d = await apiGetInadimplenciaDashboard(_mes, _ano);
+      if (d is Map) {
+        _resumo = (d['resumo'] is Map) ? Map<String, dynamic>.from(d['resumo']) : {};
+        _eventos = (d['eventos'] is List) ? d['eventos'] : [];
+        _blocos = (d['blocos'] is List) ? d['blocos'] : [];
+        _meses = (d['meses'] is List) ? d['meses'] : [];
+        if (_periodo.isEmpty && _meses.isNotEmpty) {
+          _periodo = _meses.last['periodo'];
+          _mes = _meses.last['mes'];
+          _ano = _meses.last['ano'];
+        }
+      }
+    } catch (e) {
+      _resumo = {}; _eventos = []; _blocos = [];
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _changeMonth(String periodo, String mes, String ano) {
+    setState(() { _periodo = periodo; _mes = mes; _ano = ano; });
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final moeda = Singleton.instance.getCurrentMoeda();
+    String money(dynamic v) => (v ?? '$moeda 0,00').toString().replaceAll("R\$", moeda);
+    final r = _resumo;
+
+    return AppScaffold(
+      title: 'Inadimplência',
+      showBackButton: true,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  // Filtro por mês
+                  if (_meses.isNotEmpty)
+                    SizedBox(
+                      height: 38,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _meses.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+                        itemBuilder: (_, i) {
+                          final t = _meses[i];
+                          final sel = _periodo == t['periodo'];
+                          return GestureDetector(
+                            onTap: sel ? null : () => _changeMonth(t['periodo'], t['mes'], t['ano']),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: sel ? AppColors.primary : AppColors.surface(context),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: sel ? AppColors.primary : AppColors.textSecondary(context).withOpacity(0.1)),
+                              ),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                Icon(PhosphorIcons.calendarBlank, size: 14, color: sel ? Colors.white : AppColors.textSecondary(context)),
+                                const SizedBox(width: 6),
+                                Text(t['periodo'], style: AppTypography.caption(context).copyWith(
+                                  color: sel ? Colors.white : AppColors.textSecondary(context),
+                                  fontWeight: sel ? FontWeight.bold : FontWeight.normal)),
+                              ]),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: AppSpacing.lg),
+                  // Cards de resumo
+                  Row(children: [
+                    Expanded(child: _InadKpiCard(label: 'Arrecadado', value: money(r['totalArrecadado']),
+                      icon: PhosphorIcons.checkCircle, color: const Color(0xFF22C55E))),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(child: _InadKpiCard(label: 'Pendente', value: money(r['totalPendente']),
+                      icon: PhosphorIcons.clock, color: const Color(0xFFF59E0B))),
+                  ]),
+                  const SizedBox(height: AppSpacing.md),
+                  Row(children: [
+                    Expanded(child: _InadKpiCard(label: 'Aptos devendo',
+                      value: '${r['qtdAptosDevendo'] ?? 0}/${r['totalAptos'] ?? 0}',
+                      icon: PhosphorIcons.buildings, color: AppColors.error)),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(child: _InadKpiCard(label: 'Inadimplência',
+                      value: '${r['percInadimplencia'] ?? 0}%',
+                      icon: PhosphorIcons.chartPie, color: AppColors.primary)),
+                  ]),
+                  const SizedBox(height: AppSpacing.lg),
+                  // Feed de eventos
+                  if (_eventos.isNotEmpty) ...[
+                    Text('ATIVIDADE RECENTE', style: AppTypography.captionMedium(context).copyWith(
+                      color: AppColors.textSecondary(context), letterSpacing: 0.8)),
+                    const SizedBox(height: AppSpacing.sm),
+                    ..._eventos.take(8).map((e) => _InadEventoTile(evento: e)),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  // Lista por bloco
+                  Text('POR BLOCO', style: AppTypography.captionMedium(context).copyWith(
+                    color: AppColors.textSecondary(context), letterSpacing: 0.8)),
+                  const SizedBox(height: AppSpacing.sm),
+                  if (_blocos.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppSpacing.xl),
+                      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+                      child: Column(children: [
+                        Icon(PhosphorIcons.checkCircle, size: 40, color: AppColors.success.withOpacity(0.6)),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text('Nenhuma inadimplência neste período.', textAlign: TextAlign.center,
+                          style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
+                      ]),
+                    )
+                  else
+                    ..._blocos.map((b) => _InadBlocoTile(
+                      bloco: b,
+                      onTapApto: (bloco, apto) => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => DetailInadimplente(bloco: bloco, apto: apto)))
+                        .then((_) => _load()),
+                    )),
+                ],
+              ),
+            ),
     );
   }
 }
