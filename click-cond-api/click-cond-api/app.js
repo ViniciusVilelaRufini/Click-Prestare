@@ -27,6 +27,7 @@ const financeiroRouter = require('./src/routes/financeiro');
 const dashboardRouter = require('./src/routes/dashboard');
 const encomendasRouter = require('./src/routes/encomendas');
 const usersRouter = require('./src/routes/users');
+const facialRouter = require('./src/routes/facial');
 
 const app = express();
 
@@ -81,6 +82,7 @@ app.use('/financeiro', financeiroRouter);
 app.use('/apartamentos', apartamentosRouter);
 app.use('/dashboard', dashboardRouter);
 app.use('/encomendas', encomendasRouter);
+app.use('/facial', facialRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

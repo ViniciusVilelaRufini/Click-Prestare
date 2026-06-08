@@ -278,10 +278,11 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
                   value: _formatDateTimeString(item['data_saida']),
                 ),
 
-              if (item['face_sync_status'] != null || item['face_id'] != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                AcessosFacialList(idVisitante: item['id']),
-              ],
+              // Últimos acessos do visitante (entrada/saída + método + horário).
+              // Sempre exibido: o widget trata loading e empty state internamente,
+              // então cobre tag/QR/PIN/botoeira, não só visitantes com face cadastrada.
+              const SizedBox(height: AppSpacing.md),
+              AcessosFacialList(idVisitante: item['id']),
 
               // Google Maps / Block route sharing section
               const SizedBox(height: AppSpacing.lg),

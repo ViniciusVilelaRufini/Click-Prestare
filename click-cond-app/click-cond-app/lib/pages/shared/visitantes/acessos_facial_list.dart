@@ -5,8 +5,9 @@ import 'package:click/theme/app_typography.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-/// Lista compacta de acessos faciais de um visitante.
-/// Mostra "Entrou" / "Saiu" / "Negado" com data e hora.
+/// Lista compacta dos últimos acessos de um visitante no condomínio.
+/// Mostra "Entrou" / "Saiu" / "Negado" com o método usado (Facial / Tag RFID /
+/// QR Code / Catraca / Botoeira), data e hora.
 /// Usa o endpoint GET /api/facial/acessos/visitante/:id.
 class AcessosFacialList extends StatefulWidget {
   final int idVisitante;
@@ -15,7 +16,7 @@ class AcessosFacialList extends StatefulWidget {
   const AcessosFacialList({
     Key? key,
     required this.idVisitante,
-    this.limit = 20,
+    this.limit = 5,
   }) : super(key: key);
 
   @override
@@ -71,6 +72,26 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
     }
   }
 
+  /// Mapeia o tipo de dispositivo para ícone + rótulo do método.
+  /// Espelha labelMetodoDispositivo() do backend (dashboard.service.ts).
+  ({IconData icon, String label}) _styleForMetodo(String? tipoDispositivo) {
+    switch (tipoDispositivo) {
+      case 'tag_reader':
+        return (icon: PhosphorIcons.tag, label: 'Tag RFID');
+      case 'qrcode_reader':
+        return (icon: PhosphorIcons.qrCode, label: 'QR Code');
+      case 'catraca':
+        return (icon: PhosphorIcons.identificationCard, label: 'Catraca');
+      case 'botoeira':
+        return (icon: PhosphorIcons.bell, label: 'Botoeira');
+      case 'facial':
+        return (icon: PhosphorIcons.scan, label: 'Facial');
+      default:
+        // Eventos antigos/sem tipo definido: rótulo genérico para não ficar vazio.
+        return (icon: PhosphorIcons.signIn, label: 'Acesso');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -103,7 +124,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Nenhum acesso registrado no terminal facial.',
+                'Nenhum acesso registrado ainda.',
                 style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
               ),
             ),
@@ -119,10 +140,10 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: Row(
             children: [
-              Icon(PhosphorIcons.scan, color: AppColors.primary, size: 16),
+              Icon(PhosphorIcons.clockCounterClockwise, color: AppColors.primary, size: 16),
               const SizedBox(width: 6),
               Text(
-                'Histórico no Terminal Facial',
+                'Últimos acessos',
                 style: AppTypography.tiny(context).copyWith(
                   color: AppColors.primary,
                   fontWeight: FontWeight.bold,
@@ -142,6 +163,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
               final evento = (a['evento'] ?? '').toString();
               final observacao = a['observacao']?.toString();
               final style = _styleForEvento(evento, observacao);
+              final metodo = _styleForMetodo(a['tipo_dispositivo']?.toString());
               final isLast = a == _acessos.last;
               return Container(
                 padding: const EdgeInsets.symmetric(
@@ -165,9 +187,38 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            style.label,
-                            style: AppTypography.captionMedium(context).copyWith(color: style.color),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  style.label,
+                                  style: AppTypography.captionMedium(context).copyWith(color: style.color),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              // Chip do método (Facial / Tag RFID / QR Code / etc.)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.10),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(metodo.icon, color: AppColors.primary, size: 11),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      metodo.label,
+                                      style: AppTypography.tiny(context).copyWith(
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 1),
                           Text(
