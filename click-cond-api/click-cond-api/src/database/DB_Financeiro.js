@@ -54,12 +54,16 @@ module.exports = {
   },
 
   getAll: async function (id_cond, mes, ano, getPendentes) {
+    // Cobranças de taxa dos moradores (categoria 'Taxa Condominial') NÃO entram no
+    // Financeiro do condomínio — vão para a aba Inadimplência. Mostra só receitas/
+    // despesas do condomínio.
     const query = `select t1.id, t1.nome, t1.tipo, t1.valor, t1.categoria, t1.nome_operador, t1.pago, t1.status,
                       DATE_FORMAT(COALESCE(t1.data, t1.data_vencimento, t1.created_at), '%d') as dia,
                       DATE_FORMAT(COALESCE(t1.data, t1.data_vencimento, t1.created_at), '%m') as mes,
                       DATE_FORMAT(COALESCE(t1.data, t1.data_vencimento, t1.created_at), '%Y') as ano
                     from Financeiro as t1
                     where t1.id_condominio=${id_cond}
+                      and (t1.categoria is null or t1.categoria <> 'Taxa Condominial')
                       and COALESCE(t1.data, t1.data_vencimento, t1.created_at) >= '${ano}-${mes}-01'
                       and COALESCE(t1.data, t1.data_vencimento, t1.created_at) < '${ano}-${mes}-01' + interval 1 month
                       ${getPendentes == false ? 'and t1.pago=1' : ''}
@@ -186,6 +190,66 @@ module.exports = {
     }
 
     return results;
+  },
+
+  // Dashboard de Inadimplência (paridade com o NestJS): resumo + eventos do mês.
+  getInadimplenciaDashboard: async function (id_cond, mes, ano) {
+    const fmt = (n) => Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const cobrancas = (await db.query(
+      `select id, nome, valor, pago, data, data_vencimento, created_at, updated_at
+         from Financeiro
+        where id_condominio=${id_cond} and categoria='Taxa Condominial'
+          and COALESCE(data, data_vencimento, created_at) >= '${ano}-${mes}-01'
+          and COALESCE(data, data_vencimento, created_at) < '${ano}-${mes}-01' + interval 1 month
+        order by updated_at desc`
+    )).results;
+
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    let totalArrecadado = 0, totalPendente = 0, qtdPagas = 0, qtdPendentes = 0;
+    const aptosDevendo = new Set();
+    const extrair = (nome) => {
+      const m = /\bApto\s+(\S+)/i.exec(nome || '');
+      const b = /\bBloco\s+(\S+)/i.exec(nome || '');
+      return { apto: m ? m[1] : '', bloco: b ? b[1] : '' };
+    };
+    const eventos = [];
+    for (const c of cobrancas) {
+      const v = Math.abs(Number(c.valor || 0));
+      const { apto, bloco } = extrair(c.nome);
+      if (c.pago === 1) { totalArrecadado += v; qtdPagas++; }
+      else {
+        totalPendente += v; qtdPendentes++;
+        aptosDevendo.add(`${bloco}-${apto || c.id}`);
+      }
+      const venc = c.data_vencimento ? new Date(c.data_vencimento) : null;
+      if (venc) venc.setHours(0, 0, 0, 0);
+      let tipo, data;
+      if (c.pago === 1) { tipo = 'pagamento'; data = c.updated_at || c.data; }
+      else if (venc && venc < hoje) { tipo = 'vencido'; data = venc; }
+      else { tipo = 'gerada'; data = c.created_at; }
+      const d = data ? new Date(data) : null;
+      eventos.push({
+        tipo, nome: c.nome, apto, bloco, valor: v, valorString: fmt(v),
+        data: d ? d.toLocaleDateString('pt-BR') : '', dataOrd: d ? d.getTime() : 0,
+      });
+    }
+    eventos.sort((a, b) => b.dataOrd - a.dataOrd);
+
+    const totalAptos = (await db.query(
+      `select count(*) c from Apartamentos where id_condominio=${id_cond}`
+    )).results[0].c;
+    const perc = totalAptos > 0 ? Math.round((aptosDevendo.size / totalAptos) * 1000) / 10 : 0;
+
+    return {
+      resumo: {
+        totalArrecadado: fmt(totalArrecadado),
+        totalPendente: fmt(totalPendente),
+        qtdPagas, qtdPendentes,
+        qtdAptosDevendo: aptosDevendo.size,
+        totalAptos, percInadimplencia: perc,
+      },
+      eventos: eventos.slice(0, 30),
+    };
   },
 
   getInadimplenteDetail: async function (id_cond, meses, apto, bloco) {

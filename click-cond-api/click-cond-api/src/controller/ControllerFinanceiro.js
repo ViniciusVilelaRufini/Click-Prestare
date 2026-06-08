@@ -148,6 +148,36 @@ module.exports = {
     }
   },
 
+  async getInadimplenciaDashboard(req, res) {
+    try {
+      const id_cond = req.query.id_condominio;
+      const meses = await db.getAllMeses(id_cond);
+      let mes = req.query.mes, ano = req.query.ano;
+      if ((!mes || !ano) && meses.length > 0) {
+        const ult = meses[meses.length - 1];
+        mes = ult.mes; ano = ult.ano;
+      }
+      const dash = await db.getInadimplenciaDashboard(id_cond, mes, ano);
+
+      // Blocos (reusa a agregação de inadimplentes)
+      const inad = await db.getAllInadimplentes(id_cond, meses);
+      const listBlocos = [];
+      let ultimoApto = null;
+      inad.forEach(function (apto) {
+        if (ultimoApto == null || ultimoApto.bloco != apto.bloco) {
+          listBlocos.push({ bloco: apto.bloco, aptos: [apto] });
+        } else {
+          listBlocos[listBlocos.length - 1].aptos.push(apto);
+        }
+        ultimoApto = apto;
+      });
+
+      return res.status(200).json({ ...dash, blocos: listBlocos, meses });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
   async getInadimplenteDetail(req, res) {
     try {
       var meses = await db.getAllMeses(req.query.id_condominio);

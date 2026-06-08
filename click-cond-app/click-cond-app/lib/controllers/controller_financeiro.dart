@@ -28,6 +28,24 @@ apiGetAllFinanceiro(String route, String mes, String ano) async {
   }
 }
 
+apiGetInadimplenciaDashboard(String mes, String ano) async {
+  var url = ApiConfig.buildUri('/financeiro/inadimplencia/dashboard', {
+    'id_condominio': Singleton.instance.id_condominio.toString(),
+    'mes': mes,
+    'ano': ano,
+  });
+  try {
+    var response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    if (response.statusCode == 200) {
+      var parsed = jsonDecode(response.body);
+      return parsed == "" ? {} : parsed;
+    }
+    return {};
+  } catch (e) {
+    return {};
+  }
+}
+
 apiGetDetailsInadimplente(String route, String bloco, String apto) async {
   var url = ApiConfig.buildUri('/'+route+'/get',{'id_condominio': Singleton.instance.id_condominio.toString(), 'bloco': bloco, 'apto': apto});
   try{

@@ -730,9 +730,13 @@ export class FinanceiroService implements OnModuleInit {
 
     const cond = await this.prisma.condominios.findUnique({
       where: { id: Number(idCondominio) },
-      select: { chave_pix: true },
+      select: { chave_pix: true, categoria_padrao: true },
     });
     const condChavePix = cond?.chave_pix ?? '';
+    // Categoria das cobranças de taxa dos moradores (apto a apto). Essas NÃO entram
+    // no Financeiro do condomínio — vão para a aba Inadimplência. Mostra só
+    // receitas/despesas do condomínio aqui.
+    const catTaxa = cond?.categoria_padrao || 'Taxa Condominial';
 
     // Montar intervalo
     const dataIni = new Date(ano, mes - 1, 1);
@@ -740,6 +744,7 @@ export class FinanceiroService implements OnModuleInit {
 
     const whereClause: any = {
       id_condominio: Number(idCondominio),
+      categoria: { not: catTaxa },
       OR: [
         { data: { gte: dataIni, lte: dataFim } },
         { data_vencimento: { gte: dataIni, lte: dataFim } },
@@ -1028,6 +1033,138 @@ export class FinanceiroService implements OnModuleInit {
     }));
 
     return { blocos: listBlocos };
+  }
+
+  /**
+   * Dashboard de Inadimplência (síndico): resumo (cards), feed de eventos
+   * (pagamentos recebidos / cobranças vencidas) e a lista por bloco — tudo
+   * baseado nas cobranças de taxa dos moradores (categoria_padrao), que NÃO
+   * aparecem mais no Financeiro do condomínio.
+   */
+  async getInadimplenciaDashboard(idCondominio: number, mesStr?: string, anoStr?: string, user?: JwtPayload) {
+    if (user?.id_condominio) {
+      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    }
+
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: Number(idCondominio) },
+      select: { categoria_padrao: true, chave_pix: true },
+    });
+    const catTaxa = cond?.categoria_padrao || 'Taxa Condominial';
+
+    const mesesDisponiveis = await this.getAllMeses(idCondominio);
+    let mes = mesStr ? Number(mesStr) : new Date().getMonth() + 1;
+    let ano = anoStr ? Number(anoStr) : new Date().getFullYear();
+    if (mesesDisponiveis.length > 0 && (!mesStr || !anoStr)) {
+      const ult = mesesDisponiveis[mesesDisponiveis.length - 1];
+      mes = Number(ult.mes);
+      ano = Number(ult.ano);
+    }
+
+    const dataIni = new Date(ano, mes - 1, 1);
+    const dataFim = new Date(ano, mes, 0);
+
+    // Cobranças de taxa do mês (por vencimento ou data).
+    const cobrancas = await this.prisma.financeiro.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        categoria: catTaxa,
+        OR: [
+          { data: { gte: dataIni, lte: dataFim } },
+          { data_vencimento: { gte: dataIni, lte: dataFim } },
+        ],
+      },
+      orderBy: [{ updated_at: 'desc' }],
+    });
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    let totalArrecadado = 0;
+    let totalPendente = 0;
+    let qtdPagas = 0;
+    let qtdPendentes = 0;
+    const aptosDevendo = new Set<string>();
+
+    for (const c of cobrancas) {
+      const v = c.valor ? Math.abs(Number(c.valor)) : 0;
+      if (c.pago === 1) {
+        totalArrecadado += v;
+        qtdPagas++;
+      } else {
+        totalPendente += v;
+        qtdPendentes++;
+        const m = /\bApto\s+(\S+)/i.exec(c.nome || '');
+        const b = /\bBloco\s+(\S+)/i.exec(c.nome || '');
+        aptosDevendo.add(`${b ? b[1] : ''}-${m ? m[1] : c.id}`);
+      }
+    }
+
+    const totalAptos = await this.prisma.apartamentos.count({
+      where: { id_condominio: Number(idCondominio) },
+    });
+    const percInadimplencia = totalAptos > 0
+      ? Math.round((aptosDevendo.size / totalAptos) * 1000) / 10
+      : 0;
+
+    const fmt = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    // Feed de eventos: pagamentos recebidos + cobranças vencidas (aproximação a
+    // partir de pago/updated_at/data_vencimento — não há tabela de auditoria).
+    const extrairApto = (nome: string | null) => {
+      const m = /\bApto\s+(\S+)/i.exec(nome || '');
+      const b = /\bBloco\s+(\S+)/i.exec(nome || '');
+      return { apto: m ? m[1] : '', bloco: b ? b[1] : '' };
+    };
+    const eventos = cobrancas
+      .map((c) => {
+        const v = c.valor ? Math.abs(Number(c.valor)) : 0;
+        const { apto, bloco } = extrairApto(c.nome);
+        const venc = c.data_vencimento ? new Date(c.data_vencimento) : null;
+        if (venc) venc.setHours(0, 0, 0, 0);
+        let tipo: 'pagamento' | 'vencido' | 'gerada';
+        let data: Date | null;
+        if (c.pago === 1) {
+          tipo = 'pagamento';
+          data = c.updated_at ?? c.data ?? null;
+        } else if (venc && venc < hoje) {
+          tipo = 'vencido';
+          data = venc;
+        } else {
+          tipo = 'gerada';
+          data = c.created_at ?? null;
+        }
+        return {
+          tipo,
+          nome: c.nome,
+          apto,
+          bloco,
+          valor: v,
+          valorString: fmt(v),
+          data: data ? data.toLocaleDateString('pt-BR') : '',
+          dataOrd: data ? data.getTime() : 0,
+        };
+      })
+      .sort((a, b) => b.dataOrd - a.dataOrd)
+      .slice(0, 30);
+
+    // Lista por bloco (reusa a agregação existente).
+    const { blocos } = await this.getAllInadimplentes(idCondominio, user);
+
+    return {
+      resumo: {
+        totalArrecadado: fmt(totalArrecadado),
+        totalPendente: fmt(totalPendente),
+        qtdPagas,
+        qtdPendentes,
+        qtdAptosDevendo: aptosDevendo.size,
+        totalAptos,
+        percInadimplencia,
+      },
+      eventos,
+      blocos,
+      meses: mesesDisponiveis,
+    };
   }
 
   async getInadimplenteDetail(idCondominio: number, apto: string, bloco: string, user?: JwtPayload) {

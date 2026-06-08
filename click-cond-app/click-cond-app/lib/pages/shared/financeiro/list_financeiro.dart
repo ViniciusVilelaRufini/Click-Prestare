@@ -8,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:rflutter_alert/rflutter_alert.dart';
 import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/pages/shared/financeiro/finan_relatorio.dart';
-import 'package:click/pages/shared/financeiro/list_inadimplentes.dart';
+import 'package:click/pages/shared/financeiro/detail_inadimplente.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_despesa.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_receita.dart';
@@ -26,7 +26,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
-enum FinanceiroViewMode { morador, condominio }
+enum FinanceiroViewMode { morador, condominio, inadimplencia }
 
 class ListFinanceiro extends StatefulWidget {
   final bool hideAppBar;
@@ -60,6 +60,12 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
   String ano = '';
   String _searchQuery = '';
   FinanceiroViewMode _viewMode = FinanceiroViewMode.condominio;
+
+  // Dashboard de Inadimplência (síndico).
+  Map<String, dynamic> _inadResumo = {};
+  List<dynamic> _inadEventos = [];
+  List<dynamic> _inadBlocos = [];
+  bool _inadLoading = false;
 
   @override
   void initState() {
@@ -121,6 +127,23 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
     }
   }
 
+  Future<void> loadInadimplencia() async {
+    try {
+      setState(() => _inadLoading = true);
+      final dynamic d = await apiGetInadimplenciaDashboard(mes, ano);
+      if (d is Map) {
+        _inadResumo = (d['resumo'] is Map) ? Map<String, dynamic>.from(d['resumo']) : {};
+        _inadEventos = (d['eventos'] is List) ? d['eventos'] : [];
+        _inadBlocos = (d['blocos'] is List) ? d['blocos'] : [];
+        if (titlesTabs.isEmpty && d['meses'] is List) titlesTabs = d['meses'];
+      }
+    } catch (e) {
+      _inadResumo = {}; _inadEventos = []; _inadBlocos = [];
+    } finally {
+      if (mounted) setState(() => _inadLoading = false);
+    }
+  }
+
   void _applyFilter() {
     final Map<String, dynamic> filtered = {};
     final query = _searchQuery.toLowerCase();
@@ -156,7 +179,11 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
 
   void changeMonth(String month, String newMes, String newAno) {
     setState(() { tabSelected = month; mes = newMes; ano = newAno; });
-    loadList();
+    if (_viewMode == FinanceiroViewMode.inadimplencia) {
+      loadInadimplencia();
+    } else {
+      loadList();
+    }
   }
 
   int getCountStatus(int pago) {
@@ -199,7 +226,7 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_viewMode == FinanceiroViewMode.condominio) ...[
+                          if (_viewMode == FinanceiroViewMode.condominio || _viewMode == FinanceiroViewMode.inadimplencia) ...[
                             SizedBox(
                               height: 38,
                               child: ListView.separated(
@@ -255,19 +282,14 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
                             const SizedBox(height: AppSpacing.lg),
                           ],
                           _buildViewToggle(),
+                          if (_viewMode == FinanceiroViewMode.inadimplencia) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            _buildInadimplenciaDashboard(),
+                          ],
                           if (isSindico && _viewMode == FinanceiroViewMode.condominio) ...[
                             const SizedBox(height: AppSpacing.md),
                             Row(
                               children: [
-                                Expanded(
-                                  child: _ActionCardButton(
-                                    label: getText('financeiro_inadimplentes'),
-                                    icon: PhosphorIcons.userList,
-                                    color: AppColors.error,
-                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListInadimplestes())).then((_) => loadList()),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.md),
                                 Expanded(
                                   child: _ActionCardButton(
                                     label: getText('financeiro_nav_relatorio'),
@@ -486,7 +508,89 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
     );
   }
 
+  Widget _buildInadimplenciaDashboard() {
+    if (_inadLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final r = _inadResumo;
+    final moeda = Singleton.instance.getCurrentMoeda();
+    String money(dynamic v) => (v ?? '$moeda 0,00').toString().replaceAll("R\$", moeda);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Cards de resumo
+        Row(
+          children: [
+            Expanded(child: _InadKpiCard(
+              label: 'Arrecadado', value: money(r['totalArrecadado']),
+              icon: PhosphorIcons.checkCircle, color: const Color(0xFF22C55E))),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: _InadKpiCard(
+              label: 'Pendente', value: money(r['totalPendente']),
+              icon: PhosphorIcons.clock, color: const Color(0xFFF59E0B))),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(child: _InadKpiCard(
+              label: 'Aptos devendo',
+              value: '${r['qtdAptosDevendo'] ?? 0}/${r['totalAptos'] ?? 0}',
+              icon: PhosphorIcons.buildings, color: AppColors.error)),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: _InadKpiCard(
+              label: 'Inadimplência',
+              value: '${r['percInadimplencia'] ?? 0}%',
+              icon: PhosphorIcons.chartPie, color: AppColors.primary)),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+
+        // Feed de eventos / atividade recente
+        if (_inadEventos.isNotEmpty) ...[
+          Text('ATIVIDADE RECENTE', style: AppTypography.captionMedium(context).copyWith(
+            color: AppColors.textSecondary(context), letterSpacing: 0.8)),
+          const SizedBox(height: AppSpacing.sm),
+          ..._inadEventos.take(8).map((e) => _InadEventoTile(evento: e)),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+
+        // Lista por bloco
+        Text('POR BLOCO', style: AppTypography.captionMedium(context).copyWith(
+          color: AppColors.textSecondary(context), letterSpacing: 0.8)),
+        const SizedBox(height: AppSpacing.sm),
+        if (_inadBlocos.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+            child: Column(children: [
+              Icon(PhosphorIcons.checkCircle, size: 40, color: AppColors.success.withOpacity(0.6)),
+              const SizedBox(height: AppSpacing.sm),
+              Text('Nenhuma inadimplência neste período.', textAlign: TextAlign.center,
+                style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
+            ]),
+          )
+        else
+          ..._inadBlocos.map((b) => _InadBlocoTile(
+            bloco: b,
+            onTapApto: (bloco, apto) => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => DetailInadimplente(bloco: bloco, apto: apto)))
+              .then((_) => loadInadimplencia()),
+          )),
+      ],
+    );
+  }
+
   Widget _buildViewToggle() {
+    final isSindico = getUserType() == 'sindico';
+    // Síndico vê CONDOMÍNIO + INADIMPLÊNCIA (e MEU FINANCEIRO se também for morador,
+    // i.e. tiver lançamentos pessoais). Morador puro vê só MEU FINANCEIRO.
+    final mostrarMeu = !isSindico || _personalLancamentos.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -495,22 +599,33 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
       ),
       child: Row(
         children: [
-          _ToggleItem(
-            label: 'MEU FINANCEIRO',
-            isSelected: _viewMode == FinanceiroViewMode.morador,
-            onTap: () {
-              setState(() => _viewMode = FinanceiroViewMode.morador);
-              _applyFilter();
-            },
-          ),
-          _ToggleItem(
-            label: 'CONDOMÍNIO',
-            isSelected: _viewMode == FinanceiroViewMode.condominio,
-            onTap: () {
-              setState(() => _viewMode = FinanceiroViewMode.condominio);
-              _applyFilter();
-            },
-          ),
+          if (mostrarMeu)
+            _ToggleItem(
+              label: 'MEU FINANCEIRO',
+              isSelected: _viewMode == FinanceiroViewMode.morador,
+              onTap: () {
+                setState(() => _viewMode = FinanceiroViewMode.morador);
+                _applyFilter();
+              },
+            ),
+          if (isSindico) ...[
+            _ToggleItem(
+              label: 'CONDOMÍNIO',
+              isSelected: _viewMode == FinanceiroViewMode.condominio,
+              onTap: () {
+                setState(() => _viewMode = FinanceiroViewMode.condominio);
+                _applyFilter();
+              },
+            ),
+            _ToggleItem(
+              label: 'INADIMPLÊNCIA',
+              isSelected: _viewMode == FinanceiroViewMode.inadimplencia,
+              onTap: () {
+                setState(() => _viewMode = FinanceiroViewMode.inadimplencia);
+                if (_inadResumo.isEmpty) loadInadimplencia();
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -1150,6 +1265,136 @@ class _ActionCardButton extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===== Widgets do dashboard de Inadimplência =====
+
+class _InadKpiCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  const _InadKpiCard({required this.label, required this.value, required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(value, style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 2),
+          Text(label, style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context))),
+        ],
+      ),
+    );
+  }
+}
+
+class _InadEventoTile extends StatelessWidget {
+  final dynamic evento;
+  const _InadEventoTile({required this.evento});
+
+  @override
+  Widget build(BuildContext context) {
+    final tipo = (evento['tipo'] ?? '').toString();
+    IconData icon; Color color; String label;
+    switch (tipo) {
+      case 'pagamento':
+        icon = PhosphorIcons.checkCircle; color = const Color(0xFF22C55E); label = 'Pagamento recebido'; break;
+      case 'vencido':
+        icon = PhosphorIcons.warningCircle; color = AppColors.error; label = 'Cobrança vencida'; break;
+      default:
+        icon = PhosphorIcons.receipt; color = AppColors.textSecondary(context); label = 'Cobrança gerada';
+    }
+    final apto = (evento['apto'] ?? '').toString();
+    final bloco = (evento['bloco'] ?? '').toString();
+    final unidade = bloco.isNotEmpty ? 'Apto $apto · Bloco $bloco' : (apto.isNotEmpty ? 'Apto $apto' : '');
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: AppTypography.captionMedium(context).copyWith(color: color)),
+                if (unidade.isNotEmpty)
+                  Text(unidade, style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context))),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text((evento['valorString'] ?? '').toString(), style: AppTypography.captionMedium(context)),
+              Text((evento['data'] ?? '').toString(), style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InadBlocoTile extends StatelessWidget {
+  final dynamic bloco;
+  final void Function(String bloco, String apto) onTapApto;
+  const _InadBlocoTile({required this.bloco, required this.onTapApto});
+
+  @override
+  Widget build(BuildContext context) {
+    final nomeBloco = (bloco['bloco'] ?? '').toString();
+    final aptos = (bloco['aptos'] is List) ? bloco['aptos'] as List : [];
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 18),
+          ),
+          title: Text('Bloco $nomeBloco', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(20)),
+            child: Text('${aptos.length}', style: AppTypography.caption(context).copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+          children: aptos.map<Widget>((a) {
+            final apto = (a['apto'] ?? '').toString();
+            final qtd = a['qtd'] ?? 0;
+            return ListTile(
+              onTap: () => onTapApto(nomeBloco, apto),
+              leading: Icon(PhosphorIcons.door, size: 18, color: AppColors.textSecondary(context)),
+              title: Text('Apto $apto', style: AppTypography.body(context)),
+              subtitle: Text('$qtd ${qtd == 1 ? 'mês em aberto' : 'meses em aberto'}',
+                style: AppTypography.tiny(context).copyWith(color: AppColors.error)),
+              trailing: Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+            );
+          }).toList(),
         ),
       ),
     );

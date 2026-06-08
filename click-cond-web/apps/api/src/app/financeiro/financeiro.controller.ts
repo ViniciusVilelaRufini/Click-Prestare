@@ -76,6 +76,16 @@ export class FinanceiroController {
     return this.service.getAllInadimplentes(Number(idCondominio), payload);
   }
 
+  @Get('inadimplencia/dashboard')
+  inadimplenciaDashboard(
+    @Query('id_condominio') idCondominio: string,
+    @Query('mes') mes: string,
+    @Query('ano') ano: string,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.getInadimplenciaDashboard(Number(idCondominio), mes, ano, payload);
+  }
+
   @Get('inadimplente/get')
   getInadimplenteDetail(
     @Query('id_condominio') idCondominio: string,

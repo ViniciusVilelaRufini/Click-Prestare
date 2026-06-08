@@ -10,6 +10,7 @@ router.post('/update', jwt({ typeAccess: ['Sindico'] }), controller.update);
 router.get('/get', jwt({ typeAccess: ['Sindico'] }), controller.get);
 router.get('/moradores/get-all', jwt({ typeAccess: ['Sindico'] }), controller.getAllMoradores);
 router.get('/inadimplentes/get-all', jwt({ typeAccess: ['Sindico'] }), controller.getAllInadimplentes);
+router.get('/inadimplencia/dashboard', jwt({ typeAccess: ['Sindico'] }), controller.getInadimplenciaDashboard);
 router.get('/inadimplente/get', jwt({ typeAccess: ['Sindico'] }), controller.getInadimplenteDetail);
 router.get('/grafico/get-all', jwt({ typeAccess: ['Sindico'] }), controller.getGrafico);
 router.get('/get-by-user', jwt({ typeAccess: ['Morador', 'Sindico'] }), controller.getByUser);
