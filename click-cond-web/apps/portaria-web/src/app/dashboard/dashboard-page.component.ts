@@ -46,6 +46,75 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly erroLiberar = signal<string | null>(null);
   readonly sucessoLiberar = signal<string | null>(null);
 
+  // Estados do Modal de Validação de PIN
+  readonly showValidationModal = signal(false);
+  readonly pinCode = signal('');
+  readonly validationResult = signal<any | null>(null);
+  readonly validationError = signal<string | null>(null);
+  readonly validating = signal(false);
+  readonly checkingIn = signal(false);
+
+  abrirValidador() {
+    this.showValidationModal.set(true);
+    this.pinCode.set('');
+    this.validationResult.set(null);
+    this.validationError.set(null);
+    this.validating.set(false);
+    this.checkingIn.set(false);
+  }
+
+  fecharValidador() {
+    this.showValidationModal.set(false);
+    this.pinCode.set('');
+    this.validationResult.set(null);
+    this.validationError.set(null);
+  }
+
+  validarPIN() {
+    const code = this.pinCode().trim();
+    if (!code) return;
+
+    this.validating.set(true);
+    this.validationError.set(null);
+    this.validationResult.set(null);
+
+    this.visitantesService.validarCodigo(code).subscribe({
+      next: (res) => {
+        this.validationResult.set(res);
+        this.validating.set(false);
+      },
+      error: (err) => {
+        this.validationError.set(err?.error?.message || 'Código inválido ou visita não agendada.');
+        this.validating.set(false);
+      }
+    });
+  }
+
+  confirmarEntradaPIN() {
+    const res = this.validationResult();
+    if (!res || !res.id) return;
+    
+    this.checkingIn.set(true);
+    this.visitantesService.checkIn(res.id).subscribe({
+      next: () => {
+        this.checkingIn.set(false);
+        this.fecharValidador();
+        this.load();
+      },
+      error: (err) => {
+        this.validationError.set(err?.error?.message || 'Erro ao registrar entrada.');
+        this.checkingIn.set(false);
+      }
+    });
+  }
+
+  iniciais(nome: string): string {
+    if (!nome) return '';
+    const partes = nome.trim().split(/\s+/);
+    if (partes.length === 1) return partes[0].substring(0, 2).toUpperCase();
+    return (partes[0].substring(0, 1) + partes[partes.length - 1].substring(0, 1)).toUpperCase();
+  }
+
   abrirModalLiberar() {
     this.showLiberarModal.set(true);
     this.buscaPessoa.set('');
@@ -218,6 +287,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     }
     if (this.showLiberarModal()) {
       this.fecharModalLiberar();
+    }
+    if (this.showValidationModal()) {
+      this.fecharValidador();
     }
   }
 
