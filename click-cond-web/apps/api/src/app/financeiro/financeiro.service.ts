@@ -1085,20 +1085,50 @@ export class FinanceiroService implements OnModuleInit {
     let qtdPagas = 0;
     let qtdPendentes = 0;
     const aptosDevendo = new Set<string>();
+    // Listas detalhadas (drill-down dos cards).
+    const fmt0 = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const extrair0 = (nome: string | null) => {
+      const m = /\bApto\s+(\S+)/i.exec(nome || '');
+      const b = /\bBloco\s+(\S+)/i.exec(nome || '');
+      return { apto: m ? m[1] : '', bloco: b ? b[1] : '' };
+    };
+    const pagas: any[] = [];
+    const pendentes: any[] = [];
+    const aptosMap = new Map<string, { apto: string; bloco: string; qtd: number; total: number }>();
 
     for (const c of cobrancas) {
       const v = c.valor ? Math.abs(Number(c.valor)) : 0;
+      const { apto, bloco } = extrair0(c.nome);
+      const item = {
+        id: c.id,
+        nome: c.nome,
+        apto,
+        bloco,
+        valor: v,
+        valorString: fmt0(v),
+        data_vencimento: c.data_vencimento ? new Date(c.data_vencimento).toLocaleDateString('pt-BR') : '',
+        pago: c.pago,
+        status: c.status,
+      };
       if (c.pago === 1) {
         totalArrecadado += v;
         qtdPagas++;
+        pagas.push(item);
       } else {
         totalPendente += v;
         qtdPendentes++;
-        const m = /\bApto\s+(\S+)/i.exec(c.nome || '');
-        const b = /\bBloco\s+(\S+)/i.exec(c.nome || '');
-        aptosDevendo.add(`${b ? b[1] : ''}-${m ? m[1] : c.id}`);
+        pendentes.push(item);
+        const key = `${bloco}-${apto || c.id}`;
+        aptosDevendo.add(key);
+        const ex = aptosMap.get(key) ?? { apto, bloco, qtd: 0, total: 0 };
+        ex.qtd++;
+        ex.total += v;
+        aptosMap.set(key, ex);
       }
     }
+    const aptosDevendoList = Array.from(aptosMap.values())
+      .map((a) => ({ ...a, totalString: fmt0(a.total) }))
+      .sort((a, b) => b.total - a.total);
 
     const totalAptos = await this.prisma.apartamentos.count({
       where: { id_condominio: Number(idCondominio) },
@@ -1163,6 +1193,9 @@ export class FinanceiroService implements OnModuleInit {
       },
       eventos,
       blocos,
+      pagas,
+      pendentes,
+      aptosDevendo: aptosDevendoList,
       meses: mesesDisponiveis,
     };
   }

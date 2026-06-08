@@ -1178,6 +1178,9 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
   Map<String, dynamic> _resumo = {};
   List<dynamic> _eventos = [];
   List<dynamic> _blocos = [];
+  List<dynamic> _pagas = [];
+  List<dynamic> _pendentes = [];
+  List<dynamic> _aptosDevendo = [];
   List<dynamic> _meses = [];
   String _mes = '';
   String _ano = '';
@@ -1199,6 +1202,9 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
         _resumo = (d['resumo'] is Map) ? Map<String, dynamic>.from(d['resumo']) : {};
         _eventos = (d['eventos'] is List) ? d['eventos'] : [];
         _blocos = (d['blocos'] is List) ? d['blocos'] : [];
+        _pagas = (d['pagas'] is List) ? d['pagas'] : [];
+        _pendentes = (d['pendentes'] is List) ? d['pendentes'] : [];
+        _aptosDevendo = (d['aptosDevendo'] is List) ? d['aptosDevendo'] : [];
         _meses = (d['meses'] is List) ? d['meses'] : [];
         if (_periodo.isEmpty && _meses.isNotEmpty) {
           _periodo = _meses.last['periodo'];
@@ -1207,7 +1213,7 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
         }
       }
     } catch (e) {
-      _resumo = {}; _eventos = []; _blocos = [];
+      _resumo = {}; _eventos = []; _blocos = []; _pagas = []; _pendentes = []; _aptosDevendo = [];
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -1267,23 +1273,35 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                       ),
                     ),
                   const SizedBox(height: AppSpacing.lg),
-                  // Cards de resumo
+                  // Cards de resumo (clicáveis → telas de detalhe)
                   Row(children: [
                     Expanded(child: _InadKpiCard(label: 'Arrecadado', value: money(r['totalArrecadado']),
-                      icon: PhosphorIcons.checkCircle, color: const Color(0xFF22C55E))),
+                      icon: PhosphorIcons.checkCircle, color: const Color(0xFF22C55E),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                        InadimplenciaListaPage(titulo: 'Arrecadado', itens: _pagas, permitirBaixa: false)))
+                        .then((_) => _load()))),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(child: _InadKpiCard(label: 'Pendente', value: money(r['totalPendente']),
-                      icon: PhosphorIcons.clock, color: const Color(0xFFF59E0B))),
+                      icon: PhosphorIcons.clock, color: const Color(0xFFF59E0B),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                        InadimplenciaListaPage(titulo: 'Pendente', itens: _pendentes, permitirBaixa: true)))
+                        .then((_) => _load()))),
                   ]),
                   const SizedBox(height: AppSpacing.md),
                   Row(children: [
                     Expanded(child: _InadKpiCard(label: 'Aptos devendo',
                       value: '${r['qtdAptosDevendo'] ?? 0}/${r['totalAptos'] ?? 0}',
-                      icon: PhosphorIcons.buildings, color: AppColors.error)),
+                      icon: PhosphorIcons.buildings, color: AppColors.error,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                        InadimplenciaAptosPage(itens: _aptosDevendo)))
+                        .then((_) => _load()))),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(child: _InadKpiCard(label: 'Inadimplência',
                       value: '${r['percInadimplencia'] ?? 0}%',
-                      icon: PhosphorIcons.chartPie, color: AppColors.primary)),
+                      icon: PhosphorIcons.chartPie, color: AppColors.primary,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                        InadimplenciaAptosPage(itens: _aptosDevendo)))
+                        .then((_) => _load()))),
                   ]),
                   const SizedBox(height: AppSpacing.lg),
                   // Feed de eventos
@@ -1331,30 +1349,45 @@ class _InadKpiCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-  const _InadKpiCard({required this.label, required this.value, required this.icon, required this.color});
+  final VoidCallback? onTap;
+  const _InadKpiCard({required this.label, required this.value, required this.icon, required this.color, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 18),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(0.15)),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(value, style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: color)),
-          const SizedBox(height: 2),
-          Text(label, style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context))),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon, color: color, size: 18),
+                  ),
+                  const Spacer(),
+                  if (onTap != null)
+                    Icon(PhosphorIcons.caretRight, size: 14, color: AppColors.textTertiary(context)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(value, style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: color)),
+              const SizedBox(height: 2),
+              Text(label, style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context))),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1450,6 +1483,193 @@ class _InadBlocoTile extends StatelessWidget {
           }).toList(),
         ),
       ),
+    );
+  }
+}
+
+// ===== Tela: lista de cobranças (Arrecadado / Pendente) =====
+class InadimplenciaListaPage extends StatefulWidget {
+  final String titulo;
+  final List<dynamic> itens;
+  final bool permitirBaixa;
+  const InadimplenciaListaPage({Key? key, required this.titulo, required this.itens, this.permitirBaixa = false}) : super(key: key);
+  @override
+  State<InadimplenciaListaPage> createState() => _InadimplenciaListaPageState();
+}
+
+class _InadimplenciaListaPageState extends State<InadimplenciaListaPage> {
+  late List<dynamic> _itens;
+
+  @override
+  void initState() {
+    super.initState();
+    _itens = List<dynamic>.from(widget.itens);
+  }
+
+  Future<void> _darBaixa(dynamic item) async {
+    final ok = await showConfirmDialog(context, text: 'Confirmar baixa (marcar como PAGO) da cobrança do Apto ${item['apto']}${(item['bloco'] ?? '').toString().isNotEmpty ? ' · Bloco ${item['bloco']}' : ''}?');
+    if (ok != true) return;
+    final res = await apiUpdateFinanceiroStatus(item['id'] is int ? item['id'] : int.tryParse('${item['id']}') ?? 0, 1);
+    if (!mounted) return;
+    if (res == true) {
+      setState(() => _itens.remove(item));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Baixa registrada.'), backgroundColor: Color(0xFF22C55E)));
+    } else {
+      displayMessage(context, 'Ops', 'Não foi possível dar baixa. (Verifique se a competência não está fechada.)');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppScaffold(
+      title: widget.titulo,
+      showBackButton: true,
+      body: _itens.isEmpty
+          ? Center(child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(PhosphorIcons.tray, size: 48, color: AppColors.textTertiary(context)),
+                const SizedBox(height: AppSpacing.md),
+                Text('Nenhuma cobrança aqui.', style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
+              ]),
+            ))
+          : ListView.separated(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              itemCount: _itens.length,
+              separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (_, i) {
+                final item = _itens[i];
+                final apto = (item['apto'] ?? '').toString();
+                final bloco = (item['bloco'] ?? '').toString();
+                final pago = item['pago'] == 1;
+                return Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
+                  child: Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: (pago ? const Color(0xFF22C55E) : const Color(0xFFF59E0B)).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10)),
+                      child: Icon(pago ? PhosphorIcons.checkCircle : PhosphorIcons.clock,
+                        color: pago ? const Color(0xFF22C55E) : const Color(0xFFF59E0B), size: 18),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(bloco.isNotEmpty ? 'Apto $apto · Bloco $bloco' : 'Apto $apto',
+                        style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
+                      if ((item['data_vencimento'] ?? '').toString().isNotEmpty)
+                        Text('Vencimento: ${item['data_vencimento']}',
+                          style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context))),
+                    ])),
+                    const SizedBox(width: AppSpacing.sm),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text((item['valorString'] ?? '').toString(),
+                        style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w800,
+                          color: pago ? const Color(0xFF22C55E) : AppColors.error)),
+                      if (widget.permitirBaixa && !pago) ...[
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () => _darBaixa(item),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF22C55E).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF22C55E).withOpacity(0.3))),
+                            child: Text('Dar baixa', style: AppTypography.tiny(context).copyWith(
+                              color: const Color(0xFF16A34A), fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ]),
+                  ]),
+                );
+              },
+            ),
+    );
+  }
+}
+
+// ===== Tela: aptos inadimplentes (Notificar + detalhe) =====
+class InadimplenciaAptosPage extends StatelessWidget {
+  final List<dynamic> itens;
+  const InadimplenciaAptosPage({Key? key, required this.itens}) : super(key: key);
+
+  Future<void> _notificar(BuildContext context, String bloco, String apto) async {
+    final res = await apiNotificarInadimplente(bloco, apto);
+    if (!context.mounted) return;
+    final ok = res is Map && (res['success'] == true);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Notificação enviada ao Apto $apto.' : (res is Map ? (res['message'] ?? 'Falha ao notificar') : 'Falha ao notificar').toString()),
+      backgroundColor: ok ? AppColors.primary : AppColors.error,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppScaffold(
+      title: 'Aptos devendo',
+      showBackButton: true,
+      body: itens.isEmpty
+          ? Center(child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(PhosphorIcons.checkCircle, size: 48, color: AppColors.success.withOpacity(0.6)),
+                const SizedBox(height: AppSpacing.md),
+                Text('Nenhum apto inadimplente.', style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
+              ]),
+            ))
+          : ListView.separated(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              itemCount: itens.length,
+              separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (_, i) {
+                final a = itens[i];
+                final apto = (a['apto'] ?? '').toString();
+                final bloco = (a['bloco'] ?? '').toString();
+                final qtd = a['qtd'] ?? 0;
+                return Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
+                  child: Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                      child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 18),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(child: GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailInadimplente(bloco: bloco, apto: apto))),
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(bloco.isNotEmpty ? 'Apto $apto · Bloco $bloco' : 'Apto $apto',
+                          style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
+                        Text('$qtd ${qtd == 1 ? 'cobrança' : 'cobranças'} · ${a['totalString'] ?? ''}',
+                          style: AppTypography.tiny(context).copyWith(color: AppColors.error)),
+                      ]),
+                    )),
+                    const SizedBox(width: AppSpacing.sm),
+                    GestureDetector(
+                      onTap: () => _notificar(context, bloco, apto),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.3))),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(PhosphorIcons.bell, size: 12, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text('Notificar', style: AppTypography.tiny(context).copyWith(
+                            color: AppColors.primary, fontWeight: FontWeight.bold)),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                );
+              },
+            ),
     );
   }
 }

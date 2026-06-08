@@ -196,7 +196,7 @@ module.exports = {
   getInadimplenciaDashboard: async function (id_cond, mes, ano) {
     const fmt = (n) => Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const cobrancas = (await db.query(
-      `select id, nome, valor, pago, data, data_vencimento, created_at, updated_at
+      `select id, nome, valor, pago, status, data, data_vencimento, created_at, updated_at
          from Financeiro
         where id_condominio=${id_cond} and categoria='Taxa Condominial'
           and COALESCE(data, data_vencimento, created_at) >= '${ano}-${mes}-01'
@@ -213,13 +213,24 @@ module.exports = {
       return { apto: m ? m[1] : '', bloco: b ? b[1] : '' };
     };
     const eventos = [];
+    const pagas = [], pendentes = [];
+    const aptosMap = new Map();
     for (const c of cobrancas) {
       const v = Math.abs(Number(c.valor || 0));
       const { apto, bloco } = extrair(c.nome);
-      if (c.pago === 1) { totalArrecadado += v; qtdPagas++; }
+      const item = {
+        id: c.id, nome: c.nome, apto, bloco, valor: v, valorString: fmt(v),
+        data_vencimento: c.data_vencimento ? new Date(c.data_vencimento).toLocaleDateString('pt-BR') : '',
+        pago: c.pago, status: c.status,
+      };
+      if (c.pago === 1) { totalArrecadado += v; qtdPagas++; pagas.push(item); }
       else {
-        totalPendente += v; qtdPendentes++;
-        aptosDevendo.add(`${bloco}-${apto || c.id}`);
+        totalPendente += v; qtdPendentes++; pendentes.push(item);
+        const key = `${bloco}-${apto || c.id}`;
+        aptosDevendo.add(key);
+        const ex = aptosMap.get(key) || { apto, bloco, qtd: 0, total: 0 };
+        ex.qtd++; ex.total += v;
+        aptosMap.set(key, ex);
       }
       const venc = c.data_vencimento ? new Date(c.data_vencimento) : null;
       if (venc) venc.setHours(0, 0, 0, 0);
@@ -239,6 +250,9 @@ module.exports = {
       `select count(*) c from Apartamentos where id_condominio=${id_cond}`
     )).results[0].c;
     const perc = totalAptos > 0 ? Math.round((aptosDevendo.size / totalAptos) * 1000) / 10 : 0;
+    const aptosDevendoList = Array.from(aptosMap.values())
+      .map((a) => ({ ...a, totalString: fmt(a.total) }))
+      .sort((a, b) => b.total - a.total);
 
     return {
       resumo: {
@@ -248,6 +262,7 @@ module.exports = {
         qtdAptosDevendo: aptosDevendo.size,
         totalAptos, percInadimplencia: perc,
       },
+      pagas, pendentes, aptosDevendo: aptosDevendoList,
       eventos: eventos.slice(0, 30),
     };
   },

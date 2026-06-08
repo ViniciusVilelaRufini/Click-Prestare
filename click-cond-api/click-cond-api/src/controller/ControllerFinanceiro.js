@@ -178,6 +178,12 @@ module.exports = {
     }
   },
 
+  // Dev: o Express não tem o serviço de push/email (isso roda no NestJS de produção).
+  // Stub para o app não quebrar ao notificar em ambiente de desenvolvimento.
+  async notifyInadimplente(req, res) {
+    return res.status(200).json({ success: true, message: '(dev) notificação simulada' });
+  },
+
   async getInadimplenteDetail(req, res) {
     try {
       var meses = await db.getAllMeses(req.query.id_condominio);

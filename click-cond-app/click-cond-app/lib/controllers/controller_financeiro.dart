@@ -46,6 +46,28 @@ apiGetInadimplenciaDashboard(String mes, String ano) async {
   }
 }
 
+apiNotificarInadimplente(String bloco, String apto) async {
+  var url = ApiConfig.buildUri('/financeiro/inadimplente/notificar');
+  try {
+    var response = await ApiClient.post(
+      url,
+      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
+      body: jsonEncode({
+        "id_condominio": Singleton.instance.id_condominio.toString(),
+        "bloco": bloco,
+        "apto": apto,
+      }),
+    );
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body);
+      return body is Map ? body : { "success": true };
+    }
+    return { "success": false, "message": "Falha ao notificar." };
+  } catch (e) {
+    return { "success": false, "message": "Falha de comunicação." };
+  }
+}
+
 apiGetDetailsInadimplente(String route, String bloco, String apto) async {
   var url = ApiConfig.buildUri('/'+route+'/get',{'id_condominio': Singleton.instance.id_condominio.toString(), 'bloco': bloco, 'apto': apto});
   try{

@@ -12,6 +12,7 @@ router.get('/moradores/get-all', jwt({ typeAccess: ['Sindico'] }), controller.ge
 router.get('/inadimplentes/get-all', jwt({ typeAccess: ['Sindico'] }), controller.getAllInadimplentes);
 router.get('/inadimplencia/dashboard', jwt({ typeAccess: ['Sindico'] }), controller.getInadimplenciaDashboard);
 router.get('/inadimplente/get', jwt({ typeAccess: ['Sindico'] }), controller.getInadimplenteDetail);
+router.post('/inadimplente/notificar', jwt({ typeAccess: ['Sindico'] }), controller.notifyInadimplente);
 router.get('/grafico/get-all', jwt({ typeAccess: ['Sindico'] }), controller.getGrafico);
 router.get('/get-by-user', jwt({ typeAccess: ['Morador', 'Sindico'] }), controller.getByUser);
 router.post('/upload-shared-file', jwt({ typeAccess: ['Morador', 'Sindico'] }), controller.uploadSharedFile);
