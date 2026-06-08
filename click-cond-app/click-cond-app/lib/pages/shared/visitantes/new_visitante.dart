@@ -215,7 +215,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  "Compartilhe o código abaixo com o seu visitante para agilizar a entrada na portaria.",
+                  "Compartilhe o código abaixo com o seu ${isPrestador ? 'prestador' : 'visitante'} para agilizar a entrada na portaria.",
                   textAlign: TextAlign.center,
                   style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context)),
                 ),
@@ -357,10 +357,17 @@ class _NewVisitantePageState extends State<NewVisitante> {
     }
   }
 
+  // Esta tela é reusada para Prestador de Serviço (defaultType == 'prestador').
+  // Nesse caso o título e os textos refletem "prestador" e o seletor de tipo
+  // (Visitante/Prestador) é ocultado, pois o tipo já está definido.
+  bool get isPrestador => (widget.defaultType ?? currentTipo) == 'prestador';
+
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: widget.isEdit ? getText('visitantes_nav_edit') : getText('visitantes_nav_new'),
+      title: isPrestador
+          ? (widget.isEdit ? getText('prestador_nav_edit') : getText('prestador_nav_new'))
+          : (widget.isEdit ? getText('visitantes_nav_edit') : getText('visitantes_nav_new')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -468,13 +475,17 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(getText('lb_tipo'), style: AppTypography.captionMedium(context).copyWith(color: AppColors.textSecondary(context))),
-                  const SizedBox(height: AppSpacing.sm),
-                  _TipoPicker(
-                    currentTipo: currentTipo,
-                    onChanged: (v) => setState(() => currentTipo = v),
-                  ),
+                  // Seletor de tipo só aparece no fluxo de Visitante. No fluxo de
+                  // Prestador o tipo já está fixo, então é ocultado.
+                  if (!isPrestador) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(getText('lb_tipo'), style: AppTypography.captionMedium(context).copyWith(color: AppColors.textSecondary(context))),
+                    const SizedBox(height: AppSpacing.sm),
+                    _TipoPicker(
+                      currentTipo: currentTipo,
+                      onChanged: (v) => setState(() => currentTipo = v),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('lb_infos_apto')),
                   Row(
