@@ -74,18 +74,24 @@ module.exports = {
   update: async function (id_condominio, visitante) {
     visitante.nome = visitante.nome.replaceAll("'","''");
 
-    const query = `update Visitantes 
+    // Só atualiza a foto quando vier um valor — assim uma edição sem foto não
+    // apaga a imagem já salva (paridade com o NestJS, que faz fallback ao anterior).
+    const setFotoPessoa = visitante.foto_pessoa
+      ? `, foto_pessoa='${String(visitante.foto_pessoa).replaceAll("'", "''")}'`
+      : '';
+    const setFotoDocumento = visitante.foto_documento
+      ? `, foto_documento='${String(visitante.foto_documento).replaceAll("'", "''")}'`
+      : '';
+
+    const query = `update Visitantes
                      set nome='${visitante.nome}',
                       doc_identificacao='${visitante.doc_identificacao}',
                       data_hora_inicio='${visitante.data_inicio}',
                       data_hora_termino='${visitante.data_termino}',
                       is_visitante=${visitante.is_visitante},
                       is_prestador=${visitante.is_prestador},
-                      id_apartamento=${visitante.id_apartamento},
-                      foto_documento='${visitante.foto_documento || ''}',
-                      foto_pessoa='${visitante.foto_pessoa || ''}'
+                      id_apartamento=${visitante.id_apartamento}${setFotoDocumento}${setFotoPessoa}
                     where id=${visitante.id} `;
-                    console.log(query);
     await db.query(query);
   },
     

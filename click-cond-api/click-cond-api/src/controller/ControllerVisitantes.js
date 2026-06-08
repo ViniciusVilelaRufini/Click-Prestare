@@ -8,6 +8,12 @@ module.exports = {
       const { id_condominio, visitante } = req.body;
       const user = req.session.user;
 
+      // O app envia a foto na chave `photo`; aceitar como fallback de foto_pessoa
+      // (paridade com o NestJS de produção: foto_pessoa || photo).
+      if (visitante && !visitante.foto_pessoa && visitante.photo) {
+        visitante.foto_pessoa = visitante.photo;
+      }
+
       // Validate apartment for residents during registration
       if (user.typeAccess === 'Morador') {
         const userAptos = await dbAptos.getApartmentsByUser(user.id, id_condominio);
@@ -96,6 +102,12 @@ module.exports = {
     try {
       const user = req.session.user;
       const { id_condominio, visitante } = req.body;
+
+      // O app envia a foto na chave `photo`; aceitar como fallback de foto_pessoa
+      // (paridade com o NestJS de produção: foto_pessoa || photo).
+      if (visitante && !visitante.foto_pessoa && visitante.photo) {
+        visitante.foto_pessoa = visitante.photo;
+      }
 
       if (user.typeAccess === 'Morador') {
         const existing = await db.getById(visitante.id);
