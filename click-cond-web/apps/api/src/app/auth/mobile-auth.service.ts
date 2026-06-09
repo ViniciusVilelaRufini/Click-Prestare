@@ -1542,6 +1542,18 @@ export class MobileAuthService {
           }
         });
 
+        const updatedUser = await this.prisma.users.findUnique({
+          where: { id: atual.id_user },
+          include: { moradores: true },
+        });
+
+        if (updatedUser && updatedUser.moradores && updatedUser.moradores.length > 0) {
+          const moradorObj = updatedUser.moradores[0];
+          const userObj = { id: updatedUser.id, nome: moradorObj.nome, photo: updatedUser.photo ?? '' };
+          const payload = { sub: updatedUser.id, nome: moradorObj.nome, typeAccess: 'Morador', user: userObj };
+          return { token: this.jwt.sign(payload), user: userObj };
+        }
+
         return '';
       }
 
