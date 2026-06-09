@@ -744,17 +744,23 @@ export class MobileAuthService {
         ) {
           continue;
         }
-        const blocoFiltro = (m.bloco === null || m.bloco === undefined || m.bloco.trim() === '')
-          ? { in: [null, ''] }
-          : m.bloco;
+        const countWhere: any = {
+          id_condominio: m.id_condominio,
+          destinatario_apto: m.apartamento,
+          status: 'Aguardando',
+        };
+
+        if (m.bloco === null || m.bloco === undefined || m.bloco.trim() === '') {
+          countWhere.OR = [
+            { destinatario_bloco: null },
+            { destinatario_bloco: '' }
+          ];
+        } else {
+          countWhere.destinatario_bloco = m.bloco;
+        }
 
         const cnt = await this.prisma.encomendas.count({
-          where: {
-            id_condominio: m.id_condominio,
-            destinatario_bloco: blocoFiltro,
-            destinatario_apto: m.apartamento,
-            status: 'Aguardando',
-          },
+          where: countWhere,
         });
         packagesCount += cnt;
       }
@@ -2090,16 +2096,22 @@ export class MobileAuthService {
           ) {
             continue;
           }
-          const blocoFiltro = (m.bloco === null || m.bloco === undefined || m.bloco.trim() === '')
-            ? { in: [null, ''] }
-            : m.bloco;
+          const listWhere: any = {
+            id_condominio: m.id_condominio,
+            destinatario_apto: m.apartamento,
+          };
+
+          if (m.bloco === null || m.bloco === undefined || m.bloco.trim() === '') {
+            listWhere.OR = [
+              { destinatario_bloco: null },
+              { destinatario_bloco: '' }
+            ];
+          } else {
+            listWhere.destinatario_bloco = m.bloco;
+          }
 
           const list = await this.prisma.encomendas.findMany({
-            where: {
-              id_condominio: m.id_condominio,
-              destinatario_bloco: blocoFiltro,
-              destinatario_apto: m.apartamento,
-            },
+            where: listWhere,
             orderBy: { created_at: 'desc' },
           });
           total = [...total, ...list];
