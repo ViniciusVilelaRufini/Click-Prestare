@@ -27,8 +27,14 @@ export class AuthController {
 
   @Post('change-password')
   @HttpCode(200)
-  changePassword(@Body() body: { id: number; senhaAtual: string; novaSenha: string }) {
-    return this.authService.changePassword(body.id, body.senhaAtual, body.novaSenha);
+  changePassword(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { senhaAtual: string; novaSenha: string },
+  ) {
+    // O id do funcionário vem SEMPRE do JWT, nunca do body. Antes o id era
+    // aceito do corpo, permitindo que qualquer autenticado trocasse a senha
+    // de outro porteiro chutando o id (e conhecendo a senha atual dele).
+    return this.authService.changePassword(payload.sub, body.senhaAtual, body.novaSenha);
   }
 
   @Public()

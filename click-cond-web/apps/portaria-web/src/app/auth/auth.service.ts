@@ -97,10 +97,8 @@ export class AuthService {
   }
 
   alterarSenha(senhaAtual: string, novaSenha: string) {
-    const info = this._info();
-    const id = info?.id ?? 1;
+    // O id NÃO é mais enviado: o backend identifica o funcionário pelo JWT.
     return this.http.post<{ success: boolean; message: string }>('/api/auth/change-password', {
-      id,
       senhaAtual,
       novaSenha
     });

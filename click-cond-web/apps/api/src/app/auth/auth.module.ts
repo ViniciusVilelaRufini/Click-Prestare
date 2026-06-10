@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { MobileAuthService } from './mobile-auth.service';
 import { QrSessionStore } from './qr-session.store';
+import { resolveJwtSecret } from './jwt-secret';
 import {
   SindicoMobileController,
   MoradoresMobileController,
@@ -23,7 +24,7 @@ import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env['JWT_SECRET'] ?? 'fallback-secret',
+      secret: resolveJwtSecret(),
       // Default reduzido de 7d para 8h: porteiro fica logado durante o turno,
       // mas crachá expira no dia seguinte. Reduz janela de exposição se
       // o token vazar. Override via JWT_EXPIRES_IN para casos especiais.

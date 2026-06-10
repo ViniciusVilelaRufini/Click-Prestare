@@ -269,7 +269,24 @@ export class FinanceiroController {
   @HttpCode(200)
   handleOpenPixWebhook(
     @Body() body: any,
+    @Headers('x-webhook-token') webhookToken?: string,
   ) {
+    // Validação de token: sem essa checagem, qualquer pessoa na internet
+    // manda POST com event=OPENPIX:CHARGE_COMPLETED e correlationID
+    // financeiro_<id> e marca dívidas como pagas — fraude trivial.
+    //
+    // Configurar via env OPENPIX_WEBHOOK_TOKEN no Railway e usar o mesmo
+    // valor na URL do webhook cadastrada na OpenPix, no parâmetro de query
+    // ?token=... que a OpenPix repassa, ou via header conforme o painel.
+    const expected = process.env.OPENPIX_WEBHOOK_TOKEN;
+    if (!expected) {
+      // Sem token configurado, recusa por padrão. Operador deve definir
+      // OPENPIX_WEBHOOK_TOKEN antes de habilitar a integração em produção.
+      throw new UnauthorizedException('Webhook OpenPix não configurado (OPENPIX_WEBHOOK_TOKEN ausente)');
+    }
+    if (!webhookToken || webhookToken !== expected) {
+      throw new UnauthorizedException('Token de webhook OpenPix inválido');
+    }
     return this.service.handleOpenPixWebhook(body);
   }
 

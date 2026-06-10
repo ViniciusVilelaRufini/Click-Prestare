@@ -175,6 +175,45 @@ export class AuthService {
     return { nome: cond?.nome || 'Click Condomínio' };
   }
 
+  /**
+   * Garante que o usuário autenticado tem vínculo com o condomínio antes de
+   * emitir um token de portaria via QR. Síndico: precisa estar em
+   * Sindicos_Condominios. Demais (porteiro/app): via Funcionarios ou
+   * Funcionarios_Portaria do condomínio.
+   */
+  private async assertVinculoCondominio(userId: number, typeAccess: string, idCondominio: number) {
+    if (!this.prisma.isConnected) return;
+
+    const tipo = (typeAccess ?? '').toLowerCase();
+
+    if (tipo === 'sindico') {
+      const vinculo = await this.prisma.sindicos_Condominios.findFirst({
+        where: { id_user: userId, id_condominio: idCondominio },
+        select: { id: true },
+      });
+      if (!vinculo) {
+        throw new UnauthorizedException('Você não tem vínculo com este condomínio.');
+      }
+      return;
+    }
+
+    // Funcionário/porteiro: vínculo via Funcionarios (id_user) ou, para o
+    // porteiro-web, via Funcionarios_Portaria.
+    const func = await this.prisma.funcionarios.findFirst({
+      where: { id_user: userId, id_condominio: idCondominio },
+      select: { id: true },
+    });
+    if (func) return;
+
+    const funcPortaria = await this.prisma.funcionarios_Portaria.findFirst({
+      where: { id: userId, id_condominio: idCondominio },
+      select: { id: true },
+    });
+    if (funcPortaria) return;
+
+    throw new UnauthorizedException('Você não tem vínculo com este condomínio.');
+  }
+
   createQrSession() {
     const session = this.qrStore.create();
     return { qrToken: session.qrToken, expiresAt: session.expiresAt };
@@ -222,6 +261,11 @@ export class AuthService {
 
     const userId = payload.sub;
     const typeAccess = payload.typeAccess ?? 'Sindico';
+
+    // Verifica que o usuário autenticado realmente tem vínculo com o condomínio
+    // solicitado. Sem isso, um síndico de um condomínio mintava um token de
+    // portaria para QUALQUER condomínio só passando o id_condominio no body.
+    await this.assertVinculoCondominio(userId, typeAccess, idCondominio);
     const nomeUsuario = payload.nome;
 
     const portariaPayload: JwtPayload = {
