@@ -71,13 +71,14 @@ export class StorageService {
     if (!this.enabled || !this.client) return dataUrl;
 
     try {
-      const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
-      if (!match) {
+      const base64Index = dataUrl.indexOf(';base64,');
+      if (base64Index === -1 || !dataUrl.startsWith('data:')) {
         this.logger.warn('uploadDataUrl: data URL inválida.');
         return null;
       }
-      const contentType = match[1] || 'application/octet-stream';
-      const buffer = Buffer.from(match[2], 'base64');
+      const contentType = dataUrl.slice(5, base64Index) || 'application/octet-stream';
+      const rawBase64 = dataUrl.slice(base64Index + 8);
+      const buffer = Buffer.from(rawBase64, 'base64');
       const ext = (hint ?? this.extFromMime(contentType)).replace(/^\.+/, '');
       const safePrefix = prefix.replace(/[^a-z0-9_\-]/gi, '').slice(0, 40) || 'arquivo';
       const key = `${safePrefix}/${Date.now()}-${randomUUID()}.${ext}`;
