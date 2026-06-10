@@ -43,3 +43,8 @@ ios/Flutter/Flutter.podspec
 click-cond-app/click-cond-app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
 click-cond-app/click-cond-app/.flutter-plugins
 click-cond-app/click-cond-app/.flutter-plugins-dependencies
+
+# Binarios de release e material de marca (nao pertencem ao git)
+*.apk
+*.aab
+brand_kit_click_prestare.pdf
