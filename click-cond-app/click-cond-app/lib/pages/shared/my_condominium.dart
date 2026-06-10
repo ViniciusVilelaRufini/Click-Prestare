@@ -50,6 +50,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   String _inadimplencia = '';
   Map<String, dynamic>? _summary;
   int _currentTab = 0;
+  bool _isNavBarVisible = true;
 
   double? _temp;
   String? _weatherDesc;
@@ -350,6 +351,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   Widget _buildHomeTab(BuildContext context) {
     final saldoNeg = _saldo.contains('-');
     return SafeArea(
+      bottom: false,
       child: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: _loadCond,
@@ -428,26 +430,55 @@ class _MyCondominiumState extends State<MyCondominium> {
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      body: Stack(
-        children: [
-          MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              padding: MediaQuery.of(context).padding.copyWith(
-                    bottom: bottomInset + navBarSpace,
-                  ),
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (ScrollNotification notification) {
+          if (notification.metrics.axis == Axis.vertical) {
+            if (notification is ScrollUpdateNotification) {
+              final double delta = notification.scrollDelta ?? 0;
+              if (delta > 3.0 && _isNavBarVisible) {
+                setState(() {
+                  _isNavBarVisible = false;
+                });
+              } else if (delta < -3.0 && !_isNavBarVisible) {
+                setState(() {
+                  _isNavBarVisible = true;
+                });
+              }
+            }
+          }
+          return false;
+        },
+        child: Stack(
+          children: [
+            MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                padding: MediaQuery.of(context).padding.copyWith(
+                      bottom: 0.0,
+                    ),
+              ),
+              child: IndexedStack(
+                index: _currentTab,
+                children: tabs,
+              ),
             ),
-            child: IndexedStack(
-              index: _currentTab,
-              children: tabs,
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: AnimatedScale(
+                scale: _isNavBarVisible ? 1.0 : 0.92,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOutCubic,
+                child: AnimatedOpacity(
+                  opacity: _isNavBarVisible ? 1.0 : 0.90,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                  child: _buildBottomNavigationBar(context),
+                ),
+              ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildBottomNavigationBar(context),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -457,41 +488,47 @@ class _MyCondominiumState extends State<MyCondominium> {
     
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.only(
-          left: 18,
-          right: 18,
-          bottom: 12,
-          top: 8,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
+        padding: EdgeInsets.only(
+          left: _isNavBarVisible ? 18.0 : 36.0,
+          right: _isNavBarVisible ? 18.0 : 36.0,
+          bottom: _isNavBarVisible ? 12.0 : 8.0,
+          top: 8.0,
         ),
         child: DecoratedBox(
           // Sombra fica no nivel externo; cor/borda vao DENTRO do ClipRRect
           // para que nada (nem o blur, nem a pilula azul do item ativo) vaze
           // pelos cantos arredondados da ilha.
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
-                blurRadius: 18,
+                color: Colors.black.withOpacity(isDark ? 0.30 : 0.06),
+                blurRadius: 22,
+                spreadRadius: 0,
                 offset: const Offset(0, 8),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(24),
             clipBehavior: Clip.antiAlias,
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Container(
-                height: 68,
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOutCubic,
+                height: _isNavBarVisible ? 68.0 : 52.0,
                 decoration: BoxDecoration(
-                  color: AppColors.surface(context)
-                      .withOpacity(isDark ? 0.82 : 0.90),
+                  color: isDark
+                      ? Colors.black.withOpacity(0.20)
+                      : Colors.white.withOpacity(0.35),
                   border: Border.all(
                     color: isDark
-                        ? Colors.white.withOpacity(0.08)
-                        : Colors.black.withOpacity(0.06),
+                        ? Colors.white.withOpacity(0.12)
+                        : Colors.white.withOpacity(0.45),
                     width: 1,
                   ),
                 ),
@@ -548,6 +585,7 @@ class _MyCondominiumState extends State<MyCondominium> {
         onTap: () {
           setState(() {
             _currentTab = index;
+            _isNavBarVisible = true;
           });
         },
         borderRadius: BorderRadius.circular(16),
@@ -574,17 +612,29 @@ class _MyCondominiumState extends State<MyCondominium> {
                 size: 22,
               ),
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: AppTypography.tiny(context).copyWith(
-                color: isSelected ? activeColor : inactiveColor,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 10,
-                height: 1.1,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: _isNavBarVisible ? 3.0 : 0.0,
+              child: const SizedBox(),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: _isNavBarVisible ? 14.0 : 0.0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: _isNavBarVisible ? 1.0 : 0.0,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.tiny(context).copyWith(
+                    color: isSelected ? activeColor : inactiveColor,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 10,
+                    height: 1.1,
+                  ),
+                ),
               ),
             ),
           ],

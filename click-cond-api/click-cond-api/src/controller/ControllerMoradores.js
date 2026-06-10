@@ -19,6 +19,7 @@ module.exports = {
       const senha = documento;
       const userId = await db.insertUser(email, senha);
       await db.insertMorador(nome, email, telefone, data_nascimento, documento, tipo, id_apto, userId, extra1, extra2, extra3, extra4, req.body.id_condominio);      
+      await dbUsers.syncUserProfile(userId, { name: nome, email, phone: telefone, doc_identification: documento, date_birth: data_nascimento });
       if(photo != null){
         const urlPhotoProfile = await saveToAWS(photo, `condominios/${req.body.id_condominio}/moradores`, 'profile');
         await db.updateProfilePhoto(urlPhotoProfile.url, userId);
@@ -51,6 +52,7 @@ module.exports = {
       const userId = await db.insertUser(email, senha);
       await db.insertMorador(nome, email, telefone, data_nascimento, documento, 'Membro', id_apto, userId,
         extra1, extra2, extra3, extra4, req.body.id_condominio);
+      await dbUsers.syncUserProfile(userId, { name: nome, email, phone: telefone, doc_identification: documento, date_birth: data_nascimento });
 
       if (photo != null) {
         const urlPhotoProfile = await saveToAWS(photo, `condominios/${req.body.id_condominio}/moradores`, 'profile');
@@ -94,6 +96,7 @@ module.exports = {
       }
       await db.updateUserLogin(email, id, true);
       await db.updateMorador(nome, documento, email, telefone, data_nascimento, extra1, extra2, extra3, extra4, id);
+      await dbUsers.syncUserProfile(id, { name: nome, email, phone: telefone, doc_identification: documento, date_birth: data_nascimento });
 
       if(req.session.user.typeAccess == "Morador"){
         req.body.login = email;

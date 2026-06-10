@@ -238,7 +238,7 @@ module.exports = {
   },
 
   updateUserLogin: async function (email, id){
-    const query = `update Users set login='${email}' where id='${id}' `;
+    const query = `update Users set login='${email}', email='${email}' where id='${id}' `;
     console.log(query);
     await db.query(query);
   },

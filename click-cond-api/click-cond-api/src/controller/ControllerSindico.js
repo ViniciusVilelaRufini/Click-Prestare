@@ -22,6 +22,7 @@ module.exports = {
       const { nome, email, password, date_birth, phone, doc_identification, photo } = req.body;
       const userId = await db.insertUser(email, password, photo);
       await db.insertSindico(nome, email, date_birth, phone, doc_identification, userId);
+      await dbUsers.syncUserProfile(userId, { name: nome, email, phone, doc_identification, date_birth });
       if(photo != null){
         const urlPhotoProfile = await saveToAWS(photo, `sindicos/${userId}`, 'profile');
         await dbUsers.updateProfilePhoto(urlPhotoProfile.url, userId);
@@ -39,8 +40,9 @@ module.exports = {
       const userId = req.session.user.id;      
 
       await dbUsers.updateEmail(userId, email);
-
       await db.updateSindico(nome, email, date_birth, phone, doc_identification, userId);
+      await dbUsers.syncUserProfile(userId, { name: nome, email, phone, doc_identification, date_birth });
+
       if(photo != null && !photo.includes("https://")){
         const urlPhotoProfile = await saveToAWS(photo, `sindicos/${userId}`, 'profile');
         await dbUsers.updateProfilePhoto(urlPhotoProfile.url, userId);

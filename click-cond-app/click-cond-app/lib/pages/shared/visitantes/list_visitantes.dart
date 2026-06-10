@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'dart:async';
 import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
@@ -36,6 +37,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
   Timer? _timerSearch;
   List<dynamic> list = [];
   bool _isLoading = false;
+  bool _isFabExpanded = true;
 
   @override
   void initState() {
@@ -760,45 +762,122 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
       }
     }
     final listCadastrados = uniqueVisitors.values.toList();
-
     return DefaultTabController(
       length: 2,
       child: AppScaffold(
         title: widget.hideAppBar ? null : getText('visitantes_list'),
         showBackButton: !widget.hideAppBar,
+        safeAreaBottom: !widget.hideAppBar,
         floatingActionButton: canAdd && widget.showFab
-            // Quando embutido no IndexedStack (hideAppBar), a navbar flutuante
-            // ocupa ~88px na base. Sobe o FAB com margem inferior para ele nao
-            // ficar ATRAS da ilha translucida e vazar o azul pela borda dela.
             ? Container(
                 margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
-                child: FloatingActionButton.extended(
-                  heroTag: null,
-                  onPressed: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)))
-                      .then((_) => loadList()),
-                  backgroundColor: AppColors.primary,
-                  icon: const Icon(PhosphorIcons.userPlus, color: Colors.white, size: 20),
-                  label: const Text(
-                    'Cadastrar novo visitante',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  clipBehavior: Clip.antiAlias,
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOutCubic,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.primary.withOpacity(0.50)
+                            : AppColors.primary.withOpacity(0.65),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white.withOpacity(0.15)
+                              : Colors.white.withOpacity(0.35),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => NewVisitante(isEdit: false),
+                            ),
+                          ).then((_) => loadList()),
+                          borderRadius: BorderRadius.circular(28),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(PhosphorIcons.userPlus, color: Colors.white, size: 20),
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOutCubic,
+                                  child: Row(
+                                    children: [
+                                      if (_isFabExpanded) ...[
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Cadastrar novo visitante',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               )
             : null,
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
-              child: TextField(
-                controller: txtSearch,
-                onChanged: (v) {
-                  _timerSearch?.cancel();
-                  _timerSearch = Timer(const Duration(milliseconds: 600), loadList);
-                },
-                style: AppTypography.body(context),
-                cursorColor: AppColors.primary,
-                decoration: InputDecoration(
+        body: NotificationListener<ScrollNotification>(
+          onNotification: (ScrollNotification notification) {
+            if (notification.metrics.axis == Axis.vertical) {
+              if (notification is ScrollUpdateNotification) {
+                final double delta = notification.scrollDelta ?? 0;
+                if (delta > 3.0 && _isFabExpanded) {
+                  setState(() {
+                    _isFabExpanded = false;
+                  });
+                } else if (delta < -3.0 && !_isFabExpanded) {
+                  setState(() {
+                    _isFabExpanded = true;
+                  });
+                }
+              }
+            }
+            return false;
+          },
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
+                child: TextField(
+                  controller: txtSearch,
+                  onChanged: (v) {
+                    _timerSearch?.cancel();
+                    _timerSearch = Timer(const Duration(milliseconds: 600), loadList);
+                  },
+                  style: AppTypography.body(context),
+                  cursorColor: AppColors.primary,
+                  decoration: InputDecoration(
                   hintText: getText('lb_buscar'),
                   hintStyle: AppTypography.body(context).copyWith(color: AppColors.textTertiary(context)),
                   prefixIcon: Icon(PhosphorIcons.magnifyingGlass, size: 20, color: AppColors.textSecondary(context)),
@@ -934,6 +1013,7 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

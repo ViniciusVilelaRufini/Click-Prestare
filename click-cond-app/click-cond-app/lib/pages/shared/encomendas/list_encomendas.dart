@@ -49,12 +49,12 @@ class _ListEncomendasState extends State<ListEncomendas> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
       title: widget.hideAppBar ? null : 'Minhas Encomendas',
       showBackButton: !widget.hideAppBar,
+      safeAreaBottom: !widget.hideAppBar,
       floatingActionButton: Container(
         // Sobe o FAB acima da ilha flutuante quando embutido no IndexedStack.
         margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),

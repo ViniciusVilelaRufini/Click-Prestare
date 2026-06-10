@@ -16,6 +16,7 @@ module.exports = {
       const { nome, email, telefone, documento, funcao, ch, senha, photo, permissoes, extra1, extra2, hasPortariaAccess } = req.body.funcionario;
       const userId = await db.insertUser(email, senha, photo);
       await db.insertFuncionario(nome, documento, email, telefone, funcao, ch, extra1, extra2, userId, req.body.id_condominio);
+      await dbUsers.syncUserProfile(userId, { name: nome, email, phone: telefone, doc_identification: documento });
       if(photo != null){
         const urlPhotoProfile = await saveToAWS(photo, `condominios/${req.body.id_condominio}/funcionarios`, 'profile');
         await db.updateProfilePhoto(urlPhotoProfile.url, userId);
@@ -64,6 +65,7 @@ module.exports = {
       }
       await db.updateUserLogin(email, id);
       await db.updateFuncionario(nome, documento, email, telefone, funcao, ch, extra1, extra2, id);
+      await dbUsers.syncUserProfile(id, { name: nome, email, phone: telefone, doc_identification: documento });
       await db.updatePermissoes(permissoes, id);
 
       // If hasPortariaAccess is toggled, insert/update or remove
@@ -103,6 +105,7 @@ module.exports = {
       }
       await db.updateUserLogin(email, id);
       await db.updateFuncionarioInfos(nome, documento, email, telefone, id);
+      await dbUsers.syncUserProfile(id, { name: nome, email, phone: telefone, doc_identification: documento });
       req.body.login = email;
       login(req, res, true);
 

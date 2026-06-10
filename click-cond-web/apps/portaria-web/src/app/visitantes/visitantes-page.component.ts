@@ -8,6 +8,7 @@ import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.servi
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective } from '../shared/input-mask.directive';
+import { compressImage } from '../shared/image-compress.util';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -686,18 +687,32 @@ export class VisitantesPageComponent implements OnInit {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      const base64 = e.target.result;
-      if (tipo === 'pessoa') {
-        this.fotoPessoaBase64.set(base64);
-        this.novo.foto_pessoa = base64;
-      } else if (tipo === 'documento') {
-        this.fotoDocumentoBase64.set(base64);
-        this.novo.foto_documento = base64;
-      }
-    };
-    reader.readAsDataURL(file);
+    compressImage(file)
+      .then((compressedBase64) => {
+        if (tipo === 'pessoa') {
+          this.fotoPessoaBase64.set(compressedBase64);
+          this.novo.foto_pessoa = compressedBase64;
+        } else if (tipo === 'documento') {
+          this.fotoDocumentoBase64.set(compressedBase64);
+          this.novo.foto_documento = compressedBase64;
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao comprimir imagem:', err);
+        // Fallback para o comportamento padrão sem compressão
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          const base64 = e.target.result;
+          if (tipo === 'pessoa') {
+            this.fotoPessoaBase64.set(base64);
+            this.novo.foto_pessoa = base64;
+          } else if (tipo === 'documento') {
+            this.fotoDocumentoBase64.set(base64);
+            this.novo.foto_documento = base64;
+          }
+        };
+        reader.readAsDataURL(file);
+      });
   }
 
   removerFoto(tipo: 'pessoa' | 'documento') {

@@ -77,25 +77,43 @@ class _NewMoradorPageState extends State<NewMorador> {
   Future<void> load() async {
     try {
       setState(() => _isLoading = true);
-      txtNome.text = widget.obj["nome"] ?? '';
-      txtDocumento.text = widget.obj["documento"] ?? '';
-      txtEmail.text = widget.obj["email"] ?? '';
-      if (widget.obj["data_nascimento"] != null && widget.obj["data_nascimento"].toString().isNotEmpty) {
-        try {
-          txtDN.text = convertDateToString(widget.obj["data_nascimento"].toString());
-        } catch (_) {
-          txtDN.text = '';
+      
+      final int targetId = widget.obj != null ? (widget.obj["id"] ?? -1) : -1;
+      dynamic detailObj = widget.obj;
+      
+      if (targetId > 0) {
+        final apiDetails = await apiGetDetails("moradores", targetId);
+        if (apiDetails != null) {
+          detailObj = apiDetails;
+        }
+      }
+
+      txtNome.text = detailObj["nome"] ?? '';
+      txtDocumento.text = detailObj["documento"] ?? '';
+      txtEmail.text = detailObj["email"] ?? '';
+      
+      final String dn = detailObj["data_nascimento"]?.toString() ?? '';
+      if (dn.isNotEmpty) {
+        if (dn.contains('/')) {
+          txtDN.text = dn;
+        } else {
+          try {
+            txtDN.text = convertDateToString(dn);
+          } catch (_) {
+            txtDN.text = '';
+          }
         }
       } else {
         txtDN.text = '';
       }
-      txtTelefone.text = widget.obj["telefone"] ?? '';
-      txtExtra1.text = widget.obj["extra1"] ?? '';
-      txtExtra2.text = widget.obj["extra2"] ?? '';
-      txtExtra3.text = widget.obj["extra3"] ?? '';
-      txtExtra4.text = widget.obj["extra4"] ?? '';
-      myId = widget.obj["id"];
-      imageFile = widget.obj['photo'] != null && widget.obj['photo'].toString().isNotEmpty ? widget.obj['photo'] : null;
+      
+      txtTelefone.text = detailObj["telefone"] ?? '';
+      txtExtra1.text = detailObj["extra1"] ?? '';
+      txtExtra2.text = detailObj["extra2"] ?? '';
+      txtExtra3.text = detailObj["extra3"] ?? '';
+      txtExtra4.text = detailObj["extra4"] ?? '';
+      myId = detailObj["id"] ?? targetId;
+      imageFile = detailObj['photo'] != null && detailObj['photo'].toString().isNotEmpty ? detailObj['photo'] : null;
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));

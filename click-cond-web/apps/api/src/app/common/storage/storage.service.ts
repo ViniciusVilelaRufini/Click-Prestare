@@ -91,8 +91,8 @@ export class StorageService {
 
       return `${this.publicUrl}/${key}`;
     } catch (err: any) {
-      this.logger.error(`Falha ao subir para R2: ${err?.message ?? err}`);
-      return null;
+      this.logger.error(`Falha ao subir para R2: ${err?.message ?? err}. Usando base64 fallback.`);
+      return dataUrl;
     }
   }
 

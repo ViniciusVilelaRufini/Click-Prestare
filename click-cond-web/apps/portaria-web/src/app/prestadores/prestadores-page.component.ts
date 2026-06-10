@@ -8,6 +8,7 @@ import { InputMaskDirective } from '../shared/input-mask.directive';
 import { VisitantesService, Pessoa } from '../visitantes/visitantes.service';
 import { Visitante } from '../visitantes/visitante.model';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
+import { compressImage } from '../shared/image-compress.util';
 
 @Component({
   selector: 'app-prestadores-page',
@@ -134,13 +135,21 @@ export class PrestadoresPageComponent implements OnInit {
   onFotoAcessoSelecionada(event: any) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      const dataUrl = e.target.result as string;
-      this.editAcessoFoto.set(dataUrl);
-      this.editAcessoForm.foto_pessoa = dataUrl;
-    };
-    reader.readAsDataURL(file);
+    compressImage(file)
+      .then((compressedBase64) => {
+        this.editAcessoFoto.set(compressedBase64);
+        this.editAcessoForm.foto_pessoa = compressedBase64;
+      })
+      .catch((err) => {
+        console.error('Erro ao comprimir imagem:', err);
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          const dataUrl = e.target.result as string;
+          this.editAcessoFoto.set(dataUrl);
+          this.editAcessoForm.foto_pessoa = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      });
   }
 
   salvarAcesso() {
@@ -487,18 +496,31 @@ export class PrestadoresPageComponent implements OnInit {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      const dataUrl = e.target.result as string;
-      if (tipo === 'pessoa') {
-        this.fotoPessoaBase64.set(dataUrl);
-        this.novo.foto_pessoa = dataUrl;
-      } else if (tipo === 'documento') {
-        this.fotoDocumentoBase64.set(dataUrl);
-        this.novo.foto_documento = dataUrl;
-      }
-    };
-    reader.readAsDataURL(file);
+    compressImage(file)
+      .then((compressedBase64) => {
+        if (tipo === 'pessoa') {
+          this.fotoPessoaBase64.set(compressedBase64);
+          this.novo.foto_pessoa = compressedBase64;
+        } else if (tipo === 'documento') {
+          this.fotoDocumentoBase64.set(compressedBase64);
+          this.novo.foto_documento = compressedBase64;
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao comprimir imagem:', err);
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          const dataUrl = e.target.result as string;
+          if (tipo === 'pessoa') {
+            this.fotoPessoaBase64.set(dataUrl);
+            this.novo.foto_pessoa = dataUrl;
+          } else if (tipo === 'documento') {
+            this.fotoDocumentoBase64.set(dataUrl);
+            this.novo.foto_documento = dataUrl;
+          }
+        };
+        reader.readAsDataURL(file);
+      });
   }
 
   abrirAmpliarFoto(url: string, titulo: string) {

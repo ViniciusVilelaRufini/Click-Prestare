@@ -179,13 +179,13 @@ class _ListFinanceiroPageState extends State<ListFinanceiro> {
     }
     Navigator.push(context, MaterialPageRoute(builder: (_) => page)).then((_) => loadList());
   }
-
   @override
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
     return AppScaffold(
       title: widget.hideAppBar ? null : getText('lb_financeiro'),
       showBackButton: !widget.hideAppBar,
+      safeAreaBottom: !widget.hideAppBar,
       actions: null,
       body: _isLoading
           ? _buildSkeleton(context)

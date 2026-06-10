@@ -11,6 +11,8 @@ import { EnrollCaptureComponent } from '../shared/enroll-capture.component';
 import { AuthService } from '../auth/auth.service';
 import { ToastService } from '../shared/toast.service';
 
+import { compressImage } from '../shared/image-compress.util';
+
 declare var require: any;
 
 @Component({
@@ -394,18 +396,32 @@ export class MoradoresPageComponent implements OnInit {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      const dataUrl = e.target.result as string;
-      if (tipo === 'pessoa') {
-        this.fotoPessoaBase64.set(dataUrl);
-        this.novo.foto_pessoa = dataUrl;
-      } else if (tipo === 'documento') {
-        this.fotoDocumentoBase64.set(dataUrl);
-        this.novo.foto_documento = dataUrl;
-      }
-    };
-    reader.readAsDataURL(file);
+    compressImage(file)
+      .then((compressedBase64) => {
+        if (tipo === 'pessoa') {
+          this.fotoPessoaBase64.set(compressedBase64);
+          this.novo.foto_pessoa = compressedBase64;
+        } else if (tipo === 'documento') {
+          this.fotoDocumentoBase64.set(compressedBase64);
+          this.novo.foto_documento = compressedBase64;
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao comprimir imagem:', err);
+        // Fallback para o comportamento padrão sem compressão
+        const reader = new FileReader();
+        reader.onload = (e: any) => {
+          const dataUrl = e.target.result as string;
+          if (tipo === 'pessoa') {
+            this.fotoPessoaBase64.set(dataUrl);
+            this.novo.foto_pessoa = dataUrl;
+          } else if (tipo === 'documento') {
+            this.fotoDocumentoBase64.set(dataUrl);
+            this.novo.foto_documento = dataUrl;
+          }
+        };
+        reader.readAsDataURL(file);
+      });
   }
 
   abrirAmpliarFoto(url: string, titulo: string) {

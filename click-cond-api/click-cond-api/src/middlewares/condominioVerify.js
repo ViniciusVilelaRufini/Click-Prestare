@@ -7,7 +7,7 @@ module.exports = async function (req, res, next) {
     const id_condominio = req.query.id_condominio || req.body.id_condominio;
     
     // If no id_condominio is requested, proceed
-    if (!id_condominio) {
+    if (!id_condominio || id_condominio === 'null' || id_condominio === 'undefined' || id_condominio === '0') {
       return next();
     }
 

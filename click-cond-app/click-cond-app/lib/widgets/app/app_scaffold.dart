@@ -14,6 +14,7 @@ class AppScaffold extends StatelessWidget {
   final Widget? bottomNavigationBar;
   final Color? backgroundColor;
   final bool extendBodyBehindAppBar;
+  final bool safeAreaBottom;
 
   const AppScaffold({
     Key? key,
@@ -26,6 +27,7 @@ class AppScaffold extends StatelessWidget {
     this.bottomNavigationBar,
     this.backgroundColor,
     this.extendBodyBehindAppBar = false,
+    this.safeAreaBottom = true,
   }) : super(key: key);
 
   @override
@@ -55,7 +57,10 @@ class AppScaffold extends StatelessWidget {
               automaticallyImplyLeading: false,
               actions: actions,
             ),
-      body: SafeArea(child: body),
+      body: SafeArea(
+        bottom: safeAreaBottom,
+        child: body,
+      ),
       floatingActionButton: floatingActionButton,
       bottomNavigationBar: bottomNavigationBar,
     );

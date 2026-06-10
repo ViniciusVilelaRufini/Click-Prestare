@@ -80,11 +80,11 @@ module.exports = {
   },
 
   updateEmail: async function(id, email){
-    const query = `update Users set login='${email}' where id=${id}`;
+    const query = `update Users set login='${email}', email='${email}' where id=${id}`;
 
     await db.query(query).then((response) => {  
       if(response.status == 'Error'){
-        if (response.error.sqlMessage.includes('user_login')) {
+        if (response.error.sqlMessage && response.error.sqlMessage.includes('user_login')) {
           throw new Error('E-mail já cadastrado!');
         }
         throw new Error('Houve um erro ao realizar a atualização. Por favor, tente novamente!');
@@ -277,6 +277,140 @@ module.exports = {
   updateFcmToken: async function (id, token) {
     const query = `UPDATE Users SET fcm_token=? WHERE id=?`;
     await db.queryParam(query, [token, id]);
+  },
+
+  syncUserProfile: async function (userId, data) {
+    const name = data.name || data.nome || null;
+    const email = data.email || null;
+    const phone = data.phone || data.telefone || null;
+    const doc = data.doc_identification || data.documento || data.cpf || null;
+    let dob = data.date_birth || data.data_nascimento || null;
+
+    let dt = null;
+    if (dob) {
+      if (dob.includes("/")) {
+        const parts = dob.split("/");
+        dt = parts[2] + "-" + parts[1] + "-" + parts[0];
+      } else if (dob.includes("-")) {
+        dt = dob.split("T")[0];
+      }
+    }
+
+    // 1. Update Users table
+    if (name || doc || phone) {
+      const updateFields = [];
+      const params = [];
+      if (name) {
+        updateFields.push("name = ?");
+        params.push(name);
+      }
+      if (doc) {
+        updateFields.push("cpf = ?");
+        params.push(doc);
+      }
+      if (phone) {
+        updateFields.push("phone = ?");
+        params.push(phone);
+      }
+      if (updateFields.length > 0) {
+        params.push(userId);
+        const queryUsers = `UPDATE Users SET ${updateFields.join(', ')} WHERE id = ?`;
+        await db.queryParam(queryUsers, params);
+      }
+    }
+
+    // 2. Update Sindicos table
+    if (name || email || dt || phone || doc) {
+      const updateFields = [];
+      const params = [];
+      if (name) {
+        updateFields.push("name = ?");
+        params.push(name);
+      }
+      if (email) {
+        updateFields.push("email = ?");
+        params.push(email);
+      }
+      if (dt) {
+        updateFields.push("date_birth = ?");
+        params.push(dt);
+      } else if (dob === null) {
+        updateFields.push("date_birth = NULL");
+      }
+      if (phone) {
+        updateFields.push("phone = ?");
+        params.push(phone);
+      }
+      if (doc) {
+        updateFields.push("doc_identification = ?");
+        params.push(doc);
+      }
+      if (updateFields.length > 0) {
+        params.push(userId);
+        const querySindicos = `UPDATE Sindicos SET ${updateFields.join(', ')} WHERE id_user = ?`;
+        await db.queryParam(querySindicos, params);
+      }
+    }
+
+    // 3. Update Moradores table
+    if (name || email || dt || phone || doc) {
+      const updateFields = [];
+      const params = [];
+      if (name) {
+        updateFields.push("nome = ?");
+        params.push(name);
+      }
+      if (email) {
+        updateFields.push("email = ?");
+        params.push(email);
+      }
+      if (dt) {
+        updateFields.push("data_nascimento = ?");
+        params.push(dt);
+      } else if (dob === null) {
+        updateFields.push("data_nascimento = NULL");
+      }
+      if (phone) {
+        updateFields.push("telefone = ?");
+        params.push(phone);
+      }
+      if (doc) {
+        updateFields.push("documento = ?");
+        params.push(doc);
+      }
+      if (updateFields.length > 0) {
+        params.push(userId);
+        const queryMoradores = `UPDATE Moradores SET ${updateFields.join(', ')} WHERE id_user = ?`;
+        await db.queryParam(queryMoradores, params);
+      }
+    }
+
+    // 4. Update Funcionarios table
+    if (name || email || phone || doc) {
+      const updateFields = [];
+      const params = [];
+      if (name) {
+        updateFields.push("nome = ?");
+        params.push(name);
+      }
+      if (email) {
+        updateFields.push("email = ?");
+        params.push(email);
+      }
+      if (phone) {
+        updateFields.push("telefone = ?");
+        params.push(phone);
+      }
+      if (doc) {
+        updateFields.push("documento = ?");
+        params.push(doc);
+      }
+      if (updateFields.length > 0) {
+        params.push(userId);
+        const queryFuncionarios = `UPDATE Funcionarios SET ${updateFields.join(', ')} WHERE id_user = ?`;
+        await db.queryParam(queryFuncionarios, params);
+      }
+    }
   },
 
 };
