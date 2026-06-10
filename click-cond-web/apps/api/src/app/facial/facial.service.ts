@@ -582,7 +582,7 @@ export class FacialService {
     // credencial dentro da janela (default 15s). Protege contra leitor com
     // defeito disparando em loop e contra usuário batendo o crachá duas vezes.
     const credencial = qrCodeLido ?? tagRfidLida ?? externalId ?? '';
-    if (credencial && this.accessState.shouldDebounce(device.id, credencial)) {
+    if (credencial && this.accessState.shouldDebounce(device.id, credencial, evento)) {
       this.logger.debug(`Webhook ignorado por cooldown: device ${device.id}, credencial ${credencial}`);
       return { ok: true, debounced: true };
     }
@@ -944,6 +944,47 @@ export class FacialService {
       }
     }
 
+    // Anti-passback em memória (AccessStateService): estado dentro/fora por
+    // condomínio, configurável via ANTI_PASSBACK_MODE (off/soft/hard). Estava
+    // implementado mas nunca era chamado — código morto. Cobre crachá clonado
+    // tentando entrar enquanto o original está dentro, cenário que o
+    // anti-passback por histórico acima não pega para visitante/prestador.
+    // "off" (default) só acumula estado; "soft" deixa passar mas marca o
+    // registro como suspeito; "hard" nega. Estado é perdido em restart
+    // (limitação documentada no serviço — mitigar com Redis se houver SLA).
+    if (evento === 'entrada' || evento === 'saida') {
+      const apb = this.accessState.checkAntiPassback(
+        device.id_condominio,
+        tipoPessoa,
+        idPessoa,
+        evento,
+      );
+      if (apb === 'deny') {
+        await this.prisma.acessos_Facial.create({
+          data: {
+            id_condominio: device.id_condominio,
+            id_device: device.id,
+            tipo_dispositivo: device.tipo,
+            face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            nome_pessoa: `${nomePessoa} (Bloqueado por Anti-passback)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
+          },
+        });
+        const sentidoLabel = evento === 'entrada' ? 'entrada' : 'saída';
+        throw new BadRequestException(
+          `Acesso negado: ${sentidoLabel} repetida detectada (Anti-passback). Procure a portaria.`
+        );
+      }
+      if (apb === 'allow_with_warning') {
+        // Modo soft: o acesso passa, mas o registro fica marcado para auditoria.
+        nomePessoa = `${nomePessoa} (Suspeita de anti-passback)`;
+      }
+    }
+
     if (tipoPessoa === 'morador') {
       await this.prisma.acessos_Facial.create({
         data: {
@@ -964,20 +1005,65 @@ export class FacialService {
       const v = await this.prisma.visitantes.findUnique({ where: { id: idPessoa } });
       if (!v) throw new NotFoundException('Cadastro de visitante/prestador não encontrado');
 
+      // Updates ATÔMICOS com guarda no where: a validação feita acima leu o
+      // visitante num findUnique separado, então dois webhooks simultâneos da
+      // mesma credencial (leitor com bounce, tag clonada em dois leitores)
+      // passavam ambos pela validação antes de qualquer um gravar. A condição
+      // no where garante que só UM update vence; count===0 significa que outro
+      // evento concorrente chegou primeiro (ou a liberação foi revogada) e
+      // este deve ser negado.
       if (isEntrada) {
-        await this.prisma.visitantes.update({
-          where: { id: v.id },
+        const r = await this.prisma.visitantes.updateMany({
+          where: { id: v.id, liberado: 1 },
           data: { data_entrada: timestamp, data_saida: null },
         });
+        if (r.count === 0) {
+          await this.prisma.acessos_Facial.create({
+            data: {
+              id_condominio: device.id_condominio,
+              id_device: device.id,
+              tipo_dispositivo: device.tipo,
+              face_id: faceIdSalvo,
+              tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+              id_pessoa: v.id,
+              nome_pessoa: `${nomePessoa} (Bloqueado por liberação revogada/concorrência)`,
+              evento: 'negado',
+              confianca,
+              timestamp,
+            },
+          });
+          throw new BadRequestException(
+            'Acesso negado: A liberação deste visitante foi revogada ou já consumida.'
+          );
+        }
       } else if (evento === 'saida') {
-        await this.prisma.visitantes.update({
-          where: { id: v.id },
+        const r = await this.prisma.visitantes.updateMany({
+          where: { id: v.id, data_entrada: { not: null }, data_saida: null },
           data: {
             data_saida: timestamp,
-            codigo_acesso: device.tipo === 'qrcode_reader' ? null : v.codigo_acesso,
+            ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),
             liberado: v.is_prestador === 1 ? 1 : 0
           },
         });
+        if (r.count === 0) {
+          await this.prisma.acessos_Facial.create({
+            data: {
+              id_condominio: device.id_condominio,
+              id_device: device.id,
+              tipo_dispositivo: device.tipo,
+              face_id: faceIdSalvo,
+              tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+              id_pessoa: v.id,
+              nome_pessoa: `${nomePessoa} (Bloqueado por saída duplicada/concorrência)`,
+              evento: 'negado',
+              confianca,
+              timestamp,
+            },
+          });
+          throw new BadRequestException(
+            'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.'
+          );
+        }
       }
 
       await this.prisma.acessos_Facial.create({

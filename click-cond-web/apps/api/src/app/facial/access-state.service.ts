@@ -38,10 +38,13 @@ export class AccessStateService {
    * Retorna `true` se este evento deve ser ignorado por estar dentro
    * da janela de cooldown (evento duplicado do mesmo leitor para a mesma
    * credencial em poucos segundos).
+   *
+   * O sentido (entrada/saida) faz parte da chave: bater entrada e logo em
+   * seguida bater saída no mesmo leitor é fluxo legítimo, não duplicata.
    */
-  shouldDebounce(idDevice: number, credencial: string): boolean {
+  shouldDebounce(idDevice: number, credencial: string, evento = ''): boolean {
     if (!credencial) return false;
-    const key = `${idDevice}:${credencial}`;
+    const key = `${idDevice}:${credencial}:${evento}`;
     const now = Date.now();
     const last = this.lastSeen.get(key);
     if (last && now - last < this.cooldownMs) {
