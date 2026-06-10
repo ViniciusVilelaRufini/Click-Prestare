@@ -543,13 +543,11 @@ export class VisitantesService {
       data_hora_inicio?: string;
       data_hora_termino?: string;
     },
+    payload?: JwtPayload,
   ) {
-    const ref = await this.prisma.visitantes.findUnique({
-      where: { id: Number(idPessoaRef) },
-    });
-    if (!ref) {
-      throw new NotFoundException(`Pessoa de referência ${idPessoaRef} não encontrada`);
-    }
+    // Valida tenant da pessoa de referência: sem isso, dá pra criar visita
+    // copiando o id_condominio de um registro de outro condomínio.
+    const ref = await this.assertPodeAcessarVisitante(idPessoaRef, payload);
     if (!dto.id_apartamento) {
       throw new BadRequestException('Informe o apartamento da nova visita');
     }

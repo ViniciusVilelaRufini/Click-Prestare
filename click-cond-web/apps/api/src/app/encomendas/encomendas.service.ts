@@ -4,6 +4,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertSameTenant } from '../auth/tenant.util';
 import axios from 'axios';
 
 export interface CreateEncomendaDto {
@@ -28,9 +29,26 @@ export class EncomendasService implements OnModuleInit {
   onModuleInit() {
     // Verificar rastreamentos a cada 2 horas
     setInterval(() => this.tickTrackingJob(), 2 * 60 * 60 * 1000);
-    
+
     // Executar verificação inicial após 15 segundos do bootstrap
     setTimeout(() => this.tickTrackingJob(), 15000);
+  }
+
+  /**
+   * Carrega o id_condominio da encomenda e valida que o operador pertence a
+   * esse condomínio. As rotas /:id/retirar, /:id/notificar e DELETE /:id não
+   * têm o condomínio no path checável pelo TenantGuard contra o registro —
+   * sem isso, um porteiro retira/apaga encomenda de outro prédio (IDOR).
+   * Lança 404 (via NotFoundException no findUnique) se não existir.
+   */
+  private async assertEncomendaDoTenant(id: number, operador?: JwtPayload): Promise<void> {
+    if (!this.prisma.isConnected) return;
+    const e = await this.prisma.encomendas.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true },
+    });
+    if (!e) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    assertSameTenant(e.id_condominio, operador, `encomenda #${id}`);
   }
 
   /**
@@ -324,6 +342,8 @@ export class EncomendasService implements OnModuleInit {
       };
     }
 
+    await this.assertEncomendaDoTenant(id, operador);
+
     let assinaturaUrl: string | null = retiradoAssinatura ?? null;
     if (assinaturaUrl && this.storage.isDataUrl(assinaturaUrl)) {
       const uploaded = await this.storage.uploadDataUrl(assinaturaUrl, 'encomendas');
@@ -375,6 +395,8 @@ export class EncomendasService implements OnModuleInit {
     if (!this.prisma.isConnected) {
       return { success: true, id, notificado: 1, notificado_em: new Date() };
     }
+
+    await this.assertEncomendaDoTenant(id, operador);
 
     try {
       const e = await this.prisma.encomendas.update({
@@ -442,6 +464,9 @@ export class EncomendasService implements OnModuleInit {
       where: { id: Number(id) },
       select: { id_condominio: true },
     });
+    if (!existing) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    // Valida tenant antes de apagar (IDOR cross-condomínio).
+    assertSameTenant(existing.id_condominio, operador, `encomenda #${id}`);
     const ctx = await this.carregarContextoEncomenda(Number(id));
     try {
       await this.prisma.encomendas.delete({ where: { id: Number(id) } });

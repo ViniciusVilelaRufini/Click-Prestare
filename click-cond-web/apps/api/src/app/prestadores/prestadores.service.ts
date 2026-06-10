@@ -61,7 +61,20 @@ export class PrestadoresService {
     });
   }
 
-  async findOne(id: number) {
+  /**
+   * Garante que o prestador pertence ao condomínio da URL. O TenantGuard só
+   * valida o :idCondominio do path contra o JWT, mas NÃO impede que o :id
+   * do prestador seja de outro condomínio — IDOR. Quando idCondominioUrl é
+   * informado, exigimos que o registro carregado seja desse condomínio.
+   */
+  private assertTenant(condDoRegistro: number, idCondominioUrl?: number, id?: number) {
+    if (idCondominioUrl != null && condDoRegistro !== Number(idCondominioUrl)) {
+      // 404 (não 403) para não revelar que o id existe em outro condomínio.
+      throw new NotFoundException(`Prestador ${id} não encontrado`);
+    }
+  }
+
+  async findOne(id: number, idCondominio?: number) {
     if (!this.prisma.isConnected) {
       return { id, nome: 'Prestador Exemplo', telefone: '(11) 99999-9999', categorias: 'Geral', id_condominio: 1 };
     }
@@ -71,6 +84,7 @@ export class PrestadoresService {
       include: { apartamento: { select: { bloco: true, apto: true } } },
     });
     if (!p) throw new NotFoundException(`Prestador ${id} não encontrado`);
+    this.assertTenant(p.id_condominio, idCondominio, id);
     return p;
   }
 
@@ -128,10 +142,18 @@ export class PrestadoresService {
     });
   }
 
-  async update(id: number, dto: Partial<CreatePrestadorDto>) {
+  async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number) {
     if (!this.prisma.isConnected) {
       return { success: true, id };
     }
+
+    // Carrega e valida tenant antes de qualquer escrita (IDOR).
+    const atual = await this.prisma.prestadores_servico.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true },
+    });
+    if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
+    this.assertTenant(atual.id_condominio, idCondominio, id);
 
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
     const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
@@ -154,8 +176,17 @@ export class PrestadoresService {
     }
   }
 
-  async remove(id: number) {
+  async remove(id: number, idCondominio?: number) {
     if (!this.prisma.isConnected) return { success: true };
+
+    // Valida tenant antes de deletar (IDOR).
+    const atual = await this.prisma.prestadores_servico.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true },
+    });
+    if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
+    this.assertTenant(atual.id_condominio, idCondominio, id);
+
     try {
       await this.prisma.prestadores_servico.delete({ where: { id: Number(id) } });
       return { success: true };

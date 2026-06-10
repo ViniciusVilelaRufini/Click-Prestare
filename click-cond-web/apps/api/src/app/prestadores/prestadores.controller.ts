@@ -16,8 +16,11 @@ export class PrestadoresController {
   }
 
   @Get(':id')
-  get(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findOne(id);
+  get(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.service.findOne(id, idCondominio);
   }
 
   @Post()
@@ -30,15 +33,19 @@ export class PrestadoresController {
 
   @Put(':id')
   update(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: Partial<CreatePrestadorDto>,
   ) {
-    return this.service.update(id, body);
+    return this.service.update(id, body, idCondominio);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    this.service.remove(id);
+  remove(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    this.service.remove(id, idCondominio);
     return { ok: true };
   }
 }

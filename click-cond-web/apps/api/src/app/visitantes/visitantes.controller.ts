@@ -5,6 +5,7 @@ import {
   CreateVisitanteDto, VisitantesService,
 } from './visitantes.service';
 
+import { Throttle } from '@nestjs/throttler';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
@@ -89,8 +90,9 @@ export class VisitantesController {
       data_hora_inicio?: string;
       data_hora_termino?: string;
     },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.novaVisitaParaPessoa(idRef, body);
+    return this.service.novaVisitaParaPessoa(idRef, body, payload);
   }
 
   /**
@@ -174,11 +176,18 @@ export class VisitantesGlobalController {
     };
   }
 
+  // Rate-limit estrito: o PIN é só 6 dígitos (1M combinações). Sem limite,
+  // um autenticado varre o espaço de PINs ativos. 10 tentativas/min/IP.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get('validar/:codigo')
   async validarCodigo(
     @Param('codigo') codigo: string,
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() payload: JwtPayload,
   ) {
+    // Só pode validar PIN do próprio condomínio — senão dá pra varrer PINs
+    // de qualquer prédio passando o id_condominio na query.
+    await this.service.assertUsuarioNoCondominio(idCondominio, payload);
     return this.service.validarCodigo(idCondominio, codigo);
   }
 
