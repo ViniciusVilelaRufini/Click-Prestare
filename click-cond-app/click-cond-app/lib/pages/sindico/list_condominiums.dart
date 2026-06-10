@@ -1,6 +1,7 @@
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_moradores.dart';
+import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/settings/notification_settings.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
@@ -58,6 +59,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     });
     try {
       final type = getUserType();
+      final detailsRoute = type == 'sindico' 
+          ? 'sindico' 
+          : (type == 'morador' ? 'moradores' : 'funcionarios');
       
       final results = await Future.wait<dynamic>([
         type == "sindico"
@@ -66,10 +70,20 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 ? getCondominiosMorador()
                 : getCondominiosFuncionario(),
         getDashboardSummary(),
+        apiGetDetails(detailsRoute, 0),
       ]);
 
       if (!mounted) return;
       if (results[0] is List) {
+        if (results.length > 2 && results[2] is Map) {
+          final userDetails = results[2] as Map<String, dynamic>;
+          final fetchedPhoto = userDetails['photo'];
+          if (fetchedPhoto != null && fetchedPhoto.toString().startsWith('http')) {
+            setUserPhoto(fetchedPhoto.toString());
+          } else {
+            setUserPhoto('');
+          }
+        }
         setState(() {
           _list = results[0] as List;
           _summary = results[1] as Map<String, dynamic>?;

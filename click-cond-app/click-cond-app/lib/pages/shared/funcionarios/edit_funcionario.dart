@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_generic.dart';
+import 'package:click/utils/local_storage.dart';
 import 'package:click/pages/shared/funcionarios/new_funcionario_1.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -59,6 +60,9 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
       txtEmail.text = obj["email"] ?? "";
       txtTelefone.text = obj["telefone"] ?? "";
       imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
+      if (imageFile != null && imageFile.toString().startsWith('http')) {
+        setUserPhoto(imageFile.toString());
+      }
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) await displayMessage(context, getText('alert_error'), getText('alert_generic_error'));

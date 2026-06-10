@@ -56,7 +56,11 @@ String getUsername() {
 }
 
 String getUserPhoto() {
-  return _storage.getItem('photo') ?? '';
+  final photo = _storage.getItem('photo');
+  if (photo == null || photo == 'null' || photo == 'undefined' || photo.toString().trim().isEmpty) {
+    return '';
+  }
+  return photo.toString();
 }
 
 void setUserPhoto(String url) {
