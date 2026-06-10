@@ -60,8 +60,11 @@ export class VisitantesController {
   }
 
   @Get(':id/detalhes')
-  detalhes(@Param('id', ParseIntPipe) id: number) {
-    return this.service.detalhes(id);
+  detalhes(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.detalhes(id, payload);
   }
 
   @Get('buscar/pessoa')
@@ -181,25 +184,37 @@ export class VisitantesGlobalController {
 
   @SkipAudit()
   @Post('check-in')
-  async checkIn(@Body('id', ParseIntPipe) id: number) {
-    return this.service.checkIn(id);
+  async checkIn(
+    @Body('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.checkIn(id, payload);
   }
 
   @SkipAudit()
   @Post('liberar')
-  async liberarAcesso(@Body('id', ParseIntPipe) id: number) {
-    return this.service.liberarAcesso(id);
+  async liberarAcesso(
+    @Body('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.liberarAcesso(id, payload);
   }
 
   @SkipAudit()
   @Post('check-out')
-  async checkOut(@Body('id', ParseIntPipe) id: number) {
-    return this.service.checkOut(id);
+  async checkOut(
+    @Body('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.checkOut(id, payload);
   }
 
   @Get('get')
-  async getOne(@Query('id') id: string) {
-    const v = await this.service.findOne(Number(id));
+  async getOne(
+    @Query('id') id: string,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    const v = await this.service.findOne(Number(id), payload);
     return this.flatten(v);
   }
 
@@ -232,10 +247,14 @@ export class VisitantesGlobalController {
 
   @SkipAudit()
   @Post('insert')
-  async insert(@Body() body: { id_condominio: string; visitante: any }) {
+  async insert(
+    @Body() body: { id_condominio: string; visitante: any },
+    @ReqUser() payload: JwtPayload,
+  ) {
     const idCondominio = Number(body.id_condominio);
+    await this.service.assertUsuarioNoCondominio(idCondominio, payload);
     const vis = body.visitante;
-    
+
     const saved = await this.service.create({
       nome: vis.nome,
       doc_identificacao: vis.doc_identificacao,
@@ -254,9 +273,12 @@ export class VisitantesGlobalController {
 
   @SkipAudit()
   @Post('update')
-  async update(@Body() body: { id_condominio: string; visitante: any }) {
+  async update(
+    @Body() body: { id_condominio: string; visitante: any },
+    @ReqUser() payload: JwtPayload,
+  ) {
     const vis = body.visitante;
-    
+
     return this.service.update({
       id: Number(vis.id),
       nome: vis.nome,
@@ -268,6 +290,6 @@ export class VisitantesGlobalController {
       id_apartamento: vis.id_apartamento ? Number(vis.id_apartamento) : undefined,
       foto_documento: vis.foto_documento,
       foto_pessoa: vis.foto_pessoa || vis.photo,
-    });
+    }, payload);
   }
 }

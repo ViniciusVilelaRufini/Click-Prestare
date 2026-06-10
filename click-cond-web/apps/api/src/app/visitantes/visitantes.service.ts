@@ -4,6 +4,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 export interface CreateVisitanteDto {
   nome: string;
@@ -40,6 +41,109 @@ export class VisitantesService {
     this.facial
       .syncVisitante(idVisitante)
       .catch((err) => this.logger.warn(`Sync facial visitante ${idVisitante} falhou: ${err?.message ?? err}`));
+  }
+
+  /**
+   * Verifica se o usuário autenticado pode operar sobre um visitante.
+   *
+   * Os endpoints "globais" de visitantes (check-in, liberar, check-out, get,
+   * detalhes, update) recebem o id do visitante por body/query e NÃO passam
+   * pela URL /condominios/:idCondominio — então o TenantGuard se autodesliga.
+   * Sem esta checagem, um porteiro/síndico de um condomínio pode ler ou
+   * manipular (incluindo LIBERAR acesso físico) visitante de outro condomínio
+   * só chutando o id (IDOR cross-tenant).
+   *
+   * Resolve o vínculo conforme o tipo de token:
+   * - Porteiro/portaria-web: id_condominio fixo no JWT → compara direto.
+   * - Síndico mobile (JWT sem id_condominio): valida via Sindicos_Condominios.
+   * - Morador mobile: valida que o apartamento do visitante está em
+   *   Apartamentos_Users do usuário.
+   *
+   * @returns o visitante carregado (evita refazer o findUnique no caller).
+   */
+  private async assertPodeAcessarVisitante(idVisitante: number, payload?: JwtPayload) {
+    const v = await this.prisma.visitantes.findUnique({ where: { id: Number(idVisitante) } });
+    if (!v) throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
+
+    // Sem payload (chamada interna/sistema): não bloqueia. Endpoints HTTP
+    // sempre passam o payload, então isso só vale para uso programático.
+    if (!payload) return v;
+
+    // Porteiro/portaria-web: id_condominio fixo no token.
+    if (payload.id_condominio) {
+      if (v.id_condominio !== payload.id_condominio) {
+        throw new ForbiddenException('Acesso negado: visitante pertence a outro condomínio.');
+      }
+      return v;
+    }
+
+    const userId = Number(payload.user?.id ?? payload.sub);
+    if (!userId) {
+      throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+    }
+
+    // Síndico mobile: precisa de vínculo em Sindicos_Condominios.
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    if (tipo === 'sindico') {
+      const vinc = await this.prisma.sindicos_Condominios.findFirst({
+        where: { id_user: userId, id_condominio: v.id_condominio },
+        select: { id: true },
+      });
+      if (!vinc) {
+        throw new ForbiddenException('Acesso negado: você não administra este condomínio.');
+      }
+      return v;
+    }
+
+    // Morador mobile: o apartamento do visitante tem que estar vinculado a ele.
+    const vinculoApto = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: userId, id_apto: v.id_apartamento },
+      select: { id_apto: true },
+    });
+    if (!vinculoApto) {
+      throw new ForbiddenException('Acesso negado: este visitante não pertence a você.');
+    }
+    return v;
+  }
+
+  /**
+   * Valida que o usuário autenticado pode CRIAR registros num condomínio.
+   * Usado no `insert`, que recebe id_condominio direto do body — sem esta
+   * checagem, daria para criar visitante em condomínio alheio.
+   */
+  async assertUsuarioNoCondominio(idCondominio: number, payload?: JwtPayload): Promise<void> {
+    if (!payload) return;
+    const condId = Number(idCondominio);
+    if (!condId) {
+      throw new BadRequestException('Condomínio inválido.');
+    }
+
+    if (payload.id_condominio) {
+      if (payload.id_condominio !== condId) {
+        throw new ForbiddenException('Acesso negado: condomínio inválido para esta sessão.');
+      }
+      return;
+    }
+
+    const userId = Number(payload.user?.id ?? payload.sub);
+    if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    if (tipo === 'sindico') {
+      const vinc = await this.prisma.sindicos_Condominios.findFirst({
+        where: { id_user: userId, id_condominio: condId },
+        select: { id: true },
+      });
+      if (!vinc) throw new ForbiddenException('Acesso negado: você não administra este condomínio.');
+      return;
+    }
+
+    // Morador mobile: precisa ter pelo menos um apartamento neste condomínio.
+    const vinc = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: userId, apartamento: { id_condominio: condId } },
+      select: { id_apto: true },
+    });
+    if (!vinc) throw new ForbiddenException('Acesso negado: você não pertence a este condomínio.');
   }
 
   private async resolveFoto(value: string | undefined | null): Promise<string | null> {
@@ -185,7 +289,7 @@ export class VisitantesService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, payload?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return {
         id,
@@ -201,6 +305,9 @@ export class VisitantesService {
         apartamento: { bloco: 'A', apto: '101' },
       };
     }
+
+    // Autorização de tenant (vaza doc/RG/CPF e fotos se não checar).
+    await this.assertPodeAcessarVisitante(id, payload);
 
     const v = await this.prisma.visitantes.findUnique({
       where: { id: Number(id) },
@@ -817,10 +924,13 @@ export class VisitantesService {
     return visitante;
   }
 
-  async update(dto: UpdateVisitanteDto) {
+  async update(dto: UpdateVisitanteDto, payload?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return { success: true, id: dto.id };
     }
+
+    // Autorização de tenant antes de qualquer escrita.
+    await this.assertPodeAcessarVisitante(dto.id, payload);
 
     const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
@@ -974,10 +1084,13 @@ export class VisitantesService {
     };
   }
 
-  async detalhes(id: number) {
+  async detalhes(id: number, payload?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new NotFoundException('Banco indisponível');
     }
+
+    // Autorização de tenant: detalhes expõe histórico completo, doc e fotos.
+    await this.assertPodeAcessarVisitante(id, payload);
 
     const v = await this.prisma.visitantes.findUnique({
       where: { id: Number(id) },
@@ -1210,7 +1323,8 @@ export class VisitantesService {
     };
   }
 
-  async checkIn(id: number) {
+  async checkIn(id: number, payload?: JwtPayload) {
+    await this.assertPodeAcessarVisitante(id, payload);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: { data_entrada: new Date(), data_saida: null, liberado: 1 },
@@ -1230,7 +1344,8 @@ export class VisitantesService {
     return { ok: true };
   }
 
-  async liberarAcesso(id: number) {
+  async liberarAcesso(id: number, payload?: JwtPayload) {
+    await this.assertPodeAcessarVisitante(id, payload);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: { liberado: 1, data_entrada: null, data_saida: null },
@@ -1251,7 +1366,8 @@ export class VisitantesService {
     return { ok: true };
   }
 
-  async checkOut(id: number) {
+  async checkOut(id: number, payload?: JwtPayload) {
+    await this.assertPodeAcessarVisitante(id, payload);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: { data_saida: new Date(), codigo_acesso: null, liberado: 0 },
