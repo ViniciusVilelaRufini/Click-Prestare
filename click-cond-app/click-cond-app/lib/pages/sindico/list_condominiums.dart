@@ -368,16 +368,31 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: avatarRadius,
-                backgroundColor: AppColors.primaryLight,
-                backgroundImage: getUserPhoto().isNotEmpty
-                    ? NetworkImage(getUserPhoto())
-                    : null,
-                child: getUserPhoto().isEmpty
-                    ? Icon(PhosphorIcons.userFill,
-                        color: AppColors.primary, size: avatarRadius)
-                    : null,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(avatarRadius),
+                child: Container(
+                  width: avatarRadius * 2,
+                  height: avatarRadius * 2,
+                  color: AppColors.primaryLight,
+                  child: getUserPhoto().isNotEmpty
+                      ? Image.network(
+                          getUserPhoto().trim(),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            print("[ListCondomiums] Error loading photo: $error");
+                            return Icon(
+                              PhosphorIcons.user,
+                              color: AppColors.primary,
+                              size: avatarRadius,
+                            );
+                          },
+                        )
+                      : Icon(
+                          PhosphorIcons.user,
+                          color: AppColors.primary,
+                          size: avatarRadius,
+                        ),
+                ),
               ),
               AppSpacing.gapMd,
               Expanded(
