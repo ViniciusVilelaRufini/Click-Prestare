@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { VisitantesService } from './visitantes.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 /**
@@ -41,7 +42,10 @@ describe('VisitantesService — autorização de tenant (IDOR)', () => {
     const noop: any = { registrar: jest.fn(), sendPushNotification: jest.fn(), sendWhatsApp: jest.fn() };
     const facial: any = { syncVisitante: jest.fn(), unsyncVisitante: jest.fn() };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
-    const svc = new VisitantesService(prisma, noop, storage, facial, noop);
+    // TenantAccessService real ligado ao mesmo mock de prisma: testa a
+    // autorização ponta-a-ponta (porteiro/síndico via o helper central).
+    const tenant = new TenantAccessService(prisma);
+    const svc = new VisitantesService(prisma, noop, storage, facial, noop, tenant);
     return { svc, prisma };
   }
 

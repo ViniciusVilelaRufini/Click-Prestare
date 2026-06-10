@@ -4,7 +4,6 @@ import {
 import { CreateEncomendaDto, EncomendasService } from './encomendas.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertSameTenant } from '../auth/tenant.util';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('condominios/:idCondominio/encomendas')
@@ -20,10 +19,8 @@ export class EncomendasController {
   }
 
   @Get(':id')
-  async get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
-    const enc = await this.service.findOne(id);
-    assertSameTenant((enc as any)?.id_condominio, user, `encomenda #${id}`);
-    return enc;
+  get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    return this.service.findOne(id, user);
   }
 
   @SkipAudit()

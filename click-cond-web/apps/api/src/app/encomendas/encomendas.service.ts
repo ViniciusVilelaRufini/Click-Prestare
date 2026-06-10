@@ -4,7 +4,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertSameTenant } from '../auth/tenant.util';
+import { TenantAccessService } from '../auth/tenant-access.service';
 import axios from 'axios';
 
 export interface CreateEncomendaDto {
@@ -24,6 +24,7 @@ export class EncomendasService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly storage: StorageService,
     private readonly auditoria: AuditoriaService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   onModuleInit() {
@@ -48,7 +49,7 @@ export class EncomendasService implements OnModuleInit {
       select: { id_condominio: true },
     });
     if (!e) throw new NotFoundException(`Encomenda ${id} não encontrada`);
-    assertSameTenant(e.id_condominio, operador, `encomenda #${id}`);
+    await this.tenant.assertEntidade(e.id_condominio, operador, `encomenda #${id}`);
   }
 
   /**
@@ -176,7 +177,7 @@ export class EncomendasService implements OnModuleInit {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return {
         id,
@@ -194,6 +195,7 @@ export class EncomendasService implements OnModuleInit {
 
     const e = await this.prisma.encomendas.findUnique({ where: { id: Number(id) } });
     if (!e) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    await this.tenant.assertEntidade(e.id_condominio, operador, `encomenda #${id}`);
     return e;
   }
 
@@ -466,7 +468,7 @@ export class EncomendasService implements OnModuleInit {
     });
     if (!existing) throw new NotFoundException(`Encomenda ${id} não encontrada`);
     // Valida tenant antes de apagar (IDOR cross-condomínio).
-    assertSameTenant(existing.id_condominio, operador, `encomenda #${id}`);
+    await this.tenant.assertEntidade(existing.id_condominio, operador, `encomenda #${id}`);
     const ctx = await this.carregarContextoEncomenda(Number(id));
     try {
       await this.prisma.encomendas.delete({ where: { id: Number(id) } });

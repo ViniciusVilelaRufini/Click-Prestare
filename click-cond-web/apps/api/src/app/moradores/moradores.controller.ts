@@ -4,12 +4,15 @@ import {
 import { CreateMoradorDto, MoradoresService } from './moradores.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertSameTenant } from '../auth/tenant.util';
+import { TenantAccessService } from '../auth/tenant-access.service';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('condominios/:idCondominio/moradores')
 export class MoradoresController {
-  constructor(private readonly service: MoradoresService) {}
+  constructor(
+    private readonly service: MoradoresService,
+    private readonly tenant: TenantAccessService,
+  ) {}
 
   @Get()
   list(
@@ -43,7 +46,7 @@ export class MoradoresController {
   @Get(':id')
   async get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
     const morador = await this.service.findOne(id);
-    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
+    await this.tenant.assertEntidade((morador as any)?.id_condominio, user, `morador #${id}`);
     return morador;
   }
 
@@ -56,7 +59,7 @@ export class MoradoresController {
   async atividade(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
     // findOne só pra validar tenant; atividade tem queries paralelas próprias.
     const morador = await this.service.findOne(id);
-    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
+    await this.tenant.assertEntidade((morador as any)?.id_condominio, user, `morador #${id}`);
     return this.service.atividade(id);
   }
 
@@ -88,7 +91,7 @@ export class MoradoresController {
     @ReqUser() user: JwtPayload,
   ) {
     const morador = await this.service.findOne(id);
-    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
+    await this.tenant.assertEntidade((morador as any)?.id_condominio, user, `morador #${id}`);
     return this.service.update(id, body, user);
   }
 
@@ -96,7 +99,7 @@ export class MoradoresController {
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
     const morador = await this.service.findOne(id);
-    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
+    await this.tenant.assertEntidade((morador as any)?.id_condominio, user, `morador #${id}`);
     this.service.remove(id, user);
     return { ok: true };
   }
@@ -105,7 +108,7 @@ export class MoradoresController {
   @Post(':id/send-credentials')
   async sendCredentials(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
     const morador = await this.service.findOne(id);
-    assertSameTenant((morador as any)?.id_condominio, user, `morador #${id}`);
+    await this.tenant.assertEntidade((morador as any)?.id_condominio, user, `morador #${id}`);
     return this.service.sendCredentials(id, user);
   }
 }

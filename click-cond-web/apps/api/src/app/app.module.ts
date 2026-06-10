@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { TenantAccessModule } from './auth/tenant-access.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { TenantGuard } from './auth/tenant.guard';
 import { VisitantesModule } from './visitantes/visitantes.module';
@@ -47,6 +48,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     MailModule,
     StorageModule,
     PrismaModule,
+    TenantAccessModule,
     AuthModule,
     DashboardModule,
     VisitantesModule,

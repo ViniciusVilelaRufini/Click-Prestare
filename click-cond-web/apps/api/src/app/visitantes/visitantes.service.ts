@@ -5,6 +5,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { TenantAccessService } from '../auth/tenant-access.service';
 
 export interface CreateVisitanteDto {
   nome: string;
@@ -35,6 +36,7 @@ export class VisitantesService {
     private readonly storage: StorageService,
     private readonly facial: FacialService,
     private readonly auditoria: AuditoriaService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   private fireFacialSync(idVisitante: number) {
@@ -69,81 +71,40 @@ export class VisitantesService {
     // sempre passam o payload, então isso só vale para uso programático.
     if (!payload) return v;
 
-    // Porteiro/portaria-web: id_condominio fixo no token.
-    if (payload.id_condominio) {
-      if (v.id_condominio !== payload.id_condominio) {
-        throw new ForbiddenException('Acesso negado: visitante pertence a outro condomínio.');
-      }
-      return v;
-    }
-
-    const userId = Number(payload.user?.id ?? payload.sub);
-    if (!userId) {
-      throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
-    }
-
-    // Síndico mobile: precisa de vínculo em Sindicos_Condominios.
+    // Para morador mobile, "pertencer ao condomínio" não basta: o visitante
+    // tem que ser de um APTO vinculado a ele. Porteiro/portaria-web e síndico
+    // são cobertos pelo helper central (id_condominio do JWT / vínculo de
+    // síndico). Detectamos morador como token sem id_condominio e não-síndico.
     const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
-    if (tipo === 'sindico') {
-      const vinc = await this.prisma.sindicos_Condominios.findFirst({
-        where: { id_user: userId, id_condominio: v.id_condominio },
-        select: { id: true },
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico';
+
+    if (ehMoradorMobile) {
+      const userId = Number(payload.user?.id ?? payload.sub);
+      if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+      const vinculoApto = await this.prisma.apartamentos_Users.findFirst({
+        where: { id_user: userId, id_apto: v.id_apartamento },
+        select: { id_apto: true },
       });
-      if (!vinc) {
-        throw new ForbiddenException('Acesso negado: você não administra este condomínio.');
+      if (!vinculoApto) {
+        throw new ForbiddenException('Acesso negado: este visitante não pertence a você.');
       }
       return v;
     }
 
-    // Morador mobile: o apartamento do visitante tem que estar vinculado a ele.
-    const vinculoApto = await this.prisma.apartamentos_Users.findFirst({
-      where: { id_user: userId, id_apto: v.id_apartamento },
-      select: { id_apto: true },
-    });
-    if (!vinculoApto) {
-      throw new ForbiddenException('Acesso negado: este visitante não pertence a você.');
-    }
+    // Porteiro/portaria-web e síndico: vínculo a nível de condomínio.
+    await this.tenant.assertCondominio(v.id_condominio, payload);
     return v;
   }
 
   /**
    * Valida que o usuário autenticado pode CRIAR registros num condomínio.
-   * Usado no `insert`, que recebe id_condominio direto do body — sem esta
-   * checagem, daria para criar visitante em condomínio alheio.
+   * Usado no `insert`/`validarCodigo`, que recebem id_condominio direto do
+   * body/query — sem esta checagem, daria para operar em condomínio alheio.
    */
   async assertUsuarioNoCondominio(idCondominio: number, payload?: JwtPayload): Promise<void> {
     if (!payload) return;
-    const condId = Number(idCondominio);
-    if (!condId) {
-      throw new BadRequestException('Condomínio inválido.');
-    }
-
-    if (payload.id_condominio) {
-      if (payload.id_condominio !== condId) {
-        throw new ForbiddenException('Acesso negado: condomínio inválido para esta sessão.');
-      }
-      return;
-    }
-
-    const userId = Number(payload.user?.id ?? payload.sub);
-    if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
-
-    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
-    if (tipo === 'sindico') {
-      const vinc = await this.prisma.sindicos_Condominios.findFirst({
-        where: { id_user: userId, id_condominio: condId },
-        select: { id: true },
-      });
-      if (!vinc) throw new ForbiddenException('Acesso negado: você não administra este condomínio.');
-      return;
-    }
-
-    // Morador mobile: precisa ter pelo menos um apartamento neste condomínio.
-    const vinc = await this.prisma.apartamentos_Users.findFirst({
-      where: { id_user: userId, apartamento: { id_condominio: condId } },
-      select: { id_apto: true },
-    });
-    if (!vinc) throw new ForbiddenException('Acesso negado: você não pertence a este condomínio.');
+    if (!Number(idCondominio)) throw new BadRequestException('Condomínio inválido.');
+    await this.tenant.assertCondominio(Number(idCondominio), payload);
   }
 
   private async resolveFoto(value: string | undefined | null): Promise<string | null> {
