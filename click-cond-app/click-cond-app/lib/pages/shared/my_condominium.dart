@@ -11,6 +11,9 @@ import 'package:click/pages/shared/configuracoes/configuracoes_view.dart';
 import 'package:click/pages/shared/docs/list_docs.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
+import 'package:click/pages/shared/financeiro/new_financeiro_despesa.dart';
+import 'package:click/pages/shared/financeiro/new_financeiro_receita.dart';
+import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 import 'package:click/pages/shared/funcionarios/list_funcionarios.dart';
 import 'package:click/pages/shared/morador/list_moradores.dart';
 import 'package:click/pages/shared/morador/list_moradores_geral.dart';
@@ -51,6 +54,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   Map<String, dynamic>? _summary;
   int _currentTab = 0;
   bool _isNavBarVisible = true;
+  final GlobalKey<ListFinanceiroState> _financeiroKey = GlobalKey<ListFinanceiroState>();
 
   double? _temp;
   String? _weatherDesc;
@@ -413,7 +417,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   Widget build(BuildContext context) {
     final financeiroPage = getUserType() == 'morador'
         ? MoradorFinanceiroView(hideAppBar: true, showFab: _currentTab == 3)
-        : ListFinanceiro(hideAppBar: true, showFab: _currentTab == 3);
+        : ListFinanceiro(key: _financeiroKey, hideAppBar: true, showFab: false);
 
     final tabs = [
       _buildHomeTab(context),
@@ -535,32 +539,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildBottomNavItem(
-                      index: 0,
-                      icon: PhosphorIcons.house,
-                      activeIcon: PhosphorIcons.houseFill,
-                      label: 'Início',
-                    ),
-                    _buildBottomNavItem(
-                      index: 1,
-                      icon: PhosphorIcons.package,
-                      activeIcon: PhosphorIcons.packageFill,
-                      label: 'Encomendas',
-                    ),
-                    _buildBottomNavItem(
-                      index: 2,
-                      icon: PhosphorIcons.userList,
-                      activeIcon: PhosphorIcons.userListFill,
-                      label: 'Visitantes',
-                    ),
-                    _buildBottomNavItem(
-                      index: 3,
-                      icon: PhosphorIcons.wallet,
-                      activeIcon: PhosphorIcons.walletFill,
-                      label: 'Financeiro',
-                    ),
-                  ],
+                  children: _buildNavItems(context),
                 ),
               ),
             ),
@@ -570,75 +549,221 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
-  Widget _buildBottomNavItem({
+  List<Widget> _buildNavItems(BuildContext context) {
+    final showFinanceActions = _currentTab == 3 && getUserType() == 'sindico';
+
+    return [
+      _buildAnimatedNavItem(
+        key: const ValueKey('nav_home'),
+        index: 0,
+        icon: PhosphorIcons.house,
+        activeIcon: PhosphorIcons.houseFill,
+        label: 'Início',
+        onTap: () {
+          setState(() {
+            _currentTab = 0;
+            _isNavBarVisible = true;
+          });
+        },
+      ),
+      showFinanceActions
+          ? _buildAnimatedNavItem(
+              key: const ValueKey('nav_despesa'),
+              index: -1,
+              icon: PhosphorIcons.arrowUp,
+              activeIcon: PhosphorIcons.arrowUp,
+              label: 'Despesa',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NewFinanceiroDespesa()),
+                ).then((_) {
+                  _financeiroKey.currentState?.loadList();
+                  _loadCond();
+                });
+              },
+              isAction: true,
+            )
+          : _buildAnimatedNavItem(
+              key: const ValueKey('nav_encomendas'),
+              index: 1,
+              icon: PhosphorIcons.package,
+              activeIcon: PhosphorIcons.packageFill,
+              label: 'Encomendas',
+              onTap: () {
+                setState(() {
+                  _currentTab = 1;
+                  _isNavBarVisible = true;
+                });
+              },
+            ),
+      showFinanceActions
+          ? _buildAnimatedNavItem(
+              key: const ValueKey('nav_receita'),
+              index: -1,
+              icon: PhosphorIcons.arrowDown,
+              activeIcon: PhosphorIcons.arrowDown,
+              label: 'Receita',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NewFinanceiroReceita()),
+                ).then((_) {
+                  _financeiroKey.currentState?.loadList();
+                  _loadCond();
+                });
+              },
+              isAction: true,
+            )
+          : _buildAnimatedNavItem(
+              key: const ValueKey('nav_visitantes'),
+              index: 2,
+              icon: PhosphorIcons.userList,
+              activeIcon: PhosphorIcons.userListFill,
+              label: 'Visitantes',
+              onTap: () {
+                setState(() {
+                  _currentTab = 2;
+                  _isNavBarVisible = true;
+                });
+              },
+            ),
+      showFinanceActions
+          ? _buildAnimatedNavItem(
+              key: const ValueKey('nav_cobranca'),
+              index: -1,
+              icon: PhosphorIcons.userPlus,
+              activeIcon: PhosphorIcons.userPlus,
+              label: 'Cobrança',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NewFinanceiroMorador(apto: null)),
+                ).then((_) {
+                  _financeiroKey.currentState?.loadList();
+                  _loadCond();
+                });
+              },
+              isAction: true,
+            )
+          : _buildAnimatedNavItem(
+              key: const ValueKey('nav_financeiro'),
+              index: 3,
+              icon: PhosphorIcons.wallet,
+              activeIcon: PhosphorIcons.walletFill,
+              label: 'Financeiro',
+              onTap: () {
+                setState(() {
+                  _currentTab = 3;
+                  _isNavBarVisible = true;
+                });
+              },
+            ),
+    ];
+  }
+
+  Widget _buildAnimatedNavItem({
+    required Key key,
     required int index,
     required IconData icon,
     required IconData activeIcon,
     required String label,
+    required VoidCallback onTap,
+    bool isAction = false,
   }) {
-    final isSelected = _currentTab == index;
-    final activeColor = AppColors.primary;
-    final inactiveColor = AppColors.textSecondary(context);
-    
     return Expanded(
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _currentTab = index;
-            _isNavBarVisible = true;
-          });
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          return ScaleTransition(
+            scale: animation,
+            child: FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          );
         },
-        borderRadius: BorderRadius.circular(16),
-        splashColor: Colors.transparent,
-        highlightColor: Colors.transparent,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Pílula do ícone: padding contido para não espremer/estourar com
-            // 4 itens em telas estreitas. Largura segue o ícone, centralizada.
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primary.withOpacity(0.12)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                isSelected ? activeIcon : icon,
-                color: isSelected ? activeColor : inactiveColor,
-                size: 22,
-              ),
+        child: _buildBottomNavItem(
+          key: key,
+          index: index,
+          icon: icon,
+          activeIcon: activeIcon,
+          label: label,
+          onTap: onTap,
+          isAction: isAction,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavItem({
+    Key? key,
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required VoidCallback onTap,
+    bool isAction = false,
+  }) {
+    final isSelected = isAction ? false : _currentTab == index;
+    final activeColor = AppColors.primary;
+    final inactiveColor = isAction ? AppColors.primary : AppColors.textSecondary(context);
+    
+    return InkWell(
+      key: key,
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Pílula do ícone: padding contido para não espremer/estourar com
+          // 4 itens em telas estreitas. Largura segue o ícone, centralizada.
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary.withOpacity(0.12)
+                  : (isAction ? AppColors.primary.withOpacity(0.08) : Colors.transparent),
+              borderRadius: BorderRadius.circular(14),
             ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: _isNavBarVisible ? 3.0 : 0.0,
-              child: const SizedBox(),
+            child: Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected ? activeColor : inactiveColor,
+              size: 22,
             ),
-            AnimatedContainer(
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: _isNavBarVisible ? 3.0 : 0.0,
+            child: const SizedBox(),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            height: _isNavBarVisible ? 14.0 : 0.0,
+            child: AnimatedOpacity(
               duration: const Duration(milliseconds: 200),
-              height: _isNavBarVisible ? 14.0 : 0.0,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 200),
-                opacity: _isNavBarVisible ? 1.0 : 0.0,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: AppTypography.tiny(context).copyWith(
-                    color: isSelected ? activeColor : inactiveColor,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    fontSize: 10,
-                    height: 1.1,
-                  ),
+              opacity: _isNavBarVisible ? 1.0 : 0.0,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: AppTypography.tiny(context).copyWith(
+                  color: isSelected ? activeColor : inactiveColor,
+                  fontWeight: (isSelected || isAction) ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 10,
+                  height: 1.1,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

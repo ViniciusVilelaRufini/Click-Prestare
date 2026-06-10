@@ -37,10 +37,10 @@ class ListFinanceiro extends StatefulWidget {
     this.showFab = true,
   }) : super(key: key);
   @override
-  _ListFinanceiroPageState createState() => _ListFinanceiroPageState();
+  ListFinanceiroState createState() => ListFinanceiroState();
 }
 
-class _ListFinanceiroPageState extends State<ListFinanceiro> {
+class ListFinanceiroState extends State<ListFinanceiro> {
   bool _isLoading = false;
   List<dynamic> titlesTabs = [];
   final ScrollController _scrollController = ScrollController();
