@@ -67,6 +67,9 @@ class _EditSindicoPageState extends State<EditSindico> {
           ? obj['photo'] 
           : (getUserPhoto().isNotEmpty ? getUserPhoto() : null);
       imageFile = photoUrl;
+      if (photoUrl != null && photoUrl.toString().startsWith('http')) {
+        setUserPhoto(photoUrl.toString());
+      }
       
       setState(() {});
     } catch (e) {

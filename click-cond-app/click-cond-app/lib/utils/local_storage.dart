@@ -59,6 +59,10 @@ String getUserPhoto() {
   return _storage.getItem('photo') ?? '';
 }
 
+void setUserPhoto(String url) {
+  _storage.setItem('photo', url);
+}
+
 String getUserType() {
   return _storage.getItem('loginType') ?? '';
 }

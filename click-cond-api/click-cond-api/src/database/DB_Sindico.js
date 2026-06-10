@@ -156,7 +156,10 @@ module.exports = {
   },
   
   getData: async function (id) {
-    const query = `select name, email,  DATE_FORMAT(date_birth, '%d/%m/%Y') as date_birth, phone, doc_identification from Sindicos where id_user=${id}`;    
+    const query = `select s.name, s.email, DATE_FORMAT(s.date_birth, '%d/%m/%Y') as date_birth, s.phone, s.doc_identification, u.photo 
+                    from Sindicos s
+                    inner join Users u on s.id_user = u.id
+                    where s.id_user=${id}`;    
     const { results } = await db.query(query);
     return results[0];
   }, 

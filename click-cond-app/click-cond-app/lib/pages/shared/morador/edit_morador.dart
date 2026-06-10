@@ -10,6 +10,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
@@ -73,6 +74,9 @@ class _EditMoradorPageState extends State<EditMorador> {
       txtExtra3.text = obj["extra3"] ?? '';
       txtExtra4.text = obj["extra4"] ?? '';
       imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
+      if (imageFile != null && imageFile.toString().startsWith('http')) {
+        setUserPhoto(imageFile.toString());
+      }
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) await displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
