@@ -12,6 +12,7 @@ import 'package:click/pages/shared/financeiro/detail_inadimplente.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_despesa.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_receita.dart';
+import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart' show MoradorFinanceiroCategoryDetailPage;
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -199,6 +200,12 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   @override
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
+    final personalCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
+    final activeItems = _personalLancamentos.where((item) {
+      final info = _getMesAno(item);
+      return info['mes'] == mes && info['ano'] == ano;
+    }).toList();
+
     return AppScaffold(
       title: getText('lb_financeiro'),
       showBackButton: !widget.hideAppBar,
@@ -216,9 +223,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_viewMode == FinanceiroViewMode.condominio) ...[
-                            _buildMonthSelector(),
-                          ],
+                          _buildMonthSelector(),
                           _buildViewToggle(),
                           if (isSindico && _viewMode == FinanceiroViewMode.condominio) ...[
                             const SizedBox(height: AppSpacing.md),
@@ -256,21 +261,21 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             ),
                           ] else ...[
                             const SizedBox(height: AppSpacing.lg),
-                            _buildPersonalSummaryCard(),
+                            _buildPersonalSummaryCard(activeItems),
                           ],
-                          const SizedBox(height: AppSpacing.lg),
-                          AppInput(
-                            label: 'Pesquisar',
-                            hint: 'Buscar por morador ou categoria...',
-                            controller: _searchController,
-                            prefixIcon: PhosphorIcons.magnifyingGlass,
-                            onChanged: (v) {
-                              _searchQuery = v;
-                              _applyFilter();
-                            },
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          if (isSindico && _viewMode == FinanceiroViewMode.condominio)
+                          if (_viewMode == FinanceiroViewMode.condominio) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            AppInput(
+                              label: 'Pesquisar',
+                              hint: 'Buscar por morador ou categoria...',
+                              controller: _searchController,
+                              prefixIcon: PhosphorIcons.magnifyingGlass,
+                              onChanged: (v) {
+                                _searchQuery = v;
+                                _applyFilter();
+                              },
+                            ),
+                            const SizedBox(height: AppSpacing.md),
                             Row(
                               children: [
                                 _CountChip(
@@ -288,8 +293,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                 ),
                               ],
                             ),
-                          if (_viewMode == FinanceiroViewMode.condominio)
                             const SizedBox(height: AppSpacing.lg),
+                          ],
                         ],
                       ),
                     ),
@@ -336,45 +341,25 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         ),
                       ),
                   ] else ...[
-                    if (_filteredPersonalLancamentos.isEmpty)
-                      SliverToBoxAdapter(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                          padding: const EdgeInsets.all(AppSpacing.xl),
-                          decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
-                          child: Column(
-                            children: [
-                              Icon(PhosphorIcons.magnifyingGlass, size: 48, color: AppColors.textTertiary(context)),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                _searchQuery.isEmpty ? 'Nenhuma cobrança pessoal encontrada' : 'Nenhum resultado para a busca',
-                                style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context)),
-                                textAlign: TextAlign.center,
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Contas",
+                              style: AppTypography.bodyMedium(context).copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("MINHAS COBRANÇAS", 
-                                style: AppTypography.captionMedium(context).copyWith(
-                                  color: AppColors.textTertiary(context),
-                                  letterSpacing: 1.1,
-                                  fontSize: 10
-                                )
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              ..._filteredPersonalLancamentos.map((item) => _buildPersonalFinanceiroCard(item)).toList(),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildCategoriesGrid(activeItems, personalCategories),
+                          ],
                         ),
                       ),
+                    ),
                   ],
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
                 ],
@@ -425,6 +410,15 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   }
 
   Widget _buildFab(bool isSindico) {
+    if (_viewMode == FinanceiroViewMode.morador) {
+      return FloatingActionButton(
+        heroTag: null,
+        onPressed: loadList,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        child: const Icon(PhosphorIcons.arrowsClockwise),
+      );
+    }
     if (!isSindico) return FloatingActionButton(heroTag: null, onPressed: loadList, child: const Icon(PhosphorIcons.arrowsClockwise));
 
     return SpeedDial(
@@ -501,9 +495,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return value?.toString() == '1';
   }
 
-  Widget _buildPersonalSummaryCard() {
+  Widget _buildPersonalSummaryCard(List<dynamic> activeItems) {
     double totalPendente = 0;
-    for (var item in _personalLancamentos) {
+    for (var item in activeItems) {
       if (!_isPago(item['pago'])) {
         totalPendente += _parseValor(item['valor']);
       }
@@ -973,6 +967,481 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       ),
     );
   }
+
+  Map<String, String> _getMesAno(dynamic item) {
+    String v = item['data_vencimento']?.toString() ?? '';
+    if (v.isEmpty) {
+      v = item['data']?.toString() ?? '';
+    }
+    if (v.isNotEmpty && v.contains('/')) {
+      var parts = v.split('/');
+      if (parts.length >= 3) {
+        return {'mes': parts[1], 'ano': parts[2]};
+      }
+    }
+    
+    String nome = item['nome']?.toString() ?? '';
+    if (nome.contains('Ref.')) {
+      var refPart = nome.split('Ref.').last.trim();
+      if (refPart.contains('/')) {
+        var parts = refPart.split('/');
+        return {'mes': parts[0].padLeft(2, '0'), 'ano': parts[1]};
+      } else {
+        return {'mes': refPart.padLeft(2, '0'), 'ano': DateTime.now().year.toString()};
+      }
+    }
+    
+    var now = DateTime.now();
+    return {
+      'mes': now.month.toString().padLeft(2, '0'),
+      'ano': now.year.toString()
+    };
+  }
+
+  Widget _buildCategoriesGrid(List<dynamic> activeItems, List<String> personalCategories) {
+    var condoCharges = activeItems.where((i) {
+      final cat = (i['categoria'] ?? '').toString();
+      final tipo = (i['tipo'] ?? '').toString();
+      return (tipo == 'C' || cat == 'Condomínio' || cat == 'Taxa Condominial') &&
+          !personalCategories.contains(cat);
+    }).toList();
+    final condoIds = <dynamic>{};
+    final mergedCondo = <dynamic>[];
+    for (var item in condoCharges) {
+      if (condoIds.add(item['id'])) mergedCondo.add(item);
+    }
+    final int condoPendingCount = mergedCondo.where((item) {
+      int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+      return pago != 1;
+    }).length;
+
+    final Map<String, int> pendingCounts = {};
+    for (var cat in personalCategories) {
+      var sectionItems = activeItems.where((i) => i['categoria'] == cat).toList();
+      final secIds = <dynamic>{};
+      final mergedSec = <dynamic>[];
+      for (var item in sectionItems) {
+        if (secIds.add(item['id'])) mergedSec.add(item);
+      }
+      pendingCounts[cat] = mergedSec.where((item) {
+        int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+        return pago != 1;
+      }).length;
+    }
+
+    final categories = [
+      _CategoryItem(title: 'Condomínio', icon: PhosphorIcons.buildings, pendingCount: condoPendingCount),
+      _CategoryItem(title: 'Aluguel', icon: PhosphorIcons.house, pendingCount: pendingCounts['Aluguel'] ?? 0),
+      _CategoryItem(title: 'Água', icon: PhosphorIcons.drop, pendingCount: pendingCounts['Água'] ?? 0),
+      _CategoryItem(title: 'Luz', icon: PhosphorIcons.lightning, pendingCount: pendingCounts['Luz'] ?? 0),
+      _CategoryItem(title: 'Internet', icon: PhosphorIcons.wifiHigh, pendingCount: pendingCounts['Internet'] ?? 0),
+      _CategoryItem(title: 'Outros', icon: PhosphorIcons.fileText, pendingCount: pendingCounts['Outros'] ?? 0),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.4,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        final cat = categories[index];
+        return _buildCategoryCard(cat, personalCategories);
+      },
+    );
+  }
+
+  Widget _buildCategoryCard(_CategoryItem cat, List<String> personalCategories) {
+    final hasPending = cat.pendingCount > 0;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MoradorFinanceiroCategoryDetailPage(
+              title: cat.title,
+              icon: cat.icon,
+              getItems: () => _personalLancamentos,
+              personalCategories: personalCategories,
+              mes: mes,
+              ano: ano,
+              onRefresh: () => loadList(),
+              showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
+                showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
+              },
+              buildFinanceiroCard: (item) => _buildPersonalFinanceiroCard(item),
+            ),
+          ),
+        ).then((_) {
+          setState(() {});
+        });
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            )
+          ],
+          border: Border.all(
+            color: AppColors.border(context),
+            width: 1.2,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: hasPending
+                          ? AppColors.error.withOpacity(0.08)
+                          : AppColors.primary.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      cat.icon,
+                      color: hasPending ? AppColors.error : AppColors.primary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    cat.title,
+                    style: AppTypography.bodyMedium(context).copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (hasPending)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    "${cat.pendingCount}",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  showContaFormModal({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
+    final ctx = customContext ?? context;
+    final isEditing = item != null;
+    final txtNome = TextEditingController(text: isEditing ? item['nome'] : '');
+    final txtValor = TextEditingController(text: isEditing ? _parseValor(item['valor']).toStringAsFixed(2) : '');
+    final txtVencimento = TextEditingController(text: isEditing ? item['data_vencimento'] : '');
+    final allowedCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
+    
+    String clean(String s) {
+      return s.replaceAll('í', 'i')
+              .replaceAll('í', 'i')
+              .replaceAll('ó', 'o')
+              .replaceAll('á', 'a')
+              .replaceAll('é', 'e')
+              .replaceAll('ú', 'u')
+              .toLowerCase()
+              .trim();
+    }
+
+    String selectedCategoria = initialCategory ?? 'Luz';
+    if (isEditing) {
+      String cat = item['categoria'] ?? 'Outros';
+      String target = clean(cat);
+      selectedCategoria = allowedCategories.firstWhere(
+        (c) => clean(c) == target,
+        orElse: () => allowedCategories.contains(cat) ? cat : 'Outros',
+      );
+    }
+    bool isPago = isEditing ? item['pago'] == 1 : false;
+
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.bg(context),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+                border: Border(top: BorderSide(color: AppColors.border(context))),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isEditing ? "Editar Conta" : "Nova Conta Pessoal",
+                          style: AppTypography.bodyMedium(context).copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close, color: AppColors.textSecondary(context)),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text("Categoria", style: AppTypography.caption(context)),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface(context),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border(context)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedCategoria,
+                          dropdownColor: AppColors.bg(context),
+                          isExpanded: true,
+                          style: AppTypography.bodyMedium(context),
+                          items: allowedCategories
+                              .map((cat) => DropdownMenuItem(
+                                    value: cat,
+                                    child: Text(cat),
+                                  ))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setModalState(() => selectedCategoria = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text("Nome / Descrição", style: AppTypography.caption(context)),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: txtNome,
+                      style: AppTypography.bodyMedium(context),
+                      decoration: InputDecoration(
+                        hintText: "Ex: Conta de Luz - Maio",
+                        hintStyle: TextStyle(color: AppColors.textTertiary(context)),
+                        fillColor: AppColors.surface(context),
+                        filled: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.border(context)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.border(context)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Valor (BRL)", style: AppTypography.caption(context)),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: txtValor,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                style: AppTypography.bodyMedium(context),
+                                decoration: InputDecoration(
+                                  hintText: "0.00",
+                                  hintStyle: TextStyle(color: AppColors.textTertiary(context)),
+                                  fillColor: AppColors.surface(context),
+                                  filled: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: AppColors.border(context)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: AppColors.border(context)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Vencimento", style: AppTypography.caption(context)),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: txtVencimento,
+                                readOnly: true,
+                                style: AppTypography.bodyMedium(context),
+                                decoration: InputDecoration(
+                                  hintText: "DD/MM/AAAA",
+                                  hintStyle: TextStyle(color: AppColors.textTertiary(context)),
+                                  fillColor: AppColors.surface(context),
+                                  filled: true,
+                                  suffixIcon: Icon(Icons.calendar_today, size: 18, color: AppColors.textSecondary(context)),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: AppColors.border(context)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: AppColors.border(context)),
+                                  ),
+                                ),
+                                onTap: () async {
+                                  DateTime? picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2030),
+                                  );
+                                  if (picked != null) {
+                                    String formatted = "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+                                    setModalState(() {
+                                      txtVencimento.text = formatted;
+                                    });
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Pago", style: AppTypography.bodyMedium(context)),
+                        Switch(
+                          value: isPago,
+                          activeColor: AppColors.primary,
+                          onChanged: (val) {
+                            setModalState(() => isPago = val);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () async {
+                          if (txtNome.text.trim().isEmpty || txtValor.text.trim().isEmpty || txtVencimento.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Preencha todos os campos!")),
+                            );
+                            return;
+                          }
+
+                          final messenger = ScaffoldMessenger.of(context);
+                          setState(() => _isLoading = true);
+
+                          final bodyData = {
+                            if (isEditing) "id": item['id'],
+                            "nome": txtNome.text.trim(),
+                            "valor": txtValor.text.trim(),
+                            "data_vencimento": txtVencimento.text.trim(),
+                            "categoria": selectedCategoria,
+                            "pago": isPago ? 1 : 0,
+                          };
+
+                          bool success;
+                          if (isEditing) {
+                            success = await apiUpdateMoradorFinanceiro(bodyData);
+                          } else {
+                            success = await apiInsertMoradorFinanceiro(bodyData);
+                          }
+
+                          if (success) {
+                            if (mounted) Navigator.pop(context);
+                            loadList();
+                            if (onSuccess != null) onSuccess();
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!")),
+                            );
+                          } else {
+                            if (mounted) setState(() => _isLoading = false);
+                            messenger.showSnackBar(
+                              const SnackBar(content: Text("Erro ao salvar conta.")),
+                            );
+                          }
+                        },
+                        child: Text(
+                          isEditing ? "Salvar Alterações" : "Adicionar Conta",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CategoryItem {
+  final String title;
+  final IconData icon;
+  final int pendingCount;
+  const _CategoryItem({required this.title, required this.icon, required this.pendingCount});
 }
 
 class _ToggleItem extends StatelessWidget {
