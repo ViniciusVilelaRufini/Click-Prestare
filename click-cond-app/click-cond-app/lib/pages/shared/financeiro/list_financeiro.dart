@@ -81,6 +81,29 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   Future<void> loadList() async {
     try {
       setState(() => _isLoading = true);
+
+      titlesTabs = _getGeneratedMonths();
+      if (tabSelected.isEmpty) {
+        var now = DateTime.now();
+        String mStr = now.month.toString().padLeft(2, '0');
+        String yStr = now.year.toString();
+        String monthAbbr = _getMonthAbbr(mStr);
+        String yearShort = yStr.substring(2);
+        tabSelected = "${monthAbbr.toUpperCase()}/$yearShort";
+        mes = mStr;
+        ano = yStr;
+      } else {
+        // Ensure mes/ano are populated from tabSelected if they are empty
+        var parts = tabSelected.split('/');
+        if (parts.length == 2 && (mes.isEmpty || ano.isEmpty)) {
+          // Find in titlesTabs
+          var found = titlesTabs.firstWhere((t) => t['periodo'] == tabSelected, orElse: () => <String, dynamic>{});
+          if (found.isNotEmpty) {
+            mes = found['mes'] ?? '';
+            ano = found['ano'] ?? '';
+          }
+        }
+      }
       
       // Carrega dados pessoais caso o síndico seja morador também
       final dynamic personalData = await apiGetFinanceiroByUser();
@@ -98,17 +121,11 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         saldoAtual = (locals['saldo'] ?? '${Singleton.instance.getCurrentMoeda()} 0,00').toString().replaceAll("R\$", Singleton.instance.getCurrentMoeda());
         totalReceita = (locals['totalReceita'] ?? '0,00').toString().replaceAll("R\$", Singleton.instance.getCurrentMoeda());
         totalDespesa = (locals['totalDespesa'] ?? '0,00').toString().replaceAll("R\$", Singleton.instance.getCurrentMoeda());
-        
         dia = locals['dia'] ?? '--/--/----';
-        titlesTabs = locals['meses'] ?? [];
         
-        if (tabSelected.isEmpty && titlesTabs.isNotEmpty) {
-          tabSelected = titlesTabs.last['periodo'];
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_scrollController.hasClients) {
-              _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-            }
-          });
+        int index = titlesTabs.indexWhere((t) => t['periodo'] == tabSelected);
+        if (index != -1) {
+          _scrollToSelectedMonth(index);
         }
       } else {
         _allLancamentos = {};
@@ -183,7 +200,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
     return AppScaffold(
-      title: widget.hideAppBar ? null : getText('lb_financeiro'),
+      title: getText('lb_financeiro'),
       showBackButton: !widget.hideAppBar,
       safeAreaBottom: !widget.hideAppBar,
       actions: null,
@@ -200,59 +217,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (_viewMode == FinanceiroViewMode.condominio) ...[
-                            SizedBox(
-                              height: 38,
-                              child: ListView.separated(
-                                controller: _scrollController,
-                                scrollDirection: Axis.horizontal,
-                                itemCount: titlesTabs.length,
-                                separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-                                itemBuilder: (_, i) {
-                                  final t = titlesTabs[i];
-                                  final selected = tabSelected == t['periodo'];
-                                  return GestureDetector(
-                                    onTap: selected ? null : () => changeMonth(t['periodo'], t['mes'], t['ano']),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: selected 
-                                            ? AppColors.primary 
-                                            : AppColors.surface(context),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: selected 
-                                              ? AppColors.primary 
-                                              : AppColors.textSecondary(context).withOpacity(0.1),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            PhosphorIcons.calendarBlank,
-                                            size: 14,
-                                            color: selected ? Colors.white : AppColors.textSecondary(context),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            t['periodo'],
-                                            style: AppTypography.caption(context).copyWith(
-                                              color: selected ? Colors.white : AppColors.textSecondary(context),
-                                              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
+                            _buildMonthSelector(),
                           ],
                           _buildViewToggle(),
                           if (isSindico && _viewMode == FinanceiroViewMode.condominio) ...[
@@ -825,6 +790,185 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               )
             ],
           )
+        ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _getGeneratedMonths() {
+    var now = DateTime.now();
+    var list = <Map<String, dynamic>>[];
+    for (int i = -6; i <= 5; i++) {
+      var date = DateTime(now.year, now.month + i, 1);
+      String mStr = date.month.toString().padLeft(2, '0');
+      String yStr = date.year.toString();
+      String monthAbbr = _getMonthAbbr(mStr);
+      String yearShort = yStr.substring(2);
+      String periodo = "${monthAbbr.toUpperCase()}/$yearShort";
+      list.add({
+        'periodo': periodo,
+        'mes': mStr,
+        'ano': yStr,
+      });
+    }
+    return list;
+  }
+
+  String _getMonthAbbr(String mesNum) {
+    switch (mesNum) {
+      case '01': return 'Jan';
+      case '02': return 'Fev';
+      case '03': return 'Mar';
+      case '04': return 'Abr';
+      case '05': return 'Mai';
+      case '06': return 'Jun';
+      case '07': return 'Jul';
+      case '08': return 'Ago';
+      case '09': return 'Set';
+      case '10': return 'Out';
+      case '11': return 'Nov';
+      case '12': return 'Dez';
+      default: return mesNum;
+    }
+  }
+
+  void _scrollToSelectedMonth(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        double itemWidth = 52.0; // 46 container width + 6 horizontal margin (3 on each side)
+        double viewportWidth = _scrollController.position.viewportDimension;
+        double offset = (index * itemWidth) - (viewportWidth / 2) + (itemWidth / 2);
+        
+        if (offset < 0) offset = 0;
+        double maxScroll = _scrollController.position.maxScrollExtent;
+        if (offset > maxScroll) offset = maxScroll;
+        
+        _scrollController.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  Widget _buildMonthSelector() {
+    if (titlesTabs.isEmpty) return const SizedBox.shrink();
+
+    int selectedIndex = titlesTabs.indexWhere((t) => tabSelected == t['periodo']);
+    if (selectedIndex == -1) selectedIndex = 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context).withOpacity(0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            iconSize: 16,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: Icon(
+              PhosphorIcons.caretLeft,
+              color: selectedIndex > 0 
+                  ? AppColors.textPrimary(context) 
+                  : AppColors.textTertiary(context).withOpacity(0.3),
+            ),
+            onPressed: selectedIndex > 0
+                ? () {
+                    var prev = titlesTabs[selectedIndex - 1];
+                    changeMonth(prev['periodo'], prev['mes'], prev['ano']);
+                    _scrollToSelectedMonth(selectedIndex - 1);
+                  }
+                : null,
+          ),
+          Expanded(
+            child: SizedBox(
+              height: 44,
+              child: ListView.builder(
+                controller: _scrollController,
+                scrollDirection: Axis.horizontal,
+                itemCount: titlesTabs.length,
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, index) {
+                  var t = titlesTabs[index];
+                  bool isSelected = tabSelected == t['periodo'];
+                  
+                  String monthName = t['periodo'].toString().split('/').first;
+                  String yearShort = t['periodo'].toString().split('/').last;
+
+                  return GestureDetector(
+                    onTap: () {
+                      changeMonth(t['periodo'], t['mes'], t['ano']);
+                      _scrollToSelectedMonth(index);
+                    },
+                    child: Container(
+                      width: 46,
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            width: 38,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.primary : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                monthName.toUpperCase(),
+                                style: TextStyle(
+                                  color: isSelected 
+                                      ? Colors.white 
+                                      : AppColors.textSecondary(context),
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            yearShort,
+                            style: TextStyle(
+                              color: isSelected 
+                                  ? AppColors.primary 
+                                  : AppColors.textTertiary(context),
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          IconButton(
+            iconSize: 16,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: Icon(
+              PhosphorIcons.caretRight,
+              color: selectedIndex < titlesTabs.length - 1 
+                  ? AppColors.textPrimary(context) 
+                  : AppColors.textTertiary(context).withOpacity(0.3),
+            ),
+            onPressed: selectedIndex < titlesTabs.length - 1
+                ? () {
+                    var next = titlesTabs[selectedIndex + 1];
+                    changeMonth(next['periodo'], next['mes'], next['ano']);
+                    _scrollToSelectedMonth(selectedIndex + 1);
+                  }
+                : null,
+          ),
         ],
       ),
     );

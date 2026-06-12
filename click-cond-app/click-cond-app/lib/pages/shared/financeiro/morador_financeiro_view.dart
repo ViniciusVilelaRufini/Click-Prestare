@@ -14,6 +14,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/widgets/app/app_scaffold.dart';
 
 enum FinanceiroViewMode { morador, condominio }
 
@@ -27,21 +28,28 @@ class MoradorFinanceiroView extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _MoradorFinanceiroViewState createState() => _MoradorFinanceiroViewState();
+  MoradorFinanceiroViewState createState() => MoradorFinanceiroViewState();
 }
 
-class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
+class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   bool _isLoading = true;
   List<dynamic> _items = [];
   List<dynamic> _condoItems = [];
   FinanceiroViewMode _viewMode = FinanceiroViewMode.morador;
   String? mes;
   String? ano;
+  final ScrollController _monthScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _monthScrollController.dispose();
+    super.dispose();
   }
 
   bool _isFaturaDeApto(String name) {
@@ -117,8 +125,32 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       setState(() {
         _items = filteredItems;
         _condoItems = condoItems;
+        
+        if (mes == null || ano == null) {
+          var months = _getAvailableMonths();
+          if (months.isNotEmpty) {
+            var now = DateTime.now();
+            var currentMonthStr = now.month.toString().padLeft(2, '0');
+            var currentYearStr = now.year.toString();
+            
+            var found = months.firstWhere(
+              (m) => m['mes'] == currentMonthStr && m['ano'] == currentYearStr,
+              orElse: () => months.first,
+            );
+            mes = found['mes'];
+            ano = found['ano'];
+          }
+        }
         _isLoading = false;
       });
+
+      if (mes != null && ano != null) {
+        var months = _getAvailableMonths();
+        int idx = months.indexWhere((m) => m['mes'] == mes && m['ano'] == ano);
+        if (idx != -1) {
+          _scrollToSelectedMonth(idx);
+        }
+      }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -176,68 +208,71 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      appBar: widget.hideAppBar
-          ? null
-          : AppBar(
-              title: Text(getText('lb_financeiro')),
-              backgroundColor: AppColors.bg(context),
-              elevation: 0,
-              actions: [
-                IconButton(
-                  icon: const Icon(PhosphorIcons.downloadSimple),
-                  onPressed: () {
-                    displayMessage(context, "Exportar", "Relatório sendo gerado...");
-                  },
-                )
-              ],
-            ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-            onRefresh: () => _loadData(),
-            child: ListView(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
-              children: [
-                _buildViewToggle(),
-                _buildMonthSelector(),
-                const SizedBox(height: 20),
-                if (_viewMode == FinanceiroViewMode.morador) ...[
-                  _buildSummaryCard(activeItems),
-                  const SizedBox(height: 24),
-                  // Cobranças do síndico: passa TODOS os itens (sem filtro de mês)
-                  // pois dívidas pendentes devem sempre aparecer independente do mês
-                  _buildCondoChargesSection(_items, personalCategories),
-                  _buildSection("Aluguel", PhosphorIcons.house, activeItems),
-                  _buildSection("Água", PhosphorIcons.drop, activeItems),
-                  _buildSection("Luz", PhosphorIcons.lightning, activeItems),
-                  _buildSection("Internet", PhosphorIcons.wifiHigh, activeItems),
-                  _buildSection("Outros", PhosphorIcons.fileText, activeItems),
-                ] else ...[
-                  Text("Despesas do Condomínio", style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  if (_condoItems.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
-                      child: Text("Nenhuma despesa registrada", style: AppTypography.caption(context)),
-                    )
-                  else
-                    ..._condoItems.map((item) => _buildFinanceiroCard(item)).toList(),
+      appBar: AppBar(
+        title: Text(getText('lb_financeiro')),
+        backgroundColor: AppColors.bg(context),
+        elevation: 0,
+        automaticallyImplyLeading: !widget.hideAppBar,
+        actions: [
+          IconButton(
+            icon: const Icon(PhosphorIcons.downloadSimple),
+            onPressed: () {
+              displayMessage(context, "Exportar", "Relatório sendo gerado...");
+            },
+          )
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () => _loadData(),
+              child: ListView(
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
+                children: [
+                  _buildViewToggle(),
+                  _buildMonthSelector(),
+                  const SizedBox(height: 20),
+                  if (_viewMode == FinanceiroViewMode.morador) ...[
+                    _buildSummaryCard(activeItems),
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        "Contas",
+                        style: AppTypography.bodyMedium(context).copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildCategoriesGrid(activeItems, personalCategories),
+                  ] else ...[
+                    Text("Despesas do Condomínio", style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    if (_condoItems.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
+                        child: Text("Nenhuma despesa registrada", style: AppTypography.caption(context)),
+                      )
+                    else
+                      ..._condoItems.map((item) => _buildFinanceiroCard(item)).toList(),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
+      ),
       floatingActionButton: widget.showFab && _viewMode == FinanceiroViewMode.morador
-        ? Container(
-            // Sobe o FAB acima da ilha flutuante quando embutido no IndexedStack.
-            margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
-            child: FloatingActionButton.extended(
-              heroTag: null,
-              onPressed: () => _showContaFormModal(),
-              icon: const Icon(PhosphorIcons.plus, color: Colors.white),
-              label: const Text("Nova Conta", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              backgroundColor: AppColors.primary,
-            ),
+        ? FloatingActionButton.extended(
+            heroTag: null,
+            onPressed: () => showContaFormModal(),
+            icon: const Icon(PhosphorIcons.plus, color: Colors.white),
+            label: const Text("Nova Conta", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: AppColors.primary,
           )
         : null,
     );
@@ -350,6 +385,165 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           ...merged.map((item) => _buildFinanceiroCard(item)).toList(),
         const SizedBox(height: 16),
       ],
+    );
+  }
+
+  Widget _buildCategoriesGrid(List<dynamic> activeItems, List<String> personalCategories) {
+    // 1. Condomínio
+    var condoCharges = activeItems.where((i) {
+      final cat = (i['categoria'] ?? '').toString();
+      final tipo = (i['tipo'] ?? '').toString();
+      return (tipo == 'C' || cat == 'Condomínio' || cat == 'Taxa Condominial') &&
+          !personalCategories.contains(cat);
+    }).toList();
+    final condoIds = <dynamic>{};
+    final mergedCondo = <dynamic>[];
+    for (var item in condoCharges) {
+      if (condoIds.add(item['id'])) mergedCondo.add(item);
+    }
+    final int condoPendingCount = mergedCondo.where((item) {
+      int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+      return pago != 1;
+    }).length;
+
+    // 2. Personal categories
+    final Map<String, int> pendingCounts = {};
+    for (var cat in personalCategories) {
+      var sectionItems = activeItems.where((i) => i['categoria'] == cat).toList();
+      final secIds = <dynamic>{};
+      final mergedSec = <dynamic>[];
+      for (var item in sectionItems) {
+        if (secIds.add(item['id'])) mergedSec.add(item);
+      }
+      pendingCounts[cat] = mergedSec.where((item) {
+        int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+        return pago != 1;
+      }).length;
+    }
+
+    final categories = [
+      _CategoryItem(title: 'Condomínio', icon: PhosphorIcons.buildings, pendingCount: condoPendingCount),
+      _CategoryItem(title: 'Aluguel', icon: PhosphorIcons.house, pendingCount: pendingCounts['Aluguel'] ?? 0),
+      _CategoryItem(title: 'Água', icon: PhosphorIcons.drop, pendingCount: pendingCounts['Água'] ?? 0),
+      _CategoryItem(title: 'Luz', icon: PhosphorIcons.lightning, pendingCount: pendingCounts['Luz'] ?? 0),
+      _CategoryItem(title: 'Internet', icon: PhosphorIcons.wifiHigh, pendingCount: pendingCounts['Internet'] ?? 0),
+      _CategoryItem(title: 'Outros', icon: PhosphorIcons.fileText, pendingCount: pendingCounts['Outros'] ?? 0),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.4,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        final cat = categories[index];
+        return _buildCategoryCard(cat, personalCategories);
+      },
+    );
+  }
+
+  Widget _buildCategoryCard(_CategoryItem cat, List<String> personalCategories) {
+    final hasPending = cat.pendingCount > 0;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MoradorFinanceiroCategoryDetailPage(
+              title: cat.title,
+              icon: cat.icon,
+              getItems: () => _items,
+              personalCategories: personalCategories,
+              mes: mes ?? '',
+              ano: ano ?? '',
+              onRefresh: () => _loadData(),
+              showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
+                showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
+              },
+              buildFinanceiroCard: (item) => _buildFinanceiroCard(item),
+            ),
+          ),
+        ).then((_) {
+          setState(() {});
+        });
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            )
+          ],
+          border: Border.all(
+            color: AppColors.border(context),
+            width: 1.2,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(cat.icon, color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    cat.title,
+                    style: TextStyle(
+                      color: AppColors.textPrimary(context),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (hasPending)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Center(
+                    child: Text(
+                      cat.pendingCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -695,7 +889,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 if (item['id_usuario'] != null && item['tipo'] == 'D') ...[
                   IconButton(
                     icon: const Icon(PhosphorIcons.pencil, size: 18, color: Colors.blueAccent),
-                    onPressed: () => _showContaFormModal(item),
+                    onPressed: () => showContaFormModal(item: item),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -794,7 +988,8 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
-  _showContaFormModal([dynamic item]) {
+  showContaFormModal({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
+    final ctx = customContext ?? context;
     final isEditing = item != null;
     final txtNome = TextEditingController(text: isEditing ? item['nome'] : '');
     final txtValor = TextEditingController(text: isEditing ? _parseValorMorador(item['valor']).toStringAsFixed(2) : '');
@@ -812,7 +1007,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               .trim();
     }
 
-    String selectedCategoria = 'Luz';
+    String selectedCategoria = initialCategory ?? 'Luz';
     if (isEditing) {
       String cat = item['categoria'] ?? 'Outros';
       String target = clean(cat);
@@ -824,7 +1019,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     bool isPago = isEditing ? item['pago'] == 1 : false;
 
     showModalBottomSheet(
-      context: context,
+      context: ctx,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
@@ -1048,6 +1243,7 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           if (success) {
                             if (mounted) Navigator.pop(context);
                             _loadData();
+                            if (onSuccess != null) onSuccess();
                             messenger.showSnackBar(
                               SnackBar(content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!")),
                             );
@@ -1106,24 +1302,17 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
   List<Map<String, String>> _getAvailableMonths() {
     var now = DateTime.now();
-    var monthsMap = <String, Map<String, String>>{};
-    
-    String curKey = "${now.year}-${now.month.toString().padLeft(2, '0')}";
-    monthsMap[curKey] = {
-      'mes': now.month.toString().padLeft(2, '0'),
-      'ano': now.year.toString(),
-    };
-
-    for (var item in _items) {
-      var info = _getMesAno(item);
-      String key = "${info['ano']}-${info['mes']}";
-      monthsMap[key] = info;
+    var list = <Map<String, String>>[];
+    for (int i = -6; i <= 5; i++) {
+      var date = DateTime(now.year, now.month + i, 1);
+      String mStr = date.month.toString().padLeft(2, '0');
+      String yStr = date.year.toString();
+      list.add({
+        'mes': mStr,
+        'ano': yStr,
+      });
     }
-    
-    var sortedKeys = monthsMap.keys.toList()..sort();
-    sortedKeys = sortedKeys.reversed.toList();
-    
-    return sortedKeys.map((k) => monthsMap[k]!).toList();
+    return list;
   }
 
   String _getMonthName(String mesNum) {
@@ -1144,54 +1333,157 @@ class _MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     }
   }
 
+  void _scrollToSelectedMonth(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_monthScrollController.hasClients) {
+        double itemWidth = 52.0; // 46 container width + 6 horizontal margin (3 on each side)
+        double viewportWidth = _monthScrollController.position.viewportDimension;
+        double offset = (index * itemWidth) - (viewportWidth / 2) + (itemWidth / 2);
+        
+        if (offset < 0) offset = 0;
+        double maxScroll = _monthScrollController.position.maxScrollExtent;
+        if (offset > maxScroll) offset = maxScroll;
+        
+        _monthScrollController.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
   Widget _buildMonthSelector() {
     var months = _getAvailableMonths();
     if (months.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      height: 40,
-      margin: const EdgeInsets.only(top: 16),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: months.length,
-        itemBuilder: (context, index) {
-          var m = months[index];
-          bool isSelected = m['mes'] == mes && m['ano'] == ano;
-          
-          String monthName = _getMonthName(m['mes'] ?? '');
-          String yearShort = m['ano']?.substring(2) ?? '';
-          String label = "$monthName/$yearShort";
+    int selectedIndex = months.indexWhere((m) => m['mes'] == mes && m['ano'] == ano);
+    if (selectedIndex == -1) selectedIndex = 0;
 
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                mes = m['mes'];
-                ano = m['ano'];
-              });
-              _loadData();
-            },
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : AppColors.surface(context),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected ? AppColors.primary : AppColors.border(context),
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  label.toUpperCase(),
-                  style: AppTypography.tiny(context).copyWith(
-                    color: isSelected ? Colors.white : AppColors.textSecondary(context),
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context).withOpacity(0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            iconSize: 16,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: Icon(
+              PhosphorIcons.caretLeft,
+              color: selectedIndex > 0 
+                  ? AppColors.textPrimary(context) 
+                  : AppColors.textTertiary(context).withOpacity(0.3),
+            ),
+            onPressed: selectedIndex > 0
+                ? () {
+                    var prev = months[selectedIndex - 1];
+                    setState(() {
+                      mes = prev['mes'];
+                      ano = prev['ano'];
+                    });
+                    _loadData();
+                    _scrollToSelectedMonth(selectedIndex - 1);
+                  }
+                : null,
+          ),
+          Expanded(
+            child: SizedBox(
+              height: 44,
+              child: ListView.builder(
+                controller: _monthScrollController,
+                scrollDirection: Axis.horizontal,
+                itemCount: months.length,
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, index) {
+                  var m = months[index];
+                  bool isSelected = m['mes'] == mes && m['ano'] == ano;
+                  
+                  String monthName = _getMonthName(m['mes'] ?? '');
+                  String yearShort = m['ano']?.substring(2) ?? '';
+
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        mes = m['mes'];
+                        ano = m['ano'];
+                      });
+                      _loadData();
+                      _scrollToSelectedMonth(index);
+                    },
+                    child: Container(
+                      width: 46,
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            width: 38,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.primary : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                monthName.toUpperCase(),
+                                style: TextStyle(
+                                  color: isSelected 
+                                      ? Colors.white 
+                                      : AppColors.textSecondary(context),
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            yearShort,
+                            style: TextStyle(
+                              color: isSelected 
+                                  ? AppColors.primary 
+                                  : AppColors.textTertiary(context),
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
-          );
-        },
+          ),
+          IconButton(
+            iconSize: 16,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: Icon(
+              PhosphorIcons.caretRight,
+              color: selectedIndex < months.length - 1 
+                  ? AppColors.textPrimary(context) 
+                  : AppColors.textTertiary(context).withOpacity(0.3),
+            ),
+            onPressed: selectedIndex < months.length - 1
+                ? () {
+                    var next = months[selectedIndex + 1];
+                    setState(() {
+                      mes = next['mes'];
+                      ano = next['ano'];
+                    });
+                    _loadData();
+                    _scrollToSelectedMonth(selectedIndex + 1);
+                  }
+                : null,
+          ),
+        ],
       ),
     );
   }
@@ -1228,6 +1520,218 @@ class _ToggleItem extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryItem {
+  final String title;
+  final IconData icon;
+  final int pendingCount;
+  const _CategoryItem({required this.title, required this.icon, required this.pendingCount});
+}
+
+class MoradorFinanceiroCategoryDetailPage extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final List<dynamic> Function() getItems;
+  final List<String> personalCategories;
+  final String mes;
+  final String ano;
+  final VoidCallback onRefresh;
+  final Function({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) showContaFormModal;
+  final Function(dynamic item) buildFinanceiroCard;
+
+  const MoradorFinanceiroCategoryDetailPage({
+    Key? key,
+    required this.title,
+    required this.icon,
+    required this.getItems,
+    required this.personalCategories,
+    required this.mes,
+    required this.ano,
+    required this.onRefresh,
+    required this.showContaFormModal,
+    required this.buildFinanceiroCard,
+  }) : super(key: key);
+
+  @override
+  State<MoradorFinanceiroCategoryDetailPage> createState() => _MoradorFinanceiroCategoryDetailPageState();
+}
+
+class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroCategoryDetailPage> {
+  @override
+  Widget build(BuildContext context) {
+    final isCondo = widget.title == 'Condomínio';
+    final allItems = widget.getItems();
+    
+    // Filter items based on selected month/year
+    final activeItems = allItems.where((item) {
+      // For Condo charges, we always show unpaid items, OR items matching the month.
+      // But to be consistent with the month selector, we filter by mes and ano.
+      // In the original, the month selector is global, so we use widget.mes and widget.ano
+      String v = item['data_vencimento']?.toString() ?? '';
+      if (v.isEmpty) {
+        v = item['data']?.toString() ?? '';
+      }
+      if (v.isNotEmpty && v.contains('/')) {
+        var parts = v.split('/');
+        if (parts.length >= 3) {
+          return parts[1] == widget.mes && parts[2] == widget.ano;
+        }
+      }
+      
+      String nome = item['nome']?.toString() ?? '';
+      if (nome.contains('Ref.')) {
+        var refPart = nome.split('Ref.').last.trim();
+        if (refPart.contains('/')) {
+          var parts = refPart.split('/');
+          return parts[0].padLeft(2, '0') == widget.mes && parts[1] == widget.ano;
+        }
+      }
+      return false;
+    }).toList();
+
+    List<dynamic> categoryItems;
+    if (isCondo) {
+      categoryItems = activeItems.where((i) {
+        final cat = (i['categoria'] ?? '').toString();
+        final tipo = (i['tipo'] ?? '').toString();
+        return (tipo == 'C' || cat == 'Condomínio' || cat == 'Taxa Condominial') &&
+            !widget.personalCategories.contains(cat);
+      }).toList();
+    } else {
+      categoryItems = activeItems.where((i) => i['categoria'] == widget.title).toList();
+    }
+
+    // Merge duplicates by id
+    final allIds = <dynamic>{};
+    final mergedItems = <dynamic>[];
+    for (var item in categoryItems) {
+      if (allIds.add(item['id'])) mergedItems.add(item);
+    }
+
+    // Calculate total pending for this category
+    double totalPendente = 0;
+    for (var item in mergedItems) {
+      int intPago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+      if (intPago == 0) {
+        double val = 0;
+        if (item['valor'] is num) {
+          val = (item['valor'] as num).toDouble();
+        } else if (item['valor'] != null) {
+          val = double.tryParse(item['valor'].toString()) ?? 0;
+        }
+        totalPendente += val;
+      }
+    }
+
+    return AppScaffold(
+      title: widget.title,
+      floatingActionButton: !isCondo
+          ? FloatingActionButton.extended(
+              heroTag: null,
+              onPressed: () {
+                widget.showContaFormModal(
+                  initialCategory: widget.title,
+                  customContext: context,
+                  onSuccess: () {
+                    setState(() {});
+                  },
+                );
+              },
+              icon: const Icon(PhosphorIcons.plus, color: Colors.white),
+              label: const Text("Adicionar Conta", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              backgroundColor: AppColors.primary,
+            )
+          : null,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          widget.onRefresh();
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) setState(() {});
+        },
+        child: ListView(
+          padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  )
+                ]
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(widget.icon, color: Colors.white, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Total Pendente (${widget.title})",
+                          style: AppTypography.caption(context).copyWith(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${Singleton.instance.getCurrentMoeda()} ${totalPendente.toStringAsFixed(2)}",
+                          style: AppTypography.display(context).copyWith(color: Colors.white, fontSize: 24),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              "Contas e Cobranças",
+              style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            if (mergedItems.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border(context)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(PhosphorIcons.folderNotchOpen, size: 48, color: AppColors.textTertiary(context)),
+                    const SizedBox(height: 12),
+                    Text(
+                      isCondo ? "Nenhuma cobrança registrada neste mês." : "Nenhuma conta registrada nesta categoria.",
+                      style: AppTypography.caption(context),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...mergedItems.map((item) {
+                return widget.buildFinanceiroCard(item);
+              }).toList(),
+          ],
         ),
       ),
     );

@@ -24,6 +24,7 @@ import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/sindico/relatorios_page.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
+import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/enquetes/list_enquetes.dart';
 import 'package:click/pages/singleton.dart';
@@ -55,6 +56,9 @@ class _MyCondominiumState extends State<MyCondominium> {
   int _currentTab = 0;
   bool _isNavBarVisible = true;
   final GlobalKey<ListFinanceiroState> _financeiroKey = GlobalKey<ListFinanceiroState>();
+  final GlobalKey<ListEncomendasState> _encomendasKey = GlobalKey<ListEncomendasState>();
+  final GlobalKey<ListVisitantesPageState> _visitantesKey = GlobalKey<ListVisitantesPageState>();
+  final GlobalKey<MoradorFinanceiroViewState> _moradorFinanceiroKey = GlobalKey<MoradorFinanceiroViewState>();
 
   double? _temp;
   String? _weatherDesc;
@@ -416,13 +420,13 @@ class _MyCondominiumState extends State<MyCondominium> {
   @override
   Widget build(BuildContext context) {
     final financeiroPage = getUserType() == 'morador'
-        ? MoradorFinanceiroView(hideAppBar: true, showFab: _currentTab == 3)
+        ? MoradorFinanceiroView(key: _moradorFinanceiroKey, hideAppBar: true, showFab: false)
         : ListFinanceiro(key: _financeiroKey, hideAppBar: true, showFab: false);
 
     final tabs = [
       _buildHomeTab(context),
-      const ListEncomendas(hideAppBar: true),
-      ListVisitantes(hideAppBar: true, showFab: _currentTab == 2),
+      ListEncomendas(key: _encomendasKey, hideAppBar: true, showFab: false),
+      ListVisitantes(key: _visitantesKey, hideAppBar: true, showFab: false),
       financeiroPage,
     ];
 
@@ -457,7 +461,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             MediaQuery(
               data: MediaQuery.of(context).copyWith(
                 padding: MediaQuery.of(context).padding.copyWith(
-                      bottom: 0.0,
+                      bottom: navBarSpace + bottomInset,
                     ),
               ),
               child: IndexedStack(
@@ -551,6 +555,13 @@ class _MyCondominiumState extends State<MyCondominium> {
 
   List<Widget> _buildNavItems(BuildContext context) {
     final showFinanceActions = _currentTab == 3 && getUserType() == 'sindico';
+    final showMoradorFinanceAction = _currentTab == 3 && getUserType() == 'morador';
+    final showEncomendasAction = _currentTab == 1;
+
+    final isSindico = getUserType() == 'sindico';
+    final isFuncionario = getUserType() == 'funcionario';
+    final canAddVisitante = isSindico || isFuncionario || _temApto;
+    final showVisitantesAction = _currentTab == 2 && canAddVisitante;
 
     return [
       _buildAnimatedNavItem(
@@ -584,19 +595,31 @@ class _MyCondominiumState extends State<MyCondominium> {
               },
               isAction: true,
             )
-          : _buildAnimatedNavItem(
-              key: const ValueKey('nav_encomendas'),
-              index: 1,
-              icon: PhosphorIcons.package,
-              activeIcon: PhosphorIcons.packageFill,
-              label: 'Encomendas',
-              onTap: () {
-                setState(() {
-                  _currentTab = 1;
-                  _isNavBarVisible = true;
-                });
-              },
-            ),
+          : (showEncomendasAction
+              ? _buildAnimatedNavItem(
+                  key: const ValueKey('nav_encomendas_action'),
+                  index: -1,
+                  icon: PhosphorIcons.plus,
+                  activeIcon: PhosphorIcons.plus,
+                  label: 'Registrar',
+                  onTap: () {
+                    _encomendasKey.currentState?.showRegisterTrackingDialog(context);
+                  },
+                  isAction: true,
+                )
+              : _buildAnimatedNavItem(
+                  key: const ValueKey('nav_encomendas'),
+                  index: 1,
+                  icon: PhosphorIcons.package,
+                  activeIcon: PhosphorIcons.packageFill,
+                  label: 'Encomendas',
+                  onTap: () {
+                    setState(() {
+                      _currentTab = 1;
+                      _isNavBarVisible = true;
+                    });
+                  },
+                )),
       showFinanceActions
           ? _buildAnimatedNavItem(
               key: const ValueKey('nav_receita'),
@@ -615,19 +638,36 @@ class _MyCondominiumState extends State<MyCondominium> {
               },
               isAction: true,
             )
-          : _buildAnimatedNavItem(
-              key: const ValueKey('nav_visitantes'),
-              index: 2,
-              icon: PhosphorIcons.userList,
-              activeIcon: PhosphorIcons.userListFill,
-              label: 'Visitantes',
-              onTap: () {
-                setState(() {
-                  _currentTab = 2;
-                  _isNavBarVisible = true;
-                });
-              },
-            ),
+          : (showVisitantesAction
+              ? _buildAnimatedNavItem(
+                  key: const ValueKey('nav_visitantes_action'),
+                  index: -1,
+                  icon: PhosphorIcons.userPlus,
+                  activeIcon: PhosphorIcons.userPlus,
+                  label: 'Cadastrar',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)),
+                    ).then((_) {
+                      _visitantesKey.currentState?.loadList();
+                    });
+                  },
+                  isAction: true,
+                )
+              : _buildAnimatedNavItem(
+                  key: const ValueKey('nav_visitantes'),
+                  index: 2,
+                  icon: PhosphorIcons.userList,
+                  activeIcon: PhosphorIcons.userListFill,
+                  label: 'Visitantes',
+                  onTap: () {
+                    setState(() {
+                      _currentTab = 2;
+                      _isNavBarVisible = true;
+                    });
+                  },
+                )),
       showFinanceActions
           ? _buildAnimatedNavItem(
               key: const ValueKey('nav_cobranca'),
@@ -646,19 +686,31 @@ class _MyCondominiumState extends State<MyCondominium> {
               },
               isAction: true,
             )
-          : _buildAnimatedNavItem(
-              key: const ValueKey('nav_financeiro'),
-              index: 3,
-              icon: PhosphorIcons.wallet,
-              activeIcon: PhosphorIcons.walletFill,
-              label: 'Financeiro',
-              onTap: () {
-                setState(() {
-                  _currentTab = 3;
-                  _isNavBarVisible = true;
-                });
-              },
-            ),
+          : (showMoradorFinanceAction
+              ? _buildAnimatedNavItem(
+                  key: const ValueKey('nav_morador_financeiro_action'),
+                  index: -1,
+                  icon: PhosphorIcons.plus,
+                  activeIcon: PhosphorIcons.plus,
+                  label: 'Nova Conta',
+                  onTap: () {
+                    _moradorFinanceiroKey.currentState?.showContaFormModal();
+                  },
+                  isAction: true,
+                )
+              : _buildAnimatedNavItem(
+                  key: const ValueKey('nav_financeiro'),
+                  index: 3,
+                  icon: PhosphorIcons.wallet,
+                  activeIcon: PhosphorIcons.walletFill,
+                  label: 'Financeiro',
+                  onTap: () {
+                    setState(() {
+                      _currentTab = 3;
+                      _isNavBarVisible = true;
+                    });
+                  },
+                )),
     ];
   }
 

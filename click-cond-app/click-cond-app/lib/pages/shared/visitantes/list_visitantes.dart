@@ -29,10 +29,10 @@ class ListVisitantes extends StatefulWidget {
     this.showFab = true,
   }) : super(key: key);
   @override
-  _ListVisitantesPageState createState() => _ListVisitantesPageState();
+  ListVisitantesPageState createState() => ListVisitantesPageState();
 }
 
-class _ListVisitantesPageState extends State<ListVisitantes> {
+class ListVisitantesPageState extends State<ListVisitantes> {
   final txtSearch = TextEditingController();
   Timer? _timerSearch;
   List<dynamic> list = [];
@@ -765,12 +765,11 @@ class _ListVisitantesPageState extends State<ListVisitantes> {
     return DefaultTabController(
       length: 2,
       child: AppScaffold(
-        title: widget.hideAppBar ? null : getText('visitantes_list'),
+        title: getText('visitantes_list'),
         showBackButton: !widget.hideAppBar,
         safeAreaBottom: !widget.hideAppBar,
         floatingActionButton: canAdd && widget.showFab
             ? Container(
-                margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [

@@ -16,13 +16,19 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 class ListEncomendas extends StatefulWidget {
   final bool allCondos;
   final bool hideAppBar;
-  const ListEncomendas({Key? key, this.allCondos = false, this.hideAppBar = false}) : super(key: key);
+  final bool showFab;
+  const ListEncomendas({
+    Key? key, 
+    this.allCondos = false, 
+    this.hideAppBar = false,
+    this.showFab = true,
+  }) : super(key: key);
 
   @override
-  _ListEncomendasState createState() => _ListEncomendasState();
+  ListEncomendasState createState() => ListEncomendasState();
 }
 
-class _ListEncomendasState extends State<ListEncomendas> {
+class ListEncomendasState extends State<ListEncomendas> {
   bool _isLoading = false;
   List<EncomendaModel> _encomendas = [];
 
@@ -52,19 +58,17 @@ class _ListEncomendasState extends State<ListEncomendas> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: widget.hideAppBar ? null : 'Minhas Encomendas',
+      title: 'Minhas Encomendas',
       showBackButton: !widget.hideAppBar,
       safeAreaBottom: !widget.hideAppBar,
-      floatingActionButton: Container(
-        // Sobe o FAB acima da ilha flutuante quando embutido no IndexedStack.
-        margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
-        child: FloatingActionButton(
-          heroTag: 'register_tracking',
-          backgroundColor: AppColors.primary,
-          onPressed: () => _showRegisterTrackingDialog(context),
-          child: const Icon(PhosphorIcons.plus, color: Colors.black),
-        ),
-      ),
+      floatingActionButton: widget.showFab
+          ? FloatingActionButton(
+              heroTag: 'register_tracking',
+              backgroundColor: AppColors.primary,
+              onPressed: () => showRegisterTrackingDialog(context),
+              child: const Icon(PhosphorIcons.plus, color: Colors.black),
+            )
+          : null,
       body: _isLoading
           ? ListView.separated(
               padding: const EdgeInsets.only(
@@ -117,7 +121,7 @@ class _ListEncomendasState extends State<ListEncomendas> {
     );
   }
 
-  void _showRegisterTrackingDialog(BuildContext context) {
+  void showRegisterTrackingDialog(BuildContext context) {
     final formKey = GlobalKey<FormState>();
     final txtDescricao = TextEditingController();
     final txtCodigo = TextEditingController();
