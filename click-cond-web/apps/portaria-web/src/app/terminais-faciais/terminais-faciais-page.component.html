@@ -1,17 +1,33 @@
 <div [class]="embedded ? 'space-y-6' : 'min-h-screen p-6 lg:p-8 space-y-6'">
-
   <!-- Header -->
   @if (!embedded) {
     <div class="flex items-start justify-between gap-4 flex-wrap">
       <div class="flex items-start gap-4">
-        <div class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-          <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        <div
+          class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0"
+        >
+          <svg
+            class="w-5 h-5 text-accent"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
           </svg>
         </div>
         <div>
-          <h1 class="text-2xl font-semibold text-white tracking-tight">Terminais de Dispositivos</h1>
-          <p class="text-sm text-slate-400 mt-0.5">Gerencie botoeiras, leitoras de tags, catracas, leitores de QR Code e reconhecimento facial</p>
+          <h1 class="text-2xl font-semibold text-white tracking-tight">
+            Terminais de Dispositivos
+          </h1>
+          <p class="text-sm text-slate-400 mt-0.5">
+            Gerencie botoeiras, leitoras de tags, catracas, leitores de QR Code
+            e reconhecimento facial
+          </p>
         </div>
       </div>
 
@@ -19,8 +35,18 @@
         (click)="openCreate()"
         class="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-accent/5"
       >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+        <svg
+          class="w-3.5 h-3.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.5"
+            d="M12 4v16m8-8H4"
+          />
         </svg>
         Novo Dispositivo
       </button>
@@ -29,14 +55,26 @@
     <div class="flex justify-between items-center pb-4 border-b border-white/5">
       <div class="space-y-0.5">
         <h2 class="text-lg font-bold text-white">Terminais de Dispositivos</h2>
-        <p class="text-xs text-slate-400 font-medium">Gerencie os leitores e acionadores de controle de acesso da portaria</p>
+        <p class="text-xs text-slate-400 font-medium">
+          Gerencie os leitores e acionadores de controle de acesso da portaria
+        </p>
       </div>
       <button
         (click)="openCreate()"
         class="px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-accent/5"
       >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+        <svg
+          class="w-3.5 h-3.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.5"
+            d="M12 4v16m8-8H4"
+          />
         </svg>
         Novo Dispositivo
       </button>
@@ -45,18 +83,42 @@
 
   <!-- Feedback -->
   @if (successMessage()) {
-    <div class="p-4 rounded-xl bg-green-550/10 border border-green-550/20 text-green-600 dark:text-green-400 text-xs font-medium flex items-center gap-2.5">
-      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+    <div
+      class="p-4 rounded-xl bg-green-550/10 border border-green-550/20 text-green-600 dark:text-green-400 text-xs font-medium flex items-center gap-2.5"
+    >
+      <svg
+        class="w-4 h-4 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2.5"
+          d="M5 13l4 4L19 7"
+        />
       </svg>
       <span>{{ successMessage() }}</span>
     </div>
   }
 
   @if (errorMessage()) {
-    <div class="p-4 rounded-xl bg-rose-550/10 border border-rose-550/20 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center gap-2.5">
-      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+    <div
+      class="p-4 rounded-xl bg-rose-550/10 border border-rose-550/20 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center gap-2.5"
+    >
+      <svg
+        class="w-4 h-4 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2.5"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        />
       </svg>
       <span>{{ errorMessage() }}</span>
     </div>
@@ -64,94 +126,234 @@
 
   <!-- Lista -->
   @if (loading()) {
-    <div class="p-12 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 flex items-center justify-center">
-      <div class="w-6 h-6 border-2 border-slate-200 dark:border-white/20 border-t-accent dark:border-t-accent rounded-full animate-spin"></div>
+    <div
+      class="p-12 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 flex items-center justify-center"
+    >
+      <div
+        class="w-6 h-6 border-2 border-slate-200 dark:border-white/20 border-t-accent dark:border-t-accent rounded-full animate-spin"
+      ></div>
     </div>
   } @else if (terminais().length === 0) {
-    <div class="p-12 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 text-center space-y-3">
-      <div class="text-slate-600 dark:text-slate-400 text-sm font-semibold">Nenhum dispositivo cadastrado.</div>
-      <div class="text-xs text-slate-400 dark:text-slate-500">Clique em "Novo Dispositivo" para adicionar o primeiro.</div>
+    <div
+      class="p-12 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 text-center space-y-3"
+    >
+      <div class="text-slate-600 dark:text-slate-400 text-sm font-semibold">
+        Nenhum dispositivo cadastrado.
+      </div>
+      <div class="text-xs text-slate-400 dark:text-slate-500">
+        Clique em "Novo Dispositivo" para adicionar o primeiro.
+      </div>
     </div>
   } @else {
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       @for (t of terminais(); track t.id) {
-        <div class="p-5 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 space-y-4 shadow-sm dark:shadow-none">
+        <div
+          class="p-5 rounded-2xl bg-slate-50 dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 space-y-4 shadow-sm dark:shadow-none"
+        >
           <!-- Status & Nome & Tipo -->
           <div class="flex items-start justify-between gap-3">
             <div class="space-y-1">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="shrink-0 w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300" [title]="t.tipo || 'facial'">
+                <span
+                  class="shrink-0 w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300"
+                  [title]="t.tipo || 'facial'"
+                >
                   @if (t.tipo === 'facial' || !t.tipo) {
-                    <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    <svg
+                      class="w-3.5 h-3.5 text-accent"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2.2"
+                        d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                   } @else if (t.tipo === 'botoeira') {
-                    <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+                    <svg
+                      class="w-3.5 h-3.5 text-amber-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2.2"
+                        d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+                      />
                     </svg>
                   } @else if (t.tipo === 'tag_reader') {
-                    <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                    <svg
+                      class="w-3.5 h-3.5 text-blue-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2.2"
+                        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                      />
                     </svg>
                   } @else if (t.tipo === 'catraca') {
-                    <svg class="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                    <svg
+                      class="w-3.5 h-3.5 text-teal-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2.2"
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                      />
                     </svg>
                   } @else if (t.tipo === 'qrcode_reader') {
-                    <svg class="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v1m-3 3h2m-2 4h3m-3 4h2.5M3 4h6v6H3V4zm0 10h6v6H3v-6zm12 0h6v6h-6v-6zm0-10h6v6h-6V4z"/>
+                    <svg
+                      class="w-3.5 h-3.5 text-purple-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2.2"
+                        d="M12 4v1m-3 3h2m-2 4h3m-3 4h2.5M3 4h6v6H3V4zm0 10h6v6H3v-6zm12 0h6v6h-6v-6zm0-10h6v6h-6V4z"
+                      />
                     </svg>
                   }
                 </span>
-                <h3 class="text-base font-bold text-slate-800 dark:text-white">{{ t.nome }}</h3>
-                
+                <h3 class="text-base font-bold text-slate-800 dark:text-white">
+                  {{ t.nome }}
+                </h3>
+
                 <!-- Badge de Tipo de Dispositivo Muito Visível -->
-                <span class="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0"
+                <span
+                  class="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0"
                   [ngClass]="{
-                    'bg-accent/15 text-accent border border-accent/25': t.tipo === 'facial' || !t.tipo,
-                    'bg-amber-500/15 text-amber-500 border border-amber-500/25': t.tipo === 'botoeira',
-                    'bg-blue-500/15 text-blue-500 border border-blue-500/25': t.tipo === 'tag_reader',
-                    'bg-teal-500/15 text-teal-500 border border-teal-500/25': t.tipo === 'catraca',
-                    'bg-purple-500/15 text-purple-500 border border-purple-500/25': t.tipo === 'qrcode_reader'
-                  }">
-                  {{ t.tipo === 'facial' || !t.tipo ? 'Reconhecimento Facial' :
-                     t.tipo === 'botoeira' ? 'Botoeira Relé IP' :
-                     t.tipo === 'tag_reader' ? 'Leitor de Tags RFID' :
-                     t.tipo === 'catraca' ? 'Catraca Eletrônica IP' :
-                     t.tipo === 'qrcode_reader' ? 'Leitor de QR Code' : t.tipo }}
+                    'bg-accent/15 text-accent border border-accent/25':
+                      t.tipo === 'facial' || !t.tipo,
+                    'bg-amber-500/15 text-amber-500 border border-amber-500/25':
+                      t.tipo === 'botoeira',
+                    'bg-blue-500/15 text-blue-500 border border-blue-500/25':
+                      t.tipo === 'tag_reader',
+                    'bg-teal-500/15 text-teal-500 border border-teal-500/25':
+                      t.tipo === 'catraca',
+                    'bg-purple-500/15 text-purple-500 border border-purple-500/25':
+                      t.tipo === 'qrcode_reader',
+                  }"
+                >
+                  {{
+                    t.tipo === 'facial' || !t.tipo
+                      ? 'Reconhecimento Facial'
+                      : t.tipo === 'botoeira'
+                        ? 'Botoeira Relé IP'
+                        : t.tipo === 'tag_reader'
+                          ? 'Leitor de Tags RFID'
+                          : t.tipo === 'catraca'
+                            ? 'Catraca Eletrônica IP'
+                            : t.tipo === 'qrcode_reader'
+                              ? 'Leitor de QR Code'
+                              : t.tipo
+                  }}
                 </span>
 
                 @if (statusMap()[t.id] === true) {
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-500/15 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 uppercase tracking-wider">Online</span>
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-500/15 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 uppercase tracking-wider"
+                    >Online</span
+                  >
                 } @else if (statusMap()[t.id] === false) {
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 uppercase tracking-wider">Offline</span>
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 uppercase tracking-wider"
+                    >Offline</span
+                  >
                 } @else {
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/60 dark:bg-slate-700/30 border border-slate-300/80 dark:border-slate-700/40 text-slate-600 dark:text-slate-400 uppercase tracking-wider">Não testado</span>
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/60 dark:bg-slate-700/30 border border-slate-300/80 dark:border-slate-700/40 text-slate-600 dark:text-slate-400 uppercase tracking-wider"
+                    >Não testado</span
+                  >
                 }
               </div>
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">{{ t.fabricante }}<span *ngIf="t.modelo"> · {{ t.modelo }}</span></span>
+                <span
+                  class="text-xs text-slate-500 dark:text-slate-400 font-medium"
+                  >{{ t.fabricante
+                  }}<span *ngIf="t.modelo"> · {{ t.modelo }}</span></span
+                >
+                @if (t.sentido === 'entrada') {
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+                    >↓ Entrada</span
+                  >
+                } @else if (t.sentido === 'saida') {
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-orange-100 dark:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-400"
+                    >↑ Saída</span
+                  >
+                }
+                @if (t.agent_online) {
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-500/15 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 flex items-center gap-1"
+                    title="Agente Local conectado e pronto para acionar este dispositivo"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span
+                    >Agente conectado
+                  </span>
+                } @else {
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/60 dark:bg-slate-700/30 border border-slate-300/80 dark:border-slate-700/40 text-slate-500 dark:text-slate-400 flex items-center gap-1"
+                    title="Nenhum Agente Local fazendo polling deste dispositivo. Sem agente, a nuvem não alcança o aparelho na LAN."
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span
+                    >Sem agente
+                  </span>
+                }
               </div>
             </div>
-            <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500">#{{ t.id }}</span>
+            <span
+              class="text-[10px] font-mono text-slate-400 dark:text-slate-500"
+              >#{{ t.id }}</span
+            >
           </div>
 
           <!-- IP / Porta -->
-          <div class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200/60 dark:border-white/5">
+          <div
+            class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200/60 dark:border-white/5"
+          >
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold">Endereço IP</span>
-              <div class="text-xs font-mono text-slate-800 dark:text-slate-200">{{ t.ip }}:{{ t.porta }}</div>
+              <span
+                class="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold"
+                >Endereço IP</span
+              >
+              <div class="text-xs font-mono text-slate-800 dark:text-slate-200">
+                {{ t.ip }}:{{ t.porta }}
+              </div>
             </div>
             <div class="space-y-1">
-              <span class="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold">Última Sinc.</span>
+              <span
+                class="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-semibold"
+                >Última Sinc.</span
+              >
               <div class="text-xs text-slate-700 dark:text-slate-300">
-                {{ t.ultima_sincr ? (t.ultima_sincr | date:'dd/MM HH:mm') : '—' }}
+                {{
+                  t.ultima_sincr ? (t.ultima_sincr | date: 'dd/MM HH:mm') : '—'
+                }}
               </div>
             </div>
           </div>
 
           <!-- Ações -->
-          <div class="flex items-center gap-2 pt-3 border-t border-slate-200/60 dark:border-white/5 flex-wrap">
+          <div
+            class="flex items-center gap-2 pt-3 border-t border-slate-200/60 dark:border-white/5 flex-wrap"
+          >
             @if (t.tipo === 'botoeira' || t.tipo === 'catraca') {
               <button
                 (click)="trigger(t)"
@@ -159,11 +361,23 @@
                 class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition active:scale-95 disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
               >
                 @if (triggeringId() === t.id) {
-                  <div class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <div
+                    class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                  ></div>
                   <span>Abrindo…</span>
                 } @else {
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                  <svg
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
+                    />
                   </svg>
                   <span>Acionar Abertura</span>
                 }
@@ -175,7 +389,9 @@
               class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 transition disabled:opacity-50 flex items-center gap-1.5 shadow-sm dark:shadow-none"
             >
               @if (testingId() === t.id) {
-                <div class="w-3.5 h-3.5 border-2 border-slate-400 dark:border-white/20 border-t-slate-700 dark:border-t-white rounded-full animate-spin"></div>
+                <div
+                  class="w-3.5 h-3.5 border-2 border-slate-400 dark:border-white/20 border-t-slate-700 dark:border-t-white rounded-full animate-spin"
+                ></div>
                 <span>Testando…</span>
               } @else {
                 <span>Testar Conexão</span>
@@ -208,7 +424,10 @@
 
   <!-- Modal -->
   @if (showModal()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" (click)="closeModal()">
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+      (click)="closeModal()"
+    >
       <div
         class="w-full max-w-lg p-6 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/5 space-y-5 shadow-xl"
         (click)="$event.stopPropagation()"
@@ -218,11 +437,26 @@
             <h2 class="text-lg font-bold text-slate-800 dark:text-white">
               {{ editingId() ? 'Editar Dispositivo' : 'Novo Dispositivo' }}
             </h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Configure o endereço IP, tipo e credenciais do dispositivo</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Configure o endereço IP, tipo e credenciais do dispositivo
+            </p>
           </div>
-          <button (click)="closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          <button
+            (click)="closeModal()"
+            class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -230,7 +464,10 @@
         <form (submit)="save(); $event.preventDefault()" class="space-y-4">
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
-              <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Tipo de Dispositivo</label>
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Tipo de Dispositivo</label
+              >
               <select
                 [(ngModel)]="form.tipo"
                 name="tipo"
@@ -244,7 +481,10 @@
             </div>
 
             <div class="space-y-1.5">
-              <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Nome do Dispositivo</label>
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Nome do Dispositivo</label
+              >
               <input
                 [(ngModel)]="form.nome"
                 name="nome"
@@ -257,14 +497,50 @@
           </div>
 
           <!-- Hint contextual sobre o tipo escolhido — ajuda o operador a saber o que vai cadastrar -->
-          <div class="p-3 rounded-xl bg-accent/5 border border-accent/20 text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed">
-            <span class="font-semibold text-accent">{{ tipoSelecionado.label }}:</span>
+          <div
+            class="p-3 rounded-xl bg-accent/5 border border-accent/20 text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed"
+          >
+            <span class="font-semibold text-accent"
+              >{{ tipoSelecionado.label }}:</span
+            >
             {{ tipoSelecionado.hint }}
           </div>
 
+          <!-- Sentido do acesso: define se este terminal registra entrada ou
+               dá baixa (saída). Não se aplica a botoeira (só acionador). -->
+          @if (mostrarSentido) {
+            <div class="space-y-1.5">
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Sentido do Acesso</label
+              >
+              <select
+                [(ngModel)]="form.sentido"
+                name="sentido"
+                class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              >
+                <option value="auto">
+                  Automático (usa o que o aparelho informar)
+                </option>
+                <option value="entrada">
+                  Entrada (todo acesso registra entrada)
+                </option>
+                <option value="saida">Saída (todo acesso dá baixa)</option>
+              </select>
+              <p class="text-[10px] text-slate-400 dark:text-slate-500">
+                Use <b>Entrada</b> e <b>Saída</b> quando houver terminais
+                separados para cada direção. <b>Automático</b> assume entrada
+                quando o aparelho não informa o sentido.
+              </p>
+            </div>
+          }
+
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
-              <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Fabricante</label>
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Fabricante</label
+              >
               <select
                 [(ngModel)]="form.fabricante"
                 name="fabricante"
@@ -277,7 +553,10 @@
             </div>
 
             <div class="space-y-1.5">
-              <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Modelo</label>
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Modelo</label
+              >
               <input
                 [(ngModel)]="form.modelo"
                 name="modelo"
@@ -290,7 +569,10 @@
 
           <div class="grid grid-cols-3 gap-3">
             <div class="col-span-2 space-y-1.5">
-              <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Endereço IP</label>
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Endereço IP</label
+              >
               <input
                 [(ngModel)]="form.ip"
                 name="ip"
@@ -302,7 +584,10 @@
             </div>
 
             <div class="space-y-1.5">
-              <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Porta</label>
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Porta</label
+              >
               <input
                 [(ngModel)]="form.porta"
                 name="porta"
@@ -316,7 +601,10 @@
           @if (tipoSelecionado.requerAuth) {
             <div class="grid grid-cols-2 gap-3">
               <div class="space-y-1.5">
-                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Usuário API</label>
+                <label
+                  class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                  >Usuário API</label
+                >
                 <input
                   [(ngModel)]="form.api_user"
                   name="api_user"
@@ -328,7 +616,10 @@
               </div>
 
               <div class="space-y-1.5">
-                <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400">Senha API</label>
+                <label
+                  class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                  >Senha API</label
+                >
                 <input
                   [(ngModel)]="form.api_password"
                   name="api_password"
@@ -345,7 +636,9 @@
             </div>
           }
 
-          <div class="pt-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end gap-3">
+          <div
+            class="pt-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end gap-3"
+          >
             <button
               type="button"
               (click)="closeModal()"
@@ -359,7 +652,9 @@
               class="px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-accent hover:bg-accent-600 disabled:opacity-50 transition active:scale-95 flex items-center gap-2 shadow-lg shadow-accent/5"
             >
               @if (saving()) {
-                <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <div
+                  class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                ></div>
                 <span>Salvando…</span>
               } @else {
                 <span>{{ editingId() ? 'Atualizar' : 'Cadastrar' }}</span>

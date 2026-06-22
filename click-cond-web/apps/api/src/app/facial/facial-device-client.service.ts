@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, Method } from 'axios';
+import * as https from 'https';
+import * as crypto from 'crypto';
+import { AgentBridgeService } from './agent-bridge.service';
 
 export interface FacialDeviceConfig {
   id: number;
@@ -20,54 +23,207 @@ export interface EnrollResult {
   faceId: string;
 }
 
+/**
+ * Fabricantes que NÃO falam HTTP para comandos (abrir porta / cadastrar rosto).
+ * Usam protocolo binário em porta própria ou SDK — não dá para acionar via
+ * requisição HTTP. Validado contra documentação pública (jun/2026). Para esses
+ * casos, use uma botoeira/relé HTTP genérico no acionamento ou um bridge SDK.
+ */
+const SEM_COMANDO_HTTP: Record<string, string> = {
+  zkteco: 'protocolo TCP/UDP na porta 4370 (PULL/PUSH SDK)',
+  topdata: 'protocolo TCP na porta 3570 (SDK Inner)',
+  henry: 'protocolo proprietário (SDK Henry)',
+};
+
+/**
+ * Cliente que conversa com o hardware de controle de acesso.
+ *
+ * Três transportes, escolhidos automaticamente:
+ *   1. ip === "sim"            → simulador interno (HTML), sem hardware
+ *   2. agente online no device → enfileira comando lógico p/ o Agente Local
+ *      executar na LAN (caminho padrão em produção SaaS, ver AgentBridgeService)
+ *   3. fallback                → HTTP direto no IP (on-premise / mesma LAN)
+ *
+ * Protocolos por fabricante validados contra documentação pública (jun/2026):
+ *   - control_id: REST com sessão (.fcgi) — VALIDADO
+ *   - hikvision:  ISAPI + Digest auth — VALIDADO
+ *   - intelbras:  comando via CGI fica atrás do suporte — NÃO VALIDADO
+ *   - genérico:   HTTP simples (botoeira/relé)
+ *   - zkteco/topdata/henry: não usam HTTP (ver SEM_COMANDO_HTTP)
+ *
+ * O Agente Local tem cópia equivalente (deploy independente, ver agent/).
+ * Mantenha os dois em sincronia ao ajustar um fabricante.
+ */
 @Injectable()
 export class FacialDeviceClientService {
   private readonly logger = new Logger(FacialDeviceClientService.name);
-  private readonly timeoutMs = Number(process.env.FACIAL_HTTP_TIMEOUT_MS ?? 10000);
+  private readonly timeoutMs = Number(
+    process.env.FACIAL_HTTP_TIMEOUT_MS ?? 10000,
+  );
 
+  constructor(private readonly agent: AgentBridgeService) {}
+
+  private isSim(device: FacialDeviceConfig): boolean {
+    return device.ip === 'sim' || device.ip === 'simulador';
+  }
+
+  private baseUrl(device: FacialDeviceConfig): string {
+    const isHttps =
+      device.porta === 443 || process.env.FACIAL_FORCE_HTTPS === 'true';
+    return `${isHttps ? 'https' : 'http'}://${device.ip}:${device.porta}`;
+  }
+
+  /** Axios para Control iD: sem Basic auth (usa sessão na query). */
   private http(device: FacialDeviceConfig): AxiosInstance {
-    const baseURL = `http://${device.ip}:${device.porta}`;
-    const auth =
-      device.api_user && device.api_password
-        ? { username: device.api_user, password: device.api_password }
-        : undefined;
-    return axios.create({ baseURL, auth, timeout: this.timeoutMs });
+    const isHttps =
+      device.porta === 443 || process.env.FACIAL_FORCE_HTTPS === 'true';
+    return axios.create({
+      baseURL: this.baseUrl(device),
+      timeout: this.timeoutMs,
+      // Aparelhos de LAN usam certificado self-signed; a rede local é confiável.
+      httpsAgent: isHttps
+        ? new https.Agent({ rejectUnauthorized: false })
+        : undefined,
+    });
+  }
+
+  /**
+   * Requisição HTTP a um device que usa autenticação por header (Basic ou
+   * Digest). Tenta Basic; se levar 401 com desafio Digest (caso da Hikvision),
+   * recalcula e repete. Cobre os dois esquemas sem config por fabricante.
+   */
+  private async send(
+    device: FacialDeviceConfig,
+    method: Method,
+    path: string,
+    data?: unknown,
+    contentType?: string,
+  ) {
+    const url = this.baseUrl(device) + path;
+    const isHttps = url.startsWith('https');
+    const httpsAgent = isHttps
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined;
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = contentType;
+
+    const hasAuth = !!(device.api_user && device.api_password);
+    if (hasAuth) {
+      headers['Authorization'] =
+        'Basic ' +
+        Buffer.from(`${device.api_user}:${device.api_password}`).toString(
+          'base64',
+        );
+    }
+
+    let res = await axios.request({
+      url,
+      method,
+      data,
+      headers,
+      timeout: this.timeoutMs,
+      httpsAgent,
+      validateStatus: () => true,
+    });
+
+    const wwwAuth = res.headers?.['www-authenticate'];
+    if (res.status === 401 && hasAuth && wwwAuth && /digest/i.test(wwwAuth)) {
+      const uri = path;
+      headers['Authorization'] = this.buildDigest(
+        device.api_user!,
+        device.api_password!,
+        String(method).toUpperCase(),
+        uri,
+        wwwAuth,
+      );
+      res = await axios.request({
+        url,
+        method,
+        data,
+        headers,
+        timeout: this.timeoutMs,
+        httpsAgent,
+        validateStatus: () => true,
+      });
+    }
+    return res;
+  }
+
+  private md5(s: string): string {
+    return crypto.createHash('md5').update(s).digest('hex');
+  }
+
+  /** Monta o header Authorization: Digest a partir do desafio WWW-Authenticate. */
+  private buildDigest(
+    user: string,
+    pass: string,
+    method: string,
+    uri: string,
+    challenge: string,
+  ): string {
+    const get = (k: string) => {
+      const m = challenge.match(new RegExp(`${k}="?([^",]+)"?`, 'i'));
+      return m ? m[1] : '';
+    };
+    const realm = get('realm');
+    const nonce = get('nonce');
+    const opaque = get('opaque');
+    const algorithm = get('algorithm') || 'MD5';
+    const qop = get('qop') ? get('qop').split(',')[0].trim() : '';
+    const ha1 = this.md5(`${user}:${realm}:${pass}`);
+    const ha2 = this.md5(`${method}:${uri}`);
+    const nc = '00000001';
+    const cnonce = crypto.randomBytes(8).toString('hex');
+    const response = qop
+      ? this.md5(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`)
+      : this.md5(`${ha1}:${nonce}:${ha2}`);
+    let h = `Digest username="${user}", realm="${realm}", nonce="${nonce}", uri="${uri}", response="${response}", algorithm=${algorithm}`;
+    if (qop) h += `, qop=${qop}, nc=${nc}, cnonce="${cnonce}"`;
+    if (opaque) h += `, opaque="${opaque}"`;
+    return h;
   }
 
   async ping(device: FacialDeviceConfig): Promise<boolean> {
+    if (this.isSim(device)) return true;
+    if (this.agent.isOnline(device.id)) {
+      const r = await this.agent.enqueue(device.id, { type: 'ping' });
+      return r.ok;
+    }
+    if (SEM_COMANDO_HTTP[device.fabricante]) return false;
     try {
-      const res = await this.http(device).get('/status');
+      // Control iD não tem /status: um login bem-sucedido prova conectividade.
+      if (device.fabricante === 'control_id') {
+        await this.controlIdLogin(device);
+        return true;
+      }
+      const res = await this.send(device, 'GET', '/status');
       return res.status >= 200 && res.status < 300;
     } catch (err: any) {
-      this.logger.warn(`Ping falhou no device ${device.id} (${device.ip}): ${err?.message ?? err}`);
+      this.logger.warn(
+        `Ping falhou no device ${device.id} (${device.ip}): ${err?.message ?? err}`,
+      );
       return false;
     }
   }
 
   /**
-   * Mapa de endpoints de "abrir porta/catraca" por fabricante.
-   *
-   * NOTA: esses paths são baseados em documentação pública conhecida.
-   * Antes de colocar em produção, valide com o manual do dispositivo
-   * específico — alguns fabricantes mudam o path entre firmwares.
-   * Quando o fabricante não está mapeado, usa o fallback POST /open_door
-   * (padrão comum de botoeiras genéricas HTTP).
+   * Endpoints de "abrir porta/catraca" por fabricante que falam HTTP (modo
+   * DIRETO). control_id é tratado à parte (sessão). zkteco/topdata/henry não
+   * entram aqui — não usam HTTP (ver SEM_COMANDO_HTTP).
    */
   private readonly relayEndpoints: Record<
     string,
     { method: 'POST' | 'PUT'; path: string; body?: any; contentType?: string }
   > = {
-    control_id: { method: 'POST', path: '/actions/open_door', body: { door_id: 1 } },
+    // NÃO VALIDADO: CGI de comando da Intelbras fica atrás do suporte técnico.
     intelbras: { method: 'POST', path: '/api/v1/door/open' },
+    // VALIDADO (ISAPI). Requer Digest auth — tratado em send().
     hikvision: {
       method: 'PUT',
       path: '/ISAPI/AccessControl/RemoteControl/door/1',
       body: '<RemoteControlDoor><cmd>open</cmd></RemoteControlDoor>',
       contentType: 'application/xml',
     },
-    henry: { method: 'POST', path: '/api/door/open' },
-    topdata: { method: 'POST', path: '/Rep/Bio.svc/AbrirPorta' },
-    zkteco: { method: 'POST', path: '/api/door/open' },
     genérico: { method: 'POST', path: '/open_door' },
   };
 
@@ -87,10 +243,7 @@ export class FacialDeviceClientService {
     error?: string;
   }> {
     // Modo simulador: ip "sim" indica botoeira virtual (HTML).
-    // Em vez de tentar HTTP num IP que não existe, registra no mock interno
-    // para o HTML do simulador exibir. Permite o operador testar a ponte
-    // ponta-a-ponta sem hardware.
-    if (device.ip === 'sim' || device.ip === 'simulador') {
+    if (this.isSim(device)) {
       try {
         const baseUrl = process.env.API_INTERNAL_URL ?? 'http://localhost:3000';
         const res = await axios.post(
@@ -105,33 +258,82 @@ export class FacialDeviceClientService {
       }
     }
 
+    // Caminho padrão em produção: delega ao Agente Local da LAN.
+    if (this.agent.isOnline(device.id)) {
+      const r = await this.agent.enqueue(device.id, { type: 'open_door' });
+      return { ok: r.ok, statusCode: r.statusCode, error: r.error };
+    }
+
+    // Fabricante que não fala HTTP — não há como acionar por requisição.
+    if (SEM_COMANDO_HTTP[device.fabricante]) {
+      return {
+        ok: false,
+        error: `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — não aceita acionamento via HTTP. Use uma botoeira/relé HTTP genérico ou um bridge SDK.`,
+      };
+    }
+
+    // Fallback: HTTP direto (backend on-premise / mesma LAN do aparelho).
     try {
-      const endpoint =
-        this.relayEndpoints[device.fabricante] ?? this.relayEndpoints['genérico'];
-      const config: any = {};
-      if (endpoint.contentType) {
-        config.headers = { 'Content-Type': endpoint.contentType };
+      if (device.fabricante === 'control_id') {
+        const session = await this.controlIdLogin(device);
+        const res = await this.http(device).post(
+          `/execute_actions.fcgi?session=${session}`,
+          { actions: [{ action: 'door', parameters: 'door=1' }] },
+        );
+        const ok = res.status >= 200 && res.status < 300;
+        return { ok, statusCode: res.status };
       }
-      const res = endpoint.method === 'PUT'
-        ? await this.http(device).put(endpoint.path, endpoint.body ?? {}, config)
-        : await this.http(device).post(endpoint.path, endpoint.body ?? {}, config);
+      const endpoint =
+        this.relayEndpoints[device.fabricante] ??
+        this.relayEndpoints['genérico'];
+      const res = await this.send(
+        device,
+        endpoint.method,
+        endpoint.path,
+        endpoint.body ?? {},
+        endpoint.contentType,
+      );
       const ok = res.status >= 200 && res.status < 300;
       return { ok, statusCode: res.status };
     } catch (err: any) {
       const statusCode = err?.response?.status;
       const msg = err?.message ?? String(err);
-      this.logger.warn(`Trigger relay falhou no device ${device.id} (${device.ip}): ${msg}`);
+      this.logger.warn(
+        `Trigger relay falhou no device ${device.id} (${device.ip}): ${msg}`,
+      );
       return { ok: false, statusCode, error: msg };
     }
   }
 
-  async enrollPerson(device: FacialDeviceConfig, payload: EnrollPayload): Promise<EnrollResult> {
-    const body = {
+  async enrollPerson(
+    device: FacialDeviceConfig,
+    payload: EnrollPayload,
+  ): Promise<EnrollResult> {
+    if (this.agent.isOnline(device.id)) {
+      const r = await this.agent.enqueue(device.id, {
+        type: 'enroll',
+        externalId: payload.externalId,
+        nome: payload.nome,
+        fotoBase64: payload.fotoBase64,
+      });
+      if (!r.ok)
+        throw new Error(r.error ?? 'Falha ao cadastrar pessoa via agente');
+      return { faceId: r.faceId ?? payload.externalId };
+    }
+
+    if (SEM_COMANDO_HTTP[device.fabricante]) {
+      throw new Error(
+        `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — cadastro de rosto não é possível via HTTP direto. Use o Agente Local com bridge SDK.`,
+      );
+    }
+    if (device.fabricante === 'control_id') {
+      return this.controlIdEnroll(device, payload);
+    }
+    const res = await this.send(device, 'POST', '/persons', {
       external_id: payload.externalId,
       name: payload.nome,
       image_base64: payload.fotoBase64,
-    };
-    const res = await this.http(device).post('/persons', body);
+    });
     const faceId = res.data?.id ?? res.data?.face_id ?? payload.externalId;
     return { faceId: String(faceId) };
   }
@@ -141,22 +343,157 @@ export class FacialDeviceClientService {
     faceId: string,
     payload: Partial<EnrollPayload>,
   ): Promise<void> {
+    if (this.agent.isOnline(device.id)) {
+      const r = await this.agent.enqueue(device.id, {
+        type: 'update',
+        faceId,
+        nome: payload.nome,
+        fotoBase64: payload.fotoBase64,
+      });
+      if (!r.ok)
+        throw new Error(r.error ?? 'Falha ao atualizar pessoa via agente');
+      return;
+    }
+
+    if (SEM_COMANDO_HTTP[device.fabricante]) {
+      throw new Error(
+        `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — atualização de rosto não é possível via HTTP direto.`,
+      );
+    }
+    if (device.fabricante === 'control_id') {
+      await this.controlIdUpdate(device, faceId, payload);
+      return;
+    }
     const body: any = {};
     if (payload.nome !== undefined) body.name = payload.nome;
-    if (payload.fotoBase64 !== undefined) body.image_base64 = payload.fotoBase64;
-    await this.http(device).put(`/persons/${faceId}`, body);
+    if (payload.fotoBase64 !== undefined)
+      body.image_base64 = payload.fotoBase64;
+    await this.send(device, 'PUT', `/persons/${faceId}`, body);
   }
 
-  async removePerson(device: FacialDeviceConfig, faceId: string): Promise<void> {
+  async removePerson(
+    device: FacialDeviceConfig,
+    faceId: string,
+  ): Promise<void> {
+    if (this.agent.isOnline(device.id)) {
+      const r = await this.agent.enqueue(device.id, { type: 'remove', faceId });
+      if (!r.ok && r.statusCode !== 404) {
+        throw new Error(r.error ?? 'Falha ao remover pessoa via agente');
+      }
+      return;
+    }
+
+    if (SEM_COMANDO_HTTP[device.fabricante]) return; // nada a fazer via HTTP
     try {
-      await this.http(device).delete(`/persons/${faceId}`);
+      if (device.fabricante === 'control_id') {
+        const session = await this.controlIdLogin(device);
+        await this.http(device).post(
+          `/destroy_objects.fcgi?session=${session}`,
+          {
+            object: 'users',
+            where: { users: { id: Number(faceId) } },
+          },
+        );
+        return;
+      }
+      const res = await this.send(device, 'DELETE', `/persons/${faceId}`);
+      if (res.status === 404) {
+        this.logger.warn(
+          `Pessoa ${faceId} já não existia no device ${device.id}`,
+        );
+      }
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 404) {
-        this.logger.warn(`Pessoa ${faceId} já não existia no device ${device.id}`);
+        this.logger.warn(
+          `Pessoa ${faceId} já não existia no device ${device.id}`,
+        );
         return;
       }
       throw err;
+    }
+  }
+
+  // ---------- Control iD (modo direto) ----------
+  //
+  // VALIDADO contra a doc oficial da API Linha de Acesso (controlid.com.br,
+  // jun/2026). Control iD usa sessão, não HTTP Basic: POST /login.fcgi
+  // {login, password} devolve { session }, que vai como ?session= nas demais
+  // chamadas. Endpoints terminam em .fcgi.
+  //   - abrir porta:    POST /execute_actions.fcgi  {actions:[{action:"door",parameters:"door=1"}]}
+  //   - criar usuário:  POST /create_objects.fcgi   {object:"users",values:[{name,registration}]} → {ids:[id]}
+  //   - foto do rosto:  POST /user_set_image.fcgi?user_id=&match=1  (octet-stream, < 2MB)
+  //   - editar:         POST /modify_objects.fcgi   {object:"users",values:{name},where:{users:{id}}}
+  //   - remover:        POST /destroy_objects.fcgi  {object:"users",where:{users:{id}}}
+  //
+  // Guardamos o id interno (ids[0]) como face_id — é por ele que o webhook
+  // resolve a pessoa (o push do aparelho só manda user_id, não registration).
+
+  private async controlIdLogin(device: FacialDeviceConfig): Promise<string> {
+    const res = await this.http(device).post('/login.fcgi', {
+      login: device.api_user ?? 'admin',
+      password: device.api_password ?? 'admin',
+    });
+    const session = res.data?.session;
+    if (!session) throw new Error('Control iD: login não retornou session');
+    return String(session);
+  }
+
+  /**
+   * Cria a pessoa no Control iD e devolve o user_id INTERNO do aparelho como
+   * face_id. Guardar o user_id (não o registration) é o que permite o webhook
+   * resolver a pessoa quando o aparelho dispara o evento (o push só manda
+   * user_id). O registration ("morador_42") fica como rótulo legível no device.
+   */
+  private async controlIdEnroll(
+    device: FacialDeviceConfig,
+    payload: EnrollPayload,
+  ): Promise<EnrollResult> {
+    const session = await this.controlIdLogin(device);
+    const http = this.http(device);
+    const registration = String(payload.externalId);
+
+    const created = await http.post(`/create_objects.fcgi?session=${session}`, {
+      object: 'users',
+      values: [{ name: payload.nome || registration, registration }],
+    });
+    const userId = created.data?.ids?.[0];
+    if (userId == null)
+      throw new Error('Control iD: create_objects não retornou id');
+
+    if (payload.fotoBase64) {
+      await http.post(
+        `/user_set_image.fcgi?session=${session}&user_id=${userId}&match=1&timestamp=${Math.floor(Date.now() / 1000)}`,
+        Buffer.from(payload.fotoBase64, 'base64'),
+        { headers: { 'Content-Type': 'application/octet-stream' } },
+      );
+    }
+
+    return { faceId: String(userId) };
+  }
+
+  /** Atualiza nome/foto no Control iD pelo user_id interno (= face_id salvo). */
+  private async controlIdUpdate(
+    device: FacialDeviceConfig,
+    faceId: string,
+    payload: Partial<EnrollPayload>,
+  ): Promise<void> {
+    const session = await this.controlIdLogin(device);
+    const http = this.http(device);
+    const userId = Number(faceId);
+    if (payload.nome !== undefined) {
+      await http.post(`/modify_objects.fcgi?session=${session}`, {
+        object: 'users',
+        values: { name: payload.nome },
+        where: { users: { id: userId } },
+      });
+    }
+    if (payload.fotoBase64 !== undefined) {
+      await http.post(
+        `/user_set_image.fcgi?session=${session}&user_id=${userId}&match=1&timestamp=${Math.floor(Date.now() / 1000)}`,
+        Buffer.from(payload.fotoBase64, 'base64'),
+        { headers: { 'Content-Type': 'application/octet-stream' } },
+      );
     }
   }
 }

@@ -9,6 +9,8 @@ export interface TerminalFacial {
   id_condominio: number;
   nome: string;
   tipo: string;
+  /** auto | entrada | saida */
+  sentido: string;
   fabricante: string;
   modelo: string | null;
   ip: string;
@@ -20,11 +22,14 @@ export interface TerminalFacial {
   ultima_sincr: string | null;
   created_at: string;
   updated_at: string;
+  /** True se há um Agente Local fazendo polling deste device agora. */
+  agent_online?: boolean;
 }
 
 export interface CreateTerminalFacial {
   nome: string;
   tipo?: string;
+  sentido?: string;
   fabricante: string;
   modelo?: string;
   ip: string;
@@ -73,7 +78,10 @@ export class TerminaisFaciaisApi {
     });
   }
 
-  update(id: number, dto: Partial<CreateTerminalFacial>): Observable<TerminalFacial> {
+  update(
+    id: number,
+    dto: Partial<CreateTerminalFacial>,
+  ): Observable<TerminalFacial> {
     return this.http.put<TerminalFacial>(`${this.base}/devices/${id}`, dto);
   }
 
@@ -82,11 +90,17 @@ export class TerminaisFaciaisApi {
   }
 
   test(id: number): Observable<{ online: boolean }> {
-    return this.http.post<{ online: boolean }>(`${this.base}/devices/${id}/test`, {});
+    return this.http.post<{ online: boolean }>(
+      `${this.base}/devices/${id}/test`,
+      {},
+    );
   }
 
   trigger(id: number): Observable<{ ok: boolean }> {
-    return this.http.post<{ ok: boolean }>(`${this.base}/devices/${id}/trigger`, {});
+    return this.http.post<{ ok: boolean }>(
+      `${this.base}/devices/${id}/trigger`,
+      {},
+    );
   }
 
   syncMorador(id: number): Observable<any> {

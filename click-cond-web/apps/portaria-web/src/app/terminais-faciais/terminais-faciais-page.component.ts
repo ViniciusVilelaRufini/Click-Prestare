@@ -108,7 +108,10 @@ export class TerminaisFaciaisPageComponent implements OnInit {
   ] as const;
 
   get tipoSelecionado() {
-    return this.tiposDispositivo.find((t) => t.value === this.form.tipo) ?? this.tiposDispositivo[0];
+    return (
+      this.tiposDispositivo.find((t) => t.value === this.form.tipo) ??
+      this.tiposDispositivo[0]
+    );
   }
 
   /**
@@ -118,7 +121,9 @@ export class TerminaisFaciaisPageComponent implements OnInit {
    */
   onTipoChange() {
     const tipoCfg = this.tipoSelecionado;
-    const fabricanteAtualValido = tipoCfg.fabricantes.some((f) => f.value === this.form.fabricante);
+    const fabricanteAtualValido = tipoCfg.fabricantes.some(
+      (f) => f.value === this.form.fabricante,
+    );
     if (!fabricanteAtualValido) {
       this.form.fabricante = tipoCfg.fabricantes[0].value;
     }
@@ -138,6 +143,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
     return {
       nome: '',
       tipo: 'facial',
+      sentido: 'auto',
       fabricante: 'control_id',
       modelo: '',
       ip: '',
@@ -145,6 +151,11 @@ export class TerminaisFaciaisPageComponent implements OnInit {
       api_user: '',
       api_password: '',
     };
+  }
+
+  // Botoeira é só acionador (não identifica pessoa), então sentido não se aplica.
+  get mostrarSentido(): boolean {
+    return this.form.tipo !== 'botoeira';
   }
 
   load() {
@@ -156,7 +167,9 @@ export class TerminaisFaciaisPageComponent implements OnInit {
       },
       error: (err) => {
         this.loading.set(false);
-        this.errorMessage.set(err?.error?.message ?? 'Falha ao carregar terminais.');
+        this.errorMessage.set(
+          err?.error?.message ?? 'Falha ao carregar terminais.',
+        );
       },
     });
   }
@@ -172,6 +185,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
     this.form = {
       nome: t.nome,
       tipo: t.tipo || 'facial',
+      sentido: t.sentido || 'auto',
       fabricante: t.fabricante,
       modelo: t.modelo ?? '',
       ip: t.ip,
@@ -192,12 +206,28 @@ export class TerminaisFaciaisPageComponent implements OnInit {
       this.errorMessage.set('Nome e IP são obrigatórios.');
       return;
     }
+    // Tipos que exigem auth (facial/catraca) precisam de usuário e senha — sem
+    // eles o terminal recusa as chamadas (401). Na edição, senha em branco
+    // significa "manter a atual", então só cobramos no cadastro.
+    if (this.tipoSelecionado.requerAuth) {
+      const senhaObrigatoria = this.editingId() == null;
+      if (
+        !this.form.api_user ||
+        (senhaObrigatoria && !this.form.api_password)
+      ) {
+        this.errorMessage.set(
+          'Usuário e senha da API são obrigatórios para este tipo de dispositivo.',
+        );
+        return;
+      }
+    }
     this.saving.set(true);
     this.errorMessage.set(null);
 
     const payload: CreateTerminalFacial = {
       nome: this.form.nome,
       tipo: this.form.tipo || 'facial',
+      sentido: this.mostrarSentido ? this.form.sentido || 'auto' : 'auto',
       fabricante: this.form.fabricante,
       modelo: this.form.modelo || undefined,
       ip: this.form.ip,
@@ -207,11 +237,14 @@ export class TerminaisFaciaisPageComponent implements OnInit {
     };
 
     const id = this.editingId();
-    const obs = id != null ? this.api.update(id, payload) : this.api.create(payload);
+    const obs =
+      id != null ? this.api.update(id, payload) : this.api.create(payload);
     obs.subscribe({
       next: () => {
         this.saving.set(false);
-        this.successMessage.set(id != null ? 'Dispositivo atualizado.' : 'Dispositivo cadastrado.');
+        this.successMessage.set(
+          id != null ? 'Dispositivo atualizado.' : 'Dispositivo cadastrado.',
+        );
         setTimeout(() => this.successMessage.set(null), 4000);
         this.closeModal();
         this.load();
@@ -231,7 +264,8 @@ export class TerminaisFaciaisPageComponent implements OnInit {
         setTimeout(() => this.successMessage.set(null), 4000);
         this.load();
       },
-      error: (err) => this.errorMessage.set(err?.error?.message ?? 'Falha ao remover.'),
+      error: (err) =>
+        this.errorMessage.set(err?.error?.message ?? 'Falha ao remover.'),
     });
   }
 
@@ -241,12 +275,16 @@ export class TerminaisFaciaisPageComponent implements OnInit {
     this.api.trigger(t.id).subscribe({
       next: () => {
         this.triggeringId.set(null);
-        this.successMessage.set(`Dispositivo "${t.nome}" acionado com sucesso.`);
+        this.successMessage.set(
+          `Dispositivo "${t.nome}" acionado com sucesso.`,
+        );
         setTimeout(() => this.successMessage.set(null), 4000);
       },
       error: (err) => {
         this.triggeringId.set(null);
-        this.errorMessage.set(err?.error?.message ?? 'Falha ao acionar dispositivo.');
+        this.errorMessage.set(
+          err?.error?.message ?? 'Falha ao acionar dispositivo.',
+        );
         setTimeout(() => this.errorMessage.set(null), 4000);
       },
     });

@@ -1,0 +1,17 @@
+{
+  "name": "click-portaria-agent",
+  "version": "1.0.0",
+  "description": "Agente Local que faz a ponte entre a nuvem e os dispositivos de controle de acesso na LAN do condomínio.",
+  "main": "index.js",
+  "bin": {
+    "click-portaria-agent": "index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

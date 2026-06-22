@@ -150,39 +150,39 @@ model Condominios {
   regrasAcesso         Regras_Acesso[]
 
   // Recorrência Automática
-  recorrencia_ativa     Boolean                   @default(false)
-  valor_condominio      Decimal                   @default(0.00) @db.Decimal(10, 2)
-  dia_geracao           Int                       @default(1)
-  dia_vencimento        Int                       @default(10)
-  categoria_padrao      String                    @default("Taxa Condominial") @db.VarChar(100)
+  recorrencia_ativa      Boolean @default(false)
+  valor_condominio       Decimal @default(0.00) @db.Decimal(10, 2)
+  dia_geracao            Int     @default(1)
+  dia_vencimento         Int     @default(10)
+  categoria_padrao       String  @default("Taxa Condominial") @db.VarChar(100)
   mes_inicio_recorrencia Int?
   ano_inicio_recorrencia Int?
-  chave_pix             String?                   @db.VarChar(255)
+  chave_pix              String? @db.VarChar(255)
 
   // Régua de Cobrança Automática
-  cobranca_auto_whats   Boolean                   @default(false)
-  dias_atraso_aviso_1   Int                       @default(1)
-  dias_atraso_aviso_2   Int                       @default(5)
-  dias_atraso_aviso_3   Int                       @default(10)
+  cobranca_auto_whats Boolean @default(false)
+  dias_atraso_aviso_1 Int     @default(1)
+  dias_atraso_aviso_2 Int     @default(5)
+  dias_atraso_aviso_3 Int     @default(10)
 
   @@index([endereco], map: "fk_cond_endereco")
 }
 
 model Apartamentos {
-  id            Int                          @id @default(autoincrement())
-  bloco         String?                      @db.VarChar(50)
-  apto          String?                      @db.VarChar(50)
-  fracao        String?                      @db.VarChar(50)
-  id_condominio Int
-  ignorar_recorrencia Boolean                @default(false)
-  created_at    DateTime                     @default(now()) @db.DateTime(0)
-  updated_at    DateTime                     @default(now()) @updatedAt @db.DateTime(0)
-  condominio    Condominios                  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_apto_cond")
-  users         Apartamentos_Users[]
-  agendamentos  Areas_Sociais_Agendamentos[]
-  mudancas      Mudancas[]
-  visitantes    Visitantes[]
-  prestadores   Prestadores_servico[]
+  id                  Int                          @id @default(autoincrement())
+  bloco               String?                      @db.VarChar(50)
+  apto                String?                      @db.VarChar(50)
+  fracao              String?                      @db.VarChar(50)
+  id_condominio       Int
+  ignorar_recorrencia Boolean                      @default(false)
+  created_at          DateTime                     @default(now()) @db.DateTime(0)
+  updated_at          DateTime                     @default(now()) @updatedAt @db.DateTime(0)
+  condominio          Condominios                  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_apto_cond")
+  users               Apartamentos_Users[]
+  agendamentos        Areas_Sociais_Agendamentos[]
+  mudancas            Mudancas[]
+  visitantes          Visitantes[]
+  prestadores         Prestadores_servico[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
 }
@@ -215,32 +215,32 @@ model Sindicos_Condominios {
 }
 
 model Moradores {
-  id              Int          @id @default(autoincrement())
-  nome            String       @db.VarChar(255)
-  documento       String?      @db.VarChar(50)
-  email           String?      @db.VarChar(255)
-  telefone        String?      @db.VarChar(50)
-  data_nascimento DateTime?    @db.Date
-  id_user         Int
-  tipo            String?      @db.VarChar(50)
-  bloco           String?      @db.VarChar(50)
-  apartamento     String?      @db.VarChar(50)
-  id_condominio   Int?
-  extra1          String?      @db.VarChar(255)
-  extra2          String?      @db.VarChar(255)
-  extra3          String?      @db.VarChar(255)
-  extra4          String?      @db.VarChar(255)
-  foto_pessoa     String?      @db.LongText
-  foto_documento  String?      @db.LongText
-  face_id          String?     @db.VarChar(100)
-  face_enrolled_at DateTime?   @db.DateTime(0)
-  face_sync_status String?     @db.VarChar(20)
-  tag_rfid         String?     @db.VarChar(50)
-  qrcode_acesso    String?     @db.VarChar(100)
-  created_at      DateTime     @default(now()) @db.DateTime(0)
-  updated_at      DateTime     @default(now()) @updatedAt @db.DateTime(0)
-  condominio      Condominios? @relation(fields: [id_condominio], references: [id], map: "fk_mor_cond")
-  user            Users        @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_mor_user")
+  id               Int          @id @default(autoincrement())
+  nome             String       @db.VarChar(255)
+  documento        String?      @db.VarChar(50)
+  email            String?      @db.VarChar(255)
+  telefone         String?      @db.VarChar(50)
+  data_nascimento  DateTime?    @db.Date
+  id_user          Int
+  tipo             String?      @db.VarChar(50)
+  bloco            String?      @db.VarChar(50)
+  apartamento      String?      @db.VarChar(50)
+  id_condominio    Int?
+  extra1           String?      @db.VarChar(255)
+  extra2           String?      @db.VarChar(255)
+  extra3           String?      @db.VarChar(255)
+  extra4           String?      @db.VarChar(255)
+  foto_pessoa      String?      @db.LongText
+  foto_documento   String?      @db.LongText
+  face_id          String?      @db.VarChar(100)
+  face_enrolled_at DateTime?    @db.DateTime(0)
+  face_sync_status String?      @db.VarChar(20)
+  tag_rfid         String?      @db.VarChar(50)
+  qrcode_acesso    String?      @db.VarChar(100)
+  created_at       DateTime     @default(now()) @db.DateTime(0)
+  updated_at       DateTime     @default(now()) @updatedAt @db.DateTime(0)
+  condominio       Condominios? @relation(fields: [id_condominio], references: [id], map: "fk_mor_cond")
+  user             Users        @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_mor_user")
 
   @@index([id_user])
   @@index([id_condominio])
@@ -529,19 +529,19 @@ model Visitantes {
 }
 
 model Prestadores_servico {
-  id            Int         @id @default(autoincrement())
-  nome          String      @db.VarChar(255)
-  telefone      String?     @db.VarChar(50)
-  categorias    String?     @db.VarChar(500)
-  id_condominio Int
+  id             Int           @id @default(autoincrement())
+  nome           String        @db.VarChar(255)
+  telefone       String?       @db.VarChar(50)
+  categorias     String?       @db.VarChar(500)
+  id_condominio  Int
   id_apartamento Int?
-  foto_documento String?     @db.LongText
-  foto_pessoa    String?     @db.LongText
-  dias_semana    String?     @db.VarChar(100)
-  created_at    DateTime    @default(now()) @db.DateTime(0)
-  updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
-  condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_prest_cond")
-  apartamento   Apartamentos? @relation(fields: [id_apartamento], references: [id], onDelete: SetNull, map: "fk_prest_apto")
+  foto_documento String?       @db.LongText
+  foto_pessoa    String?       @db.LongText
+  dias_semana    String?       @db.VarChar(100)
+  created_at     DateTime      @default(now()) @db.DateTime(0)
+  updated_at     DateTime      @default(now()) @updatedAt @db.DateTime(0)
+  condominio     Condominios   @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_prest_cond")
+  apartamento    Apartamentos? @relation(fields: [id_apartamento], references: [id], onDelete: SetNull, map: "fk_prest_apto")
 
   @@index([id_condominio])
   @@index([id_apartamento])
@@ -591,13 +591,13 @@ model Ocorrencias {
 }
 
 model OcorrenciaMensagens {
-  id             Int         @id @default(autoincrement())
-  id_ocorrencia  Int
-  id_usuario     Int
-  mensagem       String      @db.Text
-  created_at     DateTime    @default(now()) @db.DateTime(0)
-  ocorrencia     Ocorrencias @relation(fields: [id_ocorrencia], references: [id], onDelete: Cascade, map: "fk_msg_oco")
-  usuario        Users       @relation(fields: [id_usuario], references: [id], onDelete: Cascade, map: "fk_msg_user", name: "MensagemUsuario")
+  id            Int         @id @default(autoincrement())
+  id_ocorrencia Int
+  id_usuario    Int
+  mensagem      String      @db.Text
+  created_at    DateTime    @default(now()) @db.DateTime(0)
+  ocorrencia    Ocorrencias @relation(fields: [id_ocorrencia], references: [id], onDelete: Cascade, map: "fk_msg_oco")
+  usuario       Users       @relation(fields: [id_usuario], references: [id], onDelete: Cascade, map: "fk_msg_user", name: "MensagemUsuario")
 
   @@index([id_ocorrencia], map: "fk_msg_oco")
   @@index([id_usuario], map: "fk_msg_user")
@@ -635,30 +635,30 @@ model Financeiro {
 }
 
 model Encomendas {
-  id                 Int         @id @default(autoincrement())
-  descricao          String      @db.VarChar(500)
-  destinatario_apto  String      @db.VarChar(50)
-  destinatario_bloco String?     @db.VarChar(50)
-  recebido_de        String?     @db.VarChar(255)
-  recebido_em        DateTime    @default(now()) @db.DateTime(0)
-  retirado_em        DateTime?   @db.DateTime(0)
-  retirado_por       String?     @db.VarChar(255)
-  retirado_assinatura String?    @db.LongText
-  retirado_doc       String?     @db.VarChar(50)
-  retirado_foto      String?     @db.LongText
-  status             String      @default("Aguardando") @db.VarChar(20)
-  foto_volume        String?     @db.VarChar(500)
-  notificado         Int?        @default(0) @db.TinyInt
-  notificado_em      DateTime?   @db.DateTime(0)
-  codigo_rastreio    String?     @db.VarChar(255)
-  id_condominio      Int
-  recebido_por_user  Int?
-  entregue_por_user  Int?
-  created_at         DateTime    @default(now()) @db.DateTime(0)
-  updated_at         DateTime    @default(now()) @updatedAt @db.DateTime(0)
-  condominio         Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_enc_cond")
-  entreguePor        Users?      @relation("EncomendaEntreguePor", fields: [entregue_por_user], references: [id], map: "fk_enc_entregue")
-  recebidoPor        Users?      @relation("EncomendaRecebidaPor", fields: [recebido_por_user], references: [id], map: "fk_enc_recebido")
+  id                  Int         @id @default(autoincrement())
+  descricao           String      @db.VarChar(500)
+  destinatario_apto   String      @db.VarChar(50)
+  destinatario_bloco  String?     @db.VarChar(50)
+  recebido_de         String?     @db.VarChar(255)
+  recebido_em         DateTime    @default(now()) @db.DateTime(0)
+  retirado_em         DateTime?   @db.DateTime(0)
+  retirado_por        String?     @db.VarChar(255)
+  retirado_assinatura String?     @db.LongText
+  retirado_doc        String?     @db.VarChar(50)
+  retirado_foto       String?     @db.LongText
+  status              String      @default("Aguardando") @db.VarChar(20)
+  foto_volume         String?     @db.VarChar(500)
+  notificado          Int?        @default(0) @db.TinyInt
+  notificado_em       DateTime?   @db.DateTime(0)
+  codigo_rastreio     String?     @db.VarChar(255)
+  id_condominio       Int
+  recebido_por_user   Int?
+  entregue_por_user   Int?
+  created_at          DateTime    @default(now()) @db.DateTime(0)
+  updated_at          DateTime    @default(now()) @updatedAt @db.DateTime(0)
+  condominio          Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_enc_cond")
+  entreguePor         Users?      @relation("EncomendaEntreguePor", fields: [entregue_por_user], references: [id], map: "fk_enc_entregue")
+  recebidoPor         Users?      @relation("EncomendaRecebidaPor", fields: [recebido_por_user], references: [id], map: "fk_enc_recebido")
 
   @@index([id_condominio, status])
   @@index([entregue_por_user], map: "fk_enc_entregue")
@@ -865,73 +865,78 @@ model FechamentoMensal {
 }
 
 model Facial_Devices {
-  id            Int         @id @default(autoincrement())
+  id            Int                   @id @default(autoincrement())
   id_condominio Int
-  nome          String      @db.VarChar(100)
-  tipo          String      @default("facial") @db.VarChar(30)
-  fabricante    String      @db.VarChar(50)
-  modelo        String?     @db.VarChar(100)
-  ip            String      @db.VarChar(45)
-  porta         Int         @default(80)
-  api_user      String?     @db.VarChar(100)
-  api_password  String?     @db.VarChar(255)
-  webhook_token String      @db.VarChar(255)
-  ativo         Int         @default(1) @db.TinyInt
-  ultima_sincr  DateTime?   @db.DateTime(0)
-  created_at    DateTime    @default(now()) @db.DateTime(0)
-  updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
-  condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
+  nome          String                @db.VarChar(100)
+  tipo          String                @default("facial") @db.VarChar(30)
+  // Como interpretar a direção dos acessos deste terminal:
+  //   auto    → usa a direção que o aparelho informar (default; entrada se omitir)
+  //   entrada → terminal de ENTRADA: todo acesso conta como entrada
+  //   saida   → terminal de SAÍDA: todo acesso dá baixa (registra saída)
+  sentido       String                @default("auto") @db.VarChar(20)
+  fabricante    String                @db.VarChar(50)
+  modelo        String?               @db.VarChar(100)
+  ip            String                @db.VarChar(45)
+  porta         Int                   @default(80)
+  api_user      String?               @db.VarChar(100)
+  api_password  String?               @db.VarChar(255)
+  webhook_token String                @db.VarChar(255)
+  ativo         Int                   @default(1) @db.TinyInt
+  ultima_sincr  DateTime?             @db.DateTime(0)
+  created_at    DateTime              @default(now()) @db.DateTime(0)
+  updated_at    DateTime              @default(now()) @updatedAt @db.DateTime(0)
+  condominio    Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
   regras        Regras_Dispositivos[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
 }
 
 model Acessos_Facial {
-  id            Int         @id @default(autoincrement())
-  id_condominio Int
-  id_device     Int
-  tipo_dispositivo String   @default("facial") @db.VarChar(30)
-  face_id       String      @db.VarChar(100)
-  tipo_pessoa   String      @db.VarChar(20)
-  id_pessoa     Int?
-  nome_pessoa   String      @db.VarChar(255)
-  evento        String      @db.VarChar(20)
-  confianca     Float?
-  timestamp     DateTime    @db.DateTime(0)
-  created_at    DateTime    @default(now()) @db.DateTime(0)
-  condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_acfac_cond")
+  id               Int         @id @default(autoincrement())
+  id_condominio    Int
+  id_device        Int
+  tipo_dispositivo String      @default("facial") @db.VarChar(30)
+  face_id          String      @db.VarChar(100)
+  tipo_pessoa      String      @db.VarChar(20)
+  id_pessoa        Int?
+  nome_pessoa      String      @db.VarChar(255)
+  evento           String      @db.VarChar(20)
+  confianca        Float?
+  timestamp        DateTime    @db.DateTime(0)
+  created_at       DateTime    @default(now()) @db.DateTime(0)
+  condominio       Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_acfac_cond")
 
   @@index([id_condominio, timestamp], map: "idx_acfac_cond_ts")
   @@index([id_pessoa, tipo_pessoa], map: "idx_acfac_pessoa")
 }
 
 model Regras_Acesso {
-  id              Int               @id @default(autoincrement())
-  id_condominio   Int
-  nome            String            @db.VarChar(150)
-  descricao       String?           @db.VarChar(255)
-  permitir_morador Int              @default(1) @db.TinyInt
-  permitir_visitante Int            @default(0) @db.TinyInt
-  permitir_prestador Int            @default(0) @db.TinyInt
-  permitir_funcionario Int          @default(0) @db.TinyInt
-  sentido         String            @default("ambos") @db.VarChar(20)
-  hora_inicio     String?           @db.VarChar(5)
-  hora_fim        String?           @db.VarChar(5)
-  ativo           Int               @default(1) @db.TinyInt
-  created_at      DateTime          @default(now()) @db.DateTime(0)
-  updated_at      DateTime          @default(now()) @updatedAt @db.DateTime(0)
-  condominio      Condominios       @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_regac_cond")
-  dispositivos    Regras_Dispositivos[]
+  id                   Int                   @id @default(autoincrement())
+  id_condominio        Int
+  nome                 String                @db.VarChar(150)
+  descricao            String?               @db.VarChar(255)
+  permitir_morador     Int                   @default(1) @db.TinyInt
+  permitir_visitante   Int                   @default(0) @db.TinyInt
+  permitir_prestador   Int                   @default(0) @db.TinyInt
+  permitir_funcionario Int                   @default(0) @db.TinyInt
+  sentido              String                @default("ambos") @db.VarChar(20)
+  hora_inicio          String?               @db.VarChar(5)
+  hora_fim             String?               @db.VarChar(5)
+  ativo                Int                   @default(1) @db.TinyInt
+  created_at           DateTime              @default(now()) @db.DateTime(0)
+  updated_at           DateTime              @default(now()) @updatedAt @db.DateTime(0)
+  condominio           Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_regac_cond")
+  dispositivos         Regras_Dispositivos[]
 
   @@index([id_condominio], map: "idx_regac_cond")
   @@map("regras_acesso")
 }
 
 model Regras_Dispositivos {
-  id_regra      Int
+  id_regra       Int
   id_dispositivo Int
-  regra         Regras_Acesso   @relation(fields: [id_regra], references: [id], onDelete: Cascade, map: "fk_regdisp_reg")
-  dispositivo   Facial_Devices  @relation(fields: [id_dispositivo], references: [id], onDelete: Cascade, map: "fk_regdisp_disp")
+  regra          Regras_Acesso  @relation(fields: [id_regra], references: [id], onDelete: Cascade, map: "fk_regdisp_reg")
+  dispositivo    Facial_Devices @relation(fields: [id_dispositivo], references: [id], onDelete: Cascade, map: "fk_regdisp_disp")
 
   @@id([id_regra, id_dispositivo])
   @@index([id_dispositivo], map: "idx_regdisp_disp")

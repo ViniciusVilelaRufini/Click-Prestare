@@ -17,11 +17,14 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertSameTenant } from '../auth/tenant.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AccessStateService } from './access-state.service';
+import { AgentBridgeService } from './agent-bridge.service';
 
 export interface CreateDeviceDto {
   id_condominio: number;
   nome: string;
   tipo?: string;
+  /** auto | entrada | saida — como interpretar a direção dos acessos. */
+  sentido?: string;
   fabricante: string;
   modelo?: string;
   ip: string;
@@ -44,7 +47,11 @@ export interface WebhookEventDto {
   qrcode?: string;
 }
 
-const FACIAL_ENABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'true';
+// O enrollment liga AUTOMATICAMENTE quando há terminal facial cadastrado — a
+// própria existência de devices (checada em cada sync) controla o fluxo, então
+// não precisa de flag manual para "começar a funcionar". FACIAL_INTEGRATION_ENABLED
+// vira um kill-switch explícito: só desliga tudo quando setado para "false".
+const FACIAL_DISABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'false';
 
 @Injectable()
 export class FacialService {
@@ -57,6 +64,7 @@ export class FacialService {
     private readonly enrollSessions: EnrollSessionService,
     private readonly auditoria: AuditoriaService,
     private readonly accessState: AccessStateService,
+    private readonly agent: AgentBridgeService,
   ) {}
 
   // ---------- Enrollment guiado (RFID/QR) ----------
@@ -113,7 +121,8 @@ export class FacialService {
       where: { id: idVisitante },
       select: { id_condominio: true },
     });
-    if (!v) throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
+    if (!v)
+      throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
     assertSameTenant(v.id_condominio, user, `visitante #${idVisitante}`);
   }
 
@@ -121,10 +130,16 @@ export class FacialService {
 
   async listDevices(idCondominio: number) {
     if (!this.prisma.isConnected) return [];
-    return this.prisma.facial_Devices.findMany({
+    const devices = await this.prisma.facial_Devices.findMany({
       where: { id_condominio: idCondominio },
       orderBy: { created_at: 'desc' },
     });
+    // agent_online: indica se há um Agente Local fazendo polling deste device
+    // agora. É o sinal de "está pronto para receber comandos da nuvem".
+    return devices.map((d) => ({
+      ...d,
+      agent_online: this.agent.isOnline(d.id),
+    }));
   }
 
   async getDevice(id: number) {
@@ -148,6 +163,7 @@ export class FacialService {
         id_condominio: dto.id_condominio,
         nome: dto.nome,
         tipo: dto.tipo ?? 'facial',
+        sentido: dto.sentido ?? 'auto',
         fabricante: dto.fabricante,
         modelo: dto.modelo ?? null,
         ip: dto.ip,
@@ -164,7 +180,11 @@ export class FacialService {
       modulo: 'facial',
       entidade_id: created.id,
       descricao: `Cadastrou dispositivo "${created.nome}" (${created.tipo})`,
-      detalhes: { tipo: created.tipo, fabricante: created.fabricante, ip: created.ip },
+      detalhes: {
+        tipo: created.tipo,
+        fabricante: created.fabricante,
+        ip: created.ip,
+      },
     });
     return created;
   }
@@ -176,23 +196,35 @@ export class FacialService {
       data: {
         ...(dto.nome !== undefined && { nome: dto.nome }),
         ...(dto.tipo !== undefined && { tipo: dto.tipo }),
+        ...(dto.sentido !== undefined && { sentido: dto.sentido }),
         ...(dto.fabricante !== undefined && { fabricante: dto.fabricante }),
         ...(dto.modelo !== undefined && { modelo: dto.modelo }),
         ...(dto.ip !== undefined && { ip: dto.ip }),
         ...(dto.porta !== undefined && { porta: dto.porta }),
         ...(dto.api_user !== undefined && { api_user: dto.api_user }),
-        ...(dto.api_password !== undefined && { api_password: dto.api_password }),
+        ...(dto.api_password !== undefined && {
+          api_password: dto.api_password,
+        }),
       },
     });
     // Detalha o que mudou (campos sensíveis: ip/porta/tipo/api_user — mudança
     // pode redirecionar a abertura para hardware diferente).
     const diff: Record<string, { de: any; para: any }> = {};
-    for (const k of ['nome', 'tipo', 'fabricante', 'ip', 'porta', 'api_user'] as const) {
+    for (const k of [
+      'nome',
+      'tipo',
+      'sentido',
+      'fabricante',
+      'ip',
+      'porta',
+      'api_user',
+    ] as const) {
       if (dto[k] !== undefined && (antes as any)[k] !== (atual as any)[k]) {
         diff[k] = { de: (antes as any)[k], para: (atual as any)[k] };
       }
     }
-    if (dto.api_password !== undefined) diff['api_password'] = { de: '***', para: '***' };
+    if (dto.api_password !== undefined)
+      diff['api_password'] = { de: '***', para: '***' };
     await this.auditoria.registrar({
       id_condominio: atual.id_condominio,
       usuario_nome: operador?.nome ?? 'sistema',
@@ -229,7 +261,9 @@ export class FacialService {
   async triggerDevice(id: number, operador?: JwtPayload) {
     const device = await this.getDevice(id);
     if (device.tipo !== 'botoeira' && device.tipo !== 'catraca') {
-      throw new BadRequestException('Apenas dispositivos do tipo Botoeira ou Catraca podem ser acionados remotamente.');
+      throw new BadRequestException(
+        'Apenas dispositivos do tipo Botoeira ou Catraca podem ser acionados remotamente.',
+      );
     }
     const result = await this.client.triggerRelay(this.toConfig(device));
 
@@ -362,7 +396,9 @@ export class FacialService {
         const b64 = Buffer.from(res.data).toString('base64');
         return `data:${mime};base64,${b64}`;
       } catch (err: any) {
-        this.logger.warn(`Falha ao baixar foto ${foto}: ${err?.message ?? err}`);
+        this.logger.warn(
+          `Falha ao baixar foto ${foto}: ${err?.message ?? err}`,
+        );
         return null;
       }
     }
@@ -373,11 +409,15 @@ export class FacialService {
   // ---------- Sync ----------
 
   async syncMorador(idMorador: number) {
-    if (!FACIAL_ENABLED) return { skipped: true, reason: 'integration_disabled' };
+    if (FACIAL_DISABLED)
+      return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
 
-    const morador = await this.prisma.moradores.findUnique({ where: { id: idMorador } });
-    if (!morador) throw new NotFoundException(`Morador ${idMorador} não encontrado`);
+    const morador = await this.prisma.moradores.findUnique({
+      where: { id: idMorador },
+    });
+    if (!morador)
+      throw new NotFoundException(`Morador ${idMorador} não encontrado`);
     if (!morador.foto_pessoa) {
       return { skipped: true, reason: 'no_photo' };
     }
@@ -422,7 +462,9 @@ export class FacialService {
         devicesSincronizados.push(device.id);
       } catch (err: any) {
         allOk = false;
-        this.logger.warn(`Sync morador ${idMorador} device ${device.id} falhou: ${err?.message ?? err}`);
+        this.logger.warn(
+          `Sync morador ${idMorador} device ${device.id} falhou: ${err?.message ?? err}`,
+        );
       }
     }
 
@@ -436,7 +478,9 @@ export class FacialService {
           data: { ultima_sincr: agora },
         })
         .catch((err) =>
-          this.logger.warn(`Falha ao atualizar ultima_sincr (morador ${idMorador}): ${err?.message ?? err}`),
+          this.logger.warn(
+            `Falha ao atualizar ultima_sincr (morador ${idMorador}): ${err?.message ?? err}`,
+          ),
         );
     }
 
@@ -453,11 +497,15 @@ export class FacialService {
   }
 
   async syncVisitante(idVisitante: number) {
-    if (!FACIAL_ENABLED) return { skipped: true, reason: 'integration_disabled' };
+    if (FACIAL_DISABLED)
+      return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
 
-    const visitante = await this.prisma.visitantes.findUnique({ where: { id: idVisitante } });
-    if (!visitante) throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
+    const visitante = await this.prisma.visitantes.findUnique({
+      where: { id: idVisitante },
+    });
+    if (!visitante)
+      throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
     if (!visitante.foto_pessoa) {
       return { skipped: true, reason: 'no_photo' };
     }
@@ -465,7 +513,11 @@ export class FacialService {
     // Só terminais faciais recebem cadastro de pessoa (foto + face_id).
     // Botoeira/catraca/QR/RFID não armazenam biometria.
     const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: visitante.id_condominio, ativo: 1, tipo: 'facial' },
+      where: {
+        id_condominio: visitante.id_condominio,
+        ativo: 1,
+        tipo: 'facial',
+      },
     });
     if (devices.length === 0) {
       return { skipped: true, reason: 'no_facial_devices' };
@@ -499,7 +551,9 @@ export class FacialService {
         devicesSincronizados.push(device.id);
       } catch (err: any) {
         allOk = false;
-        this.logger.warn(`Sync visitante ${idVisitante} device ${device.id} falhou: ${err?.message ?? err}`);
+        this.logger.warn(
+          `Sync visitante ${idVisitante} device ${device.id} falhou: ${err?.message ?? err}`,
+        );
       }
     }
 
@@ -512,7 +566,9 @@ export class FacialService {
           data: { ultima_sincr: agora },
         })
         .catch((err) =>
-          this.logger.warn(`Falha ao atualizar ultima_sincr (visitante ${idVisitante}): ${err?.message ?? err}`),
+          this.logger.warn(
+            `Falha ao atualizar ultima_sincr (visitante ${idVisitante}): ${err?.message ?? err}`,
+          ),
         );
     }
 
@@ -528,8 +584,12 @@ export class FacialService {
     return { ok: allOk, face_id: faceId };
   }
 
-  async unsyncMorador(idMorador: number, faceId: string | null, idCondominio: number | null) {
-    if (!FACIAL_ENABLED || !faceId || !idCondominio) return;
+  async unsyncMorador(
+    idMorador: number,
+    faceId: string | null,
+    idCondominio: number | null,
+  ) {
+    if (FACIAL_DISABLED || !faceId || !idCondominio) return;
     // Mesmo critério do sync: só terminais faciais têm /persons.
     const devices = await this.prisma.facial_Devices.findMany({
       where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial' },
@@ -538,13 +598,19 @@ export class FacialService {
       try {
         await this.client.removePerson(this.toConfig(device), faceId);
       } catch (err: any) {
-        this.logger.warn(`Remoção morador ${idMorador} device ${device.id}: ${err?.message ?? err}`);
+        this.logger.warn(
+          `Remoção morador ${idMorador} device ${device.id}: ${err?.message ?? err}`,
+        );
       }
     }
   }
 
-  async unsyncVisitante(idVisitante: number, faceId: string | null, idCondominio: number) {
-    if (!FACIAL_ENABLED || !faceId) return;
+  async unsyncVisitante(
+    idVisitante: number,
+    faceId: string | null,
+    idCondominio: number,
+  ) {
+    if (FACIAL_DISABLED || !faceId) return;
     // Mesmo critério do sync: só terminais faciais têm /persons.
     const devices = await this.prisma.facial_Devices.findMany({
       where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial' },
@@ -553,7 +619,9 @@ export class FacialService {
       try {
         await this.client.removePerson(this.toConfig(device), faceId);
       } catch (err: any) {
-        this.logger.warn(`Remoção visitante ${idVisitante} device ${device.id}: ${err?.message ?? err}`);
+        this.logger.warn(
+          `Remoção visitante ${idVisitante} device ${device.id}: ${err?.message ?? err}`,
+        );
       }
     }
   }
@@ -566,33 +634,60 @@ export class FacialService {
     });
     if (!device) throw new UnauthorizedException('Token de webhook inválido');
 
-    let tipoPessoa: 'morador' | 'visitante' | 'prestador' | 'funcionario' | null = null;
+    // Aceita o push nativo do Control iD (formato Monitor "object_changes")
+    // além do nosso formato limpo. Converte para WebhookEventDto antes de seguir.
+    const normalizado = this.normalizeControlIdPayload(payload as unknown);
+    if (normalizado) payload = normalizado;
+
+    let tipoPessoa:
+      | 'morador'
+      | 'visitante'
+      | 'prestador'
+      | 'funcionario'
+      | null = null;
     let idPessoa: number | null = null;
     let nomePessoa = 'Desconhecido';
     let faceIdSalvo = '';
     const confianca = payload.confidence ?? null;
-    const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date();
-    const evento = this.normalizeEvento(payload.event, payload.direction);
+    const timestamp = payload.timestamp
+      ? new Date(payload.timestamp)
+      : new Date();
+    const evento = this.resolveEvento(device.sentido, payload);
 
-    const qrCodeLido = payload.qrcode ?? (device.tipo === 'qrcode_reader' ? payload.external_id : undefined);
-    const tagRfidLida = payload.card_uid ?? (device.tipo === 'tag_reader' ? payload.external_id : undefined);
+    const qrCodeLido =
+      payload.qrcode ??
+      (device.tipo === 'qrcode_reader' ? payload.external_id : undefined);
+    const tagRfidLida =
+      payload.card_uid ??
+      (device.tipo === 'tag_reader' ? payload.external_id : undefined);
     const externalId = payload.external_id ?? payload.person_id ?? '';
 
     // Cooldown: descarta eventos duplicados do mesmo leitor para a mesma
     // credencial dentro da janela (default 15s). Protege contra leitor com
     // defeito disparando em loop e contra usuário batendo o crachá duas vezes.
     const credencial = qrCodeLido ?? tagRfidLida ?? externalId ?? '';
-    if (credencial && this.accessState.shouldDebounce(device.id, credencial, evento)) {
-      this.logger.debug(`Webhook ignorado por cooldown: device ${device.id}, credencial ${credencial}`);
+    if (
+      credencial &&
+      this.accessState.shouldDebounce(device.id, credencial, evento)
+    ) {
+      this.logger.debug(
+        `Webhook ignorado por cooldown: device ${device.id}, credencial ${credencial}`,
+      );
       return { ok: true, debounced: true };
     }
 
     if (qrCodeLido) {
       const morador = await this.prisma.moradores.findFirst({
-        where: { qrcode_acesso: qrCodeLido, id_condominio: device.id_condominio }
+        where: {
+          qrcode_acesso: qrCodeLido,
+          id_condominio: device.id_condominio,
+        },
       });
       if (morador) {
-        tipoPessoa = morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
+        tipoPessoa =
+          morador.tipo?.toLowerCase() === 'funcionario'
+            ? 'funcionario'
+            : 'morador';
         idPessoa = morador.id;
         nomePessoa = morador.nome;
         faceIdSalvo = qrCodeLido;
@@ -610,10 +705,13 @@ export class FacialService {
       }
     } else if (tagRfidLida) {
       const morador = await this.prisma.moradores.findFirst({
-        where: { tag_rfid: tagRfidLida, id_condominio: device.id_condominio }
+        where: { tag_rfid: tagRfidLida, id_condominio: device.id_condominio },
       });
       if (morador) {
-        tipoPessoa = morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
+        tipoPessoa =
+          morador.tipo?.toLowerCase() === 'funcionario'
+            ? 'funcionario'
+            : 'morador';
         idPessoa = morador.id;
         nomePessoa = morador.nome;
         faceIdSalvo = tagRfidLida;
@@ -632,20 +730,49 @@ export class FacialService {
     } else if (externalId) {
       const parsed = this.parseExternalId(externalId);
       if (parsed.tipo === 'morador') {
-        const m = await this.prisma.moradores.findUnique({ where: { id: parsed.id } });
+        const m = await this.prisma.moradores.findUnique({
+          where: { id: parsed.id },
+        });
         if (m) {
-          tipoPessoa = m.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
+          tipoPessoa =
+            m.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
           idPessoa = m.id;
           nomePessoa = m.nome;
           faceIdSalvo = m.face_id ?? externalId;
         }
       } else if (parsed.tipo === 'visitante') {
-        const v = await this.prisma.visitantes.findUnique({ where: { id: parsed.id } });
+        const v = await this.prisma.visitantes.findUnique({
+          where: { id: parsed.id },
+        });
         if (v) {
           tipoPessoa = v.is_prestador === 1 ? 'prestador' : 'visitante';
           idPessoa = v.id;
           nomePessoa = v.nome;
           faceIdSalvo = v.face_id ?? externalId;
+        }
+      } else {
+        // Identificador fora do padrão morador_X/visitante_X (ex.: user_id
+        // numérico do Control iD) — resolve pela coluna face_id, que o
+        // enrollment grava com o id interno do aparelho.
+        const m = await this.prisma.moradores.findFirst({
+          where: { face_id: externalId, id_condominio: device.id_condominio },
+        });
+        if (m) {
+          tipoPessoa =
+            m.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
+          idPessoa = m.id;
+          nomePessoa = m.nome;
+          faceIdSalvo = m.face_id ?? externalId;
+        } else {
+          const v = await this.prisma.visitantes.findFirst({
+            where: { face_id: externalId, id_condominio: device.id_condominio },
+          });
+          if (v) {
+            tipoPessoa = v.is_prestador === 1 ? 'prestador' : 'visitante';
+            idPessoa = v.id;
+            nomePessoa = v.nome;
+            faceIdSalvo = v.face_id ?? externalId;
+          }
         }
       }
     }
@@ -654,15 +781,24 @@ export class FacialService {
       // Antes de negar, checa se há uma sessão de enrollment aguardando
       // capturar um UID/QR justamente para este leitor. Se sim, desvia o
       // valor para a sessão e responde "captured" sem registrar como acesso.
-      const isLeitor = device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
+      const isLeitor =
+        device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
       const valorLido = qrCodeLido ?? tagRfidLida ?? externalId;
       if (isLeitor && valorLido) {
-        const captured = this.enrollSessions.consumeForDevice(device.id, valorLido);
+        const captured = this.enrollSessions.consumeForDevice(
+          device.id,
+          valorLido,
+        );
         if (captured) {
           this.logger.log(
             `Enrollment capture: sessão ${captured.id} recebeu ${valorLido} no device ${device.id}`,
           );
-          return { ok: true, captured: true, sessionId: captured.id, value: valorLido };
+          return {
+            ok: true,
+            captured: true,
+            sessionId: captured.id,
+            value: valorLido,
+          };
         }
       }
 
@@ -680,24 +816,34 @@ export class FacialService {
           timestamp,
         },
       });
-      throw new BadRequestException('Acesso negado: Credencial não encontrada ou inválida');
+      throw new BadRequestException(
+        'Acesso negado: Credencial não encontrada ou inválida',
+      );
     }
 
     // Regra: Visitantes e Prestadores só podem acessar se a entrada foi ativamente liberada/registrada via app ou web
     if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
-      const v = await this.prisma.visitantes.findUnique({ where: { id: idPessoa } });
+      const v = await this.prisma.visitantes.findUnique({
+        where: { id: idPessoa },
+      });
       if (!v) {
-        throw new NotFoundException('Cadastro de visitante/prestador não encontrado');
+        throw new NotFoundException(
+          'Cadastro de visitante/prestador não encontrado',
+        );
       }
 
       if (evento === 'entrada') {
         // Validação de janela temporal (Vigência da visita/agendamento)
         const now = timestamp;
         const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
-        const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : null;
+        const termino = v.data_hora_termino
+          ? new Date(v.data_hora_termino)
+          : null;
 
         const GRACE_PERIOD_MS = 15 * 60 * 1000;
-        const inicioComTolerancia = new Date(inicio.getTime() - GRACE_PERIOD_MS);
+        const inicioComTolerancia = new Date(
+          inicio.getTime() - GRACE_PERIOD_MS,
+        );
 
         if (now < inicioComTolerancia) {
           await this.prisma.acessos_Facial.create({
@@ -705,7 +851,12 @@ export class FacialService {
               id_condominio: device.id_condominio,
               id_device: device.id,
               tipo_dispositivo: device.tipo,
-              face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+              face_id:
+                faceIdSalvo ||
+                qrCodeLido ||
+                tagRfidLida ||
+                externalId ||
+                'desconhecido',
               tipo_pessoa: tipoPessoa,
               id_pessoa: idPessoa,
               nome_pessoa: `${nomePessoa} (Bloqueado por validade futura)`,
@@ -715,12 +866,14 @@ export class FacialService {
             },
           });
           throw new BadRequestException(
-            'Acesso negado: O período de validade desta autorização ainda não iniciou.'
+            'Acesso negado: O período de validade desta autorização ainda não iniciou.',
           );
         }
 
         if (termino) {
-          const terminoComTolerancia = new Date(termino.getTime() + GRACE_PERIOD_MS);
+          const terminoComTolerancia = new Date(
+            termino.getTime() + GRACE_PERIOD_MS,
+          );
           if (now > terminoComTolerancia) {
             // Se expirou temporalmente, revoga a flag liberado no banco para 0
             await this.prisma.visitantes.update({
@@ -733,7 +886,12 @@ export class FacialService {
                 id_condominio: device.id_condominio,
                 id_device: device.id,
                 tipo_dispositivo: device.tipo,
-                face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+                face_id:
+                  faceIdSalvo ||
+                  qrCodeLido ||
+                  tagRfidLida ||
+                  externalId ||
+                  'desconhecido',
                 tipo_pessoa: tipoPessoa,
                 id_pessoa: idPessoa,
                 nome_pessoa: `${nomePessoa} (Bloqueado por validade expirada)`,
@@ -743,14 +901,17 @@ export class FacialService {
               },
             });
             throw new BadRequestException(
-              'Acesso negado: O período de validade desta autorização já expirou.'
+              'Acesso negado: O período de validade desta autorização já expirou.',
             );
           }
         }
 
         // Validação de dias da semana autorizados
         if (v.dias_semana) {
-          const diasPermitidos = v.dias_semana.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
+          const diasPermitidos = v.dias_semana
+            .split(',')
+            .map((d) => d.trim().toLowerCase())
+            .filter(Boolean);
           if (diasPermitidos.length > 0) {
             const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
             const diaSemanaAtual = mapDias[now.getDay()];
@@ -760,7 +921,12 @@ export class FacialService {
                   id_condominio: device.id_condominio,
                   id_device: device.id,
                   tipo_dispositivo: device.tipo,
-                  face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+                  face_id:
+                    faceIdSalvo ||
+                    qrCodeLido ||
+                    tagRfidLida ||
+                    externalId ||
+                    'desconhecido',
                   tipo_pessoa: tipoPessoa,
                   id_pessoa: idPessoa,
                   nome_pessoa: `${nomePessoa} (Bloqueado por dia da semana não autorizado)`,
@@ -770,7 +936,7 @@ export class FacialService {
                 },
               });
               throw new BadRequestException(
-                'Acesso negado: Entrada não permitida no dia de hoje.'
+                'Acesso negado: Entrada não permitida no dia de hoje.',
               );
             }
           }
@@ -782,7 +948,12 @@ export class FacialService {
               id_condominio: device.id_condominio,
               id_device: device.id,
               tipo_dispositivo: device.tipo,
-              face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+              face_id:
+                faceIdSalvo ||
+                qrCodeLido ||
+                tagRfidLida ||
+                externalId ||
+                'desconhecido',
               tipo_pessoa: tipoPessoa,
               id_pessoa: idPessoa,
               nome_pessoa: `${nomePessoa} (Bloqueado por falta de liberação)`,
@@ -792,7 +963,7 @@ export class FacialService {
             },
           });
           throw new BadRequestException(
-            'Acesso negado: A entrada deste visitante não foi autorizada pelo morador ou portaria.'
+            'Acesso negado: A entrada deste visitante não foi autorizada pelo morador ou portaria.',
           );
         }
       } else if (evento === 'saida') {
@@ -802,7 +973,12 @@ export class FacialService {
               id_condominio: device.id_condominio,
               id_device: device.id,
               tipo_dispositivo: device.tipo,
-              face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+              face_id:
+                faceIdSalvo ||
+                qrCodeLido ||
+                tagRfidLida ||
+                externalId ||
+                'desconhecido',
               tipo_pessoa: tipoPessoa,
               id_pessoa: idPessoa,
               nome_pessoa: `${nomePessoa} (Bloqueado por não estar no condomínio)`,
@@ -812,7 +988,7 @@ export class FacialService {
             },
           });
           throw new BadRequestException(
-            'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.'
+            'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.',
           );
         }
       }
@@ -852,10 +1028,12 @@ export class FacialService {
         if (r.hora_inicio && r.hora_fim) {
           let dentroDoHorario = false;
           if (r.hora_inicio <= r.hora_fim) {
-            dentroDoHorario = horaMinutoAtual >= r.hora_inicio && horaMinutoAtual <= r.hora_fim;
+            dentroDoHorario =
+              horaMinutoAtual >= r.hora_inicio && horaMinutoAtual <= r.hora_fim;
           } else {
             // Caso ultrapasse a meia-noite (ex: das 22:00 às 06:00)
-            dentroDoHorario = horaMinutoAtual >= r.hora_inicio || horaMinutoAtual <= r.hora_fim;
+            dentroDoHorario =
+              horaMinutoAtual >= r.hora_inicio || horaMinutoAtual <= r.hora_fim;
           }
           if (!dentroDoHorario) {
             continue; // Esta regra não se aplica a este horário
@@ -864,10 +1042,14 @@ export class FacialService {
 
         // 3. Esta regra cobre o sentido e o horário. Autoriza se a categoria
         //    da pessoa estiver permitida nela.
-        if (tipoPessoa === 'morador' && r.permitir_morador === 1) permitido = true;
-        if (tipoPessoa === 'visitante' && r.permitir_visitante === 1) permitido = true;
-        if (tipoPessoa === 'prestador' && r.permitir_prestador === 1) permitido = true;
-        if (tipoPessoa === 'funcionario' && r.permitir_funcionario === 1) permitido = true;
+        if (tipoPessoa === 'morador' && r.permitir_morador === 1)
+          permitido = true;
+        if (tipoPessoa === 'visitante' && r.permitir_visitante === 1)
+          permitido = true;
+        if (tipoPessoa === 'prestador' && r.permitir_prestador === 1)
+          permitido = true;
+        if (tipoPessoa === 'funcionario' && r.permitir_funcionario === 1)
+          permitido = true;
 
         if (permitido) break; // já achou uma regra que libera; não precisa olhar o resto
       }
@@ -879,7 +1061,12 @@ export class FacialService {
             id_condominio: device.id_condominio,
             id_device: device.id,
             tipo_dispositivo: device.tipo,
-            face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+            face_id:
+              faceIdSalvo ||
+              qrCodeLido ||
+              tagRfidLida ||
+              externalId ||
+              'desconhecido',
             tipo_pessoa: tipoPessoa,
             id_pessoa: idPessoa,
             nome_pessoa: `${nomePessoa} (Bloqueado por Regra de Acesso)`,
@@ -889,14 +1076,22 @@ export class FacialService {
           },
         });
 
-        const sentidoLabel = evento === 'entrada' ? 'entrada' : evento === 'saida' ? 'saída' : evento;
+        const sentidoLabel =
+          evento === 'entrada'
+            ? 'entrada'
+            : evento === 'saida'
+              ? 'saída'
+              : evento;
         const categoriaLabel =
-          tipoPessoa === 'morador' ? 'Moradores'
-          : tipoPessoa === 'prestador' ? 'Prestadores'
-          : tipoPessoa === 'funcionario' ? 'Funcionários'
-          : 'Visitantes';
+          tipoPessoa === 'morador'
+            ? 'Moradores'
+            : tipoPessoa === 'prestador'
+              ? 'Prestadores'
+              : tipoPessoa === 'funcionario'
+                ? 'Funcionários'
+                : 'Visitantes';
         throw new BadRequestException(
-          `Acesso negado: as regras deste terminal não permitem ${sentidoLabel} para ${categoriaLabel} neste horário.`
+          `Acesso negado: as regras deste terminal não permitem ${sentidoLabel} para ${categoriaLabel} neste horário.`,
         );
       }
     }
@@ -910,8 +1105,12 @@ export class FacialService {
     // visitante estando DENTRO (data_saida=null) — agravado por registros
     // duplicados da mesma pessoa. Por isso só aplicamos este anti-passback a
     // morador/funcionário, que não têm data_entrada/data_saida persistidas.
-    const aplicarAntiPassbackEvento = tipoPessoa === 'morador' || tipoPessoa === 'funcionario';
-    if (aplicarAntiPassbackEvento && (evento === 'entrada' || evento === 'saida')) {
+    const aplicarAntiPassbackEvento =
+      tipoPessoa === 'morador' || tipoPessoa === 'funcionario';
+    if (
+      aplicarAntiPassbackEvento &&
+      (evento === 'entrada' || evento === 'saida')
+    ) {
       const ultimoAcesso = await this.prisma.acessos_Facial.findFirst({
         where: {
           tipo_pessoa: tipoPessoa,
@@ -927,7 +1126,12 @@ export class FacialService {
             id_condominio: device.id_condominio,
             id_device: device.id,
             tipo_dispositivo: device.tipo,
-            face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+            face_id:
+              faceIdSalvo ||
+              qrCodeLido ||
+              tagRfidLida ||
+              externalId ||
+              'desconhecido',
             tipo_pessoa: tipoPessoa,
             id_pessoa: idPessoa,
             nome_pessoa: `${nomePessoa} (Bloqueado por Anti-passback)`,
@@ -939,7 +1143,7 @@ export class FacialService {
 
         const sentidoLabel = evento === 'entrada' ? 'entrada' : 'saída';
         throw new BadRequestException(
-          `Acesso negado: O usuário já registrou uma ${sentidoLabel} e não pode registrar outra sequencialmente (Regra de Anti-passback).`
+          `Acesso negado: O usuário já registrou uma ${sentidoLabel} e não pode registrar outra sequencialmente (Regra de Anti-passback).`,
         );
       }
     }
@@ -965,7 +1169,12 @@ export class FacialService {
             id_condominio: device.id_condominio,
             id_device: device.id,
             tipo_dispositivo: device.tipo,
-            face_id: faceIdSalvo || qrCodeLido || tagRfidLida || externalId || 'desconhecido',
+            face_id:
+              faceIdSalvo ||
+              qrCodeLido ||
+              tagRfidLida ||
+              externalId ||
+              'desconhecido',
             tipo_pessoa: tipoPessoa,
             id_pessoa: idPessoa,
             nome_pessoa: `${nomePessoa} (Bloqueado por Anti-passback)`,
@@ -976,7 +1185,7 @@ export class FacialService {
         });
         const sentidoLabel = evento === 'entrada' ? 'entrada' : 'saída';
         throw new BadRequestException(
-          `Acesso negado: ${sentidoLabel} repetida detectada (Anti-passback). Procure a portaria.`
+          `Acesso negado: ${sentidoLabel} repetida detectada (Anti-passback). Procure a portaria.`,
         );
       }
       if (apb === 'allow_with_warning') {
@@ -1002,8 +1211,13 @@ export class FacialService {
       });
     } else {
       const isEntrada = evento === 'entrada';
-      const v = await this.prisma.visitantes.findUnique({ where: { id: idPessoa } });
-      if (!v) throw new NotFoundException('Cadastro de visitante/prestador não encontrado');
+      const v = await this.prisma.visitantes.findUnique({
+        where: { id: idPessoa },
+      });
+      if (!v)
+        throw new NotFoundException(
+          'Cadastro de visitante/prestador não encontrado',
+        );
 
       // Updates ATÔMICOS com guarda no where: a validação feita acima leu o
       // visitante num findUnique separado, então dois webhooks simultâneos da
@@ -1033,7 +1247,7 @@ export class FacialService {
             },
           });
           throw new BadRequestException(
-            'Acesso negado: A liberação deste visitante foi revogada ou já consumida.'
+            'Acesso negado: A liberação deste visitante foi revogada ou já consumida.',
           );
         }
       } else if (evento === 'saida') {
@@ -1042,7 +1256,7 @@ export class FacialService {
           data: {
             data_saida: timestamp,
             ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),
-            liberado: v.is_prestador === 1 ? 1 : 0
+            liberado: v.is_prestador === 1 ? 1 : 0,
           },
         });
         if (r.count === 0) {
@@ -1061,7 +1275,7 @@ export class FacialService {
             },
           });
           throw new BadRequestException(
-            'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.'
+            'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.',
           );
         }
       }
@@ -1092,10 +1306,12 @@ export class FacialService {
             select: { fcm_token: true },
           });
           const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
-          const titulo = evento === 'entrada' ? `${label} entrou` : `${label} saiu`;
-          const corpo = evento === 'entrada'
-            ? `${v.nome} acabou de entrar no condomínio.`
-            : `${v.nome} acabou de sair do condomínio.`;
+          const titulo =
+            evento === 'entrada' ? `${label} entrou` : `${label} saiu`;
+          const corpo =
+            evento === 'entrada'
+              ? `${v.nome} acabou de entrar no condomínio.`
+              : `${v.nome} acabou de sair do condomínio.`;
           for (const u of moradores) {
             if (u.fcm_token) {
               await this.notifications.sendPushNotification(
@@ -1132,7 +1348,8 @@ export class FacialService {
     // legado, útil pra condomínios simples com 1 entrada).
     //
     // Apenas eventos de ENTRADA disparam acionamento — saídas não precisam.
-    const isLeitor = device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
+    const isLeitor =
+      device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
     if (isLeitor && evento === 'entrada') {
       // Busca aberturas vinculadas a esse leitor via regras ativas.
       // Uma regra que tenha o leitor E aberturas define o roteamento.
@@ -1164,15 +1381,16 @@ export class FacialService {
         }
       }
 
-      const aberturasParaAcionar = aberturasMapeadas.size > 0
-        ? Array.from(aberturasMapeadas.values())
-        : await this.prisma.facial_Devices.findMany({
-            where: {
-              id_condominio: device.id_condominio,
-              ativo: 1,
-              tipo: { in: ['botoeira', 'catraca'] },
-            },
-          });
+      const aberturasParaAcionar =
+        aberturasMapeadas.size > 0
+          ? Array.from(aberturasMapeadas.values())
+          : await this.prisma.facial_Devices.findMany({
+              where: {
+                id_condominio: device.id_condominio,
+                ativo: 1,
+                tipo: { in: ['botoeira', 'catraca'] },
+              },
+            });
 
       if (aberturasMapeadas.size === 0) {
         this.logger.warn(
@@ -1182,7 +1400,9 @@ export class FacialService {
 
       for (const abertura of aberturasParaAcionar) {
         try {
-          const result = await this.client.triggerRelay(this.toConfig(abertura));
+          const result = await this.client.triggerRelay(
+            this.toConfig(abertura),
+          );
           await this.prisma.acessos_Facial.create({
             data: {
               id_condominio: device.id_condominio,
@@ -1233,7 +1453,11 @@ export class FacialService {
     });
   }
 
-  async listAcessosPessoa(tipo: 'morador' | 'visitante', idPessoa: number, limit = 30) {
+  async listAcessosPessoa(
+    tipo: 'morador' | 'visitante',
+    idPessoa: number,
+    limit = 30,
+  ) {
     if (tipo === 'morador') {
       const list = await this.prisma.acessos_Facial.findMany({
         where: { tipo_pessoa: tipo, id_pessoa: idPessoa },
@@ -1269,16 +1493,17 @@ export class FacialService {
     });
     const todosVisIds = todasVisitas.map((x) => x.id);
 
-    const acessosFacial = todosVisIds.length > 0
-      ? await this.prisma.acessos_Facial.findMany({
-          where: {
-            tipo_pessoa: 'visitante',
-            id_pessoa: { in: todosVisIds },
-          },
-          orderBy: { timestamp: 'desc' },
-          take: 100,
-        })
-      : [];
+    const acessosFacial =
+      todosVisIds.length > 0
+        ? await this.prisma.acessos_Facial.findMany({
+            where: {
+              tipo_pessoa: 'visitante',
+              id_pessoa: { in: todosVisIds },
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 100,
+          })
+        : [];
 
     // Deduplicação (evita duplicar se casar com acesso facial)
     const DEDUP_MS = 15_000;
@@ -1327,7 +1552,12 @@ export class FacialService {
         tipo_pessoa: 'visitante',
         id_pessoa: a.id_pessoa!,
         nome_pessoa: a.nome_pessoa,
-        evento: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada',
+        evento:
+          a.evento === 'saida'
+            ? 'saida'
+            : a.evento === 'negado'
+              ? 'negado'
+              : 'entrada',
         confianca: a.confianca,
         timestamp: a.timestamp,
         observacao,
@@ -1405,7 +1635,7 @@ export class FacialService {
       // Está dentro agora = entrou e não saiu. Entre vários, o de entrada mais recente.
       const dentro = candidatos
         .filter((v) => v.data_entrada && !v.data_saida)
-        .sort((a, b) => (b.data_entrada!.getTime() - a.data_entrada!.getTime()));
+        .sort((a, b) => b.data_entrada!.getTime() - a.data_entrada!.getTime());
       if (dentro.length) return dentro[0];
     } else {
       // Entrada: prefere visita liberada e ainda não usada (sem entrada/saída).
@@ -1418,12 +1648,70 @@ export class FacialService {
     return candidatos.sort((a, b) => b.id - a.id)[0];
   }
 
+  /**
+   * Converte o push nativo do Control iD (Monitor, formato "object_changes")
+   * para o nosso WebhookEventDto. Retorna null se não for esse formato (deixa
+   * passar o formato limpo do simulador/integrações).
+   *
+   * Formato Control iD (validado contra a doc oficial):
+   *   { object_changes: [{ object: 'access_logs', values: {
+   *       time, event, device_id, user_id, portal_id, ... } }], device_id }
+   *
+   * - user_id é o id INTERNO do aparelho — gravamos ele em face_id no
+   *   enrollment, então o webhook resolve a pessoa por face_id.
+   * - user_id "0" = ninguém identificado → acesso negado.
+   * - Direção (entrada/saída) NÃO vem no log (depende do portal). Assumimos
+   *   ENTRADA, caso comum de terminal único na entrada. Para catraca com
+   *   entrada/saída separadas, mapear por portal_id futuramente.
+   */
+  private normalizeControlIdPayload(raw: unknown): WebhookEventDto | null {
+    const obj = raw as any;
+    const changes = obj?.object_changes;
+    if (!Array.isArray(changes)) return null;
+    const entry = changes.find((c) => c?.object === 'access_logs' && c?.values);
+    if (!entry) return null;
+    const v = entry.values;
+    const userId = v.user_id != null ? String(v.user_id) : '';
+    const identificado = userId !== '' && userId !== '0';
+    return {
+      person_id: identificado ? userId : undefined,
+      external_id: identificado ? userId : undefined,
+      event: identificado ? 'access_granted' : 'access_denied',
+      timestamp: v.time
+        ? new Date(Number(v.time) * 1000).toISOString()
+        : undefined,
+      // Direção fica a cargo do device.sentido (o push do Control iD não diz).
+    };
+  }
+
+  /**
+   * Decide entrada/saída/negado do evento considerando o SENTIDO configurado
+   * no terminal — peça-chave de um controle de acesso profissional:
+   *   - negado continua negado (validação de identidade falhou)
+   *   - terminal 'entrada' → sempre entrada
+   *   - terminal 'saida'   → sempre saída (dá baixa)
+   *   - 'auto'             → respeita o que o aparelho informou (direction/event);
+   *                          se não informar, cai em entrada
+   */
+  private resolveEvento(
+    sentido: string | undefined,
+    payload: WebhookEventDto,
+  ): string {
+    const base = this.normalizeEvento(payload.event, payload.direction);
+    if (base === 'negado') return 'negado';
+    if (sentido === 'entrada') return 'entrada';
+    if (sentido === 'saida') return 'saida';
+    return base;
+  }
+
   private normalizeEvento(event?: string, direction?: string): string {
     const e = (event ?? '').toLowerCase();
     const d = (direction ?? '').toLowerCase();
     if (e.includes('denied') || e.includes('negado')) return 'negado';
-    if (d === 'in' || e.includes('granted') || e.includes('entrada')) return 'entrada';
-    if (d === 'out' || e.includes('saida') || e.includes('exit')) return 'saida';
+    if (d === 'in' || e.includes('granted') || e.includes('entrada'))
+      return 'entrada';
+    if (d === 'out' || e.includes('saida') || e.includes('exit'))
+      return 'saida';
     return 'entrada';
   }
 
@@ -1436,7 +1724,10 @@ export class FacialService {
     if (foto.startsWith('http://') || foto.startsWith('https://')) {
       try {
         const axios = (await import('axios')).default;
-        const res = await axios.get(foto, { responseType: 'arraybuffer', timeout: 15000 });
+        const res = await axios.get(foto, {
+          responseType: 'arraybuffer',
+          timeout: 15000,
+        });
         return Buffer.from(res.data).toString('base64');
       } catch (err) {
         this.logger.warn(`Falha baixando foto ${foto}: ${err}`);
