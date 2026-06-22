@@ -496,9 +496,27 @@ function buildDigestHeader(user, pass, method, uri, challenge) {
   return h;
 }
 
+/**
+ * Diretório onde procurar o .env. Quando empacotado como executável (Node SEA),
+ * __dirname aponta para um caminho virtual interno — então usamos a pasta do
+ * próprio .exe (process.execPath). Rodando via `node index.js`, usa __dirname.
+ */
+function configDir() {
+  try {
+    // eslint-disable-next-line global-require
+    const sea = require('node:sea');
+    if (typeof sea.isSea === 'function' && sea.isSea()) {
+      return path.dirname(process.execPath);
+    }
+  } catch {
+    /* node:sea não existe em Node antigo — segue com __dirname */
+  }
+  return __dirname;
+}
+
 /** .env minimalista: KEY=VALUE por linha, ignora # e linhas vazias. */
 function loadDotEnv() {
-  const file = path.join(__dirname, '.env');
+  const file = path.join(configDir(), '.env');
   if (!fs.existsSync(file)) return;
   for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i);

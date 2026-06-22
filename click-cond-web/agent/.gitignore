@@ -1,0 +1,9 @@
+# Configuração local (segredos: API_URL, tokens)
+.env
+
+# Artefatos do build do executável
+*.exe
+*.blob
+click-agent
+
+node_modules/

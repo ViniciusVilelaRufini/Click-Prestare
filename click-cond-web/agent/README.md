@@ -26,35 +26,50 @@ preciso liberar nenhuma porta no roteador do condomínio.
 
 ## Requisitos
 
-- Node.js 18 ou superior (sem dependências npm — só módulos nativos).
-- Máquina sempre-ligada na mesma rede dos aparelhos (Raspberry Pi, mini PC,
-  NUC, etc.).
+- Máquina sempre-ligada na mesma rede dos aparelhos. Pode ser o **PC da
+  portaria**, ou um mini PC / Raspberry Pi.
 
-## Instalação
+Há dois jeitos de instalar. **A opção A (executável) é a recomendada** — não
+precisa instalar nada na máquina da portaria.
 
-1. Copie a pasta `agent/` para a máquina do condomínio.
-2. Crie o arquivo de configuração:
-   ```bash
-   cp .env.example .env
-   ```
-3. Edite o `.env`:
-   - `API_URL` — endereço da API na nuvem (ex.: `https://sua-api.up.railway.app`).
-   - `DEVICE_TOKENS` — token de cada device que este agente gerencia, separados
-     por vírgula. Pegue no portal web: em **Terminais de Dispositivos**, botão
-     **"Copiar URL Webhook"** — o token é o trecho final da URL
-     (`.../api/facial/webhook/<TOKEN>`).
-4. Rode:
-   ```bash
-   node index.js
-   ```
+## Opção A — Executável (.exe), sem instalar Node ⭐
 
-Pronto. Em poucos segundos o portal deve mostrar **"Agente conectado"** no card
-do device, e os botões **Testar Conexão** / **Acionar Abertura** passam a
-funcionar de verdade.
+O executável embute o próprio Node: é só copiar e rodar.
 
-## Rodar como serviço (recomendado)
+**1. Gere o executável** (uma vez, em qualquer máquina com Node 20+):
+```bash
+cd click-cond-web/agent
+npm run build:exe        # gera click-agent.exe (Windows) / click-agent (Linux/macOS)
+```
 
-Para iniciar junto com a máquina e reiniciar sozinho:
+**2. Na máquina da portaria**, crie uma pasta (ex.: `C:\ClickAgente`) e copie:
+- `click-agent.exe`
+- `.env` (copie de `.env.example` e preencha — veja abaixo)
+- `install-windows.bat` (opcional, para iniciar com o Windows)
+
+**3. Preencha o `.env`** (no mesmo diretório do `.exe`):
+- `API_URL` — endereço da API na nuvem (ex.: `https://sua-api.up.railway.app`).
+- `DEVICE_TOKENS` — token de cada device, separados por vírgula. Pegue no portal:
+  **Terminais de Dispositivos** → botão **"Copiar URL Webhook"** — o token é o
+  trecho final da URL (`.../api/facial/webhook/<TOKEN>`).
+
+**4. Inicie:** dê dois cliques no `click-agent.exe` (ou rode `install-windows.bat`
+como Administrador para iniciar junto com o Windows).
+
+Em poucos segundos o portal mostra **"Agente conectado"** no card do device.
+
+## Opção B — Via Node (Raspberry Pi, Linux, dev)
+
+Requer Node.js 18+ (o agente não tem dependências npm). Copie a pasta `agent/`,
+`cp .env.example .env`, preencha os mesmos campos acima e rode `node index.js`.
+
+## Rodar como serviço (iniciar com a máquina)
+
+### Windows (executável)
+
+Rode `install-windows.bat` **como Administrador**, na mesma pasta do
+`click-agent.exe`. Ele registra uma tarefa que sobe o agente no boot.
+Para remover: `schtasks /Delete /TN ClickPortariaAgent /F`.
 
 ### Linux (systemd)
 
@@ -79,11 +94,6 @@ WantedBy=multi-user.target
 sudo systemctl enable --now click-agent
 journalctl -u click-agent -f   # acompanhar logs
 ```
-
-### Windows
-
-Use o Agendador de Tarefas (gatilho "Ao iniciar o sistema") ou
-[nssm](https://nssm.cc/) apontando para `node index.js`.
 
 ## Como funciona o webhook (eventos do aparelho → nuvem)
 
