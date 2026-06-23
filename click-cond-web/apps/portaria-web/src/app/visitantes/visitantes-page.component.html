@@ -1,47 +1,111 @@
 <div class="min-h-screen p-6 lg:p-8 space-y-6">
-
   <!-- Header -->
   <div class="flex flex-wrap items-start justify-between gap-4">
     <div class="flex items-start gap-4">
-      <div class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-        <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+      <div
+        class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0"
+      >
+        <svg
+          class="w-5 h-5 text-accent"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+          />
         </svg>
       </div>
       <div>
-        <h1 class="text-2xl font-semibold text-white tracking-tight">{{ isPrestadorModo() ? 'Prestadores' : 'Visitantes' }}</h1>
-        <p class="text-sm text-slate-400 mt-0.5">Controle de acesso · entrada e saída do condomínio</p>
+        <h1 class="text-2xl font-semibold text-white tracking-tight">
+          {{ isPrestadorModo() ? 'Prestadores' : 'Visitantes' }}
+        </h1>
+        <p class="text-sm text-slate-400 mt-0.5">
+          Controle de acesso · entrada e saída do condomínio
+        </p>
       </div>
     </div>
     <div class="flex items-center gap-2">
       @if (isPrestadorModo()) {
-        <a routerLink="/prestadores/cadastro"
-           class="px-4 py-2.5 rounded-xl font-medium text-sm text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 transition flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        <a
+          routerLink="/prestadores/cadastro"
+          class="px-4 py-2.5 rounded-xl font-medium text-sm text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 transition flex items-center gap-2"
+        >
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z"
+            />
           </svg>
           Cadastro de Funcionários
         </a>
       }
       <button
         (click)="abrirValidador()"
-        class="px-4 py-2.5 rounded-xl font-medium text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition flex items-center gap-2">
-        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        class="px-4 py-2.5 rounded-xl font-medium text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition flex items-center gap-2"
+      >
+        <svg
+          class="w-4 h-4 text-emerald-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+          />
         </svg>
         Validar PIN
       </button>
 
       <button
         (click)="showForm ? cancelarForm() : abrirNovo()"
-        class="px-4 py-2.5 rounded-xl font-medium text-sm text-white bg-accent hover:bg-accent-600 transition flex items-center gap-2">
+        class="px-4 py-2.5 rounded-xl font-medium text-sm text-white bg-accent hover:bg-accent-600 transition flex items-center gap-2"
+      >
         @if (showForm) {
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
           Cancelar
         } @else {
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          {{ isPrestadorModo() ? 'Cadastrar prestador' : 'Cadastrar visitante' }}
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          {{
+            isPrestadorModo() ? 'Cadastrar prestador' : 'Cadastrar visitante'
+          }}
         }
       </button>
     </div>
@@ -50,49 +114,80 @@
   <!-- Stats -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
     <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Ativos no local</p>
+      <p class="text-[11px] text-slate-400 uppercase tracking-wider">
+        Ativos no local
+      </p>
       <div class="flex items-end gap-2 mt-1">
-        <p class="text-2xl font-bold text-emerald-400 tabular-nums leading-none">{{ visitantesAtivos().length }}</p>
+        <p
+          class="text-2xl font-bold text-emerald-400 tabular-nums leading-none"
+        >
+          {{ visitantesAtivos().length }}
+        </p>
         @if (visitantesAtivos().length > 0) {
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mb-1.5"></span>
+          <span
+            class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mb-1.5"
+          ></span>
         }
       </div>
     </div>
     <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Liberados (Aguardando)</p>
+      <p class="text-[11px] text-slate-400 uppercase tracking-wider">
+        Liberados (Aguardando)
+      </p>
       <div class="flex items-end gap-2 mt-1">
-        <p class="text-2xl font-bold text-cyan-400 tabular-nums leading-none">{{ visitantesLiberados().length }}</p>
+        <p class="text-2xl font-bold text-cyan-400 tabular-nums leading-none">
+          {{ visitantesLiberados().length }}
+        </p>
         @if (visitantesLiberados().length > 0) {
-          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 mb-1.5 animate-pulse"></span>
+          <span
+            class="w-1.5 h-1.5 rounded-full bg-cyan-400 mb-1.5 animate-pulse"
+          ></span>
         }
       </div>
     </div>
     <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Inativos / Saíram</p>
-      <p class="text-2xl font-bold text-slate-300 tabular-nums mt-1 leading-none">{{ visitantesHistorico().length }}</p>
+      <p class="text-[11px] text-slate-400 uppercase tracking-wider">
+        Inativos / Saíram
+      </p>
+      <p
+        class="text-2xl font-bold text-slate-300 tabular-nums mt-1 leading-none"
+      >
+        {{ visitantesHistorico().length }}
+      </p>
     </div>
     <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
-      <p class="text-[11px] text-slate-400 uppercase tracking-wider">Total registrado</p>
-      <p class="text-2xl font-bold text-white tabular-nums mt-1 leading-none">{{ totalPessoas() }}</p>
+      <p class="text-[11px] text-slate-400 uppercase tracking-wider">
+        Total registrado
+      </p>
+      <p class="text-2xl font-bold text-white tabular-nums mt-1 leading-none">
+        {{ totalPessoas() }}
+      </p>
     </div>
   </div>
 
   <!-- Filtros + busca -->
   <div class="flex flex-wrap items-center gap-3">
     <!-- Status Filter -->
-    <div class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10">
-      @for (f of [
-        {key:'todos', label:'Todos'},
-        {key:'ativos', label:'Ativos'},
-        {key:'liberados', label:'Liberados'},
-        {key:'historico', label:'Inativos'}
-      ]; track f.key) {
-        <button (click)="$any(viewFilter).set(f.key)"
-                class="px-3 py-1.5 text-xs rounded-lg transition"
-                [class.bg-accent]="viewFilter() === f.key"
-                [class.text-white]="viewFilter() === f.key"
-                [class.text-slate-400]="viewFilter() !== f.key"
-                [class.hover:text-slate-200]="viewFilter() !== f.key">
+    <div
+      class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10"
+    >
+      @for (
+        f of [
+          { key: 'todos', label: 'Todos' },
+          { key: 'ativos', label: 'Ativos' },
+          { key: 'liberados', label: 'Liberados' },
+          { key: 'historico', label: 'Inativos' },
+        ];
+        track f.key
+      ) {
+        <button
+          (click)="$any(viewFilter).set(f.key)"
+          class="px-3 py-1.5 text-xs rounded-lg transition"
+          [class.bg-accent]="viewFilter() === f.key"
+          [class.text-white]="viewFilter() === f.key"
+          [class.text-slate-400]="viewFilter() !== f.key"
+          [class.hover:text-slate-200]="viewFilter() !== f.key"
+        >
           {{ f.label }}
         </button>
       }
@@ -100,8 +195,18 @@
 
     <div class="flex-1 flex gap-2 min-w-[260px]">
       <div class="flex-1 relative">
-        <svg class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        <svg
+          class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
         </svg>
         <input
           #searchInput
@@ -109,20 +214,34 @@
           placeholder="Buscar por nome, documento ou apartamento..."
           [value]="search()"
           (input)="search.set(searchInput.value)"
-          class="w-full pl-9 pr-3 py-2 rounded-lg bg-graphite-200 border border-white/10
-                 text-sm placeholder-slate-500 focus:outline-none focus:border-accent/60 transition" />
+          class="w-full pl-9 pr-3 py-2 rounded-lg bg-graphite-200 border border-white/10 text-sm placeholder-slate-500 focus:outline-none focus:border-accent/60 transition"
+        />
       </div>
       @if (search()) {
-        <button (click)="search.set(''); searchInput.value = ''"
-                class="px-4 py-2 text-sm rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition text-red-400">
+        <button
+          (click)="search.set(''); searchInput.value = ''"
+          class="px-4 py-2 text-sm rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition text-red-400"
+        >
           Limpar
         </button>
       }
-      <button (click)="carregar()"
-              class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-graphite-200 hover:bg-white/5 transition text-white flex items-center gap-1.5"
-              title="Recarregar dados do servidor">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.23"/>
+      <button
+        (click)="carregar()"
+        class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-graphite-200 hover:bg-white/5 transition text-white flex items-center gap-1.5"
+        title="Recarregar dados do servidor"
+      >
+        <svg
+          class="w-3.5 h-3.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.23"
+          />
         </svg>
         Atualizar
       </button>
@@ -145,98 +264,170 @@
             }
           </h2>
           @if (novaVisitaPara()) {
-            <p class="text-xs text-slate-400 mt-1">Foto e documento já cadastrados serão reutilizados — informe apenas o apartamento e a validade.</p>
+            <p class="text-xs text-slate-400 mt-1">
+              Foto e documento já cadastrados serão reutilizados — informe
+              apenas o apartamento e a validade.
+            </p>
           } @else if (editingId && editandoIdentidade()) {
-            <p class="text-xs text-slate-400 mt-1">Alterações em nome, foto e documento serão aplicadas a todas as visitas dessa pessoa.</p>
+            <p class="text-xs text-slate-400 mt-1">
+              Alterações em nome, foto e documento serão aplicadas a todas as
+              visitas dessa pessoa.
+            </p>
           }
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Nome completo *</span>
-          <input [(ngModel)]="novo.nome" placeholder="Ex: João da Silva"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
+            >Nome completo *</span
+          >
+          <input
+            [(ngModel)]="novo.nome"
+            placeholder="Ex: João da Silva"
+            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60"
+          />
         </label>
         <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Documento (CPF/CNPJ)</span>
-          <input [(ngModel)]="novo.doc_identificacao" appMask="cpfCnpj" placeholder="000.000.000-00"
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
+            >Documento (CPF/CNPJ)</span
+          >
+          <input
+            [(ngModel)]="novo.doc_identificacao"
+            appMask="cpfCnpj"
+            placeholder="000.000.000-00"
             (blur)="verificarPessoaExistente()"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
+            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60"
+          />
           @if (pessoaEncontrada(); as p) {
-            <div class="mt-2 p-3 rounded-lg bg-accent/5 border border-accent/30 flex items-center gap-3">
+            <div
+              class="mt-2 p-3 rounded-lg bg-accent/5 border border-accent/30 flex items-center gap-3"
+            >
               @if (p.foto_pessoa) {
-                <img [src]="p.foto_pessoa" class="w-10 h-10 rounded-full object-cover border border-accent/40" />
+                <img
+                  [src]="p.foto_pessoa"
+                  class="w-10 h-10 rounded-full object-cover border border-accent/40"
+                />
               } @else {
-                <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold">
+                <div
+                  class="w-10 h-10 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold"
+                >
                   {{ iniciais(p.nome) }}
                 </div>
               }
               <div class="flex-1 min-w-0">
-                <p class="text-xs font-semibold text-accent">Pessoa já cadastrada</p>
-                <p class="text-[11px] text-slate-300 truncate">
-                  {{ p.nome }} · {{ p.totalVisitasAnteriores }} cadastro(s) anterior(es)
-                  @if (p.face_sync_status === 'synced') { · facial sincronizado }
+                <p class="text-xs font-semibold text-accent">
+                  Pessoa já cadastrada
                 </p>
-                <p class="text-[10px] text-slate-450 mt-0.5">A foto e o reconhecimento facial serão reutilizados automaticamente.</p>
+                <p class="text-[11px] text-slate-300 truncate">
+                  {{ p.nome }} · {{ p.totalVisitasAnteriores }} cadastro(s)
+                  anterior(es)
+                  @if (p.face_sync_status === 'synced') {
+                    · facial sincronizado
+                  }
+                </p>
+                <p class="text-[10px] text-slate-450 mt-0.5">
+                  A foto e o reconhecimento facial serão reutilizados
+                  automaticamente.
+                </p>
               </div>
-              <button type="button" (click)="reutilizarPessoa(p)"
-                      class="px-2.5 py-1 rounded-md text-[11px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 transition shrink-0">
+              <button
+                type="button"
+                (click)="reutilizarPessoa(p)"
+                class="px-2.5 py-1 rounded-md text-[11px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 transition shrink-0"
+              >
                 Usar dados
               </button>
             </div>
           }
         </label>
         <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Apartamento de destino *</span>
-          <select [(ngModel)]="novo.id_apartamento"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60">
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
+            >Apartamento de destino *</span
+          >
+          <select
+            [(ngModel)]="novo.id_apartamento"
+            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60"
+          >
             <option [ngValue]="0">Selecione...</option>
             @for (a of apartamentos(); track a.id) {
-              <option [ngValue]="a.id">{{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}</option>
+              <option [ngValue]="a.id">
+                {{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}
+              </option>
             }
           </select>
         </label>
         @if (!isPrestadorModo()) {
           <label class="block">
-            <span class="text-xs font-medium text-slate-400 mb-1.5 block">Tipo</span>
+            <span class="text-xs font-medium text-slate-400 mb-1.5 block"
+              >Tipo</span
+            >
             <select
               [ngModel]="novo.is_prestador ? 'prestador' : 'visitante'"
-              (ngModelChange)="novo.is_prestador = $event === 'prestador' ? 1 : 0; novo.is_visitante = $event === 'prestador' ? 0 : 1"
-              class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60">
+              (ngModelChange)="
+                novo.is_prestador = $event === 'prestador' ? 1 : 0;
+                novo.is_visitante = $event === 'prestador' ? 0 : 1
+              "
+              class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60"
+            >
               <option value="visitante">Visitante</option>
               <option value="prestador">Prestador de serviço</option>
             </select>
           </label>
         }
         <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block">Tag RFID (Credencial)</span>
-          <input [(ngModel)]="novo.tag_rfid" placeholder="Ex: 0010257321"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60" />
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
+            >Tag RFID (Credencial)</span
+          >
+          <input
+            [(ngModel)]="novo.tag_rfid"
+            placeholder="Ex: 0010257321"
+            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60"
+          />
         </label>
 
         <!-- Prestador Specific Fields (Categories & Days of week) -->
         @if (novo.is_prestador) {
           <div class="block md:col-span-2 border-t border-white/5 pt-4 mt-2">
-            <span class="text-xs font-medium text-slate-400 mb-2 block">Categorias</span>
+            <span class="text-xs font-medium text-slate-400 mb-2 block"
+              >Categorias</span
+            >
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
               @for (cat of categoriasPredefinidas; track cat) {
-                <label class="flex items-center gap-2 px-3 py-2 rounded-xl bg-graphite border border-white/10 hover:border-white/20 cursor-pointer select-none transition">
-                  <input type="checkbox" 
-                         [checked]="categoriasSelecionadas().has(cat)"
-                         (change)="toggleCategoriaSelecionada(cat)"
-                         class="rounded border-white/20 bg-graphite text-accent focus:ring-accent" />
-                  <span class="text-xs text-slate-300 font-medium">{{ cat }}</span>
+                <label
+                  class="flex items-center gap-2 px-3 py-2 rounded-xl bg-graphite border border-white/10 hover:border-white/20 cursor-pointer select-none transition"
+                >
+                  <input
+                    type="checkbox"
+                    [checked]="categoriasSelecionadas().has(cat)"
+                    (change)="toggleCategoriaSelecionada(cat)"
+                    class="rounded border-white/20 bg-graphite text-accent focus:ring-accent"
+                  />
+                  <span class="text-xs text-slate-300 font-medium">{{
+                    cat
+                  }}</span>
                 </label>
               }
             </div>
-            
+
             <div class="mt-3 flex gap-2 items-center">
-              <input #customCat type="text" placeholder="Outra categoria..."
-                     (keyup.enter)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
-                     class="px-3 py-1.5 text-xs rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60 transition w-48" />
-              <button type="button" 
-                      (click)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
-                      class="px-3 py-1.5 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300">
+              <input
+                #customCat
+                type="text"
+                placeholder="Outra categoria..."
+                (keyup.enter)="
+                  adicionarCustomCategoria(customCat.value);
+                  customCat.value = ''
+                "
+                class="px-3 py-1.5 text-xs rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60 transition w-48"
+              />
+              <button
+                type="button"
+                (click)="
+                  adicionarCustomCategoria(customCat.value);
+                  customCat.value = ''
+                "
+                class="px-3 py-1.5 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300"
+              >
                 Adicionar
               </button>
             </div>
@@ -244,11 +435,27 @@
             @if (categoriasCustomSelecionadas().length > 0) {
               <div class="mt-2.5 flex flex-wrap gap-1.5">
                 @for (c of categoriasCustomSelecionadas(); track c) {
-                  <span class="px-2 py-1 text-xs rounded-lg bg-accent/10 border border-accent/25 text-accent flex items-center gap-1.5">
+                  <span
+                    class="px-2 py-1 text-xs rounded-lg bg-accent/10 border border-accent/25 text-accent flex items-center gap-1.5"
+                  >
                     {{ c }}
-                    <button type="button" (click)="toggleCategoriaSelecionada(c)" class="hover:text-red-400 transition">
-                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    <button
+                      type="button"
+                      (click)="toggleCategoriaSelecionada(c)"
+                      class="hover:text-red-400 transition"
+                    >
+                      <svg
+                        class="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                       </svg>
                     </button>
                   </span>
@@ -259,53 +466,78 @@
 
           <!-- Dias Autorizados -->
           <div class="block md:col-span-2 border-t border-white/5 pt-4 mt-2">
-            <span class="text-xs font-medium text-slate-400 mb-2.5 block">Dias de Acesso Autorizados</span>
-            
+            <span class="text-xs font-medium text-slate-400 mb-2.5 block"
+              >Dias de Acesso Autorizados</span
+            >
+
             <!-- Presets -->
             <div class="flex items-center gap-1.5 mb-3 flex-wrap">
-              <span class="text-[10px] text-slate-500 uppercase tracking-wider mr-1">Presets Rápidos:</span>
-              <button type="button" (click)="aplicarPresetDias('semana')"
-                      class="px-2.5 py-1 text-[11px] rounded-lg border border-accent/20 bg-accent/5 hover:bg-accent/10 transition text-accent">
+              <span
+                class="text-[10px] text-slate-500 uppercase tracking-wider mr-1"
+                >Presets Rápidos:</span
+              >
+              <button
+                type="button"
+                (click)="aplicarPresetDias('semana')"
+                class="px-2.5 py-1 text-[11px] rounded-lg border border-accent/20 bg-accent/5 hover:bg-accent/10 transition text-accent"
+              >
                 Segunda a Sexta
               </button>
-              <button type="button" (click)="aplicarPresetDias('fim-semana')"
-                      class="px-2.5 py-1 text-[11px] rounded-lg border border-amber-400/20 bg-amber-400/5 hover:bg-amber-400/10 transition text-amber-400">
+              <button
+                type="button"
+                (click)="aplicarPresetDias('fim-semana')"
+                class="px-2.5 py-1 text-[11px] rounded-lg border border-amber-400/20 bg-amber-400/5 hover:bg-amber-400/10 transition text-amber-400"
+              >
                 Fim de Semana
               </button>
-              <button type="button" (click)="aplicarPresetDias('todos')"
-                      class="px-2.5 py-1 text-[11px] rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300">
+              <button
+                type="button"
+                (click)="aplicarPresetDias('todos')"
+                class="px-2.5 py-1 text-[11px] rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300"
+              >
                 Todos os dias
               </button>
-              <button type="button" (click)="aplicarPresetDias('nenhum')"
-                      class="px-2.5 py-1 text-[11px] rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition text-red-400">
+              <button
+                type="button"
+                (click)="aplicarPresetDias('nenhum')"
+                class="px-2.5 py-1 text-[11px] rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition text-red-400"
+              >
                 Limpar
               </button>
             </div>
 
             <!-- Days selector buttons -->
             <div class="flex flex-wrap gap-2">
-              @for (dia of [
-                { key: 'seg', label: 'Segunda-feira' },
-                { key: 'ter', label: 'Terça-feira' },
-                { key: 'qua', label: 'Quarta-feira' },
-                { key: 'qui', label: 'Quinta-feira' },
-                { key: 'sex', label: 'Sexta-feira' },
-                { key: 'sab', label: 'Sábado' },
-                { key: 'dom', label: 'Domingo' }
-              ]; track dia.key) {
-                <button type="button" (click)="toggleDiaSemana(dia.key)"
-                        class="px-3.5 py-2 text-xs rounded-xl font-medium border transition-all flex items-center gap-2 select-none"
-                        [class.bg-accent]="isDiaSelecionado(dia.key)"
-                        [class.text-white]="isDiaSelecionado(dia.key)"
-                        [class.border-accent]="isDiaSelecionado(dia.key)"
-                        [class.shadow-md]="isDiaSelecionado(dia.key)"
-                        [class.bg-graphite]="!isDiaSelecionado(dia.key)"
-                        [class.text-slate-400]="!isDiaSelecionado(dia.key)"
-                        [class.border-white/10]="!isDiaSelecionado(dia.key)"
-                        [class.hover:border-white/20]="!isDiaSelecionado(dia.key)">
-                  <span class="w-2 h-2 rounded-full transition-all"
-                        [class.bg-white]="isDiaSelecionado(dia.key)"
-                        [class.bg-slate-600]="!isDiaSelecionado(dia.key)"></span>
+              @for (
+                dia of [
+                  { key: 'seg', label: 'Segunda-feira' },
+                  { key: 'ter', label: 'Terça-feira' },
+                  { key: 'qua', label: 'Quarta-feira' },
+                  { key: 'qui', label: 'Quinta-feira' },
+                  { key: 'sex', label: 'Sexta-feira' },
+                  { key: 'sab', label: 'Sábado' },
+                  { key: 'dom', label: 'Domingo' },
+                ];
+                track dia.key
+              ) {
+                <button
+                  type="button"
+                  (click)="toggleDiaSemana(dia.key)"
+                  class="px-3.5 py-2 text-xs rounded-xl font-medium border transition-all flex items-center gap-2 select-none"
+                  [class.bg-accent]="isDiaSelecionado(dia.key)"
+                  [class.text-white]="isDiaSelecionado(dia.key)"
+                  [class.border-accent]="isDiaSelecionado(dia.key)"
+                  [class.shadow-md]="isDiaSelecionado(dia.key)"
+                  [class.bg-graphite]="!isDiaSelecionado(dia.key)"
+                  [class.text-slate-400]="!isDiaSelecionado(dia.key)"
+                  [class.border-white/10]="!isDiaSelecionado(dia.key)"
+                  [class.hover:border-white/20]="!isDiaSelecionado(dia.key)"
+                >
+                  <span
+                    class="w-2 h-2 rounded-full transition-all"
+                    [class.bg-white]="isDiaSelecionado(dia.key)"
+                    [class.bg-slate-600]="!isDiaSelecionado(dia.key)"
+                  ></span>
                   {{ dia.label }}
                 </button>
               }
@@ -315,41 +547,98 @@
       </div>
 
       <!-- Fotos (Pessoa e Documento) -->
-      <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-white/5 pt-5">
+      <div
+        class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-white/5 pt-5"
+      >
         <!-- Foto do Visitante/Prestador -->
         <div class="space-y-2">
-          <span class="text-xs font-medium text-slate-400 block">Foto da Pessoa (Visitante / Prestador)</span>
+          <span class="text-xs font-medium text-slate-400 block"
+            >Foto da Pessoa (Visitante / Prestador)</span
+          >
           <div class="flex items-center gap-3">
-            <div class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0">
+            <div
+              class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0"
+            >
               @if (fotoPessoaBase64()) {
-                <img [src]="fotoPessoaBase64()" class="w-full h-full object-cover" />
+                <img
+                  [src]="fotoPessoaBase64()"
+                  class="w-full h-full object-cover"
+                />
               } @else {
-                <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                <svg
+                  class="w-8 h-8 text-slate-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  />
                 </svg>
               }
             </div>
             <div class="flex flex-col gap-2">
               <div class="flex items-center gap-2">
-                <button type="button" (click)="iniciarCamera('pessoa')"
-                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <button
+                  type="button"
+                  (click)="iniciarCamera('pessoa')"
+                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition flex items-center gap-1.5"
+                >
+                  <svg
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
                   </svg>
                   Tirar Foto
                 </button>
-                <label class="px-3 py-1.5 text-xs rounded-lg font-medium bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition cursor-pointer flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                <label
+                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <svg
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                    />
                   </svg>
                   Upload
-                  <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event, 'pessoa')" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    (change)="onFileSelected($event, 'pessoa')"
+                  />
                 </label>
               </div>
               @if (fotoPessoaBase64()) {
-                <button type="button" (click)="removerFoto('pessoa')"
-                  class="text-left text-[11px] text-red-400 hover:underline">
+                <button
+                  type="button"
+                  (click)="removerFoto('pessoa')"
+                  class="text-left text-[11px] text-red-400 hover:underline"
+                >
                   Remover foto
                 </button>
               }
@@ -359,38 +648,93 @@
 
         <!-- Foto do Documento (RG/CPF) -->
         <div class="space-y-2">
-          <span class="text-xs font-medium text-slate-400 block">Foto do Documento (RG / CPF)</span>
+          <span class="text-xs font-medium text-slate-400 block"
+            >Foto do Documento (RG / CPF)</span
+          >
           <div class="flex items-center gap-3">
-            <div class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0">
+            <div
+              class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0"
+            >
               @if (fotoDocumentoBase64()) {
-                <img [src]="fotoDocumentoBase64()" class="w-full h-full object-cover" />
+                <img
+                  [src]="fotoDocumentoBase64()"
+                  class="w-full h-full object-cover"
+                />
               } @else {
-                <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                <svg
+                  class="w-8 h-8 text-slate-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
                 </svg>
               }
             </div>
             <div class="flex flex-col gap-2">
               <div class="flex items-center gap-2">
-                <button type="button" (click)="iniciarCamera('documento')"
-                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <button
+                  type="button"
+                  (click)="iniciarCamera('documento')"
+                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition flex items-center gap-1.5"
+                >
+                  <svg
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                    />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
                   </svg>
                   Tirar Foto
                 </button>
-                <label class="px-3 py-1.5 text-xs rounded-lg font-medium bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition cursor-pointer flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                <label
+                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <svg
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                    />
                   </svg>
                   Upload
-                  <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event, 'documento')" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    (change)="onFileSelected($event, 'documento')"
+                  />
                 </label>
               </div>
               @if (fotoDocumentoBase64()) {
-                <button type="button" (click)="removerFoto('documento')"
-                  class="text-left text-[11px] text-red-400 hover:underline">
+                <button
+                  type="button"
+                  (click)="removerFoto('documento')"
+                  class="text-left text-[11px] text-red-400 hover:underline"
+                >
                   Remover foto
                 </button>
               }
@@ -400,14 +744,22 @@
       </div>
 
       <div class="mt-5 flex justify-end gap-2">
-        <button (click)="cancelarForm()" [disabled]="saving()"
-          class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition disabled:opacity-50">
+        <button
+          (click)="cancelarForm()"
+          [disabled]="saving()"
+          class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition disabled:opacity-50"
+        >
           Cancelar
         </button>
-        <button (click)="salvar()" [disabled]="saving()"
-          class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-accent hover:bg-accent-600 transition disabled:opacity-50 flex items-center gap-2">
+        <button
+          (click)="salvar()"
+          [disabled]="saving()"
+          class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-accent hover:bg-accent-600 transition disabled:opacity-50 flex items-center gap-2"
+        >
           @if (saving()) {
-            <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <div
+              class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+            ></div>
           }
           @if (novaVisitaPara()) {
             Criar visita
@@ -423,97 +775,288 @@
 
   <!-- Erro -->
   @if (error()) {
-    <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300 flex items-center gap-2">
-      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+    <div
+      class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300 flex items-center gap-2"
+    >
+      <svg
+        class="w-4 h-4 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+        />
+      </svg>
       {{ error() }}
     </div>
   }
 
   <!-- Lista -->
-  <div class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden">
+  <div
+    class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden"
+  >
     @if (loading()) {
       <div class="p-12 text-center">
-        <div class="inline-block w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
+        <div
+          class="inline-block w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin"
+        ></div>
         <p class="text-sm text-slate-400 mt-3">Carregando...</p>
       </div>
     } @else if (visitantesFiltrados().length === 0) {
       <div class="p-12 text-center">
-        <div class="w-12 h-12 rounded-xl bg-white/5 mx-auto flex items-center justify-center mb-3">
-          <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        <div
+          class="w-12 h-12 rounded-xl bg-white/5 mx-auto flex items-center justify-center mb-3"
+        >
+          <svg
+            class="w-6 h-6 text-slate-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
+          </svg>
         </div>
-        <p class="text-sm text-slate-300 font-medium">{{ isPrestadorModo() ? 'Nenhum prestador encontrado' : 'Nenhum visitante encontrado' }}</p>
-        <p class="text-xs text-slate-500 mt-1">Clique em "{{ isPrestadorModo() ? 'Cadastrar prestador' : 'Cadastrar visitante' }}" para começar</p>
+        <p class="text-sm text-slate-300 font-medium">
+          {{
+            isPrestadorModo()
+              ? 'Nenhum prestador encontrado'
+              : 'Nenhum visitante encontrado'
+          }}
+        </p>
+        <p class="text-xs text-slate-500 mt-1">
+          Clique em "{{
+            isPrestadorModo() ? 'Cadastrar prestador' : 'Cadastrar visitante'
+          }}" para começar
+        </p>
       </div>
     } @else {
-      <!-- MOBILE / janela estreita: cards -->
-      <div class="lg:hidden divide-y divide-white/5">
+      <!-- MOBILE / TABLET / janela estreita: cards (a tabela só aparece em telas
+           largas ≥ xl; em tablet a tabela cortava as colunas/ações à direita) -->
+      <div class="xl:hidden divide-y divide-white/5">
         @for (v of visitantesPaginados(); track v.id) {
-          <div (click)="abrirDetalhes(v)" class="p-4 hover:bg-white/[0.03] transition cursor-pointer">
+          <div
+            (click)="abrirDetalhes(v)"
+            class="p-4 hover:bg-white/[0.03] transition cursor-pointer"
+          >
             <div class="flex items-start gap-3">
-              <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden">
+              <div
+                class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden"
+              >
                 @if (v.foto_pessoa) {
-                  <img [src]="v.foto_pessoa" class="w-full h-full object-cover" />
+                  <img
+                    [src]="v.foto_pessoa"
+                    class="w-full h-full object-cover"
+                  />
                 } @else {
-                  <span class="text-xs font-semibold text-accent">{{ iniciais(v.nome) }}</span>
+                  <span class="text-xs font-semibold text-accent">{{
+                    iniciais(v.nome)
+                  }}</span>
                 }
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="font-medium text-white truncate">{{ v.nome }}</span>
-                  <span class="text-[11px] px-2 py-0.5 rounded-md border"
-                        [class.text-accent]="!v.is_prestador" [class.bg-accent/10]="!v.is_prestador" [class.border-accent/20]="!v.is_prestador"
-                        [class.text-amber-400]="v.is_prestador" [class.bg-amber-400/10]="v.is_prestador" [class.border-amber-400/20]="v.is_prestador">
+                  <span class="font-medium text-white truncate">{{
+                    v.nome
+                  }}</span>
+                  <span
+                    class="text-[11px] px-2 py-0.5 rounded-md border"
+                    [class.text-accent]="!v.is_prestador"
+                    [class.bg-accent/10]="!v.is_prestador"
+                    [class.border-accent/20]="!v.is_prestador"
+                    [class.text-amber-400]="v.is_prestador"
+                    [class.bg-amber-400/10]="v.is_prestador"
+                    [class.border-amber-400/20]="v.is_prestador"
+                  >
                     {{ v.is_prestador ? 'Prestador' : 'Visitante' }}
                   </span>
                 </div>
-                <div class="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+                <div
+                  class="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]"
+                >
                   @switch (getStatusVisitante(v)) {
-                    @case ('presente') { <span class="inline-flex items-center gap-1 text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>No condomínio</span> }
-                    @case ('liberado') { <span class="inline-flex items-center gap-1 text-cyan-400"><span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>Liberado</span> }
-                    @case ('autorizado') { <span class="inline-flex items-center gap-1 text-sky-400"><span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>Autorizado</span> }
-                    @case ('agendado') { <span class="inline-flex items-center gap-1 text-amber-400"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Agendado</span> }
-                    @case ('saiu') { <span class="inline-flex items-center gap-1 text-slate-500"><span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>Saiu</span> }
+                    @case ('presente') {
+                      <span
+                        class="inline-flex items-center gap-1 text-emerald-400"
+                        ><span
+                          class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"
+                        ></span
+                        >No condomínio</span
+                      >
+                    }
+                    @case ('liberado') {
+                      <span class="inline-flex items-center gap-1 text-cyan-400"
+                        ><span
+                          class="w-1.5 h-1.5 rounded-full bg-cyan-400"
+                        ></span
+                        >Liberado</span
+                      >
+                    }
+                    @case ('autorizado') {
+                      <span class="inline-flex items-center gap-1 text-sky-400"
+                        ><span
+                          class="w-1.5 h-1.5 rounded-full bg-sky-400"
+                        ></span
+                        >Autorizado</span
+                      >
+                    }
+                    @case ('agendado') {
+                      <span
+                        class="inline-flex items-center gap-1 text-amber-400"
+                        ><span
+                          class="w-1.5 h-1.5 rounded-full bg-amber-400"
+                        ></span
+                        >Agendado</span
+                      >
+                    }
+                    @case ('saiu') {
+                      <span
+                        class="inline-flex items-center gap-1 text-slate-500"
+                        ><span
+                          class="w-1.5 h-1.5 rounded-full bg-slate-500"
+                        ></span
+                        >Saiu</span
+                      >
+                    }
                   }
                   @if ($any(v).apartamentosVisitados?.length) {
                     @for (a of $any(v).apartamentosVisitados; track a.id) {
-                      <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-white/5 font-mono text-slate-300">{{ a.label }}</span>
+                      <span
+                        class="px-1.5 py-0.5 rounded bg-slate-800 border border-white/5 font-mono text-slate-300"
+                        >{{ a.label }}</span
+                      >
                     }
                   }
                 </div>
-                <div class="mt-1 flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap">
-                  @if (v.doc_identificacao) { <span>Doc: {{ v.doc_identificacao }}</span> }
-                  @if ($any(v).ultEntrada) { <span>{{ $any(v).ultEntrada | date: 'dd/MM HH:mm' }}</span> }
-                  @if (v.codigo_acesso) { <span class="text-emerald-400">PIN: {{ pinsRevelados().has(v.id) ? v.codigo_acesso : '••••••' }}</span> }
+                <div
+                  class="mt-1 flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap"
+                >
+                  @if (v.doc_identificacao) {
+                    <span>Doc: {{ v.doc_identificacao }}</span>
+                  }
+                  @if ($any(v).ultEntrada) {
+                    <span>{{ $any(v).ultEntrada | date: 'dd/MM HH:mm' }}</span>
+                  }
+                  @if (v.codigo_acesso) {
+                    <span class="text-emerald-400"
+                      >PIN:
+                      {{
+                        pinsRevelados().has(v.id) ? v.codigo_acesso : '••••••'
+                      }}</span
+                    >
+                  }
                   @if (v.tag_rfid) {
                     <span class="inline-flex items-center gap-1 text-blue-300">
-                      <svg class="w-3 h-3 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                      <svg
+                        class="w-3 h-3 text-blue-400 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                        />
+                      </svg>
                       Tag {{ v.tag_rfid }}
                     </span>
                   }
                 </div>
                 @if (v.is_prestador && (v.categorias || v.dias_semana)) {
-                  <div class="mt-1.5 text-[10px] text-amber-400/85 font-medium flex flex-wrap gap-1 items-center">
+                  <div
+                    class="mt-1.5 text-[10px] text-amber-400/85 font-medium flex flex-wrap gap-1 items-center"
+                  >
                     @if (v.categorias) {
-                      <span class="bg-amber-500/10 dark:bg-amber-400/5 px-1 py-0.5 rounded border border-amber-400/20 truncate max-w-[200px]" [title]="v.categorias.split(';').join(', ')">{{ v.categorias.split(';').join(', ') }}</span>
+                      <span
+                        class="bg-amber-500/10 dark:bg-amber-400/5 px-1 py-0.5 rounded border border-amber-400/20 truncate max-w-[200px]"
+                        [title]="v.categorias.split(';').join(', ')"
+                        >{{ v.categorias.split(';').join(', ') }}</span
+                      >
                     }
                     @if (v.dias_semana) {
                       <span class="text-slate-400">·</span>
-                      <span class="text-slate-400">{{ formatarDiasSemanaExtenso(v.dias_semana) }}</span>
+                      <span class="text-slate-400">{{
+                        formatarDiasSemanaExtenso(v.dias_semana)
+                      }}</span>
                     }
                   </div>
                 }
-                <div class="mt-2.5 flex items-center gap-2 flex-wrap" (click)="$event.stopPropagation()">
+                <div
+                  class="mt-2.5 flex items-center gap-2 flex-wrap"
+                  (click)="$event.stopPropagation()"
+                >
                   @if (getStatusVisitante(v) === 'presente') {
-                    <button (click)="darBaixa(v)" class="px-2.5 py-1 text-xs rounded bg-red-500/10 text-red-400 border border-red-500/20 font-medium">Dar Baixa</button>
-                  } @else if (getStatusVisitante(v) === 'liberado' || getStatusVisitante(v) === 'autorizado' || getStatusVisitante(v) === 'agendado') {
-                    <button (click)="registrarEntradaManual(v)" class="px-2.5 py-1 text-xs rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">Registrar Entrada</button>
+                    <button
+                      (click)="darBaixa(v)"
+                      class="px-2.5 py-1 text-xs rounded bg-red-500/10 text-red-400 border border-red-500/20 font-medium"
+                    >
+                      Dar Baixa
+                    </button>
+                  } @else if (
+                    getStatusVisitante(v) === 'liberado' ||
+                    getStatusVisitante(v) === 'autorizado' ||
+                    getStatusVisitante(v) === 'agendado'
+                  ) {
+                    <button
+                      (click)="registrarEntradaManual(v)"
+                      class="px-2.5 py-1 text-xs rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium"
+                    >
+                      Registrar Entrada
+                    </button>
                   }
-                  <button (click)="abrirNovaVisita($any(v))" class="px-2.5 py-1 text-xs rounded bg-accent/10 text-accent border border-accent/20 font-medium">Nova Visita</button>
-                  <button (click)="abrirEditar(v)" title="Editar" class="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-white/5 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                  <button
+                    (click)="abrirNovaVisita($any(v))"
+                    class="px-2.5 py-1 text-xs rounded bg-accent/10 text-accent border border-accent/20 font-medium"
+                  >
+                    Nova Visita
                   </button>
-                  <button (click)="removerPessoa($any(v))" title="Remover" class="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/5 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  <button
+                    (click)="abrirEditar(v)"
+                    title="Editar"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-white/5 transition"
+                  >
+                    <svg
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    (click)="removerPessoa($any(v))"
+                    title="Remover"
+                    class="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/5 transition"
+                  >
+                    <svg
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -522,271 +1065,557 @@
         }
       </div>
 
-      <!-- DESKTOP: tabela -->
-      <table class="hidden lg:table w-full text-sm">
-        <thead class="bg-white/[0.02] text-slate-400 uppercase text-[11px] tracking-wider border-b border-white/10">
-          <tr>
-            <th class="text-left px-5 py-3 font-medium">Pessoa</th>
-            <th class="text-left px-5 py-3 font-medium">Documento</th>
-            <th class="text-left px-5 py-3 font-medium">Tipo</th>
-            <th class="text-left px-5 py-3 font-medium">Última entrada</th>
-            <th class="text-left px-5 py-3 font-medium">Apartamentos</th>
-            <th class="text-left px-5 py-3 font-medium">Status</th>
-            <th class="text-right px-5 py-3 font-medium"></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (v of visitantesPaginados(); track v.id) {
-            <tr (click)="abrirDetalhes(v)"
-                class="border-t border-white/5 hover:bg-white/[0.02] active:bg-white/[0.04] transition group cursor-pointer">
-              <td class="px-5 py-3">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden"
-                       [class.cursor-pointer]="v.foto_pessoa"
-                       [title]="v.foto_pessoa ? 'Clique para ampliar' : ''"
-                       (click)="v.foto_pessoa ? abrirAmpliarFoto(v.foto_pessoa, v.nome, $event) : $event.stopPropagation()">
-                    @if (v.foto_pessoa) {
-                      <img [src]="v.foto_pessoa" class="w-full h-full object-cover" />
-                    } @else {
-                      <span class="text-[11px] font-semibold text-accent">{{ iniciais(v.nome) }}</span>
-                    }
-                  </div>
-                  <div class="flex flex-col gap-0.5 justify-center">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                      <span class="font-semibold text-slate-800 dark:text-white hover:text-accent transition text-left text-sm"
-                            title="Clique na linha para ver detalhes, histórico de acessos e apartamentos visitados">{{ v.nome }}</span>
-                      @if (v.face_sync_status === 'synced') {
-                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/10 text-green-700 dark:bg-green-500/15 dark:text-green-400 border border-green-200 dark:border-green-500/30 uppercase" title="Reconhecimento facial sincronizado">Facial</span>
-                      } @else if (v.face_sync_status === 'pending') {
-                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 uppercase" title="Sincronização pendente">Sinc.</span>
-                      } @else if (v.face_sync_status === 'error') {
-                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 uppercase" title="Erro na sincronização facial">Erro</span>
-                      }
-                      @if ($any(v).visitasAnteriores > 0) {
-                        <span class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-accent/10 border border-accent/25 text-accent"
-                              [title]="$any(v).visitasAnteriores + ' visita(s) anterior(es) — abra os detalhes para ver histórico'">
-                          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                          </svg>
-                          +{{ $any(v).visitasAnteriores }}
-                        </span>
-                      }
-                    </div>
-                    <div class="flex items-center gap-2 flex-wrap text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1.5">
-                      @if (v.codigo_acesso) {
-                        <span class="inline-flex items-center gap-1 text-[10px] font-mono bg-emerald-500/10 dark:bg-emerald-500/[0.08] border border-emerald-250 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded-md">
-                          <svg class="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-                          </svg>
-                          <span class="text-emerald-600/70 dark:text-emerald-400/70">PIN</span>
-                          <span class="font-semibold tracking-wide cursor-pointer hover:text-emerald-900 dark:hover:text-white transition"
-                                (click)="copiarTexto(v.codigo_acesso, 'PIN'); $event.stopPropagation()"
-                                title="Clique para copiar o PIN">{{ pinsRevelados().has(v.id) ? v.codigo_acesso : '••••••' }}</span>
-                          <button (click)="togglePin(v.id, $event)"
-                                  class="text-emerald-650 dark:text-emerald-400/60 hover:text-emerald-900 dark:hover:text-emerald-300 transition focus:outline-none -mr-0.5"
-                                  title="Mostrar/Ocultar PIN">
-                            @if (pinsRevelados().has(v.id)) {
-                              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/>
-                              </svg>
-                            } @else {
-                              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                              </svg>
-                            }
-                          </button>
-                        </span>
-                      }
-                      @if (v.tag_rfid) {
-                        <span class="inline-flex items-center gap-1 text-[10px] font-mono bg-blue-500/10 dark:bg-blue-500/[0.08] border border-blue-250 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-md" title="Tag RFID (credencial)">
-                          <svg class="w-3 h-3 text-blue-550 dark:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                          </svg>
-                          <span class="text-blue-500/70 dark:text-blue-400/70">Tag</span>
-                          <span class="font-semibold tracking-wide">{{ v.tag_rfid }}</span>
-                        </span>
-                      }
-                      @if (v.is_prestador && (v.categorias || v.dias_semana)) {
-                        <span class="text-slate-300 dark:text-slate-650 select-none">·</span>
-                        @if (v.categorias) {
-                          <span class="bg-amber-500/10 dark:bg-amber-400/5 px-1.5 py-0.5 rounded border border-amber-250 dark:border-amber-400/20 text-amber-700 dark:text-amber-400 truncate max-w-[150px]" [title]="v.categorias.split(';').join(', ')">{{ v.categorias.split(';').join(', ') }}</span>
-                        }
-                        @if (v.dias_semana) {
-                          <span class="text-slate-500 dark:text-slate-400 text-[9px]">{{ formatarDiasSemanaExtenso(v.dias_semana) }}</span>
-                        }
-                      }
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td class="px-5 py-3 text-slate-400 font-mono text-xs" (click)="$event.stopPropagation()">
-                <div class="flex items-center gap-2">
-                  @if (v.doc_identificacao) {
-                    <button (click)="copiarTexto(v.doc_identificacao, 'Documento')"
-                            class="hover:text-accent transition flex items-center gap-1.5"
-                            title="Clique para copiar o Documento">
-                      <span>{{ v.doc_identificacao }}</span>
-                      <svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
-                      </svg>
-                    </button>
-                  } @else {
-                    <span>—</span>
-                  }
-                  @if (v.foto_documento) {
-                    <button (click)="abrirAmpliarFoto(v.foto_documento, 'Documento de ' + v.nome, $event)"
-                            class="text-accent hover:text-accent-500 transition focus:outline-none p-0.5"
-                            title="Visualizar foto do documento">
-                      <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                      </svg>
-                    </button>
-                  }
-                </div>
-              </td>
-              <td class="px-5 py-3">
-                <span class="text-[11px] px-2 py-0.5 rounded-md border"
-                      [class.text-accent]="!v.is_prestador"
-                      [class.bg-accent/10]="!v.is_prestador"
-                      [class.border-accent/20]="!v.is_prestador"
-                      [class.text-amber-400]="v.is_prestador"
-                      [class.bg-amber-400/10]="v.is_prestador"
-                      [class.border-amber-400/20]="v.is_prestador">
-                  {{ v.is_prestador ? 'Prestador' : 'Visitante' }}
-                </span>
-              </td>
-              <td class="px-5 py-3 text-slate-400 text-xs font-mono">
-                {{ $any(v).ultEntrada ? ($any(v).ultEntrada | date: 'dd/MM HH:mm') : '—' }}
-              </td>
-              <td class="px-5 py-3 text-slate-300 text-xs">
-                @if ($any(v).apartamentosVisitados?.length) {
-                  <div class="flex flex-wrap gap-1">
-                    @for (a of $any(v).apartamentosVisitados; track a.id) {
-                      <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-800 border border-white/5 text-[10px] font-mono text-slate-300">{{ a.label }}</span>
-                    }
-                  </div>
-                } @else {
-                  <span class="text-slate-500">—</span>
-                }
-              </td>
-              <td class="px-5 py-3">
-                @switch (getStatusVisitante(v)) {
-                  @case ('presente') {
-                    <span class="inline-flex items-center gap-1.5 text-[11px] text-emerald-400">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      No condomínio
-                    </span>
-                  }
-                  @case ('liberado') {
-                    <span class="inline-flex items-center gap-1.5 text-[11px] text-cyan-400">
-                      <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                      Liberado
-                    </span>
-                  }
-                  @case ('autorizado') {
-                    <span class="inline-flex items-center gap-1.5 text-[11px] text-sky-400">
-                      <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
-                      Autorizado
-                    </span>
-                  }
-                  @case ('agendado') {
-                    <span class="inline-flex items-center gap-1.5 text-[11px] text-amber-400">
-                      <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                      Agendado
-                    </span>
-                  }
-                  @case ('saiu') {
-                    <span class="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
-                      <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-                      Saiu
-                    </span>
-                  }
-                }
-              </td>
-              <td class="px-5 py-3 text-right" (click)="$event.stopPropagation()">
-                <div class="flex items-center justify-end gap-3 flex-wrap">
-                  @if (getStatusVisitante(v) === 'presente') {
-                    <button (click)="darBaixa(v)"
-                            class="px-2.5 py-1 text-xs rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white transition font-medium">
-                      Dar Baixa
-                    </button>
-                  } @else if (getStatusVisitante(v) === 'liberado' || getStatusVisitante(v) === 'autorizado' || getStatusVisitante(v) === 'agendado') {
-                    <button (click)="registrarEntradaManual(v)"
-                            class="px-2.5 py-1 text-xs rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition font-medium">
-                      Registrar Entrada
-                    </button>
-                  }
-
-                  <button (click)="abrirNovaVisita($any(v))"
-                          title="Cadastrar nova visita para esta pessoa em outro apartamento"
-                          class="px-2.5 py-1 text-xs rounded bg-accent/10 text-accent border border-accent/20 hover:bg-accent hover:text-white transition font-medium flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    Nova Visita
-                  </button>
-
-                  <div class="flex items-center gap-3">
-                    <button (click)="abrirEditar(v)"
-                            title="Editar nome, foto e documento desta pessoa"
-                            class="text-xs text-slate-400 hover:text-accent transition flex items-center gap-1">
-                      <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-accent transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                      </svg>
-                      Editar
-                    </button>
-                    <button (click)="removerPessoa($any(v))"
-                            title="Remover esta pessoa e todas as visitas dela"
-                            class="text-xs text-slate-400 hover:text-red-400 transition flex items-center gap-1">
-                      <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-red-400 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                      </svg>
-                      Remover
-                    </button>
-                  </div>
-                </div>
-              </td>
+      <!-- DESKTOP (≥ xl): tabela, com scroll horizontal de segurança -->
+      <div class="hidden xl:block overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead
+            class="bg-white/[0.02] text-slate-400 uppercase text-[11px] tracking-wider border-b border-white/10"
+          >
+            <tr>
+              <th class="text-left px-5 py-3 font-medium">Pessoa</th>
+              <th class="text-left px-5 py-3 font-medium">Documento</th>
+              <th class="text-left px-5 py-3 font-medium">Tipo</th>
+              <th class="text-left px-5 py-3 font-medium">Última entrada</th>
+              <th class="text-left px-5 py-3 font-medium">Apartamentos</th>
+              <th class="text-left px-5 py-3 font-medium">Status</th>
+              <th class="text-right px-5 py-3 font-medium"></th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (v of visitantesPaginados(); track v.id) {
+              <tr
+                (click)="abrirDetalhes(v)"
+                class="border-t border-white/5 hover:bg-white/[0.02] active:bg-white/[0.04] transition group cursor-pointer"
+              >
+                <td class="px-5 py-3">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-8 h-8 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden"
+                      [class.cursor-pointer]="v.foto_pessoa"
+                      [title]="v.foto_pessoa ? 'Clique para ampliar' : ''"
+                      (click)="
+                        v.foto_pessoa
+                          ? abrirAmpliarFoto(v.foto_pessoa, v.nome, $event)
+                          : $event.stopPropagation()
+                      "
+                    >
+                      @if (v.foto_pessoa) {
+                        <img
+                          [src]="v.foto_pessoa"
+                          class="w-full h-full object-cover"
+                        />
+                      } @else {
+                        <span class="text-[11px] font-semibold text-accent">{{
+                          iniciais(v.nome)
+                        }}</span>
+                      }
+                    </div>
+                    <div class="flex flex-col gap-0.5 justify-center">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          class="font-semibold text-slate-800 dark:text-white hover:text-accent transition text-left text-sm"
+                          title="Clique na linha para ver detalhes, histórico de acessos e apartamentos visitados"
+                          >{{ v.nome }}</span
+                        >
+                        @if (v.face_sync_status === 'synced') {
+                          <span
+                            class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/10 text-green-700 dark:bg-green-500/15 dark:text-green-400 border border-green-200 dark:border-green-500/30 uppercase"
+                            title="Reconhecimento facial sincronizado"
+                            >Facial</span
+                          >
+                        } @else if (v.face_sync_status === 'pending') {
+                          <span
+                            class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 uppercase"
+                            title="Sincronização pendente"
+                            >Sinc.</span
+                          >
+                        } @else if (v.face_sync_status === 'error') {
+                          <span
+                            class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 uppercase"
+                            title="Erro na sincronização facial"
+                            >Erro</span
+                          >
+                        }
+                        @if ($any(v).visitasAnteriores > 0) {
+                          <span
+                            class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-accent/10 border border-accent/25 text-accent"
+                            [title]="
+                              $any(v).visitasAnteriores +
+                              ' visita(s) anterior(es) — abra os detalhes para ver histórico'
+                            "
+                          >
+                            <svg
+                              class="w-2.5 h-2.5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
+                            </svg>
+                            +{{ $any(v).visitasAnteriores }}
+                          </span>
+                        }
+                      </div>
+                      <div
+                        class="flex items-center gap-2 flex-wrap text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1.5"
+                      >
+                        @if (v.codigo_acesso) {
+                          <span
+                            class="inline-flex items-center gap-1 text-[10px] font-mono bg-emerald-500/10 dark:bg-emerald-500/[0.08] border border-emerald-250 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded-md"
+                          >
+                            <svg
+                              class="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                              />
+                            </svg>
+                            <span
+                              class="text-emerald-600/70 dark:text-emerald-400/70"
+                              >PIN</span
+                            >
+                            <span
+                              class="font-semibold tracking-wide cursor-pointer hover:text-emerald-900 dark:hover:text-white transition"
+                              (click)="
+                                copiarTexto(v.codigo_acesso, 'PIN');
+                                $event.stopPropagation()
+                              "
+                              title="Clique para copiar o PIN"
+                              >{{
+                                pinsRevelados().has(v.id)
+                                  ? v.codigo_acesso
+                                  : '••••••'
+                              }}</span
+                            >
+                            <button
+                              (click)="togglePin(v.id, $event)"
+                              class="text-emerald-650 dark:text-emerald-400/60 hover:text-emerald-900 dark:hover:text-emerald-300 transition focus:outline-none -mr-0.5"
+                              title="Mostrar/Ocultar PIN"
+                            >
+                              @if (pinsRevelados().has(v.id)) {
+                                <svg
+                                  class="w-3 h-3"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"
+                                  />
+                                </svg>
+                              } @else {
+                                <svg
+                                  class="w-3 h-3"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                  />
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                  />
+                                </svg>
+                              }
+                            </button>
+                          </span>
+                        }
+                        @if (v.tag_rfid) {
+                          <span
+                            class="inline-flex items-center gap-1 text-[10px] font-mono bg-blue-500/10 dark:bg-blue-500/[0.08] border border-blue-250 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-md"
+                            title="Tag RFID (credencial)"
+                          >
+                            <svg
+                              class="w-3 h-3 text-blue-550 dark:text-blue-400 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                              />
+                            </svg>
+                            <span class="text-blue-500/70 dark:text-blue-400/70"
+                              >Tag</span
+                            >
+                            <span class="font-semibold tracking-wide">{{
+                              v.tag_rfid
+                            }}</span>
+                          </span>
+                        }
+                        @if (
+                          v.is_prestador && (v.categorias || v.dias_semana)
+                        ) {
+                          <span
+                            class="text-slate-300 dark:text-slate-650 select-none"
+                            >·</span
+                          >
+                          @if (v.categorias) {
+                            <span
+                              class="bg-amber-500/10 dark:bg-amber-400/5 px-1.5 py-0.5 rounded border border-amber-250 dark:border-amber-400/20 text-amber-700 dark:text-amber-400 truncate max-w-[150px]"
+                              [title]="v.categorias.split(';').join(', ')"
+                              >{{ v.categorias.split(';').join(', ') }}</span
+                            >
+                          }
+                          @if (v.dias_semana) {
+                            <span
+                              class="text-slate-500 dark:text-slate-400 text-[9px]"
+                              >{{
+                                formatarDiasSemanaExtenso(v.dias_semana)
+                              }}</span
+                            >
+                          }
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td
+                  class="px-5 py-3 text-slate-400 font-mono text-xs"
+                  (click)="$event.stopPropagation()"
+                >
+                  <div class="flex items-center gap-2">
+                    @if (v.doc_identificacao) {
+                      <button
+                        (click)="copiarTexto(v.doc_identificacao, 'Documento')"
+                        class="hover:text-accent transition flex items-center gap-1.5"
+                        title="Clique para copiar o Documento"
+                      >
+                        <span>{{ v.doc_identificacao }}</span>
+                        <svg
+                          class="w-3.5 h-3.5 text-slate-500 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="1.8"
+                            d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                          />
+                        </svg>
+                      </button>
+                    } @else {
+                      <span>—</span>
+                    }
+                    @if (v.foto_documento) {
+                      <button
+                        (click)="
+                          abrirAmpliarFoto(
+                            v.foto_documento,
+                            'Documento de ' + v.nome,
+                            $event
+                          )
+                        "
+                        class="text-accent hover:text-accent-500 transition focus:outline-none p-0.5"
+                        title="Visualizar foto do documento"
+                      >
+                        <svg
+                          class="w-4 h-4 text-accent"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        </svg>
+                      </button>
+                    }
+                  </div>
+                </td>
+                <td class="px-5 py-3">
+                  <span
+                    class="text-[11px] px-2 py-0.5 rounded-md border"
+                    [class.text-accent]="!v.is_prestador"
+                    [class.bg-accent/10]="!v.is_prestador"
+                    [class.border-accent/20]="!v.is_prestador"
+                    [class.text-amber-400]="v.is_prestador"
+                    [class.bg-amber-400/10]="v.is_prestador"
+                    [class.border-amber-400/20]="v.is_prestador"
+                  >
+                    {{ v.is_prestador ? 'Prestador' : 'Visitante' }}
+                  </span>
+                </td>
+                <td class="px-5 py-3 text-slate-400 text-xs font-mono">
+                  {{
+                    $any(v).ultEntrada
+                      ? ($any(v).ultEntrada | date: 'dd/MM HH:mm')
+                      : '—'
+                  }}
+                </td>
+                <td class="px-5 py-3 text-slate-300 text-xs">
+                  @if ($any(v).apartamentosVisitados?.length) {
+                    <div class="flex flex-wrap gap-1">
+                      @for (a of $any(v).apartamentosVisitados; track a.id) {
+                        <span
+                          class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-800 border border-white/5 text-[10px] font-mono text-slate-300"
+                          >{{ a.label }}</span
+                        >
+                      }
+                    </div>
+                  } @else {
+                    <span class="text-slate-500">—</span>
+                  }
+                </td>
+                <td class="px-5 py-3">
+                  @switch (getStatusVisitante(v)) {
+                    @case ('presente') {
+                      <span
+                        class="inline-flex items-center gap-1.5 text-[11px] text-emerald-400"
+                      >
+                        <span
+                          class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"
+                        ></span>
+                        No condomínio
+                      </span>
+                    }
+                    @case ('liberado') {
+                      <span
+                        class="inline-flex items-center gap-1.5 text-[11px] text-cyan-400"
+                      >
+                        <span
+                          class="w-1.5 h-1.5 rounded-full bg-cyan-400"
+                        ></span>
+                        Liberado
+                      </span>
+                    }
+                    @case ('autorizado') {
+                      <span
+                        class="inline-flex items-center gap-1.5 text-[11px] text-sky-400"
+                      >
+                        <span
+                          class="w-1.5 h-1.5 rounded-full bg-sky-400"
+                        ></span>
+                        Autorizado
+                      </span>
+                    }
+                    @case ('agendado') {
+                      <span
+                        class="inline-flex items-center gap-1.5 text-[11px] text-amber-400"
+                      >
+                        <span
+                          class="w-1.5 h-1.5 rounded-full bg-amber-400"
+                        ></span>
+                        Agendado
+                      </span>
+                    }
+                    @case ('saiu') {
+                      <span
+                        class="inline-flex items-center gap-1.5 text-[11px] text-slate-500"
+                      >
+                        <span
+                          class="w-1.5 h-1.5 rounded-full bg-slate-500"
+                        ></span>
+                        Saiu
+                      </span>
+                    }
+                  }
+                </td>
+                <td
+                  class="px-5 py-3 text-right"
+                  (click)="$event.stopPropagation()"
+                >
+                  <div class="flex items-center justify-end gap-3 flex-wrap">
+                    @if (getStatusVisitante(v) === 'presente') {
+                      <button
+                        (click)="darBaixa(v)"
+                        class="px-2.5 py-1 text-xs rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white transition font-medium"
+                      >
+                        Dar Baixa
+                      </button>
+                    } @else if (
+                      getStatusVisitante(v) === 'liberado' ||
+                      getStatusVisitante(v) === 'autorizado' ||
+                      getStatusVisitante(v) === 'agendado'
+                    ) {
+                      <button
+                        (click)="registrarEntradaManual(v)"
+                        class="px-2.5 py-1 text-xs rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition font-medium"
+                      >
+                        Registrar Entrada
+                      </button>
+                    }
+
+                    <button
+                      (click)="abrirNovaVisita($any(v))"
+                      title="Cadastrar nova visita para esta pessoa em outro apartamento"
+                      class="px-2.5 py-1 text-xs rounded bg-accent/10 text-accent border border-accent/20 hover:bg-accent hover:text-white transition font-medium flex items-center gap-1"
+                    >
+                      <svg
+                        class="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                      Nova Visita
+                    </button>
+
+                    <div class="flex items-center gap-3">
+                      <button
+                        (click)="abrirEditar(v)"
+                        title="Editar nome, foto e documento desta pessoa"
+                        class="text-xs text-slate-400 hover:text-accent transition flex items-center gap-1"
+                      >
+                        <svg
+                          class="w-3.5 h-3.5 text-slate-500 group-hover:text-accent transition"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                          />
+                        </svg>
+                        Editar
+                      </button>
+                      <button
+                        (click)="removerPessoa($any(v))"
+                        title="Remover esta pessoa e todas as visitas dela"
+                        class="text-xs text-slate-400 hover:text-red-400 transition flex items-center gap-1"
+                      >
+                        <svg
+                          class="w-3.5 h-3.5 text-slate-500 group-hover:text-red-400 transition"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                        Remover
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
 
       <!-- Paginação -->
       @if (visitantesFiltrados().length > itensPorPagina) {
-        <div class="px-5 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between flex-wrap gap-4">
+        <div
+          class="px-5 py-4 border-t border-white/5 bg-white/[0.01] flex items-center justify-between flex-wrap gap-4"
+        >
           <p class="text-xs text-slate-400">
-            Exibindo <span class="text-white font-medium">{{ exibindoInicio() }}</span> a 
-            <span class="text-white font-medium">{{ exibindoFim() }}</span> de 
-            <span class="text-white font-medium">{{ visitantesFiltrados().length }}</span> visitantes
+            Exibindo
+            <span class="text-white font-medium">{{ exibindoInicio() }}</span> a
+            <span class="text-white font-medium">{{ exibindoFim() }}</span> de
+            <span class="text-white font-medium">{{
+              visitantesFiltrados().length
+            }}</span>
+            visitantes
           </p>
-          
+
           <div class="flex items-center gap-2">
-            <button (click)="pagina.set(pagina() - 1)" [disabled]="pagina() === 1"
-              class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            <button
+              (click)="pagina.set(pagina() - 1)"
+              [disabled]="pagina() === 1"
+              class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
             </button>
-            
+
             <div class="flex items-center gap-1">
               @for (p of paginasLista(); track p) {
                 @if (p === -1) {
                   <span class="px-2 text-slate-500">...</span>
                 } @else {
-                  <button (click)="pagina.set(p)"
+                  <button
+                    (click)="pagina.set(p)"
                     class="w-8 h-8 rounded-lg text-xs font-semibold transition"
                     [class.bg-accent]="pagina() === p"
                     [class.text-white]="pagina() === p"
                     [class.text-slate-400]="pagina() !== p"
                     [class.hover:bg-white/5]="pagina() !== p"
-                    [class.hover:text-white]="pagina() !== p">
+                    [class.hover:text-white]="pagina() !== p"
+                  >
                     {{ p }}
                   </button>
                 }
               }
             </div>
 
-            <button (click)="pagina.set(pagina() + 1)" [disabled]="pagina() === totalPaginas()"
-              class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <button
+              (click)="pagina.set(pagina() + 1)"
+              [disabled]="pagina() === totalPaginas()"
+              class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
             </button>
           </div>
         </div>
@@ -796,19 +1625,51 @@
 
   <!-- Modal de Validação de Código (PIN) -->
   @if (showValidationModal()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in">
-        
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in"
+      >
         <!-- Header do Modal -->
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+        <div
+          class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between"
+        >
           <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            <svg
+              class="w-5 h-5 text-emerald-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              />
             </svg>
-            <h3 class="text-sm font-semibold text-white">Validar Acesso por PIN</h3>
+            <h3 class="text-sm font-semibold text-white">
+              Validar Acesso por PIN
+            </h3>
           </div>
-          <button (click)="fecharValidador()" class="text-slate-400 hover:text-white transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <button
+            (click)="fecharValidador()"
+            class="text-slate-400 hover:text-white transition"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
 
@@ -817,7 +1678,9 @@
           @if (!validationResult()) {
             <div>
               <label class="block mb-2">
-                <span class="text-xs font-medium text-slate-400 block mb-1.5">Digite o código PIN (6 dígitos)</span>
+                <span class="text-xs font-medium text-slate-400 block mb-1.5"
+                  >Digite o código PIN (6 dígitos)</span
+                >
                 <div class="flex gap-2">
                   <input
                     type="text"
@@ -825,13 +1688,17 @@
                     [ngModel]="pinCode()"
                     (ngModelChange)="pinCode.set($event)"
                     (keyup.enter)="validarPIN()"
-                    class="flex-1 px-4 py-3 text-lg font-mono text-center tracking-widest rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition" />
+                    class="flex-1 px-4 py-3 text-lg font-mono text-center tracking-widest rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition"
+                  />
                   <button
                     (click)="validarPIN()"
                     [disabled]="validating() || !pinCode()"
-                    class="px-5 rounded-lg font-medium text-sm text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                    class="px-5 rounded-lg font-medium text-sm text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
                     @if (validating()) {
-                      <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <div
+                        class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                      ></div>
                     } @else {
                       Buscar
                     }
@@ -843,8 +1710,22 @@
 
           <!-- Erro de Validação -->
           @if (validationError()) {
-            <div class="p-3 rounded-lg bg-red-400/10 border border-red-400/20 text-xs text-red-300 flex items-center gap-2">
-              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            <div
+              class="p-3 rounded-lg bg-red-400/10 border border-red-400/20 text-xs text-red-300 flex items-center gap-2"
+            >
+              <svg
+                class="w-4 h-4 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                />
+              </svg>
               {{ validationError() }}
             </div>
           }
@@ -852,54 +1733,113 @@
           <!-- Resultado da Validação -->
           @if (validationResult()) {
             <div class="space-y-4 animate-fade-in">
-              <div class="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
+              <div
+                class="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3"
+              >
                 <div class="flex items-center justify-between">
-                  <span class="text-[10px] text-slate-400 uppercase tracking-wider">Visitante Autorizado</span>
-                  
+                  <span
+                    class="text-[10px] text-slate-400 uppercase tracking-wider"
+                    >Visitante Autorizado</span
+                  >
+
                   <!-- Tag de Vigência -->
-                  <span class="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                        [class.bg-emerald-500/10]="validationResult().status_vigencia === 'ATIVO'"
-                        [class.text-emerald-400]="validationResult().status_vigencia === 'ATIVO'"
-                        [class.border]="validationResult().status_vigencia === 'ATIVO'"
-                        [class.border-emerald-500/20]="validationResult().status_vigencia === 'ATIVO'"
-                        [class.bg-amber-500/10]="validationResult().status_vigencia === 'FUTURO'"
-                        [class.text-amber-400]="validationResult().status_vigencia === 'FUTURO'"
-                        [class.border]="validationResult().status_vigencia === 'FUTURO'"
-                        [class.border-amber-500/20]="validationResult().status_vigencia === 'FUTURO'"
-                        [class.bg-red-500/10]="validationResult().status_vigencia === 'EXPIRADO'"
-                        [class.text-red-400]="validationResult().status_vigencia === 'EXPIRADO'"
-                        [class.border]="validationResult().status_vigencia === 'EXPIRADO'"
-                        [class.border-red-500/20]="validationResult().status_vigencia === 'EXPIRADO'">
+                  <span
+                    class="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                    [class.bg-emerald-500/10]="
+                      validationResult().status_vigencia === 'ATIVO'
+                    "
+                    [class.text-emerald-400]="
+                      validationResult().status_vigencia === 'ATIVO'
+                    "
+                    [class.border]="
+                      validationResult().status_vigencia === 'ATIVO'
+                    "
+                    [class.border-emerald-500/20]="
+                      validationResult().status_vigencia === 'ATIVO'
+                    "
+                    [class.bg-amber-500/10]="
+                      validationResult().status_vigencia === 'FUTURO'
+                    "
+                    [class.text-amber-400]="
+                      validationResult().status_vigencia === 'FUTURO'
+                    "
+                    [class.border]="
+                      validationResult().status_vigencia === 'FUTURO'
+                    "
+                    [class.border-amber-500/20]="
+                      validationResult().status_vigencia === 'FUTURO'
+                    "
+                    [class.bg-red-500/10]="
+                      validationResult().status_vigencia === 'EXPIRADO'
+                    "
+                    [class.text-red-400]="
+                      validationResult().status_vigencia === 'EXPIRADO'
+                    "
+                    [class.border]="
+                      validationResult().status_vigencia === 'EXPIRADO'
+                    "
+                    [class.border-red-500/20]="
+                      validationResult().status_vigencia === 'EXPIRADO'
+                    "
+                  >
                     {{ validationResult().status_vigencia }}
                   </span>
                 </div>
-                
+
                 <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden">
+                  <div
+                    class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden"
+                  >
                     @if (validationResult().foto_pessoa) {
-                      <img [src]="validationResult().foto_pessoa" class="w-full h-full object-cover" />
+                      <img
+                        [src]="validationResult().foto_pessoa"
+                        class="w-full h-full object-cover"
+                      />
                     } @else {
-                      <span class="text-xs font-semibold text-accent">{{ iniciais(validationResult().nome) }}</span>
+                      <span class="text-xs font-semibold text-accent">{{
+                        iniciais(validationResult().nome)
+                      }}</span>
                     }
                   </div>
                   <div>
-                    <h4 class="font-semibold text-white text-base leading-tight">{{ validationResult().nome }}</h4>
-                    <p class="text-xs text-slate-400 font-mono mt-0.5">{{ validationResult().doc_identificacao || 'Sem documento' }}</p>
+                    <h4
+                      class="font-semibold text-white text-base leading-tight"
+                    >
+                      {{ validationResult().nome }}
+                    </h4>
+                    <p class="text-xs text-slate-400 font-mono mt-0.5">
+                      {{
+                        validationResult().doc_identificacao || 'Sem documento'
+                      }}
+                    </p>
                   </div>
                 </div>
-                
-                <div class="grid grid-cols-2 gap-3 pt-2 border-t border-white/5 text-xs">
+
+                <div
+                  class="grid grid-cols-2 gap-3 pt-2 border-t border-white/5 text-xs"
+                >
                   <div>
                     <span class="text-slate-500 block">Destino</span>
-                    <span class="text-slate-300 font-medium">{{ validationResult().apto_bloco ? validationResult().apto_bloco + ' / ' : '' }}{{ validationResult().apto }}</span>
+                    <span class="text-slate-300 font-medium"
+                      >{{
+                        validationResult().apto_bloco
+                          ? validationResult().apto_bloco + ' / '
+                          : ''
+                      }}{{ validationResult().apto }}</span
+                    >
                   </div>
                   <div>
                     <span class="text-slate-500 block">Autorizado por</span>
-                    <span class="text-slate-300 font-medium">{{ validationResult().morador_nome || 'Morador' }}</span>
+                    <span class="text-slate-300 font-medium">{{
+                      validationResult().morador_nome || 'Morador'
+                    }}</span>
                   </div>
                   <div class="col-span-2">
                     <span class="text-slate-500 block">Período de Acesso</span>
-                    <span class="text-slate-300 font-mono text-[11px]">{{ validationResult().data_inicio }} até {{ validationResult().data_termino }}</span>
+                    <span class="text-slate-300 font-mono text-[11px]"
+                      >{{ validationResult().data_inicio }} até
+                      {{ validationResult().data_termino }}</span
+                    >
                   </div>
                 </div>
               </div>
@@ -908,15 +1848,22 @@
               <div class="flex gap-2">
                 <button
                   (click)="validationResult.set(null)"
-                  class="flex-1 py-2.5 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition">
+                  class="flex-1 py-2.5 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                >
                   Voltar
                 </button>
                 <button
                   (click)="confirmarEntradaPIN()"
-                  [disabled]="checkingIn() || validationResult().status_vigencia === 'EXPIRADO'"
-                  class="flex-1 py-2.5 rounded-lg font-medium text-sm text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                  [disabled]="
+                    checkingIn() ||
+                    validationResult().status_vigencia === 'EXPIRADO'
+                  "
+                  class="flex-1 py-2.5 rounded-lg font-medium text-sm text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
                   @if (checkingIn()) {
-                    <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <div
+                      class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                    ></div>
                   } @else {
                     Confirmar Entrada
                   }
@@ -931,31 +1878,83 @@
 
   <!-- Modal da Webcam para Captura -->
   @if (activeCamera()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-      <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in flex flex-col">
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+    >
+      <div
+        class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in flex flex-col"
+      >
+        <div
+          class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between"
+        >
           <h3 class="text-sm font-semibold text-white">
-            Capturando Foto - {{ activeCamera() === 'pessoa' ? 'Pessoa' : 'Documento (RG)' }}
+            Capturando Foto -
+            {{ activeCamera() === 'pessoa' ? 'Pessoa' : 'Documento (RG)' }}
           </h3>
-          <button (click)="fecharCamera()" class="text-slate-400 hover:text-white transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <button
+            (click)="fecharCamera()"
+            class="text-slate-400 hover:text-white transition"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
-        <div class="relative aspect-video bg-black flex items-center justify-center">
-          <video id="webcam-preview" class="w-full h-full object-cover" autoplay playsinline></video>
-          <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3">
-            <button (click)="capturarFoto()"
-              class="w-14 h-14 rounded-full bg-accent hover:bg-accent-600 border-4 border-white/20 flex items-center justify-center transition shadow-lg text-white hover:scale-105 active:scale-95">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+        <div
+          class="relative aspect-video bg-black flex items-center justify-center"
+        >
+          <video
+            id="webcam-preview"
+            class="w-full h-full object-cover"
+            autoplay
+            playsinline
+          ></video>
+          <div
+            class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3"
+          >
+            <button
+              (click)="capturarFoto()"
+              class="w-14 h-14 rounded-full bg-accent hover:bg-accent-600 border-4 border-white/20 flex items-center justify-center transition shadow-lg text-white hover:scale-105 active:scale-95"
+            >
+              <svg
+                class="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                />
               </svg>
             </button>
           </div>
         </div>
-        <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end">
-          <button (click)="fecharCamera()"
-            class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300">
+        <div
+          class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end"
+        >
+          <button
+            (click)="fecharCamera()"
+            class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300"
+          >
             Cancelar
           </button>
         </div>
@@ -963,151 +1962,343 @@
     </div>
   }
 
-   <!-- Modal de Detalhes do Visitante (timeline, stats) -->
+  <!-- Modal de Detalhes do Visitante (timeline, stats) -->
   @if (detalhesLoading() || detalhesData() || detalhesError()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" (click)="fecharDetalhes()">
-      <div class="relative w-full max-w-3xl max-h-[90vh] rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-graphite-200 overflow-hidden shadow-2xl animate-fade-in flex flex-col"
-           (click)="$event.stopPropagation()">
-
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      (click)="fecharDetalhes()"
+    >
+      <div
+        class="relative w-full max-w-3xl max-h-[90vh] rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-graphite-200 overflow-hidden shadow-2xl animate-fade-in flex flex-col"
+        (click)="$event.stopPropagation()"
+      >
         @if (detalhesLoading()) {
           <div class="p-12 flex items-center justify-center">
-            <div class="w-8 h-8 border-2 border-slate-200 dark:border-white/20 border-t-accent rounded-full animate-spin"></div>
+            <div
+              class="w-8 h-8 border-2 border-slate-200 dark:border-white/20 border-t-accent rounded-full animate-spin"
+            ></div>
           </div>
         }
 
         @if (detalhesError(); as msg) {
           <div class="p-6">
-            <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-450 dark:text-rose-400 text-sm">
+            <div
+              class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-450 dark:text-rose-400 text-sm"
+            >
               {{ msg }}
             </div>
             <div class="mt-4 flex justify-end">
-              <button (click)="fecharDetalhes()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 transition">Fechar</button>
+              <button
+                (click)="fecharDetalhes()"
+                class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 transition"
+              >
+                Fechar
+              </button>
             </div>
           </div>
         }
 
         @if (detalhesData(); as d) {
           @if (copiaSucessoTexto()) {
-            <div class="absolute top-20 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-emerald-500 text-white text-[11px] font-bold rounded-full shadow-lg z-[100] animate-bounce flex items-center gap-1.5">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <div
+              class="absolute top-20 left-1/2 -translate-x-1/2 px-3.5 py-1.5 bg-emerald-500 text-white text-[11px] font-bold rounded-full shadow-lg z-[100] animate-bounce flex items-center gap-1.5"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
               {{ copiaSucessoTexto() }}
             </div>
           }
           <!-- Header -->
-          <div class="px-6 py-5 bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 flex items-start gap-4">
-            <div class="w-14 h-14 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
-                 (click)="d.visitante.foto_pessoa && abrirAmpliarFoto(d.visitante.foto_pessoa, d.visitante.nome)">
+          <div
+            class="px-6 py-5 bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 flex items-start gap-4"
+          >
+            <div
+              class="w-14 h-14 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
+              (click)="
+                d.visitante.foto_pessoa &&
+                  abrirAmpliarFoto(d.visitante.foto_pessoa, d.visitante.nome)
+              "
+            >
               @if (d.visitante.foto_pessoa) {
-                <img [src]="d.visitante.foto_pessoa" class="w-full h-full object-cover" />
+                <img
+                  [src]="d.visitante.foto_pessoa"
+                  class="w-full h-full object-cover"
+                />
               } @else {
-                <span class="text-sm font-bold text-accent">{{ iniciais(d.visitante.nome) }}</span>
+                <span class="text-sm font-bold text-accent">{{
+                  iniciais(d.visitante.nome)
+                }}</span>
               }
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <div class="flex items-center gap-1.5 group cursor-pointer hover:bg-slate-200/50 dark:hover:bg-white/5 px-2 py-0.5 -mx-2 rounded-lg transition"
-                     (click)="copiarTexto(d.visitante.nome, 'Nome')"
-                     title="Clique para copiar o Nome">
-                  <h2 class="text-lg font-bold text-slate-800 dark:text-white truncate">{{ d.visitante.nome }}</h2>
-                  <svg class="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                <div
+                  class="flex items-center gap-1.5 group cursor-pointer hover:bg-slate-200/50 dark:hover:bg-white/5 px-2 py-0.5 -mx-2 rounded-lg transition"
+                  (click)="copiarTexto(d.visitante.nome, 'Nome')"
+                  title="Clique para copiar o Nome"
+                >
+                  <h2
+                    class="text-lg font-bold text-slate-800 dark:text-white truncate"
+                  >
+                    {{ d.visitante.nome }}
+                  </h2>
+                  <svg
+                    class="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.8"
+                      d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                    />
                   </svg>
                 </div>
                 @if (d.visitante.is_prestador === 1) {
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 uppercase">Prestador</span>
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 uppercase"
+                    >Prestador</span
+                  >
                 } @else {
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400 uppercase">Visitante</span>
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400 uppercase"
+                    >Visitante</span
+                  >
                 }
                 @if (d.visitante.face_sync_status === 'synced') {
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-600 dark:text-green-400 uppercase">Facial sincr.</span>
+                  <span
+                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-600 dark:text-green-400 uppercase"
+                    >Facial sincr.</span
+                  >
                 }
               </div>
               <div class="mt-1 flex items-center">
                 @if (d.visitante.doc_identificacao) {
-                  <button (click)="copiarTexto(d.visitante.doc_identificacao, 'Documento')"
-                          class="flex items-center gap-1 text-xs font-mono font-semibold text-slate-500 dark:text-slate-400 hover:text-accent transition hover:bg-slate-200/50 dark:hover:bg-white/5 px-1.5 py-0.5 -mx-1.5 rounded-md"
-                          title="Clique para copiar o Documento">
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500 font-sans font-normal uppercase">CPF/Doc:</span>
+                  <button
+                    (click)="
+                      copiarTexto(d.visitante.doc_identificacao, 'Documento')
+                    "
+                    class="flex items-center gap-1 text-xs font-mono font-semibold text-slate-500 dark:text-slate-400 hover:text-accent transition hover:bg-slate-200/50 dark:hover:bg-white/5 px-1.5 py-0.5 -mx-1.5 rounded-md"
+                    title="Clique para copiar o Documento"
+                  >
+                    <span
+                      class="text-[10px] text-slate-400 dark:text-slate-500 font-sans font-normal uppercase"
+                      >CPF/Doc:</span
+                    >
                     <span>{{ d.visitante.doc_identificacao }}</span>
-                    <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                    <svg
+                      class="w-3.5 h-3.5 text-slate-400 shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.8"
+                        d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                      />
                     </svg>
                   </button>
                 } @else {
-                  <span class="text-xs font-mono text-slate-500 dark:text-slate-400">Sem documento</span>
+                  <span
+                    class="text-xs font-mono text-slate-500 dark:text-slate-400"
+                    >Sem documento</span
+                  >
                 }
                 @if (d.visitante.condominio) {
-                  <span class="text-xs text-slate-400 font-mono ml-2">· {{ getCondominioNome(d.visitante.condominio) }}</span>
+                  <span class="text-xs text-slate-400 font-mono ml-2"
+                    >· {{ getCondominioNome(d.visitante.condominio) }}</span
+                  >
                 }
               </div>
               <div class="flex items-center gap-1.5 mt-2.5 flex-wrap">
                 @if (d.visitante.codigo_acesso) {
-                  <button (click)="copiarTexto(d.visitante.codigo_acesso, 'PIN')"
-                          class="inline-flex items-center gap-1 text-[11px] font-mono cursor-pointer hover:bg-emerald-500/20 active:scale-95 transition bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-300 px-2.5 py-1 rounded-md"
-                          title="Clique para copiar o PIN">
-                    <svg class="w-3.5 h-3.5 text-emerald-550 dark:text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                  <button
+                    (click)="copiarTexto(d.visitante.codigo_acesso, 'PIN')"
+                    class="inline-flex items-center gap-1 text-[11px] font-mono cursor-pointer hover:bg-emerald-500/20 active:scale-95 transition bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-300 px-2.5 py-1 rounded-md"
+                    title="Clique para copiar o PIN"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5 text-emerald-550 dark:text-emerald-400 shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                      />
                     </svg>
-                    <span class="text-emerald-600/60 dark:text-emerald-400/70 font-sans font-semibold uppercase">PIN:</span>
-                    <span class="font-bold tracking-widest">{{ d.visitante.codigo_acesso }}</span>
+                    <span
+                      class="text-emerald-600/60 dark:text-emerald-400/70 font-sans font-semibold uppercase"
+                      >PIN:</span
+                    >
+                    <span class="font-bold tracking-widest">{{
+                      d.visitante.codigo_acesso
+                    }}</span>
                   </button>
                 }
                 @if (d.visitante.tag_rfid) {
-                  <button (click)="copiarTexto(d.visitante.tag_rfid, 'Tag RFID')"
-                          class="inline-flex items-center gap-1 text-[11px] font-mono cursor-pointer hover:bg-blue-500/20 active:scale-95 transition bg-blue-500/10 border border-blue-500/25 text-blue-600 dark:text-blue-300 px-2.5 py-1 rounded-md"
-                          title="Clique para copiar a Tag RFID">
-                    <svg class="w-3.5 h-3.5 text-blue-550 dark:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                  <button
+                    (click)="copiarTexto(d.visitante.tag_rfid, 'Tag RFID')"
+                    class="inline-flex items-center gap-1 text-[11px] font-mono cursor-pointer hover:bg-blue-500/20 active:scale-95 transition bg-blue-500/10 border border-blue-500/25 text-blue-600 dark:text-blue-300 px-2.5 py-1 rounded-md"
+                    title="Clique para copiar a Tag RFID"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5 text-blue-550 dark:text-blue-400 shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                      />
                     </svg>
-                    <span class="text-blue-600/60 dark:text-blue-400/70 font-sans font-semibold uppercase">Tag:</span>
-                    <span class="font-bold tracking-wide">{{ d.visitante.tag_rfid }}</span>
+                    <span
+                      class="text-blue-600/60 dark:text-blue-400/70 font-sans font-semibold uppercase"
+                      >Tag:</span
+                    >
+                    <span class="font-bold tracking-wide">{{
+                      d.visitante.tag_rfid
+                    }}</span>
                   </button>
                 }
               </div>
-              @if (d.visitante.is_prestador === 1 && (d.visitante.categorias || d.visitante.dias_semana)) {
+              @if (
+                d.visitante.is_prestador === 1 &&
+                (d.visitante.categorias || d.visitante.dias_semana)
+              ) {
                 <div class="mt-2.5 flex flex-col gap-1 text-xs">
                   @if (d.visitante.categorias) {
                     <div>
-                      <span class="text-slate-500 dark:text-slate-400">Categorias: </span>
-                      <span class="font-semibold text-slate-800 dark:text-white">{{ d.visitante.categorias.split(';').join(', ') }}</span>
+                      <span class="text-slate-500 dark:text-slate-400"
+                        >Categorias:
+                      </span>
+                      <span
+                        class="font-semibold text-slate-800 dark:text-white"
+                        >{{
+                          d.visitante.categorias.split(';').join(', ')
+                        }}</span
+                      >
                     </div>
                   }
                   @if (d.visitante.dias_semana) {
                     <div>
-                      <span class="text-slate-500 dark:text-slate-400">Dias permitidos: </span>
-                      <span class="font-semibold text-slate-800 dark:text-white">{{ formatarDiasSemanaExtenso(d.visitante.dias_semana) }}</span>
+                      <span class="text-slate-500 dark:text-slate-400"
+                        >Dias permitidos:
+                      </span>
+                      <span
+                        class="font-semibold text-slate-800 dark:text-white"
+                        >{{
+                          formatarDiasSemanaExtenso(d.visitante.dias_semana)
+                        }}</span
+                      >
                     </div>
                   }
                 </div>
               }
             </div>
-            <button (click)="fecharDetalhes()" class="text-slate-450 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition shrink-0">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <button
+              (click)="fecharDetalhes()"
+              class="text-slate-450 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition shrink-0"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
             </button>
           </div>
 
           <!-- Conteúdo scrollável -->
           <div class="flex-1 overflow-y-auto p-6 space-y-5">
-
             <!-- KPIs -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div class="bg-emerald-500/[0.04] dark:bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
-                <div class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1">Entradas</div>
-                <div class="text-2xl font-bold text-emerald-500 dark:text-emerald-400">{{ d.stats.totalEntradas }}</div>
+              <div
+                class="bg-emerald-500/[0.04] dark:bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3"
+              >
+                <div
+                  class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1"
+                >
+                  Entradas
+                </div>
+                <div
+                  class="text-2xl font-bold text-emerald-500 dark:text-emerald-400"
+                >
+                  {{ d.stats.totalEntradas }}
+                </div>
               </div>
-              <div class="bg-rose-500/[0.04] dark:bg-rose-500/5 border border-rose-500/20 rounded-xl p-3">
-                <div class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1">Saídas</div>
-                <div class="text-2xl font-bold text-rose-500 dark:text-rose-400">{{ d.stats.totalSaidas }}</div>
+              <div
+                class="bg-rose-500/[0.04] dark:bg-rose-500/5 border border-rose-500/20 rounded-xl p-3"
+              >
+                <div
+                  class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1"
+                >
+                  Saídas
+                </div>
+                <div
+                  class="text-2xl font-bold text-rose-500 dark:text-rose-400"
+                >
+                  {{ d.stats.totalSaidas }}
+                </div>
               </div>
-              <div class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-3">
-                <div class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1">Permanência média</div>
-                <div class="text-base font-bold text-slate-800 dark:text-white">{{ formatarPermanencia(d.stats.tempoMedioMs) }}</div>
-                <div class="text-[9px] text-slate-450 dark:text-slate-500 mt-0.5">{{ d.stats.permanenciaCount }} pareadas</div>
+              <div
+                class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-3"
+              >
+                <div
+                  class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1"
+                >
+                  Permanência média
+                </div>
+                <div class="text-base font-bold text-slate-800 dark:text-white">
+                  {{ formatarPermanencia(d.stats.tempoMedioMs) }}
+                </div>
+                <div
+                  class="text-[9px] text-slate-450 dark:text-slate-500 mt-0.5"
+                >
+                  {{ d.stats.permanenciaCount }} pareadas
+                </div>
               </div>
-              <div class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-3">
-                <div class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1">Método</div>
-                <div class="flex items-center gap-1.5 text-[11px] font-bold text-slate-800 dark:text-white">
-                  <span class="text-accent">{{ d.stats.acessosFaciais }}</span> facial
+              <div
+                class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-3"
+              >
+                <div
+                  class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1"
+                >
+                  Método
+                </div>
+                <div
+                  class="flex items-center gap-1.5 text-[11px] font-bold text-slate-800 dark:text-white"
+                >
+                  <span class="text-accent">{{ d.stats.acessosFaciais }}</span>
+                  facial
                   <span class="text-slate-400 dark:text-slate-500">·</span>
                   <span>{{ d.stats.acessosPin }}</span> PIN
                 </div>
@@ -1116,16 +2307,38 @@
 
             <!-- Apartamentos visitados -->
             @if (d.stats.apartamentosVisitados.length > 0) {
-              <div class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-4">
-                <h3 class="text-[10px] font-bold text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-                  Apartamentos Visitados ({{ d.stats.apartamentosVisitados.length }})
+              <div
+                class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-4"
+              >
+                <h3
+                  class="text-[10px] font-bold text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-2.5 flex items-center gap-1.5"
+                >
+                  <svg
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    />
+                  </svg>
+                  Apartamentos Visitados ({{
+                    d.stats.apartamentosVisitados.length
+                  }})
                 </h3>
                 <div class="flex flex-wrap gap-2">
                   @for (a of d.stats.apartamentosVisitados; track a.id) {
-                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/5 rounded-lg px-2.5 py-1 shadow-sm">
+                    <span
+                      class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/5 rounded-lg px-2.5 py-1 shadow-sm"
+                    >
                       Apto {{ a.blocoApto }}
-                      <span class="text-[10px] font-bold text-accent">{{ a.visitas }}×</span>
+                      <span class="text-[10px] font-bold text-accent"
+                        >{{ a.visitas }}×</span
+                      >
                     </span>
                   }
                 </div>
@@ -1133,100 +2346,235 @@
             }
 
             <!-- Visita atual -->
-            <div class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-4 space-y-3">
-              <h3 class="text-[10px] font-bold text-slate-500 dark:text-slate-450 uppercase tracking-wider flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <div
+              class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-4 space-y-3"
+            >
+              <h3
+                class="text-[10px] font-bold text-slate-500 dark:text-slate-450 uppercase tracking-wider flex items-center gap-1.5"
+              >
+                <svg
+                  class="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                  />
+                </svg>
                 Visita Atual
               </h3>
               <div class="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <div class="text-[10px] text-slate-500 mb-0.5">Apartamento</div>
-                  <div class="font-semibold text-slate-800 dark:text-white">Apto {{ d.visitante.blocoAptoAtual || '—' }}</div>
-                </div>
-                <div>
-                  <div class="text-[10px] text-slate-500 mb-0.5">Autorizado por</div>
-                  <div class="font-semibold text-slate-800 dark:text-white">{{ d.visitante.criadoPor || '—' }}</div>
-                </div>
-                <div>
-                  <div class="text-[10px] text-slate-500 mb-0.5">Janela de acesso</div>
-                  <div class="font-semibold text-slate-800 dark:text-white text-[11px]">
-                    @if (d.visitante.data_hora_inicio) {
-                      {{ d.visitante.data_hora_inicio | date:'dd/MM HH:mm' }} →
-                      {{ d.visitante.data_hora_termino ? (d.visitante.data_hora_termino | date:'dd/MM HH:mm') : 'aberto' }}
-                    } @else { Sem janela }
+                  <div class="text-[10px] text-slate-500 mb-0.5">
+                    Apartamento
+                  </div>
+                  <div class="font-semibold text-slate-800 dark:text-white">
+                    Apto {{ d.visitante.blocoAptoAtual || '—' }}
                   </div>
                 </div>
                 <div>
-                  <div class="text-[10px] text-slate-500 mb-0.5">Status atual</div>
+                  <div class="text-[10px] text-slate-500 mb-0.5">
+                    Autorizado por
+                  </div>
+                  <div class="font-semibold text-slate-800 dark:text-white">
+                    {{ d.visitante.criadoPor || '—' }}
+                  </div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-slate-500 mb-0.5">
+                    Janela de acesso
+                  </div>
+                  <div
+                    class="font-semibold text-slate-800 dark:text-white text-[11px]"
+                  >
+                    @if (d.visitante.data_hora_inicio) {
+                      {{ d.visitante.data_hora_inicio | date: 'dd/MM HH:mm' }} →
+                      {{
+                        d.visitante.data_hora_termino
+                          ? (d.visitante.data_hora_termino
+                            | date: 'dd/MM HH:mm')
+                          : 'aberto'
+                      }}
+                    } @else {
+                      Sem janela
+                    }
+                  </div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-slate-500 mb-0.5">
+                    Status atual
+                  </div>
                   @if (d.visitante.data_entrada && !d.visitante.data_saida) {
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-500 dark:text-emerald-400">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
+                    <span
+                      class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-500 dark:text-emerald-400"
+                    >
+                      <span
+                        class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"
+                      ></span>
                       No condomínio
                     </span>
                   } @else if (d.visitante.data_saida) {
-                    <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400">Saiu</span>
+                    <span
+                      class="text-[11px] font-bold text-slate-500 dark:text-slate-400"
+                      >Saiu</span
+                    >
                   } @else {
-                    <span class="text-[11px] font-bold text-amber-500 dark:text-amber-400">Aguardando</span>
+                    <span
+                      class="text-[11px] font-bold text-amber-500 dark:text-amber-400"
+                      >Aguardando</span
+                    >
                   }
                 </div>
               </div>
             </div>
 
-
-
             <!-- Timeline -->
-            <div class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-4">
-              <h3 class="text-[10px] font-bold text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div
+              class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-4"
+            >
+              <h3
+                class="text-[10px] font-bold text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-3 flex items-center gap-1.5"
+              >
+                <svg
+                  class="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
                 Histórico Completo de Acessos ({{ d.timeline.length }})
               </h3>
               @if (d.timeline.length === 0) {
-                <div class="text-xs text-slate-500 text-center py-4">Nenhum acesso registrado ainda.</div>
+                <div class="text-xs text-slate-500 text-center py-4">
+                  Nenhum acesso registrado ainda.
+                </div>
               } @else {
                 <ul class="space-y-2.5 max-h-96 overflow-y-auto pr-1">
                   @for (h of d.timeline; track $index) {
-                    <li class="flex items-start gap-3 text-xs p-2 rounded-lg hover:bg-slate-100/50 dark:hover:bg-white/[0.02] transition">
+                    <li
+                      class="flex items-start gap-3 text-xs p-2 rounded-lg hover:bg-slate-100/50 dark:hover:bg-white/[0.02] transition"
+                    >
                       @if (h.evento === 'entrada') {
-                        <span class="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400 shrink-0">
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 16l-4-4m0 0l4-4m-4 4h14"/></svg>
+                        <span
+                          class="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 dark:text-emerald-400 shrink-0"
+                        >
+                          <svg
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2.5"
+                              d="M11 16l-4-4m0 0l4-4m-4 4h14"
+                            />
+                          </svg>
                         </span>
                       } @else if (h.evento === 'saida') {
-                        <span class="w-7 h-7 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 dark:text-rose-400 shrink-0">
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7"/></svg>
+                        <span
+                          class="w-7 h-7 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 dark:text-rose-400 shrink-0"
+                        >
+                          <svg
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2.5"
+                              d="M17 16l4-4m0 0l-4-4m4 4H7"
+                            />
+                          </svg>
                         </span>
                       } @else {
-                        <span class="w-7 h-7 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-550 dark:text-amber-400 shrink-0">
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01"/></svg>
+                        <span
+                          class="w-7 h-7 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-550 dark:text-amber-400 shrink-0"
+                        >
+                          <svg
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2.5"
+                              d="M12 9v2m0 4h.01"
+                            />
+                          </svg>
                         </span>
                       }
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
-                          <span class="font-bold text-slate-800 dark:text-white">
-                            @if (h.evento === 'entrada') { Entrou }
-                            @else if (h.evento === 'saida') { Saiu }
-                            @else { Acesso negado }
+                          <span
+                            class="font-bold text-slate-800 dark:text-white"
+                          >
+                            @if (h.evento === 'entrada') {
+                              Entrou
+                            } @else if (h.evento === 'saida') {
+                              Saiu
+                            } @else {
+                              Acesso negado
+                            }
                           </span>
-                          <span class="text-[10px] font-mono text-slate-450 dark:text-slate-400">{{ h.timestamp | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+                          <span
+                            class="text-[10px] font-mono text-slate-450 dark:text-slate-400"
+                            >{{
+                              h.timestamp | date: 'dd/MM/yyyy HH:mm:ss'
+                            }}</span
+                          >
                         </div>
                         <div class="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <span [class]="h.metodo === 'facial'
-                                          ? 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold text-[9px] bg-accent/10 text-accent border border-accent/20'
-                                          : 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold text-[9px] bg-slate-200/50 dark:bg-slate-700/40 text-slate-600 dark:text-slate-300 border border-slate-300/60 dark:border-slate-600/30'">
+                          <span
+                            [class]="
+                              h.metodo === 'facial'
+                                ? 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold text-[9px] bg-accent/10 text-accent border border-accent/20'
+                                : 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold text-[9px] bg-slate-200/50 dark:bg-slate-700/40 text-slate-600 dark:text-slate-300 border border-slate-300/60 dark:border-slate-600/30'
+                            "
+                          >
                             {{ h.metodoLabel }}
                           </span>
                           @if (h.terminalNome) {
-                            <span class="text-[10px] text-slate-450 dark:text-slate-500 font-mono">{{ h.terminalNome }}</span>
+                            <span
+                              class="text-[10px] text-slate-450 dark:text-slate-500 font-mono"
+                              >{{ h.terminalNome }}</span
+                            >
                           }
                           @if (h.confianca != null) {
-                            <span class="text-[10px] text-slate-450 dark:text-slate-500">· {{ (h.confianca * 100).toFixed(0) }}%</span>
+                            <span
+                              class="text-[10px] text-slate-450 dark:text-slate-500"
+                              >· {{ (h.confianca * 100).toFixed(0) }}%</span
+                            >
                           }
                           @if (h.blocoApto) {
-                            <span class="text-[10px] text-slate-500 dark:text-slate-450">· Apto {{ h.blocoApto }}</span>
+                            <span
+                              class="text-[10px] text-slate-500 dark:text-slate-450"
+                              >· Apto {{ h.blocoApto }}</span
+                            >
                           }
                         </div>
                         @if (h.observacao) {
-                          <div class="text-[10px] text-rose-500 dark:text-rose-450 font-medium italic mt-1.5 flex items-center gap-1">
-                            <span class="w-1 h-1 rounded-full bg-rose-500 dark:bg-rose-450"></span>
+                          <div
+                            class="text-[10px] text-rose-500 dark:text-rose-450 font-medium italic mt-1.5 flex items-center gap-1"
+                          >
+                            <span
+                              class="w-1 h-1 rounded-full bg-rose-500 dark:bg-rose-450"
+                            ></span>
                             {{ h.observacao }}
                           </div>
                         }
@@ -1236,12 +2584,18 @@
                 </ul>
               }
             </div>
-
           </div>
 
           <!-- Footer -->
-          <div class="px-6 py-4 border-t border-slate-100 dark:border-white/5 flex justify-end gap-2 bg-slate-50/50 dark:bg-white/[0.01]">
-            <button (click)="fecharDetalhes()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 transition">Fechar</button>
+          <div
+            class="px-6 py-4 border-t border-slate-100 dark:border-white/5 flex justify-end gap-2 bg-slate-50/50 dark:bg-white/[0.01]"
+          >
+            <button
+              (click)="fecharDetalhes()"
+              class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 transition"
+            >
+              Fechar
+            </button>
           </div>
         }
       </div>
@@ -1250,16 +2604,46 @@
 
   <!-- Modal de Foto Ampliada -->
   @if (fotoAmpliadaUrl()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" (click)="fecharAmpliarFoto()">
-      <div class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-white">{{ fotoAmpliadaTitulo() }}</h3>
-          <button (click)="fecharAmpliarFoto()" class="text-slate-400 hover:text-white transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+      (click)="fecharAmpliarFoto()"
+    >
+      <div
+        class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col"
+        (click)="$event.stopPropagation()"
+      >
+        <div
+          class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between"
+        >
+          <h3 class="text-sm font-semibold text-white">
+            {{ fotoAmpliadaTitulo() }}
+          </h3>
+          <button
+            (click)="fecharAmpliarFoto()"
+            class="text-slate-400 hover:text-white transition"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
-        <div class="p-2 flex-1 overflow-auto flex items-center justify-center bg-slate-950">
-          <img [src]="fotoAmpliadaUrl()" class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg" />
+        <div
+          class="p-2 flex-1 overflow-auto flex items-center justify-center bg-slate-950"
+        >
+          <img
+            [src]="fotoAmpliadaUrl()"
+            class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg"
+          />
         </div>
       </div>
     </div>
