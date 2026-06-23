@@ -18,6 +18,11 @@ import { assertSameTenant } from '../auth/tenant.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AccessStateService } from './access-state.service';
 import { AgentBridgeService } from './agent-bridge.service';
+import {
+  bloqueadoPorRegrasAcesso,
+  CategoriaPessoa,
+  RegraAcessoLike,
+} from './access-rules.util';
 
 export interface CreateDeviceDto {
   id_condominio: number;
@@ -1298,54 +1303,19 @@ export class FacialService {
     });
 
     if (regrasDispositivo.length > 0) {
-      // Modelo WHITELIST: se um terminal TEM regras ativas, ele é restrito.
-      // O acesso só passa se EXISTIR alguma regra que cubra simultaneamente
-      // o sentido (entrada/saida), o horário e a categoria da pessoa atuais.
-      // Se nenhuma regra cobre, NEGA — inclusive sentidos não contemplados.
-      // Ex.: regra "apenas entrada" ⇒ a SAÍDA não tem regra que a cubra ⇒ negada.
-      let permitido = false;
+      // Modelo WHITELIST (engine extraída em access-rules.util.ts, testada
+      // exaustivamente). Se o terminal tem regras ativas, só passa se alguma
+      // cobrir simultaneamente sentido + horário + categoria; senão, NEGA.
+      const horaMinutoAtual = timestamp.toTimeString().substring(0, 5); // "HH:MM"
 
-      // Obtém o horário do evento em formato HH:MM (ajustando a data e a timezone se necessário)
-      const horaMinutoAtual = timestamp.toTimeString().substring(0, 5); // formato "HH:MM"
-
-      for (const r of regrasDispositivo) {
-        // 1. Validar sentido (entrada / saida / ambos)
-        if (r.sentido !== 'ambos' && r.sentido !== evento) {
-          continue; // Esta regra não se aplica a esta direção
-        }
-
-        // 2. Validar horário de funcionamento da regra
-        if (r.hora_inicio && r.hora_fim) {
-          let dentroDoHorario = false;
-          if (r.hora_inicio <= r.hora_fim) {
-            dentroDoHorario =
-              horaMinutoAtual >= r.hora_inicio && horaMinutoAtual <= r.hora_fim;
-          } else {
-            // Caso ultrapasse a meia-noite (ex: das 22:00 às 06:00)
-            dentroDoHorario =
-              horaMinutoAtual >= r.hora_inicio || horaMinutoAtual <= r.hora_fim;
-          }
-          if (!dentroDoHorario) {
-            continue; // Esta regra não se aplica a este horário
-          }
-        }
-
-        // 3. Esta regra cobre o sentido e o horário. Autoriza se a categoria
-        //    da pessoa estiver permitida nela.
-        if (tipoPessoa === 'morador' && r.permitir_morador === 1)
-          permitido = true;
-        if (tipoPessoa === 'visitante' && r.permitir_visitante === 1)
-          permitido = true;
-        if (tipoPessoa === 'prestador' && r.permitir_prestador === 1)
-          permitido = true;
-        if (tipoPessoa === 'funcionario' && r.permitir_funcionario === 1)
-          permitido = true;
-
-        if (permitido) break; // já achou uma regra que libera; não precisa olhar o resto
-      }
-
-      // Terminal tem regras ativas e NENHUMA autorizou este sentido/horário/categoria
-      if (!permitido) {
+      if (
+        bloqueadoPorRegrasAcesso(
+          regrasDispositivo as unknown as RegraAcessoLike[],
+          evento,
+          tipoPessoa as CategoriaPessoa,
+          horaMinutoAtual,
+        )
+      ) {
         await this.prisma.acessos_Facial.create({
           data: {
             id_condominio: device.id_condominio,
