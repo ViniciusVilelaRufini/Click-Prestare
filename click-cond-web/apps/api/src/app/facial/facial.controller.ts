@@ -19,7 +19,7 @@ import {
 import { MockRelayService } from './mock-relay.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertSameTenant } from '../auth/tenant.util';
+import { assertTenantStrict, requireTenant } from '../auth/tenant.util';
 
 @Controller('facial')
 export class FacialController {
@@ -30,7 +30,7 @@ export class FacialController {
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
     @ReqUser() user: JwtPayload,
   ) {
-    assertSameTenant(
+    assertTenantStrict(
       idCondominio,
       user,
       `dispositivos do condomínio ${idCondominio}`,
@@ -44,13 +44,13 @@ export class FacialController {
     @ReqUser() user: JwtPayload,
   ) {
     const device = await this.service.getDevice(id);
-    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
     return device;
   }
 
   @Post('devices')
   create(@Body() body: CreateDeviceDto, @ReqUser() user: JwtPayload) {
-    assertSameTenant(body.id_condominio, user, `criação de dispositivo`);
+    assertTenantStrict(body.id_condominio, user, `criação de dispositivo`);
     return this.service.createDevice(body, user);
   }
 
@@ -61,7 +61,7 @@ export class FacialController {
     @ReqUser() user: JwtPayload,
   ) {
     const device = await this.service.getDevice(id);
-    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
     return this.service.updateDevice(id, body, user);
   }
 
@@ -71,7 +71,7 @@ export class FacialController {
     @ReqUser() user: JwtPayload,
   ) {
     const device = await this.service.getDevice(id);
-    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
     return this.service.removeDevice(id, user);
   }
 
@@ -81,7 +81,7 @@ export class FacialController {
     @ReqUser() user: JwtPayload,
   ) {
     const device = await this.service.getDevice(id);
-    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
     return this.service.testDevice(id);
   }
 
@@ -91,7 +91,7 @@ export class FacialController {
     @ReqUser() user: JwtPayload,
   ) {
     const device = await this.service.getDevice(id);
-    assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
+    assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
     return this.service.triggerDevice(id, user);
   }
 
@@ -100,7 +100,7 @@ export class FacialController {
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
     @ReqUser() user: JwtPayload,
   ) {
-    assertSameTenant(
+    assertTenantStrict(
       idCondominio,
       user,
       `sync facial do condomínio ${idCondominio}`,
@@ -115,7 +115,7 @@ export class FacialController {
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
     @ReqUser() user: JwtPayload,
   ) {
-    assertSameTenant(
+    assertTenantStrict(
       idCondominio,
       user,
       `status facial do condomínio ${idCondominio}`,
@@ -128,6 +128,7 @@ export class FacialController {
     @Param('id', ParseIntPipe) id: number,
     @ReqUser() user: JwtPayload,
   ) {
+    requireTenant(user, 'sincronização de morador');
     await this.service.assertMoradorSameTenant(id, user);
     return this.service.syncMorador(id);
   }
@@ -137,6 +138,7 @@ export class FacialController {
     @Param('id', ParseIntPipe) id: number,
     @ReqUser() user: JwtPayload,
   ) {
+    requireTenant(user, 'sincronização de visitante');
     await this.service.assertVisitanteSameTenant(id, user);
     return this.service.syncVisitante(id);
   }
@@ -147,7 +149,7 @@ export class FacialController {
     @Query('limit') limitStr?: string,
     @ReqUser() user?: JwtPayload,
   ) {
-    assertSameTenant(
+    assertTenantStrict(
       idCondominio,
       user,
       `acessos do condomínio ${idCondominio}`,
@@ -186,7 +188,7 @@ export class FacialController {
     @ReqUser() user: JwtPayload,
   ) {
     const device = await this.service.getDevice(body.id_device);
-    assertSameTenant(
+    assertTenantStrict(
       device.id_condominio,
       user,
       `dispositivo #${body.id_device}`,
@@ -199,6 +201,7 @@ export class FacialController {
     @Param('sessionId') sessionId: string,
     @ReqUser() user: JwtPayload,
   ) {
+    requireTenant(user, 'captura de enrollment');
     return this.service.pollEnrollCapture(sessionId, user);
   }
 
@@ -207,6 +210,7 @@ export class FacialController {
     @Param('sessionId') sessionId: string,
     @ReqUser() user: JwtPayload,
   ) {
+    requireTenant(user, 'captura de enrollment');
     return this.service.cancelEnrollCapture(sessionId, user);
   }
 }
