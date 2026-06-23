@@ -53,6 +53,13 @@ export interface WebhookEventDto {
 // vira um kill-switch explícito: só desliga tudo quando setado para "false".
 const FACIAL_DISABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'false';
 
+// URL pública (GitHub Release) do executável do Agente Local. Fica como padrão
+// para os botões/instalador funcionarem sem depender de env; pode ser
+// sobrescrita por AGENT_DOWNLOAD_URL (ex.: ao publicar uma nova versão).
+const AGENT_DOWNLOAD_URL =
+  process.env.AGENT_DOWNLOAD_URL ||
+  'https://github.com/Viniciusvile/Click-Prestare/releases/download/agent-v1.0.0/click-agent.exe';
+
 @Injectable()
 export class FacialService {
   private readonly logger = new Logger(FacialService.name);
@@ -209,7 +216,7 @@ export class FacialService {
     const token = await this.getOrCreateAgentToken(idCondominio);
     return {
       agent_token: token,
-      download_url: process.env.AGENT_DOWNLOAD_URL ?? null,
+      download_url: AGENT_DOWNLOAD_URL,
     };
   }
 
@@ -239,7 +246,7 @@ export class FacialService {
         .slice(0, 40) || 'condominio';
 
     if (format === 'bat') {
-      const downloadUrl = process.env.AGENT_DOWNLOAD_URL ?? '';
+      const downloadUrl = AGENT_DOWNLOAD_URL;
       const baixaExe = downloadUrl
         ? [
             'if not exist "%EXE%" (',
