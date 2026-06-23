@@ -150,6 +150,16 @@ export class FacialService {
     return d;
   }
 
+  /**
+   * Dispositivos ativos de um condomínio — usado pelo agente em "modo
+   * condomínio" (um único token gerencia todos os aparelhos do condomínio).
+   */
+  async getActiveDevices(idCondominio: number) {
+    return this.prisma.facial_Devices.findMany({
+      where: { id_condominio: idCondominio, ativo: 1 },
+    });
+  }
+
   async findDeviceByToken(token: string) {
     const d = await this.prisma.facial_Devices.findFirst({
       where: { webhook_token: token, ativo: 1 },

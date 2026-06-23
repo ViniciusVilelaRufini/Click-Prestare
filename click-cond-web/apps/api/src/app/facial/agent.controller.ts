@@ -69,4 +69,53 @@ export class AgentController {
     if (commandId) this.bridge.submitResult(commandId, result);
     return { ok: true };
   }
+
+  // ----- Modo condomínio: UM token gerencia TODOS os dispositivos do condomínio -----
+  // Mais simples de configurar (o agente precisa de 1 token só). O token é o
+  // webhook_token de qualquer dispositivo ativo — resolve o condomínio e o
+  // agente recebe todos os aparelhos dele de uma vez. Continua isolado por
+  // condomínio (o token só enxerga o próprio tenant).
+
+  @Public()
+  @Get('condo/:token/poll')
+  async condoPoll(@Param('token') token: string) {
+    const ref = await this.service.findDeviceByToken(token);
+    const idCondominio = ref.id_condominio;
+    const devices = await this.service.getActiveDevices(idCondominio);
+    const out = devices.map((d) => {
+      const reconectou = !this.bridge.isOnline(d.id);
+      const commands = this.bridge.poll(d.id);
+      if (reconectou && d.tipo === 'facial') {
+        void this.service.syncAllForCondominio(idCondominio, {
+          onlyPending: true,
+        });
+      }
+      return {
+        device: {
+          id: d.id,
+          nome: d.nome,
+          tipo: d.tipo,
+          fabricante: d.fabricante,
+          ip: d.ip,
+          porta: d.porta,
+          api_user: d.api_user,
+          api_password: d.api_password,
+        },
+        commands,
+      };
+    });
+    return { devices: out, poll_interval_ms: this.bridge.pollIntervalMs };
+  }
+
+  @Public()
+  @Post('condo/:token/result')
+  async condoResult(
+    @Param('token') token: string,
+    @Body() body: { commandId: string } & AgentResult,
+  ) {
+    await this.service.findDeviceByToken(token);
+    const { commandId, ...result } = body ?? ({} as any);
+    if (commandId) this.bridge.submitResult(commandId, result);
+    return { ok: true };
+  }
 }

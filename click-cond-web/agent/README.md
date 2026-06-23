@@ -47,14 +47,19 @@ npm run build:exe        # gera click-agent.exe (Windows) / click-agent (Linux/m
 - `.env` (copie de `.env.example` e preencha — veja abaixo)
 - `install-windows.bat` (opcional, para iniciar com o Windows)
 
-**3. Preencha o `.env`** (no mesmo diretório do `.exe`):
-- `API_URL` — endereço da API na nuvem (ex.: `https://sua-api.up.railway.app`).
-- `DEVICE_TOKENS` — token de cada device, separados por vírgula. Pegue no portal:
-  **Terminais de Dispositivos** → botão **"Copiar URL Webhook"** — o token é o
-  trecho final da URL (`.../api/facial/webhook/<TOKEN>`).
+**3. Configure (só 2 valores).** Você **não** precisa editar arquivo: rode o
+`click-agent.exe` por uma **janela de terminal** uma vez e ele pergunta e salva
+o `.env` sozinho. Ele pede:
+- **URL da API** (ex.: `https://sua-api.up.railway.app`).
+- **Um token** — no portal, **Terminais de Dispositivos** → **"Copiar URL Webhook"**
+  em **qualquer** dispositivo e cole (pode colar a URL inteira). Esse único token
+  gerencia **todos** os dispositivos do condomínio (modo condomínio).
 
-**4. Inicie:** dê dois cliques no `click-agent.exe` (ou rode `install-windows.bat`
-como Administrador para iniciar junto com o Windows).
+> O IP/usuário/senha de cada aparelho **não** vão no agente — já ficam na nuvem
+> (você cadastra uma vez no portal) e descem automaticamente.
+
+**4. Inicie:** depois de configurado, dê dois cliques no `click-agent.exe` (ou
+rode `install-windows.bat` como Administrador para iniciar junto com o Windows).
 
 Em poucos segundos o portal mostra **"Agente conectado"** no card do device.
 

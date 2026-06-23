@@ -51,30 +51,123 @@ const SEM_COMANDO_HTTP = {
 
 loadDotEnv();
 
-const API_URL = (process.env.API_URL || '').replace(/\/+$/, '');
-const DEVICE_TOKENS = (process.env.DEVICE_TOKENS || '')
+let API_URL = (process.env.API_URL || '').replace(/\/+$/, '');
+// Modo condomínio: UM token gerencia todos os dispositivos do condomínio.
+let AGENT_TOKEN = (process.env.AGENT_TOKEN || '').trim();
+// Modo legado (opcional): um token por dispositivo, separados por vírgula.
+let DEVICE_TOKENS = (process.env.DEVICE_TOKENS || '')
   .split(',')
   .map((t) => t.trim())
   .filter(Boolean);
 const DEFAULT_POLL_MS = Number(process.env.POLL_INTERVAL_MS || 2000);
 const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
 
-if (!API_URL || DEVICE_TOKENS.length === 0) {
-  console.error(
-    'Configuração faltando. Defina API_URL e DEVICE_TOKENS (veja .env.example).',
-  );
-  process.exit(1);
+const temConfig = () => API_URL && (AGENT_TOKEN || DEVICE_TOKENS.length > 0);
+
+main();
+
+async function main() {
+  // Sem config? Se houver console (rodando manualmente), pergunta e salva o
+  // .env sozinho — o operador não precisa abrir editor de texto. Rodando como
+  // serviço (sem console), apenas avisa o que falta.
+  if (!temConfig() && process.stdin.isTTY) {
+    await firstRunSetup();
+  }
+  if (!temConfig()) {
+    console.error(
+      'Configuração faltando. Crie um .env com API_URL e AGENT_TOKEN (veja .env.example),',
+    );
+    console.error('ou rode o executável uma vez por uma janela de terminal para configurar.');
+    process.exit(1);
+  }
+
+  console.log(`[agente] iniciando — API: ${API_URL}`);
+  if (AGENT_TOKEN) {
+    console.log('[agente] modo condomínio: 1 token gerencia todos os dispositivos');
+    runCondoLoop(AGENT_TOKEN).catch((err) =>
+      console.error('[agente] loop do condomínio morreu:', err),
+    );
+  } else {
+    console.log(`[agente] gerenciando ${DEVICE_TOKENS.length} device(s)`);
+    for (const token of DEVICE_TOKENS) {
+      runDeviceLoop(token).catch((err) =>
+        console.error(`[agente] loop do token ...${token.slice(-6)} morreu:`, err),
+      );
+    }
+  }
 }
 
-console.log(`[agente] iniciando — API: ${API_URL}`);
-console.log(`[agente] gerenciando ${DEVICE_TOKENS.length} device(s)`);
+/** Pergunta a config no terminal na primeira vez e grava o .env. */
+async function firstRunSetup() {
+  const readline = require('node:readline');
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (q) => new Promise((res) => rl.question(q, (a) => res(a.trim())));
 
-// ---------- Loop principal: um por token ----------
+  console.log('\n=== Configuração inicial do Agente Local ===');
+  console.log('(você só faz isso uma vez; depois é automático)\n');
+  const urlIn = await ask('1) URL da API na nuvem (ex.: https://sua-api.up.railway.app): ');
+  console.log('\n2) No portal, em Terminais de Dispositivos, clique "Copiar URL Webhook"');
+  console.log('   em QUALQUER dispositivo e cole aqui (pode colar a URL inteira):');
+  const tokenIn = await ask('   Token/URL: ');
+  rl.close();
 
-for (const token of DEVICE_TOKENS) {
-  runDeviceLoop(token).catch((err) =>
-    console.error(`[agente] loop do token ...${token.slice(-6)} morreu:`, err),
-  );
+  API_URL = urlIn.replace(/\/+$/, '');
+  AGENT_TOKEN = extractToken(tokenIn);
+
+  const envPath = path.join(configDir(), '.env');
+  fs.writeFileSync(envPath, `API_URL=${API_URL}\nAGENT_TOKEN=${AGENT_TOKEN}\n`, 'utf8');
+  console.log(`\nConfiguração salva em: ${envPath}`);
+  console.log('Iniciando o agente...\n');
+}
+
+/** Aceita o token puro ou a URL inteira do webhook e extrai só o token. */
+function extractToken(input) {
+  const m = String(input).match(/\/webhook\/([^/?#]+)/i);
+  return (m ? m[1] : String(input)).trim();
+}
+
+// ---------- Loop modo condomínio (1 token → todos os dispositivos) ----------
+
+async function runCondoLoop(token) {
+  let pollMs = DEFAULT_POLL_MS;
+  let errBackoff = 0;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      const res = await cloudRequest('GET', `/api/facial/agent/condo/${token}/poll`);
+      errBackoff = 0;
+      if (res.status === 401 || res.status === 404) {
+        console.error(
+          `[agente] token inválido/inativo (HTTP ${res.status}). Nova tentativa em 30s (confira o token no portal).`,
+        );
+        await sleep(30000);
+        continue;
+      }
+      const body = res.data || {};
+      if (body.poll_interval_ms) pollMs = Number(body.poll_interval_ms);
+
+      for (const entry of body.devices || []) {
+        const device = entry.device;
+        for (const cmd of entry.commands || []) {
+          const result = await executeOnDevice(device, cmd);
+          await cloudRequest('POST', `/api/facial/agent/condo/${token}/result`, {
+            commandId: cmd.id,
+            ...result,
+          });
+          console.log(
+            `[agente] ${device.nome} ◂ ${cmd.type} → ${result.ok ? 'OK' : 'FALHA'}${
+              result.error ? ' (' + result.error + ')' : ''
+            }`,
+          );
+        }
+      }
+    } catch (err) {
+      errBackoff = Math.min(errBackoff + 1, 10);
+      console.error('[agente] erro no poll do condomínio:', err.message || err);
+    }
+    await sleep(errBackoff > 0 ? pollMs * (1 + errBackoff) : pollMs);
+  }
 }
 
 async function runDeviceLoop(token) {
