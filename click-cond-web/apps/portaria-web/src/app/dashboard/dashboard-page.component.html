@@ -268,8 +268,8 @@
             }
           </div>
 
-          <!-- Direita: Filtros + Ações + Botão de Expandir -->
-          <div class="flex flex-wrap items-center gap-3 self-start md:self-auto overflow-x-auto max-w-full scrollbar-none">
+          <!-- Direita: Filtros + Ações + Botão de Expandir (mesma linha) -->
+          <div class="flex flex-nowrap items-center gap-2 self-start md:self-auto overflow-x-auto max-w-full scrollbar-none">
             <!-- Filtro de Eventos -->
             <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shrink-0 border border-slate-200/30 dark:border-white/5">
               <button (click)="filtroEvento.set('Todos')"
@@ -316,22 +316,21 @@
               </div>
             }
 
-            <!-- Botão Maximizar/Minimizar -->
-            <button (click)="toggleMaximizacao()" 
-                    [title]="eventosMaximizados() ? 'Minimizar Painel' : 'Maximizar Painel'"
-                    class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-white/10 dark:hover:bg-white/20 dark:text-slate-100 dark:hover:text-white transition-all border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 duration-150 flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider shrink-0">
+            <!-- Botão Maximizar/Minimizar — somente ícone -->
+            <button (click)="toggleMaximizacao()"
+                    [title]="eventosMaximizados() ? 'Minimizar Painel' : 'Expandir Painel'"
+                    [attr.aria-label]="eventosMaximizados() ? 'Minimizar Painel' : 'Expandir Painel'"
+                    class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-white/10 dark:hover:bg-white/20 dark:text-slate-100 dark:hover:text-white transition-all border border-slate-200 dark:border-white/10 shadow-sm active:scale-95 duration-150 flex items-center justify-center shrink-0">
               @if (eventosMaximizados()) {
                 <!-- Ícone Minimizar -->
                 <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3 3m12 6V4.5M15 9h4.5M15 9l6-6M9 15v4.5M9 15H4.5M9 15l-6 6m12-6v4.5M15 15h4.5M15 15l6 6" />
                 </svg>
-                <span>Minimizar</span>
               } @else {
                 <!-- Ícone Maximizar -->
                 <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0l-6-6" />
                 </svg>
-                <span>Expandir</span>
               }
             </button>
           </div>
