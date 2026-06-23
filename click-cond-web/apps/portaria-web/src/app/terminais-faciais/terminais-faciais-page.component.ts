@@ -29,6 +29,11 @@ export class TerminaisFaciaisPageComponent implements OnInit {
   readonly syncing = signal(false);
   readonly syncStatus = signal<FacialSyncStatus | null>(null);
 
+  // Agente: chave do condomínio + download do executável/config
+  readonly agentToken = signal<string | null>(null);
+  readonly agentDownloadUrl = signal<string | null>(null);
+  readonly baixando = signal<string | null>(null);
+
   // Modal
   readonly showModal = signal(false);
   readonly editingId = signal<number | null>(null);
@@ -143,6 +148,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
   ngOnInit(): void {
     this.load();
     this.loadSyncStatus();
+    this.loadAgentInfo();
   }
 
   loadSyncStatus() {
@@ -150,6 +156,46 @@ export class TerminaisFaciaisPageComponent implements OnInit {
       next: (s) => this.syncStatus.set(s),
       error: () => this.syncStatus.set(null),
     });
+  }
+
+  loadAgentInfo() {
+    this.api.agentInfo().subscribe({
+      next: (i) => {
+        this.agentToken.set(i.agent_token);
+        this.agentDownloadUrl.set(i.download_url);
+      },
+      error: () => {},
+    });
+  }
+
+  /** Baixa a configuração do agente (.env ou instalar.bat) já personalizada. */
+  baixarConfig(format: 'env' | 'bat') {
+    this.baixando.set(format);
+    this.api.downloadAgentConfig(format).subscribe({
+      next: (blob) => {
+        this.baixando.set(null);
+        const nome = format === 'bat' ? 'instalar-agente.bat' : '.env';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nome;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {
+        this.baixando.set(null);
+        this.errorMessage.set('Falha ao gerar a configuração do agente.');
+        setTimeout(() => this.errorMessage.set(null), 4000);
+      },
+    });
+  }
+
+  copiarChave() {
+    const t = this.agentToken();
+    if (!t) return;
+    navigator.clipboard?.writeText(t);
+    this.successMessage.set('Chave do agente copiada.');
+    setTimeout(() => this.successMessage.set(null), 3000);
   }
 
   /**

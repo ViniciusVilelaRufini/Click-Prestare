@@ -79,8 +79,7 @@ export class AgentController {
   @Public()
   @Get('condo/:token/poll')
   async condoPoll(@Param('token') token: string) {
-    const ref = await this.service.findDeviceByToken(token);
-    const idCondominio = ref.id_condominio;
+    const idCondominio = await this.service.resolveCondominioForAgent(token);
     const devices = await this.service.getActiveDevices(idCondominio);
     const out = devices.map((d) => {
       const reconectou = !this.bridge.isOnline(d.id);
@@ -113,7 +112,7 @@ export class AgentController {
     @Param('token') token: string,
     @Body() body: { commandId: string } & AgentResult,
   ) {
-    await this.service.findDeviceByToken(token);
+    await this.service.resolveCondominioForAgent(token);
     const { commandId, ...result } = body ?? ({} as any);
     if (commandId) this.bridge.submitResult(commandId, result);
     return { ok: true };

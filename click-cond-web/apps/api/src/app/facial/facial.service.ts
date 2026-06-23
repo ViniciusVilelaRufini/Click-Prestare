@@ -168,6 +168,129 @@ export class FacialService {
     return d;
   }
 
+  /**
+   * Resolve o condomínio a partir do token do agente. Aceita o agent_token
+   * (dedicado do condomínio, preferido) ou, por compatibilidade, o
+   * webhook_token de um dispositivo ativo.
+   */
+  async resolveCondominioForAgent(token: string): Promise<number> {
+    const cond = await this.prisma.condominios.findFirst({
+      where: { agent_token: token },
+      select: { id: true },
+    });
+    if (cond) return cond.id;
+    const device = await this.prisma.facial_Devices.findFirst({
+      where: { webhook_token: token, ativo: 1 },
+      select: { id_condominio: true },
+    });
+    if (device) return device.id_condominio;
+    throw new UnauthorizedException('Token do agente inválido');
+  }
+
+  /** Garante (e devolve) o agent_token estável do condomínio, gerando se faltar. */
+  async getOrCreateAgentToken(idCondominio: number): Promise<string> {
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { agent_token: true },
+    });
+    if (!cond)
+      throw new NotFoundException(`Condomínio ${idCondominio} não encontrado`);
+    if (cond.agent_token) return cond.agent_token;
+    const token = crypto.randomBytes(32).toString('hex');
+    await this.prisma.condominios.update({
+      where: { id: idCondominio },
+      data: { agent_token: token },
+    });
+    return token;
+  }
+
+  /** Token (para o portal exibir) + URL de download do executável. */
+  async getAgentInfo(idCondominio: number) {
+    const token = await this.getOrCreateAgentToken(idCondominio);
+    return {
+      agent_token: token,
+      download_url: process.env.AGENT_DOWNLOAD_URL ?? null,
+    };
+  }
+
+  /**
+   * Gera o arquivo de configuração do agente já personalizado para o
+   * condomínio: ".env" (config pura) ou "instalar.bat" (1 clique: baixa o exe,
+   * grava a config e registra o serviço no Windows).
+   */
+  async getAgentConfigFile(
+    idCondominio: number,
+    apiUrl: string,
+    format: 'env' | 'bat',
+  ): Promise<{ filename: string; content: string; contentType: string }> {
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { nome: true },
+    });
+    const token = await this.getOrCreateAgentToken(idCondominio);
+    const apiBase = apiUrl.replace(/\/+$/, '');
+    const slug =
+      (cond?.nome ?? 'condominio')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase()
+        .slice(0, 40) || 'condominio';
+
+    if (format === 'bat') {
+      const downloadUrl = process.env.AGENT_DOWNLOAD_URL ?? '';
+      const baixaExe = downloadUrl
+        ? [
+            'if not exist "%EXE%" (',
+            '  echo Baixando o agente...',
+            `  powershell -Command "Invoke-WebRequest -Uri '${downloadUrl}' -OutFile '%EXE%'"`,
+            ')',
+          ]
+        : [
+            'if not exist "%EXE%" (',
+            '  echo [ERRO] click-agent.exe nao encontrado nesta pasta. Baixe-o pelo portal e rode de novo.',
+            '  pause',
+            '  exit /b 1',
+            ')',
+          ];
+      const linhas = [
+        '@echo off',
+        'setlocal',
+        'set "DIR=%~dp0"',
+        'set "EXE=%DIR%click-agent.exe"',
+        'set "ENVFILE=%DIR%.env"',
+        '',
+        'REM 1) Garante o executavel',
+        ...baixaExe,
+        '',
+        'REM 2) Escreve a configuracao do condominio',
+        '(',
+        `echo API_URL=${apiBase}`,
+        `echo AGENT_TOKEN=${token}`,
+        ') > "%ENVFILE%"',
+        '',
+        'REM 3) Inicia com o Windows',
+        'schtasks /Create /TN "ClickPortariaAgent" /TR "\\"%EXE%\\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F',
+        'schtasks /Run /TN "ClickPortariaAgent"',
+        'echo.',
+        'echo Pronto! Agente instalado e rodando. Confira "Agente conectado" no portal.',
+        'pause',
+      ];
+      return {
+        filename: `instalar-agente-${slug}.bat`,
+        content: linhas.join('\r\n') + '\r\n',
+        contentType: 'application/octet-stream',
+      };
+    }
+
+    return {
+      filename: '.env',
+      content: `# Agente Local — ${cond?.nome ?? ''}\r\nAPI_URL=${apiBase}\r\nAGENT_TOKEN=${token}\r\n`,
+      contentType: 'text/plain; charset=utf-8',
+    };
+  }
+
   async createDevice(dto: CreateDeviceDto, operador?: JwtPayload) {
     const token = crypto.randomBytes(32).toString('hex');
     const created = await this.prisma.facial_Devices.create({

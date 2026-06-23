@@ -8,7 +8,10 @@ import {
   Post,
   Put,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import {
   CreateDeviceDto,
@@ -121,6 +124,56 @@ export class FacialController {
       `status facial do condomínio ${idCondominio}`,
     );
     return this.service.getSyncStatus(idCondominio);
+  }
+
+  // ----- Agente: chave e download de configuração personalizada -----
+
+  @Get('agent/info')
+  agentInfo(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(
+      idCondominio,
+      user,
+      `agente do condomínio ${idCondominio}`,
+    );
+    return this.service.getAgentInfo(idCondominio);
+  }
+
+  @Get('agent/config')
+  async agentConfig(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('format') format?: string,
+  ) {
+    assertTenantStrict(
+      idCondominio,
+      user,
+      `config do agente do condomínio ${idCondominio}`,
+    );
+    const proto = (
+      (req.headers['x-forwarded-proto'] as string) ||
+      req.protocol ||
+      'https'
+    ).split(',')[0];
+    const host =
+      (req.headers['x-forwarded-host'] as string) || req.headers['host'] || '';
+    const apiUrl = process.env.PUBLIC_API_URL || `${proto}://${host}`;
+    const fmt = format === 'bat' ? 'bat' : 'env';
+    const file = await this.service.getAgentConfigFile(
+      idCondominio,
+      apiUrl,
+      fmt,
+    );
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.filename}"`,
+    );
+    res.send(file.content);
   }
 
   @Post('sync/morador/:id')

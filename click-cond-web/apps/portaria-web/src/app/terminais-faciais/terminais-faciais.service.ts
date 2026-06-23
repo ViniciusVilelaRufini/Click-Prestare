@@ -147,4 +147,27 @@ export class TerminaisFaciaisApi {
       .set('limit', limit);
     return this.http.get<AcessoFacial[]>(`${this.base}/acessos`, { params });
   }
+
+  /** Chave do agente do condomínio + URL de download do executável. */
+  agentInfo(): Observable<{
+    agent_token: string;
+    download_url: string | null;
+  }> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.get<{ agent_token: string; download_url: string | null }>(
+      `${this.base}/agent/info`,
+      { params },
+    );
+  }
+
+  /** Baixa o arquivo de config do agente já personalizado (.env ou instalar.bat). */
+  downloadAgentConfig(format: 'env' | 'bat'): Observable<Blob> {
+    const params = new HttpParams()
+      .set('id_condominio', this.idCondominio)
+      .set('format', format);
+    return this.http.get(`${this.base}/agent/config`, {
+      params,
+      responseType: 'blob',
+    });
+  }
 }
