@@ -26,13 +26,23 @@ export class FacialController {
   constructor(private readonly service: FacialService) {}
 
   @Get('devices')
-  list(@Query('id_condominio', ParseIntPipe) idCondominio: number, @ReqUser() user: JwtPayload) {
-    assertSameTenant(idCondominio, user, `dispositivos do condomínio ${idCondominio}`);
+  list(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertSameTenant(
+      idCondominio,
+      user,
+      `dispositivos do condomínio ${idCondominio}`,
+    );
     return this.service.listDevices(idCondominio);
   }
 
   @Get('devices/:id')
-  async get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+  async get(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
     const device = await this.service.getDevice(id);
     assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
     return device;
@@ -56,34 +66,77 @@ export class FacialController {
   }
 
   @Delete('devices/:id')
-  async remove(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
     const device = await this.service.getDevice(id);
     assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
     return this.service.removeDevice(id, user);
   }
 
   @Post('devices/:id/test')
-  async test(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+  async test(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
     const device = await this.service.getDevice(id);
     assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
     return this.service.testDevice(id);
   }
 
   @Post('devices/:id/trigger')
-  async trigger(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+  async trigger(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
     const device = await this.service.getDevice(id);
     assertSameTenant(device.id_condominio, user, `dispositivo #${id}`);
     return this.service.triggerDevice(id, user);
   }
 
+  @Post('sync/all')
+  syncAll(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertSameTenant(
+      idCondominio,
+      user,
+      `sync facial do condomínio ${idCondominio}`,
+    );
+    return this.service.syncAllForCondominio(idCondominio, {
+      onlyPending: false,
+    });
+  }
+
+  @Get('sync/status')
+  syncStatus(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertSameTenant(
+      idCondominio,
+      user,
+      `status facial do condomínio ${idCondominio}`,
+    );
+    return this.service.getSyncStatus(idCondominio);
+  }
+
   @Post('sync/morador/:id')
-  async syncMorador(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+  async syncMorador(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
     await this.service.assertMoradorSameTenant(id, user);
     return this.service.syncMorador(id);
   }
 
   @Post('sync/visitante/:id')
-  async syncVisitante(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+  async syncVisitante(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
     await this.service.assertVisitanteSameTenant(id, user);
     return this.service.syncVisitante(id);
   }
@@ -94,7 +147,11 @@ export class FacialController {
     @Query('limit') limitStr?: string,
     @ReqUser() user?: JwtPayload,
   ) {
-    assertSameTenant(idCondominio, user, `acessos do condomínio ${idCondominio}`);
+    assertSameTenant(
+      idCondominio,
+      user,
+      `acessos do condomínio ${idCondominio}`,
+    );
     const limit = limitStr ? Number(limitStr) : 50;
     return this.service.listAcessos(idCondominio, limit);
   }
@@ -124,19 +181,32 @@ export class FacialController {
   // ----- Enrollment guiado (captura de UID/QR via leitor) -----
 
   @Post('enroll/start')
-  async startEnroll(@Body() body: { id_device: number }, @ReqUser() user: JwtPayload) {
+  async startEnroll(
+    @Body() body: { id_device: number },
+    @ReqUser() user: JwtPayload,
+  ) {
     const device = await this.service.getDevice(body.id_device);
-    assertSameTenant(device.id_condominio, user, `dispositivo #${body.id_device}`);
+    assertSameTenant(
+      device.id_condominio,
+      user,
+      `dispositivo #${body.id_device}`,
+    );
     return this.service.startEnrollCapture(body.id_device);
   }
 
   @Get('enroll/:sessionId')
-  pollEnroll(@Param('sessionId') sessionId: string, @ReqUser() user: JwtPayload) {
+  pollEnroll(
+    @Param('sessionId') sessionId: string,
+    @ReqUser() user: JwtPayload,
+  ) {
     return this.service.pollEnrollCapture(sessionId, user);
   }
 
   @Delete('enroll/:sessionId')
-  cancelEnroll(@Param('sessionId') sessionId: string, @ReqUser() user: JwtPayload) {
+  cancelEnroll(
+    @Param('sessionId') sessionId: string,
+    @ReqUser() user: JwtPayload,
+  ) {
     return this.service.cancelEnrollCapture(sessionId, user);
   }
 }

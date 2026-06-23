@@ -30,7 +30,17 @@ export class AgentController {
   @Get(':token/poll')
   async poll(@Param('token') token: string) {
     const device = await this.service.findDeviceByToken(token);
+    // Detecta a (re)conexão do agente: se estava offline e agora fez poll,
+    // dispara o back-fill dos rostos pendentes desse condomínio em background.
+    // É o que torna plug-and-play: ligou o agente → as fotos já cadastradas
+    // sobem para o facial sozinhas.
+    const reconectou = !this.bridge.isOnline(device.id);
     const commands = this.bridge.poll(device.id);
+    if (reconectou && device.tipo === 'facial') {
+      void this.service.syncAllForCondominio(device.id_condominio, {
+        onlyPending: true,
+      });
+    }
     return {
       device: {
         id: device.id,

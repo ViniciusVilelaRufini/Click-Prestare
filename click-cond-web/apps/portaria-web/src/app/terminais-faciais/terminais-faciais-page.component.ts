@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   CreateTerminalFacial,
+  FacialSyncStatus,
   TerminaisFaciaisApi,
   TerminalFacial,
 } from './terminais-faciais.service';
@@ -23,6 +24,10 @@ export class TerminaisFaciaisPageComponent implements OnInit {
   readonly successMessage = signal<string | null>(null);
   readonly testingId = signal<number | null>(null);
   readonly statusMap = signal<Record<number, boolean | null>>({});
+
+  // Sincronização em massa de rostos (back-fill)
+  readonly syncing = signal(false);
+  readonly syncStatus = signal<FacialSyncStatus | null>(null);
 
   // Modal
   readonly showModal = signal(false);
@@ -137,6 +142,71 @@ export class TerminaisFaciaisPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.loadSyncStatus();
+  }
+
+  loadSyncStatus() {
+    this.api.syncStatus().subscribe({
+      next: (s) => this.syncStatus.set(s),
+      error: () => this.syncStatus.set(null),
+    });
+  }
+
+  /**
+   * Envia todos os rostos já cadastrados para os terminais faciais (back-fill).
+   * Roda em segundo plano no servidor; aqui só dispara e acompanha o status.
+   */
+  syncAllRostos() {
+    this.syncing.set(true);
+    this.errorMessage.set(null);
+    this.api.syncAll().subscribe({
+      next: (r) => {
+        this.syncing.set(false);
+        if (r.skipped) {
+          this.errorMessage.set(
+            r.reason === 'no_facial_devices'
+              ? 'Cadastre um terminal facial antes de sincronizar.'
+              : 'Sincronização desativada.',
+          );
+          setTimeout(() => this.errorMessage.set(null), 5000);
+          return;
+        }
+        if (r.alreadyRunning) {
+          this.successMessage.set('Sincronização já está em andamento.');
+        } else if (!r.total) {
+          this.successMessage.set(
+            'Nenhum rosto pendente — tudo já sincronizado.',
+          );
+        } else {
+          this.successMessage.set(
+            `Enviando ${r.total} rosto(s) para o(s) terminal(is)… acompanhe o progresso abaixo.`,
+          );
+        }
+        setTimeout(() => this.successMessage.set(null), 6000);
+        // Acompanha o progresso por alguns ciclos.
+        this.pollSyncStatus(12);
+      },
+      error: (err) => {
+        this.syncing.set(false);
+        this.errorMessage.set(
+          err?.error?.message ?? 'Falha ao sincronizar rostos.',
+        );
+        setTimeout(() => this.errorMessage.set(null), 5000);
+      },
+    });
+  }
+
+  /** Atualiza o status a cada 3s enquanto o back-fill estiver rodando. */
+  private pollSyncStatus(restantes: number) {
+    this.api.syncStatus().subscribe({
+      next: (s) => {
+        this.syncStatus.set(s);
+        if (s.running && restantes > 0) {
+          setTimeout(() => this.pollSyncStatus(restantes - 1), 3000);
+        }
+      },
+      error: () => {},
+    });
   }
 
   private emptyForm(): CreateTerminalFacial {

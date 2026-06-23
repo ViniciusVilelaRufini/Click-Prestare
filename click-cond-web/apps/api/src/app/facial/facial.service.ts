@@ -56,6 +56,8 @@ const FACIAL_DISABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'false';
 @Injectable()
 export class FacialService {
   private readonly logger = new Logger(FacialService.name);
+  /** Condomínios com um bulk sync rodando agora (evita rodar em paralelo). */
+  private readonly bulkSyncEmAndamento = new Set<number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -624,6 +626,154 @@ export class FacialService {
         );
       }
     }
+  }
+
+  // ---------- Sincronização em massa (back-fill) ----------
+
+  /**
+   * Envia para os terminais faciais os rostos de TODAS as pessoas já
+   * cadastradas (moradores + visitantes ativos com foto) do condomínio.
+   *
+   * É o "back-fill" que resolve o cenário real de implantação: os moradores
+   * são cadastrados ANTES do facial existir (ou enquanto o agente está offline)
+   * — então as fotos existentes não subiram. Esta função empurra todas elas.
+   *
+   * Processa em SEGUNDO PLANO e sequencialmente (não satura o agente nem
+   * bloqueia a resposta HTTP). O progresso aparece em face_sync_status, que o
+   * portal exibe via getSyncStatus.
+   *
+   * @param opts.onlyPending true = só quem ainda não está 'synced' (usado no
+   *        auto-sync quando o agente conecta). false = re-sincroniza todos
+   *        (botão manual "Sincronizar rostos").
+   */
+  async syncAllForCondominio(
+    idCondominio: number,
+    opts: { onlyPending?: boolean } = {},
+  ) {
+    if (FACIAL_DISABLED)
+      return { skipped: true, reason: 'integration_disabled' };
+    if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
+
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial' },
+      select: { id: true },
+    });
+    if (devices.length === 0) {
+      return { skipped: true, reason: 'no_facial_devices' };
+    }
+
+    if (this.bulkSyncEmAndamento.has(idCondominio)) {
+      return { alreadyRunning: true };
+    }
+
+    // Filtro "pendente": ainda não sincronizado com sucesso.
+    const pendenteWhere = opts.onlyPending
+      ? {
+          OR: [
+            { face_sync_status: { not: 'synced' } },
+            { face_sync_status: null },
+            { face_id: null },
+          ],
+        }
+      : {};
+
+    const [moradores, visitantes] = await Promise.all([
+      this.prisma.moradores.findMany({
+        where: {
+          id_condominio: idCondominio,
+          foto_pessoa: { not: null },
+          ...pendenteWhere,
+        },
+        select: { id: true },
+      }),
+      this.prisma.visitantes.findMany({
+        where: {
+          id_condominio: idCondominio,
+          foto_pessoa: { not: null },
+          data_saida: null,
+          ...pendenteWhere,
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    const total = moradores.length + visitantes.length;
+    if (total === 0) return { total: 0, started: false };
+
+    this.bulkSyncEmAndamento.add(idCondominio);
+    // Não await: roda em background. O event loop continua após o return.
+    void (async () => {
+      let ok = 0;
+      let falhou = 0;
+      try {
+        for (const m of moradores) {
+          try {
+            await this.syncMorador(m.id);
+            ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk sync morador ${m.id}: ${e?.message ?? e}`);
+          }
+        }
+        for (const v of visitantes) {
+          try {
+            await this.syncVisitante(v.id);
+            ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk sync visitante ${v.id}: ${e?.message ?? e}`);
+          }
+        }
+        this.logger.log(
+          `Bulk sync condomínio ${idCondominio}: ${ok} ok, ${falhou} falha(s) de ${total}`,
+        );
+      } finally {
+        this.bulkSyncEmAndamento.delete(idCondominio);
+      }
+    })();
+
+    return { total, started: true };
+  }
+
+  /**
+   * Contadores do status de sincronização facial dos moradores do condomínio —
+   * para o portal mostrar o progresso do back-fill (X enviados, Y pendentes).
+   */
+  async getSyncStatus(idCondominio: number) {
+    if (!this.prisma.isConnected) {
+      return {
+        synced: 0,
+        pending: 0,
+        error: 0,
+        semFoto: 0,
+        comFoto: 0,
+        total: 0,
+        running: false,
+      };
+    }
+    const [synced, error, comFoto, total] = await Promise.all([
+      this.prisma.moradores.count({
+        where: { id_condominio: idCondominio, face_sync_status: 'synced' },
+      }),
+      this.prisma.moradores.count({
+        where: { id_condominio: idCondominio, face_sync_status: 'error' },
+      }),
+      this.prisma.moradores.count({
+        where: { id_condominio: idCondominio, foto_pessoa: { not: null } },
+      }),
+      this.prisma.moradores.count({ where: { id_condominio: idCondominio } }),
+    ]);
+    // Pendente = tem foto mas ainda não está 'synced' nem em 'error'.
+    const pending = Math.max(comFoto - synced - error, 0);
+    return {
+      synced,
+      pending,
+      error,
+      semFoto: total - comFoto,
+      comFoto,
+      total,
+      running: this.bulkSyncEmAndamento.has(idCondominio),
+    };
   }
 
   // ---------- Webhook ----------

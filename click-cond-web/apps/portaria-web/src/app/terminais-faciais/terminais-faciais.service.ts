@@ -53,6 +53,16 @@ export interface AcessoFacial {
   created_at: string;
 }
 
+export interface FacialSyncStatus {
+  synced: number;
+  pending: number;
+  error: number;
+  semFoto: number;
+  comFoto: number;
+  total: number;
+  running: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TerminaisFaciaisApi {
   private http = inject(HttpClient);
@@ -109,6 +119,26 @@ export class TerminaisFaciaisApi {
 
   syncVisitante(id: number): Observable<any> {
     return this.http.post<any>(`${this.base}/sync/visitante/${id}`, {});
+  }
+
+  /** Envia todos os rostos já cadastrados (back-fill) para os terminais faciais. */
+  syncAll(): Observable<{
+    total?: number;
+    started?: boolean;
+    skipped?: boolean;
+    reason?: string;
+    alreadyRunning?: boolean;
+  }> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.post<any>(`${this.base}/sync/all`, {}, { params });
+  }
+
+  /** Contadores do progresso de sincronização facial dos moradores. */
+  syncStatus(): Observable<FacialSyncStatus> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.get<FacialSyncStatus>(`${this.base}/sync/status`, {
+      params,
+    });
   }
 
   acessos(limit = 50): Observable<AcessoFacial[]> {
