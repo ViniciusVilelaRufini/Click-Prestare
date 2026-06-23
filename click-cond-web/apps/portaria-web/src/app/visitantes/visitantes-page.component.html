@@ -839,9 +839,8 @@
         </p>
       </div>
     } @else {
-      <!-- MOBILE / TABLET / janela estreita: cards (a tabela só aparece em telas
-           largas ≥ xl; em tablet a tabela cortava as colunas/ações à direita) -->
-      <div class="xl:hidden divide-y divide-white/5">
+      <!-- MOBILE / janela estreita: cards -->
+      <div class="lg:hidden divide-y divide-white/5">
         @for (v of visitantesPaginados(); track v.id) {
           <div
             (click)="abrirDetalhes(v)"
@@ -1065,8 +1064,9 @@
         }
       </div>
 
-      <!-- DESKTOP (≥ xl): tabela, com scroll horizontal de segurança -->
-      <div class="hidden xl:block overflow-x-auto">
+      <!-- TABLET/DESKTOP: tabela com scroll horizontal (arrasta pro lado),
+           igual à área de Encomendas -->
+      <div class="hidden lg:block overflow-x-auto">
         <table class="w-full text-sm">
           <thead
             class="bg-white/[0.02] text-slate-400 uppercase text-[11px] tracking-wider border-b border-white/10"
