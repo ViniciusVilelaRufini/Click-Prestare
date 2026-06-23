@@ -877,6 +877,10 @@ model Facial_Devices {
   //   entrada → terminal de ENTRADA: todo acesso conta como entrada
   //   saida   → terminal de SAÍDA: todo acesso dá baixa (registra saída)
   sentido       String                @default("auto") @db.VarChar(20)
+  // Confiança mínima (%) do reconhecimento facial para aceitar o acesso.
+  // 0 = desligado (aceita qualquer confiança). Rede de segurança contra falso
+  // positivo do aparelho — abaixo do limiar o acesso é negado.
+  confianca_minima Int                @default(0) @db.TinyInt
   fabricante    String                @db.VarChar(50)
   modelo        String?               @db.VarChar(100)
   ip            String                @db.VarChar(45)

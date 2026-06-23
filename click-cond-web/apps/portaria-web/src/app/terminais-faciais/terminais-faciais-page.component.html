@@ -672,6 +672,32 @@
             </div>
           }
 
+          <!-- Confiança mínima: rede de segurança contra falso positivo (só facial) -->
+          @if (mostrarConfianca) {
+            <div class="space-y-1.5">
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Confiança mínima do reconhecimento (%)</label
+              >
+              <input
+                [(ngModel)]="form.confianca_minima"
+                name="confianca_minima"
+                type="number"
+                min="0"
+                max="100"
+                placeholder="0"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs font-mono placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              />
+              <p class="text-[10px] text-slate-400 dark:text-slate-500">
+                Acessos com confiança abaixo deste valor são
+                <b>negados</b> (proteção extra contra falso positivo).
+                <b>0 = desligado.</b>
+                Ajuste a trava principal no próprio aparelho; calibre este valor
+                no piloto.
+              </p>
+            </div>
+          }
+
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
               <label

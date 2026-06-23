@@ -21,6 +21,7 @@ import { AgentBridgeService } from './agent-bridge.service';
 import {
   bloqueadoPorRegrasAcesso,
   CategoriaPessoa,
+  confiancaInsuficiente,
   RegraAcessoLike,
 } from './access-rules.util';
 
@@ -30,6 +31,8 @@ export interface CreateDeviceDto {
   tipo?: string;
   /** auto | entrada | saida — como interpretar a direção dos acessos. */
   sentido?: string;
+  /** Confiança mínima (%) do reconhecimento facial; 0 = desligado. */
+  confianca_minima?: number;
   fabricante: string;
   modelo?: string;
   ip: string;
@@ -311,6 +314,7 @@ export class FacialService {
         nome: dto.nome,
         tipo: dto.tipo ?? 'facial',
         sentido: dto.sentido ?? 'auto',
+        confianca_minima: dto.confianca_minima ?? 0,
         fabricante: dto.fabricante,
         modelo: dto.modelo ?? null,
         ip: dto.ip,
@@ -344,6 +348,9 @@ export class FacialService {
         ...(dto.nome !== undefined && { nome: dto.nome }),
         ...(dto.tipo !== undefined && { tipo: dto.tipo }),
         ...(dto.sentido !== undefined && { sentido: dto.sentido }),
+        ...(dto.confianca_minima !== undefined && {
+          confianca_minima: dto.confianca_minima,
+        }),
         ...(dto.fabricante !== undefined && { fabricante: dto.fabricante }),
         ...(dto.modelo !== undefined && { modelo: dto.modelo }),
         ...(dto.ip !== undefined && { ip: dto.ip }),
@@ -361,6 +368,7 @@ export class FacialService {
       'nome',
       'tipo',
       'sentido',
+      'confianca_minima',
       'fabricante',
       'ip',
       'porta',
@@ -1113,6 +1121,38 @@ export class FacialService {
       });
       throw new BadRequestException(
         'Acesso negado: Credencial não encontrada ou inválida',
+      );
+    }
+
+    // Rede de segurança anti falso positivo: se o terminal tem confiança mínima
+    // configurada e o match veio abaixo dela, NEGA (a identificação não é
+    // confiável o suficiente). 0 = desligado; confiança ausente não bloqueia.
+    if (confiancaInsuficiente(confianca, device.confianca_minima ?? 0)) {
+      await this.prisma.acessos_Facial.create({
+        data: {
+          id_condominio: device.id_condominio,
+          id_device: device.id,
+          tipo_dispositivo: device.tipo,
+          face_id:
+            faceIdSalvo ||
+            qrCodeLido ||
+            tagRfidLida ||
+            externalId ||
+            'desconhecido',
+          tipo_pessoa: tipoPessoa,
+          id_pessoa: idPessoa,
+          nome_pessoa: `${nomePessoa} (Bloqueado por baixa confiança)`,
+          evento: 'negado',
+          confianca,
+          timestamp,
+        },
+      });
+      throw new BadRequestException(
+        `Acesso negado: confiança do reconhecimento (${
+          confianca != null
+            ? Math.round(confianca <= 1 ? confianca * 100 : confianca) + '%'
+            : 'não informada'
+        }) abaixo do mínimo de ${device.confianca_minima}% deste terminal.`,
       );
     }
 

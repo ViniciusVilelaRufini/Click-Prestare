@@ -260,6 +260,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
       nome: '',
       tipo: 'facial',
       sentido: 'auto',
+      confianca_minima: 0,
       fabricante: 'control_id',
       modelo: '',
       ip: '',
@@ -272,6 +273,11 @@ export class TerminaisFaciaisPageComponent implements OnInit {
   // Botoeira é só acionador (não identifica pessoa), então sentido não se aplica.
   get mostrarSentido(): boolean {
     return this.form.tipo !== 'botoeira';
+  }
+
+  // Confiança mínima só faz sentido em reconhecimento facial.
+  get mostrarConfianca(): boolean {
+    return this.form.tipo === 'facial';
   }
 
   load() {
@@ -302,6 +308,7 @@ export class TerminaisFaciaisPageComponent implements OnInit {
       nome: t.nome,
       tipo: t.tipo || 'facial',
       sentido: t.sentido || 'auto',
+      confianca_minima: t.confianca_minima ?? 0,
       fabricante: t.fabricante,
       modelo: t.modelo ?? '',
       ip: t.ip,
@@ -344,6 +351,9 @@ export class TerminaisFaciaisPageComponent implements OnInit {
       nome: this.form.nome,
       tipo: this.form.tipo || 'facial',
       sentido: this.mostrarSentido ? this.form.sentido || 'auto' : 'auto',
+      confianca_minima: this.mostrarConfianca
+        ? Number(this.form.confianca_minima) || 0
+        : 0,
       fabricante: this.form.fabricante,
       modelo: this.form.modelo || undefined,
       ip: this.form.ip,

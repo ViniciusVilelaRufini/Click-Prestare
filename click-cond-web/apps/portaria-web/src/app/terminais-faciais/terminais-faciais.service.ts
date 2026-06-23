@@ -11,6 +11,8 @@ export interface TerminalFacial {
   tipo: string;
   /** auto | entrada | saida */
   sentido: string;
+  /** Confiança mínima (%) do reconhecimento; 0 = desligado. */
+  confianca_minima: number;
   fabricante: string;
   modelo: string | null;
   ip: string;
@@ -30,6 +32,7 @@ export interface CreateTerminalFacial {
   nome: string;
   tipo?: string;
   sentido?: string;
+  confianca_minima?: number;
   fabricante: string;
   modelo?: string;
   ip: string;

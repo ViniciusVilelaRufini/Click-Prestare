@@ -61,6 +61,24 @@ export function algumaRegraPermite(
 }
 
 /**
+ * Rede de segurança contra falso positivo: o acesso deve ser BLOQUEADO porque
+ * a confiança do reconhecimento ficou abaixo do mínimo configurado no terminal?
+ *
+ * - minimoPct <= 0  → limiar desligado (nunca bloqueia).
+ * - confianca null  → aparelho não informou; não dá para avaliar → não bloqueia.
+ * - Normaliza a escala: 0–1 (vira %) ou já em 0–100 (alguns fabricantes).
+ */
+export function confiancaInsuficiente(
+  confianca: number | null | undefined,
+  minimoPct: number,
+): boolean {
+  if (!minimoPct || minimoPct <= 0) return false;
+  if (confianca === null || confianca === undefined) return false;
+  const pct = confianca <= 1 ? confianca * 100 : confianca;
+  return pct < minimoPct;
+}
+
+/**
  * Decisão final usada pelo webhook: o acesso deve ser BLOQUEADO pelas regras?
  * - Sem regras ativas → false (terminal liberado).
  * - Com regras, mas nenhuma cobre o caso atual → true (bloqueia).

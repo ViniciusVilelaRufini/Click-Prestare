@@ -2,6 +2,7 @@ import {
   algumaRegraPermite,
   bloqueadoPorRegrasAcesso,
   CategoriaPessoa,
+  confiancaInsuficiente,
   RegraAcessoLike,
 } from './access-rules.util';
 
@@ -230,6 +231,26 @@ describe('Regras de Acesso (engine whitelist)', () => {
       expect(bloqueadoPorRegrasAcesso([r], 'entrada', 'morador', '10:00')).toBe(
         true,
       );
+    });
+  });
+
+  describe('confiança mínima (anti falso positivo)', () => {
+    it('limiar 0 (desligado) nunca bloqueia', () => {
+      expect(confiancaInsuficiente(0.1, 0)).toBe(false);
+      expect(confiancaInsuficiente(null, 0)).toBe(false);
+    });
+    it('confiança ausente não bloqueia (não dá pra avaliar)', () => {
+      expect(confiancaInsuficiente(null, 85)).toBe(false);
+      expect(confiancaInsuficiente(undefined, 85)).toBe(false);
+    });
+    it('escala 0–1: bloqueia abaixo do limiar', () => {
+      expect(confiancaInsuficiente(0.6, 85)).toBe(true); // 60% < 85%
+      expect(confiancaInsuficiente(0.9, 85)).toBe(false); // 90% >= 85%
+      expect(confiancaInsuficiente(0.85, 85)).toBe(false); // borda inclusiva
+    });
+    it('escala 0–100: também funciona', () => {
+      expect(confiancaInsuficiente(60, 85)).toBe(true);
+      expect(confiancaInsuficiente(95, 85)).toBe(false);
     });
   });
 
