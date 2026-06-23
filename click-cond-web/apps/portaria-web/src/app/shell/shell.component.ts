@@ -8,7 +8,9 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule, RouterOutlet, SidebarComponent],
   template: `
-    <div class="app-bg min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+    <div
+      class="app-bg flex flex-col md:flex-row overflow-x-hidden min-h-screen md:h-screen md:overflow-hidden"
+    >
       <!-- Top Navbar for Mobile -->
       <header class="md:hidden flex items-center justify-between px-4 py-3 bg-graphite-200 border-b border-white/5 select-none z-30 relative">
         <div class="flex items-center gap-2">
@@ -57,8 +59,8 @@ import { CommonModule } from '@angular/common';
         <app-sidebar (linkClicked)="isSidebarOpen.set(false)" />
       </div>
 
-      <!-- Main content -->
-      <main class="flex-1 min-w-0">
+      <!-- Main content — único elemento que rola no desktop (sidebar fica fixa) -->
+      <main class="flex-1 min-w-0 md:h-screen md:overflow-y-auto">
         <router-outlet />
       </main>
     </div>
