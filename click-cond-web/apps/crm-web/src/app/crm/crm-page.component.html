@@ -220,282 +220,217 @@
             Configurações
           </button>
         </div>
-
         @switch (abaNavegacao()) {
           @case ('overview') {
-            <!-- KPIs row with dynamic sparklines -->
             @if (overview(); as ov) {
               <div class="space-y-6 animate-fade-in">
-              <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 stagger-children">
-
-                <!-- MRR Card -->
-                <div class="glass kpi-card p-5 flex flex-col justify-between h-[120px] cursor-default">
-                  <div class="flex items-center justify-between">
-                    <p class="stat-label">Faturamento Recorrente (MRR)</p>
-                    <span class="w-6 h-6 rounded bg-accent-500/10 border border-accent-500/20 flex items-center justify-center text-accent-400 shadow-glow">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.7 0-3 .9-3 2s1.3 2 3 2 3 .9 3 2-1.3 2-3 2m0-10V6m0 12v-2m0-6c1.1 0 2.1.4 2.6 1M12 8c-1.1 0-2.1.4-2.6 1"/></svg>
-                    </span>
-                  </div>
-                  <div class="flex items-end justify-between mt-2">
-                    <div>
-                      <p class="stat-value font-mono tracking-tight"><span [countUp]="ov.mrrTotal" countUpFormat="moeda">{{ moeda(ov.mrrTotal) }}</span></p>
-                      <p class="text-[10px] text-zinc-500 mt-1">ARR projetado <span class="text-zinc-400 font-mono">{{ moeda(ov.arrTotal) }}</span></p>
-                    </div>
-                    <svg class="w-24 h-9 overflow-visible" viewBox="0 0 120 36">
-                      <defs>
-                        <linearGradient id="grad-mrr" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#F2884B" stop-opacity="0.25"/>
-                          <stop offset="100%" stop-color="#F2884B" stop-opacity="0.0"/>
-                        </linearGradient>
-                      </defs>
-                      <path [attr.d]="sparklines().mrr.area" fill="url(#grad-mrr)"></path>
-                      <path [attr.d]="sparklines().mrr.line" fill="none" stroke="#F2884B" stroke-width="1.8"></path>
-                    </svg>
-                  </div>
-                </div>
-
-                <!-- Clientes ativos Card -->
-                <div class="glass kpi-card p-5 flex flex-col justify-between h-[120px] cursor-default">
-                  <div class="flex items-center justify-between">
-                    <p class="stat-label">Clientes Ativos</p>
-                    <span class="w-6 h-6 rounded bg-success-500/10 border border-success-500/20 flex items-center justify-center text-success-400">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m6-1.13a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm6 0a4 4 0 1 0-3-6.65"/></svg>
-                    </span>
-                  </div>
-                  <div class="flex items-end justify-between mt-2">
-                    <div>
-                      <p class="stat-value font-mono tracking-tight"><span [countUp]="ov.clientesAtivos" countUpFormat="int">{{ ov.clientesAtivos }}</span><span class="text-xs text-zinc-500 font-semibold font-sans"> / {{ ov.totalClientes }}</span></p>
-                      <p class="text-[10px] text-zinc-500 mt-1"><span class="text-success-400 font-bold">+{{ ov.novos30d }}</span> novo(s) em 30d</p>
-                    </div>
-                    <svg class="w-24 h-9 overflow-visible" viewBox="0 0 120 36">
-                      <defs>
-                        <linearGradient id="grad-cli" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#6bd396" stop-opacity="0.25"/>
-                          <stop offset="100%" stop-color="#6bd396" stop-opacity="0.0"/>
-                        </linearGradient>
-                      </defs>
-                      <path [attr.d]="sparklines().clientes.area" fill="url(#grad-cli)"></path>
-                      <path [attr.d]="sparklines().clientes.line" fill="none" stroke="#6bd396" stroke-width="1.8"></path>
-                    </svg>
-                  </div>
-                </div>
-
-                <!-- Inadimplência Card -->
-                <div class="glass kpi-card p-5 flex flex-col justify-between h-[120px] cursor-default">
-                  <div class="flex items-center justify-between">
-                    <p class="stat-label">Contas Atrasadas</p>
-                    <span class="w-6 h-6 rounded bg-danger-500/10 border border-danger-500/20 flex items-center justify-center text-danger-400">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-                    </span>
-                  </div>
-                  <div class="flex items-end justify-between mt-2">
-                    <div>
-                      <p class="stat-value font-mono tracking-tight" [class.text-danger-400]="ov.emAtraso.quantidade > 0"><span [countUp]="ov.emAtraso.quantidade" countUpFormat="int">{{ ov.emAtraso.quantidade }}</span></p>
-                      <p class="text-[10px] text-zinc-500 mt-1"><span class="text-zinc-400 font-mono font-semibold">{{ moeda(ov.emAtraso.valor) }}</span> retido</p>
-                    </div>
-                    <svg class="w-24 h-9 overflow-visible" viewBox="0 0 120 36">
-                      <defs>
-                        <linearGradient id="grad-atraso" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#f27b7b" stop-opacity="0.25"/>
-                          <stop offset="100%" stop-color="#f27b7b" stop-opacity="0.0"/>
-                        </linearGradient>
-                      </defs>
-                      <path [attr.d]="sparklines().inadimplencia.area" fill="url(#grad-atraso)"></path>
-                      <path [attr.d]="sparklines().inadimplencia.line" fill="none" stroke="#f27b7b" stroke-width="1.8"></path>
-                    </svg>
-                  </div>
-                </div>
-
-                <!-- Ticket Médio Card -->
-                <div class="glass kpi-card p-5 flex flex-col justify-between h-[120px] cursor-default">
-                  <div class="flex items-center justify-between">
-                    <p class="stat-label">Ticket Médio por Condomínio</p>
-                    <span class="w-6 h-6 rounded bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-zinc-400">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.7 0-3 .9-3 2s1.3 2 3 2 3 .9 3 2-1.3 2-3 2m0-10V6m0 12v-2m0-6c1.1 0 2.1.4 2.6 1M12 8c-1.1 0-2.1.4-2.6 1"/></svg>
-                    </span>
-                  </div>
-                  <div class="flex items-end justify-between mt-2">
-                    <div>
-                      <p class="stat-value font-mono tracking-tight"><span [countUp]="ov.ticketMedio" countUpFormat="moeda">{{ moeda(ov.ticketMedio) }}</span></p>
-                      <p class="text-[10px] text-zinc-500 mt-1">Churn mensal <span class="text-zinc-400 font-semibold">{{ ov.taxaChurn }}%</span></p>
-                    </div>
-                    <svg class="w-24 h-9 overflow-visible" viewBox="0 0 120 36">
-                      <defs>
-                        <linearGradient id="grad-ticket" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#E7D181" stop-opacity="0.2"/>
-                          <stop offset="100%" stop-color="#E7D181" stop-opacity="0.0"/>
-                        </linearGradient>
-                      </defs>
-                      <path [attr.d]="sparklines().ticket.area" fill="url(#grad-ticket)"></path>
-                      <path [attr.d]="sparklines().ticket.line" fill="none" stroke="#E7D181" stroke-width="1.8"></path>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Central row: Area Chart + Plans Doughnut Chart -->
-              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 
-                <!-- Growth Area Chart -->
-                <div class="lg:col-span-2 glass p-5 flex flex-col justify-between min-h-[260px]">
-                  <div class="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 class="text-xs font-bold text-zinc-200 uppercase tracking-wider">Histórico de Crescimento de Receita (MRR)</h3>
-                      <p class="text-[10px] text-zinc-500 mt-0.5">Evolução consolidada de assinaturas nos últimos 12 meses</p>
+                <!-- Top Actions & Greeting row (Mercury quick actions style) -->
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-zinc-200 rounded-lg p-4 shadow-sm">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 text-sm font-bold shadow-sm">
+                      {{ iniciais(auth.adminInfo()?.nome || 'Admin') }}
                     </div>
-                    <span class="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                      Alta de 142%
-                    </span>
-                  </div>
-
-                  <!-- SVG Area Chart -->
-                  <div class="relative h-[160px] w-full flex items-end">
-                    <svg class="w-full h-full overflow-visible" viewBox="0 0 600 150" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="area-gradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stop-color="#F2884B" stop-opacity="0.25"/>
-                          <stop offset="100%" stop-color="#F2884B" stop-opacity="0.0"/>
-                        </linearGradient>
-                      </defs>
-                      
-                      <!-- Grid horizontal lines -->
-                      <line x1="0" y1="30" x2="600" y2="30" stroke="rgba(255,255,255,0.02)" stroke-width="1" stroke-dasharray="4"></line>
-                      <line x1="0" y1="70" x2="600" y2="70" stroke="rgba(255,255,255,0.02)" stroke-width="1" stroke-dasharray="4"></line>
-                      <line x1="0" y1="110" x2="600" y2="110" stroke="rgba(255,255,255,0.02)" stroke-width="1" stroke-dasharray="4"></line>
-                      <line x1="0" y1="150" x2="600" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"></line>
-
-                      <!-- Area Path -->
-                      <path [attr.d]="pathHistorico().areaPath" fill="url(#area-gradient)"></path>
-                      
-                      <!-- Line Path (desenha na entrada) -->
-                      <path [attr.d]="pathHistorico().linePath" fill="none" stroke="#F2884B" stroke-width="2.2" stroke-linecap="round" class="draw-line" style="--len: 1600"></path>
-
-                      <!-- Dot nodes com tooltip nativo (mês + valor) -->
-                      @for (pt of pathHistorico().points; track $index) {
-                        <circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="4.5" fill="#0A1207" stroke="#F2884B" stroke-width="2.5" class="hover:scale-150 transition-all cursor-pointer" style="transform-box: fill-box; transform-origin: center;">
-                          <title>{{ historicoReceita()[$index].mes }} · {{ moeda(historicoReceita()[$index].valor) }}</title>
-                        </circle>
-                      }
-                    </svg>
+                    <div>
+                      <h2 class="text-sm font-bold text-zinc-900 leading-tight">Olá, {{ auth.adminInfo()?.nome || 'Gestor Click' }}</h2>
+                      <p class="text-[11px] text-zinc-500 mt-0.5">Gestão comercial e operacional da operadora Click Prestare</p>
+                    </div>
                   </div>
                   
-                  <!-- X axis labels -->
-                  <div class="flex justify-between mt-2 pt-2 border-t border-white/[0.02] text-[10px] font-mono text-zinc-500">
-                    @for (d of historicoReceita(); track d.mes) {
-                      <span>{{ d.mes }}</span>
-                    }
+                  <!-- Action buttons row (Send, Transfer, etc. style) -->
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button (click)="alterarAbaNavegacao('clientes')" class="press inline-flex items-center gap-1.5 px-3 py-1.5 text-2xs font-bold rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all">
+                      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+                      Ver Clientes
+                    </button>
+                    <button (click)="alterarAbaNavegacao('faturamento')" class="press inline-flex items-center gap-1.5 px-3 py-1.5 text-2xs font-bold rounded-full bg-white border border-zinc-250 text-zinc-700 hover:bg-zinc-50 shadow-sm transition-all">
+                      <svg class="w-3 h-3 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                      Lançar Baixa
+                    </button>
+                    <button (click)="alterarAbaNavegacao('automacoes')" class="press inline-flex items-center gap-1.5 px-3 py-1.5 text-2xs font-bold rounded-full bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 shadow-sm transition-all">
+                      <svg class="w-3 h-3 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      Régua de WhatsApp
+                    </button>
+                    <button (click)="alterarAbaNavegacao('configuracoes')" class="press inline-flex items-center gap-1.5 px-3 py-1.5 text-2xs font-bold rounded-full bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50 shadow-sm transition-all">
+                      <svg class="w-3 h-3 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+                      Configurações
+                    </button>
                   </div>
                 </div>
 
-                <!-- Doughnut plans chart -->
-                <div class="glass p-5 flex flex-col justify-between min-h-[260px]">
-                  <div class="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 class="text-xs font-bold text-zinc-200 uppercase tracking-wider">Distribuição de Planos</h3>
-                      <p class="text-[10px] text-zinc-500 mt-0.5">Participação dos planos ativos</p>
-                    </div>
-                    <span class="text-[10px] text-zinc-400 font-mono">{{ ov.porPlano.length }} ativos</span>
-                  </div>
-
-                  <div class="flex flex-col items-center justify-center gap-5 py-2">
-                    <!-- Circular ring -->
-                    <div class="relative w-28 h-28 flex items-center justify-center shrink-0">
-                      <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                        <!-- Background circle track -->
-                        <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="8"></circle>
-                        
-                        <!-- Dynamic segments -->
-                        @for (p of planosDoughnut(); track p.plano) {
-                          <circle cx="50" cy="50" r="40" fill="none"
-                            [attr.stroke]="p.stroke"
-                            stroke-width="8"
-                            [attr.stroke-dasharray]="p.strokeDash"
-                            [attr.stroke-dashoffset]="p.strokeOffset"
-                            stroke-linecap="round"
-                            [style.--i]="$index"
-                            class="sweep-ring transition-all duration-500"></circle>
-                        }
-                      </svg>
-                      
-                      <!-- Center text label -->
-                      <div class="absolute flex flex-col items-center justify-center text-center">
-                        <span class="text-xl font-bold text-white leading-none font-mono">{{ ov.clientesAtivos }}</span>
-                        <span class="text-[8px] text-zinc-500 uppercase tracking-wider font-extrabold mt-1">Contas</span>
+                <!-- Main Grid: Balance Chart (60%) vs Accounts/Plans List (40%) -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  <!-- Mercury Balance Chart Card (MRR Growth) -->
+                  <div class="lg:col-span-2 glass p-6 flex flex-col justify-between min-h-[320px]">
+                    <div class="flex items-center justify-between mb-2">
+                      <div>
+                        <p class="stat-label">Receita Recorrente Mensal (MRR)</p>
+                        <h2 class="text-3xl font-bold text-zinc-900 tracking-tight mt-1 font-mono">
+                          {{ moeda(ov.mrrTotal) }}
+                        </h2>
+                      </div>
+                      <div class="text-right">
+                        <span class="text-2xs font-semibold text-emerald-600 bg-emerald-100/60 border border-emerald-200/50 px-2 py-0.5 rounded-full">
+                          +14.2% este mês
+                        </span>
+                        <p class="text-[10px] text-zinc-400 mt-1 font-medium">ARR: <span class="font-semibold text-zinc-600 font-mono">{{ moeda(ov.arrTotal) }}</span></p>
                       </div>
                     </div>
 
-                    <!-- Legend grid -->
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full pt-2 border-t border-white/[0.02]">
-                      @for (p of planosDoughnut(); track p.plano) {
-                        <div class="flex items-center justify-between text-2xs">
-                          <div class="flex items-center gap-1.5 min-w-0">
-                            <span class="w-2.5 h-2.5 rounded-full shrink-0 {{ p.bg }} border border-white/[0.1]"></span>
-                            <span class="text-zinc-400 truncate">{{ p.plano }}</span>
+                    <!-- SVG Chart Area (royal blue theme) -->
+                    <div class="relative h-[160px] w-full flex items-end mt-4">
+                      <svg class="w-full h-full overflow-visible" viewBox="0 0 600 150" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="blue-gradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#2563eb" stop-opacity="0.12"/>
+                            <stop offset="100%" stop-color="#2563eb" stop-opacity="0.0"/>
+                          </linearGradient>
+                        </defs>
+                        
+                        <!-- Grid lines -->
+                        <line x1="0" y1="30" x2="600" y2="30" stroke="rgba(24,24,27,0.03)" stroke-width="1" stroke-dasharray="4"></line>
+                        <line x1="0" y1="70" x2="600" y2="70" stroke="rgba(24,24,27,0.03)" stroke-width="1" stroke-dasharray="4"></line>
+                        <line x1="0" y1="110" x2="600" y2="110" stroke="rgba(24,24,27,0.03)" stroke-width="1" stroke-dasharray="4"></line>
+                        <line x1="0" y1="150" x2="600" y2="150" stroke="rgba(24,24,27,0.06)" stroke-width="1"></line>
+
+                        <!-- Area Fill -->
+                        <path [attr.d]="pathHistorico().areaPath" fill="url(#blue-gradient)"></path>
+                        
+                        <!-- Line Path -->
+                        <path [attr.d]="pathHistorico().linePath" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" class="draw-line" style="--len: 1600"></path>
+
+                        <!-- Dot nodes -->
+                        @for (pt of pathHistorico().points; track $index) {
+                          <circle [attr.cx]="pt.x" [attr.cy]="pt.y" r="4" fill="#ffffff" stroke="#2563eb" stroke-width="2" class="hover:scale-150 transition-all cursor-pointer" style="transform-box: fill-box; transform-origin: center;">
+                            <title>{{ historicoReceita()[$index].mes }} · {{ moeda(historicoReceita()[$index].valor) }}</title>
+                          </circle>
+                        }
+                      </svg>
+                    </div>
+                    
+                    <!-- X axis labels -->
+                    <div class="flex justify-between mt-2 pt-2 border-t border-zinc-100 text-[10px] font-mono text-zinc-400">
+                      @for (d of historicoReceita(); track d.mes) {
+                        <span>{{ d.mes }}</span>
+                      }
+                    </div>
+                  </div>
+
+                  <!-- Accounts/Plans List Card (Mercury style) -->
+                  <div class="glass p-6 flex flex-col justify-between min-h-[320px]">
+                    <div>
+                      <div class="flex items-center justify-between mb-4 pb-2 border-b border-zinc-100">
+                        <h3 class="text-xs font-bold text-zinc-950 uppercase tracking-wider">Planos & Assinaturas</h3>
+                        <span class="text-[10px] text-zinc-400 font-bold font-mono">{{ ov.clientesAtivos }} ativos</span>
+                      </div>
+                      
+                      <!-- Vertical items list -->
+                      <div class="space-y-3.5">
+                        @for (p of planosDoughnut(); track p.plano) {
+                          <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                              <!-- Plan icon circle -->
+                              <div class="w-8 h-8 rounded-full bg-zinc-100 border border-zinc-200/50 flex items-center justify-center text-2xs font-extrabold text-zinc-600">
+                                {{ p.plano.substring(0,2).toUpperCase() }}
+                              </div>
+                              <div>
+                                <p class="text-xs font-bold text-zinc-900">{{ p.plano }}</p>
+                                <p class="text-[10px] text-zinc-500 font-medium">{{ p.clientes }} condomínio{{ p.clientes !== 1 ? 's' : '' }} · {{ p.pct }}%</p>
+                              </div>
+                            </div>
+                            <div class="text-right">
+                              <p class="text-xs font-bold text-zinc-900 font-mono">{{ moeda(p.mrr) }}</p>
+                              <p class="text-[9px] text-zinc-400 font-semibold font-sans">recorrente</p>
+                            </div>
                           </div>
-                          <span class="font-mono text-zinc-300 font-semibold">{{ p.pct }}%</span>
+                        }
+                      </div>
+                    </div>
+                    
+                    <!-- Progress bar of active accounts -->
+                    <div class="pt-4 border-t border-zinc-100">
+                      <div class="flex items-center justify-between text-2xs text-zinc-500 font-semibold mb-1.5">
+                        <span>Meta Mensal Comercial</span>
+                        <span>{{ Math.round((ov.mrrTotal / 10000) * 100) }}%</span>
+                      </div>
+                      <div class="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-600 rounded-full transition-all duration-1000" [style.width.%]="Math.min(Math.round((ov.mrrTotal / 10000) * 100), 100)"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bottom Grid: Money Movement (Money In vs Money Out) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  <!-- Money In (Ativações / Ganhos) -->
+                  <div class="glass p-6 space-y-4">
+                    <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+                      <div>
+                        <h3 class="text-xs font-bold text-zinc-950 uppercase tracking-wider">Entradas / Ativações (Money In)</h3>
+                        <p class="text-[10px] text-zinc-500 mt-0.5">Ativações recentes e principais fontes de receita</p>
+                      </div>
+                      <span class="text-xs font-bold text-emerald-600 font-mono bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-0.5">
+                        +{{ ov.novos30d }} condomínio{{ ov.novos30d !== 1 ? 's' : '' }}
+                      </span>
+                    </div>
+
+                    <!-- Top active clients list -->
+                    <div class="divide-y divide-zinc-100">
+                      @for (tc of ov.topClientes; track tc.id) {
+                        <div class="py-2.5 flex items-center justify-between first:pt-0 last:pb-0">
+                          <div class="flex items-center gap-3">
+                            <div class="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-[10px] font-bold border border-emerald-100">
+                              ▲
+                            </div>
+                            <div>
+                              <p class="text-xs font-bold text-zinc-900">{{ tc.nome }}</p>
+                              <p class="text-[10px] text-zinc-400 font-semibold font-sans">Nota de saúde: <span class="text-emerald-600 font-bold font-mono">{{ tc.healthScore }}</span></p>
+                            </div>
+                          </div>
+                          <span class="text-xs font-bold font-mono text-zinc-900">{{ moeda(tc.mrr) }}</span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+
+                  <!-- Money Out (Radar de Risco / Cobrança Atrasada) -->
+                  <div class="glass p-6 space-y-4">
+                    <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+                      <div>
+                        <h3 class="text-xs font-bold text-zinc-950 uppercase tracking-wider">Inadimplência & Eventos (Money Out)</h3>
+                        <p class="text-[10px] text-zinc-500 mt-0.5">Cobranças retidas por atraso e riscos de suporte</p>
+                      </div>
+                      <span class="text-xs font-bold text-rose-600 font-mono bg-rose-50 border border-rose-100 rounded-full px-2.5 py-0.5">
+                        {{ moeda(ov.emAtraso.valor) }} retido
+                      </span>
+                    </div>
+
+                    <!-- Radar Alerts / Overdue list -->
+                    <div class="divide-y divide-zinc-100">
+                      @for (a of ov.alertas; track a.id + a.tipo) {
+                        <button (click)="abrirCliente($any(clientes().find(c => c.id === a.id)))" class="w-full text-left py-2.5 flex items-center justify-between first:pt-0 last:pb-0 press">
+                          <div class="flex items-center gap-3">
+                            <div class="w-7 h-7 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-[10px] font-bold border border-rose-100">
+                              ▼
+                            </div>
+                            <div>
+                              <p class="text-xs font-bold text-zinc-900 truncate max-w-[200px]">{{ a.nome }}</p>
+                              <p class="text-[10px] text-zinc-500 truncate max-w-[200px] leading-none mt-0.5">{{ a.mensagem }}</p>
+                            </div>
+                          </div>
+                          <span class="text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 capitalize text-[9px]">{{ a.tipo }}</span>
+                        </button>
+                      } @empty {
+                        <div class="flex flex-col items-center justify-center text-center py-6 gap-1 bg-zinc-50/50 rounded border border-dashed border-zinc-200">
+                          <p class="text-xs font-bold text-emerald-600">✓ Nenhuma pendência</p>
+                          <p class="text-[10px] text-zinc-400">Toda a carteira está saudável e com as faturas em dia!</p>
                         </div>
                       }
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <!-- Section: Active Alerts and Logs -->
-              <div class="glass p-5 space-y-4">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <h3 class="text-xs font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-2">
-                      Radar de Risco
-                      <span class="px-1.5 py-0.5 text-[8px] font-bold text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded uppercase tracking-wider normal-case">Controle de acesso</span>
-                    </h3>
-                    <p class="text-[10px] text-zinc-500 mt-0.5">Contas em risco de churn por sinais operacionais (dispositivos offline, inatividade, suporte) + alertas comerciais</p>
-                  </div>
-                  <span class="px-2 py-0.5 rounded text-2xs font-bold tabular-nums"
-                    [class]="ov.alertas.length ? 'bg-warning-500/15 text-warning-400 border border-warning-500/20' : 'bg-white/[0.04] text-zinc-500'">
-                    {{ ov.alertas.length }} eventos ativos
-                  </span>
-                </div>
-
-                <!-- List horizontal scroll -->
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 stagger-children">
-                  @for (a of ov.alertas; track a.id + a.tipo) {
-                    <button (click)="abrirCliente($any(clientes().find(c => c.id === a.id)))"
-                      [attr.aria-label]="'Abrir ' + a.nome + ' — ' + a.mensagem"
-                      [style.--i]="$index"
-                      class="press w-full text-left p-3.5 rounded-md border {{ severidadeClasse(a.severidade) }} hover:brightness-110 hover:shadow-glow transition-all flex items-start gap-3 bg-transparent">
-                      <span class="shrink-0 mt-0.5" aria-hidden="true">
-                        @switch (a.tipo) {
-                          @case ('offline') {
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728m-12.728 0a9 9 0 010-12.728m9.9 9.9a5 5 0 010-7.072m-7.072 0a5 5 0 010 7.072M3 3l18 18"/></svg>
-                          }
-                          @case ('inatividade') {
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                          }
-                          @case ('suporte') {
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                          }
-                          @default {
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-                          }
-                        }
-                      </span>
-                      <div class="min-w-0 space-y-1 flex-1">
-                        <p class="text-xs font-bold text-white truncate">{{ a.nome }}</p>
-                        <p class="text-2xs text-zinc-400 leading-relaxed">{{ a.mensagem }}</p>
-                      </div>
-                      <span class="shrink-0 w-2 h-2 rounded-full {{ severidadeDot(a.severidade) }} animate-pulse mt-1" aria-hidden="true"></span>
-                    </button>
-                  } @empty {
-                    <div class="col-span-full flex flex-col items-center justify-center text-center py-6 gap-2 bg-white/[0.005] rounded-md border border-dashed border-white/[0.04]">
-                      <span class="w-8 h-8 rounded-full bg-success-500/10 border border-success-500/25 flex items-center justify-center text-success-400 shadow-glow">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
-                      </span>
-                      <p class="text-2xs text-zinc-500">Nenhum alerta ativo. Carteira de condomínios operando normalmente.</p>
-                    </div>
-                  }
-                </div>
-              </div>
               </div>
             }
           }
