@@ -1320,16 +1320,16 @@
     </div>
   </main>
 
-  <!-- Side-over Drawer Panel (Details / Edit) -->
+  <!-- Centered Modal Panel (Details / Edit) -->
   @if (clienteSelecionado(); as c) {
-    <div class="fixed inset-0 z-50 flex justify-end" (click)="fecharCliente()"
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" (click)="fecharCliente()"
       role="dialog" aria-modal="true" aria-labelledby="drawer-cliente-titulo">
-      
+
       <!-- Backdrop fade -->
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"></div>
-      
-      <!-- Drawer body -->
-      <div class="relative w-full max-w-md h-full bg-[#0b0b0f] border-l border-white/[0.06] overflow-auto p-6 space-y-6 animate-slide-in-right flex flex-col justify-between"
+
+      <!-- Modal body -->
+      <div class="relative w-full max-w-lg max-h-[90vh] bg-[#0b0b0f] border border-white/[0.06] rounded-xl shadow-2xl overflow-auto p-6 space-y-6 animate-fade-in flex flex-col justify-between"
         (click)="$event.stopPropagation()">
         
         <div class="space-y-6 flex-1">
