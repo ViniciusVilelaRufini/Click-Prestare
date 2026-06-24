@@ -60,6 +60,24 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   // Linha recém-liquidada (para flash de sucesso)
   readonly ultimaFaturaPaga = signal<string | null>(null);
 
+  // --- Estados detalhados e personalizados de Faturamento ---
+  readonly selectedKpiCard = signal<'emitido' | 'recebido' | 'pendente' | 'inadimplencia' | null>(null);
+  readonly faturaDetalhada = signal<Fatura | null>(null);
+  readonly whatsCobrancaFatura = signal<Fatura | null>(null);
+  readonly whatsMensagemRascunho = signal<string>('');
+  readonly whatsTelefoneDestinatario = signal<string>('');
+  readonly baixaManualFatura = signal<Fatura | null>(null);
+
+  // Campos do formulário de baixa manual
+  readonly baixaMetodo = signal<'Pix' | 'Boleto' | 'Dinheiro' | 'Transferência' | 'Outro'>('Pix');
+  readonly baixaData = signal<string>('');
+  readonly baixaHora = signal<string>('');
+  readonly baixaValor = signal<number>(0);
+  readonly baixaObservacoes = signal<string>('');
+
+  // Metadados das baixas manuais realizadas (chave: faturaId)
+  readonly manualPaymentsMetadata = signal<Record<string, { metodo: string, dataPagamento: string, valorPago: number, obs: string }>>({});
+
   // --- Estado de Navegação CRM ---
   readonly abaNavegacao = signal<'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes'>('overview');
 
@@ -403,6 +421,17 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     const filtro = this.filtroFatura();
     if (filtro === 'todos') return this.faturas();
     return this.faturas().filter(f => f.status === filtro);
+  });
+
+  readonly faturasDoCardSelecionado = computed<Fatura[]>(() => {
+    const card = this.selectedKpiCard();
+    if (!card) return [];
+    const lista = this.faturas();
+    if (card === 'emitido') return lista;
+    if (card === 'recebido') return lista.filter(f => f.status === 'paga');
+    if (card === 'pendente') return lista.filter(f => f.status === 'pendente');
+    if (card === 'inadimplencia') return lista.filter(f => f.status === 'vencida');
+    return [];
   });
 
   readonly faturamentoCards = computed(() => {
@@ -823,6 +852,182 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   dismissToast(id: number): void {
     this.toasts.update((list) => list.filter((t) => t.id !== id));
+  }
+
+  abrirDetalheCard(tipo: 'emitido' | 'recebido' | 'pendente' | 'inadimplencia'): void {
+    this.selectedKpiCard.set(tipo);
+  }
+
+  fecharDetalheCard(): void {
+    this.selectedKpiCard.set(null);
+  }
+
+  abrirFaturaDetalhada(f: Fatura): void {
+    this.faturaDetalhada.set(f);
+  }
+
+  fecharFaturaDetalhada(): void {
+    this.faturaDetalhada.set(null);
+  }
+
+  abrirCobrarWhats(f: Fatura): void {
+    this.whatsCobrancaFatura.set(f);
+    const c = this.clientes().find(cl => cl.id === f.clienteId);
+    const sindico = c?.contatoPrincipal?.nome ?? 'Síndico';
+    const tel = c?.contatoPrincipal?.telefone ?? '';
+    this.whatsTelefoneDestinatario.set(tel);
+
+    // Constrói a mensagem personalizada baseada no status
+    let baseMsg = '';
+    if (f.status === 'vencida') {
+      baseMsg = this.configAutomacoes().templatePosVencimento;
+    } else if (f.status === 'pendente') {
+      baseMsg = this.configAutomacoes().templateVencimento;
+    } else {
+      baseMsg = 'Olá, *{{sindico}}*!\nSegue a fatura *{{faturaId}}* do *{{condominio}}* no valor de *{{valor}}*.\n\nLink para segunda via: {{link_pagamento}}';
+    }
+
+    // Resolve as variáveis
+    const data = {
+      sindico,
+      condominio: f.condominio,
+      plano: c?.plano ?? 'Profissional',
+      valor: this.moeda(f.valor),
+      vencimento: new Date(f.vencimento).toLocaleDateString('pt-BR'),
+      dias: String(c?.diasParaVencer != null ? Math.abs(c.diasParaVencer) : 0),
+      copia_cola: '00020126360014br.gov.bcb.pix0114+5511999998888',
+      link_pagamento: `clickprestare.com.br/faturas/${f.id}`,
+      faturaId: f.id
+    };
+
+    const resolvida = baseMsg.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) =>
+      data[k as keyof typeof data] !== undefined ? data[k as keyof typeof data] : m
+    );
+
+    this.whatsMensagemRascunho.set(resolvida);
+  }
+
+  confirmarEnvioWhats(): void {
+    const f = this.whatsCobrancaFatura();
+    if (!f) return;
+
+    const tel = this.whatsTelefoneDestinatario().replace(/\D/g, '');
+    const num = tel.length <= 11 ? '55' + tel : tel;
+    const msg = this.whatsMensagemRascunho();
+
+    const dataAtual = new Date().toISOString();
+    this.ultimoDisparoData.set(dataAtual);
+    setTimeout(() => {
+      if (this.ultimoDisparoData() === dataAtual) this.ultimoDisparoData.set(null);
+    }, 1800);
+
+    // Registra nos disparos
+    this.historicoDisparos.update(disp => [
+      {
+        data: dataAtual,
+        condominio: f.condominio,
+        tipo: 'Cobrança manual WhatsApp',
+        status: 'entregue',
+        telefone: this.whatsTelefoneDestinatario(),
+        erroMsg: null
+      },
+      ...disp
+    ]);
+
+    // Log técnico
+    this.pushLog({
+      data: dataAtual,
+      origem: 'Z-API',
+      evento: 'message_sent',
+      status: 'sucesso',
+      payload: JSON.stringify({ faturaId: f.id, destinatario: f.condominio, mensagem: msg })
+    });
+
+    // Abre em nova aba
+    const link = `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+    window.open(link, '_blank');
+
+    this.triggerToast(`Notificação enviada com sucesso para o condomínio ${f.condominio}.`, 'success');
+    this.whatsCobrancaFatura.set(null);
+  }
+
+  abrirBaixaManual(f: Fatura): void {
+    this.baixaManualFatura.set(f);
+    this.baixaMetodo.set(f.metodoPagamento === 'Boleto' ? 'Boleto' : 'Pix');
+    const hoje = new Date();
+    const dataStr = hoje.toISOString().split('T')[0];
+    const horaStr = hoje.toTimeString().split(' ')[0].substring(0, 5);
+    this.baixaData.set(dataStr);
+    this.baixaHora.set(horaStr);
+    this.baixaValor.set(f.valor);
+    this.baixaObservacoes.set('');
+  }
+
+  executarBaixaManualPersonalizada(): void {
+    const f = this.baixaManualFatura();
+    if (!f) return;
+
+    const c = this.clientes().find(cl => cl.id === f.clienteId);
+    if (!c) return;
+
+    const dataPagamentoCustom = `${this.baixaData()}T${this.baixaHora()}:00.000Z`;
+
+    // Atualiza vencimento no backend
+    const currentVenc = c.vencimento ? new Date(c.vencimento) : new Date();
+    const nextVenc = new Date(currentVenc);
+    nextVenc.setDate(nextVenc.getDate() + 30);
+    const nextVencStr = nextVenc.toISOString().split('T')[0];
+
+    this.salvando.set(true);
+    this.api.atualizar(c.id, { vencimento: nextVencStr }).subscribe({
+      next: (res) => {
+        this.salvando.set(false);
+        this.carregar();
+
+        // Salva metadados da baixa manual no estado reativo
+        this.manualPaymentsMetadata.update(map => ({
+          ...map,
+          [f.id]: {
+            metodo: this.baixaMetodo(),
+            dataPagamento: dataPagamentoCustom,
+            valorPago: this.baixaValor(),
+            obs: this.baixaObservacoes()
+          }
+        }));
+
+        // Registra no log
+        this.pushLog({
+          data: new Date().toISOString(),
+          origem: 'System',
+          evento: 'manual_payment_override',
+          status: 'sucesso',
+          payload: JSON.stringify({
+            faturaId: f.id,
+            valorPago: this.baixaValor(),
+            metodo: this.baixaMetodo(),
+            dataPagamento: dataPagamentoCustom,
+            obs: this.baixaObservacoes()
+          })
+        });
+
+        this.triggerToast(`Fatura ${f.id} baixada manualmente com sucesso. Novo vencimento: ${nextVenc.toLocaleDateString('pt-BR')}.`, 'success');
+        this.baixaManualFatura.set(null);
+        
+        // Se ela estava aberta no modal de detalhe, fecha ou atualiza. Vamos fechar por conveniência
+        if (this.faturaDetalhada()?.id === f.id) {
+          this.faturaDetalhada.set(null);
+        }
+      },
+      error: (err) => {
+        console.error('Erro ao efetuar baixa manual:', err);
+        this.salvando.set(false);
+        this.triggerToast(`Erro ao liquidar a fatura ${f.id}.`, 'error');
+      }
+    });
+  }
+
+  findCliente(id: number): CrmCliente | undefined {
+    return this.clientes().find(c => c.id === id);
   }
 
   /** Link de WhatsApp (wa.me) pré-preenchido com contexto de cobrança. Null se não há telefone. */
