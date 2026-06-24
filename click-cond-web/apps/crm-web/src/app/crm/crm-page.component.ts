@@ -94,7 +94,13 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly manualPaymentsMetadata = signal<Record<string, { metodo: string, dataPagamento: string, valorPago: number, obs: string }>>({});
 
   // --- Estado de Navegação CRM ---
-  readonly abaNavegacao = signal<'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes'>('overview');
+  readonly abaNavegacao = signal<'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios'>('overview');
+
+  // --- Estados da aba de Relatórios ---
+  readonly relatorioTipo = signal<'financeiro' | 'clientes' | 'portaria' | 'notificacoes'>('financeiro');
+  readonly relatorioPeriodo = signal<'30d' | '90d' | 'ano' | 'tudo'>('tudo');
+  readonly relatorioGerado = signal(true);
+  readonly gerandoRelatorio = signal(false);
 
   // --- Faturamento & Faturas Dinâmicos ---
   readonly faturas = computed<Fatura[]>(() => {
@@ -976,7 +982,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     return Math.round((mrr / ov.mrrTotal) * 100);
   }
 
-  alterarAbaNavegacao(aba: 'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes'): void {
+  alterarAbaNavegacao(aba: 'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios'): void {
     this.abaNavegacao.set(aba);
     // Limpar cliente selecionado ao trocar de aba principal para evitar sobreposições
     this.clienteSelecionado.set(null);
@@ -1307,5 +1313,62 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       cliente.mrr,
     )}/mês) ${venc}. Podemos ajudar a regularizar?`;
     return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+  }
+
+  gerarRelatorio(): void {
+    this.gerandoRelatorio.set(true);
+    setTimeout(() => {
+      this.relatorioGerado.set(true);
+      this.gerandoRelatorio.set(false);
+      this.triggerToast('Visualização do relatório atualizada.', 'success');
+    }, 600);
+  }
+
+  exportarCSV(tipo: string): void {
+    let csvContent = '\uFEFF'; // BOM para suporte UTF-8 no Excel
+    let filename = `relatorio_${tipo}_${new Date().toISOString().split('T')[0]}.csv`;
+    
+    if (tipo === 'financeiro') {
+      csvContent += 'Condomínio;Plano;Mensalidade (MRR);Status de Cobrança;Dias para Vencer;Saúde Financeira\n';
+      for (const c of this.clientes()) {
+        csvContent += `"${c.nome}";"${c.plano || 'Sem plano'}";"${c.mrr}";"${c.statusPagamento}";"${c.diasParaVencer ?? '—'}";"${this.pagamentoLabel(c.statusPagamento)}"\n`;
+      }
+    } else if (tipo === 'clientes') {
+      csvContent += 'Condomínio;Estágio;Cidade;UF;Plano;Health Score;Dias para Vencer\n';
+      for (const c of this.clientes()) {
+        csvContent += `"${c.nome}";"${c.estagio}";"${c.cidade || '—'}";"${c.uf || '—'}";"${c.plano || 'Sem plano'}";${c.healthScore};"${c.diasParaVencer ?? '—'}"\n`;
+      }
+    } else if (tipo === 'portaria') {
+      csvContent += 'Condomínio;Apartamentos;Moradores;Cadastros Faciais;Adoção RFID (Tags);Terminais Faciais;Dispositivos Offline\n';
+      for (const c of this.clientes()) {
+        csvContent += `"${c.nome}";${c.totalApartamentos};${c.totalMoradores};${c.moradoresComFace};${c.moradoresComTag};${c.dispositivosFaciais};${c.dispositivosOffline}\n`;
+      }
+    } else if (tipo === 'notificacoes') {
+      csvContent += 'Data;Condomínio;Tipo de Disparo;Status;Telefone/WhatsApp;Erro\n';
+      for (const d of this.historicoDisparos()) {
+        csvContent += `"${d.data}";"${d.condominio}";"${d.tipo}";"${d.status}";"${d.telefone}";"${d.erroMsg || 'Nenhum'}"\n`;
+      }
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      this.triggerToast(`Relatório CSV baixado com sucesso: ${filename}`, 'success');
+    }
+  }
+
+  exportarPDF(tipo: string): void {
+    this.triggerToast('Gerando visualização PDF do relatório...', 'info');
+    setTimeout(() => {
+      window.print();
+    }, 500);
   }
 }
