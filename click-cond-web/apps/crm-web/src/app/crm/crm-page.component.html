@@ -1505,79 +1505,175 @@
               </div>
             } @else {
               <!-- View mode container -->
-              <div class="space-y-4">
-                <!-- Finance stats details -->
-                <div class="glass p-4 space-y-3">
-                  <p class="stat-label">Comercial & Vencimentos</p>
-                  <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
-                    <div>
-                      <p class="text-[10px] text-zinc-500">Plano Ativo</p>
-                      <p class="font-semibold text-zinc-100 mt-0.5">{{ c.plano || 'Sem plano' }}</p>
-                    </div>
+              <div class="space-y-4 animate-fade-in">
+
+                <!-- AÇÕES RÁPIDAS -->
+                <div class="grid grid-cols-2 gap-2">
+                  @if (waLink(c); as wa) {
+                    <a [href]="wa" target="_blank" rel="noopener"
+                      class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-success-500/12 border border-success-500/25 text-success-400 hover:bg-success-500/20 transition-all"
+                      title="Abrir conversa de cobrança no WhatsApp">
+                      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                      Cobrar (WhatsApp)
+                    </a>
+                  }
+                  @if (c.contatoPrincipal?.email; as em) {
+                    <a [href]="'mailto:' + em"
+                      class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-white/[0.03] border border-white/[0.08] text-zinc-200 hover:bg-white/[0.06] transition-all"
+                      title="Enviar e-mail ao contato principal">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                      E-mail
+                    </a>
+                  }
+                  <button (click)="iniciarEdicao()"
+                    class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-white/[0.03] border border-white/[0.08] text-zinc-200 hover:bg-white/[0.06] transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    Editar
+                  </button>
+                  <button (click)="exportarRelatorio()"
+                    class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-white/[0.03] border border-white/[0.08] text-zinc-200 hover:bg-white/[0.06] transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Exportar
+                  </button>
+                </div>
+
+                <!-- SAÚDE FINANCEIRA -->
+                <div class="glass p-4 space-y-3.5">
+                  <div class="flex items-center justify-between">
+                    <p class="stat-label">Saúde Financeira</p>
+                    <span class="px-2 py-0.5 text-[9px] font-bold rounded border {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
+                  </div>
+                  <div class="flex items-end justify-between">
                     <div>
                       <p class="text-[10px] text-zinc-500">Faturamento Recorrente</p>
-                      <p class="font-mono font-semibold text-white mt-0.5">{{ moeda(c.mrr) }}</p>
+                      <p class="font-mono text-2xl font-bold text-white leading-none mt-1">{{ moeda(c.mrr) }}<span class="text-xs text-zinc-500 font-normal">/mês</span></p>
                     </div>
+                    <div class="text-right">
+                      <p class="text-[10px] text-zinc-500">Plano</p>
+                      <p class="font-semibold text-zinc-100 mt-0.5">{{ c.plano || 'Sem plano' }}</p>
+                    </div>
+                  </div>
+                  <!-- Vencimento em destaque -->
+                  <div class="flex items-center justify-between pt-3 border-t border-white/[0.04] text-xs">
                     <div>
-                      <p class="text-[10px] text-zinc-500">Próximo Faturamento</p>
+                      <p class="text-[10px] text-zinc-500">Próximo Vencimento</p>
                       <p class="font-semibold text-zinc-100 mt-0.5">{{ c.vencimento ? (c.vencimento | date:'dd/MM/yyyy') : '—' }}</p>
                     </div>
-                    <div>
-                      <p class="text-[10px] text-zinc-500">Cliente Desde</p>
-                      <p class="font-semibold text-zinc-100 mt-0.5">{{ c.clienteDesde ? (c.clienteDesde | date:'dd/MM/yyyy') : '—' }}</p>
-                    </div>
+                    @if (c.diasParaVencer != null) {
+                      @if (c.diasParaVencer < 0) {
+                        <span class="px-2 py-1 rounded text-[10px] font-bold bg-danger-500/12 text-danger-400 border border-danger-500/25">
+                          Venceu há {{ Math.abs(c.diasParaVencer) }}d · {{ moeda(c.mrr) }} retido
+                        </span>
+                      } @else if (c.diasParaVencer <= 7) {
+                        <span class="px-2 py-1 rounded text-[10px] font-bold bg-warning-500/12 text-warning-400 border border-warning-500/25">
+                          Vence em {{ c.diasParaVencer }}d
+                        </span>
+                      } @else {
+                        <span class="px-2 py-1 rounded text-[10px] font-bold bg-success-500/10 text-success-400 border border-success-500/20">
+                          Vence em {{ c.diasParaVencer }}d
+                        </span>
+                      }
+                    }
                   </div>
+                  <p class="text-[10px] text-zinc-500">Cliente desde {{ c.clienteDesde ? (c.clienteDesde | date:'dd/MM/yyyy') : '—' }}</p>
                 </div>
 
-                <!-- Account Health score indicator -->
-                <div class="glass p-4 space-y-3">
+                <!-- RISCO & SAÚDE DA CONTA -->
+                <div class="glass p-4 space-y-3 border {{ riscoClasse(c.riscoChurn.nivel) }}">
                   <div class="flex items-center justify-between">
-                    <p class="stat-label">Saúde da Conta (Health Score)</p>
-                    <span class="text-sm font-mono font-bold tabular-nums {{ healthClasse(c.healthScore) }}">{{ c.healthScore }} / 100</span>
+                    <p class="stat-label">Saúde da Conta &amp; Risco</p>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
+                      Risco {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}
+                    </span>
                   </div>
-                  <div class="h-2 rounded-full bg-white/[0.04] overflow-hidden">
-                    <div class="h-full rounded-full {{ healthBg(c.healthScore) }}" [style.width.%]="c.healthScore"></div>
+                  <div class="flex items-center gap-3">
+                    <div class="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
+                      <div class="h-full rounded-full {{ healthBg(c.healthScore) }}" [style.width.%]="c.healthScore"></div>
+                    </div>
+                    <span class="text-sm font-mono font-bold tabular-nums {{ healthClasse(c.healthScore) }}">{{ c.healthScore }}/100</span>
                   </div>
+                  @if (c.riscoChurn.motivos.length) {
+                    <ul class="space-y-2 pt-1">
+                      @for (m of c.riscoChurn.motivos; track m.texto) {
+                        <li class="flex items-start gap-2 text-xs">
+                          <span class="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5 {{ severidadeDot(m.severidade) }}"></span>
+                          <span class="text-zinc-300 leading-relaxed">{{ m.texto }}</span>
+                        </li>
+                      }
+                    </ul>
+                  } @else {
+                    <p class="text-2xs text-success-400 flex items-center gap-1.5 pt-1">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+                      Conta saudável — nenhum sinal de risco no momento.
+                    </p>
+                  }
                 </div>
 
-                <!-- Active Automations -->
+                <!-- RESUMO OPERACIONAL (visão rápida; detalhes nas outras abas) -->
                 <div class="glass p-4 space-y-3">
-                  <p class="stat-label">Configuração de Automação</p>
-                  <div class="space-y-2.5">
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="text-zinc-400">Recorrência Automática</span>
-                      <span class="px-2 py-0.5 rounded text-[10px] font-bold"
-                        [class]="c.recorrenciaAtiva ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'">
-                        {{ c.recorrenciaAtiva ? 'Ativa' : 'Inativa' }}
-                      </span>
+                  <p class="stat-label">Resumo Operacional</p>
+                  <div class="grid grid-cols-3 gap-3">
+                    <div class="text-center">
+                      <p class="font-mono text-lg font-bold text-zinc-100 leading-none">{{ c.totalApartamentos }}</p>
+                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Aptos</p>
                     </div>
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="text-zinc-400">Régua de WhatsApp</span>
-                      <span class="px-2 py-0.5 rounded text-[10px] font-bold"
-                        [class]="c.cobrancaAutoWhats ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'">
-                        {{ c.cobrancaAutoWhats ? 'Ativa' : 'Inativa' }}
-                      </span>
+                    <div class="text-center">
+                      <p class="font-mono text-lg font-bold text-zinc-100 leading-none">{{ c.totalMoradores }}</p>
+                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Moradores</p>
+                    </div>
+                    <div class="text-center">
+                      <p class="font-mono text-lg font-bold leading-none" [class]="c.dispositivosOffline > 0 ? 'text-danger-400' : 'text-zinc-100'">{{ c.dispositivosFaciais }}</p>
+                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Terminais</p>
+                    </div>
+                    <div class="text-center">
+                      <p class="font-mono text-lg font-bold leading-none" [class]="c.ocorrenciasPendentes > 0 ? 'text-warning-400' : 'text-zinc-100'">{{ c.ocorrenciasPendentes }}</p>
+                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Ocorrências</p>
+                    </div>
+                    <div class="text-center">
+                      <p class="font-mono text-lg font-bold leading-none" [class]="c.encomendasAguardando > 0 ? 'text-accent-400' : 'text-zinc-100'">{{ c.encomendasAguardando }}</p>
+                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Encomendas</p>
+                    </div>
+                    <div class="text-center">
+                      <p class="font-mono text-lg font-bold text-zinc-100 leading-none">{{ c.visitantesAtivos }}</p>
+                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Visitantes</p>
                     </div>
                   </div>
+                  <p class="text-[10px] text-zinc-500 pt-2 border-t border-white/[0.04]">
+                    Última atividade: <span class="text-zinc-300">{{ c.ultimaAtividade ? (c.ultimaAtividade | date:'dd/MM/yyyy HH:mm') : 'sem conexões recentes' }}</span>
+                  </p>
                 </div>
 
-                <!-- Principal Contact details -->
-                @if (c.contatoPrincipal; as ct) {
-                  <div class="glass p-4 space-y-2.5">
-                    <p class="stat-label">Contato Principal (Administrativo)</p>
-                    <p class="text-xs font-semibold text-zinc-100">{{ ct.nome }} <span class="text-[10px] font-normal text-zinc-500">· {{ ct.papel }}</span></p>
-                    @if (ct.email) {
-                      <a [href]="'mailto:' + ct.email" class="block text-2xs text-accent-400 hover:text-accent-300 hover:underline transition-all">{{ ct.email }}</a>
-                    }
-                    @if (ct.telefone) {
-                      <a [href]="'tel:' + ct.telefone" class="block text-2xs text-accent-400 hover:text-accent-300 hover:underline transition-all font-mono">{{ ct.telefone }}</a>
-                    }
+                <!-- AUTOMAÇÕES + CONTATO -->
+                <div class="glass p-4 space-y-3">
+                  <p class="stat-label">Automação & Contato</p>
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-zinc-400">Recorrência Automática</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold"
+                      [class]="c.recorrenciaAtiva ? 'bg-success-500/10 text-success-400 border border-success-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'">
+                      {{ c.recorrenciaAtiva ? 'Ativa' : 'Inativa' }}
+                    </span>
                   </div>
-                } @else {
-                  <div class="glass p-4 text-center py-4">
-                    <p class="text-2xs text-zinc-500">Sem síndico ou contato administrativo cadastrado.</p>
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-zinc-400">Régua de WhatsApp</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold"
+                      [class]="c.cobrancaAutoWhats ? 'bg-success-500/10 text-success-400 border border-success-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'">
+                      {{ c.cobrancaAutoWhats ? 'Ativa' : 'Inativa' }}
+                    </span>
                   </div>
-                }
+                  @if (c.contatoPrincipal; as ct) {
+                    <div class="pt-2.5 border-t border-white/[0.04]">
+                      <p class="text-xs font-semibold text-zinc-100">{{ ct.nome }} <span class="text-[10px] font-normal text-zinc-500">· {{ ct.papel }}</span></p>
+                      @if (ct.telefone) {
+                        <a [href]="'tel:' + ct.telefone" class="block text-2xs text-accent-400 hover:text-accent-300 hover:underline transition-all font-mono mt-1">{{ ct.telefone }}</a>
+                      }
+                      @if (ct.email) {
+                        <a [href]="'mailto:' + ct.email" class="block text-2xs text-accent-400 hover:text-accent-300 hover:underline transition-all">{{ ct.email }}</a>
+                      }
+                    </div>
+                  } @else {
+                    <p class="text-2xs text-zinc-500 pt-2.5 border-t border-white/[0.04]">Sem síndico ou contato administrativo cadastrado.</p>
+                  }
+                </div>
               </div>
             }
           }

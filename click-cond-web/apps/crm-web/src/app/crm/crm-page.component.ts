@@ -8,6 +8,17 @@ import { CountUpDirective } from '../shared/count-up.directive';
 
 type StatusFatura = 'todos' | 'paga' | 'pendente' | 'vencida';
 
+export interface Fatura {
+  id: string;
+  clienteId: number;
+  condominio: string;
+  valor: number;
+  vencimento: string;
+  metodoPagamento: string;
+  status: 'paga' | 'pendente' | 'vencida';
+  dataPagamento: string | null;
+}
+
 type EstagioFiltro = 'todos' | EstagioCrm;
 type Ordenacao = 'mrr' | 'health' | 'nome' | 'vencimento';
 
@@ -52,15 +63,70 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   // --- Estado de Navegação CRM ---
   readonly abaNavegacao = signal<'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes'>('overview');
 
-  // --- Mock Faturamento & Faturas ---
-  readonly faturas = signal([
-    { id: 'FT-2026-482', clienteId: 1, condominio: 'Condomínio Residencial Vista Bella', valor: 450, vencimento: '2026-06-15', metodoPagamento: 'Pix', status: 'paga', dataPagamento: '2026-06-15T14:23:00Z' },
-    { id: 'FT-2026-483', clienteId: 2, condominio: 'Condomínio Spazio Di Sol', valor: 650, vencimento: '2026-06-20', metodoPagamento: 'Boleto', status: 'paga', dataPagamento: '2026-06-20T09:12:00Z' },
-    { id: 'FT-2026-484', clienteId: 3, condominio: 'Residencial Plaza de las Flores', valor: 250, vencimento: '2026-06-10', metodoPagamento: 'Pix', status: 'vencida', dataPagamento: null },
-    { id: 'FT-2026-485', clienteId: 4, condominio: 'Condomínio Solar das Amendoeiras', valor: 450, vencimento: '2026-06-24', metodoPagamento: 'Pix', status: 'pendente', dataPagamento: null },
-    { id: 'FT-2026-486', clienteId: 5, condominio: 'Residencial Jardim das Palmeiras', valor: 850, vencimento: '2026-06-28', metodoPagamento: 'Cartão', status: 'pendente', dataPagamento: null },
-    { id: 'FT-2026-487', clienteId: 3, condominio: 'Residencial Plaza de las Flores', valor: 250, vencimento: '2026-05-10', metodoPagamento: 'Boleto', status: 'vencida', dataPagamento: null }
-  ]);
+  // --- Faturamento & Faturas Dinâmicos ---
+  readonly faturas = computed<Fatura[]>(() => {
+    const lista: Fatura[] = [];
+    const clientes = this.clientes();
+    
+    for (const c of clientes) {
+      if (c.mrr <= 0 || !c.vencimento) continue;
+      
+      const dateVenc = new Date(c.vencimento);
+      const metodoPagamento = c.recorrenciaAtiva ? 'Pix' : 'Boleto';
+
+      // 1. Current Month's Invoice
+      let status: 'paga' | 'pendente' | 'vencida' = 'paga';
+      if (c.statusPagamento === 'atrasado') status = 'vencida';
+      else if (c.statusPagamento === 'vencendo') status = 'pendente';
+      else if (c.statusPagamento === 'em_dia') status = 'paga';
+
+      const dataPagamento = status === 'paga' 
+        ? new Date(dateVenc.getTime() - 2 * 24 * 3600 * 1000).toISOString()
+        : null;
+
+      lista.push({
+        id: `FT-${dateVenc.getFullYear()}-${String(dateVenc.getMonth() + 1).padStart(2, '0')}-${c.id}`,
+        clienteId: c.id,
+        condominio: c.nome,
+        valor: c.mrr,
+        vencimento: c.vencimento,
+        metodoPagamento,
+        status,
+        dataPagamento
+      });
+
+      // 2. Previous Month's Invoice (30 days ago) - Assumed paid
+      const prevVenc = new Date(dateVenc);
+      prevVenc.setDate(prevVenc.getDate() - 30);
+      lista.push({
+        id: `FT-${prevVenc.getFullYear()}-${String(prevVenc.getMonth() + 1).padStart(2, '0')}-${c.id}`,
+        clienteId: c.id,
+        condominio: c.nome,
+        valor: c.mrr,
+        vencimento: prevVenc.toISOString(),
+        metodoPagamento,
+        status: 'paga',
+        dataPagamento: new Date(prevVenc.getTime() - 2 * 24 * 3600 * 1000).toISOString()
+      });
+
+      // 3. Older Month's Invoice (60 days ago) - Assumed paid
+      const prevPrevVenc = new Date(dateVenc);
+      prevPrevVenc.setDate(prevPrevVenc.getDate() - 60);
+      lista.push({
+        id: `FT-${prevPrevVenc.getFullYear()}-${String(prevPrevVenc.getMonth() + 1).padStart(2, '0')}-${c.id}`,
+        clienteId: c.id,
+        condominio: c.nome,
+        valor: c.mrr,
+        vencimento: prevPrevVenc.toISOString(),
+        metodoPagamento,
+        status: 'paga',
+        dataPagamento: new Date(prevPrevVenc.getTime() - 3 * 24 * 3600 * 1000).toISOString()
+      });
+    }
+
+    // Sort by vencimento descending (most recent first)
+    return lista.sort((a, b) => new Date(b.vencimento).getTime() - new Date(a.vencimento).getTime());
+  });
 
   // --- Mock Automações & Régua de WhatsApp ---
   readonly configAutomacoes = signal({
@@ -628,48 +694,40 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       if (this.ultimaFaturaPaga() === idFatura) this.ultimaFaturaPaga.set(null);
     }, 1400);
-    this.faturas.update(lista =>
-      lista.map(f => {
-        if (f.id === idFatura) {
-          const faturaAtualizada = { ...f, status: 'paga', dataPagamento: new Date().toISOString() };
-          
-          // Lógica secundária: atualizar status do cliente
-          const cliId = f.clienteId;
-          this.clientes.update(clientesLista =>
-            clientesLista.map(c => {
-              if (c.id === cliId) {
-                return { ...c, statusPagamento: 'em_dia' as StatusPagamento, estagio: 'ativo' as EstagioCrm, diasParaVencer: 30 };
-              }
-              return c;
-            })
-          );
 
-          // Atualizar KPIs consolidados no signal overview
-          const ov = this.overview();
-          if (ov) {
-            const novaQtd = Math.max(0, ov.emAtraso.quantidade - 1);
-            const novoVal = Math.max(0, ov.emAtraso.valor - f.valor);
-            this.overview.set({
-              ...ov,
-              emAtraso: { quantidade: novaQtd, valor: novoVal }
-            });
-          }
+    const fat = this.faturas().find(f => f.id === idFatura);
+    if (!fat) return;
 
-          // Registrar no log
-          this.pushLog({
-            data: new Date().toISOString(),
-            origem: 'System',
-            evento: 'manual_payment_override',
-            status: 'sucesso',
-            payload: JSON.stringify({ faturaId: idFatura, valor: f.valor, condominio: f.condominio })
-          });
+    const c = this.clientes().find(cl => cl.id === fat.clienteId);
+    if (!c) return;
 
-          this.triggerToast(`Fatura ${idFatura} liquidada manualmente com sucesso.`, 'success');
-          return faturaAtualizada;
-        }
-        return f;
-      })
-    );
+    // Calculate new vencimento date by adding 30 days to current vencimento
+    const currentVenc = c.vencimento ? new Date(c.vencimento) : new Date();
+    const nextVenc = new Date(currentVenc);
+    nextVenc.setDate(nextVenc.getDate() + 30);
+    const nextVencStr = nextVenc.toISOString().split('T')[0];
+
+    // Call API to persist the updated vencimento
+    this.api.atualizar(c.id, { vencimento: nextVencStr }).subscribe({
+      next: (res) => {
+        this.carregar();
+
+        // Registrar no log
+        this.pushLog({
+          data: new Date().toISOString(),
+          origem: 'System',
+          evento: 'manual_payment_override',
+          status: 'sucesso',
+          payload: JSON.stringify({ faturaId: idFatura, valor: fat.valor, condominio: fat.condominio })
+        });
+
+        this.triggerToast(`Fatura ${idFatura} liquidada manualmente com sucesso. Novo vencimento: ${nextVenc.toLocaleDateString('pt-BR')}.`, 'success');
+      },
+      error: (err) => {
+        console.error('Erro ao confirmar pagamento manual:', err);
+        this.triggerToast(`Não foi possível liquidar a fatura ${idFatura}. Tente novamente.`, 'error');
+      }
+    });
   }
 
   reenviarWhatsApp(idFatura: string): void {
@@ -681,13 +739,17 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       if (this.ultimoDisparoData() === dataAtual) this.ultimoDisparoData.set(null);
     }, 1800);
+
+    const c = this.clientes().find(cl => cl.id === fat.clienteId);
+    const telefone = c?.contatoPrincipal?.telefone ?? '(11) 99999-8888';
+
     this.historicoDisparos.update(disp => [
       {
         data: dataAtual,
         condominio: fat.condominio,
         tipo: fat.status === 'vencida' ? 'Cobrança atrasada' : 'Aviso prévio',
         status: 'entregue',
-        telefone: '(11) 99999-8888',
+        telefone,
         erroMsg: null
       },
       ...disp
@@ -761,5 +823,20 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   dismissToast(id: number): void {
     this.toasts.update((list) => list.filter((t) => t.id !== id));
+  }
+
+  /** Link de WhatsApp (wa.me) pré-preenchido com contexto de cobrança. Null se não há telefone. */
+  waLink(cliente: CrmCliente): string | null {
+    const tel = (cliente.contatoPrincipal?.telefone || '').replace(/\D/g, '');
+    if (!tel) return null;
+    const num = tel.length <= 11 ? '55' + tel : tel;
+    const venc =
+      cliente.diasParaVencer != null && cliente.diasParaVencer < 0
+        ? `está vencida há ${Math.abs(cliente.diasParaVencer)} dia(s)`
+        : 'está próxima do vencimento';
+    const msg = `Olá! Aqui é da Click Prestare. A assinatura do ${cliente.nome} (${this.moeda(
+      cliente.mrr,
+    )}/mês) ${venc}. Podemos ajudar a regularizar?`;
+    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
   }
 }
