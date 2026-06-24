@@ -332,3 +332,112 @@ body {
 .nav-active-rail.is-active::before {
   height: 60%;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   TEMA CLARO "PERGAMINHO QUENTE" (body.theme-light)
+   Fundo escuro → creme/âmbar suave (não branco puro, p/ não cansar
+   a vista, como luz amarelada). Mantém laranja/verde/âmbar/vermelho.
+   Estratégia: remapear só os neutros (fundos, overlays, bordas,
+   textos) via overrides — não toca no template.
+   ════════════════════════════════════════════════════════════════ */
+body.theme-light {
+  --bg-base: #ece3d2;       /* página */
+  --bg-elevated: #faf5ec;   /* cards/modal */
+  --border: rgba(60, 48, 24, 0.12);
+  --text-main: #2b2620;
+  --text-sub: #6f6555;
+  background: var(--bg-base);
+  color: var(--text-main);
+  /* brilho ambiente mais quente/visível sobre o claro */
+  background-image:
+    radial-gradient(60rem 32rem at 85% -10%, rgba(242, 136, 75, 0.12), transparent 60%),
+    radial-gradient(48rem 28rem at 0% 0%, rgba(231, 209, 129, 0.16), transparent 55%),
+    radial-gradient(40rem 24rem at 50% 60%, rgba(242, 229, 48, 0.04), transparent 50%);
+}
+
+/* ── Superfícies hardcoded (#hex) ── */
+body.theme-light .bg-\[\#050507\] { background-color: #ece3d2; }
+body.theme-light .bg-\[\#000\]    { background-color: #ece3d2; }
+body.theme-light .bg-\[\#0b0b0f\] { background-color: #faf5ec; }
+body.theme-light .bg-\[\#08080c\] { background-color: #f2ebde; }
+body.theme-light .bg-\[\#09090d\] { background-color: #f2ebde; }
+body.theme-light .bg-\[\#0b0c0e\] { background-color: #f2ebde; }
+body.theme-light .bg-\[\#160b0b\] { background-color: #f6e9e2; }
+body.theme-light .bg-\[\#111d0e\] { background-color: #ecf0e2; }
+body.theme-light .bg-\[\#0a130d\] { background-color: #ecf0e2; }
+
+/* ── Texto: branco/zinc claros → tinta quente escura ── */
+body.theme-light .text-white,
+body.theme-light .text-zinc-100,
+body.theme-light .text-zinc-150,
+body.theme-light .text-zinc-200,
+body.theme-light .text-zinc-300 { color: #2f2a22; }
+body.theme-light .text-zinc-350,
+body.theme-light .text-zinc-400 { color: #574e41; }
+body.theme-light .text-zinc-450,
+body.theme-light .text-zinc-500,
+body.theme-light .text-zinc-550,
+body.theme-light .text-zinc-600,
+body.theme-light .text-zinc-650 { color: #8a7f6c; }
+/* placeholders (pseudo, não pegam pelas regras acima) */
+body.theme-light .placeholder\:text-zinc-500::placeholder,
+body.theme-light .placeholder\:text-zinc-600::placeholder,
+body.theme-light .placeholder\:text-zinc-650::placeholder { color: #a59a86; }
+/* manter texto branco nos botões laranja (especificidade maior vence) */
+body.theme-light .bg-accent-500.text-white,
+body.theme-light .bg-accent-600.text-white { color: #fff; }
+
+/* ── Overlays bg-white/[α] → tom quente escuro ── */
+body.theme-light .bg-white\/\[0\.003\] { background-color: rgba(64,50,28,0.015); }
+body.theme-light .bg-white\/\[0\.005\] { background-color: rgba(64,50,28,0.02); }
+body.theme-light .bg-white\/\[0\.01\]  { background-color: rgba(64,50,28,0.025); }
+body.theme-light .bg-white\/\[0\.012\] { background-color: rgba(64,50,28,0.03); }
+body.theme-light .bg-white\/\[0\.02\]  { background-color: rgba(64,50,28,0.04); }
+body.theme-light .bg-white\/\[0\.03\]  { background-color: rgba(64,50,28,0.05); }
+body.theme-light .bg-white\/\[0\.04\]  { background-color: rgba(64,50,28,0.065); }
+body.theme-light .bg-white\/\[0\.05\]  { background-color: rgba(64,50,28,0.075); }
+body.theme-light .bg-white\/\[0\.06\]  { background-color: rgba(64,50,28,0.09); }
+body.theme-light .bg-white\/\[0\.08\]  { background-color: rgba(64,50,28,0.11); }
+/* hover overlays */
+body.theme-light .hover\:bg-white\/\[0\.01\]:hover  { background-color: rgba(64,50,28,0.03); }
+body.theme-light .hover\:bg-white\/\[0\.012\]:hover { background-color: rgba(64,50,28,0.035); }
+body.theme-light .hover\:bg-white\/\[0\.02\]:hover  { background-color: rgba(64,50,28,0.05); }
+body.theme-light .hover\:bg-white\/\[0\.03\]:hover  { background-color: rgba(64,50,28,0.06); }
+body.theme-light .hover\:bg-white\/\[0\.04\]:hover  { background-color: rgba(64,50,28,0.075); }
+body.theme-light .hover\:bg-white\/\[0\.05\]:hover  { background-color: rgba(64,50,28,0.085); }
+body.theme-light .hover\:bg-white\/\[0\.06\]:hover  { background-color: rgba(64,50,28,0.10); }
+body.theme-light .hover\:bg-white\/\[0\.08\]:hover  { background-color: rgba(64,50,28,0.12); }
+
+/* ── Bordas e divisores ── */
+body.theme-light .border-white\/\[0\.02\] { border-color: rgba(60,46,24,0.07); }
+body.theme-light .border-white\/\[0\.03\] { border-color: rgba(60,46,24,0.08); }
+body.theme-light .border-white\/\[0\.04\] { border-color: rgba(60,46,24,0.10); }
+body.theme-light .border-white\/\[0\.05\] { border-color: rgba(60,46,24,0.12); }
+body.theme-light .border-white\/\[0\.06\] { border-color: rgba(60,46,24,0.14); }
+body.theme-light .border-white\/\[0\.08\] { border-color: rgba(60,46,24,0.17); }
+body.theme-light .border-white\/\[0\.1\]  { border-color: rgba(60,46,24,0.20); }
+body.theme-light .divide-white\/\[0\.015\] > :not([hidden]) ~ :not([hidden]) { border-color: rgba(60,46,24,0.07); }
+body.theme-light .divide-white\/\[0\.04\]  > :not([hidden]) ~ :not([hidden]) { border-color: rgba(60,46,24,0.10); }
+
+/* ── Componentes de styles.css ── */
+body.theme-light .glass {
+  border-color: rgba(60,46,24,0.10);
+  background-image: linear-gradient(to bottom, rgba(64,50,28,0.035), rgba(64,50,28,0.008));
+}
+body.theme-light .stat-value { color: #2f2a22; }
+body.theme-light .stat-label { color: #8a7f6c; }
+body.theme-light .row-glow:hover {
+  background: rgba(64,50,28,0.04);
+  box-shadow: inset 0 0 0 1px rgba(242,136,75,0.10);
+}
+body.theme-light .kpi-card:hover {
+  box-shadow: 0 8px 24px -6px rgba(242,136,75,0.18), 0 0 0 1px rgba(242,136,75,0.20);
+  border-color: rgba(242,136,75,0.30);
+}
+body.theme-light .shimmer { background: rgba(64,50,28,0.04); }
+
+/* ── Scrollbar no claro ── */
+body.theme-light * { scrollbar-color: rgba(60,46,24,0.22) transparent; }
+body.theme-light *::-webkit-scrollbar-thumb { background: rgba(60,46,24,0.16); background-clip: padding-box; }
+body.theme-light *::-webkit-scrollbar-thumb:hover { background: rgba(60,46,24,0.28); background-clip: padding-box; }
+::selection { background: rgba(242,136,75,0.30); color: inherit; }
