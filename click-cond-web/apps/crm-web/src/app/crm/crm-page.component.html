@@ -84,7 +84,7 @@
   <main class="flex-1 min-w-0 overflow-y-auto">
 
     <!-- Mobile / Tablet top bar (chrome) — substitui o header do shell em <lg -->
-    <div class="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 border-b border-white/[0.04] bg-[#050507]/90 backdrop-blur">
+    <div class="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 border-b border-white/[0.04] crm-mobile-topbar backdrop-blur">
       <div class="flex items-center gap-2.5 min-w-0">
         <div class="w-8 h-8 rounded-md bg-accent-500/10 border border-accent-500/20 flex items-center justify-center text-accent-300 font-extrabold shadow-glow shrink-0 text-sm">
           C
@@ -193,7 +193,7 @@
       } @else {
 
         <!-- Mobile / Tablet Navigation Row (Hidden on Desktop) -->
-        <div class="lg:hidden flex overflow-x-auto border-b border-white/[0.04] bg-[#050507]/45 py-2.5 px-4 -mx-6 -mt-6 mb-4 gap-2 scrollbar-none">
+        <div class="lg:hidden flex overflow-x-auto border-b border-white/[0.04] crm-mobile-nav py-2.5 px-4 -mx-6 -mt-6 mb-4 gap-2 scrollbar-none">
           <button (click)="alterarAbaNavegacao('overview')"
             [class]="abaNavegacao() === 'overview' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
             class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
@@ -551,7 +551,7 @@
 
             <!-- High-fidelity clients directory datagrid -->
             <div class="glass overflow-hidden">
-              <div class="px-5 py-4 border-b border-white/[0.04] bg-[#08080c]/30 flex items-center justify-between">
+              <div class="px-5 py-4 border-b border-white/[0.04] crm-table-header-container flex items-center justify-between">
                 <div>
                   <h3 class="text-xs font-bold text-zinc-200 uppercase tracking-wider">Clientes Disponíveis</h3>
                   <p class="text-[10px] text-zinc-500 mt-0.5">Clique em qualquer registro para visualizar dados completos ou editar</p>
@@ -769,7 +769,7 @@
             </div>
 
             <div class="glass overflow-hidden">
-              <div class="px-5 py-4 border-b border-white/[0.04] bg-[#08080c]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="px-5 py-4 border-b border-white/[0.04] crm-table-header-container flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 class="text-xs font-bold text-zinc-200 uppercase tracking-wider">Histórico de Cobranças Emitidas</h3>
                   <p class="text-[10px] text-zinc-500 mt-0.5">Listagem das faturas de serviços e infraestrutura de portaria</p>
@@ -920,7 +920,7 @@
                     <div>
                       <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Template da Mensagem (WhatsApp)</label>
                       <textarea [(ngModel)]="configAutomacoes().templatePreVencimento" [disabled]="!configAutomacoes().triggerPreVencimento" rows="4"
-                        class="w-full p-3 text-xs rounded bg-[#050507]/60 border border-white/[0.08] text-zinc-200 placeholder:text-zinc-650 focus:outline-none focus:border-accent-500/65 font-mono leading-relaxed resize-none"></textarea>
+                        class="w-full p-3 text-xs rounded crm-textarea-custom border border-white/[0.08] text-zinc-200 placeholder:text-zinc-650 focus:outline-none focus:border-accent-500/65 font-mono leading-relaxed resize-none"></textarea>
                     </div>
                   </div>
                 </div>
@@ -942,7 +942,7 @@
                     <div>
                       <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Template da Mensagem (WhatsApp)</label>
                       <textarea [(ngModel)]="configAutomacoes().templateVencimento" [disabled]="!configAutomacoes().triggerVencimento" rows="4"
-                        class="w-full p-3 text-xs rounded bg-[#050507]/60 border border-white/[0.08] text-zinc-200 placeholder:text-zinc-650 focus:outline-none focus:border-accent-500/65 font-mono leading-relaxed resize-none"></textarea>
+                        class="w-full p-3 text-xs rounded crm-textarea-custom border border-white/[0.08] text-zinc-200 placeholder:text-zinc-650 focus:outline-none focus:border-accent-500/65 font-mono leading-relaxed resize-none"></textarea>
                     </div>
                   </div>
                 </div>
@@ -971,7 +971,7 @@
                     <div>
                       <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1.5">Template da Mensagem (WhatsApp)</label>
                       <textarea [(ngModel)]="configAutomacoes().templatePosVencimento" [disabled]="!configAutomacoes().triggerPosVencimento" rows="4"
-                        class="w-full p-3 text-xs rounded bg-[#050507]/60 border border-white/[0.08] text-zinc-200 placeholder:text-zinc-650 focus:outline-none focus:border-accent-500/65 font-mono leading-relaxed resize-none"></textarea>
+                        class="w-full p-3 text-xs rounded crm-textarea-custom border border-white/[0.08] text-zinc-200 placeholder:text-zinc-650 focus:outline-none focus:border-accent-500/65 font-mono leading-relaxed resize-none"></textarea>
                     </div>
                   </div>
                 </div>
@@ -1445,7 +1445,7 @@
                       <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 font-mono">R$</span>
                         <input type="number" [value]="dadosEditados.mrr" readonly
-                          class="w-full pl-8 pr-3 py-2 text-xs rounded bg-[#111d0e]/50 border border-white/[0.08] text-zinc-400 font-mono focus:outline-none cursor-not-allowed" />
+                          class="w-full pl-8 pr-3 py-2 text-xs rounded crm-mrr-input-custom border border-white/[0.08] text-zinc-400 font-mono focus:outline-none cursor-not-allowed" />
                       </div>
                       <p class="text-[9px] text-zinc-500 mt-1 italic">
                         Cálculo automático: Base do plano + ({{ dadosEditados.totalApartamentos }} UHs cadastradas * taxa por UH)
