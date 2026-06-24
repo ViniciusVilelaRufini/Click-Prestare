@@ -568,8 +568,8 @@
                       <th class="py-3 px-5">Estágio</th>
                       <th class="py-3 px-5">Plano</th>
                       <th class="py-3 px-5">UHs</th>
-                      <th class="py-3 px-5">MRR</th>
-                      <th class="py-3 px-5">Vencimento</th>
+                      <th class="py-3 px-5">MRR / Vencimento</th>
+                      <th class="py-3 px-5">Terminais Faciais</th>
                       <th class="py-3 px-5">Saúde (Health)</th>
                       <th class="py-3 px-5">Contato Principal</th>
                       <th class="py-3 px-5 text-right">Ações</th>
@@ -617,19 +617,33 @@
                             {{ c.totalApartamentos }}
                           </span>
                         </td>
-                        <!-- MRR -->
-                        <td class="py-3 px-5 font-mono font-semibold text-white">
-                          {{ moeda(c.mrr) }}
-                          <p class="text-[9px] {{ pagamentoClasse(c.statusPagamento) }} font-semibold leading-none mt-0.5">{{ pagamentoLabel(c.statusPagamento) }}</p>
-                        </td>
-                        <!-- Next billing -->
-                        <td class="py-3 px-5 font-mono text-zinc-400">
+                        <!-- MRR / Vencimento -->
+                        <td class="py-3 px-5 font-mono">
+                          <span class="font-semibold text-white">{{ moeda(c.mrr) }}</span>
                           @if (c.diasParaVencer !== null) {
-                            <span class="font-semibold {{ pagamentoClasse(c.statusPagamento) }}">
+                            <p class="text-[9px] font-semibold mt-0.5 {{ pagamentoClasse(c.statusPagamento) }}">
                               {{ c.diasParaVencer < 0 ? 'Venceu há ' + (-c.diasParaVencer) + 'd' : 'Vence em ' + c.diasParaVencer + 'd' }}
-                            </span>
+                            </p>
                           } @else {
-                            —
+                            <p class="text-[9px] font-semibold text-zinc-500 mt-0.5">Sem cobrança</p>
+                          }
+                        </td>
+                        <!-- Terminais Faciais -->
+                        <td class="py-3 px-5 font-mono">
+                          @if (c.dispositivosFaciais > 0) {
+                            @if (c.dispositivosOffline > 0) {
+                              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded border border-rose-500/25 bg-rose-500/10 text-rose-400" title="Offline: {{ c.dispositivosOffline }}">
+                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                {{ c.dispositivosFaciais - c.dispositivosOffline }}/{{ c.dispositivosFaciais }} Online
+                              </span>
+                            } @else {
+                              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded border border-emerald-500/25 bg-emerald-500/10 text-emerald-400">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                {{ c.dispositivosFaciais }} Online
+                              </span>
+                            }
+                          } @else {
+                            <span class="text-zinc-500">—</span>
                           }
                         </td>
                         <!-- Health score bar -->
@@ -698,18 +712,37 @@
                       <div>
                         <p class="text-zinc-500">MRR</p>
                         <p class="font-mono font-semibold text-white mt-0.5">{{ moeda(c.mrr) }}</p>
+                        @if (c.diasParaVencer !== null) {
+                          <p class="text-[9px] font-semibold mt-0.5 {{ pagamentoClasse(c.statusPagamento) }}">
+                            {{ c.diasParaVencer < 0 ? 'Venceu ' + (-c.diasParaVencer) + 'd' : 'Vence em ' + c.diasParaVencer + 'd' }}
+                          </p>
+                        } @else {
+                          <p class="text-[9px] font-semibold text-zinc-500 mt-0.5">Sem cobrança</p>
+                        }
                       </div>
                       <div>
                         <p class="text-zinc-500">Plano</p>
                         <p class="font-medium text-zinc-300 truncate mt-0.5">{{ c.plano || 'Sem plano' }}</p>
                       </div>
                       <div>
-                        <p class="text-zinc-500">Vencimento</p>
-                        <p class="font-mono font-semibold mt-0.5 {{ pagamentoClasse(c.statusPagamento) }}">
-                          @if (c.diasParaVencer !== null) {
-                            {{ c.diasParaVencer < 0 ? 'Venceu ' + (-c.diasParaVencer) + 'd' : c.diasParaVencer + 'd' }}
-                          } @else { — }
-                        </p>
+                        <p class="text-zinc-500">Terminais</p>
+                        <div class="mt-1">
+                          @if (c.dispositivosFaciais > 0) {
+                            @if (c.dispositivosOffline > 0) {
+                              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded border border-rose-500/25 bg-rose-500/10 text-rose-400">
+                                <span class="w-1 h-1 rounded-full bg-rose-500 animate-pulse"></span>
+                                {{ c.dispositivosFaciais - c.dispositivosOffline }}/{{ c.dispositivosFaciais }}
+                              </span>
+                            } @else {
+                              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded border border-emerald-500/25 bg-emerald-500/10 text-emerald-400">
+                                <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                                {{ c.dispositivosFaciais }}
+                              </span>
+                            }
+                          } @else {
+                            <span class="text-zinc-500">—</span>
+                          }
+                        </div>
                       </div>
                     </div>
                     <div class="flex items-center gap-2">
