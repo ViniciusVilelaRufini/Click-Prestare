@@ -824,4 +824,19 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   dismissToast(id: number): void {
     this.toasts.update((list) => list.filter((t) => t.id !== id));
   }
+
+  /** Link de WhatsApp (wa.me) pré-preenchido com contexto de cobrança. Null se não há telefone. */
+  waLink(cliente: CrmCliente): string | null {
+    const tel = (cliente.contatoPrincipal?.telefone || '').replace(/\D/g, '');
+    if (!tel) return null;
+    const num = tel.length <= 11 ? '55' + tel : tel;
+    const venc =
+      cliente.diasParaVencer != null && cliente.diasParaVencer < 0
+        ? `está vencida há ${Math.abs(cliente.diasParaVencer)} dia(s)`
+        : 'está próxima do vencimento';
+    const msg = `Olá! Aqui é da Click Prestare. A assinatura do ${cliente.nome} (${this.moeda(
+      cliente.mrr,
+    )}/mês) ${venc}. Podemos ajudar a regularizar?`;
+    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+  }
 }
