@@ -460,4 +460,42 @@ body.theme-light .shimmer { background: rgba(64,50,28,0.04); }
 body.theme-light * { scrollbar-color: rgba(60,46,24,0.22) transparent; }
 body.theme-light *::-webkit-scrollbar-thumb { background: rgba(60,46,24,0.16); background-clip: padding-box; }
 body.theme-light *::-webkit-scrollbar-thumb:hover { background: rgba(60,46,24,0.28); background-clip: padding-box; }
-::selection { background: rgba(242,136,75,0.30); color: inherit; }
+::selection { background: rgba(242, 136, 75, 0.30); color: inherit; }
+
+/* ── Custom Theme Overrides for Light Mode (SaaS Premium Feel) ── */
+body.theme-light .bg-\[\#08080c\]\/30 {
+  background-color: rgba(220, 212, 198, 0.45) !important;
+}
+body.theme-light .bg-\[\#050507\]\/60 {
+  background-color: #faf7f0 !important;
+}
+body.theme-light .bg-\[\#111d0e\]\/50 {
+  background-color: #f0ebd9 !important;
+}
+body.theme-light .bg-\[\#050507\]\/90 {
+  background-color: rgba(236, 227, 210, 0.9) !important;
+}
+body.theme-light .bg-\[\#050507\]\/45 {
+  background-color: rgba(236, 227, 210, 0.45) !important;
+}
+body.theme-light .text-violet-400 {
+  color: #5b21b6 !important;
+}
+body.theme-light .bg-violet-500\/10 {
+  background-color: rgba(139, 92, 246, 0.12) !important;
+}
+body.theme-light .border-violet-500\/20 {
+  border-color: rgba(139, 92, 246, 0.25) !important;
+}
+body.theme-light .text-emerald-450,
+body.theme-light .text-emerald-455 {
+  color: #2e8b57 !important;
+}
+body.theme-light .text-rose-450,
+body.theme-light .text-rose-455 {
+  color: #c0392b !important;
+}
+body.theme-light .text-amber-400,
+body.theme-light .text-amber-455 {
+  color: #8a6411 !important;
+}
