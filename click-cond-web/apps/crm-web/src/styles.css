@@ -366,6 +366,26 @@ body.theme-light .bg-\[\#160b0b\] { background-color: #f6e9e2; }
 body.theme-light .bg-\[\#111d0e\] { background-color: #ecf0e2; }
 body.theme-light .bg-\[\#0a130d\] { background-color: #ecf0e2; }
 
+/* ── Cores nomeadas customizadas "graphite" (todas escuras) ── */
+body.theme-light .bg-graphite      { background-color: #ece3d2; }  /* fundo principal */
+body.theme-light .bg-graphite-200  { background-color: #f4eee2; }  /* superfície elevada */
+body.theme-light .from-graphite-200 {
+  --tw-gradient-from: #f4eee2 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgba(244,238,226,0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+body.theme-light .to-graphite { --tw-gradient-to: #ece3d2 var(--tw-gradient-to-position); }
+
+/* ── Texto accent claro (amarelo-limão/dourado) → âmbar escuro legível ── */
+body.theme-light .text-accent-300,
+body.theme-light .text-accent-400 { color: #9a5b12; }
+body.theme-light .text-accent-500 { color: #bf5f1c; }
+
+/* ── Texto de status pastel claro → versões escuras legíveis no creme ── */
+body.theme-light .text-success-400 { color: #2e8b57; }
+body.theme-light .text-warning-400 { color: #8a6411; }
+body.theme-light .text-danger-400  { color: #c0392b; }
+
 /* ── Texto: branco/zinc claros → tinta quente escura ── */
 body.theme-light .text-white,
 body.theme-light .text-zinc-100,
