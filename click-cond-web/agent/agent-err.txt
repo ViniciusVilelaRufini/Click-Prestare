@@ -1,0 +1,4 @@
+[agente] erro no poll do condomínio: timeout
+[agente] erro no poll do condomínio: timeout
+[agente] erro no poll do condomínio: timeout
+[agente] erro no poll do condomínio: timeout

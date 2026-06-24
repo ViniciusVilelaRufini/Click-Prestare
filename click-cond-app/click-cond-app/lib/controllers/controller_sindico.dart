@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/local_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:click/utils/api_client.dart';
 
 final _kTimeout = ApiConfig.timeout;
@@ -18,9 +17,10 @@ loginSindico(String login, String password) async {
   try {
     final url = _buildUri('/sindico/login');
     final body = json.encode({'login': login, 'password': password});
-    final response = await http
+    final response = await ApiClient
         .post(url,
-            headers: {"Content-Type": "application/json"}, body: body)
+            headers: {"Content-Type": "application/json"}, body: body,
+            skip401Handling: true)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -38,9 +38,10 @@ passRecoveryApi(String email, String loginType) async {
   final url = ApiConfig.buildUri('/$loginType/recovery-password');
   final body = json.encode({'email': email});
   try {
-    final response = await http
+    final response = await ApiClient
         .post(url,
-            headers: {"Content-Type": "application/json"}, body: body)
+            headers: {"Content-Type": "application/json"}, body: body,
+            skip401Handling: true)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -66,9 +67,10 @@ signupSindico(String nome, String documento, String dn, String email,
     'photo': photo,
   });
   try {
-    final response = await http
+    final response = await ApiClient
         .post(url,
-            headers: {"Content-Type": "application/json"}, body: body)
+            headers: {"Content-Type": "application/json"}, body: body,
+            skip401Handling: true)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body) as Map<String, dynamic>;

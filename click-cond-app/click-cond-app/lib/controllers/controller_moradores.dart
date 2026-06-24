@@ -5,7 +5,6 @@ import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
-import 'package:http/http.dart' as http;
 
 final _kTimeout = ApiConfig.timeout;
 

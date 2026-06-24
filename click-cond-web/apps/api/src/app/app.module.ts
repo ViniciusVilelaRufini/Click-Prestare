@@ -28,6 +28,7 @@ import { FacialModule } from './facial/facial.module';
 import { RegrasAcessoModule } from './regras-acesso/regras-acesso.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { AuditoriaModule } from './auditoria/auditoria.module';
+import { CrmModule } from './crm/crm.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
@@ -68,6 +69,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     FacialModule,
     RegrasAcessoModule,
     AuditoriaModule,
+    CrmModule,
   ],
   controllers: [AppController],
   providers: [

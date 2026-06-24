@@ -101,3 +101,32 @@ Para apontar e associar seu domínio próprio **`clickprestarecondominios.com.br
 * O status no painel da Vercel mudará de "Invalid Configuration" para **"Valid Configuration"** (verde).
 * A própria Vercel gerará e renovará automaticamente o certificado **SSL gratuito (HTTPS/Cadeado)** para seu domínio.
 
+---
+
+## 6. Como Deployar o CRM Web no Vercel (crm-web)
+
+O CRM é um projeto Angular separado (`crm-web`) dentro do mesmo monorepo. Para colocá-lo no Vercel, você deve criar um **novo projeto** no painel do Vercel apontando para o mesmo repositório do Git, mas configurando os parâmetros específicos do CRM:
+
+### Passo a Passo no Painel do Vercel:
+1. Acesse o [Dashboard do Vercel](https://vercel.com/dashboard) e clique em **Add New > Project**.
+2. Selecione o repositório do projeto.
+3. Configure os seguintes campos (debaixo de **Configure Project**):
+   * **Project Name**: `click-crm-web` (ou o nome de sua preferência)
+   * **Framework Preset**: Deixe como `Other` ou `Angular` (ele será sobrescrito pelas configurações abaixo).
+   * **Root Directory**: Clique em **Edit** e selecione a pasta `click-cond-web`.
+4. Abra a aba **Build and Development Settings** e configure:
+   * **Build Command**: Ative o botão para customizar (Override) e insira:
+     ```bash
+     npx nx build crm-web
+     ```
+   * **Output Directory**: Ative o botão para customizar (Override) e insira:
+     ```bash
+     dist/apps/crm-web/browser
+     ```
+5. **Configurações de Rede (Redirecionamento / API)**:
+   * Como a pasta `click-cond-web` contém um arquivo `vercel.json` configurado, a Vercel automaticamente importará as regras de redirecionamento. Todas as chamadas para `/api/*` serão redirecionadas para a API de produção no Railway (`https://click-prestare-production.up.railway.app`).
+6. Clique em **Deploy**.
+
+---
+
+

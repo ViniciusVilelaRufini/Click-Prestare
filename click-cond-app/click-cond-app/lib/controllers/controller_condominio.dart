@@ -1,11 +1,10 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart';
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
 import 'package:click/utils/local_storage.dart';
-import 'package:http/http.dart' as http;
 
 import '../pages/singleton.dart';
 
@@ -45,8 +44,7 @@ registerCondominio(CondominioRegister condominio) async {
     }
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return "";
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -59,8 +57,7 @@ registerCondominio(CondominioRegister condominio) async {
 getCondominios() async {
   final url = _buildUri('/sindico/list-condominios');
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -74,8 +71,7 @@ getCondominios() async {
 getCondominio(int id) async {
   final url = _buildUri('/condominio/get-condominio', {'id_condominio': id.toString()});
   try {
-    final response = await http
-        .get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url, headers: _authHeaders())
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -101,8 +97,7 @@ updateInfosCondominio(String nome, String documento, String subsindico,
     }
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return;
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -129,8 +124,7 @@ updateAddressCondominio(String cep, String rua, String numero,
     }
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return;
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -152,8 +146,7 @@ updateAsinaturaCondominioApi(
     }
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return;
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -169,8 +162,7 @@ updateMoedaCondominioApi(String idCondominio, String moeda) async {
     "condominio": {"id": idCondominio, "moeda": moeda}
   });
   try {
-    final response = await http
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return;
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;

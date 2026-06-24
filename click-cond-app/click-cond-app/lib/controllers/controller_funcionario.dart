@@ -1,6 +1,5 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:click/utils/local_storage.dart';
-import 'package:http/http.dart' as http;
 
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
@@ -11,7 +10,7 @@ loginFuncionario(String login, String password) async {
     var url = ApiConfig.buildUri('/funcionarios/login');
     Map data = {'login': login, 'password': password};
     var body = json.encode(data);
-    var response = await http.post(url,headers: {"Content-Type": "application/json"},body: body,);
+    var response = await ApiClient.post(url,headers: {"Content-Type": "application/json"},body: body, skip401Handling: true);
     if (response.statusCode == 200) {
       var parsed = jsonDecode(response.body) as Map<String, dynamic>;
       storageFuncionario(parsed);

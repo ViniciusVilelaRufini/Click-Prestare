@@ -8,6 +8,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Administradores do CRM Comercial (operadora Click Prestare).
+/// Login separado do porteiro: visão cross-condomínio, não vinculado a um tenant.
+model Crm_Admins {
+  id         Int      @id @default(autoincrement())
+  login      String   @unique(map: "uni_crm_admin_login") @db.VarChar(255)
+  nome       String   @db.VarChar(255)
+  password   String   @db.VarChar(255)
+  ativo      Int      @default(1) @db.TinyInt
+  created_at DateTime @default(now()) @db.DateTime(0)
+  updated_at DateTime @default(now()) @updatedAt @db.DateTime(0)
+
+  @@map("crm_admins")
+}
+
 model Endereco {
   id          Int           @id @default(autoincrement())
   cep         String?       @db.VarChar(20)

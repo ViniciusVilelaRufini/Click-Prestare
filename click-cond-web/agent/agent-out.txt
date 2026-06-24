@@ -1,0 +1,10 @@
+[agente] iniciando — API: https://click-prestare-production.up.railway.app
+[agente] modo condomínio: 1 token gerencia todos os dispositivos
+[agente] Portaria Principal ◂ enroll → FALHA (timeout)
+[agente] Portaria Principal ◂ enroll → FALHA (timeout)
+[agente] teste ◂ enroll → FALHA (timeout)
+[agente] teste ◂ enroll → FALHA (timeout)
+[agente] Portaria Principal ◂ enroll → FALHA (timeout)
+[agente] teste ◂ enroll → FALHA (timeout)
+[agente] Portaria Principal ◂ enroll → FALHA (timeout)
+[agente] teste ◂ enroll → FALHA (timeout)

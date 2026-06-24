@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "build": "cd click-cond-web && npm install && npx nx build portaria-web",
+    "build:crm": "cd click-cond-web && npm install && npx nx build crm-web",
     "install": "cd click-cond-web && npm install"
   }
 }

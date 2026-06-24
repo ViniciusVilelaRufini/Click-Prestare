@@ -1,0 +1,66 @@
+{
+  "name": "crm-web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "app",
+  "sourceRoot": "apps/crm-web/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/crm-web",
+        "browser": "apps/crm-web/src/main.ts",
+        "tsConfig": "apps/crm-web/tsconfig.app.json",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/crm-web/public"
+          }
+        ],
+        "styles": ["apps/crm-web/src/styles.css"]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "500kb",
+              "maximumError": "1mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "4kb",
+              "maximumError": "8kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      },
+      "defaultConfiguration": "production"
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@angular/build:dev-server",
+      "options": {
+        "port": 4300,
+        "proxyConfig": "apps/crm-web/proxy.conf.json"
+      },
+      "configurations": {
+        "production": {
+          "buildTarget": "crm-web:build:production"
+        },
+        "development": {
+          "buildTarget": "crm-web:build:development"
+        }
+      },
+      "defaultConfiguration": "development"
+    }
+  }
+}
