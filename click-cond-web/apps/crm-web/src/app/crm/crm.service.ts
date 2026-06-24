@@ -124,4 +124,17 @@ export class CrmApi {
   exportarUrl(id: number): string {
     return `${this.base}/clientes/${id}/exportar`;
   }
+
+  getMoradores(idCondominio: number): Observable<any[]> {
+    return this.http.get<any[]>(`${API_BASE}/condominios/${idCondominio}/moradores`);
+  }
+
+  createMorador(idCondominio: number, dto: any): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/condominios/${idCondominio}/moradores`, dto);
+  }
+
+  getApartamentos(idCondominio: number): Observable<any[]> {
+    return this.http.get<any[]>(`${API_BASE}/condominios/${idCondominio}/apartamentos`);
+  }
 }
+

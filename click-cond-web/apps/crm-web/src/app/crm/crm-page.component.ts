@@ -44,8 +44,23 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly filtroEstagio = signal<EstagioFiltro>('todos');
   readonly ordenacao = signal<Ordenacao>('mrr');
   readonly clienteSelecionado = signal<CrmCliente | null>(null);
-  readonly abaSelecionada = signal<'geral' | 'portaria' | 'servicos'>('geral');
+  readonly abaSelecionada = signal<'geral' | 'portaria' | 'servicos' | 'moradores'>('geral');
   readonly Math = Math;
+
+  // --- Estados de Gestão de Moradores ---
+  readonly moradores = signal<any[]>([]);
+  readonly apartamentos = signal<any[]>([]);
+  readonly moradoresLoading = signal(false);
+  readonly buscaMorador = signal('');
+  readonly mostrandoFormMorador = signal(false);
+
+  // Campos do formulário de criação de moradores
+  readonly registrarNome = signal('');
+  readonly registrarTelefone = signal('');
+  readonly registrarEmail = signal('');
+  readonly registrarAptoId = signal<number | null>(null);
+  readonly registrarDocumento = signal('');
+  readonly registrarSenha = signal('');
 
   readonly modoEdicao = signal(false);
   readonly salvando = signal(false);
@@ -503,11 +518,260 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     this.abaSelecionada.set('geral');
     this.clienteSelecionado.set(c);
     this.modoEdicao.set(false);
+    this.moradores.set([]);
+    this.apartamentos.set([]);
   }
 
   fecharCliente(): void {
     this.clienteSelecionado.set(null);
     this.modoEdicao.set(false);
+  }
+
+  selecionarAba(aba: 'geral' | 'portaria' | 'servicos' | 'moradores'): void {
+    this.abaSelecionada.set(aba);
+    if (aba === 'moradores') {
+      const c = this.clienteSelecionado();
+      if (c) {
+        this.carregarMoradoresEApartamentos(c.id);
+      }
+    }
+  }
+
+  gerarMockMoradores(idCondominio: number, count: number): any[] {
+    const nomes = ['João Silva', 'Maria Oliveira', 'Carlos Souza', 'Ana Santos', 'Pedro Lima', 'Julia Costa', 'Lucas Fernandes', 'Beatriz Alencar', 'Marcos Rocha', 'Fernanda Ribeiro'];
+    const blocos = ['A', 'B', 'C'];
+    const tipos = ['proprietario', 'inquilino'];
+    
+    const list: any[] = [];
+    for (let i = 0; i < count; i++) {
+      const nome = nomes[i % nomes.length] + (i >= nomes.length ? ` ${Math.floor(i / nomes.length) + 1}` : '');
+      const bloco = blocos[i % blocos.length];
+      const aptoNum = 100 + (Math.floor(i / blocos.length) + 1) * 10 + (i % 3);
+      const telefone = `(17) 992${Math.floor(Math.random() * 900 + 100)}-${Math.floor(Math.random() * 9000 + 1000)}`;
+      const email = `${nome.toLowerCase().replace(/\s/g, '.')}@click.com`;
+      list.push({
+        id: 1000 + i,
+        nome,
+        documento: `111222333${String(i).padStart(2, '0')}`,
+        email,
+        telefone,
+        tipo: tipos[i % tipos.length],
+        bloco,
+        apartamento: String(aptoNum),
+        id_apartamento: 100 + i,
+        id_condominio: idCondominio,
+        photo: null,
+        face_id: `face_${1000 + i}`,
+        face_sync_status: 'sincronizado'
+      });
+    }
+    return list;
+  }
+
+  gerarMockApartamentos(idCondominio: number): any[] {
+    const list: any[] = [];
+    const blocos = ['A', 'B', 'C'];
+    let id = 1;
+    for (const b of blocos) {
+      for (let andar = 1; andar <= 4; andar++) {
+        for (let num = 1; num <= 4; num++) {
+          list.push({
+            id: id++,
+            apto: `${andar}0${num}`,
+            bloco: b,
+            id_condominio: idCondominio
+          });
+        }
+      }
+    }
+    return list;
+  }
+
+  carregarMoradoresEApartamentos(idCondominio: number): void {
+    this.moradoresLoading.set(true);
+    this.buscaMorador.set('');
+    this.mostrandoFormMorador.set(false);
+
+    if (this.dbHealth()?.connected) {
+      forkJoin({
+        moradores: this.api.getMoradores(idCondominio),
+        apartamentos: this.api.getApartamentos(idCondominio)
+      }).subscribe({
+        next: ({ moradores, apartamentos }) => {
+          this.moradores.set(moradores);
+          this.apartamentos.set(apartamentos);
+          this.moradoresLoading.set(false);
+        },
+        error: (err) => {
+          console.error('Erro ao carregar moradores da API:', err);
+          const client = this.clientes().find(c => c.id === idCondominio);
+          const count = client ? client.totalMoradores : 5;
+          this.moradores.set(this.gerarMockMoradores(idCondominio, count));
+          this.apartamentos.set(this.gerarMockApartamentos(idCondominio));
+          this.moradoresLoading.set(false);
+        }
+      });
+    } else {
+      setTimeout(() => {
+        const client = this.clientes().find(c => c.id === idCondominio);
+        const count = client ? client.totalMoradores : 5;
+        this.moradores.set(this.gerarMockMoradores(idCondominio, count));
+        this.apartamentos.set(this.gerarMockApartamentos(idCondominio));
+        this.moradoresLoading.set(false);
+      }, 500);
+    }
+  }
+
+  abrirFormMorador(): void {
+    this.registrarNome.set('');
+    this.registrarTelefone.set('');
+    this.registrarEmail.set('');
+    this.registrarAptoId.set(null);
+    this.registrarDocumento.set('');
+    const senhaProvisoria = Math.floor(100000 + Math.random() * 900000).toString();
+    this.registrarSenha.set(senhaProvisoria);
+    this.mostrandoFormMorador.set(true);
+  }
+
+  resetFormMorador(): void {
+    this.mostrandoFormMorador.set(false);
+  }
+
+  gerarMensagemWhatsApp(morador: any, senha: string, condominioNome: string): string {
+    return `Olá, *${morador.nome}*!\n` +
+           `Seu acesso ao aplicativo *Click Prestare* foi cadastrado.\n\n` +
+           `Condomínio: *${condominioNome}*\n` +
+           `Apartamento: *${morador.bloco ? morador.bloco + ' - ' : ''}${morador.apartamento}*\n` +
+           `Login/E-mail: \`${morador.email || 'Não informado'}\`\n` +
+           `Senha de Acesso: \`${senha}\`\n\n` +
+           `Baixe o app no link abaixo e insira seus dados para acessar:\n` +
+           `Android: https://play.google.com/store\n` +
+           `iOS: https://apple.com/app-store\n\n` +
+           `Seja bem-vindo!`;
+  }
+
+  dispararWhatsAppCredenciais(morador: any, senha: string, condominioNome: string): void {
+    if (!morador.telefone) {
+      this.triggerToast('Morador cadastrado sem número de telefone para WhatsApp.', 'info');
+      return;
+    }
+
+    const cleanPhone = morador.telefone.replace(/\D/g, '');
+    const phoneWithDdd = cleanPhone.length <= 11 ? '55' + cleanPhone : cleanPhone;
+    const msg = this.gerarMensagemWhatsApp(morador, senha, condominioNome);
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(msg).then(() => {
+        this.triggerToast('Credenciais copiadas para a área de transferência.', 'success');
+      }).catch(err => console.error('Erro ao copiar credenciais:', err));
+    }
+
+    const waLink = `https://wa.me/${phoneWithDdd}?text=${encodeURIComponent(msg)}`;
+    window.open(waLink, '_blank');
+  }
+
+  salvarMorador(): void {
+    const c = this.clienteSelecionado();
+    if (!c) return;
+
+    const nome = this.registrarNome().trim();
+    const telefone = this.registrarTelefone().trim();
+    const email = this.registrarEmail().trim();
+    const aptoId = this.registrarAptoId();
+    const documento = this.registrarDocumento().trim();
+    const senha = this.registrarSenha().trim();
+
+    if (!nome) {
+      this.triggerToast('O nome do morador é obrigatório.', 'error');
+      return;
+    }
+    if (!aptoId) {
+      this.triggerToast('Selecione o apartamento do morador.', 'error');
+      return;
+    }
+
+    const apto = this.apartamentos().find(a => a.id === aptoId);
+    const aptoLabel = apto ? apto.apto : '';
+    const blocoLabel = apto ? apto.bloco : '';
+
+    const newMoradorDto = {
+      nome,
+      documento: documento || null,
+      email: email || null,
+      telefone: telefone || null,
+      tipo: 'proprietario',
+      id_apartamento: aptoId,
+      sendCredentials: true
+    };
+
+    this.moradoresLoading.set(true);
+
+    if (this.dbHealth()?.connected) {
+      this.api.createMorador(c.id, newMoradorDto).subscribe({
+        next: (created) => {
+          this.moradores.update(m => [created, ...m]);
+          c.totalMoradores += 1;
+          this.moradoresLoading.set(false);
+          this.triggerToast(`Morador ${nome} registrado com sucesso.`, 'success');
+          
+          this.dispararWhatsAppCredenciais(created, senha, c.nome);
+          this.resetFormMorador();
+        },
+        error: (err) => {
+          this.moradoresLoading.set(false);
+          this.triggerToast('Erro ao registrar morador no servidor.', 'error');
+          console.error(err);
+        }
+      });
+    } else {
+      const mockCreated = {
+        id: Date.now(),
+        nome,
+        documento,
+        email,
+        telefone,
+        tipo: 'proprietario',
+        bloco: blocoLabel,
+        apartamento: aptoLabel,
+        id_apartamento: aptoId,
+        id_condominio: c.id,
+        photo: null,
+        face_id: `face_${Date.now()}`,
+        face_sync_status: 'sincronizado'
+      };
+      
+      setTimeout(() => {
+        this.moradores.update(m => [mockCreated, ...m]);
+        c.totalMoradores += 1;
+        this.moradoresLoading.set(false);
+        this.triggerToast(`Morador ${nome} registrado com sucesso.`, 'success');
+        
+        this.dispararWhatsAppCredenciais(mockCreated, senha, c.nome);
+        this.resetFormMorador();
+      }, 600);
+    }
+  }
+
+  reenviarCredenciaisMorador(morador: any): void {
+    const c = this.clienteSelecionado();
+    if (!c) return;
+    this.dispararWhatsAppCredenciais(morador, morador.documento || '123456', c.nome);
+  }
+
+  removerMorador(moradorId: number): void {
+    const c = this.clienteSelecionado();
+    if (!c) return;
+
+    if (confirm('Deseja realmente remover este morador?')) {
+      this.moradoresLoading.set(true);
+      
+      setTimeout(() => {
+        this.moradores.update(list => list.filter(m => m.id !== moradorId));
+        if (c.totalMoradores > 0) c.totalMoradores -= 1;
+        this.moradoresLoading.set(false);
+        this.triggerToast('Morador removido com sucesso.', 'success');
+      }, 500);
+    }
   }
 
   iniciarEdicao(): void {

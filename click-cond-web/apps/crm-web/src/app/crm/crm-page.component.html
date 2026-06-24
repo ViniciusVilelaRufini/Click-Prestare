@@ -1376,26 +1376,33 @@
           <!-- Drawer Navigation Tabs -->
           @if (!modoEdicao()) {
             <div class="flex border-b border-white/[0.04] gap-1" role="tablist" aria-label="Informações do condomínio">
-              <button (click)="abaSelecionada.set('geral')"
+              <button (click)="selecionarAba('geral')"
                 [attr.aria-selected]="abaSelecionada() === 'geral'"
                 role="tab"
-                class="press flex-1 pb-2.5 text-2xs font-bold text-center border-b-2 transition-all"
+                class="press flex-1 pb-2.5 text-[10px] font-bold text-center border-b-2 transition-all"
                 [class]="abaSelecionada() === 'geral' ? 'border-accent-500 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'">
                 Geral & Finanças
               </button>
-              <button (click)="abaSelecionada.set('portaria')"
+              <button (click)="selecionarAba('portaria')"
                 [attr.aria-selected]="abaSelecionada() === 'portaria'"
                 role="tab"
-                class="press flex-1 pb-2.5 text-2xs font-bold text-center border-b-2 transition-all"
+                class="press flex-1 pb-2.5 text-[10px] font-bold text-center border-b-2 transition-all"
                 [class]="abaSelecionada() === 'portaria' ? 'border-accent-500 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'">
                 Hardware & Acessos
               </button>
-              <button (click)="abaSelecionada.set('servicos')"
+              <button (click)="selecionarAba('servicos')"
                 [attr.aria-selected]="abaSelecionada() === 'servicos'"
                 role="tab"
-                class="press flex-1 pb-2.5 text-2xs font-bold text-center border-b-2 transition-all"
+                class="press flex-1 pb-2.5 text-[10px] font-bold text-center border-b-2 transition-all"
                 [class]="abaSelecionada() === 'servicos' ? 'border-accent-500 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'">
                 Serviços & Uso
+              </button>
+              <button (click)="selecionarAba('moradores')"
+                [attr.aria-selected]="abaSelecionada() === 'moradores'"
+                role="tab"
+                class="press flex-1 pb-2.5 text-[10px] font-bold text-center border-b-2 transition-all"
+                [class]="abaSelecionada() === 'moradores' ? 'border-accent-500 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'">
+                Moradores
               </button>
             </div>
           }
@@ -1828,6 +1835,145 @@
                     }
                   </div>
                 </div>
+              </div>
+            </div>
+          }
+
+          <!-- Drawer Tab Content 4: Moradores -->
+          @if (abaSelecionada() === 'moradores') {
+            <div class="space-y-4 animate-fade-in text-xs">
+              
+              <!-- Formulário de cadastro de Morador (se visível) -->
+              @if (mostrandoFormMorador()) {
+                <div class="glass p-4 space-y-3.5 border border-accent-500/20 bg-accent-500/[0.02]">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-bold text-accent-400 uppercase tracking-wide">Novo Morador</p>
+                    <button (click)="resetFormMorador()" class="text-zinc-550 hover:text-zinc-350 text-[10px] font-bold">Cancelar</button>
+                  </div>
+                  
+                  <div class="space-y-3">
+                    <div>
+                      <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Nome Completo</label>
+                      <input type="text" [ngModel]="registrarNome()" (ngModelChange)="registrarNome.set($event)" placeholder="Ex: Vinícius Síndico"
+                        class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 transition-all" />
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Telefone / WhatsApp</label>
+                        <input type="text" [ngModel]="registrarTelefone()" (ngModelChange)="registrarTelefone.set($event)" placeholder="Ex: 17992559990"
+                          class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 transition-all" />
+                      </div>
+                      <div>
+                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Documento (CPF)</label>
+                        <input type="text" [ngModel]="registrarDocumento()" (ngModelChange)="registrarDocumento.set($event)" placeholder="Ex: 12345678900"
+                          class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 transition-all" />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">E-mail (Login do App)</label>
+                      <input type="email" [ngModel]="registrarEmail()" (ngModelChange)="registrarEmail.set($event)" placeholder="morador@clickprestare.com"
+                        class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 transition-all" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Apartamento</label>
+                        <select [ngModel]="registrarAptoId()" (ngModelChange)="registrarAptoId.set($event)"
+                          class="w-full px-3 py-1.8 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-300 focus:outline-none focus:border-accent-500/65 cursor-pointer">
+                          <option [value]="null" disabled selected>Selecione...</option>
+                          @for (apto of apartamentos(); track apto.id) {
+                            <option [value]="apto.id">Apto {{ apto.apto }} (Bloco {{ apto.bloco }})</option>
+                          }
+                        </select>
+                      </div>
+                      <div>
+                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Senha de Acesso (Gerada)</label>
+                        <input type="text" [ngModel]="registrarSenha()" (ngModelChange)="registrarSenha.set($event)"
+                          class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 font-mono" />
+                      </div>
+                    </div>
+
+                    <button (click)="salvarMorador()"
+                      class="w-full min-h-[36px] mt-2 px-4 py-2 text-xs font-bold rounded-md bg-accent-500 hover:bg-accent-600 text-white transition-all flex items-center justify-center gap-1.5 shadow-glow">
+                      <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                      Registrar e Enviar Acesso (Whats)
+                    </button>
+                  </div>
+                </div>
+              }
+
+              <!-- Toolbar -->
+              <div class="flex items-center gap-2">
+                <div class="relative flex-1">
+                  <input type="text" [ngModel]="buscaMorador()" (ngModelChange)="buscaMorador.set($event)" placeholder="Buscar morador..."
+                    class="w-full pl-8 pr-3 py-1.8 text-xs rounded bg-white/[0.01] border border-white/[0.08] text-zinc-150 placeholder:text-zinc-650 focus:outline-none focus:border-accent-500/65 transition-all" />
+                  <svg class="w-3.5 h-3.5 text-zinc-555 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                @if (!mostrandoFormMorador()) {
+                  <button (click)="abrirFormMorador()"
+                    class="press px-3 py-1.8 rounded bg-accent-500 hover:bg-accent-600 text-white font-bold transition flex items-center gap-1 shrink-0">
+                    + Registrar Morador
+                  </button>
+                }
+              </div>
+
+              <!-- Residents list container -->
+              <div class="space-y-2">
+                @if (moradoresLoading()) {
+                  <div class="py-8 flex flex-col items-center justify-center text-zinc-550 gap-2">
+                    <svg class="animate-spin h-5 w-5 text-accent-500" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-[10px] uppercase font-bold tracking-wider">Carregando Moradores...</span>
+                  </div>
+                } @else {
+                  @for (m of moradores(); track m.id) {
+                    @if (!buscaMorador() || m.nome.toLowerCase().includes(buscaMorador().toLowerCase()) || (m.apartamento && m.apartamento.includes(buscaMorador()))) {
+                      <div class="glass p-3 flex items-center justify-between gap-3 hover:border-white/[0.08] transition duration-200">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <div class="w-7 h-7 rounded-full bg-accent-500/10 flex items-center justify-center text-accent-400 font-bold shrink-0 text-[10px]">
+                            {{ m.nome.substring(0,2).toUpperCase() }}
+                          </div>
+                          <div class="min-w-0">
+                            <p class="font-bold text-zinc-150 truncate leading-snug">{{ m.nome }}</p>
+                            <p class="text-[10px] text-zinc-500 leading-snug font-mono mt-0.5 font-semibold">
+                              Apto {{ m.apartamento || '—' }} @if(m.bloco){ (Bloco {{ m.bloco }}) }
+                              <span class="mx-1 text-zinc-700">·</span>
+                              {{ m.telefone || 'Sem telefone' }}
+                            </p>
+                            @if (m.email) {
+                              <p class="text-[9px] text-zinc-550 truncate mt-0.5">{{ m.email }}</p>
+                            }
+                          </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-1.5 shrink-0">
+                          <!-- WhatsApp credentials resend button -->
+                          @if (m.telefone) {
+                            <button (click)="reenviarCredenciaisMorador(m)"
+                              class="press p-1.5 rounded bg-success-500/10 hover:bg-success-500/20 text-success-400 border border-success-500/15"
+                              title="Reenviar dados de acesso por WhatsApp">
+                              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                            </button>
+                          }
+                          <!-- Remove resident button -->
+                          <button (click)="removerMorador(m.id)"
+                            class="press p-1.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/15"
+                            title="Remover morador do condomínio">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                    }
+                  } @empty {
+                    <div class="py-8 text-center text-zinc-550 border border-dashed border-white/[0.04] rounded-lg">
+                      Nenhum morador cadastrado para este condomínio.
+                    </div>
+                  }
+                }
               </div>
             </div>
           }
