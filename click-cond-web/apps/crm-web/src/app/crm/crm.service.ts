@@ -144,5 +144,9 @@ export class CrmApi {
   responderOcorrencia(id: number, resposta: string): Observable<any> {
     return this.http.put<any>(`${this.base}/ocorrencias/${id}`, { resposta });
   }
+
+  criarOcorrencia(idCondominio: number, descricao: string): Observable<any> {
+    return this.http.post<any>(`${this.base}/ocorrencias`, { idCondominio, descricao });
+  }
 }
 

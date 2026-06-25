@@ -101,7 +101,7 @@ export class KabaniaService {
     // Coletamos a visão geral de alertas calculada pelo CrmService
     const crmOverview = await this.crmService.overview();
     
-    const ocorrenciasFormatadas = (crmOverview.alertas || []).map((alerta, idx) => ({
+    const alertasFormatados = (crmOverview.alertas || []).map((alerta, idx) => ({
       id: alerta.id * 1000 + idx, // Gera um ID único para o card
       descricao: alerta.mensagem, // A mensagem explicativa do problema
       status: 'Pendente',
@@ -111,6 +111,31 @@ export class KabaniaService {
       categoria: alerta.tipo.toUpperCase(), // Ex: 'ATRASO', 'VENCIMENTO', 'OFFLINE', 'HEALTH', 'INATIVIDADE'
       severidade: alerta.severidade, // 'alta', 'media', 'baixa'
     }));
+
+    // Buscar ocorrências reais pendentes no banco
+    const ocorrenciasBanco = await this.prisma.ocorrencias.findMany({
+      where: { status: 'Pendente' },
+      include: {
+        condominio: { select: { nome: true } },
+        categoria: { select: { nome: true } }
+      }
+    });
+
+    const cardsOcorrenciasBanco = ocorrenciasBanco.map((o) => ({
+      id: o.id + 100000, // Evita colisão de IDs com os alertas
+      descricao: o.descricao || 'Chamado sem descrição',
+      status: 'Pendente',
+      created_at: o.created_at,
+      condominio_id: o.id_condominio,
+      condominio_nome: o.condominio?.nome || 'Desconhecido',
+      categoria: o.categoria?.nome?.toUpperCase() || 'CHAMADO',
+      severidade: 'media',
+    }));
+
+    const ocorrenciasFormatadas = [
+      ...alertasFormatados,
+      ...cardsOcorrenciasBanco
+    ];
 
     // 3. Funcionários e Portarias (Escalas)
     const funcionarios = await this.prisma.funcionarios.findMany({

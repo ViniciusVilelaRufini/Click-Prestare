@@ -1123,4 +1123,49 @@ export class CrmService {
       }
     });
   }
+
+  async criarOcorrencia(idCondominio: number, descricao: string, tipo?: number): Promise<any> {
+    if (!this.prisma.isConnected) {
+      console.log(`[CRM Mock] Criando ocorrência para condomínio ${idCondominio} com: "${descricao}"`);
+      return {
+        id: Math.floor(Math.random() * 1000) + 1000,
+        descricao,
+        status: 'Pendente',
+        created_at: new Date(),
+        condominio: { id: idCondominio, nome: `Condomínio Mock #${idCondominio}` },
+        criadoPor: { name: 'Operador CRM' }
+      };
+    }
+
+    return this.prisma.ocorrencias.create({
+      data: {
+        id_condominio: idCondominio,
+        descricao,
+        tipo: tipo ? Number(tipo) : null,
+        status: 'Pendente',
+        publica: true
+      },
+      include: {
+        condominio: {
+          select: {
+            id: true,
+            nome: true
+          }
+        },
+        criadoPor: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        categoria: {
+          select: {
+            id: true,
+            nome: true
+          }
+        }
+      }
+    });
+  }
 }

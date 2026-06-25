@@ -103,6 +103,12 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly respostaTexto = signal('');
   readonly enviandoResposta = signal(false);
 
+  // --- Modal Novo Chamado ---
+  readonly modalNovoChamadoAberto = signal(false);
+  readonly novoChamadoCondominioId = signal<number | null>(null);
+  readonly novoChamadoDescricao = signal('');
+  readonly criandoNovoChamado = signal(false);
+
   // --- Estados da aba de Relatórios ---
   readonly relatorioTipo = signal<'financeiro' | 'clientes' | 'portaria' | 'notificacoes'>('financeiro');
   readonly relatorioPeriodo = signal<'30d' | '90d' | 'ano' | 'tudo'>('tudo');

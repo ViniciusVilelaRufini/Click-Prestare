@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body, Res, NotFoundException, Param, ParseIntPipe, UseGuards, SetMetadata } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Res, NotFoundException, Param, ParseIntPipe, UseGuards, SetMetadata } from '@nestjs/common';
 import { CrmService } from './crm.service';
 import { CrmAdminGuard } from './crm-admin.guard';
 
@@ -77,5 +77,14 @@ export class CrmController {
     const atualizado = await this.service.responderOcorrencia(id, body.resposta);
     if (!atualizado) throw new NotFoundException('Ocorrência não encontrada');
     return { success: true, data: atualizado };
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('ocorrencias')
+  async criarOcorrencia(
+    @Body() body: { idCondominio: number; descricao: string; tipo?: number }
+  ) {
+    const criada = await this.service.criarOcorrencia(body.idCondominio, body.descricao, body.tipo);
+    return { success: true, data: criada };
   }
 }
