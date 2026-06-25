@@ -1033,4 +1033,94 @@ export class CrmService {
       return { photo: null, estagio, healthScore: health, riscoChurn, ...b, mrr: computedMrr } as CrmClienteResumo;
     });
   }
+
+  async ocorrencias(): Promise<any[]> {
+    if (!this.prisma.isConnected) {
+      return [
+        {
+          id: 1,
+          descricao: 'Barulho excessivo vindo do apartamento acima às 23h',
+          status: 'Pendente',
+          created_at: new Date(),
+          condominio: { id: 1, nome: 'Condomínio Residencial Vista Alegre (Mock)' },
+          criadoPor: { name: 'João Síndico' }
+        },
+        {
+          id: 2,
+          descricao: 'Lâmpada do corredor 3 queimada',
+          status: 'Resolvida',
+          created_at: new Date(),
+          condominio: { id: 2, nome: 'Edifício Costa Verde (Mock)' },
+          criadoPor: { name: 'Maria Síndica' },
+          resposta: 'A lâmpada foi trocada pelo zelador Carlos.',
+          resposta_at: new Date()
+        }
+      ];
+    }
+
+    return this.prisma.ocorrencias.findMany({
+      include: {
+        condominio: {
+          select: {
+            id: true,
+            nome: true
+          }
+        },
+        criadoPor: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        categoria: {
+          select: {
+            id: true,
+            nome: true
+          }
+        }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+  }
+
+  async responderOcorrencia(id: number, resposta: string): Promise<any | null> {
+    if (!this.prisma.isConnected) {
+      console.log(`[CRM Mock] Respondendo ocorrência ${id} com: "${resposta}"`);
+      return { id, resposta, status: 'Resolvida', resposta_at: new Date() };
+    }
+
+    const ocorrencia = await this.prisma.ocorrencias.findUnique({ where: { id } });
+    if (!ocorrencia) return null;
+
+    return this.prisma.ocorrencias.update({
+      where: { id },
+      data: {
+        resposta,
+        resposta_at: new Date(),
+        status: 'Resolvida'
+      },
+      include: {
+        condominio: {
+          select: {
+            id: true,
+            nome: true
+          }
+        },
+        criadoPor: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        categoria: {
+          select: {
+            id: true,
+            nome: true
+          }
+        }
+      }
+    });
+  }
 }

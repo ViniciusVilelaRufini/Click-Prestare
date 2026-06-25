@@ -61,4 +61,21 @@ export class CrmController {
     res.setHeader('Content-Disposition', `attachment; filename=crm-relatorio-condominio-${id}.csv`);
     return res.send(csv);
   }
+
+  @UseGuards(CrmAdminGuard)
+  @Get('ocorrencias')
+  async ocorrencias() {
+    return this.service.ocorrencias();
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Put('ocorrencias/:id')
+  async responderOcorrencia(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { resposta: string }
+  ) {
+    const atualizado = await this.service.responderOcorrencia(id, body.resposta);
+    if (!atualizado) throw new NotFoundException('Ocorrência não encontrada');
+    return { success: true, data: atualizado };
+  }
 }

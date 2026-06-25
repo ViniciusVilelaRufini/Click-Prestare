@@ -136,5 +136,13 @@ export class CrmApi {
   getApartamentos(idCondominio: number): Observable<any[]> {
     return this.http.get<any[]>(`${API_BASE}/condominios/${idCondominio}/apartamentos`);
   }
+
+  getOcorrencias(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/ocorrencias`);
+  }
+
+  responderOcorrencia(id: number, resposta: string): Observable<any> {
+    return this.http.put<any>(`${this.base}/ocorrencias/${id}`, { resposta });
+  }
 }
 

@@ -29,6 +29,7 @@ import { RegrasAcessoModule } from './regras-acesso/regras-acesso.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CrmModule } from './crm/crm.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
@@ -70,6 +71,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     RegrasAcessoModule,
     AuditoriaModule,
     CrmModule,
+    IntegrationsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -56,6 +56,14 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           Relatórios & Exportações
         </button>
+        <button (click)="alterarAbaNavegacao('chamados')"
+          [class]="abaNavegacao() === 'chamados'
+            ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
+            : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border-transparent'"
+          class="nav-active-rail press w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-md border transition-all">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          Chamados dos Condomínios
+        </button>
         <button (click)="alterarAbaNavegacao('configuracoes')"
           [class]="abaNavegacao() === 'configuracoes'
             ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
@@ -226,6 +234,11 @@
             [class]="abaNavegacao() === 'relatorios' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
             class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
             Relatórios
+          </button>
+          <button (click)="alterarAbaNavegacao('chamados')"
+            [class]="abaNavegacao() === 'chamados' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
+            class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
+            Chamados
           </button>
           <button (click)="alterarAbaNavegacao('configuracoes')"
             [class]="abaNavegacao() === 'configuracoes' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
@@ -1619,6 +1632,159 @@
                 </div>
               }
 
+            </div>
+          }
+          @case ('chamados') {
+            <div class="space-y-6 animate-fade-in">
+              <div class="flex items-center justify-between border-b border-white/[0.04] pb-5">
+                <div>
+                  <h2 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    Chamados de Suporte & Ocorrências
+                    <span class="px-2 py-0.5 text-[9px] font-bold text-accent-300 bg-accent-500/10 border border-accent-500/20 rounded uppercase tracking-wider">
+                      Suporte B2B
+                    </span>
+                  </h2>
+                  <p class="text-xs text-zinc-500 mt-1">Chamados de suporte técnico, solicitações de hardware e reclamações internas dos condomínios.</p>
+                </div>
+              </div>
+
+              @if (ocorrenciasLoading()) {
+                <div class="glass p-12 text-center text-zinc-500 flex flex-col items-center justify-center gap-3">
+                  <svg class="animate-spin h-6 w-6 text-accent-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                  <span>Carregando chamados...</span>
+                </div>
+              } @else if (ocorrenciasList().length === 0) {
+                <div class="glass p-12 text-center text-zinc-500">
+                  Nenhum chamado de suporte pendente ou registrado no momento.
+                </div>
+              } @else {
+                <div class="glass overflow-hidden border border-white/[0.04]">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr class="bg-white/[0.02] border-b border-white/[0.04] text-zinc-400 font-semibold">
+                        <th class="p-4">ID</th>
+                        <th class="p-4">Condomínio</th>
+                        <th class="p-4">Categoria</th>
+                        <th class="p-4">Descrição</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4">Data de Abertura</th>
+                        <th class="p-4 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/[0.02]">
+                      @for (o of ocorrenciasList(); track o.id) {
+                        <tr class="hover:bg-white/[0.01] transition">
+                          <td class="p-4 font-mono text-zinc-500">#{{ o.id }}</td>
+                          <td class="p-4 font-bold text-white">{{ o.condominio?.nome || 'Geral' }}</td>
+                          <td class="p-4">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white/[0.05] text-zinc-350">
+                              {{ o.categoria?.nome || 'SUPORTE' }}
+                            </span>
+                          </td>
+                          <td class="p-4 max-w-xs truncate" [title]="o.descricao">{{ o.descricao }}</td>
+                          <td class="p-4">
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-[9px] font-bold rounded border"
+                              [class]="o.status === 'Pendente'
+                                ? 'text-amber-450 bg-amber-500/10 border-amber-500/25 animate-pulse'
+                                : 'text-emerald-450 bg-emerald-500/10 border-emerald-500/25'">
+                              <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+                              {{ o.status }}
+                            </span>
+                          </td>
+                          <td class="p-4 text-zinc-500">{{ o.created_at | date:'dd/MM/yyyy HH:mm' }}</td>
+                          <td class="p-4 text-right">
+                            @if (o.status === 'Pendente') {
+                              <button (click)="abrirRespostaOcorrencia(o)"
+                                class="press px-3 py-1.5 rounded bg-accent-500 hover:bg-accent-600 text-white font-semibold text-2xs transition">
+                                Responder
+                              </button>
+                            } @else {
+                              <button (click)="abrirRespostaOcorrencia(o)"
+                                class="press px-3 py-1.5 rounded bg-white/[0.03] border border-white/[0.08] text-zinc-400 hover:text-white hover:bg-white/[0.05] text-2xs transition">
+                                Ver Resposta
+                              </button>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+
+              <!-- Modal de Resposta/Visualização de Chamados -->
+              @if (ocorrenciaSelecionada(); as o) {
+                <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+                  (click)="fecharRespostaOcorrencia()">
+                  <div class="relative w-full max-w-lg bg-[#0b0b0f] border border-white/[0.06] rounded-xl shadow-2xl overflow-hidden animate-scale-in"
+                    (click)="$event.stopPropagation()">
+                    
+                    <!-- Header -->
+                    <div class="flex items-center justify-between p-5 border-b border-white/[0.04]">
+                      <div>
+                        <h3 class="font-bold text-white text-sm uppercase tracking-wider">Responder Chamado #{{ o.id }}</h3>
+                        <p class="text-3xs text-zinc-500 mt-0.5">Retorno direto para o aplicativo do condomínio</p>
+                      </div>
+                      <button (click)="fecharRespostaOcorrencia()" class="text-zinc-500 hover:text-white transition">
+                        <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                    
+                    <!-- Body -->
+                    <div class="p-5 space-y-4 text-xs">
+                      <div class="grid grid-cols-2 gap-3 bg-white/[0.01] border border-white/[0.03] rounded-lg p-3">
+                        <div>
+                          <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-0.5">Condomínio</label>
+                          <div class="font-semibold text-white leading-normal">{{ o.condominio?.nome || 'Geral' }}</div>
+                        </div>
+                        <div>
+                          <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-0.5">Solicitante</label>
+                          <div class="text-zinc-300 leading-normal">{{ o.criadoPor?.name || 'Administrador' }}</div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Descrição do Problema</label>
+                        <div class="bg-white/[0.02] border border-white/[0.04] rounded-md p-3 text-zinc-350 leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap">
+                          {{ o.descricao }}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label class="block text-[9px] font-bold text-zinc-550 uppercase tracking-wide mb-1.5">Sua Resposta / Resolução</label>
+                        @if (o.status === 'Pendente') {
+                          <textarea [(ngModel)]="respostaTexto" rows="4" placeholder="Escreva aqui a resolução do chamado ou feedback..."
+                            class="w-full bg-[#060608] border border-white/[0.08] focus:border-accent-500/60 rounded-md p-3 text-xs text-white placeholder-zinc-700 transition outline-none resize-none"></textarea>
+                        } @else {
+                          <div class="bg-emerald-500/[0.03] border border-emerald-500/15 rounded-md p-3 text-emerald-300 leading-relaxed whitespace-pre-wrap">
+                            {{ o.resposta }}
+                            <div class="text-[10px] text-emerald-500/60 mt-2 font-mono">Resolvido em: {{ o.resposta_at | date:'dd/MM/yyyy HH:mm' }}</div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="flex items-center justify-end gap-2.5 p-5 border-t border-white/[0.04] bg-white/[0.01]">
+                      <button (click)="fecharRespostaOcorrencia()"
+                        class="press px-4 py-2 text-xs font-semibold rounded-md border border-white/[0.08] text-zinc-400 hover:text-white hover:bg-white/[0.02] transition">
+                        Fechar
+                      </button>
+                      @if (o.status === 'Pendente') {
+                        <button (click)="enviarRespostaOcorrencia()" [disabled]="enviandoResposta() || !respostaTexto().trim()"
+                          class="press inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold rounded-md bg-accent-500 hover:bg-accent-600 disabled:opacity-55 text-white transition">
+                          @if (enviandoResposta()) {
+                            <svg class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                            Salvando...
+                          } @else {
+                            Responder e Resolver
+                          }
+                        </button>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
             </div>
           }
         }

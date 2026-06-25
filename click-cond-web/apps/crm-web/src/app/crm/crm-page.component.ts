@@ -94,7 +94,14 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly manualPaymentsMetadata = signal<Record<string, { metodo: string, dataPagamento: string, valorPago: number, obs: string }>>({});
 
   // --- Estado de Navegação CRM ---
-  readonly abaNavegacao = signal<'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios'>('overview');
+  readonly abaNavegacao = signal<'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios' | 'chamados'>('overview');
+
+  // --- Estados de Ocorrências / Chamados ---
+  readonly ocorrenciasList = signal<any[]>([]);
+  readonly ocorrenciasLoading = signal(false);
+  readonly ocorrenciaSelecionada = signal<any | null>(null);
+  readonly respostaTexto = signal('');
+  readonly enviandoResposta = signal(false);
 
   // --- Estados da aba de Relatórios ---
   readonly relatorioTipo = signal<'financeiro' | 'clientes' | 'portaria' | 'notificacoes'>('financeiro');
@@ -982,10 +989,59 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     return Math.round((mrr / ov.mrrTotal) * 100);
   }
 
-  alterarAbaNavegacao(aba: 'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios'): void {
+  alterarAbaNavegacao(aba: 'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios' | 'chamados'): void {
     this.abaNavegacao.set(aba);
     // Limpar cliente selecionado ao trocar de aba principal para evitar sobreposições
     this.clienteSelecionado.set(null);
+    if (aba === 'chamados') {
+      this.carregarOcorrencias();
+    }
+  }
+
+  carregarOcorrencias(): void {
+    this.ocorrenciasLoading.set(true);
+    this.api.getOcorrencias().subscribe({
+      next: (data) => {
+        this.ocorrenciasList.set(data);
+        this.ocorrenciasLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Erro ao carregar ocorrências no CRM:', err);
+        this.ocorrenciasLoading.set(false);
+      }
+    });
+  }
+
+  abrirRespostaOcorrencia(o: any): void {
+    this.ocorrenciaSelecionada.set(o);
+    this.respostaTexto.set(o.resposta || '');
+  }
+
+  fecharRespostaOcorrencia(): void {
+    this.ocorrenciaSelecionada.set(null);
+    this.respostaTexto.set('');
+  }
+
+  enviarRespostaOcorrencia(): void {
+    const o = this.ocorrenciaSelecionada();
+    const resp = this.respostaTexto().trim();
+    if (!o || !resp) return;
+
+    this.enviandoResposta.set(true);
+    this.api.responderOcorrencia(o.id, resp).subscribe({
+      next: () => {
+        this.enviandoResposta.set(false);
+        this.triggerToast('Chamado respondido e resolvido com sucesso!', 'success');
+        this.fecharRespostaOcorrencia();
+        this.carregarOcorrencias(); // Recarrega a lista
+        this.carregar(); // Recarrega overview para atualizar contadores
+      },
+      error: (err) => {
+        console.error(err);
+        this.enviandoResposta.set(false);
+        this.triggerToast('Erro ao responder chamado.', 'error');
+      }
+    });
   }
 
   confirmarPagamentoManual(idFatura: string): void {
