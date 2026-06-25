@@ -1050,6 +1050,43 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  abrirNovoChamado(): void {
+    this.modalNovoChamadoAberto.set(true);
+    this.novoChamadoCondominioId.set(null);
+    this.novoChamadoDescricao.set('');
+  }
+
+  fecharNovoChamado(): void {
+    this.modalNovoChamadoAberto.set(false);
+    this.novoChamadoCondominioId.set(null);
+    this.novoChamadoDescricao.set('');
+  }
+
+  enviarNovoChamado(): void {
+    const idCondominio = this.novoChamadoCondominioId();
+    const descricao = this.novoChamadoDescricao().trim();
+    if (!idCondominio || !descricao) {
+      this.triggerToast('Por favor, selecione o condomínio e digite a descrição.', 'error');
+      return;
+    }
+
+    this.criandoNovoChamado.set(true);
+    this.api.criarOcorrencia(idCondominio, descricao).subscribe({
+      next: () => {
+        this.criandoNovoChamado.set(false);
+        this.triggerToast('Novo chamado criado e enviado para o Kanban com sucesso!', 'success');
+        this.fecharNovoChamado();
+        this.carregarOcorrencias(); // Recarrega a lista
+        this.carregar(); // Recarrega contadores
+      },
+      error: (err) => {
+        console.error(err);
+        this.criandoNovoChamado.set(false);
+        this.triggerToast('Erro ao criar o chamado.', 'error');
+      }
+    });
+  }
+
   confirmarPagamentoManual(idFatura: string): void {
     this.ultimaFaturaPaga.set(idFatura);
     setTimeout(() => {
