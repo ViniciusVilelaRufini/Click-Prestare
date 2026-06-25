@@ -79,15 +79,23 @@ export class KabaniaService {
     // --- Busca de dados reais do banco usando Prisma ---
     
     // 1. Condomínios (Clientes)
-    const condominios = await this.prisma.condominios.findMany({
-      select: {
-        id: true,
-        nome: true,
-        identificacao: true,
-        ativo: true,
-        created_at: true,
-      },
-    });
+    const rawClientes = await this.crmService.clientes();
+    const condominios = rawClientes.map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      identificacao: c.identificacao,
+      ativo: c.ativo ? 1 : 0,
+      created_at: c.clienteDesde || new Date().toISOString(),
+      cidade: c.cidade,
+      uf: c.uf,
+      email: c.contatoPrincipal?.email || '',
+      phone: c.contatoPrincipal?.telefone || '',
+      sindico_nome: c.contatoPrincipal?.nome || '',
+      estagio: c.estagio,
+      plano: c.plano,
+      mrr: c.mrr,
+    }));
+
 
     // 2. Pendências Operacionais/Financeiras do CRM (Alertas)
     // Coletamos a visão geral de alertas calculada pelo CrmService
