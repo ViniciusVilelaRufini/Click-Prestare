@@ -160,7 +160,8 @@ export type AgentCommandType =
   | 'open_door'
   | 'enroll'
   | 'update'
-  | 'remove';
+  | 'remove'
+  | 'snapshot';
 
 export interface AgentCommandInput {
   type: AgentCommandType;
@@ -182,6 +183,8 @@ export interface AgentResult {
   statusCode?: number;
   error?: string;
   faceId?: string;
+  /** JPEG em base64 (resposta do comando 'snapshot'). */
+  imageBase64?: string;
 }
 
 interface PendingCommand {

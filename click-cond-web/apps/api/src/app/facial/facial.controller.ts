@@ -89,6 +89,31 @@ export class FacialController {
     return this.service.testDevice(id);
   }
 
+  /** Captura uma foto da câmera do terminal facial (para o cadastro). */
+  @Post('devices/:id/snapshot')
+  async snapshot(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    const device = await this.service.getDevice(id);
+    assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
+    return this.service.captureSnapshot(id);
+  }
+
+  /** Captura de um facial do condomínio (escolhe um online automaticamente). */
+  @Post('snapshot')
+  snapshotCondominio(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(
+      idCondominio,
+      user,
+      `captura facial do condomínio ${idCondominio}`,
+    );
+    return this.service.captureSnapshotForCondominio(idCondominio);
+  }
+
   @Post('devices/:id/trigger')
   async trigger(
     @Param('id', ParseIntPipe) id: number,

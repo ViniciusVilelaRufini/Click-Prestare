@@ -330,6 +330,23 @@ export class FacialDeviceClientService {
     }
   }
 
+  /**
+   * Captura um quadro (JPEG base64) da câmera do facial — para usar como foto de
+   * cadastro. Usa o Agente Local (a câmera está na LAN). Só Intelbras/Dahua.
+   */
+  async captureSnapshot(device: FacialDeviceConfig): Promise<string> {
+    if (!this.agent.isOnline(device.id)) {
+      throw new Error(
+        'Agente Local não está conectado — a captura usa a câmera do aparelho pela rede.',
+      );
+    }
+    const r = await this.agent.enqueue(device.id, { type: 'snapshot' });
+    if (!r.ok || !r.imageBase64) {
+      throw new Error(r.error ?? 'Falha ao capturar foto no aparelho.');
+    }
+    return r.imageBase64;
+  }
+
   async enrollPerson(
     device: FacialDeviceConfig,
     payload: EnrollPayload,

@@ -143,6 +143,17 @@ export class VisitantesService {
     return this.http.get<Visitante[]>(this.base, { params });
   }
 
+  /** Captura uma foto da câmera do terminal facial (data URL JPEG). */
+  capturarFotoFacial(): Observable<{ foto: string }> {
+    const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
+    const params = new HttpParams().set('id_condominio', cid);
+    return this.http.post<{ foto: string }>(
+      `${API_BASE}/facial/snapshot`,
+      {},
+      { params },
+    );
+  }
+
   /**
    * Cria um cadastro novo (pessoa + 1ª visita ao mesmo tempo). Mapeia para
    * POST /condominios/:id/visitantes — quando o operador cadastra uma

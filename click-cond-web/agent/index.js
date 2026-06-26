@@ -289,6 +289,8 @@ async function executeOnDevice(device, cmd) {
         return await doEnroll(device, cmd);
       case 'remove':
         return await doRemove(device, cmd);
+      case 'snapshot':
+        return await doSnapshot(device);
       default:
         return { ok: false, error: `comando desconhecido: ${cmd.type}` };
     }
@@ -299,6 +301,33 @@ async function executeOnDevice(device, cmd) {
       error: err.message || String(err),
     };
   }
+}
+
+/** Captura um quadro (JPEG) da câmera do facial e devolve em base64. */
+async function doSnapshot(device) {
+  if (device.fabricante !== 'intelbras') {
+    return {
+      ok: false,
+      error: `Captura por câmera não suportada para ${device.fabricante}.`,
+    };
+  }
+  const res = await lanRequest(
+    device,
+    'GET',
+    '/cgi-bin/snapshot.cgi?channel=1',
+  );
+  if (
+    !(res.status >= 200 && res.status < 300) ||
+    !res.buffer ||
+    res.buffer.length < 100
+  ) {
+    return {
+      ok: false,
+      statusCode: res.status,
+      error: 'o aparelho não retornou imagem',
+    };
+  }
+  return { ok: true, imageBase64: res.buffer.toString('base64') };
 }
 
 async function doPing(device) {
@@ -907,7 +936,8 @@ function request(urlStr, opts = {}) {
             /* cai para a resposta 401 normal */
           }
         }
-        const raw = Buffer.concat(chunks).toString('utf8');
+        const buffer = Buffer.concat(chunks);
+        const raw = buffer.toString('utf8');
         let data = raw;
         const ct = res.headers['content-type'] || '';
         if (ct.includes('application/json') && raw) {
@@ -917,7 +947,8 @@ function request(urlStr, opts = {}) {
             /* mantém raw */
           }
         }
-        resolve({ status: res.statusCode, data, raw });
+        // buffer = bytes crus (necessário p/ binário, ex.: snapshot JPEG).
+        resolve({ status: res.statusCode, data, raw, buffer });
       });
     });
 

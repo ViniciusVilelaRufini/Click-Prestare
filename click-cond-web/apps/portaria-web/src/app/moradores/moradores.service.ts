@@ -56,6 +56,17 @@ export class MoradoresApi {
     return this.http.get<Morador[]>(this.base, { params });
   }
 
+  /** Captura uma foto da câmera do terminal facial (data URL JPEG). */
+  capturarFotoFacial(): Observable<{ foto: string }> {
+    const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
+    const params = new HttpParams().set('id_condominio', cid);
+    return this.http.post<{ foto: string }>(
+      `${API_BASE}/facial/snapshot`,
+      {},
+      { params },
+    );
+  }
+
   create(dto: CreateMorador): Observable<Morador> {
     return this.http.post<Morador>(this.base, dto);
   }

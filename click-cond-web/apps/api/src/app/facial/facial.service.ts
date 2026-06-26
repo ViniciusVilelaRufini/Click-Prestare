@@ -448,6 +448,39 @@ export class FacialService {
     return { online };
   }
 
+  /**
+   * Captura uma foto da CÂMERA do terminal facial (para usar no cadastro).
+   * Devolve um data URL JPEG pronto para virar foto_pessoa.
+   */
+  async captureSnapshot(id: number) {
+    const device = await this.getDevice(id);
+    const imageBase64 = await this.client.captureSnapshot(this.toConfig(device));
+    return { foto: `data:image/jpeg;base64,${imageBase64}` };
+  }
+
+  /**
+   * Captura da câmera de UM terminal facial do condomínio (escolhe um online),
+   * para o cadastro de morador/visitante sem precisar escolher o aparelho.
+   */
+  async captureSnapshotForCondominio(idCondominio: number) {
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        tipo: 'facial',
+        fabricante: 'intelbras',
+      },
+    });
+    const device = devices.find((d) => this.agent.isOnline(d.id)) ?? devices[0];
+    if (!device) {
+      throw new BadRequestException(
+        'Nenhum terminal facial Intelbras disponível para captura.',
+      );
+    }
+    const imageBase64 = await this.client.captureSnapshot(this.toConfig(device));
+    return { foto: `data:image/jpeg;base64,${imageBase64}` };
+  }
+
   async triggerDevice(id: number, operador?: JwtPayload) {
     const device = await this.getDevice(id);
     if (device.tipo !== 'botoeira' && device.tipo !== 'catraca') {

@@ -62,6 +62,26 @@ export class VisitantesPageComponent implements OnInit {
   // Imagens capturadas (Base64 ou URL)
   readonly fotoPessoaBase64 = signal<string | null>(null);
   readonly fotoDocumentoBase64 = signal<string | null>(null);
+  readonly capturandoFacial = signal(false);
+
+  /** Captura a foto da pessoa pela CÂMERA do terminal facial. */
+  capturarFacial() {
+    this.capturandoFacial.set(true);
+    this.service.capturarFotoFacial().subscribe({
+      next: (r) => {
+        this.capturandoFacial.set(false);
+        this.fotoPessoaBase64.set(r.foto);
+        this.novo.foto_pessoa = r.foto;
+      },
+      error: (e) => {
+        this.capturandoFacial.set(false);
+        this.error.set(
+          e?.error?.message ?? 'Falha ao capturar foto no terminal facial.',
+        );
+        setTimeout(() => this.error.set(null), 5000);
+      },
+    });
+  }
 
   // Modal de visualização de foto ampliada
   readonly fotoAmpliadaUrl = signal<string | null>(null);
