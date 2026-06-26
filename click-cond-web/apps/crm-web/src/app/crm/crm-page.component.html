@@ -1655,24 +1655,38 @@
 
               <!-- Filtros de Ocorrências -->
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/[0.04] pb-4">
-                <div class="flex items-center gap-1.5 bg-white/[0.02] p-1 rounded-lg border border-white/[0.05] self-start">
-                  <button (click)="filtroOcorrencias.set('tecnologia')"
-                    [class]="filtroOcorrencias() === 'tecnologia' ? 'bg-accent-500/15 text-accent-300 border-accent-500/20' : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/[0.02]'"
+                <div class="flex flex-wrap items-center gap-1.5 bg-white/[0.02] p-1 rounded-lg border border-white/[0.05] self-start">
+                  <button (click)="subFiltroChamados.set('todos')"
+                    [class]="subFiltroChamados() === 'todos' ? 'bg-accent-500/15 text-accent-300 border-accent-500/20' : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/[0.02]'"
                     class="press px-3.5 py-1.5 rounded-md text-2xs font-bold transition-all border">
-                    Tecnologia, App &amp; Acesso
+                    Todos de Tecnologia
                   </button>
-                  <button (click)="filtroOcorrencias.set('todos')"
-                    [class]="filtroOcorrencias() === 'todos' ? 'bg-accent-500/15 text-accent-300 border-accent-500/20' : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/[0.02]'"
+                  <button (click)="subFiltroChamados.set('app')"
+                    [class]="subFiltroChamados() === 'app' ? 'bg-accent-500/15 text-accent-300 border-accent-500/20' : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/[0.02]'"
                     class="press px-3.5 py-1.5 rounded-md text-2xs font-bold transition-all border">
-                    Todos os Chamados
+                    Aplicativo &amp; Sistema
+                  </button>
+                  <button (click)="subFiltroChamados.set('facial')"
+                    [class]="subFiltroChamados() === 'facial' ? 'bg-accent-500/15 text-accent-300 border-accent-500/20' : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/[0.02]'"
+                    class="press px-3.5 py-1.5 rounded-md text-2xs font-bold transition-all border">
+                    Reconhecimento Facial
+                  </button>
+                  <button (click)="subFiltroChamados.set('acesso')"
+                    [class]="subFiltroChamados() === 'acesso' ? 'bg-accent-500/15 text-accent-300 border-accent-500/20' : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/[0.02]'"
+                    class="press px-3.5 py-1.5 rounded-md text-2xs font-bold transition-all border">
+                    Controle de Acesso &amp; Portas
                   </button>
                 </div>
                 
                 <p class="text-3xs text-zinc-500 italic">
-                  @if (filtroOcorrencias() === 'tecnologia') {
-                    Exibindo apenas chamados de suporte técnico, facial, app e controle de acesso
-                  } @else {
-                    Exibindo todos os chamados internos e de manutenção geral do condomínio
+                  @if (subFiltroChamados() === 'todos') {
+                    Exibindo todos os chamados técnicos B2B
+                  } @else if (subFiltroChamados() === 'app') {
+                    Exibindo apenas problemas do aplicativo celular e sistema web
+                  } @else if (subFiltroChamados() === 'facial') {
+                    Exibindo problemas em leitores faciais e sincronização
+                  } @else if (subFiltroChamados() === 'acesso') {
+                    Exibindo problemas em botoeiras, portões, tags RFID e acessos físicos
                   }
                 </p>
               </div>

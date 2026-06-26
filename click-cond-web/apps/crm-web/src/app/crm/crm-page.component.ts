@@ -98,11 +98,10 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   // --- Estados de Ocorrências / Chamados ---
   readonly ocorrenciasList = signal<any[]>([]);
-  readonly filtroOcorrencias = signal<'tecnologia' | 'todos'>('tecnologia');
+  readonly subFiltroChamados = signal<'todos' | 'app' | 'facial' | 'acesso'>('todos');
   readonly ocorrenciasFiltradas = computed(() => {
     const list = this.ocorrenciasList();
-    const filtro = this.filtroOcorrencias();
-    if (filtro === 'todos') return list;
+    const subFiltro = this.subFiltroChamados();
 
     const techKeywords = [
       'app', 'aplicativo', 'facial', 'face', 'reconhecimento',
@@ -122,13 +121,31 @@ export class CrmPageComponent implements OnInit, OnDestroy {
         .replace(/[\u0300-\u036f]/g, '');
     };
 
-    return list.filter((o) => {
+    // 1. Filtra permanentemente ocorrências não-técnicas (oculta barulho, lixo, etc.)
+    const baseTechList = list.filter((o) => {
       const desc = normalize(o.descricao || '');
       const cat = normalize(o.categoria?.nome || '');
-      
-      return techKeywords.some(
-        (k) => desc.includes(k) || cat.includes(k)
-      );
+      return techKeywords.some((k) => desc.includes(k) || cat.includes(k));
+    });
+
+    // 2. Aplica sub-filtros específicos de suporte B2B
+    if (subFiltro === 'todos') {
+      return baseTechList;
+    }
+
+    let filterKeywords: string[] = [];
+    if (subFiltro === 'app') {
+      filterKeywords = ['app', 'aplicativo', 'sistema', 'software', 'bug', 'erro', 'falha', 'instabilidade', 'senha', 'cadastro', 'login'];
+    } else if (subFiltro === 'facial') {
+      filterKeywords = ['facial', 'face', 'reconhecimento', 'camera'];
+    } else if (subFiltro === 'acesso') {
+      filterKeywords = ['botoeira', 'portao', 'abrir', 'abre', 'travado', 'travada', 'controle de acesso', 'rfid', 'tag', 'chaveiro', 'biometria', 'leitor', 'leitora', 'interfone', 'acesso', 'entrar', 'bloqueado', 'bloqueada', 'nao consegue', 'nao esta conseguindo', 'liberar', 'liberacao', 'visitante', 'morador', 'tecnico', 'tecnica'];
+    }
+
+    return baseTechList.filter((o) => {
+      const desc = normalize(o.descricao || '');
+      const cat = normalize(o.categoria?.nome || '');
+      return filterKeywords.some((k) => desc.includes(k) || cat.includes(k));
     });
   });
   readonly ocorrenciasLoading = signal(false);
