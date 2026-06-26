@@ -65,6 +65,8 @@ const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
 const DEVICE_STATUS_INTERVAL_MS = Number(
   process.env.DEVICE_STATUS_INTERVAL_MS || 20000,
 );
+// deviceId → último status online reportado (loga só na mudança).
+const lastDeviceOnline = new Map();
 
 const temConfig = () => API_URL && (AGENT_TOKEN || DEVICE_TOKENS.length > 0);
 
@@ -188,6 +190,13 @@ async function runCondoLoop(token) {
             online = false;
           }
           statuses.push({ deviceId: device.id, online });
+          // Loga só na MUDANÇA de estado (evita spam a cada 20s).
+          if (lastDeviceOnline.get(device.id) !== online) {
+            lastDeviceOnline.set(device.id, online);
+            console.log(
+              `[agente] ${device.nome}: aparelho ${online ? 'ONLINE' : 'OFFLINE'}`,
+            );
+          }
         }
         if (statuses.length > 0) {
           await cloudRequest(
@@ -298,8 +307,16 @@ async function doPing(device) {
     return { ok: true };
   }
   if (device.fabricante === 'intelbras') {
-    await dahuaLogin(device); // login OK prova conectividade
-    return { ok: true };
+    // NÃO usar login RPC2 aqui: ele cria uma sessão que não é encerrada e, com o
+    // heartbeat a cada 20s, estoura o limite do aparelho ("too many connections")
+    // — derrubando o ping E os comandos. Um GET cgi com Digest prova rede +
+    // credencial SEM criar sessão (stateless).
+    const res = await lanRequest(
+      device,
+      'GET',
+      '/cgi-bin/magicBox.cgi?action=getDeviceType',
+    );
+    return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
   }
   const res = await lanRequest(device, 'GET', '/status');
   return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };

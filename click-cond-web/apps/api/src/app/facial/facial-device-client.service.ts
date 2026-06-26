@@ -196,10 +196,15 @@ export class FacialDeviceClientService {
         await this.controlIdLogin(device);
         return true;
       }
-      // Intelbras SS (Dahua): o handshake RPC2 prova conectividade.
+      // Intelbras SS (Dahua): cgi com Digest prova conectividade SEM criar uma
+      // sessão RPC2 (que vazaria e estouraria "too many connections" no aparelho).
       if (device.fabricante === 'intelbras') {
-        await this.dahuaLogin(device);
-        return true;
+        const r = await this.send(
+          device,
+          'GET',
+          '/cgi-bin/magicBox.cgi?action=getDeviceType',
+        );
+        return r.status >= 200 && r.status < 300;
       }
       const res = await this.send(device, 'GET', '/status');
       return res.status >= 200 && res.status < 300;
