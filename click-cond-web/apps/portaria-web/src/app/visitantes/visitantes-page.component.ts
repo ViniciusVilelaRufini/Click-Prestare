@@ -716,12 +716,15 @@ export class VisitantesPageComponent implements OnInit {
   }
 
   removerFoto(tipo: 'pessoa' | 'documento') {
+    // Vazio "" (não null) para sobreviver a coerções `?? undefined` no payload —
+    // `undefined` some do JSON e o backend nunca removeria a foto. O backend
+    // converte "" em null. Mesma abordagem do cadastro de morador.
     if (tipo === 'pessoa') {
       this.fotoPessoaBase64.set(null);
-      this.novo.foto_pessoa = null;
+      this.novo.foto_pessoa = '';
     } else if (tipo === 'documento') {
       this.fotoDocumentoBase64.set(null);
-      this.novo.foto_documento = null;
+      this.novo.foto_documento = '';
     }
   }
 

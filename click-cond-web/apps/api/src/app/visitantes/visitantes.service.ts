@@ -108,7 +108,8 @@ export class VisitantesService {
   }
 
   private async resolveFoto(value: string | undefined | null): Promise<string | null> {
-    if (!value) return value ?? null;
+    // Vazio (null/undefined/"") vira null — "" contaria como "tem foto".
+    if (!value) return null;
     if (this.storage.isDataUrl(value)) {
       return (await this.storage.uploadDataUrl(value, 'visitantes')) ?? null;
     }

@@ -114,7 +114,9 @@ export class MoradoresService {
   }
 
   private async resolveFoto(value: string | undefined | null): Promise<string | null> {
-    if (!value) return value ?? null;
+    // Qualquer vazio (null/undefined/"") vira null — "" no banco contaria como
+    // "tem foto" (foto_pessoa != null) e quebraria o status e o "Remover foto".
+    if (!value) return null;
     if (this.storage.isDataUrl(value)) {
       return (await this.storage.uploadDataUrl(value, 'moradores')) ?? null;
     }

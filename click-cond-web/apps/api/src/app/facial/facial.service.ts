@@ -1039,7 +1039,19 @@ export class FacialService {
         running: false,
       };
     }
-    const [synced, error, comFoto, total] = await Promise.all([
+    // Conta moradores E visitantes/prestadores (ativos = sem data_saida), pois
+    // todos sincronizam rosto no aparelho. Antes só contava moradores.
+    const vis = { id_condominio: idCondominio, data_saida: null };
+    const [
+      mSynced,
+      mError,
+      mComFoto,
+      mTotal,
+      vSynced,
+      vError,
+      vComFoto,
+      vTotal,
+    ] = await Promise.all([
       this.prisma.moradores.count({
         where: { id_condominio: idCondominio, face_sync_status: 'synced' },
       }),
@@ -1050,7 +1062,21 @@ export class FacialService {
         where: { id_condominio: idCondominio, foto_pessoa: { not: null } },
       }),
       this.prisma.moradores.count({ where: { id_condominio: idCondominio } }),
+      this.prisma.visitantes.count({
+        where: { ...vis, face_sync_status: 'synced' },
+      }),
+      this.prisma.visitantes.count({
+        where: { ...vis, face_sync_status: 'error' },
+      }),
+      this.prisma.visitantes.count({
+        where: { ...vis, foto_pessoa: { not: null } },
+      }),
+      this.prisma.visitantes.count({ where: vis }),
     ]);
+    const synced = mSynced + vSynced;
+    const error = mError + vError;
+    const comFoto = mComFoto + vComFoto;
+    const total = mTotal + vTotal;
     // Pendente = tem foto mas ainda não está 'synced' nem em 'error'.
     const pending = Math.max(comFoto - synced - error, 0);
     return {

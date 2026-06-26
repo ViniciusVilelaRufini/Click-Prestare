@@ -210,7 +210,7 @@
                 </label>
               </div>
               @if (fotoPessoaBase64()) {
-                <button type="button" (click)="fotoPessoaBase64.set(null); novo.foto_pessoa = undefined"
+                <button type="button" (click)="fotoPessoaBase64.set(null); novo.foto_pessoa = ''"
                   class="text-left text-[11px] text-red-400 hover:underline">
                   Remover foto
                 </button>
@@ -251,7 +251,7 @@
                 </label>
               </div>
               @if (fotoDocumentoBase64()) {
-                <button type="button" (click)="fotoDocumentoBase64.set(null); novo.foto_documento = undefined"
+                <button type="button" (click)="fotoDocumentoBase64.set(null); novo.foto_documento = ''"
                   class="text-left text-[11px] text-red-400 hover:underline">
                   Remover foto
                 </button>
