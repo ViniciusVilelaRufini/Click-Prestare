@@ -8,6 +8,7 @@ import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.servi
 import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective, validators } from '../shared/input-mask.directive';
 import { EnrollCaptureComponent } from '../shared/enroll-capture.component';
+import { FacialCaptureComponent } from '../shared/facial-capture.component';
 import { AuthService } from '../auth/auth.service';
 import { ToastService } from '../shared/toast.service';
 
@@ -18,7 +19,7 @@ declare var require: any;
 @Component({
   selector: 'app-moradores-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent],
+  imports: [CommonModule, FormsModule, InputMaskDirective, EnrollCaptureComponent, FacialCaptureComponent],
   templateUrl: './moradores-page.component.html',
 })
 export class MoradoresPageComponent implements OnInit {
@@ -62,25 +63,13 @@ export class MoradoresPageComponent implements OnInit {
   // Imagens capturadas (Base64 ou URL)
   readonly fotoPessoaBase64 = signal<string | null>(null);
   readonly fotoDocumentoBase64 = signal<string | null>(null);
-  readonly capturandoFacial = signal(false);
+  // Modal de captura ao vivo pela câmera do facial
+  readonly facialModalOpen = signal(false);
 
-  /** Captura a foto da pessoa pela CÂMERA do terminal facial. */
-  capturarFacial() {
-    this.capturandoFacial.set(true);
-    this.api.capturarFotoFacial().subscribe({
-      next: (r) => {
-        this.capturandoFacial.set(false);
-        this.fotoPessoaBase64.set(r.foto);
-        this.novo.foto_pessoa = r.foto;
-      },
-      error: (e) => {
-        this.capturandoFacial.set(false);
-        this.error.set(
-          e?.error?.message ?? 'Falha ao capturar foto no terminal facial.',
-        );
-        setTimeout(() => this.error.set(null), 5000);
-      },
-    });
+  onFacialCaptured(foto: string) {
+    this.facialModalOpen.set(false);
+    this.fotoPessoaBase64.set(foto);
+    this.novo.foto_pessoa = foto;
   }
 
   // Modal de visualização de foto ampliada

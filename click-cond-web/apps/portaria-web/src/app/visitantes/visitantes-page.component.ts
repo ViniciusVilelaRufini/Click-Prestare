@@ -8,12 +8,13 @@ import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.servi
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective } from '../shared/input-mask.directive';
+import { FacialCaptureComponent } from '../shared/facial-capture.component';
 import { compressImage } from '../shared/image-compress.util';
 
 @Component({
   selector: 'app-visitantes-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink],
+  imports: [CommonModule, FormsModule, InputMaskDirective, RouterLink, FacialCaptureComponent],
   templateUrl: './visitantes-page.component.html',
   styleUrl: './visitantes-page.component.css',
 })
@@ -62,25 +63,13 @@ export class VisitantesPageComponent implements OnInit {
   // Imagens capturadas (Base64 ou URL)
   readonly fotoPessoaBase64 = signal<string | null>(null);
   readonly fotoDocumentoBase64 = signal<string | null>(null);
-  readonly capturandoFacial = signal(false);
+  // Modal de captura ao vivo pela câmera do facial
+  readonly facialModalOpen = signal(false);
 
-  /** Captura a foto da pessoa pela CÂMERA do terminal facial. */
-  capturarFacial() {
-    this.capturandoFacial.set(true);
-    this.service.capturarFotoFacial().subscribe({
-      next: (r) => {
-        this.capturandoFacial.set(false);
-        this.fotoPessoaBase64.set(r.foto);
-        this.novo.foto_pessoa = r.foto;
-      },
-      error: (e) => {
-        this.capturandoFacial.set(false);
-        this.error.set(
-          e?.error?.message ?? 'Falha ao capturar foto no terminal facial.',
-        );
-        setTimeout(() => this.error.set(null), 5000);
-      },
-    });
+  onFacialCaptured(foto: string) {
+    this.facialModalOpen.set(false);
+    this.fotoPessoaBase64.set(foto);
+    this.novo.foto_pessoa = foto;
   }
 
   // Modal de visualização de foto ampliada
