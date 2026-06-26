@@ -356,6 +356,29 @@
             }
           </select>
         </label>
+        <label class="block">
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
+            >Liberado a partir de</span
+          >
+          <input
+            type="datetime-local"
+            [(ngModel)]="novo.data_hora_inicio"
+            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60"
+          />
+        </label>
+        <label class="block">
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
+            >Liberado até</span
+          >
+          <input
+            type="datetime-local"
+            [(ngModel)]="novo.data_hora_termino"
+            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60"
+          />
+          <span class="text-[10px] text-slate-500 mt-1 block"
+            >Em branco = sem prazo. Após o término, o aparelho nega sozinho.</span
+          >
+        </label>
         @if (!isPrestadorModo()) {
           <label class="block">
             <span class="text-xs font-medium text-slate-400 mb-1.5 block"

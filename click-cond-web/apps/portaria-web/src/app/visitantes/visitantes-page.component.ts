@@ -888,7 +888,17 @@ export class VisitantesPageComponent implements OnInit {
       is_visitante: prest ? 0 : 1,
       is_prestador: prest ? 1 : 0,
       tag_rfid: '',
+      // Janela de validade padrão: a partir de agora, por 4h. O operador ajusta.
+      data_hora_inicio: this.localDateTime(0),
+      data_hora_termino: this.localDateTime(4),
     };
+  }
+
+  /** "YYYY-MM-DDTHH:mm" em hora local (formato do input datetime-local). */
+  private localDateTime(horas = 0): string {
+    const d = new Date(Date.now() + horas * 3600_000);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
   getMapUrl(d: any): SafeResourceUrl | null {

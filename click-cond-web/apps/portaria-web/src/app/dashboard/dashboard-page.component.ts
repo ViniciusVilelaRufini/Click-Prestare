@@ -41,7 +41,16 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly pessoaSelecionada = signal<Pessoa | null>(null);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly idApartamentoSelecionado = signal<number | null>(null);
+  readonly liberarInicio = signal<string>('');
+  readonly liberarTermino = signal<string>('');
   readonly carregandoPessoas = signal(false);
+
+  /** "YYYY-MM-DDTHH:mm" em hora local (formato do input datetime-local). */
+  private localDateTime(horas = 0): string {
+    const d = new Date(Date.now() + horas * 3600_000);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
   readonly liberandoVisitante = signal(false);
   readonly erroLiberar = signal<string | null>(null);
   readonly sucessoLiberar = signal<string | null>(null);
@@ -154,6 +163,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.pessoasEncontradas.set([]);
     this.pessoaSelecionada.set(null);
     this.idApartamentoSelecionado.set(null);
+    this.liberarInicio.set(this.localDateTime(0)); // agora
+    this.liberarTermino.set(this.localDateTime(4)); // +4h
     this.erroLiberar.set(null);
     this.sucessoLiberar.set(null);
 
@@ -220,7 +231,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.erroLiberar.set(null);
 
     this.visitantesService.novaVisitaPessoa(p.id, {
-      id_apartamento: idApto
+      id_apartamento: idApto,
+      data_hora_inicio: this.liberarInicio() || undefined,
+      data_hora_termino: this.liberarTermino() || undefined,
     }).subscribe({
       next: (visitanteCriado) => {
         this.visitantesService.liberar(visitanteCriado.id).subscribe({

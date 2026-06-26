@@ -1197,8 +1197,22 @@
                 </select>
               </div>
 
+              <!-- Janela de validade -->
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Liberado a partir de</label>
+                  <input type="datetime-local" [(ngModel)]="liberarInicio"
+                    class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white" />
+                </div>
+                <div>
+                  <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Liberado até</label>
+                  <input type="datetime-local" [(ngModel)]="liberarTermino"
+                    class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white" />
+                </div>
+              </div>
+
               <div class="pt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-white/5 p-3.5 rounded-xl border border-slate-200/40 dark:border-white/5">
-                💡 **Ação de Liberação Rápida:** Ao confirmar, o visitante será **pré-autorizado (Liberado)** para acessar o condomínio. A data de entrada real só será registrada quando ele passar fisicamente por um leitor facial ou dispositivo de acesso.
+                💡 **Ação de Liberação Rápida:** o visitante fica **pré-autorizado (Liberado)** na janela acima. A entrada real só é registrada quando ele passar no leitor facial; após o término, o aparelho nega sozinho.
               </div>
             </div>
           }
