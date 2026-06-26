@@ -65,6 +65,13 @@ async function bootstrap() {
     ? allowedOriginsEnv.split(',').map((o) => o.trim()).filter(Boolean)
     : defaultOrigins;
 
+  if (!allowedOrigins.includes('https://kabania.vercel.app')) {
+    allowedOrigins.push('https://kabania.vercel.app');
+  }
+  if (!allowedOrigins.includes('http://localhost:5173')) {
+    allowedOrigins.push('http://localhost:5173');
+  }
+
   // Assinatura (req, callback): dá acesso à URL para liberar rotas públicas.
   app.enableCors((req: any, callback: (err: Error | null, options?: any) => void) => {
     const origin: string | undefined = req.headers?.origin;
