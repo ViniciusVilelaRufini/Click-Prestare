@@ -1,7 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { FacialService } from '../facial/facial.service';
 
 export interface CreateRegraAcessoDto {
   nome: string;
@@ -19,10 +20,29 @@ export interface CreateRegraAcessoDto {
 
 @Injectable()
 export class RegrasAcessoService {
+  private readonly logger = new Logger(RegrasAcessoService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditoria: AuditoriaService,
+    private readonly facial: FacialService,
   ) {}
+
+  /**
+   * Reaplica fisicamente as regras: re-sincroniza os rostos do condomínio
+   * (cadastra quem a categoria permite, REMOVE quem não permite do aparelho).
+   * Roda em background — mudar a regra não fica esperando o hardware. Sem isso,
+   * a regra só valeria como auditoria (a porta abriria mesmo "negado").
+   */
+  private reaplicarRegras(idCondominio: number) {
+    this.facial
+      .syncAllForCondominio(idCondominio, { onlyPending: false })
+      .catch((err) =>
+        this.logger.warn(
+          `Re-sync facial após mudança de regra (condomínio ${idCondominio}) falhou: ${err?.message ?? err}`,
+        ),
+      );
+  }
 
   async findAll(idCondominio: number) {
     if (!this.prisma.isConnected) {
@@ -172,6 +192,7 @@ export class RegrasAcessoService {
         ativo: criada.ativo === 1,
       },
     });
+    this.reaplicarRegras(Number(idCondominio));
     return criada;
   }
 
@@ -245,6 +266,7 @@ export class RegrasAcessoService {
       descricao: `Alterou regra "${atualizada.nome}"`,
       detalhes: { changes: diff },
     });
+    this.reaplicarRegras(atualizada.id_condominio);
     return atualizada;
   }
 
@@ -275,6 +297,7 @@ export class RegrasAcessoService {
         entidade_id: id,
         descricao: `Removeu regra "${regra.nome}"`,
       });
+      this.reaplicarRegras(regra.id_condominio);
       return { success: true };
     } catch {
       throw new NotFoundException(`Regra de acesso #${id} não encontrada`);

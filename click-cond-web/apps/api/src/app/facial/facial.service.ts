@@ -569,6 +569,52 @@ export class FacialService {
 
   // ---------- Sync ----------
 
+  /**
+   * Categorias fisicamente autorizadas num terminal pelas regras ATIVAS
+   * (whitelist). null = terminal sem regras = todas as categorias liberadas.
+   *
+   * Só considera CATEGORIA porque é o que dá para impor via CADASTRO: quem não
+   * é de uma categoria permitida não fica cadastrado no aparelho, então o
+   * aparelho NEGA fisicamente (sem depender da nuvem no instante da abertura).
+   * Horário e sentido seguem sendo auditados na nuvem — um leitor facial único
+   * abre 24h ao reconhecer o rosto, então essas duas dimensões não dá para
+   * impor por cadastro (precisariam ir para o agendamento do próprio aparelho).
+   */
+  private async categoriasPermitidasNoDispositivo(device: {
+    id: number;
+    id_condominio: number;
+  }): Promise<Set<CategoriaPessoa> | null> {
+    const regras = await this.prisma.regras_Acesso.findMany({
+      where: {
+        id_condominio: device.id_condominio,
+        ativo: 1,
+        dispositivos: { some: { id_dispositivo: device.id } },
+      },
+      select: {
+        permitir_morador: true,
+        permitir_visitante: true,
+        permitir_prestador: true,
+        permitir_funcionario: true,
+      },
+    });
+    if (regras.length === 0) return null; // sem regras ativas = terminal liberado
+    const set = new Set<CategoriaPessoa>();
+    for (const r of regras) {
+      if (r.permitir_morador === 1) set.add('morador');
+      if (r.permitir_visitante === 1) set.add('visitante');
+      if (r.permitir_prestador === 1) set.add('prestador');
+      if (r.permitir_funcionario === 1) set.add('funcionario');
+    }
+    return set;
+  }
+
+  private categoriaAutorizada(
+    permitidas: Set<CategoriaPessoa> | null,
+    categoria: CategoriaPessoa,
+  ): boolean {
+    return permitidas === null || permitidas.has(categoria);
+  }
+
   async syncMorador(idMorador: number) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
@@ -602,11 +648,23 @@ export class FacialService {
       return { ok: false, reason: 'photo_unreachable' };
     }
 
+    const categoria: CategoriaPessoa =
+      morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
     let faceId: string | null = morador.face_id ?? null;
     let allOk = true;
     const devicesSincronizados: number[] = [];
     for (const device of devices) {
       try {
+        const permitidas = await this.categoriasPermitidasNoDispositivo(device);
+        if (!this.categoriaAutorizada(permitidas, categoria)) {
+          // A regra ATIVA do terminal não permite esta categoria: remove o rosto
+          // do aparelho para que ele NEGUE fisicamente (não basta logar negado).
+          await this.client.removePerson(
+            this.toConfig(device),
+            faceId ?? externalId,
+          );
+          continue;
+        }
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: morador.nome,
@@ -691,11 +749,21 @@ export class FacialService {
       return { ok: false, reason: 'photo_unreachable' };
     }
 
+    const categoria: CategoriaPessoa =
+      visitante.is_prestador === 1 ? 'prestador' : 'visitante';
     let faceId: string | null = visitante.face_id ?? null;
     let allOk = true;
     const devicesSincronizados: number[] = [];
     for (const device of devices) {
       try {
+        const permitidas = await this.categoriasPermitidasNoDispositivo(device);
+        if (!this.categoriaAutorizada(permitidas, categoria)) {
+          await this.client.removePerson(
+            this.toConfig(device),
+            faceId ?? externalId,
+          );
+          continue;
+        }
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: visitante.nome,
