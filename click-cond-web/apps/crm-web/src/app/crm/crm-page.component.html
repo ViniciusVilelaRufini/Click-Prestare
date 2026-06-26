@@ -1786,6 +1786,8 @@
                           }
                         </button>
                       }
+                    </div>
+                  </div>
                 </div>
               }
 
@@ -1814,7 +1816,7 @@
                         <select [(ngModel)]="novoChamadoCondominioId"
                           class="w-full bg-[#060608] border border-white/[0.08] focus:border-accent-500/60 rounded-md p-3 text-xs text-white placeholder-zinc-700 transition outline-none">
                           <option [value]="null" disabled selected>Escolha um condomínio...</option>
-                          @for (c of clientesList(); track c.id) {
+                          @for (c of clientes(); track c.id) {
                             <option [value]="c.id">{{ c.nome }}</option>
                           }
                         </select>

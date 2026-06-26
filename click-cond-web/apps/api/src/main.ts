@@ -54,10 +54,12 @@ async function bootstrap() {
   const defaultOrigins = [
     'http://localhost:4200',
     'http://localhost:3000',
+    'http://localhost:5173',
     'https://click-prestare.vercel.app',
     'https://crm-click-prestare.vercel.app',
     'https://clickprestarecondominios.com.br',
     'https://www.clickprestarecondominios.com.br',
+    'https://kabania.vercel.app',
   ];
   const allowedOrigins = allowedOriginsEnv
     ? allowedOriginsEnv.split(',').map((o) => o.trim()).filter(Boolean)
