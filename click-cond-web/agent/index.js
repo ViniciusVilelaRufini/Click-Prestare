@@ -67,6 +67,10 @@ const DEVICE_STATUS_INTERVAL_MS = Number(
 );
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
+// Devices do último poll (p/ o servidor de live view achar IP/credencial).
+let lastDevices = [];
+// Porta local do preview ao vivo (só localhost; o navegador da portaria acessa).
+const LIVEVIEW_PORT = Number(process.env.LIVEVIEW_PORT || 8788);
 
 const temConfig = () => API_URL && (AGENT_TOKEN || DEVICE_TOKENS.length > 0);
 
@@ -88,6 +92,7 @@ async function main() {
   }
 
   console.log(`[agente] iniciando — API: ${API_URL}`);
+  startLiveViewServer(); // preview ao vivo da câmera (localhost) p/ o cadastro
   if (AGENT_TOKEN) {
     console.log('[agente] modo condomínio: 1 token gerencia todos os dispositivos');
     runCondoLoop(AGENT_TOKEN).catch((err) =>
@@ -153,6 +158,8 @@ async function runCondoLoop(token) {
       }
       const body = res.data || {};
       if (body.poll_interval_ms) pollMs = Number(body.poll_interval_ms);
+      // Cache p/ o servidor de live view (localhost) saber IP/credenciais.
+      lastDevices = (body.devices || []).map((e) => e.device).filter(Boolean);
 
       for (const entry of body.devices || []) {
         const device = entry.device;
@@ -328,6 +335,176 @@ async function doSnapshot(device) {
     };
   }
   return { ok: true, imageBase64: res.buffer.toString('base64') };
+}
+
+// ---------- Preview ao vivo (servidor local MJPEG por snapshots) ----------
+//
+// O aparelho NÃO expõe MJPEG (só RTSP H.264, que o browser não toca nativo).
+// Então montamos um multipart/x-mixed-replace a partir de snapshots rápidos.
+// Roda só em localhost: o navegador do PC da portaria (mesma rede da câmera)
+// consome direto — sem a latência da nuvem. ~3 fps (teto do snapshot).
+
+function startLiveViewServer() {
+  const server = http.createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      return res.end();
+    }
+    const reqPath = (req.url || '').split('?')[0];
+    if (reqPath !== '/liveview' && reqPath !== '/snapshot') {
+      res.writeHead(404);
+      return res.end('not found');
+    }
+    const device = lastDevices.find((d) => d.fabricante === 'intelbras');
+    if (!device) {
+      res.writeHead(503);
+      return res.end('nenhum terminal facial conectado');
+    }
+    if (reqPath === '/snapshot') {
+      snapshotComDigest(device, {})
+        .then((jpeg) => {
+          res.writeHead(200, {
+            'Content-Type': 'image/jpeg',
+            'Cache-Control': 'no-store',
+          });
+          res.end(jpeg);
+        })
+        .catch(() => {
+          res.writeHead(502);
+          res.end('falha ao capturar');
+        });
+      return;
+    }
+    streamLiveView(device, res);
+  });
+  server.on('error', (e) =>
+    console.error(
+      `[agente] preview ao vivo não subiu (porta ${LIVEVIEW_PORT}): ${e.message}`,
+    ),
+  );
+  server.listen(LIVEVIEW_PORT, '127.0.0.1', () =>
+    console.log(
+      `[agente] preview ao vivo em http://localhost:${LIVEVIEW_PORT}/liveview`,
+    ),
+  );
+}
+
+async function streamLiveView(device, res) {
+  const boundary = 'liveviewframe';
+  res.writeHead(200, {
+    'Content-Type': `multipart/x-mixed-replace; boundary=${boundary}`,
+    'Cache-Control': 'no-cache, no-store',
+    Pragma: 'no-cache',
+    Connection: 'close',
+  });
+  let alive = true;
+  res.on('close', () => {
+    alive = false;
+  });
+  const st = {}; // estado do Digest (reusa o nonce entre quadros = mais fps)
+  while (alive) {
+    let jpeg = null;
+    try {
+      jpeg = await snapshotComDigest(device, st);
+    } catch {
+      /* tenta no próximo ciclo */
+    }
+    if (!alive) break;
+    if (jpeg && jpeg.length > 500) {
+      try {
+        res.write(
+          `--${boundary}\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.length}\r\n\r\n`,
+        );
+        res.write(jpeg);
+        res.write('\r\n');
+      } catch {
+        break;
+      }
+    } else {
+      await sleep(150);
+    }
+  }
+  try {
+    res.end();
+  } catch {
+    /* já fechou */
+  }
+}
+
+/** GET snapshot reutilizando o nonce do Digest (evita o 401 a cada quadro). */
+function snapshotComDigest(device, st) {
+  const reqPath = '/cgi-bin/snapshot.cgi?channel=1';
+  const user = device.api_user || 'admin';
+  const pass = device.api_password || 'admin';
+  const fetchOne = (authHeader) =>
+    new Promise((resolve, reject) => {
+      const req = http.request(
+        {
+          host: device.ip,
+          port: device.porta,
+          path: reqPath,
+          method: 'GET',
+          headers: authHeader ? { Authorization: authHeader } : {},
+        },
+        (r) => {
+          const chunks = [];
+          r.on('data', (c) => chunks.push(c));
+          r.on('end', () =>
+            resolve({
+              status: r.statusCode,
+              wa: r.headers['www-authenticate'],
+              body: Buffer.concat(chunks),
+            }),
+          );
+        },
+      );
+      req.on('error', reject);
+      req.setTimeout(LAN_TIMEOUT_MS, () => req.destroy(new Error('timeout')));
+      req.end();
+    });
+
+  return (async () => {
+    if (st.realm) {
+      st.nc = (st.nc || 0) + 1;
+      const r = await fetchOne(computeDigest(user, pass, 'GET', reqPath, st));
+      if (r.status === 200) return r.body; // nonce ainda válido (1 req/quadro)
+      if (r.status === 401 && r.wa) {
+        parseChallengeInto(r.wa, st);
+        st.nc = 1;
+        return (await fetchOne(computeDigest(user, pass, 'GET', reqPath, st)))
+          .body;
+      }
+    }
+    const c = await fetchOne(null); // primeiro acesso: dispara o 401
+    if (c.status === 200) return c.body;
+    parseChallengeInto(c.wa || '', st);
+    st.nc = 1;
+    return (await fetchOne(computeDigest(user, pass, 'GET', reqPath, st))).body;
+  })();
+}
+
+function parseChallengeInto(wa, st) {
+  const g = (k) => {
+    const m = wa.match(new RegExp(`${k}="?([^",]+)"?`, 'i'));
+    return m ? m[1] : '';
+  };
+  st.realm = g('realm');
+  st.nonce = g('nonce');
+  st.qop = g('qop') ? g('qop').split(',')[0].trim() : '';
+}
+
+function computeDigest(user, pass, method, uri, st) {
+  const ha1 = md5(`${user}:${st.realm}:${pass}`);
+  const ha2 = md5(`${method}:${uri}`);
+  const nc = String(st.nc).padStart(8, '0');
+  const cnonce = crypto.randomBytes(8).toString('hex');
+  const response = st.qop
+    ? md5(`${ha1}:${st.nonce}:${nc}:${cnonce}:${st.qop}:${ha2}`)
+    : md5(`${ha1}:${st.nonce}:${ha2}`);
+  let h = `Digest username="${user}", realm="${st.realm}", nonce="${st.nonce}", uri="${uri}", response="${response}", algorithm=MD5`;
+  if (st.qop) h += `, qop=${st.qop}, nc=${nc}, cnonce="${cnonce}"`;
+  return h;
 }
 
 async function doPing(device) {

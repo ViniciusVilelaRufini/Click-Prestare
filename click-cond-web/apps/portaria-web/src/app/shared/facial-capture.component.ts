@@ -12,13 +12,16 @@ import { API_BASE } from './api.config';
 import { AuthService } from '../auth/auth.service';
 
 /**
- * Modal de captura pela CÂMERA do terminal facial, com preview "ao vivo".
+ * Modal de captura pela CÂMERA do terminal facial, com preview ao vivo.
  *
- * A câmera está na LAN do condomínio (IP privado) — o browser não a alcança.
- * Então o preview é montado por SNAPSHOTS em sequência (POST /facial/snapshot,
- * que vai pelo Agente Local). Não é vídeo fluido — é uma sucessão de quadros a
- * poucos FPS, o bastante para o operador posicionar o rosto na moldura e
- * capturar no melhor momento. "Capturar" congela o quadro exibido e o devolve.
+ * O aparelho não expõe vídeo (MJPEG vazio; só RTSP H.264). Então o "ao vivo" é
+ * uma sucessão de snapshots (~3 fps, teto do aparelho). Dois caminhos:
+ *
+ *   1. AGENTE LOCAL (preferido): se o navegador está no PC da portaria (mesma
+ *      máquina/rede do agente), consome http://localhost:8788/liveview (MJPEG
+ *      montado pelo agente) — rápido, sem a nuvem. Captura via /snapshot local.
+ *   2. NUVEM (fallback): se o localhost não responde (navegador em outro PC),
+ *      cai para snapshots via API (mais lento). O preview avisa.
  */
 @Component({
   selector: 'app-facial-capture',
@@ -41,7 +44,13 @@ import { AuthService } from '../auth/auth.service';
           <div
             class="relative aspect-[3/4] rounded-xl overflow-hidden bg-black flex items-center justify-center"
           >
-            @if (previewUrl()) {
+            @if (liveUrl()) {
+              <img
+                [src]="liveUrl()"
+                (error)="onLiveErro()"
+                class="w-full h-full object-cover"
+              />
+            } @else if (previewUrl()) {
               <img [src]="previewUrl()" class="w-full h-full object-cover" />
             } @else if (erro()) {
               <div class="text-rose-400 text-xs p-6 text-center">{{ erro() }}</div>
@@ -54,8 +63,7 @@ import { AuthService } from '../auth/auth.service';
               </div>
             }
 
-            <!-- Moldura guia (oval) com vinheta ao redor -->
-            @if (previewUrl()) {
+            @if (liveUrl() || previewUrl()) {
               <div
                 class="pointer-events-none absolute inset-0 flex items-center justify-center"
               >
@@ -74,7 +82,11 @@ import { AuthService } from '../auth/auth.service';
           </div>
 
           <div class="text-[11px] text-slate-400 mt-2 text-center">
-            Posicione o rosto dentro da moldura e capture no melhor momento.
+            @if (liveFalhou()) {
+              Preview pela nuvem (mais lento) — abra no PC da portaria para o tempo real.
+            } @else {
+              Posicione o rosto dentro da moldura e capture no melhor momento.
+            }
           </div>
 
           <div class="flex gap-2 mt-3">
@@ -87,11 +99,11 @@ import { AuthService } from '../auth/auth.service';
             </button>
             <button
               type="button"
-              (click)="confirmar()"
-              [disabled]="!previewUrl()"
+              (click)="capturar()"
+              [disabled]="capturando() || (!liveUrl() && !previewUrl())"
               class="flex-1 px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-50"
             >
-              Capturar foto
+              {{ capturando() ? 'Capturando…' : 'Capturar foto' }}
             </button>
           </div>
         </div>
@@ -103,18 +115,21 @@ export class FacialCaptureComponent {
   private http = inject(HttpClient);
   private auth = inject(AuthService);
 
-  readonly previewUrl = signal<string | null>(null);
+  /** Agente local (preview/captura rápidos). */
+  private readonly localBase = 'http://localhost:8788';
+
+  readonly liveUrl = signal<string | null>(null); // MJPEG do agente local
+  readonly previewUrl = signal<string | null>(null); // fallback nuvem
+  readonly liveFalhou = signal(false);
   readonly erro = signal<string | null>(null);
+  readonly capturando = signal(false);
 
   private _open = false;
   @Input() set open(v: boolean) {
     if (v === this._open) return;
     this._open = v;
-    if (v) {
-      this.previewUrl.set(null);
-      this.erro.set(null);
-      this.tick();
-    }
+    if (v) this.start();
+    else this.reset();
   }
   get open(): boolean {
     return this._open;
@@ -123,9 +138,29 @@ export class FacialCaptureComponent {
   @Output() captured = new EventEmitter<string>();
   @Output() cancelled = new EventEmitter<void>();
 
-  /** Busca um quadro e agenda o próximo enquanto o modal estiver aberto. */
-  private tick(): void {
-    if (!this._open) return;
+  private reset() {
+    this.liveUrl.set(null);
+    this.previewUrl.set(null);
+    this.liveFalhou.set(false);
+    this.erro.set(null);
+    this.capturando.set(false);
+  }
+
+  private start() {
+    this.reset();
+    this.liveUrl.set(`${this.localBase}/liveview?t=${Date.now()}`);
+  }
+
+  /** O <img> local falhou: navegador fora do PC do agente → fallback nuvem. */
+  onLiveErro() {
+    if (this.liveFalhou()) return;
+    this.liveFalhou.set(true);
+    this.liveUrl.set(null);
+    this.tickNuvem();
+  }
+
+  private tickNuvem() {
+    if (!this._open || !this.liveFalhou()) return;
     const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
     const params = new HttpParams().set('id_condominio', String(cid));
     this.http
@@ -134,24 +169,46 @@ export class FacialCaptureComponent {
         next: (r) => {
           if (!this._open) return;
           this.previewUrl.set(r.foto);
-          // Pequeno respiro entre quadros; o limite real é o ciclo do agente.
-          setTimeout(() => this.tick(), 250);
+          setTimeout(() => this.tickNuvem(), 300);
         },
         error: (e) => {
           this.erro.set(
-            e?.error?.message ?? 'Falha ao acessar a câmera do terminal facial.',
+            e?.error?.message ?? 'Falha ao acessar a câmera do terminal.',
           );
         },
       });
   }
 
-  confirmar(): void {
-    const f = this.previewUrl();
-    this._open = false;
-    if (f) this.captured.emit(f);
+  async capturar() {
+    this.capturando.set(true);
+    try {
+      let dataUrl = '';
+      if (!this.liveFalhou()) {
+        const resp = await fetch(`${this.localBase}/snapshot?t=${Date.now()}`);
+        if (!resp.ok) throw new Error('snapshot local falhou');
+        dataUrl = await this.blobToDataUrl(await resp.blob());
+      } else {
+        dataUrl = this.previewUrl() ?? '';
+      }
+      this.capturando.set(false);
+      this._open = false;
+      if (dataUrl) this.captured.emit(dataUrl);
+    } catch {
+      this.capturando.set(false);
+      this.erro.set('Falha ao capturar a foto. Tente novamente.');
+    }
   }
 
-  cancelar(): void {
+  private blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  }
+
+  cancelar() {
     this._open = false;
     this.cancelled.emit();
   }
