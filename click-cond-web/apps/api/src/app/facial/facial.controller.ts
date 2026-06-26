@@ -20,6 +20,7 @@ import {
   WebhookEventDto,
 } from './facial.service';
 import { MockRelayService } from './mock-relay.service';
+import { CategoriaPessoa } from './access-rules.util';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertTenantStrict, requireTenant } from '../auth/tenant.util';
@@ -102,14 +103,29 @@ export class FacialController {
   syncAll(
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
     @ReqUser() user: JwtPayload,
+    @Query('categorias') categorias?: string,
+    @Query('deviceIds') deviceIds?: string,
   ) {
     assertTenantStrict(
       idCondominio,
       user,
       `sync facial do condomínio ${idCondominio}`,
     );
+    // categorias=morador,visitante  |  deviceIds=5,7  (CSV; ausente = todos)
+    const cats = (categorias ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c): c is CategoriaPessoa =>
+        ['morador', 'visitante', 'prestador', 'funcionario'].includes(c),
+      );
+    const ids = (deviceIds ?? '')
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n));
     return this.service.syncAllForCondominio(idCondominio, {
       onlyPending: false,
+      categorias: cats.length ? cats : undefined,
+      deviceIds: ids.length ? ids : undefined,
     });
   }
 
@@ -124,6 +140,19 @@ export class FacialController {
       `status facial do condomínio ${idCondominio}`,
     );
     return this.service.getSyncStatus(idCondominio);
+  }
+
+  @Get('sync/pessoas')
+  syncPessoas(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(
+      idCondominio,
+      user,
+      `pessoas facial do condomínio ${idCondominio}`,
+    );
+    return this.service.listSyncPessoas(idCondominio);
   }
 
   // ----- Agente: chave e download de configuração personalizada -----

@@ -644,7 +644,7 @@ export class FacialService {
     return permitidas === null || permitidas.has(categoria);
   }
 
-  async syncMorador(idMorador: number) {
+  async syncMorador(idMorador: number, opts: { deviceIds?: number[] } = {}) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
@@ -678,8 +678,14 @@ export class FacialService {
 
     // Só sincronizamos com terminais faciais — botoeira, catraca, leitores
     // de QR/RFID não têm endpoint de cadastro de pessoa (não recebem foto).
+    // opts.deviceIds limita a quais terminais mandar (seleção no portal).
     const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: morador.id_condominio, ativo: 1, tipo: 'facial' },
+      where: {
+        id_condominio: morador.id_condominio,
+        ativo: 1,
+        tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+      },
     });
     if (devices.length === 0) {
       return { skipped: true, reason: 'no_facial_devices' };
@@ -696,6 +702,7 @@ export class FacialService {
       morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
     let faceId: string | null = morador.face_id ?? null;
     let allOk = true;
+    let ultimoErro: string | null = null;
     const devicesSincronizados: number[] = [];
     for (const device of devices) {
       try {
@@ -725,8 +732,9 @@ export class FacialService {
         devicesSincronizados.push(device.id);
       } catch (err: any) {
         allOk = false;
+        ultimoErro = err?.message ?? String(err);
         this.logger.warn(
-          `Sync morador ${idMorador} device ${device.id} falhou: ${err?.message ?? err}`,
+          `Sync morador ${idMorador} device ${device.id} falhou: ${ultimoErro}`,
         );
       }
     }
@@ -747,19 +755,37 @@ export class FacialService {
         );
     }
 
+    const status = this.classificarSync(allOk, ultimoErro);
     await this.prisma.moradores.update({
       where: { id: idMorador },
       data: {
         face_id: faceId,
-        face_sync_status: allOk ? 'synced' : 'pending',
+        face_sync_status: status,
         face_enrolled_at: allOk ? new Date() : morador.face_enrolled_at,
       },
     });
 
-    return { ok: allOk, face_id: faceId };
+    return { ok: allOk, face_id: faceId, status, error: ultimoErro };
   }
 
-  async syncVisitante(idVisitante: number) {
+  /**
+   * Classifica o resultado de um sync por pessoa:
+   *   synced  = deu certo
+   *   error   = foto recusada pelo aparelho (sem rosto nítido) — não adianta
+   *             re-tentar até trocar a foto
+   *   pending = falha transitória (agente offline/timeout) — re-tenta sozinho
+   */
+  private classificarSync(
+    allOk: boolean,
+    ultimoErro: string | null,
+  ): 'synced' | 'error' | 'pending' {
+    if (allOk) return 'synced';
+    const e = (ultimoErro ?? '').toLowerCase();
+    if (/recus|bad request|sem rosto|\bface\b|rosto/.test(e)) return 'error';
+    return 'pending';
+  }
+
+  async syncVisitante(idVisitante: number, opts: { deviceIds?: number[] } = {}) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
@@ -787,12 +813,13 @@ export class FacialService {
     }
 
     // Só terminais faciais recebem cadastro de pessoa (foto + face_id).
-    // Botoeira/catraca/QR/RFID não armazenam biometria.
+    // Botoeira/catraca/QR/RFID não armazenam biometria. opts.deviceIds limita.
     const devices = await this.prisma.facial_Devices.findMany({
       where: {
         id_condominio: visitante.id_condominio,
         ativo: 1,
         tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
       },
     });
     if (devices.length === 0) {
@@ -810,6 +837,7 @@ export class FacialService {
       visitante.is_prestador === 1 ? 'prestador' : 'visitante';
     let faceId: string | null = visitante.face_id ?? null;
     let allOk = true;
+    let ultimoErro: string | null = null;
     const devicesSincronizados: number[] = [];
     for (const device of devices) {
       try {
@@ -837,8 +865,9 @@ export class FacialService {
         devicesSincronizados.push(device.id);
       } catch (err: any) {
         allOk = false;
+        ultimoErro = err?.message ?? String(err);
         this.logger.warn(
-          `Sync visitante ${idVisitante} device ${device.id} falhou: ${err?.message ?? err}`,
+          `Sync visitante ${idVisitante} device ${device.id} falhou: ${ultimoErro}`,
         );
       }
     }
@@ -858,16 +887,17 @@ export class FacialService {
         );
     }
 
+    const status = this.classificarSync(allOk, ultimoErro);
     await this.prisma.visitantes.update({
       where: { id: idVisitante },
       data: {
         face_id: faceId,
-        face_sync_status: allOk ? 'synced' : 'pending',
+        face_sync_status: status,
         face_enrolled_at: allOk ? new Date() : visitante.face_enrolled_at,
       },
     });
 
-    return { ok: allOk, face_id: faceId };
+    return { ok: allOk, face_id: faceId, status, error: ultimoErro };
   }
 
   async unsyncMorador(
@@ -932,7 +962,13 @@ export class FacialService {
    */
   async syncAllForCondominio(
     idCondominio: number,
-    opts: { onlyPending?: boolean } = {},
+    opts: {
+      onlyPending?: boolean;
+      /** Filtra QUEM sincronizar. Vazio/ausente = todas as categorias. */
+      categorias?: CategoriaPessoa[];
+      /** Limita a QUAIS terminais faciais mandar. Vazio/ausente = todos. */
+      deviceIds?: number[];
+    } = {},
   ) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
@@ -961,28 +997,52 @@ export class FacialService {
         }
       : {};
 
+    // Filtro por categoria. moradores table = morador|funcionario;
+    // visitantes table = visitante|prestador. Sub-filtro com null-safety.
+    const cats = opts.categorias?.length ? new Set(opts.categorias) : null;
+    const queryMorador =
+      !cats || cats.has('morador') || cats.has('funcionario');
+    const queryVisitante =
+      !cats || cats.has('visitante') || cats.has('prestador');
+    const moradorTipoWhere =
+      !cats || (cats.has('morador') && cats.has('funcionario'))
+        ? {}
+        : cats.has('funcionario')
+          ? { tipo: 'funcionario' }
+          : { OR: [{ tipo: { not: 'funcionario' } }, { tipo: null }] };
+    const visitanteTipoWhere =
+      !cats || (cats.has('visitante') && cats.has('prestador'))
+        ? {}
+        : cats.has('prestador')
+          ? { is_prestador: 1 }
+          : { OR: [{ is_prestador: { not: 1 } }, { is_prestador: null }] };
+
     // Relevante para sync = tem foto (cadastrar) OU tem face_id (pode precisar
     // RECONCILIAR/remover do aparelho — ex.: foto removida deixou rosto órfão).
-    // AND evita colisão de chave 'OR' com o filtro de pendentes.
+    // AND evita colisão de chave 'OR' com o filtro de pendentes/categoria.
     const temFotoOuFace = {
       OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
     };
     const [moradores, visitantes] = await Promise.all([
-      this.prisma.moradores.findMany({
-        where: {
-          id_condominio: idCondominio,
-          AND: [temFotoOuFace, pendenteWhere],
-        },
-        select: { id: true },
-      }),
-      this.prisma.visitantes.findMany({
-        where: {
-          id_condominio: idCondominio,
-          data_saida: null,
-          AND: [temFotoOuFace, pendenteWhere],
-        },
-        select: { id: true },
-      }),
+      queryMorador
+        ? this.prisma.moradores.findMany({
+            where: {
+              id_condominio: idCondominio,
+              AND: [temFotoOuFace, pendenteWhere, moradorTipoWhere],
+            },
+            select: { id: true },
+          })
+        : Promise.resolve([] as { id: number }[]),
+      queryVisitante
+        ? this.prisma.visitantes.findMany({
+            where: {
+              id_condominio: idCondominio,
+              data_saida: null,
+              AND: [temFotoOuFace, pendenteWhere, visitanteTipoWhere],
+            },
+            select: { id: true },
+          })
+        : Promise.resolve([] as { id: number }[]),
     ]);
 
     const total = moradores.length + visitantes.length;
@@ -994,9 +1054,10 @@ export class FacialService {
       let ok = 0;
       let falhou = 0;
       try {
+        const deviceIds = opts.deviceIds;
         for (const m of moradores) {
           try {
-            await this.syncMorador(m.id);
+            await this.syncMorador(m.id, { deviceIds });
             ok++;
           } catch (e: any) {
             falhou++;
@@ -1005,7 +1066,7 @@ export class FacialService {
         }
         for (const v of visitantes) {
           try {
-            await this.syncVisitante(v.id);
+            await this.syncVisitante(v.id, { deviceIds });
             ok++;
           } catch (e: any) {
             falhou++;
@@ -1088,6 +1149,90 @@ export class FacialService {
       total,
       running: this.bulkSyncEmAndamento.has(idCondominio),
     };
+  }
+
+  /**
+   * Lista por PESSOA o status de sincronização facial (com motivo legível), para
+   * o portal mostrar QUEM está pendente/erro — não só os números. Ordena erros e
+   * pendentes primeiro. Inclui quem tem foto OU face_id (pega órfãos também).
+   */
+  async listSyncPessoas(idCondominio: number) {
+    if (!this.prisma.isConnected) return [];
+    const where = {
+      OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
+    };
+    const [moradores, visitantes] = await Promise.all([
+      this.prisma.moradores.findMany({
+        where: { id_condominio: idCondominio, ...where },
+        select: {
+          id: true,
+          nome: true,
+          tipo: true,
+          foto_pessoa: true,
+          face_sync_status: true,
+        },
+      }),
+      this.prisma.visitantes.findMany({
+        where: { id_condominio: idCondominio, data_saida: null, ...where },
+        select: {
+          id: true,
+          nome: true,
+          is_prestador: true,
+          foto_pessoa: true,
+          face_sync_status: true,
+        },
+      }),
+    ]);
+
+    const lista = [
+      ...moradores.map((m) => ({
+        tipo: 'morador' as const,
+        categoria:
+          m.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador',
+        id: m.id,
+        nome: m.nome,
+        tem_foto: !!m.foto_pessoa,
+        status: this.statusPessoa(m.face_sync_status, !!m.foto_pessoa),
+        motivo: this.motivoSync(m.face_sync_status, !!m.foto_pessoa),
+      })),
+      ...visitantes.map((v) => ({
+        tipo: 'visitante' as const,
+        categoria: v.is_prestador === 1 ? 'prestador' : 'visitante',
+        id: v.id,
+        nome: v.nome,
+        tem_foto: !!v.foto_pessoa,
+        status: this.statusPessoa(v.face_sync_status, !!v.foto_pessoa),
+        motivo: this.motivoSync(v.face_sync_status, !!v.foto_pessoa),
+      })),
+    ];
+
+    const ordem: Record<string, number> = {
+      error: 0,
+      pending: 1,
+      no_photo: 2,
+      synced: 3,
+    };
+    lista.sort((a, b) => (ordem[a.status] ?? 9) - (ordem[b.status] ?? 9));
+    return lista;
+  }
+
+  private statusPessoa(
+    faceSyncStatus: string | null,
+    temFoto: boolean,
+  ): 'synced' | 'error' | 'pending' | 'no_photo' {
+    if (faceSyncStatus === 'synced') return 'synced';
+    if (faceSyncStatus === 'error') return 'error';
+    if (!temFoto) return 'no_photo';
+    return 'pending';
+  }
+
+  private motivoSync(faceSyncStatus: string | null, temFoto: boolean): string {
+    const s = this.statusPessoa(faceSyncStatus, temFoto);
+    if (s === 'synced') return 'Enviado ao aparelho.';
+    if (s === 'error')
+      return 'Foto recusada pelo aparelho (rosto não detectado). Troque a foto.';
+    if (s === 'no_photo') return 'Sem foto cadastrada.';
+    return 'Aguardando envio (terminal ou agente).';
   }
 
   // ---------- Webhook ----------
