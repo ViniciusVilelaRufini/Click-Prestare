@@ -626,6 +626,21 @@ export class FacialService {
     if (!morador)
       throw new NotFoundException(`Morador ${idMorador} não encontrado`);
     if (!morador.foto_pessoa) {
+      // Foto removida do cadastro: se a pessoa já tinha rosto no aparelho,
+      // REMOVE de todos os terminais — senão o morador continuaria abrindo com
+      // um rosto órfão. E zera o face_id para não ser tratado como cadastrado.
+      if (morador.face_id && morador.id_condominio) {
+        await this.unsyncMorador(
+          idMorador,
+          morador.face_id,
+          morador.id_condominio,
+        );
+        await this.prisma.moradores.update({
+          where: { id: idMorador },
+          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+        });
+        return { ok: true, removed: true };
+      }
       return { skipped: true, reason: 'no_photo' };
     }
     if (!morador.id_condominio) {
@@ -726,6 +741,19 @@ export class FacialService {
     if (!visitante)
       throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
     if (!visitante.foto_pessoa) {
+      // Foto removida: remove o rosto órfão do aparelho e zera o face_id.
+      if (visitante.face_id && visitante.id_condominio) {
+        await this.unsyncVisitante(
+          idVisitante,
+          visitante.face_id,
+          visitante.id_condominio,
+        );
+        await this.prisma.visitantes.update({
+          where: { id: idVisitante },
+          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+        });
+        return { ok: true, removed: true };
+      }
       return { skipped: true, reason: 'no_photo' };
     }
 
@@ -904,21 +932,25 @@ export class FacialService {
         }
       : {};
 
+    // Relevante para sync = tem foto (cadastrar) OU tem face_id (pode precisar
+    // RECONCILIAR/remover do aparelho — ex.: foto removida deixou rosto órfão).
+    // AND evita colisão de chave 'OR' com o filtro de pendentes.
+    const temFotoOuFace = {
+      OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
+    };
     const [moradores, visitantes] = await Promise.all([
       this.prisma.moradores.findMany({
         where: {
           id_condominio: idCondominio,
-          foto_pessoa: { not: null },
-          ...pendenteWhere,
+          AND: [temFotoOuFace, pendenteWhere],
         },
         select: { id: true },
       }),
       this.prisma.visitantes.findMany({
         where: {
           id_condominio: idCondominio,
-          foto_pessoa: { not: null },
           data_saida: null,
-          ...pendenteWhere,
+          AND: [temFotoOuFace, pendenteWhere],
         },
         select: { id: true },
       }),

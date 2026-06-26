@@ -639,8 +639,9 @@ export class VisitantesService {
       descricao: `Cadastro da pessoa "${dto.nome || ref.nome}" atualizado com sucesso.`,
     });
 
-    // Se a foto mudou e havia face_id, re-sincroniza
-    if (fotoPes && ref.face_id) {
+    // Foto tocada (nova OU removida) e havia cadastro: re-sincroniza —
+    // syncVisitante recadastra (foto nova) ou remove o rosto do aparelho (sem foto).
+    if (fotoPes !== undefined && ref.face_id) {
       this.fireFacialSync(ref.id);
     }
 
@@ -915,7 +916,8 @@ export class VisitantesService {
           ...(dto.categorias !== undefined && { categorias: dto.categorias }),
         },
       });
-      if (fotoPes !== undefined && fotoPes) {
+      // Inclui remoção da foto (fotoPes null) → syncVisitante remove o rosto.
+      if (fotoPes !== undefined) {
         this.fireFacialSync(updated.id);
       }
       const label = updated.is_prestador === 1 ? 'Prestador' : 'Visitante';

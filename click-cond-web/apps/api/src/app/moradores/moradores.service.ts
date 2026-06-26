@@ -979,7 +979,9 @@ export class MoradoresService {
       );
     }
 
-    if (fotoPessoaUrl !== undefined && fotoPessoaUrl) {
+    // Roda quando o campo foto foi tocado — INCLUSIVE remoção (foto null).
+    // syncMorador cadastra (foto nova) ou remove o rosto do aparelho (sem foto).
+    if (fotoPessoaUrl !== undefined) {
       this.fireFacialSync(id);
     }
 
