@@ -643,7 +643,14 @@ export class FacialDeviceClientService {
         },
       ],
     };
-    let r = await this.send(
+    // Replace limpo: remove antes (idempotente) p/ evitar "Bad Request" de
+    // duplicado ao re-sincronizar (trava o cadastro em "pendente"). Ver agent/.
+    await this.send(
+      device,
+      'GET',
+      `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encodeURIComponent(userId)}`,
+    ).catch(() => undefined);
+    const r = await this.send(
       device,
       'POST',
       '/cgi-bin/AccessUser.cgi?action=insertMulti',
@@ -654,15 +661,6 @@ export class FacialDeviceClientService {
       !(r.status >= 200 && r.status < 300) ||
       /error/i.test(String(r.data ?? ''))
     ) {
-      r = await this.send(
-        device,
-        'POST',
-        '/cgi-bin/AccessUser.cgi?action=updateMulti',
-        body,
-        'application/json',
-      );
-    }
-    if (!(r.status >= 200 && r.status < 300)) {
       throw new Error(`Intelbras: falha ao gravar usuário (HTTP ${r.status})`);
     }
   }
@@ -674,13 +672,25 @@ export class FacialDeviceClientService {
     fotoBase64: string,
   ): Promise<void> {
     const body = { FaceList: [{ UserID: userId, PhotoData: [fotoBase64] }] };
-    const r = await this.send(
+    let r = await this.send(
       device,
       'POST',
       '/cgi-bin/AccessFace.cgi?action=insertMulti',
       body,
       'application/json',
     );
+    if (
+      !(r.status >= 200 && r.status < 300) ||
+      /error/i.test(String(r.data ?? ''))
+    ) {
+      r = await this.send(
+        device,
+        'POST',
+        '/cgi-bin/AccessFace.cgi?action=updateMulti',
+        body,
+        'application/json',
+      );
+    }
     if (
       !(r.status >= 200 && r.status < 300) ||
       /error/i.test(String(r.data ?? ''))

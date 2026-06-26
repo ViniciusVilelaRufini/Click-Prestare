@@ -594,37 +594,48 @@ async function dahuaEnroll(device, cmd) {
       },
     ],
   };
-  // insertMulti cria; se já existir (ou update), cai para updateMulti.
-  let u = await lanRequest(
+  // REPLACE LIMPO: remove antes (idempotente). Sem isso, re-sincronizar um rosto
+  // que já existe dá "Bad Request" no insertMulti (duplicado) e o cadastro trava
+  // em "pendente" para sempre (0 enviados). Remover o usuário leva o rosto junto.
+  await lanRequest(
+    device,
+    'GET',
+    `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encodeURIComponent(userId)}`,
+  ).catch(() => {});
+
+  // Cria o usuário do zero.
+  const u = await lanRequest(
     device,
     'POST',
     '/cgi-bin/AccessUser.cgi?action=insertMulti',
     { json: userBody },
   );
   if (!(u.status >= 200 && u.status < 300) || /error/i.test(String(u.raw || ''))) {
-    u = await lanRequest(
-      device,
-      'POST',
-      '/cgi-bin/AccessUser.cgi?action=updateMulti',
-      { json: userBody },
-    );
-  }
-  if (!(u.status >= 200 && u.status < 300)) {
     return {
       ok: false,
       statusCode: u.status,
       error: `usuário: ${String(u.raw || '').slice(0, 120)}`,
     };
   }
-  // Sobe o rosto. O aparelho extrai a biometria e recusa imagem sem rosto nítido.
+
+  // Sobe o rosto (insert do zero; fallback updateMulti por segurança). O aparelho
+  // extrai a biometria e recusa imagem sem rosto nítido — aí sim é foto ruim.
   if (cmd.fotoBase64) {
     const faceBody = { FaceList: [{ UserID: userId, PhotoData: [cmd.fotoBase64] }] };
-    const f = await lanRequest(
+    let f = await lanRequest(
       device,
       'POST',
       '/cgi-bin/AccessFace.cgi?action=insertMulti',
       { json: faceBody },
     );
+    if (!(f.status >= 200 && f.status < 300) || /error/i.test(String(f.raw || ''))) {
+      f = await lanRequest(
+        device,
+        'POST',
+        '/cgi-bin/AccessFace.cgi?action=updateMulti',
+        { json: faceBody },
+      );
+    }
     if (!(f.status >= 200 && f.status < 300) || /error/i.test(String(f.raw || ''))) {
       return {
         ok: false,
