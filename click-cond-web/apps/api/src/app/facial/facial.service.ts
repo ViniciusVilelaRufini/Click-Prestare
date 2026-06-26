@@ -812,6 +812,29 @@ export class FacialService {
       return { skipped: true, reason: 'no_photo' };
     }
 
+    // O rosto do visitante só fica no aparelho enquanto ele está AUTORIZADO —
+    // liberado=1 OU atualmente DENTRO (entrou e ainda não saiu, p/ poder sair).
+    // Sem isso, um visitante já não-liberado seria reconhecido e o aparelho
+    // ABRIRIA, mesmo a nuvem negando. Prestador (liberado fixo=1) permanece.
+    const autorizado =
+      visitante.liberado === 1 ||
+      (!!visitante.data_entrada && !visitante.data_saida);
+    if (!autorizado) {
+      if (visitante.face_id && visitante.id_condominio) {
+        await this.unsyncVisitante(
+          idVisitante,
+          visitante.face_id,
+          visitante.id_condominio,
+        );
+        await this.prisma.visitantes.update({
+          where: { id: idVisitante },
+          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+        });
+        return { ok: true, removed: true, reason: 'nao_autorizado' };
+      }
+      return { skipped: true, reason: 'nao_autorizado' };
+    }
+
     // Só terminais faciais recebem cadastro de pessoa (foto + face_id).
     // Botoeira/catraca/QR/RFID não armazenam biometria. opts.deviceIds limita.
     const devices = await this.prisma.facial_Devices.findMany({
@@ -1950,6 +1973,16 @@ export class FacialService {
             'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.',
           );
         }
+
+        // Saiu: a autorização do visitante (não-prestador) foi consumida
+        // (liberado=0). Re-sincroniza em background para REMOVER o rosto do
+        // aparelho — senão ele continuaria abrindo no próximo reconhecimento,
+        // mesmo a nuvem negando. syncVisitante decide (prestador permanece).
+        void this.syncVisitante(v.id).catch((err) =>
+          this.logger.warn(
+            `Re-sync pós-saída do visitante ${v.id} falhou: ${err?.message ?? err}`,
+          ),
+        );
       }
 
       await this.prisma.acessos_Facial.create({
