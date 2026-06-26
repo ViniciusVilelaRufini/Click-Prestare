@@ -1010,12 +1010,14 @@ export class FacialService {
         : cats.has('funcionario')
           ? { tipo: 'funcionario' }
           : { OR: [{ tipo: { not: 'funcionario' } }, { tipo: null }] };
+    // is_prestador é Int não-nulável (0/1) — NÃO filtrar por null (quebra o
+    // Prisma). visitante = is_prestador != 1; prestador = is_prestador == 1.
     const visitanteTipoWhere =
       !cats || (cats.has('visitante') && cats.has('prestador'))
         ? {}
         : cats.has('prestador')
           ? { is_prestador: 1 }
-          : { OR: [{ is_prestador: { not: 1 } }, { is_prestador: null }] };
+          : { is_prestador: { not: 1 } };
 
     // Relevante para sync = tem foto (cadastrar) OU tem face_id (pode precisar
     // RECONCILIAR/remover do aparelho — ex.: foto removida deixou rosto órfão).
