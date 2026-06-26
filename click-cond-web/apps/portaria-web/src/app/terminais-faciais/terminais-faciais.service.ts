@@ -26,6 +26,11 @@ export interface TerminalFacial {
   updated_at: string;
   /** True se há um Agente Local fazendo polling deste device agora. */
   agent_online?: boolean;
+  /**
+   * Status do APARELHO na LAN, do heartbeat do agente:
+   * true=online, false=offline, null/undefined=desconhecido (sem reporte recente).
+   */
+  device_online?: boolean | null;
 }
 
 export interface CreateTerminalFacial {

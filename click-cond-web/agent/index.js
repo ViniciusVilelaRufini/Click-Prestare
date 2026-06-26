@@ -61,6 +61,10 @@ let DEVICE_TOKENS = (process.env.DEVICE_TOKENS || '')
   .filter(Boolean);
 const DEFAULT_POLL_MS = Number(process.env.POLL_INTERVAL_MS || 2000);
 const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
+// Intervalo do heartbeat de status do aparelho (online/offline no portal).
+const DEVICE_STATUS_INTERVAL_MS = Number(
+  process.env.DEVICE_STATUS_INTERVAL_MS || 20000,
+);
 
 const temConfig = () => API_URL && (AGENT_TOKEN || DEVICE_TOKENS.length > 0);
 
@@ -131,6 +135,7 @@ function extractToken(input) {
 async function runCondoLoop(token) {
   let pollMs = DEFAULT_POLL_MS;
   let errBackoff = 0;
+  let lastStatusAt = 0; // throttle do heartbeat de status do aparelho
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -165,6 +170,31 @@ async function runCondoLoop(token) {
               result.error ? ' (' + result.error + ')' : ''
             }`,
           );
+        }
+      }
+
+      // Heartbeat de status do aparelho (throttled ~20s): pinga cada device na
+      // LAN e reporta, para o portal mostrar online/offline automaticamente.
+      if (Date.now() - lastStatusAt >= DEVICE_STATUS_INTERVAL_MS) {
+        lastStatusAt = Date.now();
+        const statuses = [];
+        for (const entry of body.devices || []) {
+          const device = entry.device;
+          let online = false;
+          try {
+            const r = await doPing(device);
+            online = !!r.ok;
+          } catch {
+            online = false;
+          }
+          statuses.push({ deviceId: device.id, online });
+        }
+        if (statuses.length > 0) {
+          await cloudRequest(
+            'POST',
+            `/api/facial/agent/condo/${token}/device-status`,
+            { statuses },
+          ).catch(() => {});
         }
       }
     } catch (err) {

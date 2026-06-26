@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, Input } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -14,9 +14,10 @@ import {
   imports: [CommonModule, FormsModule],
   templateUrl: './terminais-faciais-page.component.html',
 })
-export class TerminaisFaciaisPageComponent implements OnInit {
+export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   @Input() embedded = false;
   private api = inject(TerminaisFaciaisApi);
+  private statusInterval?: ReturnType<typeof setInterval>;
 
   readonly loading = signal(false);
   readonly terminais = signal<TerminalFacial[]>([]);
@@ -149,6 +150,13 @@ export class TerminaisFaciaisPageComponent implements OnInit {
     this.load();
     this.loadSyncStatus();
     this.loadAgentInfo();
+    // Atualiza o status online/offline dos aparelhos a cada 15s (silencioso),
+    // refletindo o heartbeat do agente sem o operador clicar "Testar Conexão".
+    this.statusInterval = setInterval(() => this.load(true), 15_000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.statusInterval) clearInterval(this.statusInterval);
   }
 
   loadSyncStatus() {
@@ -280,18 +288,34 @@ export class TerminaisFaciaisPageComponent implements OnInit {
     return this.form.tipo === 'facial';
   }
 
-  load() {
-    this.loading.set(true);
+  load(silent = false) {
+    if (!silent) this.loading.set(true);
     this.api.list().subscribe({
       next: (list) => {
         this.terminais.set(list);
+        // Status automático do aparelho: vem do heartbeat do agente
+        // (device_online). Se ainda é desconhecido (null) mas o operador testou
+        // manualmente, preserva o resultado do teste.
+        this.statusMap.update((m) => {
+          const next = { ...m };
+          for (const t of list) {
+            if (t.device_online === true || t.device_online === false) {
+              next[t.id] = t.device_online;
+            } else if (next[t.id] === undefined) {
+              next[t.id] = null;
+            }
+          }
+          return next;
+        });
         this.loading.set(false);
       },
       error: (err) => {
         this.loading.set(false);
-        this.errorMessage.set(
-          err?.error?.message ?? 'Falha ao carregar terminais.',
-        );
+        if (!silent) {
+          this.errorMessage.set(
+            err?.error?.message ?? 'Falha ao carregar terminais.',
+          );
+        }
       },
     });
   }

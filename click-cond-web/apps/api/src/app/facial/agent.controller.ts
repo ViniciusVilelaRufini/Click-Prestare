@@ -132,4 +132,19 @@ export class AgentController {
     const { deviceId, ...payload } = body ?? ({} as any);
     return this.service.processAgentEvent(token, Number(deviceId), payload);
   }
+
+  /**
+   * Heartbeat de status dos aparelhos: o agente pinga cada device na LAN a cada
+   * ~20s e reporta aqui, para o portal mostrar online/offline automaticamente
+   * (sem o operador clicar "Testar Conexão").
+   */
+  @Public()
+  @Post('condo/:token/device-status')
+  async condoDeviceStatus(
+    @Param('token') token: string,
+    @Body() body: { statuses?: { deviceId: number; online: boolean }[] },
+  ) {
+    const idCondominio = await this.service.resolveCondominioForAgent(token);
+    return this.service.reportDeviceStatuses(idCondominio, body?.statuses ?? []);
+  }
 }

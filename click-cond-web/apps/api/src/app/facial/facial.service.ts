@@ -158,7 +158,36 @@ export class FacialService {
       ...d,
       api_password: decryptSecret(d.api_password),
       agent_online: this.agent.isOnline(d.id),
+      // null = desconhecido (sem reporte recente do agente); true/false = status
+      // real do aparelho na LAN, atualizado pelo heartbeat do agente.
+      device_online: this.agent.isDeviceOnline(d.id),
     }));
+  }
+
+  /**
+   * Recebe o status dos aparelhos reportado pelo Agente Local (heartbeat
+   * periódico). Confina aos dispositivos do condomínio do token.
+   */
+  async reportDeviceStatuses(
+    idCondominio: number,
+    statuses: { deviceId: number; online: boolean }[],
+  ) {
+    if (!Array.isArray(statuses) || statuses.length === 0) return { ok: true };
+    const doCondominio = new Set(
+      (
+        await this.prisma.facial_Devices.findMany({
+          where: { id_condominio: idCondominio },
+          select: { id: true },
+        })
+      ).map((d) => d.id),
+    );
+    for (const s of statuses) {
+      const id = Number(s?.deviceId);
+      if (doCondominio.has(id)) {
+        this.agent.reportDeviceStatus(id, !!s.online);
+      }
+    }
+    return { ok: true };
   }
 
   async getDevice(id: number) {

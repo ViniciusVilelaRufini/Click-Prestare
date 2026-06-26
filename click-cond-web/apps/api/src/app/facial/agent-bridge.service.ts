@@ -46,8 +46,18 @@ export class AgentBridgeService {
   /** Intervalo sugerido de polling enviado ao agente. */
   readonly pollIntervalMs = Number(process.env.AGENT_POLL_INTERVAL_MS ?? 2_000);
 
+  /** Janela para considerar o status do APARELHO (na LAN) ainda recente. */
+  private readonly deviceStatusTtlMs = Number(
+    process.env.AGENT_DEVICE_STATUS_TTL_MS ?? 60_000,
+  );
+
   /** deviceId → timestamp do último poll (heartbeat). */
   private readonly lastSeen = new Map<number, number>();
+  /** deviceId → status do aparelho na LAN reportado pelo agente (ping periódico). */
+  private readonly deviceStatus = new Map<
+    number,
+    { online: boolean; at: number }
+  >();
   /** commandId → comando aguardando resposta. */
   private readonly pending = new Map<string, PendingCommand>();
   /** deviceId → fila de commandIds ainda não entregues no poll. */
@@ -62,6 +72,22 @@ export class AgentBridgeService {
   isOnline(deviceId: number): boolean {
     const t = this.lastSeen.get(deviceId);
     return t !== undefined && Date.now() - t < this.onlineTtlMs;
+  }
+
+  /** Agente reportou o status do aparelho (alcançável ou não) na LAN. */
+  reportDeviceStatus(deviceId: number, online: boolean): void {
+    this.deviceStatus.set(deviceId, { online, at: Date.now() });
+  }
+
+  /**
+   * Status do APARELHO: true=online, false=offline (reporte recente do agente),
+   * null=desconhecido (sem reporte recente — ex.: agente caiu). Diferente de
+   * isOnline(), que é sobre o AGENTE estar fazendo polling.
+   */
+  isDeviceOnline(deviceId: number): boolean | null {
+    const s = this.deviceStatus.get(deviceId);
+    if (!s || Date.now() - s.at >= this.deviceStatusTtlMs) return null;
+    return s.online;
   }
 
   /**
