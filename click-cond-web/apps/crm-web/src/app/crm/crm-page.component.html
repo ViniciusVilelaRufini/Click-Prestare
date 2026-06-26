@@ -1653,14 +1653,38 @@
                 </button>
               </div>
 
+              <!-- Filtros de Ocorrências -->
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/[0.04] pb-4">
+                <div class="flex items-center gap-1.5 bg-white/[0.02] p-1 rounded-lg border border-white/[0.05] self-start">
+                  <button (click)="filtroOcorrencias.set('tecnologia')"
+                    [class]="filtroOcorrencias() === 'tecnologia' ? 'bg-accent-500/15 text-accent-300 border-accent-500/20' : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/[0.02]'"
+                    class="press px-3.5 py-1.5 rounded-md text-2xs font-bold transition-all border">
+                    Tecnologia, App &amp; Acesso
+                  </button>
+                  <button (click)="filtroOcorrencias.set('todos')"
+                    [class]="filtroOcorrencias() === 'todos' ? 'bg-accent-500/15 text-accent-300 border-accent-500/20' : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/[0.02]'"
+                    class="press px-3.5 py-1.5 rounded-md text-2xs font-bold transition-all border">
+                    Todos os Chamados
+                  </button>
+                </div>
+                
+                <p class="text-3xs text-zinc-500 italic">
+                  @if (filtroOcorrencias() === 'tecnologia') {
+                    Exibindo apenas chamados de suporte técnico, facial, app e controle de acesso
+                  } @else {
+                    Exibindo todos os chamados internos e de manutenção geral do condomínio
+                  }
+                </p>
+              </div>
+
               @if (ocorrenciasLoading()) {
                 <div class="glass p-12 text-center text-zinc-500 flex flex-col items-center justify-center gap-3">
                   <svg class="animate-spin h-6 w-6 text-accent-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                   <span>Carregando chamados...</span>
                 </div>
-              } @else if (ocorrenciasList().length === 0) {
+              } @else if (ocorrenciasFiltradas().length === 0) {
                 <div class="glass p-12 text-center text-zinc-500">
-                  Nenhum chamado de suporte pendente ou registrado no momento.
+                  Nenhum chamado correspondente ao filtro ativo no momento.
                 </div>
               } @else {
                 <div class="glass overflow-hidden border border-white/[0.04]">
@@ -1677,7 +1701,7 @@
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-white/[0.02]">
-                      @for (o of ocorrenciasList(); track o.id) {
+                      @for (o of ocorrenciasFiltradas(); track o.id) {
                         <tr class="hover:bg-white/[0.01] transition">
                           <td class="p-4 font-mono text-zinc-500">#{{ o.id }}</td>
                           <td class="p-4 font-bold text-white">{{ o.condominio?.nome || 'Geral' }}</td>

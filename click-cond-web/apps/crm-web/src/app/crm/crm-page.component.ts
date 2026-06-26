@@ -98,6 +98,39 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   // --- Estados de Ocorrências / Chamados ---
   readonly ocorrenciasList = signal<any[]>([]);
+  readonly filtroOcorrencias = signal<'tecnologia' | 'todos'>('tecnologia');
+  readonly ocorrenciasFiltradas = computed(() => {
+    const list = this.ocorrenciasList();
+    const filtro = this.filtroOcorrencias();
+    if (filtro === 'todos') return list;
+
+    const techKeywords = [
+      'app', 'aplicativo', 'facial', 'face', 'reconhecimento',
+      'sistema', 'software', 'bug', 'erro', 'falha', 'instabilidade',
+      'entrar', 'acesso', 'bloqueado', 'bloqueada', 'nao consegue',
+      'nao esta conseguindo', 'liberar', 'liberacao', 'visitante',
+      'morador', 'botoeira', 'portao', 'abrir', 'abre', 'travado',
+      'travada', 'controle de acesso', 'rfid', 'tag', 'chaveiro',
+      'biometria', 'leitor', 'leitora', 'interfone', 'tecnico', 'tecnica',
+      'camera'
+    ];
+
+    const normalize = (text: string): string => {
+      return (text || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    };
+
+    return list.filter((o) => {
+      const desc = normalize(o.descricao || '');
+      const cat = normalize(o.categoria?.nome || '');
+      
+      return techKeywords.some(
+        (k) => desc.includes(k) || cat.includes(k)
+      );
+    });
+  });
   readonly ocorrenciasLoading = signal(false);
   readonly ocorrenciaSelecionada = signal<any | null>(null);
   readonly respostaTexto = signal('');
