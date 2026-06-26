@@ -196,6 +196,11 @@ export class FacialDeviceClientService {
         await this.controlIdLogin(device);
         return true;
       }
+      // Intelbras SS (Dahua): o handshake RPC2 prova conectividade.
+      if (device.fabricante === 'intelbras') {
+        await this.dahuaLogin(device);
+        return true;
+      }
       const res = await this.send(device, 'GET', '/status');
       return res.status >= 200 && res.status < 300;
     } catch (err: any) {
@@ -283,6 +288,18 @@ export class FacialDeviceClientService {
         const ok = res.status >= 200 && res.status < 300;
         return { ok, statusCode: res.status };
       }
+      // Intelbras SS (Dahua): abre o relé via cgi com Digest.
+      if (device.fabricante === 'intelbras') {
+        const res = await this.send(
+          device,
+          'GET',
+          '/cgi-bin/accessControl.cgi?action=openDoor&channel=1',
+        );
+        return {
+          ok: res.status >= 200 && res.status < 300,
+          statusCode: res.status,
+        };
+      }
       const endpoint =
         this.relayEndpoints[device.fabricante] ??
         this.relayEndpoints['genérico'];
@@ -329,6 +346,12 @@ export class FacialDeviceClientService {
     if (device.fabricante === 'control_id') {
       return this.controlIdEnroll(device, payload);
     }
+    if (device.fabricante === 'intelbras') {
+      const userId = String(payload.externalId);
+      await this.dahuaUpsertUser(device, userId, payload.nome);
+      if (payload.fotoBase64) await this.dahuaSetFace(device, userId, payload.fotoBase64);
+      return { faceId: userId };
+    }
     const res = await this.send(device, 'POST', '/persons', {
       external_id: payload.externalId,
       name: payload.nome,
@@ -364,6 +387,13 @@ export class FacialDeviceClientService {
       await this.controlIdUpdate(device, faceId, payload);
       return;
     }
+    if (device.fabricante === 'intelbras') {
+      const userId = String(faceId);
+      await this.dahuaUpsertUser(device, userId, payload.nome ?? userId);
+      if (payload.fotoBase64 !== undefined)
+        await this.dahuaSetFace(device, userId, payload.fotoBase64);
+      return;
+    }
     const body: any = {};
     if (payload.nome !== undefined) body.name = payload.nome;
     if (payload.fotoBase64 !== undefined)
@@ -393,6 +423,15 @@ export class FacialDeviceClientService {
             object: 'users',
             where: { users: { id: Number(faceId) } },
           },
+        );
+        return;
+      }
+      if (device.fabricante === 'intelbras') {
+        // Array vai como query-param (?UserIDList[0]=id), não JSON.
+        await this.send(
+          device,
+          'GET',
+          `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encodeURIComponent(faceId)}`,
         );
         return;
       }
@@ -494,6 +533,154 @@ export class FacialDeviceClientService {
         Buffer.from(payload.fotoBase64, 'base64'),
         { headers: { 'Content-Type': 'application/octet-stream' } },
       );
+    }
+  }
+
+  // ---------- Dahua / Intelbras (linha SS facial: SS 3530 MF FACE etc.) ----------
+  //
+  // VALIDADO ao vivo num SS 3530 MF FACE W (firmware 2.000.00IB004, 2021). A
+  // Intelbras é OEM da Dahua. Mantém em sincronia com o Agente Local (agent/),
+  // que é o caminho padrão em produção; este é o modo direto (on-premise).
+  //   - login:    RPC2 global.login em 2 etapas (challenge → hash MD5 maiúsculo)
+  //   - usuário:  cgi AccessUser.cgi insertMulti/updateMulti (Digest)
+  //   - rosto:    cgi AccessFace.cgi insertMulti (foto base64, Digest)
+  // O faceId guardado é o próprio UserID (nosso external_id, ex.: "morador_42").
+
+  /** Desserializa a resposta do RPC2 (que vem sem Content-Type). */
+  private rpcData(res: { data: unknown }): any {
+    if (typeof res.data === 'string') {
+      try {
+        return JSON.parse(res.data);
+      } catch {
+        return {};
+      }
+    }
+    return res.data ?? {};
+  }
+
+  private async dahuaLogin(device: FacialDeviceConfig): Promise<string> {
+    const base = this.baseUrl(device);
+    const user = device.api_user ?? 'admin';
+    const pass = device.api_password ?? 'admin';
+    const httpsAgent = base.startsWith('https')
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined;
+    const post = (data: unknown, cookie?: string) =>
+      axios.request({
+        url: base + '/RPC2_Login',
+        method: 'POST',
+        data,
+        headers: cookie ? { Cookie: cookie } : {},
+        timeout: this.timeoutMs,
+        httpsAgent,
+        validateStatus: () => true,
+      });
+
+    const s1 = await post({
+      method: 'global.login',
+      params: {
+        userName: user,
+        password: '',
+        clientType: 'Web3.0',
+        loginType: 'Direct',
+      },
+      id: 1,
+    });
+    const d1 = this.rpcData(s1);
+    const p = d1.params ?? {};
+    const session = d1.session;
+    if (!p.realm || !p.random || !session) {
+      throw new Error('Intelbras/Dahua: aparelho não respondeu o desafio (RPC2)');
+    }
+    const ha = this.md5(`${user}:${p.realm}:${pass}`).toUpperCase();
+    const loginHash = this.md5(`${user}:${p.random}:${ha}`).toUpperCase();
+    const s2 = await post(
+      {
+        method: 'global.login',
+        params: {
+          userName: user,
+          password: loginHash,
+          clientType: 'Web3.0',
+          loginType: 'Direct',
+          authorityType: 'Default',
+          passwordType: 'Default',
+        },
+        id: 2,
+        session,
+      },
+      `DWebClientSessionID=${session}`,
+    );
+    const d2 = this.rpcData(s2);
+    if (!d2.result) {
+      const msg = d2.error?.message ?? 'login negado';
+      throw new Error(`Intelbras/Dahua: ${msg} (confira usuário/senha)`);
+    }
+    return String(session);
+  }
+
+  /** Cria (ou atualiza) o usuário de acesso. ValidFrom em 2000 — ver agent/. */
+  private async dahuaUpsertUser(
+    device: FacialDeviceConfig,
+    userId: string,
+    nome?: string,
+  ): Promise<void> {
+    const body = {
+      UserList: [
+        {
+          UserID: userId,
+          UserName: nome || userId,
+          UserType: 0,
+          Authority: 2,
+          Doors: [0],
+          TimeSections: [255],
+          ValidFrom: '2000-01-01 00:00:00',
+          ValidTo: '2037-12-31 23:59:59',
+        },
+      ],
+    };
+    let r = await this.send(
+      device,
+      'POST',
+      '/cgi-bin/AccessUser.cgi?action=insertMulti',
+      body,
+      'application/json',
+    );
+    if (
+      !(r.status >= 200 && r.status < 300) ||
+      /error/i.test(String(r.data ?? ''))
+    ) {
+      r = await this.send(
+        device,
+        'POST',
+        '/cgi-bin/AccessUser.cgi?action=updateMulti',
+        body,
+        'application/json',
+      );
+    }
+    if (!(r.status >= 200 && r.status < 300)) {
+      throw new Error(`Intelbras: falha ao gravar usuário (HTTP ${r.status})`);
+    }
+  }
+
+  /** Sobe o rosto. O aparelho extrai a biometria e recusa imagem sem rosto. */
+  private async dahuaSetFace(
+    device: FacialDeviceConfig,
+    userId: string,
+    fotoBase64: string,
+  ): Promise<void> {
+    const body = { FaceList: [{ UserID: userId, PhotoData: [fotoBase64] }] };
+    const r = await this.send(
+      device,
+      'POST',
+      '/cgi-bin/AccessFace.cgi?action=insertMulti',
+      body,
+      'application/json',
+    );
+    if (
+      !(r.status >= 200 && r.status < 300) ||
+      /error/i.test(String(r.data ?? ''))
+    ) {
+      throw new Error(`Intelbras: rosto recusado (HTTP ${r.status})`);
     }
   }
 }
