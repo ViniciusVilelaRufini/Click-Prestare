@@ -389,9 +389,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.load();
     this.clockInterval = setInterval(() => this.agora.set(new Date()), 1000);
-    // Atualiza eventos do dashboard a cada 10s para refletir acessos faciais
+    // Atualiza eventos do dashboard a cada 4s para refletir acessos faciais
     // e outros eventos em near-real-time
-    this.refreshInterval = setInterval(() => this.load(), 10_000);
+    this.refreshInterval = setInterval(() => this.load(), 4_000);
 
     // Também recarrega quando a aba volta a ficar visível
     document.addEventListener('visibilitychange', this.onVisibilityChange);
