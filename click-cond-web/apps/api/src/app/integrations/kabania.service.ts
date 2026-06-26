@@ -2,6 +2,24 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from '../crm/crm.service';
 
+const TECH_KEYWORDS = [
+  'app', 'aplicativo', 'facial', 'face', 'reconhecimento',
+  'sistema', 'software', 'bug', 'erro', 'falha', 'instabilidade',
+  'entrar', 'acesso', 'bloqueado', 'bloqueada', 'nao consegue',
+  'nao esta conseguindo', 'liberar', 'liberacao', 'visitante',
+  'morador', 'botoeira', 'portao', 'abrir', 'abre', 'travado',
+  'travada', 'controle de acesso', 'rfid', 'tag', 'chaveiro',
+  'biometria', 'leitor', 'leitora', 'interfone', 'tecnico', 'tecnica',
+  'camera'
+];
+
+function normalizeText(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 @Injectable()
 export class KabaniaService {
   constructor(
@@ -50,7 +68,11 @@ export class KabaniaService {
             categoria: 'OFFLINE',
             severidade: 'alta'
           },
-        ],
+        ].filter((o) => {
+          const desc = normalizeText(o.descricao || '');
+          const cat = normalizeText(o.categoria || '');
+          return TECH_KEYWORDS.some((k) => desc.includes(k) || cat.includes(k));
+        }),
         funcionarios: [
           {
             id: 'func-1',
@@ -135,7 +157,11 @@ export class KabaniaService {
     const ocorrenciasFormatadas = [
       ...alertasFormatados,
       ...cardsOcorrenciasBanco
-    ];
+    ].filter((o) => {
+      const desc = normalizeText(o.descricao || '');
+      const cat = normalizeText(o.categoria || '');
+      return TECH_KEYWORDS.some((k) => desc.includes(k) || cat.includes(k));
+    });
 
     // 3. Funcionários e Portarias (Escalas)
     const funcionarios = await this.prisma.funcionarios.findMany({
