@@ -936,7 +936,39 @@ export class FacialService {
       where: { webhook_token: token, ativo: 1 },
     });
     if (!device) throw new UnauthorizedException('Token de webhook inválido');
+    return this.runWebhook(device, payload);
+  }
 
+  /**
+   * Ingestão de evento de acesso vinda do Agente Local (modo condomínio).
+   *
+   * Aparelhos Dahua/Intelbras não fazem push HTTP para uma URL arbitrária: o
+   * Agente Local assina o stream de eventos do aparelho (eventManager.cgi) e
+   * repassa cada acesso por aqui. Autentica pelo token do condomínio (o mesmo
+   * usado no poll) e confina o evento ao device daquele tenant. Reusa toda a
+   * resolução de pessoa/regra do webhook.
+   */
+  async processAgentEvent(
+    agentToken: string,
+    deviceId: number,
+    payload: WebhookEventDto,
+  ) {
+    const idCondominio = await this.resolveCondominioForAgent(agentToken);
+    const device = await this.prisma.facial_Devices.findFirst({
+      where: { id: deviceId, ativo: 1 },
+    });
+    if (!device || device.id_condominio !== idCondominio) {
+      throw new UnauthorizedException('Dispositivo inválido para este agente');
+    }
+    return this.runWebhook(device, payload);
+  }
+
+  private async runWebhook(
+    device: NonNullable<
+      Awaited<ReturnType<PrismaService['facial_Devices']['findFirst']>>
+    >,
+    payload: WebhookEventDto,
+  ) {
     // Aceita o push nativo do Control iD (formato Monitor "object_changes")
     // além do nosso formato limpo. Converte para WebhookEventDto antes de seguir.
     const normalizado = this.normalizeControlIdPayload(payload as unknown);

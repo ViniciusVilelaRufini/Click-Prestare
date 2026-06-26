@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
-import { FacialService } from './facial.service';
+import { FacialService, WebhookEventDto } from './facial.service';
 import { AgentBridgeService, AgentResult } from './agent-bridge.service';
 
 /**
@@ -116,5 +116,20 @@ export class AgentController {
     const { commandId, ...result } = body ?? ({} as any);
     if (commandId) this.bridge.submitResult(commandId, result);
     return { ok: true };
+  }
+
+  /**
+   * Evento de acesso repassado pelo Agente Local. Aparelhos Dahua/Intelbras não
+   * fazem push HTTP para uma URL: o agente assina o stream do aparelho e manda
+   * cada acesso aqui (deviceId + external_id do rosto reconhecido).
+   */
+  @Public()
+  @Post('condo/:token/event')
+  async condoEvent(
+    @Param('token') token: string,
+    @Body() body: { deviceId: number } & WebhookEventDto,
+  ) {
+    const { deviceId, ...payload } = body ?? ({} as any);
+    return this.service.processAgentEvent(token, Number(deviceId), payload);
   }
 }

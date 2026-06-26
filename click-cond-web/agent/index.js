@@ -149,6 +149,11 @@ async function runCondoLoop(token) {
 
       for (const entry of body.devices || []) {
         const device = entry.device;
+        // Aparelhos Dahua/Intelbras: abre (uma vez) o stream de eventos de
+        // acesso e repassa cada reconhecimento para a nuvem.
+        if (device.fabricante === 'intelbras') {
+          startDahuaEventListener(token, device);
+        }
         for (const cmd of entry.commands || []) {
           const result = await executeOnDevice(device, cmd);
           await cloudRequest('POST', `/api/facial/agent/condo/${token}/result`, {
@@ -262,6 +267,10 @@ async function doPing(device) {
     await controlIdLogin(device); // login OK prova conectividade
     return { ok: true };
   }
+  if (device.fabricante === 'intelbras') {
+    await dahuaLogin(device); // login OK prova conectividade
+    return { ok: true };
+  }
   const res = await lanRequest(device, 'GET', '/status');
   return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
 }
@@ -280,9 +289,16 @@ async function doOpenDoor(device) {
     );
     return okFrom(res);
   }
+  // VALIDADO ao vivo (SS 3530 MF FACE W): abre o relé via cgi com Digest.
+  if (device.fabricante === 'intelbras') {
+    const res = await lanRequest(
+      device,
+      'GET',
+      '/cgi-bin/accessControl.cgi?action=openDoor&channel=1',
+    );
+    return okFrom(res);
+  }
   const map = {
-    // NÃO VALIDADO: CGI de comando da Intelbras fica atrás do suporte técnico.
-    intelbras: { method: 'POST', path: '/api/v1/door/open' },
     // VALIDADO (ISAPI). Requer Digest auth — tratado automaticamente em request().
     hikvision: {
       method: 'PUT',
@@ -302,6 +318,9 @@ async function doEnroll(device, cmd) {
     return cmd.type === 'update'
       ? controlIdUpdate(device, cmd)
       : controlIdCreate(device, cmd);
+  }
+  if (device.fabricante === 'intelbras') {
+    return dahuaEnroll(device, cmd);
   }
   // Genérico: POST /persons (cadastro) ou PUT /persons/:id (update)
   if (cmd.type === 'update' && cmd.faceId) {
@@ -343,6 +362,15 @@ async function doRemove(device, cmd) {
       {
         json: { object: 'users', where: { users: { id: Number(cmd.faceId) } } },
       },
+    );
+    return okFrom(res);
+  }
+  if (device.fabricante === 'intelbras') {
+    // VALIDADO ao vivo: array vai como query-param (?UserIDList[0]=id), não JSON.
+    const res = await lanRequest(
+      device,
+      'GET',
+      `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encodeURIComponent(cmd.faceId)}`,
     );
     return okFrom(res);
   }
@@ -427,6 +455,274 @@ async function controlIdLogin(device) {
     throw e;
   }
   return String(session);
+}
+
+// ---------- Dahua / Intelbras (linha SS facial: SS 3530 MF FACE etc.) ----------
+//
+// VALIDADO ao vivo num SS 3530 MF FACE W (firmware 2.000.00IB004, 2021). A
+// Intelbras é OEM da Dahua: o login é o handshake RPC2 em duas etapas
+// (challenge → hash MD5 maiúsculo → login), e a gestão de usuário/rosto usa os
+// CGIs AccessUser.cgi / AccessFace.cgi com Digest auth. O faceId que guardamos
+// é o próprio UserID (string definida por nós, ex.: "morador_42") — o push de
+// evento do aparelho devolve esse UserID, então não dependemos de id interno.
+
+// O RPC2 da Dahua responde JSON SEM header Content-Type, então o request()
+// genérico não desserializa — parseamos o corpo cru aqui.
+function parseJson(res) {
+  if (res && res.data && typeof res.data === 'object') return res.data;
+  try {
+    return JSON.parse((res && res.raw) || '');
+  } catch {
+    return {};
+  }
+}
+
+async function dahuaLogin(device) {
+  const base = `http://${device.ip}:${device.porta}`;
+  const user = device.api_user || 'admin';
+  const pass = device.api_password || 'admin';
+  const s1 = await request(`${base}/RPC2_Login`, {
+    method: 'POST',
+    timeout: LAN_TIMEOUT_MS,
+    json: {
+      method: 'global.login',
+      params: { userName: user, password: '', clientType: 'Web3.0', loginType: 'Direct' },
+      id: 1,
+    },
+  });
+  const d1 = parseJson(s1);
+  const p = d1.params || {};
+  const session = d1.session;
+  if (!p.realm || !p.random || !session) {
+    const e = new Error('Dahua: aparelho não respondeu o desafio de login (RPC2)');
+    e.statusCode = s1.status;
+    throw e;
+  }
+  const ha = md5(`${user}:${p.realm}:${pass}`).toUpperCase();
+  const loginHash = md5(`${user}:${p.random}:${ha}`).toUpperCase();
+  const s2 = await request(`${base}/RPC2_Login`, {
+    method: 'POST',
+    timeout: LAN_TIMEOUT_MS,
+    headers: { Cookie: `DWebClientSessionID=${session}` },
+    json: {
+      method: 'global.login',
+      params: {
+        userName: user,
+        password: loginHash,
+        clientType: 'Web3.0',
+        loginType: 'Direct',
+        authorityType: 'Default',
+        passwordType: 'Default',
+      },
+      id: 2,
+      session,
+    },
+  });
+  const d2 = parseJson(s2);
+  if (!d2.result) {
+    const msg = (d2.error && d2.error.message) || 'login negado';
+    const e = new Error(`Dahua: ${msg} (confira usuário/senha do aparelho)`);
+    e.statusCode = s2.status;
+    throw e;
+  }
+  return session;
+}
+
+async function dahuaEnroll(device, cmd) {
+  const userId = String(cmd.externalId || cmd.faceId);
+  const userBody = {
+    UserList: [
+      {
+        UserID: userId,
+        UserName: cmd.nome || userId,
+        UserType: 0,
+        Authority: 2,
+        Doors: [0],
+        TimeSections: [255],
+        // ValidFrom em 2000: esses aparelhos voltam o relógio para 2000-01-01
+        // quando perdem energia sem NTP. Se a validade começasse depois, o
+        // rosto seria reconhecido mas o acesso NEGADO até acertarem a hora.
+        ValidFrom: '2000-01-01 00:00:00',
+        ValidTo: '2037-12-31 23:59:59',
+      },
+    ],
+  };
+  // insertMulti cria; se já existir (ou update), cai para updateMulti.
+  let u = await lanRequest(
+    device,
+    'POST',
+    '/cgi-bin/AccessUser.cgi?action=insertMulti',
+    { json: userBody },
+  );
+  if (!(u.status >= 200 && u.status < 300) || /error/i.test(String(u.raw || ''))) {
+    u = await lanRequest(
+      device,
+      'POST',
+      '/cgi-bin/AccessUser.cgi?action=updateMulti',
+      { json: userBody },
+    );
+  }
+  if (!(u.status >= 200 && u.status < 300)) {
+    return {
+      ok: false,
+      statusCode: u.status,
+      error: `usuário: ${String(u.raw || '').slice(0, 120)}`,
+    };
+  }
+  // Sobe o rosto. O aparelho extrai a biometria e recusa imagem sem rosto nítido.
+  if (cmd.fotoBase64) {
+    const faceBody = { FaceList: [{ UserID: userId, PhotoData: [cmd.fotoBase64] }] };
+    const f = await lanRequest(
+      device,
+      'POST',
+      '/cgi-bin/AccessFace.cgi?action=insertMulti',
+      { json: faceBody },
+    );
+    if (!(f.status >= 200 && f.status < 300) || /error/i.test(String(f.raw || ''))) {
+      return {
+        ok: false,
+        statusCode: f.status,
+        error: `rosto recusado: ${String(f.raw || '').slice(0, 120)}`,
+        faceId: userId,
+      };
+    }
+  }
+  return { ok: true, faceId: userId };
+}
+
+// ---------- Dahua: stream de eventos de acesso → nuvem ----------
+//
+// Aparelhos Dahua/Intelbras não fazem push HTTP para uma URL: eles MANTÊM um
+// stream (multipart) em /cgi-bin/eventManager.cgi?action=attach. Assinamos esse
+// stream e, a cada rosto reconhecido (evento _DoorFace_ com UserID != FFFFFF),
+// repassamos o acesso para a nuvem. O UserID é o nosso external_id (morador_42).
+
+const dahuaListeners = new Set(); // deviceIds já com listener ativo
+
+function startDahuaEventListener(token, device) {
+  if (dahuaListeners.has(device.id)) return;
+  dahuaListeners.add(device.id);
+  console.log(`[agente] ${device.nome}: assinando eventos de acesso (Dahua)`);
+  (async () => {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        await dahuaAttachOnce(token, device);
+      } catch (err) {
+        console.error(
+          `[agente] ${device.nome}: stream de eventos caiu (${err.message || err}); reabrindo em 5s`,
+        );
+      }
+      await sleep(5000); // o aparelho fecha o stream periodicamente — reabre
+    }
+  })();
+}
+
+/** Abre UMA conexão de streaming (resolve quando o aparelho a encerra). */
+function dahuaAttachOnce(token, device) {
+  return new Promise((resolve, reject) => {
+    const user = device.api_user || 'admin';
+    const pass = device.api_password || 'admin';
+    const path = '/cgi-bin/eventManager.cgi?action=attach&codes=[All]';
+
+    // 1) Desafio Digest (o attach exige autenticação por header).
+    const challenge = http.request(
+      { host: device.ip, port: device.porta, path, method: 'GET' },
+      (cres) => {
+        cres.resume();
+        if (cres.statusCode !== 401) {
+          return reject(new Error(`desafio inesperado: HTTP ${cres.statusCode}`));
+        }
+        const wa = cres.headers['www-authenticate'] || '';
+        if (!/digest/i.test(wa)) return reject(new Error('aparelho não pediu Digest'));
+        const authHeader = buildDigestHeader(user, pass, 'GET', path, wa);
+
+        // 2) Conexão de streaming autenticada (sem timeout: fica aberta).
+        const stream = http.request(
+          {
+            host: device.ip,
+            port: device.porta,
+            path,
+            method: 'GET',
+            headers: { Authorization: authHeader },
+          },
+          (sres) => {
+            if (sres.statusCode !== 200) {
+              sres.resume();
+              return reject(new Error(`attach HTTP ${sres.statusCode}`));
+            }
+            let buf = '';
+            sres.setEncoding('utf8');
+            sres.on('data', (chunk) => {
+              buf += chunk;
+              buf = consumeDahuaEvents(buf, (data) =>
+                forwardAccessEvent(token, device, data),
+              );
+              // Trava de segurança contra evento gigante/parcial sem fim.
+              if (buf.length > 1_000_000) buf = buf.slice(-100_000);
+            });
+            sres.on('end', resolve);
+            sres.on('error', reject);
+          },
+        );
+        stream.on('error', reject);
+        stream.setTimeout(0);
+        stream.end();
+      },
+    );
+    challenge.on('error', reject);
+    challenge.setTimeout(LAN_TIMEOUT_MS, () =>
+      challenge.destroy(new Error('timeout no desafio')),
+    );
+    challenge.end();
+  });
+}
+
+/**
+ * Consome eventos completos do buffer (separados por --myboundary) e devolve o
+ * trecho final ainda incompleto. Só processa o evento de acesso (_DoorFace_).
+ */
+function consumeDahuaEvents(buf, onData) {
+  const parts = buf.split('--myboundary');
+  const tail = parts.pop(); // último pode estar pela metade
+  for (const part of parts) {
+    if (!part.includes('Code=_DoorFace_')) continue;
+    const i = part.indexOf('data=');
+    if (i < 0) continue;
+    try {
+      onData(JSON.parse(part.slice(i + 5).trim()));
+    } catch {
+      /* JSON parcial/inválido — ignora */
+    }
+  }
+  return tail;
+}
+
+/** Repassa um reconhecimento facial para a nuvem (ignora não-reconhecidos). */
+async function forwardAccessEvent(token, device, data) {
+  const userId = data && data.UserID;
+  // FFFFFF = rosto não reconhecido; não vira evento de pessoa.
+  if (!userId || userId === 'FFFFFF') return;
+  try {
+    const res = await cloudRequest('POST', `/api/facial/agent/condo/${token}/event`, {
+      deviceId: device.id,
+      external_id: String(userId),
+      person_id: String(userId),
+      event: 'recognized',
+      confidence: typeof data.Similarity === 'number' ? data.Similarity : undefined,
+      timestamp: new Date().toISOString(),
+    });
+    const ok = res.status >= 200 && res.status < 300;
+    console.log(
+      `[agente] ${device.nome} ◂ acesso ${userId} (${data.Similarity ?? '?'}%) → ${
+        ok ? 'OK' : `nuvem recusou HTTP ${res.status}`
+      }`,
+    );
+  } catch (err) {
+    console.error(
+      `[agente] ${device.nome}: falha ao enviar acesso ${userId}: ${err.message || err}`,
+    );
+  }
 }
 
 function okFrom(res) {
