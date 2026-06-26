@@ -599,6 +599,14 @@ async function dahuaEnroll(device, cmd) {
 
 const dahuaListeners = new Set(); // deviceIds já com listener ativo
 
+// Debounce na ORIGEM: o aparelho dispara vários _DoorFace_ por aproximação
+// (múltiplos frames). Sem isso, vários POSTs concorrentes chegariam à nuvem e
+// poderiam embaralhar a alternância entrada/saída. Guardamos o último envio por
+// (device, UserID) e ignoramos repetições dentro da janela. O check+set é
+// síncrono (antes de qualquer await), então é seguro contra a rajada.
+const AGENT_EVENT_DEBOUNCE_MS = 8000;
+const lastAccessForwardedAt = new Map(); // "deviceId:userId" -> epoch ms
+
 function startDahuaEventListener(token, device) {
   if (dahuaListeners.has(device.id)) return;
   dahuaListeners.add(device.id);
@@ -703,13 +711,25 @@ async function forwardAccessEvent(token, device, data) {
   const userId = data && data.UserID;
   // FFFFFF = rosto não reconhecido; não vira evento de pessoa.
   if (!userId || userId === 'FFFFFF') return;
+
+  // Debounce por (device, UserID): colapsa a rajada de frames de uma aproximação
+  // num único evento. Síncrono antes do await → imune à corrida da rajada.
+  const key = `${device.id}:${userId}`;
+  const agora = Date.now();
+  const ultimo = lastAccessForwardedAt.get(key) || 0;
+  if (agora - ultimo < AGENT_EVENT_DEBOUNCE_MS) return;
+  lastAccessForwardedAt.set(key, agora);
+
   try {
     const res = await cloudRequest('POST', `/api/facial/agent/condo/${token}/event`, {
       deviceId: device.id,
       external_id: String(userId),
       person_id: String(userId),
       event: 'recognized',
-      confidence: typeof data.Similarity === 'number' ? data.Similarity : undefined,
+      // Similarity vem 0-100; a nuvem guarda a confiança como fração 0-1 (a tela
+      // multiplica por 100 na exibição). Sem dividir, 86 vira "8600%".
+      confidence:
+        typeof data.Similarity === 'number' ? data.Similarity / 100 : undefined,
       timestamp: new Date().toISOString(),
     });
     const ok = res.status >= 200 && res.status < 300;

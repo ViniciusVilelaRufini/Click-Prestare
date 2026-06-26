@@ -24,6 +24,7 @@ import {
   confiancaInsuficiente,
   RegraAcessoLike,
 } from './access-rules.util';
+import { decryptSecret, encryptSecret } from './device-secret.util';
 
 export interface CreateDeviceDto {
   id_condominio: number;
@@ -155,6 +156,7 @@ export class FacialService {
     // agora. É o sinal de "está pronto para receber comandos da nuvem".
     return devices.map((d) => ({
       ...d,
+      api_password: decryptSecret(d.api_password),
       agent_online: this.agent.isOnline(d.id),
     }));
   }
@@ -162,7 +164,7 @@ export class FacialService {
   async getDevice(id: number) {
     const d = await this.prisma.facial_Devices.findUnique({ where: { id } });
     if (!d) throw new NotFoundException(`Terminal facial ${id} não encontrado`);
-    return d;
+    return { ...d, api_password: decryptSecret(d.api_password) };
   }
 
   /**
@@ -170,9 +172,13 @@ export class FacialService {
    * condomínio" (um único token gerencia todos os aparelhos do condomínio).
    */
   async getActiveDevices(idCondominio: number) {
-    return this.prisma.facial_Devices.findMany({
+    const devices = await this.prisma.facial_Devices.findMany({
       where: { id_condominio: idCondominio, ativo: 1 },
     });
+    return devices.map((d) => ({
+      ...d,
+      api_password: decryptSecret(d.api_password),
+    }));
   }
 
   async findDeviceByToken(token: string) {
@@ -180,7 +186,7 @@ export class FacialService {
       where: { webhook_token: token, ativo: 1 },
     });
     if (!d) throw new UnauthorizedException('Token de webhook inválido');
-    return d;
+    return { ...d, api_password: decryptSecret(d.api_password) };
   }
 
   /**
@@ -320,7 +326,7 @@ export class FacialService {
         ip: dto.ip,
         porta: dto.porta ?? 80,
         api_user: dto.api_user ?? null,
-        api_password: dto.api_password ?? null,
+        api_password: encryptSecret(dto.api_password ?? null),
         webhook_token: token,
       },
     });
@@ -337,7 +343,7 @@ export class FacialService {
         ip: created.ip,
       },
     });
-    return created;
+    return { ...created, api_password: decryptSecret(created.api_password) };
   }
 
   async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
@@ -357,7 +363,7 @@ export class FacialService {
         ...(dto.porta !== undefined && { porta: dto.porta }),
         ...(dto.api_user !== undefined && { api_user: dto.api_user }),
         ...(dto.api_password !== undefined && {
-          api_password: dto.api_password,
+          api_password: encryptSecret(dto.api_password),
         }),
       },
     });
@@ -389,7 +395,7 @@ export class FacialService {
       descricao: `Alterou dispositivo "${atual.nome}"`,
       detalhes: { changes: diff },
     });
-    return atual;
+    return { ...atual, api_password: decryptSecret(atual.api_password) };
   }
 
   async removeDevice(id: number, operador?: JwtPayload) {
@@ -953,12 +959,26 @@ export class FacialService {
     deviceId: number,
     payload: WebhookEventDto,
   ) {
+    if (!Number.isInteger(deviceId)) {
+      throw new BadRequestException('deviceId inválido');
+    }
     const idCondominio = await this.resolveCondominioForAgent(agentToken);
     const device = await this.prisma.facial_Devices.findFirst({
       where: { id: deviceId, ativo: 1 },
     });
     if (!device || device.id_condominio !== idCondominio) {
       throw new UnauthorizedException('Dispositivo inválido para este agente');
+    }
+    // Só terminais faciais geram eventos por este canal; rejeita o resto para
+    // não virar vetor de injeção de acessos em leitores de outro tipo.
+    if (device.tipo !== 'facial') {
+      throw new BadRequestException('Endpoint de evento é só para terminal facial');
+    }
+    // Evento sem credencial reconhecida não vira acesso — descarta cedo (evita
+    // poluir o histórico com "desconhecido" via chamadas forjadas/vazias).
+    const credencial = payload.external_id ?? payload.person_id;
+    if (!credencial) {
+      throw new BadRequestException('Evento sem identificador de pessoa');
     }
     return this.runWebhook(device, payload);
   }
@@ -1954,7 +1974,8 @@ export class FacialService {
       ip: device.ip,
       porta: device.porta,
       api_user: device.api_user,
-      api_password: device.api_password,
+      // Idempotente: decifra se vier cifrado; texto puro passa direto.
+      api_password: decryptSecret(device.api_password),
       fabricante: device.fabricante,
     };
   }
