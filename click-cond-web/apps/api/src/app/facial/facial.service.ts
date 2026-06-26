@@ -987,7 +987,7 @@ export class FacialService {
     const timestamp = payload.timestamp
       ? new Date(payload.timestamp)
       : new Date();
-    const evento = this.resolveEvento(device.sentido, payload);
+    let evento = this.resolveEvento(device.sentido, payload);
 
     const qrCodeLido =
       payload.qrcode ??
@@ -1154,6 +1154,24 @@ export class FacialService {
       throw new BadRequestException(
         'Acesso negado: Credencial não encontrada ou inválida',
       );
+    }
+
+    // Terminal único bidirecional (sentido "auto") que NÃO informa a direção —
+    // caso dos faciais Intelbras/Dahua, que só dizem "reconheci o UserID". Sem
+    // tratar, todo reconhecimento viraria "entrada" e o anti-passback bloquearia
+    // do 2º acesso em diante. Resolvemos alternando pelo último acesso da pessoa:
+    // entrada → saída → entrada... que é o comportamento real de um leitor único.
+    if (this.isAmbiguousAuto(device.sentido, payload)) {
+      const ultimo = await this.prisma.acessos_Facial.findFirst({
+        where: {
+          id_condominio: device.id_condominio,
+          id_pessoa: idPessoa,
+          tipo_pessoa: tipoPessoa,
+          evento: { in: ['entrada', 'saida'] },
+        },
+        orderBy: { timestamp: 'desc' },
+      });
+      evento = ultimo?.evento === 'entrada' ? 'saida' : 'entrada';
     }
 
     // Rede de segurança anti falso positivo: se o terminal tem confiança mínima
@@ -2034,6 +2052,23 @@ export class FacialService {
     if (sentido === 'entrada') return 'entrada';
     if (sentido === 'saida') return 'saida';
     return base;
+  }
+
+  /**
+   * Terminal em sentido "auto" cujo evento NÃO traz direção (nem `direction`,
+   * nem entrada/saída no `event`). É o caso dos faciais Intelbras/Dahua, que só
+   * reportam o reconhecimento. Nesse cenário a direção é alternada pelo último
+   * acesso da pessoa (ver runWebhook), em vez de assumir sempre "entrada".
+   */
+  private isAmbiguousAuto(
+    sentido: string | undefined,
+    payload: WebhookEventDto,
+  ): boolean {
+    const autoSentido = !sentido || sentido === 'auto';
+    const semDirecao =
+      !payload.direction &&
+      !/entrada|sa[ií]da|exit|\bin\b|\bout\b/i.test(payload.event ?? '');
+    return autoSentido && semDirecao;
   }
 
   private normalizeEvento(event?: string, direction?: string): string {
