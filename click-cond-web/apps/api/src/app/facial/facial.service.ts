@@ -785,6 +785,20 @@ export class FacialService {
     return 'pending';
   }
 
+  /**
+   * Formata uma data no padrão Dahua "YYYY-MM-DD HH:MM:SS", no fuso do
+   * condomínio (Brasília). É a validade gravada no usuário do aparelho —
+   * precisa bater com o relógio LOCAL do aparelho, que está em horário local.
+   */
+  private formatDahuaTime(d: Date): string {
+    return d
+      .toLocaleString('sv-SE', {
+        timeZone: 'America/Sao_Paulo',
+        hour12: false,
+      })
+      .replace(',', '');
+  }
+
   async syncVisitante(idVisitante: number, opts: { deviceIds?: number[] } = {}) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
@@ -813,12 +827,25 @@ export class FacialService {
     }
 
     // O rosto do visitante só fica no aparelho enquanto ele está AUTORIZADO —
-    // liberado=1 OU atualmente DENTRO (entrou e ainda não saiu, p/ poder sair).
-    // Sem isso, um visitante já não-liberado seria reconhecido e o aparelho
-    // ABRIRIA, mesmo a nuvem negando. Prestador (liberado fixo=1) permanece.
+    // liberado=1 E dentro da janela de validade, OU atualmente DENTRO (entrou e
+    // ainda não saiu, p/ poder sair). Sem isso, um visitante já sem liberação
+    // (ou expirado) seria reconhecido e o aparelho ABRIRIA, mesmo a nuvem
+    // negando. Prestador (liberado fixo=1) permanece enquanto na janela.
+    const agora = Date.now();
+    const inicioMs = visitante.data_hora_inicio
+      ? new Date(visitante.data_hora_inicio).getTime()
+      : null;
+    const terminoMs = visitante.data_hora_termino
+      ? new Date(visitante.data_hora_termino).getTime()
+      : null;
+    const GRACE = 15 * 60 * 1000;
+    const dentroJanela =
+      (inicioMs === null || agora >= inicioMs - GRACE) &&
+      (terminoMs === null || agora <= terminoMs + GRACE);
+    const dentroDoCondominio =
+      !!visitante.data_entrada && !visitante.data_saida;
     const autorizado =
-      visitante.liberado === 1 ||
-      (!!visitante.data_entrada && !visitante.data_saida);
+      (visitante.liberado === 1 && dentroJanela) || dentroDoCondominio;
     if (!autorizado) {
       if (visitante.face_id && visitante.id_condominio) {
         await this.unsyncVisitante(
@@ -858,6 +885,14 @@ export class FacialService {
 
     const categoria: CategoriaPessoa =
       visitante.is_prestador === 1 ? 'prestador' : 'visitante';
+    // Validade gravada NO APARELHO (ele nega sozinho após o término, sem
+    // depender da nuvem). Sem janela = permanente (prestador). Ver formatDahuaTime.
+    const validFrom = visitante.data_hora_inicio
+      ? this.formatDahuaTime(new Date(visitante.data_hora_inicio))
+      : undefined;
+    const validTo = visitante.data_hora_termino
+      ? this.formatDahuaTime(new Date(visitante.data_hora_termino))
+      : undefined;
     let faceId: string | null = visitante.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
@@ -876,12 +911,16 @@ export class FacialService {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: visitante.nome,
             fotoBase64,
+            validFrom,
+            validTo,
           });
         } else {
           const r = await this.client.enrollPerson(this.toConfig(device), {
             externalId,
             nome: visitante.nome,
             fotoBase64,
+            validFrom,
+            validTo,
           });
           faceId = r.faceId;
         }
@@ -1610,6 +1649,13 @@ export class FacialService {
               where: { id: v.id },
               data: { liberado: 0 },
             });
+            // Rede de segurança: remove o rosto do aparelho (em background) para
+            // que a PRÓXIMA tentativa seja negada FISICAMENTE, não só na nuvem.
+            void this.syncVisitante(v.id).catch((err) =>
+              this.logger.warn(
+                `Re-sync pós-expiração do visitante ${v.id} falhou: ${err?.message ?? err}`,
+              ),
+            );
 
             await this.prisma.acessos_Facial.create({
               data: {

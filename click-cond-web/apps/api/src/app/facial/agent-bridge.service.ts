@@ -168,6 +168,9 @@ export interface AgentCommandInput {
   nome?: string;
   fotoBase64?: string;
   faceId?: string;
+  /** Validade no aparelho (Dahua "YYYY-MM-DD HH:MM:SS"). Default = permanente. */
+  validFrom?: string;
+  validTo?: string;
 }
 
 export interface AgentCommand extends AgentCommandInput {

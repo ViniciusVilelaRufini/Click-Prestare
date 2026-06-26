@@ -17,6 +17,9 @@ export interface EnrollPayload {
   externalId: string;
   nome: string;
   fotoBase64: string;
+  /** Validade no aparelho (Dahua "YYYY-MM-DD HH:MM:SS"). Default = permanente. */
+  validFrom?: string;
+  validTo?: string;
 }
 
 export interface EnrollResult {
@@ -337,6 +340,8 @@ export class FacialDeviceClientService {
         externalId: payload.externalId,
         nome: payload.nome,
         fotoBase64: payload.fotoBase64,
+        validFrom: payload.validFrom,
+        validTo: payload.validTo,
       });
       if (!r.ok)
         throw new Error(r.error ?? 'Falha ao cadastrar pessoa via agente');
@@ -353,7 +358,13 @@ export class FacialDeviceClientService {
     }
     if (device.fabricante === 'intelbras') {
       const userId = String(payload.externalId);
-      await this.dahuaUpsertUser(device, userId, payload.nome);
+      await this.dahuaUpsertUser(
+        device,
+        userId,
+        payload.nome,
+        payload.validFrom,
+        payload.validTo,
+      );
       if (payload.fotoBase64) await this.dahuaSetFace(device, userId, payload.fotoBase64);
       return { faceId: userId };
     }
@@ -377,6 +388,8 @@ export class FacialDeviceClientService {
         faceId,
         nome: payload.nome,
         fotoBase64: payload.fotoBase64,
+        validFrom: payload.validFrom,
+        validTo: payload.validTo,
       });
       if (!r.ok)
         throw new Error(r.error ?? 'Falha ao atualizar pessoa via agente');
@@ -394,7 +407,13 @@ export class FacialDeviceClientService {
     }
     if (device.fabricante === 'intelbras') {
       const userId = String(faceId);
-      await this.dahuaUpsertUser(device, userId, payload.nome ?? userId);
+      await this.dahuaUpsertUser(
+        device,
+        userId,
+        payload.nome ?? userId,
+        payload.validFrom,
+        payload.validTo,
+      );
       if (payload.fotoBase64 !== undefined)
         await this.dahuaSetFace(device, userId, payload.fotoBase64);
       return;
@@ -628,6 +647,8 @@ export class FacialDeviceClientService {
     device: FacialDeviceConfig,
     userId: string,
     nome?: string,
+    validFrom?: string,
+    validTo?: string,
   ): Promise<void> {
     const body = {
       UserList: [
@@ -638,8 +659,10 @@ export class FacialDeviceClientService {
           Authority: 2,
           Doors: [0],
           TimeSections: [255],
-          ValidFrom: '2000-01-01 00:00:00',
-          ValidTo: '2037-12-31 23:59:59',
+          // Visitante: janela da visita (aparelho nega após o término). Morador
+          // ou ausente: permanente. Ver agent/ (mesma lógica).
+          ValidFrom: validFrom || '2000-01-01 00:00:00',
+          ValidTo: validTo || '2037-12-31 23:59:59',
         },
       ],
     };

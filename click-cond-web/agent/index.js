@@ -586,11 +586,12 @@ async function dahuaEnroll(device, cmd) {
         Authority: 2,
         Doors: [0],
         TimeSections: [255],
-        // ValidFrom em 2000: esses aparelhos voltam o relógio para 2000-01-01
-        // quando perdem energia sem NTP. Se a validade começasse depois, o
-        // rosto seria reconhecido mas o acesso NEGADO até acertarem a hora.
-        ValidFrom: '2000-01-01 00:00:00',
-        ValidTo: '2037-12-31 23:59:59',
+        // Visitante manda a janela da visita (cmd.validFrom/validTo) — o aparelho
+        // NEGA sozinho após o término. Morador/sem janela: permanente. Cuidado:
+        // sem NTP o relógio volta a 2000 ao perder energia; por isso o morador
+        // fica em 2000 (sempre vale) e o agente mantém a hora sincronizada.
+        ValidFrom: cmd.validFrom || '2000-01-01 00:00:00',
+        ValidTo: cmd.validTo || '2037-12-31 23:59:59',
       },
     ],
   };
