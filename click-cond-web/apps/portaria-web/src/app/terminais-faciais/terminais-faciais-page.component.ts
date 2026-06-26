@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import {
   CreateTerminalFacial,
   FacialSyncStatus,
+  SyncPessoa,
   TerminaisFaciaisApi,
   TerminalFacial,
 } from './terminais-faciais.service';
@@ -29,6 +30,32 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   // Sincronização em massa de rostos (back-fill)
   readonly syncing = signal(false);
   readonly syncStatus = signal<FacialSyncStatus | null>(null);
+  // Filtro de categoria (vazio = todas). Terminais selecionados (vazio = todos).
+  readonly categoriasSync = signal<Set<string>>(new Set());
+  readonly terminaisSync = signal<Set<number>>(new Set());
+  // Lista por pessoa (quem está pendente/erro e por quê) + visibilidade.
+  readonly pessoas = signal<SyncPessoa[]>([]);
+  readonly mostrarPessoas = signal(false);
+  readonly retryingPessoa = signal<string | null>(null);
+
+  readonly categoriasDisponiveis = [
+    { id: 'morador', label: 'Moradores' },
+    { id: 'visitante', label: 'Visitantes' },
+    { id: 'prestador', label: 'Prestadores' },
+    { id: 'funcionario', label: 'Funcionários' },
+  ];
+
+  toggleCategoriaSync(cat: string) {
+    const s = new Set(this.categoriasSync());
+    s.has(cat) ? s.delete(cat) : s.add(cat);
+    this.categoriasSync.set(s);
+  }
+
+  toggleTerminalSync(id: number) {
+    const s = new Set(this.terminaisSync());
+    s.has(id) ? s.delete(id) : s.add(id);
+    this.terminaisSync.set(s);
+  }
 
   // Agente: chave do condomínio + download do executável/config
   readonly agentToken = signal<string | null>(null);
@@ -213,7 +240,9 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   syncAllRostos() {
     this.syncing.set(true);
     this.errorMessage.set(null);
-    this.api.syncAll().subscribe({
+    const cats = Array.from(this.categoriasSync());
+    const ids = Array.from(this.terminaisSync());
+    this.api.syncAll(cats, ids).subscribe({
       next: (r) => {
         this.syncing.set(false);
         if (r.skipped) {
@@ -255,12 +284,57 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.api.syncStatus().subscribe({
       next: (s) => {
         this.syncStatus.set(s);
+        if (this.mostrarPessoas()) this.loadPessoas();
         if (s.running && restantes > 0) {
           setTimeout(() => this.pollSyncStatus(restantes - 1), 3000);
         }
       },
       error: () => {},
     });
+  }
+
+  /** Mostra/oculta a lista por pessoa e carrega quando abre. */
+  togglePessoas() {
+    const novo = !this.mostrarPessoas();
+    this.mostrarPessoas.set(novo);
+    if (novo) this.loadPessoas();
+  }
+
+  loadPessoas() {
+    this.api.syncPessoas().subscribe({
+      next: (l) => this.pessoas.set(l),
+      error: () => this.pessoas.set([]),
+    });
+  }
+
+  /** Re-tenta o envio de UMA pessoa (ex.: depois de trocar a foto). */
+  retryPessoa(p: SyncPessoa) {
+    const key = `${p.tipo}_${p.id}`;
+    this.retryingPessoa.set(key);
+    const obs =
+      p.tipo === 'morador'
+        ? this.api.syncMorador(p.id)
+        : this.api.syncVisitante(p.id);
+    obs.subscribe({
+      next: () => {
+        this.retryingPessoa.set(null);
+        this.loadPessoas();
+        this.api.syncStatus().subscribe((s) => this.syncStatus.set(s));
+      },
+      error: () => {
+        this.retryingPessoa.set(null);
+        this.loadPessoas();
+      },
+    });
+  }
+
+  /** Label legível da categoria. */
+  labelCategoria(cat: string): string {
+    return (
+      { morador: 'Morador', funcionario: 'Funcionário', visitante: 'Visitante', prestador: 'Prestador' }[
+        cat
+      ] ?? cat
+    );
   }
 
   private emptyForm(): CreateTerminalFacial {

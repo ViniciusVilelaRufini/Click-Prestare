@@ -71,6 +71,16 @@ export interface FacialSyncStatus {
   running: boolean;
 }
 
+export interface SyncPessoa {
+  tipo: 'morador' | 'visitante';
+  categoria: string; // morador | funcionario | visitante | prestador
+  id: number;
+  nome: string;
+  tem_foto: boolean;
+  status: 'synced' | 'error' | 'pending' | 'no_photo';
+  motivo: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TerminaisFaciaisApi {
   private http = inject(HttpClient);
@@ -129,15 +139,24 @@ export class TerminaisFaciaisApi {
     return this.http.post<any>(`${this.base}/sync/visitante/${id}`, {});
   }
 
-  /** Envia todos os rostos já cadastrados (back-fill) para os terminais faciais. */
-  syncAll(): Observable<{
+  /**
+   * Envia rostos para os terminais faciais. Opcional: filtrar por categoria
+   * (morador/visitante/prestador/funcionario) e/ou por terminais (deviceIds).
+   * Sem filtros = todos para todos os terminais.
+   */
+  syncAll(
+    categorias?: string[],
+    deviceIds?: number[],
+  ): Observable<{
     total?: number;
     started?: boolean;
     skipped?: boolean;
     reason?: string;
     alreadyRunning?: boolean;
   }> {
-    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    let params = new HttpParams().set('id_condominio', this.idCondominio);
+    if (categorias?.length) params = params.set('categorias', categorias.join(','));
+    if (deviceIds?.length) params = params.set('deviceIds', deviceIds.join(','));
     return this.http.post<any>(`${this.base}/sync/all`, {}, { params });
   }
 
@@ -147,6 +166,12 @@ export class TerminaisFaciaisApi {
     return this.http.get<FacialSyncStatus>(`${this.base}/sync/status`, {
       params,
     });
+  }
+
+  /** Lista por pessoa: quem está pendente/erro e por quê (com motivo legível). */
+  syncPessoas(): Observable<SyncPessoa[]> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.get<SyncPessoa[]>(`${this.base}/sync/pessoas`, { params });
   }
 
   acessos(limit = 50): Observable<AcessoFacial[]> {
