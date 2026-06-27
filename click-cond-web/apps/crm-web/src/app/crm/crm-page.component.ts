@@ -153,11 +153,19 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly respostaTexto = signal('');
   readonly enviandoResposta = signal(false);
 
+  // --- Chat de Ocorrências ---
+  readonly chatMensagens = signal<any[]>([]);
+  readonly loadingChatMensagens = signal(false);
+  chatNovaMensagem = '';
+  chatInterval: any = null;
+
+
   // --- Modal Novo Chamado ---
   readonly modalNovoChamadoAberto = signal(false);
   readonly novoChamadoCondominioId = signal<number | null>(null);
   readonly novoChamadoDescricao = signal('');
   readonly criandoNovoChamado = signal(false);
+
 
   // --- Estados da aba de Relatórios ---
   readonly relatorioTipo = signal<'financeiro' | 'clientes' | 'portaria' | 'notificacoes'>('financeiro');
@@ -539,7 +547,11 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     if (this.healthInterval) {
       clearInterval(this.healthInterval);
     }
+    if (this.chatInterval) {
+      clearInterval(this.chatInterval);
+    }
   }
+
 
   verificarConexao(): void {
     this.healthLoading.set(true);
@@ -1071,12 +1083,84 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   abrirRespostaOcorrencia(o: any): void {
     this.ocorrenciaSelecionada.set(o);
     this.respostaTexto.set(o.resposta || '');
+    this.chatMensagens.set([]);
+    this.chatNovaMensagem = '';
+    this.limparIntervaloChat();
+    this.carregarMensagensChat(o.id);
+    
+    // Polling a cada 2.5s para receber novas mensagens
+    this.chatInterval = setInterval(() => {
+      this.atualizarChatSilenciosamente(o.id);
+    }, 2500);
   }
 
   fecharRespostaOcorrencia(): void {
+    this.limparIntervaloChat();
     this.ocorrenciaSelecionada.set(null);
     this.respostaTexto.set('');
   }
+
+  private limparIntervaloChat(): void {
+    if (this.chatInterval) {
+      clearInterval(this.chatInterval);
+      this.chatInterval = null;
+    }
+  }
+
+  carregarMensagensChat(idOcorrencia: number): void {
+    this.loadingChatMensagens.set(true);
+    this.api.listMessages(idOcorrencia).subscribe({
+      next: (msgs) => {
+        this.chatMensagens.set(msgs);
+        this.loadingChatMensagens.set(false);
+        this.scrollChatParaFim();
+      },
+      error: (err) => {
+        console.error('Erro ao carregar mensagens do chat:', err);
+        this.loadingChatMensagens.set(false);
+      }
+    });
+  }
+
+  atualizarChatSilenciosamente(idOcorrencia: number): void {
+    this.api.listMessages(idOcorrencia).subscribe({
+      next: (msgs) => {
+        if (msgs.length !== this.chatMensagens().length) {
+          this.chatMensagens.set(msgs);
+          this.scrollChatParaFim();
+        }
+      }
+    });
+  }
+
+  enviarMensagemChat(): void {
+    const o = this.ocorrenciaSelecionada();
+    const msg = this.chatNovaMensagem.trim();
+    if (!o || !msg) return;
+
+    this.api.sendMessage(o.id, msg).subscribe({
+      next: (novaMsg) => {
+        this.chatMensagens.update(curr => [...curr, novaMsg]);
+        this.chatNovaMensagem = '';
+        this.scrollChatParaFim();
+      },
+      error: (err) => {
+        console.error('Erro ao enviar mensagem:', err);
+        this.triggerToast('Erro ao enviar mensagem de chat.', 'error');
+      }
+    });
+  }
+
+
+  private scrollChatParaFim(): void {
+    setTimeout(() => {
+      const container = document.getElementById('crm-chat-container');
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }, 100);
+  }
+
 
   enviarRespostaOcorrencia(): void {
     const o = this.ocorrenciaSelecionada();

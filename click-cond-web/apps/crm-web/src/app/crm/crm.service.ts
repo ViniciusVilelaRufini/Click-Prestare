@@ -148,5 +148,14 @@ export class CrmApi {
   criarOcorrencia(idCondominio: number, descricao: string): Observable<any> {
     return this.http.post<any>(`${this.base}/ocorrencias`, { idCondominio, descricao });
   }
+
+  listMessages(idOcorrencia: number): Observable<any[]> {
+    return this.http.get<any[]>(`${API_BASE}/ocorrencias/${idOcorrencia}/mensagens`);
+  }
+
+  sendMessage(idOcorrencia: number, mensagem: string): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/ocorrencias/${idOcorrencia}/mensagens`, { mensagem });
+  }
 }
+
 

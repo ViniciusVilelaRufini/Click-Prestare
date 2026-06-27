@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from '../crm/crm.service';
+import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 
 const TECH_KEYWORDS = [
   'app', 'aplicativo', 'facial', 'face', 'reconhecimento',
@@ -24,7 +25,8 @@ function normalizeText(text: string): string {
 export class KabaniaService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly crmService: CrmService
+    private readonly crmService: CrmService,
+    private readonly ocorrenciasService: OcorrenciasService,
   ) {}
 
   async getSyncData() {
@@ -49,52 +51,27 @@ export class KabaniaService {
         ],
         ocorrencias: [
           {
-            id: 1,
-            descricao: 'Faturamento atrasado há 4 dia(s)',
+            id: 100001,
+            descricao: 'Botoeira do portão de pedestres não está funcionando',
             status: 'Pendente',
             created_at: new Date(),
             condominio_id: 1,
             condominio_nome: 'Condomínio Residencial Vista Alegre (Mock)',
-            categoria: 'ATRASO',
-            severidade: 'alta'
+            categoria: 'MANUTENÇÃO',
+            severidade: 'alta',
           },
           {
-            id: 2,
-            descricao: '2 terminal(is) facial(is) offline',
+            id: 100002,
+            descricao: 'Morador do bloco B relata aplicativo travando na tela inicial',
             status: 'Pendente',
             created_at: new Date(),
             condominio_id: 2,
             condominio_nome: 'Edifício Costa Verde (Mock)',
-            categoria: 'OFFLINE',
-            severidade: 'alta'
-          },
-        ].filter((o) => {
-          const desc = normalizeText(o.descricao || '');
-          const cat = normalizeText(o.categoria || '');
-          return TECH_KEYWORDS.some((k) => desc.includes(k) || cat.includes(k));
-        }),
-        funcionarios: [
-          {
-            id: 'func-1',
-            tipo: 'Administrativo/Operacional',
-            nome: 'Carlos Souza (Mock)',
-            funcao: 'Zelador',
-            escala: '44h semanais',
-            condominio_id: 1,
-            condominio_nome: 'Condomínio Residencial Vista Alegre (Mock)',
-            ativo: 1,
-          },
-          {
-            id: 'port-1',
-            tipo: 'Portaria',
-            nome: 'Marcos Silva (Mock)',
-            funcao: 'Porteiro',
-            escala: 'Diurno (12x36)',
-            condominio_id: 1,
-            condominio_nome: 'Condomínio Residencial Vista Alegre (Mock)',
-            ativo: 1,
+            categoria: 'APLICATIVO',
+            severidade: 'media',
           },
         ],
+        funcionarios: [],
       };
     }
 
@@ -226,5 +203,40 @@ export class KabaniaService {
 
   async resolveOccurrence(id: number, resposta: string) {
     return this.crmService.responderOcorrencia(id, resposta);
+  }
+
+  async resolveOccurrenceMessage(id: number, mensagem: string) {
+    if (!this.prisma.isConnected) {
+      console.log(`[CRM Mock] Recebida mensagem para ocorrência ${id}: "${mensagem}"`);
+      return { id: 999, id_ocorrencia: id, mensagem, created_at: new Date() };
+    }
+
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id },
+      include: { condominio: true }
+    });
+
+    if (!o) return null;
+
+    // Tenta encontrar um usuário síndico ou admin do condomínio para representar o remetente,
+    // caso contrário usa o próprio criador ou ID de admin padrão (1).
+    let senderId = 1;
+    const sindico = await this.prisma.users.findFirst({
+      where: {
+        is_sindico: 1,
+        sindicosCondominios: {
+          some: { id_condominio: o.id_condominio }
+        }
+      },
+      select: { id: true }
+    });
+
+    if (sindico) {
+      senderId = sindico.id;
+    } else if (o.user) {
+      senderId = o.user;
+    }
+
+    return this.ocorrenciasService.createMessage(id, senderId, mensagem);
   }
 }
