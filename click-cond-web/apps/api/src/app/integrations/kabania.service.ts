@@ -223,4 +223,8 @@ export class KabaniaService {
       funcionarios: funcionariosFormatados,
     };
   }
+
+  async resolveOccurrence(id: number, resposta: string) {
+    return this.crmService.responderOcorrencia(id, resposta);
+  }
 }
