@@ -1121,7 +1121,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     }
 
     this.criandoNovoChamado.set(true);
-    this.api.criarOcorrencia(idCondominio, descricao).subscribe({
+    this.api.criarOcorrencia(Number(idCondominio), descricao).subscribe({
       next: () => {
         this.criandoNovoChamado.set(false);
         this.triggerToast('Novo chamado criado e enviado para o Kanban com sucesso!', 'success');

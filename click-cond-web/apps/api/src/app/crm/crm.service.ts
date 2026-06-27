@@ -1139,7 +1139,7 @@ export class CrmService {
 
     return this.prisma.ocorrencias.create({
       data: {
-        id_condominio: idCondominio,
+        id_condominio: Number(idCondominio),
         descricao,
         tipo: tipo ? Number(tipo) : null,
         status: 'Pendente',
