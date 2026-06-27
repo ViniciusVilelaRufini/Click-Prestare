@@ -1822,7 +1822,12 @@ export class FacialService {
             .filter(Boolean);
           if (diasPermitidos.length > 0) {
             const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-            const diaSemanaAtual = mapDias[now.getDay()];
+            // Usa horário de Brasília para que meia-noite local não resulte em
+            // dia errado quando o servidor está em UTC (Railway default é UTC).
+            const nowBRT = new Date(
+              now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+            );
+            const diaSemanaAtual = mapDias[nowBRT.getDay()];
             if (!diasPermitidos.includes(diaSemanaAtual)) {
               await this.prisma.acessos_Facial.create({
                 data: {

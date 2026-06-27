@@ -926,7 +926,14 @@ export class VisitantesService {
         },
       });
       // Inclui remoção da foto (fotoPes null) → syncVisitante remove o rosto.
-      if (fotoPes !== undefined) {
+      // Também re-sincroniza quando muda janela de validade ou dias da semana,
+      // pois o ValidTo/ValidFrom enviado ao aparelho precisa ser atualizado.
+      const precisaSyncFacial =
+        fotoPes !== undefined ||
+        dto.data_hora_termino !== undefined ||
+        dto.data_hora_inicio !== undefined ||
+        (dto as any).dias_semana !== undefined;
+      if (precisaSyncFacial) {
         this.fireFacialSync(updated.id);
       }
       const label = updated.is_prestador === 1 ? 'Prestador' : 'Visitante';
@@ -1299,6 +1306,9 @@ export class VisitantesService {
       where: { id: Number(id) },
       data: { data_entrada: new Date(), data_saida: null, liberado: 1 },
     });
+    // Re-enrola o rosto no terminal para garantir que o acesso biométrico
+    // funcione (especialmente para saída posterior pelo facial).
+    this.fireFacialSync(v.id);
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
