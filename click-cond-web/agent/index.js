@@ -168,6 +168,9 @@ async function runCondoLoop(token) {
         if (device.fabricante === 'intelbras') {
           startDahuaEventListener(token, device);
         }
+        if (device.fabricante === 'hikvision') {
+          startHikvisionEventListener(token, device);
+        }
         for (const cmd of entry.commands || []) {
           const result = await executeOnDevice(device, cmd);
           await cloudRequest('POST', `/api/facial/agent/condo/${token}/result`, {
@@ -524,6 +527,11 @@ async function doPing(device) {
     );
     return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
   }
+  if (device.fabricante === 'hikvision') {
+    // ISAPI: deviceInfo prova rede + credencial (Digest tratado em request()).
+    const res = await lanRequest(device, 'GET', '/ISAPI/System/deviceInfo');
+    return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
+  }
   const res = await lanRequest(device, 'GET', '/status');
   return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
 }
@@ -575,6 +583,9 @@ async function doEnroll(device, cmd) {
   if (device.fabricante === 'intelbras') {
     return dahuaEnroll(device, cmd);
   }
+  if (device.fabricante === 'hikvision') {
+    return hikvisionEnroll(device, cmd);
+  }
   // Genérico: POST /persons (cadastro) ou PUT /persons/:id (update)
   if (cmd.type === 'update' && cmd.faceId) {
     const body = {};
@@ -624,6 +635,24 @@ async function doRemove(device, cmd) {
       device,
       'GET',
       `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encodeURIComponent(cmd.faceId)}`,
+    );
+    return okFrom(res);
+  }
+  if (device.fabricante === 'hikvision') {
+    const employeeNo = String(cmd.faceId);
+    // Remove o rosto da FDLib.
+    await lanRequest(
+      device,
+      'PUT',
+      '/ISAPI/Intelligent/FDLib/FDSetUp?format=json&FDID=1&faceLibType=blackFD',
+      { json: { FPID: [{ value: employeeNo }] } },
+    ).catch(() => undefined);
+    // Remove o usuário.
+    const res = await lanRequest(
+      device,
+      'PUT',
+      '/ISAPI/AccessControl/UserInfo/Delete?format=json',
+      { json: { UserInfoDelCond: { EmployeeNoList: [{ employeeNo }] } } },
     );
     return okFrom(res);
   }
@@ -855,6 +884,67 @@ async function dahuaEnroll(device, cmd) {
   return { ok: true, faceId: userId };
 }
 
+// ---------- Hikvision ISAPI: enroll/remove ----------
+
+/** Hikvision ISAPI: cria/atualiza o usuário e sobe o rosto. employeeNo = externalId. */
+async function hikvisionEnroll(device, cmd) {
+  const employeeNo = String(cmd.externalId || cmd.faceId);
+  const nome = cmd.nome || employeeNo;
+  // Hikvision quer ISO 8601 local; default permanente. Converte "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DDTHH:MM:SS".
+  const toIso = (s, fb) => (s ? s.replace(' ', 'T') : fb);
+  const beginTime = toIso(cmd.validFrom, '2000-01-01T00:00:00');
+  const endTime = toIso(cmd.validTo, '2037-12-31T23:59:59');
+
+  const userBody = {
+    UserInfo: [
+      {
+        employeeNo,
+        name: nome,
+        userType: 'normal',
+        Valid: { enable: true, beginTime, endTime, timeType: 'local' },
+        doorRight: '1',
+        RightPlan: [{ doorNo: 1, planTemplateNo: '1' }],
+      },
+    ],
+  };
+  // Cria; se já existir, o aparelho devolve erro → cai para Modify.
+  let u = await lanRequest(
+    device,
+    'POST',
+    '/ISAPI/AccessControl/UserInfo/Record?format=json',
+    { json: userBody },
+  );
+  if (!(u.status >= 200 && u.status < 300) || /error|fail/i.test(String(u.raw || ''))) {
+    u = await lanRequest(
+      device,
+      'PUT',
+      '/ISAPI/AccessControl/UserInfo/Modify?format=json',
+      { json: userBody },
+    );
+  }
+  if (!(u.status >= 200 && u.status < 300)) {
+    return { ok: false, statusCode: u.status, error: `usuário: ${String(u.raw || '').slice(0, 120)}` };
+  }
+
+  if (cmd.fotoBase64) {
+    const jpeg = Buffer.from(cmd.fotoBase64, 'base64');
+    const mp = buildMultipart([
+      { name: 'FaceDataRecord', json: { faceLibType: 'blackFD', FDID: '1', FPID: employeeNo } },
+      { name: 'img', jpeg, filename: 'face.jpg' },
+    ]);
+    const f = await lanRequest(
+      device,
+      'POST',
+      '/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json',
+      { binary: mp.body, headers: { 'Content-Type': mp.contentType } },
+    );
+    if (!(f.status >= 200 && f.status < 300) || /error|fail/i.test(String(f.raw || ''))) {
+      return { ok: false, statusCode: f.status, error: `rosto recusado: ${String(f.raw || '').slice(0, 120)}`, faceId: employeeNo };
+    }
+  }
+  return { ok: true, faceId: employeeNo };
+}
+
 // ---------- Dahua: stream de eventos de acesso → nuvem ----------
 //
 // Aparelhos Dahua/Intelbras não fazem push HTTP para uma URL: eles MANTÊM um
@@ -1010,8 +1100,130 @@ async function forwardAccessEvent(token, device, data) {
   }
 }
 
+// ---------- Hikvision: stream de eventos de acesso → nuvem ----------
+
+const hikListeners = new Set();
+
+function startHikvisionEventListener(token, device) {
+  if (hikListeners.has(device.id)) return;
+  hikListeners.add(device.id);
+  console.log(`[agente] ${device.nome}: assinando eventos de acesso (Hikvision)`);
+  (async () => {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        await hikvisionAlertOnce(token, device);
+      } catch (err) {
+        console.error(
+          `[agente] ${device.nome}: stream Hikvision caiu (${err.message || err}); reabrindo em 5s`,
+        );
+      }
+      await sleep(5000);
+    }
+  })();
+}
+
+/** Abre UMA conexão alertStream (Digest) e processa enquanto o aparelho mantém. */
+function hikvisionAlertOnce(token, device) {
+  return new Promise((resolve, reject) => {
+    const user = device.api_user || 'admin';
+    const pass = device.api_password || 'admin';
+    const path = '/ISAPI/Event/notification/alertStream';
+    const challenge = http.request(
+      { host: device.ip, port: device.porta, path, method: 'GET' },
+      (cres) => {
+        cres.resume();
+        if (cres.statusCode !== 401) return reject(new Error(`desafio inesperado: HTTP ${cres.statusCode}`));
+        const wa = cres.headers['www-authenticate'] || '';
+        if (!/digest/i.test(wa)) return reject(new Error('aparelho não pediu Digest'));
+        const auth = buildDigestHeader(user, pass, 'GET', path, wa);
+        const stream = http.request(
+          { host: device.ip, port: device.porta, path, method: 'GET', headers: { Authorization: auth } },
+          (sres) => {
+            if (sres.statusCode !== 200) { sres.resume(); return reject(new Error(`alertStream HTTP ${sres.statusCode}`)); }
+            let buf = '';
+            sres.setEncoding('utf8');
+            sres.on('data', (chunk) => {
+              buf += chunk;
+              buf = consumeHikvisionEvents(buf, (data) => forwardAccessEvent(token, device, data));
+              if (buf.length > 1_000_000) buf = buf.slice(-100_000);
+            });
+            sres.on('end', resolve);
+            sres.on('error', reject);
+          },
+        );
+        stream.on('error', reject);
+        stream.setTimeout(0);
+        stream.end();
+      },
+    );
+    challenge.on('error', reject);
+    challenge.setTimeout(LAN_TIMEOUT_MS, () => challenge.destroy(new Error('timeout no desafio')));
+    challenge.end();
+  });
+}
+
+/**
+ * Extrai eventos AccessControllerEvent completos do buffer e os normaliza para o
+ * formato que forwardAccessEvent espera ({ UserID, Similarity }). Hikvision usa
+ * employeeNoString (= nosso external_id) e currentVerifyMode/faceRect.
+ */
+function consumeHikvisionEvents(buf, onData) {
+  // O alertStream entrega blocos separados por boundary "--MIME_boundary".
+  const parts = buf.split('--MIME_boundary');
+  const tail = parts.pop();
+  for (const part of parts) {
+    if (!part.includes('AccessControllerEvent')) continue;
+    const i = part.indexOf('{');
+    if (i < 0) continue;
+    try {
+      const json = JSON.parse(part.slice(i));
+      const ev = json.AccessControllerEvent || {};
+      const emp = ev.employeeNoString;
+      // Tratamos "tem employeeNo" como reconhecido. Sem employeeNo = ignora.
+      if (emp) onData({ UserID: String(emp), Similarity: ev.similarity ?? 90 });
+    } catch {
+      /* parcial/inválido — ignora */
+    }
+  }
+  return tail;
+}
+
 function okFrom(res) {
   return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
+}
+
+/**
+ * Monta um corpo multipart/form-data. parts = [{ name, json } | { name, jpeg, filename }].
+ * Devolve { body: Buffer, contentType }. Usado no cadastro de rosto do Hikvision.
+ */
+function buildMultipart(parts) {
+  const boundary = '----clickbnd' + crypto.randomBytes(8).toString('hex');
+  const chunks = [];
+  for (const p of parts) {
+    chunks.push(Buffer.from(`--${boundary}\r\n`));
+    if (p.json !== undefined) {
+      chunks.push(
+        Buffer.from(
+          `Content-Disposition: form-data; name="${p.name}"\r\nContent-Type: application/json\r\n\r\n`,
+        ),
+      );
+      chunks.push(Buffer.from(JSON.stringify(p.json)));
+    } else {
+      chunks.push(
+        Buffer.from(
+          `Content-Disposition: form-data; name="${p.name}"; filename="${p.filename || 'face.jpg'}"\r\nContent-Type: image/jpeg\r\n\r\n`,
+        ),
+      );
+      chunks.push(p.jpeg);
+    }
+    chunks.push(Buffer.from('\r\n'));
+  }
+  chunks.push(Buffer.from(`--${boundary}--\r\n`));
+  return {
+    body: Buffer.concat(chunks),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  };
 }
 
 // ---------- HTTP helpers ----------
@@ -1061,13 +1273,13 @@ function request(urlStr, opts = {}) {
     let payload;
     if (opts.json !== undefined) {
       payload = Buffer.from(JSON.stringify(opts.json));
-      headers['Content-Type'] = 'application/json';
+      if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
     } else if (opts.xml !== undefined) {
       payload = Buffer.from(opts.xml);
-      headers['Content-Type'] = 'application/xml';
+      if (!headers['Content-Type']) headers['Content-Type'] = 'application/xml';
     } else if (opts.binary !== undefined) {
       payload = opts.binary;
-      headers['Content-Type'] = 'application/octet-stream';
+      if (!headers['Content-Type']) headers['Content-Type'] = 'application/octet-stream';
     }
     if (payload) headers['Content-Length'] = payload.length;
 
