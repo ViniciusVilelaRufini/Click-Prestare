@@ -209,6 +209,10 @@ export class FacialDeviceClientService {
         );
         return r.status >= 200 && r.status < 300;
       }
+      if (device.fabricante === 'hikvision') {
+        const r = await this.send(device, 'GET', '/ISAPI/System/deviceInfo');
+        return r.status >= 200 && r.status < 300;
+      }
       const res = await this.send(device, 'GET', '/status');
       return res.status >= 200 && res.status < 300;
     } catch (err: any) {
@@ -385,6 +389,12 @@ export class FacialDeviceClientService {
       if (payload.fotoBase64) await this.dahuaSetFace(device, userId, payload.fotoBase64);
       return { faceId: userId };
     }
+    if (device.fabricante === 'hikvision') {
+      const employeeNo = String(payload.externalId);
+      await this.hikvisionUpsertUser(device, employeeNo, payload.nome, payload.validFrom, payload.validTo);
+      if (payload.fotoBase64) await this.hikvisionSetFace(device, employeeNo, payload.fotoBase64);
+      return { faceId: employeeNo };
+    }
     const res = await this.send(device, 'POST', '/persons', {
       external_id: payload.externalId,
       name: payload.nome,
@@ -435,6 +445,12 @@ export class FacialDeviceClientService {
         await this.dahuaSetFace(device, userId, payload.fotoBase64);
       return;
     }
+    if (device.fabricante === 'hikvision') {
+      const employeeNo = String(faceId);
+      await this.hikvisionUpsertUser(device, employeeNo, payload.nome ?? employeeNo, payload.validFrom, payload.validTo);
+      if (payload.fotoBase64 !== undefined) await this.hikvisionSetFace(device, employeeNo, payload.fotoBase64);
+      return;
+    }
     const body: any = {};
     if (payload.nome !== undefined) body.name = payload.nome;
     if (payload.fotoBase64 !== undefined)
@@ -474,6 +490,12 @@ export class FacialDeviceClientService {
           'GET',
           `/cgi-bin/AccessUser.cgi?action=removeMulti&UserIDList[0]=${encodeURIComponent(faceId)}`,
         );
+        return;
+      }
+      if (device.fabricante === 'hikvision') {
+        const employeeNo = String(faceId);
+        await this.send(device, 'PUT', '/ISAPI/Intelligent/FDLib/FDSetUp?format=json&FDID=1&faceLibType=blackFD', { FPID: [{ value: employeeNo }] }, 'application/json').catch(() => undefined);
+        await this.send(device, 'PUT', '/ISAPI/AccessControl/UserInfo/Delete?format=json', { UserInfoDelCond: { EmployeeNoList: [{ employeeNo }] } }, 'application/json');
         return;
       }
       const res = await this.send(device, 'DELETE', `/persons/${faceId}`);
@@ -737,5 +759,72 @@ export class FacialDeviceClientService {
     ) {
       throw new Error(`Intelbras: rosto recusado (HTTP ${r.status})`);
     }
+  }
+
+  // ---------- Hikvision ISAPI (modo direto) ----------
+
+  private async hikvisionUpsertUser(
+    device: FacialDeviceConfig,
+    employeeNo: string,
+    nome?: string,
+    validFrom?: string,
+    validTo?: string,
+  ): Promise<void> {
+    const toIso = (s?: string, fb?: string) => (s ? s.replace(' ', 'T') : fb);
+    const body = {
+      UserInfo: [
+        {
+          employeeNo,
+          name: nome || employeeNo,
+          userType: 'normal',
+          Valid: {
+            enable: true,
+            beginTime: toIso(validFrom, '2000-01-01T00:00:00'),
+            endTime: toIso(validTo, '2037-12-31T23:59:59'),
+            timeType: 'local',
+          },
+          doorRight: '1',
+          RightPlan: [{ doorNo: 1, planTemplateNo: '1' }],
+        },
+      ],
+    };
+    let r = await this.send(device, 'POST', '/ISAPI/AccessControl/UserInfo/Record?format=json', body, 'application/json');
+    if (!(r.status >= 200 && r.status < 300) || /error|fail/i.test(String(r.data ?? ''))) {
+      r = await this.send(device, 'PUT', '/ISAPI/AccessControl/UserInfo/Modify?format=json', body, 'application/json');
+    }
+    if (!(r.status >= 200 && r.status < 300)) {
+      throw new Error(`Hikvision: falha ao gravar usuário (HTTP ${r.status})`);
+    }
+  }
+
+  private async hikvisionSetFace(device: FacialDeviceConfig, employeeNo: string, fotoBase64: string): Promise<void> {
+    const mp = this.buildMultipart([
+      { name: 'FaceDataRecord', json: { faceLibType: 'blackFD', FDID: '1', FPID: employeeNo } },
+      { name: 'img', jpeg: Buffer.from(fotoBase64, 'base64'), filename: 'face.jpg' },
+    ]);
+    const r = await this.send(device, 'POST', '/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json', mp.body, mp.contentType);
+    if (!(r.status >= 200 && r.status < 300) || /error|fail/i.test(String(r.data ?? ''))) {
+      throw new Error(`Hikvision: rosto recusado (HTTP ${r.status})`);
+    }
+  }
+
+  private buildMultipart(
+    parts: ({ name: string; json: unknown } | { name: string; jpeg: Buffer; filename?: string })[],
+  ): { body: Buffer; contentType: string } {
+    const boundary = '----clickbnd' + crypto.randomBytes(8).toString('hex');
+    const chunks: Buffer[] = [];
+    for (const p of parts) {
+      chunks.push(Buffer.from(`--${boundary}\r\n`));
+      if ('json' in p) {
+        chunks.push(Buffer.from(`Content-Disposition: form-data; name="${p.name}"\r\nContent-Type: application/json\r\n\r\n`));
+        chunks.push(Buffer.from(JSON.stringify(p.json)));
+      } else {
+        chunks.push(Buffer.from(`Content-Disposition: form-data; name="${p.name}"; filename="${p.filename || 'face.jpg'}"\r\nContent-Type: image/jpeg\r\n\r\n`));
+        chunks.push(p.jpeg);
+      }
+      chunks.push(Buffer.from('\r\n'));
+    }
+    chunks.push(Buffer.from(`--${boundary}--\r\n`));
+    return { body: Buffer.concat(chunks), contentType: `multipart/form-data; boundary=${boundary}` };
   }
 }
