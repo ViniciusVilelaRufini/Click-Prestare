@@ -923,9 +923,15 @@ export class FacialService {
     const validFrom = visitante.data_hora_inicio
       ? this.formatDahuaTime(new Date(visitante.data_hora_inicio))
       : undefined;
-    const validTo = visitante.data_hora_termino
-      ? this.formatDahuaTime(new Date(visitante.data_hora_termino))
-      : undefined;
+    // Se a pessoa está DENTRO do condomínio mas a janela já expirou, NÃO enviar
+    // o ValidTo vencido ao aparelho — o aparelho negaria saída mesmo sendo legítima.
+    // A nuvem já auditará o evento independente. Sem janela = permanente.
+    const validTo =
+      dentroDoCondominio && !dentroJanela
+        ? undefined
+        : visitante.data_hora_termino
+          ? this.formatDahuaTime(new Date(visitante.data_hora_termino))
+          : undefined;
     let faceId: string | null = visitante.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
