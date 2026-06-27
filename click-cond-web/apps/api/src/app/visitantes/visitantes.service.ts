@@ -1333,6 +1333,8 @@ export class VisitantesService {
       detalhes: ctx ?? undefined,
     });
     await this.desativarOutrosCodigos(v.id_condominio, v.id, v.nome, v.doc_identificacao);
+    // Enrola (ou re-enrola) o rosto no terminal facial agora que liberado=1.
+    this.fireFacialSync(v.id);
     return { ok: true };
   }
 
