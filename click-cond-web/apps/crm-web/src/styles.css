@@ -386,6 +386,9 @@ body.theme-light .text-accent-500 { color: #bf5f1c; }
 body.theme-light .text-success-400 { color: #2e8b57; }
 body.theme-light .text-warning-400 { color: #8a6411; }
 body.theme-light .text-danger-400  { color: #c0392b; }
+body.theme-light .text-emerald-300 { color: #1e5c3a; }
+body.theme-light .text-emerald-450 { color: #2e8b57; }
+body.theme-light .text-emerald-500\/60 { color: #1e5c3a; opacity: 0.9; }
 
 /* ── Texto: branco/zinc claros → tinta quente escura ── */
 body.theme-light .text-white,
