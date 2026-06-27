@@ -1116,6 +1116,9 @@ export class FacialService {
             { face_sync_status: { not: 'synced' } },
             { face_sync_status: null },
             { face_id: null },
+            // Quem tem restrição de dias da semana deve ser sempre reavaliado —
+            // a autorização muda a cada virada de dia, independente do status.
+            { dias_semana: { not: null } },
           ],
         }
       : {};
