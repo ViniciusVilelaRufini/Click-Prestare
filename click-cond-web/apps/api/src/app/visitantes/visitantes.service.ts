@@ -1342,6 +1342,10 @@ export class VisitantesService {
       where: { id: Number(id) },
       data: { data_saida: new Date(), codigo_acesso: null, liberado: 0 },
     });
+    // Rosto revogado: remove do aparelho em background para que o terminal
+    // negue fisicamente. Sem isso, a face permanece no dispositivo e a porta
+    // continua abrindo mesmo com liberado=0 no banco.
+    this.fireFacialSync(v.id);
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
