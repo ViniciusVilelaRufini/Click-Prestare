@@ -640,9 +640,15 @@ export class VisitantesService {
       descricao: `Cadastro da pessoa "${dto.nome || ref.nome}" atualizado com sucesso.`,
     });
 
-    // Foto tocada (nova OU removida) e havia cadastro: re-sincroniza —
-    // syncVisitante recadastra (foto nova) ou remove o rosto do aparelho (sem foto).
-    if (fotoPes !== undefined && ref.face_id) {
+    // Re-sincroniza quando: foto tocada (nova OU removida), OU quando qualquer
+    // campo que afeta autorização mudou (is_prestador, dias_semana, categorias,
+    // tag_rfid) e a pessoa já está cadastrada no aparelho.
+    const campoFacialMudou =
+      fotoPes !== undefined ||
+      dto.is_prestador !== undefined ||
+      (dto as any).dias_semana !== undefined ||
+      (dto as any).categorias !== undefined;
+    if (campoFacialMudou && ref.face_id) {
       this.fireFacialSync(ref.id);
     }
 
@@ -788,7 +794,9 @@ export class VisitantesService {
         console.error('Erro ao notificar moradores sobre visitante:', error);
       }
 
-      if (fotoPes && !faceIdHerdado) {
+      // Sync sempre que há foto — mesmo herdada. A nova visita pode ter
+      // ValidFrom/ValidTo diferentes; sem re-sync o aparelho usa datas antigas.
+      if (fotoPes) {
         this.fireFacialSync(updated.id);
       }
 
@@ -876,9 +884,9 @@ export class VisitantesService {
       console.error('Erro ao notificar moradores sobre visitante:', error);
     }
 
-    // Sync facial: só dispara se há foto E o face_id ainda não foi herdado
-    // de cadastro anterior (caso herdou, terminal já conhece a pessoa).
-    if (fotoPes && !faceIdHerdado) {
+    // Sync sempre que há foto — mesmo herdada. A nova visita pode ter
+    // ValidFrom/ValidTo diferentes; sem re-sync o aparelho usa datas antigas.
+    if (fotoPes) {
       this.fireFacialSync(visitante.id);
     }
 
