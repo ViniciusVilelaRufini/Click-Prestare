@@ -51,6 +51,9 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   novo: CreateOcorrencia = { descricao: '', tipo: 0 };
   showForm = false;
 
+  chatInterval: any = null;
+  ocorrenciasInterval: any = null;
+
   ngOnInit() {
     this.api.categorias().subscribe({
       next: (cats) => {
@@ -64,6 +67,11 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         this.showForm = true;
       }
     });
+
+    // Atualiza a listagem de ocorrencias a cada 10 segundos em segundo plano
+    this.ocorrenciasInterval = setInterval(() => {
+      this.carregarSilenciosamente();
+    }, 10000);
   }
 
   carregar() {
@@ -71,6 +79,13 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     this.api.list().subscribe({
       next: (data) => { this.ocorrencias.set(data); this.loading.set(false); },
       error: (e) => { this.error.set(e?.message ?? 'Erro'); this.loading.set(false); },
+    });
+  }
+
+  carregarSilenciosamente() {
+    this.api.list().subscribe({
+      next: (data) => { this.ocorrencias.set(data); },
+      error: (e) => console.error('Erro ao recarregar ocorrencias em background:', e)
     });
   }
 
@@ -135,10 +150,9 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
     return { label: 'Baixa', color: 'text-slate-400' };
   }
 
-  chatInterval: any = null;
-
   ngOnDestroy() {
     this.limparIntervaloChat();
+    this.limparIntervaloOcorrencias();
   }
 
   limparIntervaloChat() {
@@ -147,6 +161,14 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
       this.chatInterval = null;
     }
   }
+
+  limparIntervaloOcorrencias() {
+    if (this.ocorrenciasInterval) {
+      clearInterval(this.ocorrenciasInterval);
+      this.ocorrenciasInterval = null;
+    }
+  }
+
 
   abrirChat(o: Ocorrencia) {
     this.limparIntervaloChat();

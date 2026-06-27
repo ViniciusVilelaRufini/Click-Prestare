@@ -556,6 +556,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     if (this.chatInterval) {
       clearInterval(this.chatInterval);
     }
+    this.limparIntervaloOcorrencias();
   }
 
 
@@ -1063,12 +1064,20 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     return Math.round((mrr / ov.mrrTotal) * 100);
   }
 
+  ocorrenciasInterval: any = null;
+
   alterarAbaNavegacao(aba: 'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios' | 'chamados'): void {
     this.abaNavegacao.set(aba);
     // Limpar cliente selecionado ao trocar de aba principal para evitar sobreposições
     this.clienteSelecionado.set(null);
+    this.limparIntervaloOcorrencias();
+
     if (aba === 'chamados') {
       this.carregarOcorrencias();
+      // Polling a cada 10 segundos para novos chamados no CRM
+      this.ocorrenciasInterval = setInterval(() => {
+        this.recargaSilenciosaOcorrencias();
+      }, 10000);
     }
   }
 
@@ -1085,6 +1094,22 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       }
     });
   }
+
+  recargaSilenciosaOcorrencias(): void {
+    this.api.getOcorrencias().subscribe({
+      next: (data) => {
+        this.ocorrenciasList.set(data);
+      }
+    });
+  }
+
+  private limparIntervaloOcorrencias(): void {
+    if (this.ocorrenciasInterval) {
+      clearInterval(this.ocorrenciasInterval);
+      this.ocorrenciasInterval = null;
+    }
+  }
+
 
   abrirRespostaOcorrencia(o: any): void {
     this.ocorrenciaSelecionada.set(o);

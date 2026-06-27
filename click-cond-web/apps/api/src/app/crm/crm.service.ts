@@ -1104,7 +1104,7 @@ export class CrmService {
       data: {
         resposta,
         resposta_at: new Date(),
-        status: 'Resolvida'
+        status: 'Solucionado'
       },
       include: {
         condominio: {
