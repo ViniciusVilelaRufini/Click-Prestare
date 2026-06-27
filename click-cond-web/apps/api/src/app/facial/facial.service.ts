@@ -1140,7 +1140,9 @@ export class FacialService {
         ? this.prisma.visitantes.findMany({
             where: {
               id_condominio: idCondominio,
-              data_saida: null,
+              // Inclui quem ainda não saiu OU quem tem face_id no aparelho
+              // (pode precisar ser removido mesmo após a saída).
+              OR: [{ data_saida: null }, { face_id: { not: null } }],
               AND: [temFotoOuFace, pendenteWhere, visitanteTipoWhere],
             },
             select: { id: true },
