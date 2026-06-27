@@ -83,7 +83,12 @@ export class FacialService {
     private readonly auditoria: AuditoriaService,
     private readonly accessState: AccessStateService,
     private readonly agent: AgentBridgeService,
-  ) {}
+  ) {
+    // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
+    // Delay de 5 min no boot para aguardar banco conectar após deploy.
+    setTimeout(() => void this.tickDiasSemanaSync(), 5 * 60 * 1000);
+    setInterval(() => void this.tickDiasSemanaSync(), 60 * 60 * 1000);
+  }
 
   // ---------- Enrollment guiado (RFID/QR) ----------
 
@@ -877,8 +882,25 @@ export class FacialService {
       (terminoMs === null || agora <= terminoMs + GRACE);
     const dentroDoCondominio =
       !!visitante.data_entrada && !visitante.data_saida;
+    // Restrição de dia da semana configurada na ficha do prestador/visitante.
+    // Usa horário de Brasília para bater com o relógio do aparelho.
+    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
+    const diasPermitidos: string[] = visitante.dias_semana
+      ? (visitante.dias_semana as string)
+          .split(',')
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+    const diaAutorizado =
+      diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
+    // dentroDoCondominio sempre permite (pessoa dentro pode sair mesmo fora do dia autorizado).
     const autorizado =
-      (visitante.liberado === 1 && dentroJanela) || dentroDoCondominio;
+      (visitante.liberado === 1 && dentroJanela && diaAutorizado) ||
+      dentroDoCondominio;
     if (!autorizado) {
       if (visitante.face_id && visitante.id_condominio) {
         await this.unsyncVisitante(
@@ -1187,6 +1209,34 @@ export class FacialService {
     })();
 
     return { total, started: true };
+  }
+
+  /**
+   * Disparo horário: ao virar o dia (0h BRT), re-sincroniza todos que têm
+   * restrição de dias da semana — adiciona/remove rostos conforme o dia atual.
+   */
+  private async tickDiasSemanaSync() {
+    if (!this.prisma.isConnected) return;
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    if (agoraBRT.getHours() !== 0) return;
+    try {
+      const comDias = await this.prisma.visitantes.findMany({
+        where: {
+          dias_semana: { not: null },
+          OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
+        },
+        select: { id: true },
+      });
+      for (const v of comDias) {
+        this.syncVisitante(v.id).catch((e: any) =>
+          this.logger.warn(`tickDiasSemana visitante ${v.id}: ${e?.message ?? e}`),
+        );
+      }
+    } catch (e: any) {
+      this.logger.warn(`tickDiasSemanaSync erro: ${e?.message ?? e}`);
+    }
   }
 
   /**
