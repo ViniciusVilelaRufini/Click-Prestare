@@ -203,7 +203,7 @@ export class DashboardService {
     const DEDUP_WINDOW_MS = 15_000;
     const facialKeys = new Set<string>();
     for (const a of ultAcessosFacial) {
-      if (a.tipo_pessoa !== 'visitante') continue;
+      if (a.tipo_pessoa !== 'visitante' && a.tipo_pessoa !== 'prestador') continue;
       // Arredonda timestamp pra janelas de 15s para gerar chave estável
       const bucket = Math.floor(a.timestamp.getTime() / DEDUP_WINDOW_MS);
       facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket}`);
