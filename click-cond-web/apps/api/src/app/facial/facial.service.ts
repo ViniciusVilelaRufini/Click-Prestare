@@ -1573,11 +1573,25 @@ export class FacialService {
       );
     }
 
+    // Regras ativas para este terminal — buscadas aqui para serem usadas tanto
+    // na resolução de direção (bloco abaixo) quanto na validação whitelist adiante.
+    const regrasDispositivo = await this.prisma.regras_Acesso.findMany({
+      where: {
+        id_condominio: device.id_condominio,
+        ativo: 1,
+        dispositivos: { some: { id_dispositivo: device.id } },
+      },
+    });
+
     // Terminal único bidirecional (sentido "auto") que NÃO informa a direção —
     // caso dos faciais Intelbras/Dahua, que só dizem "reconheci o UserID". Sem
     // tratar, todo reconhecimento viraria "entrada" e o anti-passback bloquearia
     // do 2º acesso em diante. Resolvemos alternando pelo último acesso da pessoa:
     // entrada → saída → entrada... que é o comportamento real de um leitor único.
+    //
+    // Exceção: se a alternância produziria 'saida' mas nenhuma regra ativa do
+    // terminal permite saída para esta categoria (ex.: visitante/prestador num
+    // leitor compartilhado com regra "Apenas Entrada"), trata como 'entrada'.
     if (this.isAmbiguousAuto(device.sentido, payload)) {
       const ultimo = await this.prisma.acessos_Facial.findFirst({
         where: {
@@ -1588,7 +1602,21 @@ export class FacialService {
         },
         orderBy: { timestamp: 'desc' },
       });
-      evento = ultimo?.evento === 'entrada' ? 'saida' : 'entrada';
+      const eventoAlternado = ultimo?.evento === 'entrada' ? 'saida' : 'entrada';
+      if (
+        eventoAlternado === 'saida' &&
+        tipoPessoa &&
+        bloqueadoPorRegrasAcesso(
+          regrasDispositivo as unknown as RegraAcessoLike[],
+          'saida',
+          tipoPessoa as CategoriaPessoa,
+          timestamp.toTimeString().substring(0, 5),
+        )
+      ) {
+        evento = 'entrada';
+      } else {
+        evento = eventoAlternado;
+      }
     }
 
     // Rede de segurança anti falso positivo: se o terminal tem confiança mínima
@@ -1804,18 +1832,7 @@ export class FacialService {
     }
 
     // Validação de Regras de Acesso (Sprint 3 com Horários e Sentidos)
-    const regrasDispositivo = await this.prisma.regras_Acesso.findMany({
-      where: {
-        id_condominio: device.id_condominio,
-        ativo: 1,
-        dispositivos: {
-          some: {
-            id_dispositivo: device.id,
-          },
-        },
-      },
-    });
-
+    // regrasDispositivo já foi buscado acima para resolver a direção da alternância.
     if (regrasDispositivo.length > 0) {
       // Modelo WHITELIST (engine extraída em access-rules.util.ts, testada
       // exaustivamente). Se o terminal tem regras ativas, só passa se alguma
