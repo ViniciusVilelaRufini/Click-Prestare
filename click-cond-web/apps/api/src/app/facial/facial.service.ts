@@ -1110,14 +1110,24 @@ export class FacialService {
     }
 
     // Filtro "pendente": ainda não sincronizado com sucesso.
-    const pendenteWhere = opts.onlyPending
+    // Filtro "pendente" para moradores (sem campo dias_semana).
+    const pendenteWhereMorador = opts.onlyPending
       ? {
           OR: [
             { face_sync_status: { not: 'synced' } },
             { face_sync_status: null },
             { face_id: null },
-            // Quem tem restrição de dias da semana deve ser sempre reavaliado —
-            // a autorização muda a cada virada de dia, independente do status.
+          ],
+        }
+      : {};
+    // Filtro "pendente" para visitantes/prestadores: inclui também quem tem
+    // dias_semana configurado — a autorização muda a cada virada de dia.
+    const pendenteWhereVisitante = opts.onlyPending
+      ? {
+          OR: [
+            { face_sync_status: { not: 'synced' } },
+            { face_sync_status: null },
+            { face_id: null },
             { dias_semana: { not: null } },
           ],
         }
@@ -1156,7 +1166,7 @@ export class FacialService {
         ? this.prisma.moradores.findMany({
             where: {
               id_condominio: idCondominio,
-              AND: [temFotoOuFace, pendenteWhere, moradorTipoWhere],
+              AND: [temFotoOuFace, pendenteWhereMorador, moradorTipoWhere],
             },
             select: { id: true },
           })
@@ -1168,7 +1178,7 @@ export class FacialService {
               // Inclui quem ainda não saiu OU quem tem face_id no aparelho
               // (pode precisar ser removido mesmo após a saída).
               OR: [{ data_saida: null }, { face_id: { not: null } }],
-              AND: [temFotoOuFace, pendenteWhere, visitanteTipoWhere],
+              AND: [temFotoOuFace, pendenteWhereVisitante, visitanteTipoWhere],
             },
             select: { id: true },
           })
