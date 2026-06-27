@@ -419,7 +419,7 @@ export class DashboardService {
         .filter((a) => a.tipo_pessoa === 'morador')
         .map((a) => a.id_pessoa);
       const idsVisitante = ultAcessosFacial
-        .filter((a) => a.tipo_pessoa === 'visitante')
+        .filter((a) => a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador')
         .map((a) => a.id_pessoa);
 
       const [moradoresInfo, visitantesInfo] = await Promise.all([
@@ -479,7 +479,7 @@ export class DashboardService {
           if (m?.bloco || m?.apartamento) {
             aptoStr = `Apto ${m?.apartamento ?? ''}${m?.bloco ?? ''}`.trim();
           }
-        } else if (a.tipo_pessoa === 'visitante') {
+        } else if (a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') {
           const v = visitanteById.get(a.id_pessoa);
           foto = v?.foto_pessoa ?? undefined;
           documento = v?.doc_identificacao ?? undefined;
@@ -489,11 +489,11 @@ export class DashboardService {
         }
 
         const terminalNome = deviceById.get(a.id_device) ?? `Terminal #${a.id_device}`;
-        // Se for visitante, monta o histórico completo dele
+        // Se for visitante ou prestador, monta o histórico completo
         let historicoAcessos:
           | DashboardSummary['ultimosEventos'][number]['detalhes']['historicoAcessos']
           | undefined;
-        if (a.tipo_pessoa === 'visitante') {
+        if (a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') {
           const v = visitanteById.get(a.id_pessoa);
           if (v) {
             // Para usar buildHistoricoAcessos precisamos das datas do visitante;
