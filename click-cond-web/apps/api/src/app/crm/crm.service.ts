@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
+
 
 /**
  * CRM — visão comercial (condomínios = clientes da Click Prestare) integrada
@@ -102,7 +104,11 @@ export interface CrmOverview {
 
 @Injectable()
 export class CrmService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ocorrenciasService: OcorrenciasService
+  ) {}
+
 
   private _mockClientesDb: CrmClienteResumo[] | null = null;
 
@@ -1168,4 +1174,52 @@ export class CrmService {
       }
     });
   }
+
+  async listMessages(idOcorrencia: number) {
+    if (!this.prisma.isConnected) return [];
+    return this.prisma.ocorrenciaMensagens.findMany({
+      where: { id_ocorrencia: idOcorrencia },
+      include: {
+        usuario: { select: { id: true, name: true, login_type: true, is_sindico: true } },
+      },
+      orderBy: { created_at: 'asc' },
+    });
+  }
+
+  async createMessage(idOcorrencia: number, mensagem: string) {
+    if (!this.prisma.isConnected) {
+      return {
+        id: Math.floor(Math.random() * 1000) + 1000,
+        mensagem,
+        created_at: new Date(),
+        usuario: { id: 1, name: 'Operador CRM (Mock)', is_sindico: true }
+      };
+    }
+
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id: idOcorrencia }
+    });
+    if (!o) throw new NotFoundException('Ocorrência não encontrada');
+
+    // Busca o síndico do condomínio associado à ocorrência
+    let senderId = 1;
+    const sindico = await this.prisma.users.findFirst({
+      where: {
+        is_sindico: 1,
+        sindicosCondominios: {
+          some: { id_condominio: o.id_condominio }
+        }
+      },
+      select: { id: true }
+    });
+
+    if (sindico) {
+      senderId = sindico.id;
+    } else if (o.user) {
+      senderId = o.user;
+    }
+
+    return this.ocorrenciasService.createMessage(idOcorrencia, senderId, mensagem);
+  }
 }
+

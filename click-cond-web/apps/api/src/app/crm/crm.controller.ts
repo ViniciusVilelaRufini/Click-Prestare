@@ -87,4 +87,20 @@ export class CrmController {
     const criada = await this.service.criarOcorrencia(body.idCondominio, body.descricao, body.tipo);
     return { success: true, data: criada };
   }
+
+  @UseGuards(CrmAdminGuard)
+  @Get('ocorrencias/:id/mensagens')
+  async listMessages(@Param('id', ParseIntPipe) id: number) {
+    return this.service.listMessages(id);
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('ocorrencias/:id/mensagens')
+  async createMessage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { mensagem: string }
+  ) {
+    return this.service.createMessage(id, body.mensagem);
+  }
 }
+

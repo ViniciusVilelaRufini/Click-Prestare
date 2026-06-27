@@ -6,6 +6,7 @@ import { CrmAuthController } from './crm-auth.controller';
 import { CrmAuthService } from './crm-auth.service';
 import { CrmAdminGuard } from './crm-admin.guard';
 import { resolveJwtSecret } from '../auth/jwt-secret';
+import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 
 @Module({
   imports: [
@@ -15,9 +16,11 @@ import { resolveJwtSecret } from '../auth/jwt-secret';
       secret: resolveJwtSecret(),
       signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '8h') as any },
     }),
+    OcorrenciasModule,
   ],
   controllers: [CrmController, CrmAuthController],
   providers: [CrmService, CrmAuthService, CrmAdminGuard],
   exports: [CrmService],
 })
 export class CrmModule {}
+
