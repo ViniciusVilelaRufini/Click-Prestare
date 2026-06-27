@@ -156,6 +156,10 @@ export class CrmApi {
   sendMessage(idOcorrencia: number, mensagem: string): Observable<any> {
     return this.http.post<any>(`${this.base}/ocorrencias/${idOcorrencia}/mensagens`, { mensagem });
   }
+
+  reabrirOcorrencia(id: number, novasInformacoes: string): Observable<any> {
+    return this.http.put<any>(`${this.base}/ocorrencias/${id}/reabrir`, { novasInformacoes });
+  }
 }
 
 

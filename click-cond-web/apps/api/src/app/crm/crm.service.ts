@@ -1221,5 +1221,73 @@ export class CrmService {
 
     return this.ocorrenciasService.createMessage(idOcorrencia, senderId, mensagem);
   }
+
+  async reabrirOcorrencia(id: number, novasInformacoes: string) {
+    if (!this.prisma.isConnected) return null;
+
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id }
+    });
+    if (!o) return null;
+
+    const novaDescricao = `${o.descricao}\n\n[Reabertura - Novas Informações]:\n${novasInformacoes}`;
+
+    const atualizado = await this.prisma.ocorrencias.update({
+      where: { id },
+      data: {
+        status: 'Pendente',
+        descricao: novaDescricao,
+        resposta: null,
+        resposta_at: null
+      },
+      include: {
+        condominio: {
+          select: {
+            id: true,
+            nome: true
+          }
+        },
+        criadoPor: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        categoria: {
+          select: {
+            id: true,
+            nome: true
+          }
+        }
+      }
+    });
+
+    let senderId = 1;
+    const sindico = await this.prisma.users.findFirst({
+      where: {
+        is_sindico: 1,
+        sindicosCondominios: {
+          some: { id_condominio: o.id_condominio }
+        }
+      },
+      select: { id: true }
+    });
+
+    if (sindico) {
+      senderId = sindico.id;
+    } else if (o.user) {
+      senderId = o.user;
+    }
+
+    await this.ocorrenciasService.createMessage(
+      id,
+      senderId,
+      `[Chamado Reaberto] ${novasInformacoes}`
+    );
+
+    return atualizado;
+  }
 }
+
 

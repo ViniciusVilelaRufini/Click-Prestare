@@ -102,5 +102,17 @@ export class CrmController {
   ) {
     return this.service.createMessage(id, body.mensagem);
   }
+
+  @UseGuards(CrmAdminGuard)
+  @Put('ocorrencias/:id/reabrir')
+  async reabrirOcorrencia(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { novasInformacoes: string }
+  ) {
+    const atualizado = await this.service.reabrirOcorrencia(id, body.novasInformacoes);
+    if (!atualizado) throw new NotFoundException('Ocorrência não encontrada');
+    return { success: true, data: atualizado };
+  }
 }
+
 

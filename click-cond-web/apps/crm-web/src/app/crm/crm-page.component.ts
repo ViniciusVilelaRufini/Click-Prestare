@@ -153,6 +153,12 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly respostaTexto = signal('');
   readonly enviandoResposta = signal(false);
 
+  // --- Controle de Reabertura de Chamado ---
+  readonly reabrindoChamado = signal(false);
+  reaberturaTexto = '';
+  readonly enviandoReabertura = signal(false);
+
+
   // --- Chat de Ocorrências ---
   readonly chatMensagens = signal<any[]>([]);
   readonly loadingChatMensagens = signal(false);
@@ -1098,7 +1104,10 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     this.limparIntervaloChat();
     this.ocorrenciaSelecionada.set(null);
     this.respostaTexto.set('');
+    this.reabrindoChamado.set(false);
+    this.reaberturaTexto = '';
   }
+
 
   private limparIntervaloChat(): void {
     if (this.chatInterval) {
@@ -1183,6 +1192,50 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       }
     });
   }
+
+  iniciarReabertura(): void {
+    this.reabrindoChamado.set(true);
+    this.reaberturaTexto = '';
+  }
+
+  cancelarReabertura(): void {
+    this.reabrindoChamado.set(false);
+    this.reaberturaTexto = '';
+  }
+
+  confirmarReabertura(idOcorrencia: number): void {
+    const info = this.reaberturaTexto.trim();
+    if (!info) return;
+
+    this.enviandoReabertura.set(true);
+    this.api.reabrirOcorrencia(idOcorrencia, info).subscribe({
+      next: (res) => {
+        this.enviandoReabertura.set(false);
+        this.reabrindoChamado.set(false);
+        this.reaberturaTexto = '';
+        this.triggerToast('Chamado reaberto e sincronizado com o Kanban!', 'success');
+        
+        // Atualiza a ocorrência selecionada local
+        if (res && res.data) {
+          this.ocorrenciaSelecionada.set(res.data);
+          this.respostaTexto.set('');
+        }
+        
+        // Recarrega a lista geral de ocorrências
+        this.carregarOcorrencias();
+        // Recarrega as mensagens do chat
+        this.carregarMensagensChat(idOcorrencia);
+        // Recarrega overview para atualizar contadores
+        this.carregar();
+      },
+      error: (err) => {
+        console.error('Erro ao reabrir ocorrência:', err);
+        this.enviandoReabertura.set(false);
+        this.triggerToast('Erro ao reabrir e sincronizar o chamado.', 'error');
+      }
+    });
+  }
+
 
   abrirNovoChamado(): void {
     this.modalNovoChamadoAberto.set(true);

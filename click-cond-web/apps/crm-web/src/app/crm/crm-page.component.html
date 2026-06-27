@@ -1801,12 +1801,41 @@
                             <textarea [(ngModel)]="respostaTexto" rows="4" placeholder="Escreva aqui a resolução definitiva do chamado..."
                               class="w-full bg-[#060608] border border-white/[0.08] focus:border-accent-500/60 rounded-md p-3 text-xs text-white placeholder-zinc-700 transition outline-none resize-none"></textarea>
                           } @else {
-                            <div class="bg-emerald-500/[0.03] border border-emerald-500/15 rounded-md p-3 text-emerald-300 leading-relaxed whitespace-pre-wrap">
+                            <div class="bg-emerald-500/[0.03] border border-emerald-500/15 rounded-md p-3 text-emerald-300 leading-relaxed whitespace-pre-wrap mb-3.5">
                               {{ o.resposta }}
                               <div class="text-[10px] text-emerald-500/60 mt-2 font-mono">Resolvido em: {{ o.resposta_at | date:'dd/MM/yyyy HH:mm' }}</div>
                             </div>
+
+                            @if (!reabrindoChamado()) {
+                              <button (click)="iniciarReabertura()"
+                                class="press w-full py-2.5 px-3 rounded-md bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-400 font-bold text-xs transition text-center">
+                                Reabrir e Direcionar Chamado (Volta ao Kanban)
+                              </button>
+                            } @else {
+                              <div class="space-y-3.5 border border-amber-500/25 bg-amber-500/[0.02] p-4 rounded-lg animate-fade-in">
+                                <label class="block text-[9px] font-bold text-amber-450 uppercase tracking-wide">Motivo / Novas Informações do Cliente</label>
+                                <textarea [(ngModel)]="reaberturaTexto" rows="3" placeholder="Escreva as novas informações relatadas pelo cliente..."
+                                  class="w-full bg-[#060608] border border-amber-500/30 focus:border-amber-500/60 rounded-md p-3 text-xs text-white placeholder-zinc-700 transition outline-none resize-none"></textarea>
+                                
+                                <div class="flex justify-end gap-2.5">
+                                  <button (click)="cancelarReabertura()" 
+                                    class="press px-3.5 py-2 text-2xs font-semibold rounded-md border border-white/[0.08] text-zinc-400 hover:text-white transition">
+                                    Cancelar
+                                  </button>
+                                  <button (click)="confirmarReabertura(o.id)" [disabled]="enviandoReabertura() || !reaberturaTexto.trim()"
+                                    class="press px-3.5 py-2 text-2xs font-bold rounded-md bg-amber-500 text-black hover:bg-amber-600 disabled:opacity-50 transition">
+                                    @if (enviandoReabertura()) {
+                                      Processando...
+                                    } @else {
+                                      Reabrir e Sincronizar
+                                    }
+                                  </button>
+                                </div>
+                              </div>
+                            }
                           }
                         </div>
+
                       </div>
 
                       <!-- Footer -->
