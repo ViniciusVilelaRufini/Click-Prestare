@@ -75,8 +75,14 @@ export class AgentBridgeService {
   }
 
   /** Agente reportou o status do aparelho (alcançável ou não) na LAN. */
-  reportDeviceStatus(deviceId: number, online: boolean): void {
+  reportDeviceStatus(deviceId: number, online: boolean): { changed: boolean; previous: boolean | null } {
+    const prev = this.deviceStatus.get(deviceId);
+    const prevOnline = prev && (Date.now() - prev.at < this.deviceStatusTtlMs) ? prev.online : null;
     this.deviceStatus.set(deviceId, { online, at: Date.now() });
+    return {
+      changed: prevOnline !== online,
+      previous: prevOnline
+    };
   }
 
   /**

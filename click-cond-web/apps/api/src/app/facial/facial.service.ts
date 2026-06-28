@@ -190,18 +190,43 @@ export class FacialService {
     statuses: { deviceId: number; online: boolean }[],
   ) {
     if (!Array.isArray(statuses) || statuses.length === 0) return { ok: true };
-    const doCondominio = new Set(
-      (
-        await this.prisma.facial_Devices.findMany({
-          where: { id_condominio: idCondominio },
-          select: { id: true },
-        })
-      ).map((d) => d.id),
-    );
+
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: {
+        id_condominio: idCondominio,
+        id: { in: statuses.map((s) => Number(s?.deviceId)).filter(Boolean) },
+      },
+      select: { id: true, nome: true, tipo: true },
+    });
+    const deviceMap = new Map(devices.map((d) => [d.id, d]));
+
     for (const s of statuses) {
       const id = Number(s?.deviceId);
-      if (doCondominio.has(id)) {
-        this.agent.reportDeviceStatus(id, !!s.online);
+      const dev = deviceMap.get(id);
+      if (dev) {
+        const { changed } = this.agent.reportDeviceStatus(id, !!s.online);
+        if (changed) {
+          const statusText = s.online ? 'Online' : 'Offline';
+          const descStr = `O dispositivo "${dev.nome}" (${dev.tipo || 'facial'}) ficou ${statusText.toLowerCase()}.`;
+
+          let categoria = await this.prisma.ocorrencias_Categorias.findFirst({
+            where: { nome: 'Dispositivos' },
+          });
+          if (!categoria) {
+            categoria = await this.prisma.ocorrencias_Categorias.create({
+              data: { nome: 'Dispositivos', prioridade: 1 },
+            });
+          }
+
+          await this.prisma.ocorrencias.create({
+            data: {
+              descricao: descStr,
+              tipo: categoria.id,
+              status: s.online ? 'Resolvido' : 'Pendente',
+              id_condominio: idCondominio,
+            },
+          });
+        }
       }
     }
     return { ok: true };
@@ -462,6 +487,31 @@ export class FacialService {
   async testDevice(id: number) {
     const device = await this.getDevice(id);
     const online = await this.client.ping(this.toConfig(device));
+
+    const { changed } = this.agent.reportDeviceStatus(id, online);
+    if (changed) {
+      const statusText = online ? 'Online' : 'Offline';
+      const descStr = `O dispositivo "${device.nome}" (${device.tipo || 'facial'}) ficou ${statusText.toLowerCase()} (teste manual).`;
+
+      let categoria = await this.prisma.ocorrencias_Categorias.findFirst({
+        where: { nome: 'Dispositivos' },
+      });
+      if (!categoria) {
+        categoria = await this.prisma.ocorrencias_Categorias.create({
+          data: { nome: 'Dispositivos', prioridade: 1 },
+        });
+      }
+
+      await this.prisma.ocorrencias.create({
+        data: {
+          descricao: descStr,
+          tipo: categoria.id,
+          status: online ? 'Resolvido' : 'Pendente',
+          id_condominio: device.id_condominio,
+        },
+      });
+    }
+
     return { online };
   }
 
