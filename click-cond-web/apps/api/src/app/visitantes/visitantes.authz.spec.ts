@@ -40,7 +40,7 @@ describe('VisitantesService — autorização de tenant (IDOR)', () => {
       ...overrides,
     };
     const noop: any = { registrar: jest.fn(), sendPushNotification: jest.fn(), sendWhatsApp: jest.fn() };
-    const facial: any = { syncVisitante: jest.fn(), unsyncVisitante: jest.fn() };
+    const facial: any = { syncVisitante: jest.fn().mockResolvedValue({}), unsyncVisitante: jest.fn() };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
     // TenantAccessService real ligado ao mesmo mock de prisma: testa a
     // autorização ponta-a-ponta (porteiro/síndico via o helper central).

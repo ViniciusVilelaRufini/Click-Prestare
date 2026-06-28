@@ -88,6 +88,10 @@ export class FacialService {
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
     setTimeout(() => void this.tickDiasSemanaSync(), 5 * 60 * 1000);
     setInterval(() => void this.tickDiasSemanaSync(), 60 * 60 * 1000);
+
+    // Cron de expiração automática de visitantes e prestadores
+    setTimeout(() => void this.tickExpiracaoAutomatica(), 2 * 60 * 1000);
+    setInterval(() => void this.tickExpiracaoAutomatica(), 15 * 60 * 1000);
   }
 
   // ---------- Enrollment guiado (RFID/QR) ----------
@@ -880,8 +884,15 @@ export class FacialService {
     const dentroJanela =
       (inicioMs === null || agora >= inicioMs - GRACE) &&
       (terminoMs === null || agora <= terminoMs + GRACE);
+
+    // Considera "dentro do condomínio" apenas se entrou e ainda não registrou saída,
+    // e desde que a entrada tenha ocorrido há menos de 24 horas (proteção contra estado órfão).
+    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
+    const tempoMaximoCondominio = visitante.data_entrada
+      ? agora - new Date(visitante.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS
+      : false;
     const dentroDoCondominio =
-      !!visitante.data_entrada && !visitante.data_saida;
+      !!visitante.data_entrada && !visitante.data_saida && tempoMaximoCondominio;
     // Restrição de dia da semana configurada na ficha do prestador/visitante.
     // Usa horário de Brasília para bater com o relógio do aparelho.
     const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
@@ -968,6 +979,24 @@ export class FacialService {
           );
           continue;
         }
+
+        // Se a pessoa está expirada ou não-liberada, e está dentro do condomínio:
+        // - Pode ficar nos dispositivos de SAÍDA (sentido === 'saida') para poder sair.
+        // - Não deve ficar nos dispositivos de ENTRADA (sentido === 'entrada') ou AUTO (sentido === 'auto')
+        //   porque senão ela conseguiria entrar fisicamente estando expirada.
+        const liberadoGeral =
+          visitante.liberado === 1 && dentroJanela && diaAutorizado;
+        const podeEstarNoDispositivo =
+          liberadoGeral || (dentroDoCondominio && device.sentido === 'saida');
+
+        if (!podeEstarNoDispositivo) {
+          await this.client.removePerson(
+            this.toConfig(device),
+            faceId ?? externalId,
+          );
+          continue;
+        }
+
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: visitante.nome,
@@ -1249,6 +1278,44 @@ export class FacialService {
       }
     } catch (e: any) {
       this.logger.warn(`tickDiasSemanaSync erro: ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Cron de expiração automática: busca visitantes e prestadores cuja validade
+   * expirou e que possuem face_id no banco ou estão liberados. Define liberado=0
+   * e executa syncVisitante para removê-los fisicamente dos terminais faciais.
+   */
+  private async tickExpiracaoAutomatica() {
+    if (!this.prisma.isConnected) return;
+    try {
+      const agora = new Date();
+      const expirados = await this.prisma.visitantes.findMany({
+        where: {
+          data_hora_termino: { lt: agora },
+          OR: [
+            { face_id: { not: null } },
+            { liberado: 1 }
+          ]
+        },
+        select: { id: true, liberado: true },
+      });
+      for (const v of expirados) {
+        if (v.liberado === 1) {
+          await this.prisma.visitantes.update({
+            where: { id: v.id },
+            data: { liberado: 0 }
+          });
+        }
+        this.syncVisitante(v.id).catch((e: any) =>
+          this.logger.warn(`tickExpiracao visitante ${v.id}: ${e?.message ?? e}`),
+        );
+      }
+      if (expirados.length > 0) {
+        this.logger.log(`tickExpiracaoAutomatica: ${expirados.length} expirado(s) processados`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`tickExpiracaoAutomatica erro: ${e?.message ?? e}`);
     }
   }
 

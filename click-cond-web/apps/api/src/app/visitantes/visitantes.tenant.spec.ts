@@ -90,7 +90,7 @@ describe('Visitantes — isolamento de tenant síndico mobile (e2e)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationsService, useValue: noop },
         { provide: StorageService, useValue: { isDataUrl: () => false, uploadDataUrl: jest.fn() } },
-        { provide: FacialService, useValue: { syncVisitante: jest.fn(), unsyncVisitante: jest.fn() } },
+        { provide: FacialService, useValue: { syncVisitante: jest.fn().mockResolvedValue({}), unsyncVisitante: jest.fn() } },
         { provide: AuditoriaService, useValue: noop },
         // JwtAuthGuard real é trocado pelo fake; TenantGuard é o real.
         { provide: APP_GUARD, useClass: FakeJwtGuard },
