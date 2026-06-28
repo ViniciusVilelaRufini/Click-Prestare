@@ -67,6 +67,8 @@ const DEVICE_STATUS_INTERVAL_MS = Number(
 );
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
+// deviceId → maior RecNo/serialNo/ID de log de acesso já processado no dispositivo.
+const deviceBaselines = new Map();
 // Devices do último poll (p/ o servidor de live view achar IP/credencial).
 let lastDevices = [];
 // Porta local do preview ao vivo (só localhost; o navegador da portaria acessa).
@@ -206,6 +208,11 @@ async function runCondoLoop(token) {
             console.log(
               `[agente] ${device.nome}: aparelho ${online ? 'ONLINE' : 'OFFLINE'}`,
             );
+            if (online) {
+              syncDeviceOfflineLogs(token, device).catch((e) =>
+                console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
+              );
+            }
           }
         }
         if (statuses.length > 0) {
@@ -1155,6 +1162,10 @@ async function forwardAccessEvent(token, device, data) {
   if (agora - ultimo < AGENT_EVENT_DEBOUNCE_MS) return;
   lastAccessForwardedAt.set(key, agora);
 
+  const eventTimestamp = data.timestamp
+    ? new Date(data.timestamp).toISOString()
+    : new Date().toISOString();
+
   try {
     const res = await cloudRequest('POST', `/api/facial/agent/condo/${token}/event`, {
       deviceId: device.id,
@@ -1165,11 +1176,11 @@ async function forwardAccessEvent(token, device, data) {
       // multiplica por 100 na exibição). Sem dividir, 86 vira "8600%".
       confidence:
         typeof data.Similarity === 'number' ? data.Similarity / 100 : undefined,
-      timestamp: new Date().toISOString(),
+      timestamp: eventTimestamp,
     });
     const ok = res.status >= 200 && res.status < 300;
     console.log(
-      `[agente] ${device.nome} ◂ acesso ${userId} (${data.Similarity ?? '?'}%) → ${
+      `[agente] ${device.nome} ◂ acesso ${userId} (${data.Similarity ?? '?'}%) [${eventTimestamp}] → ${
         ok ? 'OK' : `nuvem recusou HTTP ${res.status}`
       }`,
     );
@@ -1498,6 +1509,210 @@ function loadDotEnv() {
       val = val.slice(1, -1);
     }
     if (process.env[key] === undefined) process.env[key] = val;
+  }
+}
+
+function formatDahuaTime(date) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())} ${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`;
+}
+
+function parseDahuaINI(text) {
+  const lines = text.split(/\r?\n/);
+  const records = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split('=');
+    if (parts.length < 2) continue;
+    const key = parts[0].trim();
+    const value = parts.slice(1).join('=').trim();
+    const match = key.match(/^records\[(\d+)\]\.(.+)$/);
+    if (match) {
+      const idx = parseInt(match[1], 10);
+      const field = match[2];
+      if (!records[idx]) {
+        records[idx] = {};
+      }
+      records[idx][field] = value;
+    }
+  }
+  return records.filter(Boolean);
+}
+
+async function syncDeviceOfflineLogs(token, device) {
+  // Dahua / Intelbras
+  if (device.fabricante === 'intelbras') {
+    try {
+      console.log(`[agente] ${device.nome}: iniciando sincronização de acessos offline...`);
+      const EndTime = formatDahuaTime(new Date());
+      const StartTime = formatDahuaTime(new Date(Date.now() - 24 * 3600 * 1000));
+
+      const startRes = await lanRequest(
+        device,
+        'GET',
+        `/cgi-bin/recordFinder.cgi?action=startFind&name=AccessControlCardRec&condition.StartTime=${encodeURIComponent(StartTime)}&condition.EndTime=${encodeURIComponent(EndTime)}`
+      );
+      const tokenMatch = (startRes.raw || '').match(/token=(\d+)/);
+      if (!tokenMatch) {
+        console.warn(`[agente] ${device.nome}: startFind não retornou token válido. Raw:`, startRes.raw);
+        return;
+      }
+      const searchToken = tokenMatch[1];
+
+      const findRes = await lanRequest(
+        device,
+        'GET',
+        `/cgi-bin/recordFinder.cgi?action=doFind&token=${searchToken}&count=100`
+      );
+
+      await lanRequest(
+        device,
+        'GET',
+        `/cgi-bin/recordFinder.cgi?action=closeFind&token=${searchToken}`
+      ).catch(() => {});
+
+      const records = parseDahuaINI(findRes.raw || '');
+      if (records.length === 0) {
+        console.log(`[agente] ${device.nome}: nenhum acesso encontrado nos logs offline.`);
+        return;
+      }
+
+      let baseline = deviceBaselines.get(device.id);
+      if (baseline === undefined) {
+        const maxRecNo = Math.max(...records.map(r => parseInt(r.RecNo, 10)).filter(Boolean));
+        deviceBaselines.set(device.id, maxRecNo);
+        console.log(`[agente] ${device.nome}: baseline de acessos offline inicializada em RecNo ${maxRecNo}`);
+        return;
+      }
+
+      records.sort((a, b) => parseInt(a.RecNo, 10) - parseInt(b.RecNo, 10));
+
+      let processedCount = 0;
+      for (const rec of records) {
+        const recNo = parseInt(rec.RecNo, 10);
+        if (recNo > baseline) {
+          await forwardAccessEvent(token, device, {
+            UserID: rec.UserID,
+            CardNo: rec.CardNo,
+            Similarity: 100,
+            timestamp: rec.CreateTime,
+          });
+          baseline = recNo;
+          deviceBaselines.set(device.id, recNo);
+          processedCount++;
+        }
+      }
+      console.log(`[agente] ${device.nome}: processou ${processedCount} novos acessos offline.`);
+    } catch (err) {
+      console.error(`[agente] ${device.nome}: falha ao ler logs do dispositivo Dahua/Intelbras:`, err.message || err);
+    }
+  }
+
+  // Hikvision
+  if (device.fabricante === 'hikvision') {
+    try {
+      console.log(`[agente] ${device.nome}: iniciando sincronização de acessos offline (Hikvision)...`);
+      const res = await lanRequest(
+        device,
+        'POST',
+        '/ISAPI/AccessControl/AcsEvent?format=json',
+        {
+          json: {
+            AcsEventCond: {
+              searchID: "agent-offline-sync",
+              searchResultPosition: 0,
+              maxResults: 50,
+              major: 0,
+              minor: 0
+            }
+          }
+        }
+      );
+      const infoList = res.data && res.data.AcsEvent && res.data.AcsEvent.InfoList;
+      if (!Array.isArray(infoList) || infoList.length === 0) {
+        return;
+      }
+
+      infoList.sort((a, b) => (a.serialNo || 0) - (b.serialNo || 0));
+
+      let baseline = deviceBaselines.get(device.id);
+      if (baseline === undefined) {
+        const maxSerial = Math.max(...infoList.map(l => l.serialNo).filter(Boolean));
+        deviceBaselines.set(device.id, maxSerial);
+        console.log(`[agente] ${device.nome}: baseline de acessos offline inicializada em Serial ${maxSerial}`);
+        return;
+      }
+
+      let processedCount = 0;
+      for (const log of infoList) {
+        const serial = log.serialNo || 0;
+        if (serial > baseline) {
+          if (log.employeeNoString) {
+            await forwardAccessEvent(token, device, {
+              UserID: log.employeeNoString,
+              Similarity: 100,
+              timestamp: log.time,
+            });
+          }
+          baseline = serial;
+          deviceBaselines.set(device.id, serial);
+          processedCount++;
+        }
+      }
+      console.log(`[agente] ${device.nome}: processou ${processedCount} novos acessos offline (Hikvision).`);
+    } catch (err) {
+      console.error(`[agente] ${device.nome}: falha ao ler logs do dispositivo Hikvision:`, err.message || err);
+    }
+  }
+
+  // Control iD
+  if (device.fabricante === 'control_id') {
+    try {
+      console.log(`[agente] ${device.nome}: iniciando sincronização de acessos offline (Control iD)...`);
+      const session = await controlIdLogin(device);
+      const res = await lanRequest(
+        device,
+        'POST',
+        `/load_objects.fcgi?session=${session}`,
+        {
+          json: {
+            object: "access_logs",
+            order: ["id", "asc"],
+            limit: 50
+          }
+        }
+      );
+      const logs = res.data && res.data.access_logs;
+      if (!Array.isArray(logs) || logs.length === 0) {
+        return;
+      }
+
+      let baseline = deviceBaselines.get(device.id);
+      if (baseline === undefined) {
+        const maxId = Math.max(...logs.map(l => l.id).filter(Boolean));
+        deviceBaselines.set(device.id, maxId);
+        console.log(`[agente] ${device.nome}: baseline de acessos offline inicializada em ID ${maxId}`);
+        return;
+      }
+
+      let processedCount = 0;
+      for (const log of logs) {
+        if (log.id > baseline) {
+          await forwardAccessEvent(token, device, {
+            UserID: String(log.user_id),
+            Similarity: log.confidence ? Math.min(100, Math.round(log.confidence / 18)) : 100,
+            timestamp: new Date(log.time * 1000).toISOString(),
+          });
+          baseline = log.id;
+          deviceBaselines.set(device.id, log.id);
+          processedCount++;
+        }
+      }
+      console.log(`[agente] ${device.nome}: processou ${processedCount} novos acessos offline (Control iD).`);
+    } catch (err) {
+      console.error(`[agente] ${device.nome}: falha ao ler logs do dispositivo Control iD:`, err.message || err);
+    }
   }
 }
 
