@@ -38,6 +38,11 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly mostrarPessoas = signal(false);
   readonly retryingPessoa = signal<string | null>(null);
 
+  // Estimativa de tempo restante (ETA)
+  private syncStartTime: number | null = null;
+  private initialPending: number | null = null;
+  readonly etaText = signal<string | null>(null);
+
   readonly categoriasDisponiveis = [
     { id: 'morador', label: 'Moradores' },
     { id: 'visitante', label: 'Visitantes' },
@@ -293,6 +298,43 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       next: (s) => {
         this.syncStatus.set(s);
         if (this.mostrarPessoas()) this.loadPessoas();
+
+        if (s.running) {
+          // Inicializa variáveis do cálculo de ETA se acabou de iniciar
+          if (this.syncStartTime === null) {
+            this.syncStartTime = Date.now();
+            this.initialPending = s.pending;
+            this.etaText.set('Calculando tempo restante...');
+          } else {
+            // Calcula progresso e taxa de transferência
+            const elapsedMs = Date.now() - this.syncStartTime;
+            const processed = (this.initialPending ?? 0) - s.pending;
+
+            if (processed > 0 && elapsedMs > 1000) {
+              const ratePerMs = processed / elapsedMs;
+              const remainingMs = s.pending / ratePerMs;
+              const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+              if (remainingSeconds <= 0) {
+                this.etaText.set('Concluindo...');
+              } else if (remainingSeconds < 60) {
+                this.etaText.set(`Tempo restante: ~${remainingSeconds}s`);
+              } else {
+                const mins = Math.floor(remainingSeconds / 60);
+                const secs = remainingSeconds % 60;
+                this.etaText.set(`Tempo restante: ~${mins} min ${secs}s`);
+              }
+            } else {
+              this.etaText.set('Calculando tempo restante...');
+            }
+          }
+        } else {
+          // Reseta variáveis do cálculo de ETA se terminou
+          this.syncStartTime = null;
+          this.initialPending = null;
+          this.etaText.set(null);
+        }
+
         if (s.running && restantes > 0) {
           setTimeout(() => this.pollSyncStatus(restantes - 1), 3000);
         }
