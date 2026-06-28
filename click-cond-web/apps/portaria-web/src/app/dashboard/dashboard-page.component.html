@@ -378,7 +378,7 @@
         <!-- Lista de Eventos -->
         <div [class]="eventosMaximizados() 
                       ? 'p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50/30 dark:bg-slate-900/10' 
-                      : 'p-4 flex-1 max-h-[520px] overflow-y-auto custom-scrollbar'">
+                      : 'p-4 flex-1 max-h-[580px] overflow-y-auto custom-scrollbar'">
           @if (d.ultimosEventos.length === 0) {
             <div class="flex flex-col items-center justify-center py-16 text-center">
               <div class="w-12 h-12 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-center mb-3 border border-slate-100 dark:border-white/5">
@@ -494,14 +494,14 @@
             <!-- Apartamentos -->
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-550 dark:text-indigo-400 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <div class="w-[38px] h-[38px] rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-550 dark:text-indigo-400 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
+                  <svg class="w-5.5 h-5.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
                   </svg>
                 </div>
                 <span class="text-sm font-semibold text-slate-700 dark:text-slate-350">Apartamentos</span>
               </div>
-              <span class="text-lg font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.totalApartamentos }}</span>
+              <span class="text-xl font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.totalApartamentos }}</span>
             </div>
             
             <div class="h-px bg-slate-200/50 dark:bg-white/5"></div>
@@ -509,14 +509,14 @@
             <!-- Moradores -->
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <div class="w-[38px] h-[38px] rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
+                  <svg class="w-5.5 h-5.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                   </svg>
                 </div>
                 <span class="text-sm font-semibold text-slate-700 dark:text-slate-350">Moradores</span>
               </div>
-              <span class="text-lg font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.totalMoradores }}</span>
+              <span class="text-xl font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.totalMoradores }}</span>
             </div>
             
             <div class="h-px bg-slate-200/50 dark:bg-white/5"></div>
@@ -524,8 +524,8 @@
             <!-- Comunicados -->
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-600 dark:text-amber-500 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <div class="w-[38px] h-[38px] rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-600 dark:text-amber-500 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
+                  <svg class="w-5.5 h-5.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.68.34-1.44.52-2.22.52H5a1 1 0 01-1-1v-4a1 1 0 011-1h3.12c.78 0 1.54.18 2.22.52l5.77-2.88A1 1 0 0118 8.87v6.26a1 1 0 01-1.89.47l-5.77-2.88zM18 9.5a3.5 3.5 0 010 5M21 8a6 6 0 010 8" />
                   </svg>
                 </div>
@@ -537,7 +537,7 @@
                     Nenhum ativo
                   </span>
                 } @else {
-                  <span class="text-lg font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.comunicadosRecentes }}</span>
+                  <span class="text-xl font-bold text-slate-850 dark:text-white tabular-nums tracking-tight font-display">{{ d.comunicadosRecentes }}</span>
                 }
               </div>
             </div>
@@ -549,57 +549,57 @@
           <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.3] dark:bg-white/[0.01]">
             <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Acesso Rápido</h2>
           </div>
-          <div class="p-4 grid grid-cols-2 gap-3">
+          <div class="p-4 grid grid-cols-2 gap-3.5">
             <button (click)="abrirModalLiberar()"
-               class="flex flex-col items-center gap-2.5 py-4 px-3 rounded-xl
+               class="flex flex-col items-center gap-3 py-5 px-3 rounded-xl
                       bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10 
                       border border-slate-200/60 hover:border-accent/30 dark:border-transparent dark:hover:border-accent/20 
                       transition-all text-center group active:scale-95 duration-150"
                title="Liberar entrada de visitante já cadastrado">
-              <svg class="w-6 h-6 text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[26px] h-[26px] text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
               </svg>
-              <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300">Liberar Visitante</span>
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Liberar Visitante</span>
             </button>
             
             <button (click)="abrirValidador()"
-               class="flex flex-col items-center gap-2.5 py-4 px-3 rounded-xl
+               class="flex flex-col items-center gap-3 py-5 px-3 rounded-xl
                       bg-slate-50 hover:bg-emerald-500/5 dark:bg-white/5 dark:hover:bg-emerald-500/10
                       border border-slate-200/60 hover:border-emerald-500/30 dark:border-transparent dark:hover:border-emerald-500/20
                       transition-all text-center group active:scale-95 duration-150"
                title="Validar PIN de acesso">
-              <svg class="w-6 h-6 text-emerald-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[26px] h-[26px] text-emerald-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                   d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
-              <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300">Validar PIN</span>
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Validar PIN</span>
             </button>
 
             <a routerLink="/visitantes" [queryParams]="{novo: 'true'}"
-               class="flex flex-col items-center gap-2.5 py-4 px-3 rounded-xl
+               class="flex flex-col items-center gap-3 py-5 px-3 rounded-xl
                       bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10
                       border border-slate-200/60 hover:border-accent/30 dark:border-transparent dark:hover:border-accent/20
                       transition-all text-center group active:scale-95 duration-150"
                title="Cadastrar um novo visitante">
-              <svg class="w-6 h-6 text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[26px] h-[26px] text-accent group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                   d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
               </svg>
-              <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300">Cadastrar Visitante</span>
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Cadastrar Visitante</span>
             </a>
 
             <button (click)="abrirModalBaixa()"
-               class="flex flex-col items-center gap-2.5 py-4 px-3 rounded-xl
+               class="flex flex-col items-center gap-3 py-5 px-3 rounded-xl
                       bg-slate-50 hover:bg-rose-500/5 dark:bg-white/5 dark:hover:bg-rose-500/10
                       border border-slate-200/60 hover:border-rose-500/30 dark:border-transparent dark:hover:border-rose-500/20
                       transition-all text-center group active:scale-95 duration-150"
                title="Registrar saída de visitante ou prestador">
-              <svg class="w-6 h-6 text-rose-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[26px] h-[26px] text-rose-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                   d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
               </svg>
-              <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300">Dar Baixa</span>
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Dar Baixa</span>
             </button>
           </div>
         </div>
