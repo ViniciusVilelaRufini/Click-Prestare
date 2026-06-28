@@ -155,6 +155,15 @@ html, body {
   background-color: rgba(10, 22, 40, 0.04) !important;
 }
 
+.light .bg-graphite-300 {
+  background-color: #F1F5F9 !important;
+}
+
+.light .keep-white,
+.light .keep-white * {
+  color: #FFFFFF !important;
+}
+
 .light .text-rose-400 {
   color: #DC2626 !important;
 }
