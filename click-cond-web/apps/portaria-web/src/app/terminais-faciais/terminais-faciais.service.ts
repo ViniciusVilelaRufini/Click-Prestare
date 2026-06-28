@@ -203,4 +203,11 @@ export class TerminaisFaciaisApi {
       responseType: 'blob',
     });
   }
+
+  snapshot(deviceId: number): Observable<{ foto: string }> {
+    return this.http.post<{ foto: string }>(
+      `${this.base}/devices/${deviceId}/snapshot`,
+      {},
+    );
+  }
 }

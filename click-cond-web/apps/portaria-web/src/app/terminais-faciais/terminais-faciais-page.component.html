@@ -709,6 +709,17 @@
                 <span>Testar Conexão</span>
               }
             </button>
+            @if (t.tipo === 'facial' || !t.tipo) {
+              <button
+                (click)="openCameraPreview(t)"
+                class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 transition flex items-center gap-1.5 shadow-sm dark:shadow-none"
+              >
+                <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 00-2 2z" />
+                </svg>
+                <span>Ver Câmera</span>
+              </button>
+            }
             <a
               href="http://{{ t.ip }}:{{ t.porta }}"
               target="_blank"
@@ -1011,6 +1022,137 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  }
+
+  <!-- Modal de Preview da Câmera -->
+  @if (viewingCameraTerminal(); as device) {
+    <div
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-modal-fade"
+      (click)="closeCameraPreview()"
+    >
+      <style>
+        @keyframes modal-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modal-scale-up {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .animate-modal-fade {
+          animation: modal-fade-in 0.2s ease-out forwards;
+        }
+        .animate-modal-scale {
+          animation: modal-scale-up 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+      </style>
+
+      <div
+        class="bg-graphite rounded-3xl border border-white/10 p-5 w-full max-w-lg shadow-2xl flex flex-col space-y-4 animate-modal-scale"
+        (click)="$event.stopPropagation()"
+      >
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+          <div class="space-y-0.5">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <svg class="w-4 h-4 text-accent animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 00-2 2z" />
+              </svg>
+              <span>Visualização ao Vivo</span>
+            </h3>
+            <p class="text-[11px] text-slate-400 font-medium">
+              {{ device.nome }} · {{ device.ip }}
+            </p>
+          </div>
+          <button
+            (click)="closeCameraPreview()"
+            class="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Video Frame -->
+        <div
+          class="relative aspect-[4/3] rounded-2xl overflow-hidden bg-black border border-white/5 flex items-center justify-center group"
+        >
+          <!-- Video Stream Image -->
+          @if (cameraLiveUrl()) {
+            <img
+              [src]="cameraLiveUrl()"
+              (error)="onCameraLiveError()"
+              (load)="cameraLoading.set(false)"
+              class="w-full h-full object-cover"
+            />
+          } @else if (cameraPreviewUrl()) {
+            <img
+              [src]="cameraPreviewUrl()"
+              (load)="cameraLoading.set(false)"
+              class="w-full h-full object-cover"
+            />
+          }
+
+          <!-- Blinking live indicator -->
+          @if ((cameraLiveUrl() || cameraPreviewUrl()) && !cameraLoading() && !cameraError()) {
+            <div class="absolute top-3 left-3 bg-black/55 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-full text-[9px] font-bold text-emerald-400 tracking-wider flex items-center gap-1.5 shadow-md">
+              <span class="relative flex h-1.5 w-1.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400"></span>
+              </span>
+              <span>AO VIVO</span>
+            </div>
+            
+            @if (cameraLiveFailed()) {
+              <div class="absolute bottom-3 right-3 bg-black/55 backdrop-blur-md px-2 py-0.5 rounded text-[8px] font-semibold text-slate-300">
+                Via Nuvem (Baixo FPS)
+              </div>
+            } @else {
+              <div class="absolute bottom-3 right-3 bg-black/55 backdrop-blur-md px-2 py-0.5 rounded text-[8px] font-semibold text-emerald-300">
+                Local (Alto FPS)
+              </div>
+            }
+          }
+
+          <!-- Loading Spinner -->
+          @if (cameraLoading()) {
+            <div class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3">
+              <div class="w-7 h-7 border-2 border-white/20 border-t-accent rounded-full animate-spin"></div>
+              <span class="text-xs text-slate-400 font-medium">Iniciando transmissão de vídeo…</span>
+            </div>
+          }
+
+          <!-- Error Alert -->
+          @if (cameraError(); as err) {
+            <div class="absolute inset-0 bg-black/90 p-6 flex flex-col items-center justify-center text-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shadow-sm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div class="space-y-1">
+                <div class="text-xs font-bold text-white">Falha na Transmissão</div>
+                <div class="text-[10px] text-slate-400 max-w-xs">{{ err }}</div>
+              </div>
+              <button
+                (click)="openCameraPreview(device)"
+                class="mt-2 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white bg-accent hover:bg-accent-600 transition active:scale-95 flex items-center gap-1.5 shadow-md shadow-accent/20"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H17.5"/></svg>
+                <span>Tentar Novamente</span>
+              </button>
+            </div>
+          }
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between text-[10px] text-slate-400">
+          <span>Resolução: Auto (720P)</span>
+          <span>Certifique-se de que o Agente está ativo.</span>
+        </div>
       </div>
     </div>
   }

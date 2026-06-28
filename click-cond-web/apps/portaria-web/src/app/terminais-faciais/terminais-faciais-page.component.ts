@@ -43,6 +43,15 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   private initialPending: number | null = null;
   readonly etaText = signal<string | null>(null);
 
+  // Preview de Câmera em tempo real
+  readonly viewingCameraTerminal = signal<TerminalFacial | null>(null);
+  readonly cameraLiveUrl = signal<string | null>(null);
+  readonly cameraPreviewUrl = signal<string | null>(null);
+  readonly cameraLiveFailed = signal(false);
+  readonly cameraError = signal<string | null>(null);
+  readonly cameraLoading = signal(false);
+  private cameraActive = false;
+
   readonly categoriasDisponiveis = [
     { id: 'morador', label: 'Moradores' },
     { id: 'visitante', label: 'Visitantes' },
@@ -585,5 +594,58 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     navigator.clipboard?.writeText(url);
     this.successMessage.set('URL do webhook copiada.');
     setTimeout(() => this.successMessage.set(null), 3000);
+  }
+
+  openCameraPreview(t: TerminalFacial) {
+    this.viewingCameraTerminal.set(t);
+    this.cameraLiveUrl.set(null);
+    this.cameraPreviewUrl.set(null);
+    this.cameraLiveFailed.set(false);
+    this.cameraError.set(null);
+    this.cameraLoading.set(true);
+    this.cameraActive = true;
+
+    // Tenta primeiro o Agent Local (localhost)
+    this.cameraLiveUrl.set(`http://localhost:8788/liveview?t=${Date.now()}`);
+  }
+
+  closeCameraPreview() {
+    this.cameraActive = false;
+    this.viewingCameraTerminal.set(null);
+    this.cameraLiveUrl.set(null);
+    this.cameraPreviewUrl.set(null);
+    this.cameraLiveFailed.set(false);
+    this.cameraError.set(null);
+    this.cameraLoading.set(false);
+  }
+
+  onCameraLiveError() {
+    if (this.cameraLiveFailed()) return;
+    this.cameraLiveFailed.set(true);
+    this.cameraLiveUrl.set(null);
+    this.tickCameraNuvem();
+  }
+
+  private tickCameraNuvem() {
+    if (!this.cameraActive) return;
+    const t = this.viewingCameraTerminal();
+    if (!t) return;
+
+    this.api.snapshot(t.id).subscribe({
+      next: (r) => {
+        if (!this.cameraActive) return;
+        this.cameraLoading.set(false);
+        this.cameraPreviewUrl.set(r.foto);
+        // Próximo frame em 400ms
+        setTimeout(() => this.tickCameraNuvem(), 400);
+      },
+      error: (e) => {
+        if (!this.cameraActive) return;
+        this.cameraLoading.set(false);
+        this.cameraError.set(
+          e?.error?.message ?? 'Falha ao conectar na câmera do terminal.',
+        );
+      },
+    });
   }
 }
