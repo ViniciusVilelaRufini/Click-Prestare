@@ -854,14 +854,19 @@ export class VisitantesPageComponent implements OnInit {
     if (!res || !res.id) return;
     
     this.checkingIn.set(true);
-    this.service.checkIn(res.id).subscribe({
+    const isSaida = !!res.data_entrada;
+    const obs = isSaida 
+      ? this.service.checkOut(res.id) 
+      : this.service.checkIn(res.id);
+
+    obs.subscribe({
       next: () => {
         this.checkingIn.set(false);
         this.fecharValidador();
         this.carregar();
       },
       error: (err) => {
-        this.validationError.set(err?.error?.message || 'Erro ao registrar entrada.');
+        this.validationError.set(err?.error?.message || `Erro ao registrar ${isSaida ? 'saída' : 'entrada'}.`);
         this.checkingIn.set(false);
       }
     });

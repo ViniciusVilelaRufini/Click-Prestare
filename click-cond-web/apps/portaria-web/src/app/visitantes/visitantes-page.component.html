@@ -1893,14 +1893,16 @@
                     checkingIn() ||
                     validationResult().status_vigencia === 'EXPIRADO'
                   "
-                  class="flex-1 py-2.5 rounded-lg font-medium text-sm text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  [ngClass]="validationResult().data_entrada ? 'bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-500/10' : 'bg-emerald-500 hover:bg-emerald-600'"
+                  class="flex-1 py-2.5 rounded-lg font-medium text-sm text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   @if (checkingIn()) {
                     <div
                       class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"
                     ></div>
+                    <span>Registrando...</span>
                   } @else {
-                    Confirmar Entrada
+                    {{ validationResult().data_entrada ? 'Confirmar Saída' : 'Confirmar Entrada' }}
                   }
                 </button>
               </div>

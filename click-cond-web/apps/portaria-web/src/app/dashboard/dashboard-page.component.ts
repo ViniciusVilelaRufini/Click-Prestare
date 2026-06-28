@@ -137,14 +137,19 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     if (!res || !res.id) return;
     
     this.checkingIn.set(true);
-    this.visitantesService.checkIn(res.id).subscribe({
+    const isSaida = !!res.data_entrada;
+    const obs = isSaida 
+      ? this.visitantesService.checkOut(res.id) 
+      : this.visitantesService.checkIn(res.id);
+
+    obs.subscribe({
       next: () => {
         this.checkingIn.set(false);
         this.fecharValidador();
         this.load();
       },
       error: (err) => {
-        this.validationError.set(err?.error?.message || 'Erro ao registrar entrada.');
+        this.validationError.set(err?.error?.message || `Erro ao registrar ${isSaida ? 'saída' : 'entrada'}.`);
         this.checkingIn.set(false);
       }
     });

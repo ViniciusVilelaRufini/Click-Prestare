@@ -1058,6 +1058,7 @@ export class VisitantesService {
       morador_nome: v.criadoPor?.name ?? 'Morador',
       status_vigencia: status,
       codigo_acesso: v.codigo_acesso,
+      data_entrada: v.data_entrada,
     };
   }
 
