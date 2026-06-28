@@ -58,6 +58,10 @@ export class AgentBridgeService {
     number,
     { online: boolean; at: number }
   >();
+  /** deviceId → timestamp de quando o aparelho ficou offline. */
+  private readonly deviceOfflineSince = new Map<number, number>();
+  /** deviceId → se já abriu ocorrência para esta queda offline. */
+  private readonly deviceTicketOpened = new Map<number, boolean>();
   /** commandId → comando aguardando resposta. */
   private readonly pending = new Map<string, PendingCommand>();
   /** deviceId → fila de commandIds ainda não entregues no poll. */
@@ -75,13 +79,44 @@ export class AgentBridgeService {
   }
 
   /** Agente reportou o status do aparelho (alcançável ou não) na LAN. */
-  reportDeviceStatus(deviceId: number, online: boolean): { changed: boolean; previous: boolean | null } {
+  reportDeviceStatus(deviceId: number, online: boolean): { 
+    changed: boolean; 
+    previous: boolean | null;
+    shouldOpenTicket: boolean;
+    shouldResolveTicket: boolean;
+  } {
     const prev = this.deviceStatus.get(deviceId);
     const prevOnline = prev && (Date.now() - prev.at < this.deviceStatusTtlMs) ? prev.online : null;
+    
     this.deviceStatus.set(deviceId, { online, at: Date.now() });
+
+    let shouldOpenTicket = false;
+    let shouldResolveTicket = false;
+
+    if (online) {
+      this.deviceOfflineSince.delete(deviceId);
+      if (this.deviceTicketOpened.get(deviceId)) {
+        this.deviceTicketOpened.delete(deviceId);
+        shouldResolveTicket = true;
+      }
+    } else {
+      if (!this.deviceOfflineSince.has(deviceId)) {
+        this.deviceOfflineSince.set(deviceId, Date.now());
+      } else {
+        const offlineSince = this.deviceOfflineSince.get(deviceId)!;
+        const offlineDuration = Date.now() - offlineSince;
+        if (offlineDuration >= 10 * 60 * 1000 && !this.deviceTicketOpened.get(deviceId)) {
+          this.deviceTicketOpened.set(deviceId, true);
+          shouldOpenTicket = true;
+        }
+      }
+    }
+
     return {
       changed: prevOnline !== online,
-      previous: prevOnline
+      previous: prevOnline,
+      shouldOpenTicket,
+      shouldResolveTicket,
     };
   }
 

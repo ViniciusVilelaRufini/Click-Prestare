@@ -116,6 +116,7 @@ export class DashboardService {
       ultEncomendas,
       ultOcorrencias,
       ultAcessosFacial,
+      ultAuditLogs,
     ] = await Promise.all([
       // Visitantes ainda no condomínio: entrada registrada mas sem saída registrada, e is_visitante = 1 (ou is_prestador = 0)
       this.prisma.visitantes.count({
@@ -193,7 +194,15 @@ export class DashboardService {
         orderBy: { timestamp: 'desc' },
         take: 15,
       }),
+      // Logs de status dos dispositivos
+      this.prisma.auditLog.findMany({
+        where: { id_condominio: idCondominio, modulo: 'dispositivos' },
+        orderBy: { created_at: 'desc' },
+        take: 15,
+      }),
     ]);
+
+
 
     const ultimosEventos: DashboardSummary['ultimosEventos'] = [];
 
@@ -408,6 +417,24 @@ export class DashboardService {
           autorizadoPor: o.criadoPor?.name || 'Morador',
           resposta: o.resposta || undefined,
           dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
+        },
+      });
+    }
+
+    for (const a of ultAuditLogs) {
+      const isOffline = a.acao === 'OFFLINE';
+      ultimosEventos.push({
+        tipo: 'Ocorrência',
+        descricao: a.descricao,
+        quando: a.created_at.toISOString(),
+        direcao: isOffline ? 'saida' : 'entrada',
+        detalhes: {
+          id: a.id,
+          nome: 'Dispositivos',
+          descricao: a.descricao,
+          status: isOffline ? 'Offline' : 'Resolvido',
+          dataEntrada: a.created_at.toISOString(),
+          autorizadoPor: 'Monitor de Dispositivos',
         },
       });
     }

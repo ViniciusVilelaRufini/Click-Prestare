@@ -204,11 +204,23 @@ export class FacialService {
       const id = Number(s?.deviceId);
       const dev = deviceMap.get(id);
       if (dev) {
-        const { changed } = this.agent.reportDeviceStatus(id, !!s.online);
+        const { changed, shouldOpenTicket, shouldResolveTicket } = this.agent.reportDeviceStatus(id, !!s.online);
+        
+        // Sempre registra evento imediato no Log de Auditoria
         if (changed) {
           const statusText = s.online ? 'Online' : 'Offline';
-          const descStr = `O dispositivo "${dev.nome}" (${dev.tipo || 'facial'}) ficou ${statusText.toLowerCase()}.`;
+          await this.auditoria.registrar({
+            id_condominio: idCondominio,
+            usuario_nome: dev.nome,
+            acao: s.online ? 'ONLINE' : 'OFFLINE',
+            modulo: 'dispositivos',
+            descricao: `O dispositivo "${dev.nome}" (${dev.tipo || 'facial'}) ficou ${statusText.toLowerCase()}.`,
+          });
+        }
 
+        // Cria Ocorrência (ticket de chamado) se ficou fora por mais de 10 min
+        if (shouldOpenTicket) {
+          const ticketDesc = `O dispositivo "${dev.nome}" (${dev.tipo || 'facial'}) está offline há mais de 10 minutos.`;
           let categoria = await this.prisma.ocorrencias_Categorias.findFirst({
             where: { nome: 'Dispositivos' },
           });
@@ -220,12 +232,35 @@ export class FacialService {
 
           await this.prisma.ocorrencias.create({
             data: {
-              descricao: descStr,
+              descricao: ticketDesc,
               tipo: categoria.id,
-              status: s.online ? 'Resolvido' : 'Pendente',
+              status: 'Pendente',
               id_condominio: idCondominio,
             },
           });
+        }
+
+        // Se voltou ao ar e havia chamado aberto, resolve ele automaticamente
+        if (shouldResolveTicket) {
+          const ticketDesc = `O dispositivo "${dev.nome}" (${dev.tipo || 'facial'}) está offline há mais de 10 minutos.`;
+          const oco = await this.prisma.ocorrencias.findFirst({
+            where: {
+              id_condominio: idCondominio,
+              descricao: ticketDesc,
+              status: 'Pendente',
+            },
+            orderBy: { created_at: 'desc' },
+          });
+          if (oco) {
+            await this.prisma.ocorrencias.update({
+              where: { id: oco.id },
+              data: {
+                status: 'Resolvido',
+                resposta: 'O dispositivo voltou a ficar online.',
+                resposta_at: new Date(),
+              },
+            });
+          }
         }
       }
     }
@@ -488,11 +523,22 @@ export class FacialService {
     const device = await this.getDevice(id);
     const online = await this.client.ping(this.toConfig(device));
 
-    const { changed } = this.agent.reportDeviceStatus(id, online);
+    const { changed, shouldOpenTicket, shouldResolveTicket } = this.agent.reportDeviceStatus(id, online);
+    
+    // Sempre registra log de auditoria imediatamente
     if (changed) {
       const statusText = online ? 'Online' : 'Offline';
-      const descStr = `O dispositivo "${device.nome}" (${device.tipo || 'facial'}) ficou ${statusText.toLowerCase()} (teste manual).`;
+      await this.auditoria.registrar({
+        id_condominio: device.id_condominio,
+        usuario_nome: device.nome,
+        acao: online ? 'ONLINE' : 'OFFLINE',
+        modulo: 'dispositivos',
+        descricao: `O dispositivo "${device.nome}" (${device.tipo || 'facial'}) ficou ${statusText.toLowerCase()} (teste manual).`,
+      });
+    }
 
+    if (shouldOpenTicket) {
+      const ticketDesc = `O dispositivo "${device.nome}" (${device.tipo || 'facial'}) está offline há mais de 10 minutos.`;
       let categoria = await this.prisma.ocorrencias_Categorias.findFirst({
         where: { nome: 'Dispositivos' },
       });
@@ -501,15 +547,36 @@ export class FacialService {
           data: { nome: 'Dispositivos', prioridade: 1 },
         });
       }
-
       await this.prisma.ocorrencias.create({
         data: {
-          descricao: descStr,
+          descricao: ticketDesc,
           tipo: categoria.id,
-          status: online ? 'Resolvido' : 'Pendente',
+          status: 'Pendente',
           id_condominio: device.id_condominio,
         },
       });
+    }
+
+    if (shouldResolveTicket) {
+      const ticketDesc = `O dispositivo "${device.nome}" (${device.tipo || 'facial'}) está offline há mais de 10 minutos.`;
+      const oco = await this.prisma.ocorrencias.findFirst({
+        where: {
+          id_condominio: device.id_condominio,
+          descricao: ticketDesc,
+          status: 'Pendente',
+        },
+        orderBy: { created_at: 'desc' },
+      });
+      if (oco) {
+        await this.prisma.ocorrencias.update({
+          where: { id: oco.id },
+          data: {
+            status: 'Resolvido',
+            resposta: 'O dispositivo voltou a ficar online.',
+            resposta_at: new Date(),
+          },
+        });
+      }
     }
 
     return { online };
