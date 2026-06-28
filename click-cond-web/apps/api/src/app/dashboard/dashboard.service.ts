@@ -150,7 +150,7 @@ export class DashboardService {
           NOT: { data_entrada: null },
         },
         orderBy: { data_entrada: 'desc' },
-        take: 5,
+        take: 15,
         include: {
           apartamento: { select: { bloco: true, apto: true } },
           criadoPor: { select: { name: true } },
@@ -163,7 +163,7 @@ export class DashboardService {
           NOT: { data_saida: null },
         },
         orderBy: { data_saida: 'desc' },
-        take: 5,
+        take: 15,
         include: {
           apartamento: { select: { bloco: true, apto: true } },
           criadoPor: { select: { name: true } },
@@ -172,7 +172,7 @@ export class DashboardService {
       this.prisma.encomendas.findMany({
         where: { id_condominio: idCondominio },
         orderBy: { recebido_em: 'desc' },
-        take: 5,
+        take: 15,
         include: {
           recebidoPor: { select: { name: true } },
           entreguePor: { select: { name: true } },
@@ -181,7 +181,7 @@ export class DashboardService {
       this.prisma.ocorrencias.findMany({
         where: { id_condominio: idCondominio },
         orderBy: { created_at: 'desc' },
-        take: 5,
+        take: 15,
         include: {
           criadoPor: { select: { name: true } },
           categoria: { select: { nome: true } },
@@ -191,7 +191,7 @@ export class DashboardService {
       this.prisma.acessos_Facial.findMany({
         where: { id_condominio: idCondominio },
         orderBy: { timestamp: 'desc' },
-        take: 5,
+        take: 15,
       }),
     ]);
 
@@ -559,7 +559,7 @@ export class DashboardService {
 
     const sortedEvents = ultimosEventos
       .sort((a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime())
-      .slice(0, 10);
+      .slice(0, 15);
 
     return {
       visitantesAtivos,
