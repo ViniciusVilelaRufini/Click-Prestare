@@ -92,6 +92,14 @@ export class FacialService {
     // Cron de expiração automática de visitantes e prestadores
     setTimeout(() => void this.tickExpiracaoAutomatica(), 2 * 60 * 1000);
     setInterval(() => void this.tickExpiracaoAutomatica(), 15 * 60 * 1000);
+
+    // Tick novo — pré-enrolamento 30 min antes da chegada (a cada 15 min, delay 3 min)
+    setTimeout(() => void this.tickPreEnrolamento(), 3 * 60 * 1000);
+    setInterval(() => void this.tickPreEnrolamento(), 15 * 60 * 1000);
+
+    // Tick novo — varredura de fantasmas (uma vez por dia às 3h BRT, delay 10 min)
+    setTimeout(() => void this.tickFantasmas(), 10 * 60 * 1000);
+    setInterval(() => void this.tickFantasmas(), 60 * 60 * 1000);
   }
 
   // ---------- Enrollment guiado (RFID/QR) ----------
@@ -1316,6 +1324,103 @@ export class FacialService {
       }
     } catch (e: any) {
       this.logger.warn(`tickExpiracaoAutomatica erro: ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Cron de pré-enrolamento: a cada 15 minutos, busca visitantes/prestadores
+   * liberados com início programado para os próximos 30 minutos e sem face_id.
+   * Envia os rostos preventivamente para os aparelhos do condomínio.
+   */
+  private async tickPreEnrolamento() {
+    if (!this.prisma.isConnected) return;
+    try {
+      const agora = new Date();
+      const em30min = new Date(agora.getTime() + 30 * 60 * 1000);
+      const prestes = await this.prisma.visitantes.findMany({
+        where: {
+          liberado: 1,
+          foto_pessoa: { not: null },
+          face_id: null,
+          data_hora_inicio: {
+            gte: agora,
+            lte: em30min,
+          },
+        },
+        select: { id: true },
+      });
+      for (const v of prestes) {
+        this.syncVisitante(v.id).catch((e: any) =>
+          this.logger.warn(`tickPreEnrolamento visitante ${v.id}: ${e?.message ?? e}`),
+        );
+      }
+      if (prestes.length > 0) {
+        this.logger.log(`tickPreEnrolamento: ${prestes.length} visitante(s) pré-enrolados`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`tickPreEnrolamento erro: ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Varredura diária de fantasmas biométricos (às 3h BRT): lista UserIDs no terminal
+   * e compara com face_ids no banco. Remove qualquer biometria órfã.
+   */
+  private async tickFantasmas() {
+    if (!this.prisma.isConnected) return;
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    if (agoraBRT.getHours() !== 3) return;
+
+    try {
+      const devices = await this.prisma.facial_Devices.findMany({
+        where: { ativo: 1, tipo: 'facial', fabricante: 'intelbras' },
+      });
+
+      for (const device of devices) {
+        try {
+          const config = this.toConfig(device);
+          const idsNoAparelho = await this.client.listDahuaUserIds(config);
+          if (idsNoAparelho.length === 0) continue;
+
+          const [visitantesNoBanco, moradoresNoBanco] = await Promise.all([
+            this.prisma.visitantes.findMany({
+              where: {
+                id_condominio: device.id_condominio,
+                face_id: { in: idsNoAparelho },
+              },
+              select: { face_id: true },
+            }),
+            this.prisma.moradores.findMany({
+              where: {
+                id_condominio: device.id_condominio,
+                face_id: { in: idsNoAparelho },
+              },
+              select: { face_id: true },
+            }),
+          ]);
+
+          const idsNoBanco = new Set([
+            ...visitantesNoBanco.map((v) => v.face_id!),
+            ...moradoresNoBanco.map((m) => m.face_id!),
+          ]);
+
+          const fantasmas = idsNoAparelho.filter((id) => !idsNoBanco.has(id));
+          if (fantasmas.length === 0) continue;
+
+          await this.client.dahuaRemoveUsers(config, fantasmas);
+          this.logger.log(
+            `tickFantasmas device ${device.id}: ${fantasmas.length} fantasma(s) removido(s) — ${fantasmas.join(', ')}`,
+          );
+        } catch (e: any) {
+          this.logger.warn(
+            `tickFantasmas device ${device.id}: ${e?.message ?? e}`,
+          );
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`tickFantasmas erro: ${e?.message ?? e}`);
     }
   }
 

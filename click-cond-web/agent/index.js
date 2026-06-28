@@ -301,6 +301,10 @@ async function executeOnDevice(device, cmd) {
         return await doRemove(device, cmd);
       case 'snapshot':
         return await doSnapshot(device);
+      case 'list_users':
+        return await doListUsers(device);
+      case 'remove_users':
+        return await doRemoveUsers(device, cmd);
       default:
         return { ok: false, error: `comando desconhecido: ${cmd.type}` };
     }
@@ -659,6 +663,82 @@ async function doRemove(device, cmd) {
   const res = await lanRequest(device, 'DELETE', `/persons/${cmd.faceId}`);
   if (res.status === 404) return { ok: true }; // já não existia
   return okFrom(res);
+}
+
+async function doListUsers(device) {
+  if (device.fabricante !== 'intelbras') {
+    return { ok: false, error: `list_users não suportado para ${device.fabricante}` };
+  }
+  const countResp = await lanRequest(
+    device,
+    'POST',
+    '/RPC2',
+    { json: { method: 'UserInfo.getCount', params: { Conditions: {} } } }
+  );
+  if (countResp.status !== 200 || !countResp.data || countResp.data.result === false) {
+    return { ok: false, error: `Falha ao obter quantidade de usuários: status ${countResp.status}` };
+  }
+  const total = countResp.data.params?.Count ?? 0;
+  if (total === 0) {
+    return { ok: true, userIds: [] };
+  }
+
+  const ids = [];
+  const PAGE = 100;
+  let startNo = 0;
+
+  while (startNo < total) {
+    const resp = await lanRequest(
+      device,
+      'POST',
+      '/RPC2',
+      {
+        json: {
+          method: 'UserInfo.getMulti',
+          params: { Conditions: {}, StartNo: startNo, Count: PAGE }
+        }
+      }
+    );
+    if (resp.status !== 200 || !resp.data || resp.data.result === false) {
+      return { ok: false, error: `Falha ao obter lista de usuários (startNo: ${startNo})` };
+    }
+    const list = resp.data.params?.UserList ?? [];
+    for (const u of list) {
+      if (u.UserID && u.UserID !== 'FFFFFF') {
+        ids.push(u.UserID);
+      }
+    }
+    startNo += PAGE;
+    if (list.length < PAGE) break;
+  }
+  return { ok: true, userIds: ids };
+}
+
+async function doRemoveUsers(device, cmd) {
+  if (device.fabricante !== 'intelbras') {
+    return { ok: false, error: `remove_users não suportado para ${device.fabricante}` };
+  }
+  const userIds = cmd.faceIds || [];
+  if (userIds.length === 0) {
+    return { ok: true };
+  }
+  const res = await lanRequest(
+    device,
+    'POST',
+    '/RPC2',
+    {
+      json: {
+        method: 'UserInfo.removeMulti',
+        params: {
+          UserList: userIds.map((id) => ({ UserID: id }))
+        }
+      }
+    }
+  );
+  if (res.status !== 200 || !res.data || res.data.result === false) {
+    return { ok: false, error: `Falha ao remover lista de usuários: status ${res.status}` };
+  }
+  return { ok: true };
 }
 
 /**

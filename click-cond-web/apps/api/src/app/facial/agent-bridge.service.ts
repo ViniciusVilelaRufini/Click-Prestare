@@ -161,7 +161,9 @@ export type AgentCommandType =
   | 'enroll'
   | 'update'
   | 'remove'
-  | 'snapshot';
+  | 'snapshot'
+  | 'list_users'
+  | 'remove_users';
 
 export interface AgentCommandInput {
   type: AgentCommandType;
@@ -169,6 +171,7 @@ export interface AgentCommandInput {
   nome?: string;
   fotoBase64?: string;
   faceId?: string;
+  faceIds?: string[];
   /** Validade no aparelho (Dahua "YYYY-MM-DD HH:MM:SS"). Default = permanente. */
   validFrom?: string;
   validTo?: string;

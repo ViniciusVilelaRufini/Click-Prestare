@@ -808,6 +808,88 @@ export class FacialDeviceClientService {
     }
   }
 
+  async listDahuaUserIds(device: FacialDeviceConfig): Promise<string[]> {
+    if (this.agent.isOnline(device.id)) {
+      const r = await this.agent.enqueue(device.id, { type: 'list_users' });
+      if (!r.ok) {
+        throw new Error(r.error ?? 'Falha ao listar pessoas via agente');
+      }
+      return (r as any).userIds || [];
+    }
+
+    const countResp = await this.send(
+      device,
+      'POST',
+      '/RPC2',
+      { method: 'UserInfo.getCount', params: { Conditions: {} } },
+      'application/json',
+    );
+    const countData = this.rpcData(countResp);
+    const total = countData?.params?.Count ?? 0;
+    if (total === 0) return [];
+
+    const ids: string[] = [];
+    const PAGE = 100;
+    let startNo = 0;
+
+    while (startNo < total) {
+      const resp = await this.send(
+        device,
+        'POST',
+        '/RPC2',
+        {
+          method: 'UserInfo.getMulti',
+          params: { Conditions: {}, StartNo: startNo, Count: PAGE },
+        },
+        'application/json',
+      );
+      const data = this.rpcData(resp);
+      const list = data?.params?.UserList ?? [];
+      for (const u of list) {
+        if (u.UserID && u.UserID !== 'FFFFFF') {
+          ids.push(u.UserID);
+        }
+      }
+      startNo += PAGE;
+      if (list.length < PAGE) break;
+    }
+    return ids;
+  }
+
+  async dahuaRemoveUsers(
+    device: FacialDeviceConfig,
+    userIds: string[],
+  ): Promise<void> {
+    if (userIds.length === 0) return;
+    if (this.agent.isOnline(device.id)) {
+      const r = await this.agent.enqueue(device.id, {
+        type: 'remove_users',
+        faceIds: userIds,
+      });
+      if (!r.ok) {
+        throw new Error(r.error ?? 'Falha ao remover pessoas via agente');
+      }
+      return;
+    }
+
+    const r = await this.send(
+      device,
+      'POST',
+      '/RPC2',
+      {
+        method: 'UserInfo.removeMulti',
+        params: {
+          UserList: userIds.map((id) => ({ UserID: id })),
+        },
+      },
+      'application/json',
+    );
+    const data = this.rpcData(r);
+    if (!data || data.result === false) {
+      throw new Error('Falha ao remover usuários via RPC2');
+    }
+  }
+
   private buildMultipart(
     parts: ({ name: string; json: unknown } | { name: string; jpeg: Buffer; filename?: string })[],
   ): { body: Buffer; contentType: string } {
