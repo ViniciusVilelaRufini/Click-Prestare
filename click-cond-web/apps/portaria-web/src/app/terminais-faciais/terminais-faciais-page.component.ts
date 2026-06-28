@@ -57,6 +57,14 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.terminaisSync.set(s);
   }
 
+  get syncProgressPercentage(): number {
+    const s = this.syncStatus();
+    if (!s) return 0;
+    const total = s.synced + s.pending + s.error;
+    if (total === 0) return 0;
+    return Math.round(((total - s.pending) / total) * 100);
+  }
+
   // Agente: chave do condomínio + download do executável/config
   readonly agentToken = signal<string | null>(null);
   readonly agentDownloadUrl = signal<string | null>(null);
@@ -267,7 +275,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         }
         setTimeout(() => this.successMessage.set(null), 6000);
         // Acompanha o progresso por alguns ciclos.
-        this.pollSyncStatus(12);
+        this.pollSyncStatus();
       },
       error: (err) => {
         this.syncing.set(false);
@@ -280,7 +288,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   }
 
   /** Atualiza o status a cada 3s enquanto o back-fill estiver rodando. */
-  private pollSyncStatus(restantes: number) {
+  private pollSyncStatus(restantes = 200) {
     this.api.syncStatus().subscribe({
       next: (s) => {
         this.syncStatus.set(s);
