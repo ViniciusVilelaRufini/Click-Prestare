@@ -407,6 +407,27 @@
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60"
           />
         </label>
+        <div class="block">
+          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
+            >Restrição / Bloqueio</span
+          >
+          <label
+            class="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-red-500/10 border border-red-500/20 cursor-pointer select-none transition hover:bg-red-500/15"
+          >
+            <input
+              type="checkbox"
+              [ngModel]="novo.bloqueado === 1"
+              (ngModelChange)="novo.bloqueado = $event ? 1 : 0"
+              class="w-4 h-4 rounded border-red-500/30 bg-graphite text-red-500 focus:ring-red-500 focus:ring-offset-0"
+            />
+            <div class="flex-1">
+              <span class="text-xs font-bold text-red-400">Bloquear esta pessoa</span>
+              <p class="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                Impede qualquer liberação, PIN ou entrada no condomínio.
+              </p>
+            </div>
+          </label>
+        </div>
 
         <!-- Prestador Specific Fields (Categories & Days of week) -->
         @if (novo.is_prestador) {
@@ -901,6 +922,14 @@
                   <span class="font-medium text-white truncate">{{
                     v.nome
                   }}</span>
+                  @if (v.bloqueado === 1) {
+                    <span
+                      class="text-[10px] px-1.5 py-0.5 rounded-md border text-red-450 bg-red-400/10 border-red-400/20 font-bold uppercase tracking-wider flex items-center gap-1"
+                    >
+                      <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                      Bloqueado
+                    </span>
+                  }
                   <span
                     class="text-[11px] px-2 py-0.5 rounded-md border"
                     [class.text-accent]="!v.is_prestador"

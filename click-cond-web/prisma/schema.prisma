@@ -526,6 +526,7 @@ model Visitantes {
   // Default 1: visitante criado já nasce autorizado (a validação de PIN/webhook
   // exige liberado=1). Default 0 fazia o PIN ser negado "não autorizado".
   liberado          Int          @default(1) @db.TinyInt
+  bloqueado         Int          @default(0) @db.TinyInt
   codigo_acesso     String?      @db.VarChar(50)
   face_id           String?      @db.VarChar(100)
   face_enrolled_at  DateTime?    @db.DateTime(0)

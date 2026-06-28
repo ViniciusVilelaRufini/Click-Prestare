@@ -968,8 +968,9 @@ export class FacialService {
       diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
     // dentroDoCondominio sempre permite (pessoa dentro pode sair mesmo fora do dia autorizado).
     const autorizado =
-      (visitante.liberado === 1 && dentroJanela && diaAutorizado) ||
-      dentroDoCondominio;
+      visitante.bloqueado !== 1 &&
+      ((visitante.liberado === 1 && dentroJanela && diaAutorizado) ||
+        dentroDoCondominio);
     if (!autorizado) {
       if (visitante.face_id && visitante.id_condominio) {
         await this.unsyncVisitante(

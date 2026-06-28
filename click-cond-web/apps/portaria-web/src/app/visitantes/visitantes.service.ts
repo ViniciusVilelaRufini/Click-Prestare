@@ -52,6 +52,7 @@ export interface VisitanteDetalhes {
     tag_rfid: string | null;
     dias_semana?: string | null;
     categorias?: string | null;
+    bloqueado?: number;
     created_at: string;
   };
   stats: {
@@ -79,6 +80,7 @@ export interface PessoaEncontrada {
   face_sync_status: string | null;
   face_enrolled_at: string | null;
   totalVisitasAnteriores: number;
+  bloqueado?: number;
 }
 
 /** 1 pessoa = 1 linha. Substitui Visitante[] na página /visitantes. */
@@ -119,6 +121,7 @@ export interface Pessoa {
   codigo_acesso: string | null;
 
   created_at: string;
+  bloqueado?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -202,6 +205,7 @@ export class VisitantesService {
       tag_rfid: string | null;
       dias_semana?: string | null;
       categorias?: string | null;
+      bloqueado?: number;
     }>,
   ): Observable<{ ok: boolean; atualizados: number }> {
     return this.http.put<{ ok: boolean; atualizados: number }>(`${this.base}/pessoa/${idRef}`, dto);

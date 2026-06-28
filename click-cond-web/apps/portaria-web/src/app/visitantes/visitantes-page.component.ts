@@ -525,6 +525,7 @@ export class VisitantesPageComponent implements OnInit {
       tag_rfid: (v as any).tag_rfid ?? '',
       dias_semana: (v as any).dias_semana ?? '',
       categorias: (v as any).categorias ?? '',
+      bloqueado: (v as any).bloqueado ?? 0,
       data_hora_inicio: v.data_hora_inicio
         ? new Date(v.data_hora_inicio).toISOString().slice(0, 16)
         : undefined,
@@ -599,6 +600,7 @@ export class VisitantesPageComponent implements OnInit {
         tag_rfid: (this.novo.tag_rfid ?? '').trim() || null,
         dias_semana: this.novo.dias_semana,
         categorias: this.novo.categorias,
+        bloqueado: this.novo.bloqueado,
       }).subscribe({
         next: () => {
           this.saving.set(false);

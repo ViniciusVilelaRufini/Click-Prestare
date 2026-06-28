@@ -20,6 +20,7 @@ export interface Visitante {
   tag_rfid?: string | null;
   dias_semana?: string | null;
   categorias?: string | null;
+  bloqueado?: number;
   created_at: string;
 }
 
@@ -36,4 +37,5 @@ export interface CreateVisitante {
   tag_rfid?: string;
   dias_semana?: string;
   categorias?: string;
+  bloqueado?: number;
 }

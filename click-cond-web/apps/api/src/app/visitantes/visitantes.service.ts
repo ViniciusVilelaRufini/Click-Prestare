@@ -63,6 +63,24 @@ export class VisitantesService {
    *
    * @returns o visitante carregado (evita refazer o findUnique no caller).
    */
+  private async verificarSeBloqueado(idCondominio: number, nome: string, doc?: string | null): Promise<boolean> {
+    const docRef = doc?.trim();
+    const whereBlock: any = {
+      id_condominio: Number(idCondominio),
+      bloqueado: 1,
+    };
+    if (docRef) {
+      whereBlock.OR = [
+        { doc_identificacao: docRef },
+        { nome: { equals: nome?.trim() } },
+      ];
+    } else {
+      whereBlock.nome = { equals: nome?.trim() };
+    }
+    const check = await this.prisma.visitantes.findFirst({ where: whereBlock });
+    return !!check;
+  }
+
   private async assertPodeAcessarVisitante(idVisitante: number, payload?: JwtPayload) {
     const v = await this.prisma.visitantes.findUnique({ where: { id: Number(idVisitante) } });
     if (!v) throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
@@ -331,6 +349,7 @@ export class VisitantesService {
       totalVisitasAnteriores: candidatos.length,
       dias_semana: melhor.dias_semana ?? null,
       categorias: melhor.categorias ?? null,
+      bloqueado: candidatos.some((v) => v.bloqueado === 1) ? 1 : 0,
     };
   }
 
@@ -442,6 +461,7 @@ export class VisitantesService {
 
         // Tag RFID (credencial) — dado da pessoa, usado na edição e no badge
         tag_rfid: principal.tag_rfid ?? null,
+        bloqueado: arr.some((r) => r.bloqueado === 1) ? 1 : 0,
 
         // Status atual (agregado de TODAS as visitas)
         noLocal,
@@ -613,6 +633,11 @@ export class VisitantesService {
       ? { id_condominio: ref.id_condominio, doc_identificacao: docRef }
       : { id_condominio: ref.id_condominio, nome: ref.nome };
 
+    const records = await this.prisma.visitantes.findMany({
+      where,
+      select: { id: true, face_id: true },
+    });
+
     const data: any = {};
     if (dto.nome !== undefined) data.nome = dto.nome;
     if (dto.doc_identificacao !== undefined) data.doc_identificacao = dto.doc_identificacao;
@@ -622,6 +647,13 @@ export class VisitantesService {
     if (dto.is_prestador !== undefined) data.is_prestador = dto.is_prestador;
     if ((dto as any).dias_semana !== undefined) data.dias_semana = (dto as any).dias_semana;
     if ((dto as any).categorias !== undefined) data.categorias = (dto as any).categorias;
+    if ((dto as any).bloqueado !== undefined) {
+      data.bloqueado = Number((dto as any).bloqueado);
+      if (data.bloqueado === 1) {
+        data.liberado = 0;
+        data.codigo_acesso = null;
+      }
+    }
     // Tag RFID (credencial): string vazia limpa a tag (null). É dado da pessoa,
     // então propaga para todas as visitas dela (mesmo `where`).
     if (dto.tag_rfid !== undefined) {
@@ -642,14 +674,18 @@ export class VisitantesService {
 
     // Re-sincroniza quando: foto tocada (nova OU removida), OU quando qualquer
     // campo que afeta autorização mudou (is_prestador, dias_semana, categorias,
-    // tag_rfid) e a pessoa já está cadastrada no aparelho.
+    // tag_rfid, bloqueado) e a pessoa já está cadastrada no aparelho.
     const campoFacialMudou =
       fotoPes !== undefined ||
       dto.is_prestador !== undefined ||
       (dto as any).dias_semana !== undefined ||
-      (dto as any).categorias !== undefined;
-    if (campoFacialMudou && ref.face_id) {
-      this.fireFacialSync(ref.id);
+      (dto as any).categorias !== undefined ||
+      (dto as any).bloqueado !== undefined;
+
+    if (campoFacialMudou) {
+      for (const r of records) {
+        this.fireFacialSync(r.id);
+      }
     }
 
     return { ok: true, atualizados: result.count };
@@ -672,6 +708,11 @@ export class VisitantesService {
         created_at: new Date(),
         updated_at: new Date(),
       };
+    }
+
+    const blocked = await this.verificarSeBloqueado(dto.id_condominio, dto.nome, dto.doc_identificacao);
+    if (blocked) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
 
     let fotoDoc = await this.resolveFoto(dto.foto_documento);
@@ -998,6 +1039,10 @@ export class VisitantesService {
       throw new NotFoundException('Código inválido ou visita não agendada/já encerrada.');
     }
 
+    if (v.bloqueado === 1) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+
     const now = new Date();
     const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
     const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
@@ -1284,6 +1329,7 @@ export class VisitantesService {
         created_at: v.created_at.toISOString(),
         dias_semana: v.dias_semana ?? null,
         categorias: v.categorias ?? null,
+        bloqueado: v.bloqueado ?? 0,
       },
       stats: {
         totalEntradas,
@@ -1302,7 +1348,10 @@ export class VisitantesService {
   }
 
   async checkIn(id: number, payload?: JwtPayload) {
-    await this.assertPodeAcessarVisitante(id, payload);
+    const ref = await this.assertPodeAcessarVisitante(id, payload);
+    if (ref.bloqueado === 1) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: { data_entrada: new Date(), data_saida: null, liberado: 1 },
@@ -1326,7 +1375,10 @@ export class VisitantesService {
   }
 
   async liberarAcesso(id: number, payload?: JwtPayload) {
-    await this.assertPodeAcessarVisitante(id, payload);
+    const ref = await this.assertPodeAcessarVisitante(id, payload);
+    if (ref.bloqueado === 1) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: { liberado: 1, data_entrada: null, data_saida: null },
