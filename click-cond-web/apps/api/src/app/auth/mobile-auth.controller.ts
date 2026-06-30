@@ -94,6 +94,24 @@ export class SindicoMobileController {
     }
     return this.service.adminRestaurarVinculo(Number(body.id_user), Number(body.id_condominio));
   }
+
+  @Public()
+  @Post('admin-criar-sindico')
+  @HttpCode(200)
+  async adminCriarSindico(
+    @Query('key') key: string,
+    @Body() body: { login: string; senha: string; nome: string; id_condominio: number },
+  ) {
+    if (key !== (process.env['ADMIN_RECOVERY_KEY'] ?? 'click-recovery-2024')) {
+      throw new ForbiddenException();
+    }
+    return this.service.adminCriarSindico({
+      login: body.login,
+      senha: body.senha,
+      nome: body.nome,
+      id_condominio: Number(body.id_condominio),
+    });
+  }
 }
 
 // ==========================================

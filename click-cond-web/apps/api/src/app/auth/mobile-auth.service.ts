@@ -2234,6 +2234,60 @@ export class MobileAuthService {
     return { condominios, sindicos: users, usuarioBuscado };
   }
 
+  /**
+   * Recria uma conta de síndico do zero (Users + Sindicos) e vincula ao
+   * condomínio informado. Usado quando o registro Users foi apagado por engano.
+   * Idempotente por login.
+   */
+  async adminCriarSindico(body: { login: string; senha: string; nome: string; id_condominio: number }) {
+    const login = body.login.toLowerCase().trim();
+    const cond = await this.prisma.condominios.findUnique({ where: { id: body.id_condominio } });
+    if (!cond) throw new NotFoundException('Condomínio não encontrado.');
+
+    let user = await this.prisma.users.findFirst({
+      where: { OR: [{ login }, { email: login }] },
+    });
+
+    const hash = await bcrypt.hash(body.senha, 10);
+
+    if (!user) {
+      user = await this.prisma.users.create({
+        data: {
+          login,
+          email: login,
+          password: hash,
+          name: body.nome,
+          is_sindico: 1,
+          is_funcionario: 0,
+          is_morador: 0,
+        },
+      });
+    } else {
+      await this.prisma.users.update({
+        where: { id: user.id },
+        data: { is_sindico: 1, password: hash, name: body.nome },
+      });
+    }
+
+    const sindicoRec = await this.prisma.sindicos.findFirst({ where: { id_user: user.id } });
+    if (!sindicoRec) {
+      await this.prisma.sindicos.create({
+        data: { id_user: user.id, name: body.nome, email: login },
+      });
+    }
+
+    const vinculo = await this.prisma.sindicos_Condominios.findFirst({
+      where: { id_user: user.id, id_condominio: body.id_condominio },
+    });
+    if (!vinculo) {
+      await this.prisma.sindicos_Condominios.create({
+        data: { id_user: user.id, id_condominio: body.id_condominio },
+      });
+    }
+
+    return { ok: true, id_user: user.id, login, id_condominio: body.id_condominio, condominio: cond.nome };
+  }
+
   async adminRestaurarVinculo(idUser: number, idCondominio: number) {
     const existing = await this.prisma.sindicos_Condominios.findFirst({
       where: { id_user: idUser, id_condominio: idCondominio },
