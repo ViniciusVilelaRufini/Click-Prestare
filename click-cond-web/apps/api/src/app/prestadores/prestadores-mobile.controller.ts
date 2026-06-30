@@ -32,6 +32,9 @@ export class PrestadoresMobileController {
       telefone: data.telefone,
       categorias: data.categorias,
       id_apartamento: data.id_apartamento != null ? Number(data.id_apartamento) : undefined,
+      foto_pessoa: data.foto_pessoa ?? data.photo,
+      foto_documento: data.foto_documento,
+      dias_semana: data.dias_semana,
     });
   }
 
@@ -45,6 +48,9 @@ export class PrestadoresMobileController {
       telefone: data.telefone,
       categorias: data.categorias,
       id_apartamento: data.id_apartamento != null ? Number(data.id_apartamento) : undefined,
+      foto_pessoa: data.foto_pessoa ?? data.photo,
+      foto_documento: data.foto_documento,
+      dias_semana: data.dias_semana,
     });
   }
 
