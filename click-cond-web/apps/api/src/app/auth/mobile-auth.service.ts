@@ -2193,6 +2193,57 @@ export class MobileAuthService {
     }
   }
 
+  // ── Diagnóstico / recuperação de emergência ───────────────────────────────
+
+  async adminDiagnostico() {
+    const condominios = await this.prisma.condominios.findMany({
+      select: { id: true, nome: true, ativo: true, created_at: true },
+      orderBy: { id: 'asc' },
+    });
+    const users = await this.prisma.users.findMany({
+      where: { is_sindico: 1 },
+      select: {
+        id: true, name: true, login: true, email: true,
+        sindicosCondominios: {
+          select: { id: true, id_condominio: true },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+    return { condominios, sindicos: users };
+  }
+
+  async adminRestaurarVinculo(idUser: number, idCondominio: number) {
+    const existing = await this.prisma.sindicos_Condominios.findFirst({
+      where: { id_user: idUser, id_condominio: idCondominio },
+    });
+    if (existing) return { ok: true, msg: 'Vínculo já existe', id: existing.id };
+
+    const user = await this.prisma.users.findUnique({ where: { id: idUser } });
+    if (!user) throw new NotFoundException('Usuário não encontrado.');
+
+    const cond = await this.prisma.condominios.findUnique({ where: { id: idCondominio } });
+    if (!cond) throw new NotFoundException('Condomínio não encontrado.');
+
+    // Garante que is_sindico está marcado
+    if (!user.is_sindico) {
+      await this.prisma.users.update({ where: { id: idUser }, data: { is_sindico: 1 } });
+    }
+
+    // Garante que existe registro em Sindicos
+    const sindicoRec = await this.prisma.sindicos.findFirst({ where: { id_user: idUser } });
+    if (!sindicoRec) {
+      await this.prisma.sindicos.create({
+        data: { id_user: idUser, name: user.name ?? '', email: user.email ?? '' },
+      });
+    }
+
+    const vinculo = await this.prisma.sindicos_Condominios.create({
+      data: { id_user: idUser, id_condominio: idCondominio },
+    });
+    return { ok: true, msg: 'Vínculo restaurado', id: vinculo.id };
+  }
+
   async cadastrarRastreioMorador(idUser: number, dto: { descricao: string; recebido_de?: string; codigo_rastreio: string }) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível.');

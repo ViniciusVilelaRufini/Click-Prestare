@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { MobileAuthService } from './mobile-auth.service';
 import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
@@ -67,6 +67,32 @@ export class SindicoMobileController {
   linkMorador(@ReqUser() payload: JwtPayload, @Body() body: { id_apartamento: number; tipo?: string }) {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.linkUserAsMorador(Number(idUser), Number(body.id_apartamento), body.tipo);
+  }
+
+  // ── Diagnóstico / recuperação de emergência ───────────────────────────────
+  // Acesso protegido por chave. Usado para inspecionar e restaurar vínculos
+  // perdidos sem precisar de acesso direto ao banco.
+
+  @Public()
+  @Get('admin-diagnostico')
+  async adminDiagnostico(@Query('key') key: string) {
+    if (key !== (process.env['ADMIN_RECOVERY_KEY'] ?? 'click-recovery-2024')) {
+      throw new ForbiddenException();
+    }
+    return this.service.adminDiagnostico();
+  }
+
+  @Public()
+  @Post('admin-restaurar-vinculo')
+  @HttpCode(200)
+  async adminRestaurarVinculo(
+    @Query('key') key: string,
+    @Body() body: { id_user: number; id_condominio: number },
+  ) {
+    if (key !== (process.env['ADMIN_RECOVERY_KEY'] ?? 'click-recovery-2024')) {
+      throw new ForbiddenException();
+    }
+    return this.service.adminRestaurarVinculo(Number(body.id_user), Number(body.id_condominio));
   }
 }
 
