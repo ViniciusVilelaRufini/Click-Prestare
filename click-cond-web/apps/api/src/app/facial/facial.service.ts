@@ -1182,11 +1182,17 @@ export class FacialService {
     idMorador: number,
     faceId: string | null,
     idCondominio: number | null,
+    opts: { deviceIds?: number[] } = {},
   ) {
     if (FACIAL_DISABLED || !faceId || !idCondominio) return;
     // Mesmo critério do sync: só terminais faciais têm /persons.
     const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial' },
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+      },
     });
     for (const device of devices) {
       try {
@@ -1203,11 +1209,17 @@ export class FacialService {
     idVisitante: number,
     faceId: string | null,
     idCondominio: number,
+    opts: { deviceIds?: number[] } = {},
   ) {
     if (FACIAL_DISABLED || !faceId) return;
     // Mesmo critério do sync: só terminais faciais têm /persons.
     const devices = await this.prisma.facial_Devices.findMany({
-      where: { id_condominio: idCondominio, ativo: 1, tipo: 'facial' },
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+      },
     });
     for (const device of devices) {
       try {
@@ -1215,6 +1227,188 @@ export class FacialService {
       } catch (err: any) {
         this.logger.warn(
           `Remoção visitante ${idVisitante} device ${device.id}: ${err?.message ?? err}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Sincroniza um prestador de serviço (tabela Prestadores_servico — a tela
+   * "Cadastro de Funcionários" da Gestão de Acesso) com os terminais faciais.
+   *
+   * Categoria de whitelist = 'funcionario'. Sem janela de validade (acesso
+   * permanente), mas respeita a restrição de dia da semana (dias_semana):
+   * fora do dia autorizado o rosto é REMOVIDO do aparelho (nega fisicamente) e
+   * o tickDiasSemanaSync reenrola na virada do dia. dias_semana VAZIO = nenhum
+   * dia permitido (mesma semântica da tela: "Nenhum dia permitido").
+   */
+  async syncPrestadorServico(idPrestador: number, opts: { deviceIds?: number[] } = {}) {
+    if (FACIAL_DISABLED)
+      return { skipped: true, reason: 'integration_disabled' };
+    if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
+
+    const prest = await this.prisma.prestadores_servico.findUnique({
+      where: { id: idPrestador },
+    });
+    if (!prest)
+      throw new NotFoundException(`Prestador ${idPrestador} não encontrado`);
+
+    // Sem foto: remove rosto órfão do aparelho e zera o face_id.
+    if (!prest.foto_pessoa) {
+      if (prest.face_id && prest.id_condominio) {
+        await this.unsyncPrestadorServico(
+          idPrestador,
+          prest.face_id,
+          prest.id_condominio,
+        );
+        await this.prisma.prestadores_servico.update({
+          where: { id: idPrestador },
+          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+        });
+        return { ok: true, removed: true };
+      }
+      return { skipped: true, reason: 'no_photo' };
+    }
+
+    // Restrição de dia da semana (horário de Brasília p/ bater com o aparelho).
+    // Vazio = NENHUM dia permitido (semântica da tela de cadastro).
+    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
+    const diasPermitidos: string[] = (prest.dias_semana ?? '')
+      .split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+    const diaAutorizado =
+      diasPermitidos.length > 0 && diasPermitidos.includes(diaSemanaAtual);
+
+    // Só terminais faciais recebem cadastro de pessoa (foto + face_id).
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: {
+        id_condominio: prest.id_condominio,
+        ativo: 1,
+        tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+      },
+    });
+    if (devices.length === 0) {
+      return { skipped: true, reason: 'no_facial_devices' };
+    }
+
+    const externalId = `prestador_servico_${prest.id}`;
+
+    // Fora do dia autorizado: remove de todos os terminais (nega fisicamente).
+    if (!diaAutorizado) {
+      if (prest.face_id) {
+        await this.unsyncPrestadorServico(
+          idPrestador,
+          prest.face_id,
+          prest.id_condominio,
+          opts,
+        );
+        await this.prisma.prestadores_servico.update({
+          where: { id: idPrestador },
+          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+        });
+        return { ok: true, removed: true, reason: 'dia_nao_autorizado' };
+      }
+      return { skipped: true, reason: 'dia_nao_autorizado' };
+    }
+
+    const fotoBase64 = await this.fetchPhotoAsBase64(prest.foto_pessoa);
+    if (!fotoBase64) {
+      await this.markPrestadorSyncStatus(idPrestador, 'error');
+      return { ok: false, reason: 'photo_unreachable' };
+    }
+
+    const categoria: CategoriaPessoa = 'funcionario';
+    let faceId: string | null = prest.face_id ?? null;
+    let allOk = true;
+    let ultimoErro: string | null = null;
+    const devicesSincronizados: number[] = [];
+    for (const device of devices) {
+      try {
+        const permitidas = await this.categoriasPermitidasNoDispositivo(device);
+        if (!this.categoriaAutorizada(permitidas, categoria)) {
+          await this.client.removePerson(
+            this.toConfig(device),
+            faceId ?? externalId,
+          );
+          continue;
+        }
+        if (faceId) {
+          await this.client.updatePerson(this.toConfig(device), faceId, {
+            nome: prest.nome,
+            fotoBase64,
+          });
+        } else {
+          const r = await this.client.enrollPerson(this.toConfig(device), {
+            externalId,
+            nome: prest.nome,
+            fotoBase64,
+          });
+          faceId = r.faceId;
+        }
+        devicesSincronizados.push(device.id);
+      } catch (err: any) {
+        allOk = false;
+        ultimoErro = err?.message ?? String(err);
+        this.logger.warn(
+          `Sync prestador ${idPrestador} device ${device.id} falhou: ${ultimoErro}`,
+        );
+      }
+    }
+
+    if (devicesSincronizados.length > 0) {
+      const agora = new Date();
+      this.prisma.facial_Devices
+        .updateMany({
+          where: { id: { in: devicesSincronizados } },
+          data: { ultima_sincr: agora },
+        })
+        .catch((err) =>
+          this.logger.warn(
+            `Falha ao atualizar ultima_sincr (prestador ${idPrestador}): ${err?.message ?? err}`,
+          ),
+        );
+    }
+
+    const status = this.classificarSync(allOk, ultimoErro);
+    await this.prisma.prestadores_servico.update({
+      where: { id: idPrestador },
+      data: {
+        face_id: faceId,
+        face_sync_status: status,
+        face_enrolled_at: allOk ? new Date() : prest.face_enrolled_at,
+      },
+    });
+
+    return { ok: allOk, face_id: faceId, status, error: ultimoErro };
+  }
+
+  async unsyncPrestadorServico(
+    idPrestador: number,
+    faceId: string | null,
+    idCondominio: number | null,
+    opts: { deviceIds?: number[] } = {},
+  ) {
+    if (FACIAL_DISABLED || !faceId || !idCondominio) return;
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+      },
+    });
+    for (const device of devices) {
+      try {
+        await this.client.removePerson(this.toConfig(device), faceId);
+      } catch (err: any) {
+        this.logger.warn(
+          `Remoção prestador ${idPrestador} device ${device.id}: ${err?.message ?? err}`,
         );
       }
     }
@@ -1289,12 +1483,14 @@ export class FacialService {
       : {};
 
     // Filtro por categoria. moradores table = morador|funcionario;
-    // visitantes table = visitante|prestador. Sub-filtro com null-safety.
+    // visitantes table = visitante|prestador; prestadores_servico = funcionario.
     const cats = opts.categorias?.length ? new Set(opts.categorias) : null;
     const queryMorador =
       !cats || cats.has('morador') || cats.has('funcionario');
     const queryVisitante =
       !cats || cats.has('visitante') || cats.has('prestador');
+    // Prestadores de serviço (Gestão de Acesso) entram como 'funcionario'.
+    const queryPrestador = !cats || cats.has('funcionario');
     const moradorTipoWhere =
       !cats || (cats.has('morador') && cats.has('funcionario'))
         ? {}
@@ -1316,7 +1512,7 @@ export class FacialService {
     const temFotoOuFace = {
       OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
     };
-    const [moradores, visitantes] = await Promise.all([
+    const [moradores, visitantes, prestadores] = await Promise.all([
       queryMorador
         ? this.prisma.moradores.findMany({
             where: {
@@ -1338,9 +1534,20 @@ export class FacialService {
             select: { id: true },
           })
         : Promise.resolve([] as { id: number }[]),
+      queryPrestador
+        ? this.prisma.prestadores_servico.findMany({
+            where: {
+              id_condominio: idCondominio,
+              // Mesmo filtro pendente dos visitantes (inclui dias_semana, que
+              // muda a autorização a cada virada de dia).
+              AND: [temFotoOuFace, pendenteWhereVisitante],
+            },
+            select: { id: true },
+          })
+        : Promise.resolve([] as { id: number }[]),
     ]);
 
-    const total = moradores.length + visitantes.length;
+    const total = moradores.length + visitantes.length + prestadores.length;
     if (total === 0) return { total: 0, started: false };
 
     this.bulkSyncEmAndamento.add(idCondominio);
@@ -1368,8 +1575,153 @@ export class FacialService {
             this.logger.warn(`Bulk sync visitante ${v.id}: ${e?.message ?? e}`);
           }
         }
+        for (const p of prestadores) {
+          try {
+            await this.syncPrestadorServico(p.id, { deviceIds });
+            ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk sync prestador ${p.id}: ${e?.message ?? e}`);
+          }
+        }
         this.logger.log(
           `Bulk sync condomínio ${idCondominio}: ${ok} ok, ${falhou} falha(s) de ${total}`,
+        );
+      } finally {
+        this.bulkSyncEmAndamento.delete(idCondominio);
+      }
+    })();
+
+    return { total, started: true };
+  }
+
+  async unsyncAllForCondominio(
+    idCondominio: number,
+    opts: {
+      categorias?: CategoriaPessoa[];
+      deviceIds?: number[];
+    } = {},
+  ) {
+    if (FACIAL_DISABLED)
+      return { skipped: true, reason: 'integration_disabled' };
+    if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
+
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+      },
+      select: { id: true },
+    });
+    if (devices.length === 0) {
+      return { skipped: true, reason: 'no_facial_devices' };
+    }
+
+    if (this.bulkSyncEmAndamento.has(idCondominio)) {
+      return { alreadyRunning: true };
+    }
+
+    const cats = opts.categorias?.length ? new Set(opts.categorias) : null;
+    const queryMorador =
+      !cats || cats.has('morador') || cats.has('funcionario');
+    const queryVisitante =
+      !cats || cats.has('visitante') || cats.has('prestador');
+    const queryPrestador = !cats || cats.has('funcionario');
+
+    const moradorTipoWhere =
+      !cats || (cats.has('morador') && cats.has('funcionario'))
+        ? {}
+        : cats.has('funcionario')
+          ? { tipo: 'funcionario' }
+          : { OR: [{ tipo: { not: 'funcionario' } }, { tipo: null }] };
+    const visitanteTipoWhere =
+      !cats || (cats.has('visitante') && cats.has('prestador'))
+        ? {}
+        : cats.has('prestador')
+          ? { is_prestador: 1 }
+          : { is_prestador: { not: 1 } };
+
+    const [moradores, visitantes, prestadores] = await Promise.all([
+      queryMorador
+        ? this.prisma.moradores.findMany({
+            where: {
+              id_condominio: idCondominio,
+              face_id: { not: null },
+              AND: [moradorTipoWhere],
+            },
+            select: { id: true, face_id: true },
+          })
+        : Promise.resolve([] as { id: number; face_id: string | null }[]),
+      queryVisitante
+        ? this.prisma.visitantes.findMany({
+            where: {
+              id_condominio: idCondominio,
+              face_id: { not: null },
+              AND: [visitanteTipoWhere],
+            },
+            select: { id: true, face_id: true },
+          })
+        : Promise.resolve([] as { id: number; face_id: string | null }[]),
+      queryPrestador
+        ? this.prisma.prestadores_servico.findMany({
+            where: { id_condominio: idCondominio, face_id: { not: null } },
+            select: { id: true, face_id: true },
+          })
+        : Promise.resolve([] as { id: number; face_id: string | null }[]),
+    ]);
+
+    const total = moradores.length + visitantes.length + prestadores.length;
+    if (total === 0) return { total: 0, started: false };
+
+    this.bulkSyncEmAndamento.add(idCondominio);
+    void (async () => {
+      let ok = 0;
+      let falhou = 0;
+      try {
+        const deviceIds = opts.deviceIds;
+        for (const m of moradores) {
+          try {
+            await this.unsyncMorador(m.id, m.face_id, idCondominio, { deviceIds });
+            await this.prisma.moradores.update({
+              where: { id: m.id },
+              data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+            });
+            ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk unsync morador ${m.id}: ${e?.message ?? e}`);
+          }
+        }
+        for (const v of visitantes) {
+          try {
+            await this.unsyncVisitante(v.id, v.face_id, idCondominio, { deviceIds });
+            await this.prisma.visitantes.update({
+              where: { id: v.id },
+              data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+            });
+            ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk unsync visitante ${v.id}: ${e?.message ?? e}`);
+          }
+        }
+        for (const p of prestadores) {
+          try {
+            await this.unsyncPrestadorServico(p.id, p.face_id, idCondominio, { deviceIds });
+            await this.prisma.prestadores_servico.update({
+              where: { id: p.id },
+              data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+            });
+            ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk unsync prestador ${p.id}: ${e?.message ?? e}`);
+          }
+        }
+        this.logger.log(
+          `Bulk unsync condomínio ${idCondominio}: ${ok} ok, ${falhou} falha(s) de ${total}`,
         );
       } finally {
         this.bulkSyncEmAndamento.delete(idCondominio);
@@ -1400,6 +1752,20 @@ export class FacialService {
       for (const v of comDias) {
         this.syncVisitante(v.id).catch((e: any) =>
           this.logger.warn(`tickDiasSemana visitante ${v.id}: ${e?.message ?? e}`),
+        );
+      }
+
+      // Prestadores de serviço (Gestão de Acesso) também têm restrição por dia.
+      // Reavalia todos com foto ou já enrolados — a autorização muda na virada.
+      const prestadores = await this.prisma.prestadores_servico.findMany({
+        where: {
+          OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
+        },
+        select: { id: true },
+      });
+      for (const p of prestadores) {
+        this.syncPrestadorServico(p.id).catch((e: any) =>
+          this.logger.warn(`tickDiasSemana prestador ${p.id}: ${e?.message ?? e}`),
         );
       }
     } catch (e: any) {
@@ -1863,6 +2229,17 @@ export class FacialService {
           nomePessoa = v.nome;
           faceIdSalvo = v.face_id ?? externalId;
         }
+      } else if (parsed.tipo === 'prestador_servico') {
+        const p = await this.prisma.prestadores_servico.findUnique({
+          where: { id: parsed.id },
+        });
+        if (p) {
+          // Prestadores da Gestão de Acesso contam como 'funcionario' na whitelist.
+          tipoPessoa = 'funcionario';
+          idPessoa = p.id;
+          nomePessoa = p.nome;
+          faceIdSalvo = p.face_id ?? externalId;
+        }
       } else {
         // Identificador fora do padrão morador_X/visitante_X (ex.: user_id
         // numérico do Control iD) — resolve pela coluna face_id, que o
@@ -1885,6 +2262,16 @@ export class FacialService {
             idPessoa = v.id;
             nomePessoa = v.nome;
             faceIdSalvo = v.face_id ?? externalId;
+          } else {
+            const p = await this.prisma.prestadores_servico.findFirst({
+              where: { face_id: externalId, id_condominio: device.id_condominio },
+            });
+            if (p) {
+              tipoPessoa = 'funcionario';
+              idPessoa = p.id;
+              nomePessoa = p.nome;
+              faceIdSalvo = p.face_id ?? externalId;
+            }
           }
         }
       }
@@ -2778,7 +3165,9 @@ export class FacialService {
   }
 
   private parseExternalId(externalId: string): { tipo: string; id: number } {
-    const match = externalId.match(/^(morador|visitante)_(\d+)$/);
+    const match = externalId.match(
+      /^(morador|visitante|prestador_servico)_(\d+)$/,
+    );
     if (!match) return { tipo: 'desconhecido', id: 0 };
     return { tipo: match[1], id: Number(match[2]) };
   }
@@ -2937,6 +3326,17 @@ export class FacialService {
   private async markVisitanteSyncStatus(id: number, status: string) {
     try {
       await this.prisma.visitantes.update({
+        where: { id },
+        data: { face_sync_status: status },
+      });
+    } catch {
+      /* noop */
+    }
+  }
+
+  private async markPrestadorSyncStatus(id: number, status: string) {
+    try {
+      await this.prisma.prestadores_servico.update({
         where: { id },
         data: { face_sync_status: status },
       });

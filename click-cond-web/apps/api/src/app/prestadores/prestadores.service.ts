@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { FacialService } from '../facial/facial.service';
 
 export interface CreatePrestadorDto {
   nome: string;
@@ -15,10 +16,24 @@ export interface CreatePrestadorDto {
 
 @Injectable()
 export class PrestadoresService {
+  private readonly logger = new Logger(PrestadoresService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly facial: FacialService,
   ) {}
+
+  /** Empurra (ou remove) o rosto do prestador nos terminais faciais, sem bloquear a resposta. */
+  private fireFacialSync(idPrestador: number) {
+    this.facial
+      .syncPrestadorServico(idPrestador)
+      .catch((err) =>
+        this.logger.warn(
+          `Sync facial prestador ${idPrestador} falhou: ${err?.message ?? err}`,
+        ),
+      );
+  }
 
   private async resolveFoto(value: string | undefined | null): Promise<string | null> {
     if (!value) return value ?? null;
@@ -115,7 +130,7 @@ export class PrestadoresService {
     });
 
     if (existing) {
-      return this.prisma.prestadores_servico.update({
+      const atualizado = await this.prisma.prestadores_servico.update({
         where: { id: existing.id },
         data: {
           telefone: dto.telefone ?? existing.telefone,
@@ -126,9 +141,11 @@ export class PrestadoresService {
           dias_semana: dto.dias_semana !== undefined ? dto.dias_semana : existing.dias_semana,
         },
       });
+      this.fireFacialSync(atualizado.id);
+      return atualizado;
     }
 
-    return this.prisma.prestadores_servico.create({
+    const criado = await this.prisma.prestadores_servico.create({
       data: {
         nome: dto.nome,
         telefone: dto.telefone ?? null,
@@ -140,6 +157,8 @@ export class PrestadoresService {
         dias_semana: dto.dias_semana ?? null,
       },
     });
+    this.fireFacialSync(criado.id);
+    return criado;
   }
 
   async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number) {
@@ -159,7 +178,7 @@ export class PrestadoresService {
     const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
 
     try {
-      return await this.prisma.prestadores_servico.update({
+      const atualizado = await this.prisma.prestadores_servico.update({
         where: { id: Number(id) },
         data: {
           ...(dto.nome !== undefined && { nome: dto.nome }),
@@ -171,6 +190,8 @@ export class PrestadoresService {
           ...(dto.dias_semana !== undefined && { dias_semana: dto.dias_semana }),
         },
       });
+      this.fireFacialSync(atualizado.id);
+      return atualizado;
     } catch {
       throw new NotFoundException(`Prestador ${id} não encontrado`);
     }
@@ -182,10 +203,22 @@ export class PrestadoresService {
     // Valida tenant antes de deletar (IDOR).
     const atual = await this.prisma.prestadores_servico.findUnique({
       where: { id: Number(id) },
-      select: { id_condominio: true },
+      select: { id_condominio: true, face_id: true },
     });
     if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
     this.assertTenant(atual.id_condominio, idCondominio, id);
+
+    // Remove o rosto dos terminais faciais antes de apagar o cadastro, senão
+    // ficaria um rosto órfão abrindo a porta sem dono no banco.
+    if (atual.face_id) {
+      await this.facial
+        .unsyncPrestadorServico(Number(id), atual.face_id, atual.id_condominio)
+        .catch((err) =>
+          this.logger.warn(
+            `Unsync facial prestador ${id} falhou: ${err?.message ?? err}`,
+          ),
+        );
+    }
 
     try {
       await this.prisma.prestadores_servico.delete({ where: { id: Number(id) } });
