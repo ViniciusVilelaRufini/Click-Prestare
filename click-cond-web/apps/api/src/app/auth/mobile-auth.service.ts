@@ -1253,17 +1253,20 @@ export class MobileAuthService {
             }
           });
         } else {
-          await this.prisma.users.update({
-            where: { id: user.id },
-            data: {
-              name: fp.nome,
-              phone: fp.telefone,
-              email: fp.email || fp.login,
-              password: md5Pwd,
-              is_funcionario: 1,
-              ...(uploadedPhotoUrl !== undefined && { photo: uploadedPhotoUrl, profile_image: uploadedPhotoUrl }),
-            }
-          });
+          // Não sobrescreve a senha de um usuário que já possui credenciais próprias
+          // (ex.: síndico ou morador com o mesmo e-mail). A senha do porteiro é
+          // gerenciada pela tabela Funcionarios_Portaria; aqui só garantimos que o
+          // vínculo mobile (is_funcionario + Funcionarios) existe.
+          const patch: any = {
+            name: fp.nome,
+            phone: fp.telefone,
+            email: fp.email || fp.login,
+            is_funcionario: 1,
+            ...(uploadedPhotoUrl !== undefined && { photo: uploadedPhotoUrl, profile_image: uploadedPhotoUrl }),
+          };
+          // Só atualiza a senha se o usuário ainda não tem uma definida
+          if (!user.password) patch.password = md5Pwd;
+          await this.prisma.users.update({ where: { id: user.id }, data: patch });
         }
 
         const f = await this.prisma.funcionarios.findFirst({ where: { id_user: user.id } });

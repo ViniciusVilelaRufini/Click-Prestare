@@ -34,7 +34,7 @@ export class AuthController {
     // O id do funcionário vem SEMPRE do JWT, nunca do body. Antes o id era
     // aceito do corpo, permitindo que qualquer autenticado trocasse a senha
     // de outro porteiro chutando o id (e conhecendo a senha atual dele).
-    return this.authService.changePassword(payload.sub, body.senhaAtual, body.novaSenha);
+    return this.authService.changePassword(payload.sub, body.senhaAtual, body.novaSenha, payload.typeAccess);
   }
 
   @Public()

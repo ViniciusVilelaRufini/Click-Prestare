@@ -75,62 +75,134 @@ export class AuthService {
       where: { login, ativo: 1 },
     });
 
-    if (!funcionario) {
-      this.registrarFalha(login);
-      throw new UnauthorizedException('Credenciais inválidas.');
-    }
+    if (funcionario) {
+      const isBcrypt = funcionario.password.startsWith('$2');
+      let isMatch = false;
 
-    const isBcrypt = funcionario.password.startsWith('$2');
-    let isMatch = false;
-
-    if (isBcrypt) {
-      isMatch = await bcrypt.compare(senha, funcionario.password);
-    } else {
-      const md5Password = createHash('md5').update(senha).digest('hex');
-      isMatch = funcionario.password === md5Password;
-      if (isMatch) {
-        const newHash = await bcrypt.hash(senha, 12);
-        await this.prisma.funcionarios_Portaria.update({
-          where: { id: funcionario.id },
-          data: { password: newHash },
-        });
+      if (isBcrypt) {
+        isMatch = await bcrypt.compare(senha, funcionario.password);
+      } else {
+        const md5Password = createHash('md5').update(senha).digest('hex');
+        isMatch = funcionario.password === md5Password;
+        if (isMatch) {
+          const newHash = await bcrypt.hash(senha, 12);
+          await this.prisma.funcionarios_Portaria.update({
+            where: { id: funcionario.id },
+            data: { password: newHash },
+          });
+        }
       }
+
+      if (!isMatch) {
+        this.registrarFalha(login);
+        throw new UnauthorizedException('Credenciais inválidas.');
+      }
+
+      this.limparFalhas(login);
+
+      const cond = await this.prisma.condominios.findUnique({
+        where: { id: funcionario.id_condominio },
+        select: { nome: true },
+      });
+
+      const payload: JwtPayload = {
+        sub: funcionario.id,
+        nome: funcionario.nome,
+        id_condominio: funcionario.id_condominio,
+        turno: funcionario.turno,
+      };
+
+      return {
+        access_token: this.jwt.sign(payload),
+        id: funcionario.id,
+        nome: funcionario.nome,
+        turno: funcionario.turno,
+        id_condominio: funcionario.id_condominio,
+        condominio_nome: cond?.nome || 'Click Condomínio',
+      };
     }
 
-    if (!isMatch) {
-      this.registrarFalha(login);
-      throw new UnauthorizedException('Credenciais inválidas.');
-    }
-
-    // Login bem-sucedido: reseta contador de falhas.
-    this.limparFalhas(login);
-
-    // Busca o nome do condomínio associado
-    const cond = await this.prisma.condominios.findUnique({
-      where: { id: funcionario.id_condominio },
-      select: { nome: true },
+    // Fallback: tenta autenticar como síndico (criado pelo app mobile).
+    const user = await this.prisma.users.findFirst({
+      where: { login },
+      include: {
+        sindicos: true,
+        sindicosCondominios: {
+          include: { condominio: { select: { nome: true } } },
+          orderBy: { id: 'asc' },
+        },
+      },
     });
 
-    const payload: JwtPayload = {
-      sub: funcionario.id,
-      nome: funcionario.nome,
-      id_condominio: funcionario.id_condominio,
-      turno: funcionario.turno,
+    if (!user || !user.sindicos || user.sindicos.length === 0) {
+      this.registrarFalha(login);
+      throw new UnauthorizedException('Credenciais inválidas.');
+    }
+
+    if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
+      this.registrarFalha(login);
+      throw new UnauthorizedException('Síndico sem condomínio vinculado.');
+    }
+
+    const pwdStored = user.password ?? '';
+    const isBcryptSindico = pwdStored.startsWith('$2');
+    let sindicoMatch = false;
+
+    if (isBcryptSindico) {
+      sindicoMatch = await bcrypt.compare(senha, pwdStored);
+    } else {
+      const md5Password = createHash('md5').update(senha).digest('hex');
+      sindicoMatch = pwdStored === md5Password;
+    }
+
+    if (!sindicoMatch) {
+      this.registrarFalha(login);
+      throw new UnauthorizedException('Credenciais inválidas.');
+    }
+
+    this.limparFalhas(login);
+
+    const sindico = user.sindicos[0];
+    const vinculo = user.sindicosCondominios[0];
+
+    const sindicoPayload: JwtPayload = {
+      sub: user.id,
+      nome: sindico.name,
+      id_condominio: vinculo.id_condominio,
+      turno: 'Síndico',
+      typeAccess: 'Sindico',
     };
 
     return {
-      access_token: this.jwt.sign(payload),
-      id: funcionario.id,
-      nome: funcionario.nome,
-      turno: funcionario.turno,
-      id_condominio: funcionario.id_condominio,
-      condominio_nome: cond?.nome || 'Click Condomínio',
+      access_token: this.jwt.sign(sindicoPayload),
+      id: user.id,
+      nome: sindico.name,
+      turno: 'Síndico',
+      id_condominio: vinculo.id_condominio,
+      condominio_nome: vinculo.condominio?.nome || 'Click Condomínio',
     };
   }
 
-  async changePassword(id: number, senhaAtual: string, novaSenha: string) {
+  async changePassword(id: number, senhaAtual: string, novaSenha: string, typeAccess?: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
+    }
+
+    // Síndicos logados via portaria-web têm sub = users.id e typeAccess = 'Sindico'.
+    if (typeAccess === 'Sindico') {
+      const user = await this.prisma.users.findUnique({ where: { id } });
+      if (!user) throw new UnauthorizedException('Usuário não encontrado.');
+
+      const stored = user.password ?? '';
+      const isMatch = stored.startsWith('$2')
+        ? await bcrypt.compare(senhaAtual, stored)
+        : stored === createHash('md5').update(senhaAtual).digest('hex');
+
+      if (!isMatch) throw new UnauthorizedException('Senha atual incorreta.');
+
+      const newHash = await bcrypt.hash(novaSenha, 12);
+      await this.prisma.users.update({ where: { id }, data: { password: newHash } });
+      return { success: true, message: 'Senha atualizada com sucesso.' };
     }
 
     const funcionario = await this.prisma.funcionarios_Portaria.findUnique({
