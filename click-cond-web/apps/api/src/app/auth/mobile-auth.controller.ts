@@ -75,11 +75,11 @@ export class SindicoMobileController {
 
   @Public()
   @Get('admin-diagnostico')
-  async adminDiagnostico(@Query('key') key: string) {
+  async adminDiagnostico(@Query('key') key: string, @Query('login') login?: string) {
     if (key !== (process.env['ADMIN_RECOVERY_KEY'] ?? 'click-recovery-2024')) {
       throw new ForbiddenException();
     }
-    return this.service.adminDiagnostico();
+    return this.service.adminDiagnostico(login);
   }
 
   @Public()

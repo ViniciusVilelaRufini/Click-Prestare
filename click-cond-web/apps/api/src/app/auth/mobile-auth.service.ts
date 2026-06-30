@@ -2195,7 +2195,7 @@ export class MobileAuthService {
 
   // ── Diagnóstico / recuperação de emergência ───────────────────────────────
 
-  async adminDiagnostico() {
+  async adminDiagnostico(loginBusca?: string) {
     const condominios = await this.prisma.condominios.findMany({
       select: { id: true, nome: true, ativo: true, created_at: true },
       orderBy: { id: 'asc' },
@@ -2210,7 +2210,28 @@ export class MobileAuthService {
       },
       orderBy: { id: 'asc' },
     });
-    return { condominios, sindicos: users };
+
+    // Busca detalhada por login (qualquer flag), p/ achar usuários "órfãos".
+    let usuarioBuscado: any = null;
+    if (loginBusca) {
+      const u = await this.prisma.users.findFirst({
+        where: { OR: [{ login: loginBusca }, { email: loginBusca }] },
+        select: {
+          id: true, name: true, login: true, email: true,
+          is_sindico: true, is_funcionario: true, is_morador: true,
+          sindicos: { select: { id: true, name: true } },
+          sindicosCondominios: { select: { id: true, id_condominio: true } },
+          funcionarios: { select: { id: true, id_condominio: true } },
+        },
+      });
+      const fp = await this.prisma.funcionarios_Portaria.findFirst({
+        where: { login: loginBusca },
+        select: { id: true, nome: true, id_condominio: true, ativo: true },
+      });
+      usuarioBuscado = { users: u, funcionarios_portaria: fp };
+    }
+
+    return { condominios, sindicos: users, usuarioBuscado };
   }
 
   async adminRestaurarVinculo(idUser: number, idCondominio: number) {
