@@ -390,7 +390,7 @@ export class MobileAuthService {
 
       if (resultList.length > 0) return resultList;
     } catch (e) {
-      // Ignora falha interna do PrismaClient e segue para o mock
+      console.error('[listCondominiosSindico] Erro ao buscar condomínios do síndico:', e);
     }
 
     return [];
@@ -1374,7 +1374,11 @@ export class MobileAuthService {
         const user = await this.prisma.users.findFirst({ where: { login: fp.login } });
         if (user) {
           await this.prisma.funcionarios.deleteMany({ where: { id_user: user.id } });
-          await this.prisma.users.delete({ where: { id: user.id } });
+          // Só deleta o Users se ele não for síndico nem morador — evita destruir
+          // vínculos de condomínio de contas que compartilham o mesmo e-mail.
+          if (!user.is_sindico && !user.is_morador) {
+            await this.prisma.users.delete({ where: { id: user.id } });
+          }
         }
         await this.prisma.funcionarios_Portaria.delete({ where: { id: Number(id) } });
       }

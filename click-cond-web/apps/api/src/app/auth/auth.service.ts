@@ -93,33 +93,31 @@ export class AuthService {
         }
       }
 
-      if (!isMatch) {
-        this.registrarFalha(login);
-        throw new UnauthorizedException('Credenciais inválidas.');
+      if (isMatch) {
+        this.limparFalhas(login);
+
+        const cond = await this.prisma.condominios.findUnique({
+          where: { id: funcionario.id_condominio },
+          select: { nome: true },
+        });
+
+        const payload: JwtPayload = {
+          sub: funcionario.id,
+          nome: funcionario.nome,
+          id_condominio: funcionario.id_condominio,
+          turno: funcionario.turno,
+        };
+
+        return {
+          access_token: this.jwt.sign(payload),
+          id: funcionario.id,
+          nome: funcionario.nome,
+          turno: funcionario.turno,
+          id_condominio: funcionario.id_condominio,
+          condominio_nome: cond?.nome || 'Click Condomínio',
+        };
       }
-
-      this.limparFalhas(login);
-
-      const cond = await this.prisma.condominios.findUnique({
-        where: { id: funcionario.id_condominio },
-        select: { nome: true },
-      });
-
-      const payload: JwtPayload = {
-        sub: funcionario.id,
-        nome: funcionario.nome,
-        id_condominio: funcionario.id_condominio,
-        turno: funcionario.turno,
-      };
-
-      return {
-        access_token: this.jwt.sign(payload),
-        id: funcionario.id,
-        nome: funcionario.nome,
-        turno: funcionario.turno,
-        id_condominio: funcionario.id_condominio,
-        condominio_nome: cond?.nome || 'Click Condomínio',
-      };
+      // Senha não bate com o funcionário — tenta autenticar como síndico abaixo.
     }
 
     // Fallback: tenta autenticar como síndico (criado pelo app mobile).
