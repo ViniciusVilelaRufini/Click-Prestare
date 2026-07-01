@@ -51,6 +51,10 @@ export class PrestadoresApi {
     return this.http.put<Prestador>(`${this.base}/${id}`, dto);
   }
 
+  clearFoto(id: number, campo: 'pessoa' | 'documento'): Observable<Prestador> {
+    return this.http.patch<Prestador>(`${this.base}/${id}/foto`, { campo });
+  }
+
   remove(id: number): Observable<{ ok: boolean }> {
     return this.http.delete<{ ok: boolean }>(`${this.base}/${id}`);
   }

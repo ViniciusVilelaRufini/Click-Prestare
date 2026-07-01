@@ -355,6 +355,32 @@ export class PrestadoresPageComponent implements OnInit {
     this.showForm = true;
   }
 
+  removerFotoPessoa() {
+    this.fotoPessoaBase64.set(null);
+    this.novo.foto_pessoa = null;
+    if (this.editingId !== null) {
+      this.api.clearFoto(this.editingId, 'pessoa').subscribe({
+        next: (updated) => {
+          const list = this.prestadores();
+          this.prestadores.set(list.map(p => p.id === updated.id ? updated : p));
+        },
+      });
+    }
+  }
+
+  removerFotoDocumento() {
+    this.fotoDocumentoBase64.set(null);
+    this.novo.foto_documento = null;
+    if (this.editingId !== null) {
+      this.api.clearFoto(this.editingId, 'documento').subscribe({
+        next: (updated) => {
+          const list = this.prestadores();
+          this.prestadores.set(list.map(p => p.id === updated.id ? updated : p));
+        },
+      });
+    }
+  }
+
   cancelarForm() {
     this.fecharCamera();
     this.fotoPessoaBase64.set(null);

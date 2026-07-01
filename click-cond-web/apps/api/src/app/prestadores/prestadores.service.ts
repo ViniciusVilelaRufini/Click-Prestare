@@ -197,6 +197,21 @@ export class PrestadoresService {
     }
   }
 
+  async clearFoto(id: number, campo: 'pessoa' | 'documento', idCondominio?: number) {
+    if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.prestadores_servico.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true },
+    });
+    if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
+    this.assertTenant(atual.id_condominio, idCondominio, id);
+    return this.prisma.prestadores_servico.update({
+      where: { id: Number(id) },
+      data: campo === 'pessoa' ? { foto_pessoa: null } : { foto_documento: null },
+      include: { apartamento: { select: { bloco: true, apto: true } } },
+    });
+  }
+
   async remove(id: number, idCondominio?: number) {
     if (!this.prisma.isConnected) return { success: true };
 

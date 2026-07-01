@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query,
 } from '@nestjs/common';
 import { CreatePrestadorDto, PrestadoresService } from './prestadores.service';
 
@@ -38,6 +38,15 @@ export class PrestadoresController {
     @Body() body: Partial<CreatePrestadorDto>,
   ) {
     return this.service.update(id, body, idCondominio);
+  }
+
+  @Patch(':id/foto')
+  clearFoto(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { campo: 'pessoa' | 'documento' },
+  ) {
+    return this.service.clearFoto(id, body.campo, idCondominio);
   }
 
   @Delete(':id')
