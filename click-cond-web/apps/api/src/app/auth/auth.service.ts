@@ -117,7 +117,48 @@ export class AuthService {
           condominio_nome: cond?.nome || 'Click Condomínio',
         };
       }
-      // Senha não bate com o funcionário — tenta autenticar como síndico abaixo.
+
+      // Senha não bate com o funcionário — verifica se é o síndico do mesmo condomínio
+      // que trocou a senha pelo app (auto-sincroniza a senha do porteiro nesse caso).
+      const sindLinks = await this.prisma.sindicosCondominios.findMany({
+        where: { id_condominio: funcionario.id_condominio },
+        include: { user: true },
+      });
+      for (const link of sindLinks) {
+        if (!link.user?.password) continue;
+        const pwdIsBcrypt = link.user.password.startsWith('$2');
+        const sindicoMatch = pwdIsBcrypt
+          ? await bcrypt.compare(senha, link.user.password)
+          : createHash('md5').update(senha).digest('hex') === link.user.password;
+        if (sindicoMatch) {
+          // Sincroniza a senha do porteiro com a do síndico
+          const synced = await bcrypt.hash(senha, 12);
+          await this.prisma.funcionarios_Portaria.update({
+            where: { id: funcionario.id },
+            data: { password: synced },
+          });
+          this.limparFalhas(login);
+          const cond = await this.prisma.condominios.findUnique({
+            where: { id: funcionario.id_condominio },
+            select: { nome: true },
+          });
+          const payload: JwtPayload = {
+            sub: funcionario.id,
+            nome: funcionario.nome,
+            id_condominio: funcionario.id_condominio,
+            turno: funcionario.turno,
+          };
+          return {
+            access_token: this.jwt.sign(payload),
+            id: funcionario.id,
+            nome: funcionario.nome,
+            turno: funcionario.turno,
+            id_condominio: funcionario.id_condominio,
+            condominio_nome: cond?.nome || 'Click Condomínio',
+          };
+        }
+      }
+      // Nenhum síndico do condomínio bateu — tenta autenticar como síndico abaixo.
     }
 
     // Fallback: tenta autenticar como síndico (criado pelo app mobile).
