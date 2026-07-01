@@ -369,7 +369,14 @@ export class PrestadoresPageComponent implements OnInit {
     if (!this.novo.id_apartamento) { this.error.set('Selecione a unidade de destino.'); return; }
 
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
-    
+
+    // Usa os signals de preview como fonte de verdade para as fotos.
+    // Se o signal está null em modo edição = usuário removeu a foto → envia null para limpar no banco.
+    if (this.editingId !== null) {
+      if (this.fotoPessoaBase64() === null) this.novo.foto_pessoa = null;
+      if (this.fotoDocumentoBase64() === null) this.novo.foto_documento = null;
+    }
+
     this.saving.set(true);
     const obs = this.editingId
       ? this.api.update(this.editingId, this.novo)
