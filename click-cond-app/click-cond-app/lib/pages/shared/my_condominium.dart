@@ -14,7 +14,6 @@ import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_despesa.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_receita.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
-import 'package:click/pages/shared/funcionarios/list_funcionarios.dart';
 import 'package:click/pages/shared/morador/list_moradores.dart';
 import 'package:click/pages/shared/morador/list_moradores_geral.dart';
 import 'package:click/pages/shared/morador/my_apartamento_view.dart';
@@ -23,6 +22,7 @@ import 'package:click/pages/shared/mudancas/list_mudancas.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/sindico/relatorios_page.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores.dart';
+import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores_cadastro.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
@@ -104,7 +104,7 @@ class _MyCondominiumState extends State<MyCondominium> {
       _MenuItem(getText('lb_enquetes'), PhosphorIcons.chartBar, ListEnquetes()),
       _MenuItem(getText('lb_comunicados'), PhosphorIcons.megaphone, ListComunicados()),
       _MenuItem(getText('lb_ocorrencias'), PhosphorIcons.warningCircle, ListOcorrencias()),
-      _MenuItem(getText('lb_funcionarios_condominio'), PhosphorIcons.users, ListFuncionarios()),
+      _MenuItem(getText('lb_funcionarios_condominio'), PhosphorIcons.users, const ListPrestadoresCadastro()),
       _MenuItem(getText('lb_manut_programadas'), PhosphorIcons.wrench, ListAgenda()),
       _MenuItem(getText('lb_prestadores_servico'), PhosphorIcons.handshake, ListPrestadores()),
       _MenuItem(getText('lb_agendar_mudanca'), PhosphorIcons.truck, ListMudancas()),

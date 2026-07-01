@@ -29,6 +29,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   // Sincronização em massa de rostos (back-fill)
   readonly syncing = signal(false);
+  readonly cleaning = signal(false);
   readonly syncStatus = signal<FacialSyncStatus | null>(null);
   // Filtro de categoria (vazio = todas). Terminais selecionados (vazio = todos).
   readonly categoriasSync = signal<Set<string>>(new Set());
@@ -295,6 +296,47 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         this.syncing.set(false);
         this.errorMessage.set(
           err?.error?.message ?? 'Falha ao sincronizar rostos.',
+        );
+        setTimeout(() => this.errorMessage.set(null), 5000);
+      },
+    });
+  }
+
+  unsyncAllRostos() {
+    this.cleaning.set(true);
+    this.errorMessage.set(null);
+    const cats = Array.from(this.categoriasSync());
+    const ids = Array.from(this.terminaisSync());
+    this.api.unsyncAll(cats, ids).subscribe({
+      next: (r) => {
+        this.cleaning.set(false);
+        if (r.skipped) {
+          this.errorMessage.set(
+            r.reason === 'no_facial_devices'
+              ? 'Nenhum terminal facial ativo encontrado.'
+              : 'Remoção desativada.',
+          );
+          setTimeout(() => this.errorMessage.set(null), 5000);
+          return;
+        }
+        if (r.alreadyRunning) {
+          this.successMessage.set('Uma operação de sincronização/limpeza já está em andamento.');
+        } else if (!r.total) {
+          this.successMessage.set(
+            'Nenhum rosto cadastrado no banco para remover.',
+          );
+        } else {
+          this.successMessage.set(
+            `Removendo ${r.total} rosto(s) do(s) terminal(is)… acompanhe o progresso abaixo.`,
+          );
+        }
+        setTimeout(() => this.successMessage.set(null), 6000);
+        this.pollSyncStatus();
+      },
+      error: (err) => {
+        this.cleaning.set(false);
+        this.errorMessage.set(
+          err?.error?.message ?? 'Falha ao remover rostos.',
         );
         setTimeout(() => this.errorMessage.set(null), 5000);
       },

@@ -77,7 +77,7 @@ export class SidebarComponent {
       category: 'Operação',
       items: [
         { label: 'Visitantes', path: '/visitantes', icon: '◆' },
-        { label: 'Prestadores', path: '/prestadores', icon: '✦' },
+        { label: 'Prestadores de Serviço', path: '/prestadores', icon: '✦' },
         { label: 'Encomendas', path: '/encomendas', icon: '⬚' },
         { label: 'Ocorrências', path: '/ocorrencias', icon: '!' }
       ]
@@ -86,7 +86,8 @@ export class SidebarComponent {
       category: 'Gestão',
       items: [
         { label: 'Moradores', path: '/moradores', icon: '✪' },
-        { label: 'Apartamentos', path: '/apartamentos', icon: '▣' }
+        { label: 'Apartamentos', path: '/apartamentos', icon: '▣' },
+        { label: 'Funcionários', path: '/prestadores/cadastro', icon: '✦' }
       ]
     },
     {

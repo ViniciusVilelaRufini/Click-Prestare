@@ -160,6 +160,26 @@ export class TerminaisFaciaisApi {
     return this.http.post<any>(`${this.base}/sync/all`, {}, { params });
   }
 
+  /**
+   * Remove rostos dos terminais faciais. Opcional: filtrar por categoria
+   * e/ou por terminais (deviceIds).
+   */
+  unsyncAll(
+    categorias?: string[],
+    deviceIds?: number[],
+  ): Observable<{
+    total?: number;
+    started?: boolean;
+    skipped?: boolean;
+    reason?: string;
+    alreadyRunning?: boolean;
+  }> {
+    let params = new HttpParams().set('id_condominio', this.idCondominio);
+    if (categorias?.length) params = params.set('categorias', categorias.join(','));
+    if (deviceIds?.length) params = params.set('deviceIds', deviceIds.join(','));
+    return this.http.post<any>(`${this.base}/sync/clean`, {}, { params });
+  }
+
   /** Contadores do progresso de sincronização facial dos moradores. */
   syncStatus(): Observable<FacialSyncStatus> {
     const params = new HttpParams().set('id_condominio', this.idCondominio);

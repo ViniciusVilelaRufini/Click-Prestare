@@ -154,6 +154,34 @@ export class FacialController {
     });
   }
 
+  @Post('sync/clean')
+  unsyncAll(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+    @Query('categorias') categorias?: string,
+    @Query('deviceIds') deviceIds?: string,
+  ) {
+    assertTenantStrict(
+      idCondominio,
+      user,
+      `limpeza facial do condomínio ${idCondominio}`,
+    );
+    const cats = (categorias ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c): c is CategoriaPessoa =>
+        ['morador', 'visitante', 'prestador', 'funcionario'].includes(c),
+      );
+    const ids = (deviceIds ?? '')
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n));
+    return this.service.unsyncAllForCondominio(idCondominio, {
+      categorias: cats.length ? cats : undefined,
+      deviceIds: ids.length ? ids : undefined,
+    });
+  }
+
   @Get('sync/status')
   syncStatus(
     @Query('id_condominio', ParseIntPipe) idCondominio: number,
