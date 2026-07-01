@@ -21,8 +21,8 @@ export interface CreatePrestador {
   telefone?: string;
   categorias?: string;
   id_apartamento?: number;
-  foto_pessoa?: string;
-  foto_documento?: string;
+  foto_pessoa?: string | null;
+  foto_documento?: string | null;
   dias_semana?: string;
 }
 
