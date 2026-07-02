@@ -68,7 +68,56 @@ const DEVICE_STATUS_INTERVAL_MS = Number(
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
 // deviceId → maior RecNo/serialNo/ID de log de acesso já processado no dispositivo.
+// Persistido em disco: sem isso, reiniciar o agente zerava a marca d'água e o
+// primeiro reconnect reprocessava (ou pulava) o histórico inteiro.
 const deviceBaselines = new Map();
+function baselinesPath() {
+  return path.join(configDir(), 'device-baselines.json');
+}
+function loadBaselines() {
+  try {
+    const obj = JSON.parse(fs.readFileSync(baselinesPath(), 'utf8'));
+    for (const [k, v] of Object.entries(obj)) deviceBaselines.set(Number(k), v);
+  } catch { /* primeiro boot: arquivo ainda não existe */ }
+}
+function setBaseline(deviceId, val) {
+  deviceBaselines.set(deviceId, val);
+  try {
+    fs.writeFileSync(baselinesPath(), JSON.stringify(Object.fromEntries(deviceBaselines)), 'utf8');
+  } catch (e) {
+    console.error(`[agente] falha ao salvar baseline: ${e.message || e}`);
+  }
+}
+loadBaselines();
+// Devices com recuperação de log offline em curso (evita corrida entre a
+// recuperação da transição e o avanço de baseline do heartbeat).
+const offlineSyncBusy = new Set();
+// deviceId → epoch ms do último avanço de baseline (throttle).
+const lastBaselineAdvance = new Map();
+const BASELINE_ADVANCE_INTERVAL_MS = 10 * 60 * 1000; // 10 min
+
+/**
+ * Enquanto o aparelho está ONLINE de forma estável, a stream ao vivo já
+ * encaminha cada acesso — aqui só mantemos a marca d'água (maior RecNo) atual,
+ * para que o PRÓXIMO reconnect só reprocesse a janela realmente offline, e não
+ * os eventos que a stream já pegou. Só avança; nunca reencaminha. Throttle de
+ * 10 min (a leitura do log é um lote; não faz sentido a cada heartbeat).
+ */
+async function advanceBaselineWhileOnline(device) {
+  if (device.fabricante !== 'intelbras') return;
+  if (offlineSyncBusy.has(device.id)) return;
+  const agora = Date.now();
+  if (agora - (lastBaselineAdvance.get(device.id) || 0) < BASELINE_ADVANCE_INTERVAL_MS) return;
+  lastBaselineAdvance.set(device.id, agora);
+  try {
+    const { maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
+    if (!maxRecNo) return;
+    const baseline = deviceBaselines.get(device.id);
+    if (baseline === undefined || maxRecNo > baseline) setBaseline(device.id, maxRecNo);
+  } catch {
+    /* aparelho oscilou; o próximo ciclo tenta de novo */
+  }
+}
 // Devices do último poll (p/ o servidor de live view achar IP/credencial).
 let lastDevices = [];
 // Porta local do preview ao vivo (só localhost; o navegador da portaria acessa).
@@ -213,10 +262,15 @@ async function runCondoLoop(token) {
               `[agente] ${device.nome}: aparelho ${online ? 'ONLINE' : 'OFFLINE'}`,
             );
             if (online) {
+              // Transição offline→online: recupera a janela que a stream perdeu.
               syncDeviceOfflineLogs(token, device).catch((e) =>
                 console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
               );
             }
+          } else if (online) {
+            // Online estável: só mantém a marca d'água atual (a stream já cobre
+            // os eventos); assim o próximo reconnect só reprocessa a janela real.
+            advanceBaselineWhileOnline(device).catch(() => {});
           }
         }
         if (statuses.length > 0) {
@@ -1653,72 +1707,91 @@ function parseDahuaINI(text) {
   return records.filter(Boolean);
 }
 
+/**
+ * Lê o log de acesso interno do terminal Dahua/Intelbras via recordFinder.cgi
+ * e devolve os registros já parseados. Descoberto empiricamente no SS 3530 MF:
+ *   - action=find&name=AccessControlCardRec&count=N funciona (startFind/token
+ *     e factory.create dão HTTP 400 neste firmware);
+ *   - a resposta é INI (records[i].Campo=valor) e vem do MAIS ANTIGO p/ o mais
+ *     novo; `offset` é IGNORADO — para pegar os recentes buscamos count>=total
+ *     e filtramos por RecNo;
+ *   - campos úteis: RecNo (sequencial), UserID (nosso external_id), CreateTime
+ *     (epoch unix), Type ("Entry" sempre — o sentido é decidido na nuvem).
+ */
+// ATENÇÃO: `found=` na resposta é a QUANTIDADE RETORNADA (min(count, total)),
+// NÃO o total do aparelho. A marca d'água confiável é o maior RecNo. Como o
+// `find` vem do mais antigo→novo e ignora offset, buscamos um lote grande (CAP)
+// e usamos o maior RecNo. CAP cobre com folga um terminal de condomínio; um
+// log acima disso perderia os mais recentes (limitação conhecida do firmware).
+const ACCESS_LOG_CAP = 20000;
+async function dahuaFindAccessRecords(device, count) {
+  const res = await lanRequest(
+    device,
+    'GET',
+    `/cgi-bin/recordFinder.cgi?action=find&name=AccessControlCardRec&count=${count}`,
+  );
+  const records = parseDahuaINI(String(res.raw || ''));
+  const maxRecNo = records.reduce(
+    (m, r) => Math.max(m, parseInt(r.RecNo, 10) || 0),
+    0,
+  );
+  return { maxRecNo, records };
+}
+
+/** CreateTime do aparelho (epoch unix, string) → ISO. Se o relógio estiver
+ *  zerado (aparelho sem NTP volta a 2000 ao perder energia), usa agora. */
+function dahuaEpochToISO(createTime) {
+  const sec = parseInt(createTime, 10);
+  if (!sec || sec < 1577836800 /* 2020-01-01 */) return new Date().toISOString();
+  return new Date(sec * 1000).toISOString();
+}
+
 async function syncDeviceOfflineLogs(token, device) {
-  // Dahua / Intelbras
+  // Dahua / Intelbras — recupera acessos que ocorreram enquanto o agente
+  // estava sem alcançar o aparelho (ex.: internet/energia do facial caiu). A
+  // stream ao vivo não os viu; eles ficaram só no log interno do terminal.
   if (device.fabricante === 'intelbras') {
+    if (offlineSyncBusy.has(device.id)) return;
+    offlineSyncBusy.add(device.id);
     try {
-      console.log(`[agente] ${device.nome}: iniciando sincronização de acessos offline...`);
-      const EndTime = formatDahuaTime(new Date());
-      const StartTime = formatDahuaTime(new Date(Date.now() - 24 * 3600 * 1000));
-
-      const startRes = await lanRequest(
-        device,
-        'GET',
-        `/cgi-bin/recordFinder.cgi?action=startFind&name=AccessControlCardRec&condition.StartTime=${encodeURIComponent(StartTime)}&condition.EndTime=${encodeURIComponent(EndTime)}`
-      );
-      const tokenMatch = (startRes.raw || '').match(/token=(\d+)/);
-      if (!tokenMatch) {
-        console.warn(`[agente] ${device.nome}: startFind não retornou token válido. Raw:`, startRes.raw);
-        return;
-      }
-      const searchToken = tokenMatch[1];
-
-      const findRes = await lanRequest(
-        device,
-        'GET',
-        `/cgi-bin/recordFinder.cgi?action=doFind&token=${searchToken}&count=100`
-      );
-
-      await lanRequest(
-        device,
-        'GET',
-        `/cgi-bin/recordFinder.cgi?action=closeFind&token=${searchToken}`
-      ).catch(() => {});
-
-      const records = parseDahuaINI(findRes.raw || '');
+      // Uma única busca do log (mais antigo→novo). A marca d'água é o maior
+      // RecNo; filtramos os novos por RecNo > baseline.
+      const { records, maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
       if (records.length === 0) {
-        console.log(`[agente] ${device.nome}: nenhum acesso encontrado nos logs offline.`);
+        console.log(`[agente] ${device.nome}: log de acesso vazio.`);
         return;
       }
+      const baseline = deviceBaselines.get(device.id);
 
-      let baseline = deviceBaselines.get(device.id);
+      // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
       if (baseline === undefined) {
-        const maxRecNo = Math.max(...records.map(r => parseInt(r.RecNo, 10)).filter(Boolean));
-        deviceBaselines.set(device.id, maxRecNo);
-        console.log(`[agente] ${device.nome}: baseline de acessos offline inicializada em RecNo ${maxRecNo}`);
+        setBaseline(device.id, maxRecNo);
+        console.log(`[agente] ${device.nome}: baseline de acessos inicializada em RecNo ${maxRecNo}.`);
         return;
       }
+      if (maxRecNo <= baseline) return; // nada novo desde a última marca
 
-      records.sort((a, b) => parseInt(a.RecNo, 10) - parseInt(b.RecNo, 10));
+      const novos = records
+        .filter((r) => r.UserID && r.UserID.trim() !== '' && parseInt(r.RecNo, 10) > baseline)
+        .sort((a, b) => parseInt(a.RecNo, 10) - parseInt(b.RecNo, 10));
 
-      let processedCount = 0;
-      for (const rec of records) {
-        const recNo = parseInt(rec.RecNo, 10);
-        if (recNo > baseline) {
-          await forwardAccessEvent(token, device, {
-            UserID: rec.UserID,
-            CardNo: rec.CardNo,
-            Similarity: 100,
-            timestamp: rec.CreateTime,
-          }, { backlog: true });
-          baseline = recNo;
-          deviceBaselines.set(device.id, recNo);
-          processedCount++;
-        }
+      let enviados = 0;
+      for (const rec of novos) {
+        await forwardAccessEvent(token, device, {
+          UserID: rec.UserID,
+          CardNo: rec.CardNo,
+          Similarity: 100,
+          timestamp: dahuaEpochToISO(rec.CreateTime),
+        }, { backlog: true });
+        enviados++;
       }
-      console.log(`[agente] ${device.nome}: processou ${processedCount} novos acessos offline.`);
+      // Avança a marca para o maior RecNo (mesmo que alguns não tivessem UserID).
+      setBaseline(device.id, maxRecNo);
+      console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (RecNo ${baseline}→${maxRecNo}).`);
     } catch (err) {
-      console.error(`[agente] ${device.nome}: falha ao ler logs do dispositivo Dahua/Intelbras:`, err.message || err);
+      console.error(`[agente] ${device.nome}: falha ao ler log de acesso do Intelbras:`, err.message || err);
+    } finally {
+      offlineSyncBusy.delete(device.id);
     }
   }
 
@@ -1752,7 +1825,7 @@ async function syncDeviceOfflineLogs(token, device) {
       let baseline = deviceBaselines.get(device.id);
       if (baseline === undefined) {
         const maxSerial = Math.max(...infoList.map(l => l.serialNo).filter(Boolean));
-        deviceBaselines.set(device.id, maxSerial);
+        setBaseline(device.id, maxSerial);
         console.log(`[agente] ${device.nome}: baseline de acessos offline inicializada em Serial ${maxSerial}`);
         return;
       }
@@ -1769,7 +1842,7 @@ async function syncDeviceOfflineLogs(token, device) {
             }, { backlog: true });
           }
           baseline = serial;
-          deviceBaselines.set(device.id, serial);
+          setBaseline(device.id, serial);
           processedCount++;
         }
       }
@@ -1804,7 +1877,7 @@ async function syncDeviceOfflineLogs(token, device) {
       let baseline = deviceBaselines.get(device.id);
       if (baseline === undefined) {
         const maxId = Math.max(...logs.map(l => l.id).filter(Boolean));
-        deviceBaselines.set(device.id, maxId);
+        setBaseline(device.id, maxId);
         console.log(`[agente] ${device.nome}: baseline de acessos offline inicializada em ID ${maxId}`);
         return;
       }
@@ -1818,7 +1891,7 @@ async function syncDeviceOfflineLogs(token, device) {
             timestamp: new Date(log.time * 1000).toISOString(),
           }, { backlog: true });
           baseline = log.id;
-          deviceBaselines.set(device.id, log.id);
+          setBaseline(device.id, log.id);
           processedCount++;
         }
       }

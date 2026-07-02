@@ -2472,6 +2472,33 @@ export class FacialService {
       );
     }
 
+    // Dedup de backlog: um evento reenviado (store-and-forward / log interno do
+    // aparelho após reconexão) pode, numa corrida rara, chegar depois que a
+    // stream ao vivo já registrou o MESMO acesso. Como a direção é resolvida por
+    // alternância (sentido "auto"), reprocessar viraria uma saída/entrada falsa.
+    // Se já existe QUALQUER acesso desta pessoa perto deste horário, o backlog é
+    // duplicata — ignora. Eventos da janela realmente offline não têm registro
+    // por perto (nada foi gravado enquanto o aparelho esteve isolado), então
+    // esses passam normalmente.
+    if (isBacklog && idPessoa != null && tipoPessoa) {
+      const JANELA_MS = 90 * 1000;
+      const dup = await this.prisma.acessos_Facial.findFirst({
+        where: {
+          id_condominio: device.id_condominio,
+          tipo_pessoa: tipoPessoa,
+          id_pessoa: idPessoa,
+          timestamp: {
+            gte: new Date(timestamp.getTime() - JANELA_MS),
+            lte: new Date(timestamp.getTime() + JANELA_MS),
+          },
+        },
+        select: { id: true },
+      });
+      if (dup) {
+        return { ok: true, backlog: true, deduped: true };
+      }
+    }
+
     // Regras ativas para este terminal — buscadas aqui para serem usadas tanto
     // na resolução de direção (bloco abaixo) quanto na validação whitelist adiante.
     const regrasDispositivo = await this.prisma.regras_Acesso.findMany({
