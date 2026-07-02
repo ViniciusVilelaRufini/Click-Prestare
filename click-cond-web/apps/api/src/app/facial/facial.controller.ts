@@ -79,6 +79,22 @@ export class FacialController {
     return this.service.removeDevice(id, user);
   }
 
+  /**
+   * Gira o webhook_token do dispositivo (invalida o anterior na hora).
+   * Usar quando o token vazou (screenshot, log, ex-funcionário). Atenção:
+   * o Agente Local configurado com o token antigo para de autenticar —
+   * atualize o token no agente após a rotação.
+   */
+  @Post('devices/:id/rotate-token')
+  async rotateToken(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    const device = await this.service.getDevice(id);
+    assertTenantStrict(device.id_condominio, user, `dispositivo #${id}`);
+    return this.service.rotateWebhookToken(id, user);
+  }
+
   @Post('devices/:id/test')
   async test(
     @Param('id', ParseIntPipe) id: number,

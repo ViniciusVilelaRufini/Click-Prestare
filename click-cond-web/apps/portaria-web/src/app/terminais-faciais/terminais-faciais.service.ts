@@ -131,6 +131,14 @@ export class TerminaisFaciaisApi {
     );
   }
 
+  /** Gera um webhook_token novo (o anterior é invalidado na hora). */
+  rotateToken(id: number): Observable<{ ok: boolean; webhook_token: string }> {
+    return this.http.post<{ ok: boolean; webhook_token: string }>(
+      `${this.base}/devices/${id}/rotate-token`,
+      {},
+    );
+  }
+
   syncMorador(id: number): Observable<any> {
     return this.http.post<any>(`${this.base}/sync/morador/${id}`, {});
   }

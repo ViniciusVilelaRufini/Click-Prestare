@@ -638,6 +638,38 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     setTimeout(() => this.successMessage.set(null), 3000);
   }
 
+  /**
+   * Rotação do token do webhook: o token antigo (possivelmente exposto em
+   * screenshot/log) para de valer NA HORA. O Agente Local e qualquer push
+   * configurado com a URL antiga precisam ser atualizados.
+   */
+  rotateToken(t: TerminalFacial) {
+    const confirmou = window.confirm(
+      `Gerar um NOVO token de webhook para "${t.nome}"?\n\n` +
+        'O token atual deixa de funcionar imediatamente. Você precisará ' +
+        'atualizar a URL no Agente Local (arquivo .env) e em qualquer ' +
+        'integração que use a URL antiga.',
+    );
+    if (!confirmou) return;
+    this.api.rotateToken(t.id).subscribe({
+      next: (res) => {
+        t.webhook_token = res.webhook_token;
+        const url = `${window.location.origin}/api/facial/webhook/${res.webhook_token}`;
+        navigator.clipboard?.writeText(url);
+        this.successMessage.set(
+          'Token rotacionado — a NOVA URL do webhook já está na área de transferência.',
+        );
+        setTimeout(() => this.successMessage.set(null), 6000);
+      },
+      error: (err) => {
+        this.errorMessage.set(
+          err?.error?.message ?? 'Falha ao rotacionar o token do webhook.',
+        );
+        setTimeout(() => this.errorMessage.set(null), 5000);
+      },
+    });
+  }
+
   openCameraPreview(t: TerminalFacial) {
     this.viewingCameraTerminal.set(t);
     this.cameraLiveUrl.set(null);

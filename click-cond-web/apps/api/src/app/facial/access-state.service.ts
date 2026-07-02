@@ -14,19 +14,20 @@ import { Injectable, Logger } from '@nestjs/common';
  *   - Tentativa de "passar a tag pra trás" para outra pessoa
  *
  * APB é POR CONDOMÍNIO (não por leitor), com modo configurável via env:
- *   - "off" (default): só loga, não bloqueia
- *   - "soft": permite mas registra evento como suspeito
+ *   - "off": só loga, não bloqueia
+ *   - "soft" (default): permite mas registra o evento como suspeito —
+ *     auditável sem risco de falso bloqueio
  *   - "hard": bloqueia e nega o acesso
  *
- * Tudo em memória — se o backend reiniciar, estado é perdido (todos voltam
- * a poder entrar). Para produção com vários nós seria preciso Redis, mas
- * para um nó só isso é suficiente e simples.
+ * O estado vive em memória, mas quem consome (FacialService) SEMEIA a
+ * presença a partir do último evento em Acessos_Facial quando não há estado
+ * (pós-restart) — o restart do backend não "esquece" quem está dentro.
  */
 @Injectable()
 export class AccessStateService {
   private readonly logger = new Logger(AccessStateService.name);
   private readonly cooldownMs = Number(process.env.ACCESS_COOLDOWN_MS ?? 15_000);
-  private readonly apbMode = (process.env.ANTI_PASSBACK_MODE ?? 'off') as 'off' | 'soft' | 'hard';
+  private readonly apbMode = (process.env.ANTI_PASSBACK_MODE ?? 'soft') as 'off' | 'soft' | 'hard';
 
   /** Map<deviceId+credencial, ultimoTimestamp> — para cooldown. */
   private readonly lastSeen = new Map<string, number>();
@@ -102,6 +103,11 @@ export class AccessStateService {
     // soft: deixa passar mas marca como suspeito; atualiza estado mesmo assim
     this.atualizarPresenca(idCondominio, tipoPessoa, idPessoa, evento);
     return 'allow_with_warning';
+  }
+
+  /** Há estado de presença conhecido para esta pessoa? (falso pós-restart) */
+  hasPresenca(idCondominio: number, tipoPessoa: string, idPessoa: number): boolean {
+    return this.presenca.has(`${idCondominio}:${tipoPessoa}:${idPessoa}`);
   }
 
   /** Força estado (usado por trigger manual ou correção administrativa). */

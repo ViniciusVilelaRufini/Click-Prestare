@@ -54,6 +54,13 @@ export interface WebhookEventDto {
   direction?: string;
   card_uid?: string;
   qrcode?: string;
+  /**
+   * Evento REENVIADO pelo store-and-forward do agente (aconteceu enquanto a
+   * internet estava fora). Processa normalmente (auditoria + estado de
+   * entrada/saída com o timestamp original), mas NÃO aciona abertura
+   * automática nem aplica debounce — a pessoa já passou fisicamente.
+   */
+  backlog?: boolean;
 }
 
 // O enrollment liga AUTOMATICAMENTE quando há terminal facial cadastrado — a
@@ -100,6 +107,41 @@ export class FacialService {
     // Tick novo — varredura de fantasmas (uma vez por dia às 3h BRT, delay 10 min)
     setTimeout(() => void this.tickFantasmas(), 10 * 60 * 1000);
     setInterval(() => void this.tickFantasmas(), 60 * 60 * 1000);
+
+    // Tick novo — retry automático de sync: quem ficou 'pending'/'error'
+    // (upload ou REMOÇÃO que não chegou ao aparelho) é re-tentado sem
+    // depender de clique manual no portal. Só roda com agente online.
+    setTimeout(() => void this.tickSyncRetry(), 7 * 60 * 1000);
+    setInterval(() => void this.tickSyncRetry(), 30 * 60 * 1000);
+  }
+
+  /**
+   * Re-tenta sincronizações pendentes a cada 30 min, por condomínio que tem
+   * agente ONLINE (sem agente o sync falharia de novo — não gasta ciclo).
+   * Reusa o back-fill onlyPending, que já cobre upload de rostos novos,
+   * remoções pendentes de revogados e a re-extensão diária de quem tem
+   * restrição de dias da semana.
+   */
+  private async tickSyncRetry() {
+    if (FACIAL_DISABLED || !this.prisma.isConnected) return;
+    try {
+      const devices = await this.prisma.facial_Devices.findMany({
+        where: { ativo: 1, tipo: 'facial' },
+        select: { id: true, id_condominio: true },
+      });
+      const porCondominio = new Map<number, number[]>();
+      for (const d of devices) {
+        const ids = porCondominio.get(d.id_condominio) ?? [];
+        ids.push(d.id);
+        porCondominio.set(d.id_condominio, ids);
+      }
+      for (const [idCond, ids] of porCondominio) {
+        if (!ids.some((id) => this.agent.isOnline(id))) continue;
+        await this.syncAllForCondominio(idCond, { onlyPending: true });
+      }
+    } catch (e: any) {
+      this.logger.warn(`tickSyncRetry erro: ${e?.message ?? e}`);
+    }
   }
 
   // ---------- Enrollment guiado (RFID/QR) ----------
@@ -450,6 +492,32 @@ export class FacialService {
       },
     });
     return { ...created, api_password: decryptSecret(created.api_password) };
+  }
+
+  /**
+   * Gera um webhook_token NOVO para o dispositivo, invalidando o anterior
+   * imediatamente (URL de webhook vazada em screenshot/log deixa de valer).
+   * Auditado. Quem usa o token antigo (aparelho com push configurado ou o
+   * Agente Local em modo por-device) precisa ser reconfigurado — o portal
+   * avisa antes de confirmar.
+   */
+  async rotateWebhookToken(id: number, operador?: JwtPayload) {
+    const device = await this.getDevice(id);
+    const token = crypto.randomBytes(32).toString('hex');
+    await this.prisma.facial_Devices.update({
+      where: { id },
+      data: { webhook_token: token },
+    });
+    await this.auditoria.registrar({
+      id_condominio: device.id_condominio,
+      usuario_nome: operador?.nome ?? 'sistema',
+      acao: 'DEVICE_CHANGE',
+      modulo: 'facial',
+      entidade_id: id,
+      descricao: `Rotacionou o token de webhook do dispositivo "${device.nome}" (token anterior invalidado)`,
+      detalhes: { tipo: device.tipo, fabricante: device.fabricante },
+    });
+    return { ok: true, webhook_token: token };
   }
 
   async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
@@ -966,6 +1034,19 @@ export class FacialService {
       .replace(',', '');
   }
 
+  /**
+   * "YYYY-MM-DD 23:59:59" de HOJE em Brasília. Usado como teto de validade
+   * gravado no aparelho para quem tem restrição de dias da semana: o terminal
+   * nega SOZINHO a partir da meia-noite (mesmo offline), e o tick da virada
+   * do dia / back-fill re-estende a validade nos dias autorizados.
+   */
+  private fimDoDiaBRT(): string {
+    const hoje = new Date()
+      .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
+      .slice(0, 10);
+    return `${hoje} 23:59:59`;
+  }
+
   async syncVisitante(idVisitante: number, opts: { deviceIds?: number[] } = {}) {
     if (FACIAL_DISABLED)
       return { skipped: true, reason: 'integration_disabled' };
@@ -979,11 +1060,21 @@ export class FacialService {
     if (!visitante.foto_pessoa) {
       // Foto removida: remove o rosto órfão do aparelho e zera o face_id.
       if (visitante.face_id && visitante.id_condominio) {
-        await this.unsyncVisitante(
+        const removedOk = await this.unsyncVisitante(
           idVisitante,
           visitante.face_id,
           visitante.id_condominio,
         );
+        if (!removedOk) {
+          // Remoção não chegou a todos os terminais (agente/terminal offline).
+          // MANTÉM o face_id com status 'pending' — o back-fill do reconnect
+          // re-executa este sync e re-tenta a remoção.
+          await this.prisma.visitantes.update({
+            where: { id: idVisitante },
+            data: { face_sync_status: 'pending' },
+          });
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.visitantes.update({
           where: { id: idVisitante },
           data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
@@ -1040,11 +1131,21 @@ export class FacialService {
         dentroDoCondominio);
     if (!autorizado) {
       if (visitante.face_id && visitante.id_condominio) {
-        await this.unsyncVisitante(
+        const removedOk = await this.unsyncVisitante(
           idVisitante,
           visitante.face_id,
           visitante.id_condominio,
         );
+        if (!removedOk) {
+          // Revogação (saída/expiração/bloqueio) não chegou ao aparelho.
+          // Mantém face_id + 'pending' para o back-fill do reconnect remover
+          // — sem isso a pessoa revogada continuaria abrindo fisicamente.
+          await this.prisma.visitantes.update({
+            where: { id: idVisitante },
+            data: { face_sync_status: 'pending' },
+          });
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.visitantes.update({
           where: { id: idVisitante },
           data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
@@ -1085,12 +1186,22 @@ export class FacialService {
     // Se a pessoa está DENTRO do condomínio mas a janela já expirou, NÃO enviar
     // o ValidTo vencido ao aparelho — o aparelho negaria saída mesmo sendo legítima.
     // A nuvem já auditará o evento independente. Sem janela = permanente.
-    const validTo =
+    let validTo =
       dentroDoCondominio && !dentroJanela
         ? undefined
         : visitante.data_hora_termino
           ? this.formatDahuaTime(new Date(visitante.data_hora_termino))
           : undefined;
+    // Restrição de dias da semana aplicada NO APARELHO: teto de validade no
+    // fim do dia atual. Amanhã (dia possivelmente não autorizado) o terminal
+    // nega sozinho, mesmo offline; o tick da virada do dia re-estende quando
+    // o dia for permitido. Não se aplica a quem está DENTRO do condomínio —
+    // capar a validade impediria a saída após a meia-noite.
+    if (!dentroDoCondominio && diasPermitidos.length > 0) {
+      const fimHoje = this.fimDoDiaBRT();
+      // Strings "YYYY-MM-DD HH:MM:SS" comparam cronologicamente.
+      validTo = !validTo || validTo > fimHoje ? fimHoje : validTo;
+    }
     let faceId: string | null = visitante.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
@@ -1205,13 +1316,21 @@ export class FacialService {
     }
   }
 
+  /**
+   * Remove o rosto do visitante dos terminais. Retorna `true` só quando TODAS
+   * as remoções deram certo — o chamador usa isso para decidir se pode zerar
+   * o face_id no banco. Se alguma falhou (agente offline, terminal fora),
+   * quem chamou deve manter o face_id com status 'pending' para o back-fill
+   * do reconnect re-tentar a remoção (senão a revogação se perde e a pessoa
+   * continua abrindo a porta fisicamente).
+   */
   async unsyncVisitante(
     idVisitante: number,
     faceId: string | null,
     idCondominio: number,
     opts: { deviceIds?: number[] } = {},
-  ) {
-    if (FACIAL_DISABLED || !faceId) return;
+  ): Promise<boolean> {
+    if (FACIAL_DISABLED || !faceId) return true;
     // Mesmo critério do sync: só terminais faciais têm /persons.
     const devices = await this.prisma.facial_Devices.findMany({
       where: {
@@ -1221,15 +1340,18 @@ export class FacialService {
         ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
       },
     });
+    let allOk = true;
     for (const device of devices) {
       try {
         await this.client.removePerson(this.toConfig(device), faceId);
       } catch (err: any) {
+        allOk = false;
         this.logger.warn(
           `Remoção visitante ${idVisitante} device ${device.id}: ${err?.message ?? err}`,
         );
       }
     }
+    return allOk;
   }
 
   /**
@@ -1256,11 +1378,15 @@ export class FacialService {
     // Sem foto: remove rosto órfão do aparelho e zera o face_id.
     if (!prest.foto_pessoa) {
       if (prest.face_id && prest.id_condominio) {
-        await this.unsyncPrestadorServico(
+        const removedOk = await this.unsyncPrestadorServico(
           idPrestador,
           prest.face_id,
           prest.id_condominio,
         );
+        if (!removedOk) {
+          await this.markPrestadorSyncStatus(idPrestador, 'pending');
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.prestadores_servico.update({
           where: { id: idPrestador },
           data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
@@ -1302,12 +1428,19 @@ export class FacialService {
     // Fora do dia autorizado: remove de todos os terminais (nega fisicamente).
     if (!diaAutorizado) {
       if (prest.face_id) {
-        await this.unsyncPrestadorServico(
+        const removedOk = await this.unsyncPrestadorServico(
           idPrestador,
           prest.face_id,
           prest.id_condominio,
           opts,
         );
+        if (!removedOk) {
+          // Mantém face_id + 'pending' p/ o back-fill re-tentar a remoção.
+          // Nota: com o validTo diário gravado no aparelho, ele já nega
+          // localmente após a virada do dia mesmo sem esta remoção.
+          await this.markPrestadorSyncStatus(idPrestador, 'pending');
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.prestadores_servico.update({
           where: { id: idPrestador },
           data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
@@ -1338,16 +1471,23 @@ export class FacialService {
           );
           continue;
         }
+        // Prestador SEMPRE tem restrição de dias (vazio = nenhum dia). O teto
+        // de validade no fim do dia faz o aparelho negar sozinho após a
+        // meia-noite, mesmo offline; o tick da virada re-estende nos dias
+        // autorizados.
+        const validTo = this.fimDoDiaBRT();
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: prest.nome,
             fotoBase64,
+            validTo,
           });
         } else {
           const r = await this.client.enrollPerson(this.toConfig(device), {
             externalId,
             nome: prest.nome,
             fotoBase64,
+            validTo,
           });
           faceId = r.faceId;
         }
@@ -1388,13 +1528,14 @@ export class FacialService {
     return { ok: allOk, face_id: faceId, status, error: ultimoErro };
   }
 
+  /** Mesmo contrato do unsyncVisitante: `true` = removido de todos os terminais. */
   async unsyncPrestadorServico(
     idPrestador: number,
     faceId: string | null,
     idCondominio: number | null,
     opts: { deviceIds?: number[] } = {},
-  ) {
-    if (FACIAL_DISABLED || !faceId || !idCondominio) return;
+  ): Promise<boolean> {
+    if (FACIAL_DISABLED || !faceId || !idCondominio) return true;
     const devices = await this.prisma.facial_Devices.findMany({
       where: {
         id_condominio: idCondominio,
@@ -1403,15 +1544,18 @@ export class FacialService {
         ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
       },
     });
+    let allOk = true;
     for (const device of devices) {
       try {
         await this.client.removePerson(this.toConfig(device), faceId);
       } catch (err: any) {
+        allOk = false;
         this.logger.warn(
           `Remoção prestador ${idPrestador} device ${device.id}: ${err?.message ?? err}`,
         );
       }
     }
+    return allOk;
   }
 
   // ---------- Sincronização em massa (back-fill) ----------
@@ -2141,11 +2285,18 @@ export class FacialService {
       (device.tipo === 'tag_reader' ? payload.external_id : undefined);
     const externalId = payload.external_id ?? payload.person_id ?? '';
 
+    // Evento reenviado pelo store-and-forward do agente: aconteceu no passado,
+    // enquanto a nuvem estava inalcançável. Auditoria e estado entram normais
+    // (com o timestamp original), mas sem debounce (o lote chega em rajada)
+    // e sem acionamento automático de abertura (a pessoa já passou).
+    const isBacklog = payload.backlog === true;
+
     // Cooldown: descarta eventos duplicados do mesmo leitor para a mesma
     // credencial dentro da janela (default 15s). Protege contra leitor com
     // defeito disparando em loop e contra usuário batendo o crachá duas vezes.
     const credencial = qrCodeLido ?? tagRfidLida ?? externalId ?? '';
     if (
+      !isBacklog &&
       credencial &&
       this.accessState.shouldDebounce(device.id, credencial, evento)
     ) {
@@ -2701,12 +2852,43 @@ export class FacialService {
     // registro como suspeito; "hard" nega. Estado é perdido em restart
     // (limitação documentada no serviço — mitigar com Redis se houver SLA).
     if (evento === 'entrada' || evento === 'saida') {
-      const apb = this.accessState.checkAntiPassback(
+      // Pós-restart o estado em memória está vazio — semeia a presença a
+      // partir do último evento persistido em Acessos_Facial, para o APB
+      // não "esquecer" quem está dentro a cada deploy.
+      if (
+        idPessoa != null &&
+        !this.accessState.hasPresenca(device.id_condominio, tipoPessoa, idPessoa)
+      ) {
+        const ultimo = await this.prisma.acessos_Facial.findFirst({
+          where: {
+            id_condominio: device.id_condominio,
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            evento: { in: ['entrada', 'saida'] },
+          },
+          orderBy: { timestamp: 'desc' },
+          select: { evento: true },
+        });
+        if (ultimo) {
+          this.accessState.setPresenca(
+            device.id_condominio,
+            tipoPessoa,
+            idPessoa,
+            ultimo.evento === 'entrada' ? 'dentro' : 'fora',
+          );
+        }
+      }
+
+      const apbBruto = this.accessState.checkAntiPassback(
         device.id_condominio,
         tipoPessoa,
         idPessoa,
         evento,
       );
+      // Backlog nunca é negado por APB: o evento já aconteceu fisicamente —
+      // negar agora só falsificaria a auditoria. Rebaixa para "suspeito".
+      const apb =
+        apbBruto === 'deny' && isBacklog ? 'allow_with_warning' : apbBruto;
       if (apb === 'deny') {
         await this.prisma.acessos_Facial.create({
           data: {
@@ -2849,7 +3031,9 @@ export class FacialService {
         },
       });
 
-      if (evento === 'entrada' || evento === 'saida') {
+      // Backlog não notifica em tempo real — o evento é antigo; uma rajada
+      // de "fulano entrou" horas depois só confunde o morador. Fica na auditoria.
+      if ((evento === 'entrada' || evento === 'saida') && !isBacklog) {
         try {
           const moradores = await this.prisma.users.findMany({
             where: {
@@ -2904,7 +3088,9 @@ export class FacialService {
     // Apenas eventos de ENTRADA disparam acionamento — saídas não precisam.
     const isLeitor =
       device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
-    if (isLeitor && evento === 'entrada') {
+    // Backlog NUNCA aciona abertura: o evento é antigo (a pessoa já passou
+    // enquanto a nuvem estava fora) — abrir a porta agora seria um furo.
+    if (isLeitor && evento === 'entrada' && !isBacklog) {
       // Busca aberturas vinculadas a esse leitor via regras ativas.
       // Uma regra que tenha o leitor E aberturas define o roteamento.
       const regrasDoLeitor = await this.prisma.regras_Acesso.findMany({

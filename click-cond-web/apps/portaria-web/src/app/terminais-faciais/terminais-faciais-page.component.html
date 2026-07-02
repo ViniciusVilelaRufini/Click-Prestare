@@ -748,6 +748,13 @@
               Copiar URL Webhook
             </button>
             <button
+              (click)="rotateToken(t)"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 transition"
+              title="Gera um token novo e invalida o atual (use se a URL do webhook vazou)"
+            >
+              Rotacionar Token
+            </button>
+            <button
               (click)="openEdit(t)"
               class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-accent bg-accent/10 hover:bg-accent/15 border border-accent/20 transition"
             >

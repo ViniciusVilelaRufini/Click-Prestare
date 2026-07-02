@@ -17,7 +17,9 @@ export type AuditoriaAcao =
   | 'MANUAL_OVERRIDE'   // porteiro acionou trigger manual de uma abertura
   | 'BRIDGE_TRIGGER'    // ponte RFID/QR → botoeira disparou automático
   | 'RULE_CHANGE'       // CRUD em regras de acesso
-  | 'DEVICE_CHANGE';    // CRUD em dispositivos (criar/desativar/trocar IP)
+  | 'DEVICE_CHANGE'     // CRUD em dispositivos (criar/desativar/trocar IP)
+  | 'ONLINE'            // dispositivo voltou a responder na LAN (heartbeat do agente)
+  | 'OFFLINE';          // dispositivo parou de responder na LAN
 
 export interface RegistrarAuditoriaDto {
   id_condominio: number;

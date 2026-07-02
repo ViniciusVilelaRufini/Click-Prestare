@@ -163,6 +163,10 @@ async function runCondoLoop(token) {
       // Cache p/ o servidor de live view (localhost) saber IP/credenciais.
       lastDevices = (body.devices || []).map((e) => e.device).filter(Boolean);
 
+      // Poll respondeu = nuvem alcançável → reenvia eventos guardados durante
+      // a queda de internet (store-and-forward). Roda em background.
+      void flushOfflineEvents(token);
+
       for (const entry of body.devices || []) {
         const device = entry.device;
         // Aparelhos Dahua/Intelbras: abre (uma vez) o stream de eventos de
@@ -1148,46 +1152,155 @@ function consumeDahuaEvents(buf, onData) {
   return tail;
 }
 
-/** Repassa um reconhecimento facial para a nuvem (ignora não-reconhecidos). */
-async function forwardAccessEvent(token, device, data) {
+// ---------- Store-and-forward: fila em disco para eventos offline ----------
+//
+// A LAN continua viva quando a internet cai: o aparelho segue reconhecendo e
+// o agente segue recebendo o stream — só o upload para a nuvem falha. Sem a
+// fila, esses acessos sumiam da auditoria. Aqui cada evento que não subiu é
+// gravado em disco (sobrevive a restart do agente) e reenviado com a flag
+// `backlog: true` quando a nuvem volta — a nuvem audita com o timestamp
+// original, mas não reaciona abertura nem manda push atrasado.
+
+const OFFLINE_QUEUE_MAX = 5000; // ~alguns dias de acessos; acima disso descarta os mais antigos
+let flushEmAndamento = false;
+
+function offlineQueuePath() {
+  return path.join(configDir(), 'events-queue.jsonl');
+}
+
+function enqueueOfflineEvent(body, deviceNome) {
+  try {
+    const file = offlineQueuePath();
+    fs.appendFileSync(file, JSON.stringify(body) + '\n', 'utf8');
+    // Poda: mantém só as últimas OFFLINE_QUEUE_MAX linhas.
+    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+    if (lines.length > OFFLINE_QUEUE_MAX) {
+      fs.writeFileSync(
+        file,
+        lines.slice(lines.length - OFFLINE_QUEUE_MAX).join('\n') + '\n',
+        'utf8',
+      );
+    }
+    console.log(
+      `[agente] ${deviceNome}: evento guardado na fila offline (${lines.length} pendente(s))`,
+    );
+  } catch (err) {
+    console.error(`[agente] falha ao gravar fila offline: ${err.message || err}`);
+  }
+}
+
+/**
+ * Reenvia a fila offline (chamado após cada poll bem-sucedido = nuvem
+ * alcançável). Para no primeiro erro e preserva o restante para a próxima
+ * tentativa. Eventos reenviados vão com `backlog: true`.
+ */
+async function flushOfflineEvents(token) {
+  if (flushEmAndamento) return;
+  const file = offlineQueuePath();
+  let lines;
+  try {
+    if (!fs.existsSync(file)) return;
+    lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+  } catch {
+    return;
+  }
+  if (lines.length === 0) return;
+
+  flushEmAndamento = true;
+  try {
+    console.log(`[agente] reenviando ${lines.length} evento(s) da fila offline...`);
+    let enviados = 0;
+    for (const line of lines) {
+      let body;
+      try {
+        body = JSON.parse(line);
+      } catch {
+        enviados++; // linha corrompida — descarta
+        continue;
+      }
+      try {
+        const res = await cloudRequest(
+          'POST',
+          `/api/facial/agent/condo/${token}/event`,
+          { ...body, backlog: true },
+        );
+        // 2xx = aceito; 4xx = a nuvem rejeitou de vez (ex.: acesso negado por
+        // regra — já auditado lá), não adianta re-tentar. 5xx/rede = para e
+        // tenta de novo no próximo flush.
+        if (res.status >= 500) break;
+        enviados++;
+      } catch {
+        break; // nuvem ainda inalcançável — preserva o restante
+      }
+    }
+    const restantes = lines.slice(enviados);
+    fs.writeFileSync(file, restantes.length ? restantes.join('\n') + '\n' : '', 'utf8');
+    if (enviados > 0) {
+      console.log(
+        `[agente] fila offline: ${enviados} reenviado(s), ${restantes.length} restante(s)`,
+      );
+    }
+  } finally {
+    flushEmAndamento = false;
+  }
+}
+
+/**
+ * Repassa um reconhecimento facial para a nuvem (ignora não-reconhecidos).
+ * opts.backlog = replay de evento antigo (log do aparelho / fila offline):
+ * vai marcado para a nuvem só auditar (sem acionar abertura/push) e NÃO
+ * passa pelo debounce — registros históricos do mesmo usuário chegam em
+ * rajada e são todos legítimos.
+ */
+async function forwardAccessEvent(token, device, data, opts = {}) {
   const userId = data && data.UserID;
   // FFFFFF = rosto não reconhecido; não vira evento de pessoa.
   if (!userId || userId === 'FFFFFF') return;
 
   // Debounce por (device, UserID): colapsa a rajada de frames de uma aproximação
   // num único evento. Síncrono antes do await → imune à corrida da rajada.
-  const key = `${device.id}:${userId}`;
-  const agora = Date.now();
-  const ultimo = lastAccessForwardedAt.get(key) || 0;
-  if (agora - ultimo < AGENT_EVENT_DEBOUNCE_MS) return;
-  lastAccessForwardedAt.set(key, agora);
+  if (!opts.backlog) {
+    const key = `${device.id}:${userId}`;
+    const agora = Date.now();
+    const ultimo = lastAccessForwardedAt.get(key) || 0;
+    if (agora - ultimo < AGENT_EVENT_DEBOUNCE_MS) return;
+    lastAccessForwardedAt.set(key, agora);
+  }
 
   const eventTimestamp = data.timestamp
     ? new Date(data.timestamp).toISOString()
     : new Date().toISOString();
 
+  const body = {
+    deviceId: device.id,
+    external_id: String(userId),
+    person_id: String(userId),
+    event: 'recognized',
+    // Similarity vem 0-100; a nuvem guarda a confiança como fração 0-1 (a tela
+    // multiplica por 100 na exibição). Sem dividir, 86 vira "8600%".
+    confidence:
+      typeof data.Similarity === 'number' ? data.Similarity / 100 : undefined,
+    timestamp: eventTimestamp,
+    ...(opts.backlog ? { backlog: true } : {}),
+  };
+
   try {
-    const res = await cloudRequest('POST', `/api/facial/agent/condo/${token}/event`, {
-      deviceId: device.id,
-      external_id: String(userId),
-      person_id: String(userId),
-      event: 'recognized',
-      // Similarity vem 0-100; a nuvem guarda a confiança como fração 0-1 (a tela
-      // multiplica por 100 na exibição). Sem dividir, 86 vira "8600%".
-      confidence:
-        typeof data.Similarity === 'number' ? data.Similarity / 100 : undefined,
-      timestamp: eventTimestamp,
-    });
+    const res = await cloudRequest('POST', `/api/facial/agent/condo/${token}/event`, body);
     const ok = res.status >= 200 && res.status < 300;
     console.log(
       `[agente] ${device.nome} ◂ acesso ${userId} (${data.Similarity ?? '?'}%) [${eventTimestamp}] → ${
         ok ? 'OK' : `nuvem recusou HTTP ${res.status}`
       }`,
     );
+    // 5xx = nuvem com problema transitório — guarda para reenvio. 4xx é
+    // rejeição definitiva (regra/validação), já tratada/auditada na nuvem.
+    if (res.status >= 500) enqueueOfflineEvent(body, device.nome);
   } catch (err) {
     console.error(
       `[agente] ${device.nome}: falha ao enviar acesso ${userId}: ${err.message || err}`,
     );
+    // Sem internet: guarda em disco e reenvia quando a nuvem voltar.
+    enqueueOfflineEvent(body, device.nome);
   }
 }
 
@@ -1597,7 +1710,7 @@ async function syncDeviceOfflineLogs(token, device) {
             CardNo: rec.CardNo,
             Similarity: 100,
             timestamp: rec.CreateTime,
-          });
+          }, { backlog: true });
           baseline = recNo;
           deviceBaselines.set(device.id, recNo);
           processedCount++;
@@ -1653,7 +1766,7 @@ async function syncDeviceOfflineLogs(token, device) {
               UserID: log.employeeNoString,
               Similarity: 100,
               timestamp: log.time,
-            });
+            }, { backlog: true });
           }
           baseline = serial;
           deviceBaselines.set(device.id, serial);
@@ -1703,7 +1816,7 @@ async function syncDeviceOfflineLogs(token, device) {
             UserID: String(log.user_id),
             Similarity: log.confidence ? Math.min(100, Math.round(log.confidence / 18)) : 100,
             timestamp: new Date(log.time * 1000).toISOString(),
-          });
+          }, { backlog: true });
           baseline = log.id;
           deviceBaselines.set(device.id, log.id);
           processedCount++;
