@@ -2476,12 +2476,12 @@ export class FacialService {
     // aparelho após reconexão) pode, numa corrida rara, chegar depois que a
     // stream ao vivo já registrou o MESMO acesso. Como a direção é resolvida por
     // alternância (sentido "auto"), reprocessar viraria uma saída/entrada falsa.
-    // Se já existe QUALQUER acesso desta pessoa perto deste horário, o backlog é
-    // duplicata — ignora. Eventos da janela realmente offline não têm registro
-    // por perto (nada foi gravado enquanto o aparelho esteve isolado), então
-    // esses passam normalmente.
+    // Janela CURTA (20s): o mesmo acesso via stream e via log tem só o skew de
+    // relógio entre eles (~15s observado); entrada→saída distintas ficam bem mais
+    // longe (dezenas de segundos). Assim o reenvio da MESMA passagem é ignorado,
+    // mas uma saída real logo após a entrada passa normalmente.
     if (isBacklog && idPessoa != null && tipoPessoa) {
-      const JANELA_MS = 90 * 1000;
+      const JANELA_MS = 20 * 1000;
       const dup = await this.prisma.acessos_Facial.findFirst({
         where: {
           id_condominio: device.id_condominio,

@@ -103,11 +103,14 @@ const BASELINE_ADVANCE_INTERVAL_MS = 10 * 60 * 1000; // 10 min
  * os eventos que a stream já pegou. Só avança; nunca reencaminha. Throttle de
  * 10 min (a leitura do log é um lote; não faz sentido a cada heartbeat).
  */
-async function advanceBaselineWhileOnline(device) {
+async function advanceBaselineWhileOnline(device, force = false) {
   if (device.fabricante !== 'intelbras') return;
   if (offlineSyncBusy.has(device.id)) return;
   const agora = Date.now();
-  if (agora - (lastBaselineAdvance.get(device.id) || 0) < BASELINE_ADVANCE_INTERVAL_MS) return;
+  // force=true (logo após um evento ao vivo) ignora o throttle: precisa capturar
+  // o RecNo do evento recém-forwardado ANTES de um eventual offline, senão a
+  // recuperação o reenviaria (sobreposição com a stream).
+  if (!force && agora - (lastBaselineAdvance.get(device.id) || 0) < BASELINE_ADVANCE_INTERVAL_MS) return;
   lastBaselineAdvance.set(device.id, agora);
   try {
     const { maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
@@ -1349,6 +1352,10 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     // 5xx = nuvem com problema transitório — guarda para reenvio. 4xx é
     // rejeição definitiva (regra/validação), já tratada/auditada na nuvem.
     if (res.status >= 500) enqueueOfflineEvent(body, device.nome);
+    // Evento AO VIVO (não backlog): avança a marca d'água para incluir o RecNo
+    // deste acesso ANTES de um eventual offline. Assim a recuperação reenviará
+    // só os eventos realmente perdidos, sem sobrepor os que a stream já pegou.
+    if (!opts.backlog) advanceBaselineWhileOnline(device, true).catch(() => {});
   } catch (err) {
     console.error(
       `[agente] ${device.nome}: falha ao enviar acesso ${userId}: ${err.message || err}`,
