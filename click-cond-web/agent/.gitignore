@@ -7,3 +7,9 @@
 click-agent
 
 node_modules/
+
+# estado de runtime do agente
+device-baselines.json
+events-queue.jsonl
+agent-stdout.log
+agent-stderr.log
