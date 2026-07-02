@@ -1,4 +1,4 @@
-﻿import 'package:click/controllers/controller_condominio.dart';
+import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/controllers/controller_generic.dart';
@@ -189,7 +189,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 ),
               ),
               Text(
-                'Selecione o CondomÃ­nio',
+                'Selecione o Condomínio',
                 style: AppTypography.headline(context).copyWith(
                   fontWeight: FontWeight.w600,
                   color: textColor,
@@ -197,7 +197,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'Escolha um condomÃ­nio para ver os detalhes.',
+                'Escolha um condomínio para ver os detalhes.',
                 style: AppTypography.caption(context).copyWith(
                   color: textSecondary,
                 ),
@@ -438,7 +438,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                     MaterialPageRoute(builder: (_) => const NotificationSettingsPage()),
                   );
                 },
-                tooltip: 'NotificaÃ§Ãµes',
+                tooltip: 'Notificações',
                 padding: const EdgeInsets.all(6),
                 constraints: const BoxConstraints(),
               ),
@@ -462,7 +462,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           Text(getText('meus_condominios'),
               style: AppTypography.title(context)),
           AppSpacing.gapXs,
-          Text('${_list.length} ${_list.length == 1 ? "condomÃ­nio" : "condomÃ­nios"}',
+          Text('${_list.length} ${_list.length == 1 ? "condomínio" : "condomínios"}',
               style: AppTypography.bodySecondary(context)),
           AppSpacing.gapXl,
         ],
@@ -484,9 +484,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             if (type == 'sindico') ...[
               Expanded(
                 child: _DashboardCard(
-                  title: 'InadimplÃªncia',
+                  title: 'Inadimplência',
                   value: 'R\$ ${_toDouble(_summary!['debts']['total']).toStringAsFixed(2)}',
-                  subtitle: '${_summary!['debts']['count']} pendÃªncias',
+                  subtitle: '${_summary!['debts']['count']} pendências',
                   icon: PhosphorIcons.money,
                   color: AppColors.error,
                   onTap: () => _onDashboardTap('debts'),
@@ -495,7 +495,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: _DashboardCard(
-                  title: 'OcorrÃªncias',
+                  title: 'Ocorrências',
                   value: _summary!['occurrences'].toString(),
                   subtitle: 'Aguardando resposta',
                   icon: PhosphorIcons.warningCircle,
@@ -573,13 +573,13 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 size: 48, color: AppColors.primary),
           ),
           AppSpacing.gapLg,
-          Text('Nenhum condomÃ­nio',
+          Text('Nenhum condomínio',
               style: AppTypography.headline(context)),
           AppSpacing.gapSm,
           Text(
             isSindico
-                ? 'Toque em "Novo" para cadastrar seu primeiro condomÃ­nio'
-                : 'VocÃª ainda nÃ£o possui condomÃ­nios vinculados',
+                ? 'Toque em "Novo" para cadastrar seu primeiro condomínio'
+                : 'Você ainda não possui condomínios vinculados',
             style: AppTypography.bodySecondary(context),
             textAlign: TextAlign.center,
           ),
@@ -701,7 +701,7 @@ class _CondominioCard extends StatelessWidget {
       final aptoText = numAptos == 1 ? 'unidade' : 'unidades';
 
       subtitleWidget = Text(
-        '$numBlocos $blocoText Â· $numAptos $aptoText',
+        '$numBlocos $blocoText · $numAptos $aptoText',
         style: AppTypography.caption(context).copyWith(
           color: AppColors.textSecondary(context),
           fontWeight: FontWeight.normal,

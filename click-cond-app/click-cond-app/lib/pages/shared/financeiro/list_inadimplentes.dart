@@ -1,4 +1,4 @@
-﻿import 'package:click/controllers/controller_generic.dart';
+import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/financeiro/detail_inadimplente.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -156,7 +156,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                                     child: FittedBox(
                                                       fit: BoxFit.scaleDown,
                                                       child: Text(
-                                                        '${apto['qtd']} ${apto['qtd'] == 1 ? 'mÃªs em aberto' : 'meses em aberto'}',
+                                                        '${apto['qtd']} ${apto['qtd'] == 1 ? 'mês em aberto' : 'meses em aberto'}',
                                                         style: AppTypography.tiny(context).copyWith(
                                                           color: AppColors.error,
                                                           fontWeight: FontWeight.bold,
