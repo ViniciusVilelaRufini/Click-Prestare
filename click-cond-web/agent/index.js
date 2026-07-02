@@ -107,10 +107,12 @@ async function advanceBaselineWhileOnline(device, force = false) {
   if (device.fabricante !== 'intelbras') return;
   if (offlineSyncBusy.has(device.id)) return;
   const agora = Date.now();
-  // force=true (logo após um evento ao vivo) ignora o throttle: precisa capturar
-  // o RecNo do evento recém-forwardado ANTES de um eventual offline, senão a
-  // recuperação o reenviaria (sobreposição com a stream).
-  if (!force && agora - (lastBaselineAdvance.get(device.id) || 0) < BASELINE_ADVANCE_INTERVAL_MS) return;
+  // Throttle: 10 min no caso ocioso; 10s logo após um evento ao vivo (force).
+  // Mesmo no force coalescemos rajadas de reconhecimentos (o fetch é do log
+  // inteiro) — 10s continua bem abaixo da janela de dedup (20s), então nenhum
+  // evento ao vivo fica "descoberto" tempo suficiente para ser reenviado.
+  const minIntervalo = force ? 10 * 1000 : BASELINE_ADVANCE_INTERVAL_MS;
+  if (agora - (lastBaselineAdvance.get(device.id) || 0) < minIntervalo) return;
   lastBaselineAdvance.set(device.id, agora);
   try {
     const { maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
