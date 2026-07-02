@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:typed_data';
 import 'package:click/pages/singleton.dart';
 
 import 'package:click/controllers/controller_generic.dart';
@@ -40,7 +40,9 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
   final txtConta = TextEditingController();
   final txtDescricao = TextEditingController();
   final txtParcelas = TextEditingController();
-  dynamic imageFile;
+  // Foto do comprovante: bytes locais (recém-escolhida) ou URL já salva.
+  Uint8List? _photoBytes;
+  String? _photoUrl;
   var changed = false;
 
   @override
@@ -73,16 +75,12 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
       txtParcelas.text = obj['parcelas'] != null ? obj['parcelas'].toString() : '';
       txtConta.text = obj['conta'] ?? '';
       txtDescricao.text = obj['descricao'] ?? '';
-      // Best-effort: nunca deixa o comprovante quebrar o carregamento da tela.
-      try {
-        imageFile = await fileFromImageUrl(obj['photo'] ?? '');
-      } catch (_) {
-        imageFile = null;
-      }
+      // URL da foto já salva (preview via Image.network) — best-effort.
+      final photo = obj['photo']?.toString() ?? '';
+      _photoUrl = photo.trim().isNotEmpty ? photo : null;
       if (mounted) setState(() {});
     } catch (e, st) {
-      // ignore: avoid_print
-      print('[load despesa] $e\n$st');
+      debugPrint('[load despesa] $e\n$st');
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -90,13 +88,21 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
   }
 
   Future<void> save() async {
+    final valorParsed = txtValor.text.isNotEmpty
+        ? (double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0.0)
+        : 0.0;
+    if (valorParsed <= 0) {
+      displayMessage(context, getText('alert'), 'Informe um valor maior que zero.');
+      return;
+    }
     try {
       setState(() => _isSaving = true);
+      // Foto nova vai como data URL base64 — o backend detecta e sobe pro
+      // storage (uploadDataUrl). Sem foto nova, photo vai null e o backend
+      // preserva a existente no update.
       String? base64;
-      if (imageFile != null && changed && !kIsWeb) {
-        // ignore: undefined_class
-        // List<int> imageBytes = [];
-        // base64 = "data:image/png;base64," + base64Encode(imageBytes);
+      if (_photoBytes != null && changed) {
+        base64 = "data:image/jpeg;base64,${base64Encode(_photoBytes!)}";
       }
       var obj = FinanceiroModel(
         id: widget.id, 
@@ -106,7 +112,7 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
         categoria: txtCategoria.text,
         data: txtPagamento.text.isNotEmpty ? convertStringToDate(txtPagamento.text) : null,
         data_vencimento: txtPagamento.text.isNotEmpty ? convertStringToDate(txtPagamento.text) : null,
-        valor: txtValor.text.isNotEmpty ? double.parse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) : 0.0,
+        valor: valorParsed,
         forma_pagamento: txtFormaPagamento.text,
         parcelas: txtParcelas.text.isEmpty ? 1 : int.parse(txtParcelas.text),
         conta: txtConta.text, descricao: txtDescricao.text, photo: base64,
@@ -120,8 +126,7 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
     } catch (e, st) {
       // Loga stack trace pra debug em release/web (dart2js as vezes converte
       // TypeError JS em mensagem indecifravel — sem o stack, vira caca preta).
-      // ignore: avoid_print
-      print('[save despesa] $e\n$st');
+      debugPrint('[save despesa] $e\n$st');
       if (mounted) displayMessage(
         context,
         getText('alert_error'),
@@ -150,9 +155,12 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
     FocusManager.instance.primaryFocus?.unfocus();
     var res = await getPhoto(context);
     if (res != null) {
-      imageFile = res;
-      changed = true;
-      setState(() {});
+      final bytes = await res.readAsBytes();
+      if (bytes != null && bytes.isNotEmpty) {
+        _photoBytes = bytes;
+        changed = true;
+        setState(() {});
+      }
     }
   }
 
@@ -266,16 +274,23 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: imageFile == null
-                                ? Container(
-                                    width: 72, height: 72,
-                                    color: AppColors.primary.withOpacity(0.08),
-                                    child: Icon(PhosphorIcons.camera, color: AppColors.primary, size: 32),
-                                  )
-                                : (kIsWeb 
-                                    ? Image.network(imageFile.path, width: 72, height: 72, fit: BoxFit.cover)
-                                    : Image.network(imageFile.path, width: 72, height: 72, fit: BoxFit.cover)), // Simplificado para web/mobile test
-
+                            child: _photoBytes != null
+                                ? Image.memory(_photoBytes!, width: 72, height: 72, fit: BoxFit.cover)
+                                : (_photoUrl != null
+                                    ? Image.network(
+                                        _photoUrl!,
+                                        width: 72, height: 72, fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 72, height: 72,
+                                          color: AppColors.primary.withOpacity(0.08),
+                                          child: Icon(PhosphorIcons.image, color: AppColors.primary, size: 32),
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 72, height: 72,
+                                        color: AppColors.primary.withOpacity(0.08),
+                                        child: Icon(PhosphorIcons.camera, color: AppColors.primary, size: 32),
+                                      )),
                           ),
                           const SizedBox(width: AppSpacing.md),
                           Expanded(

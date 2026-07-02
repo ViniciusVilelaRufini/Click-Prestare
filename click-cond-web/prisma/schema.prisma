@@ -644,6 +644,7 @@ model Financeiro {
   created_at      DateTime    @default(now()) @db.DateTime(0)
   updated_at      DateTime    @default(now()) @updatedAt @db.DateTime(0)
   url_boleto      String?     @db.VarChar(500)
+  url_comprovante String?     @db.VarChar(500)
   status          String?     @db.VarChar(50)
   linha_digitavel String?     @db.VarChar(255)
   pix_copia_cola  String?     @db.Text
@@ -734,6 +735,51 @@ model Assinaturas_Condominios {
   condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_ac_cond")
 
   @@index([id_condominio], map: "fk_ac_cond")
+}
+
+// ===== CRM (faturamento da Click Prestare sobre os condomínios-clientes) =====
+// Sem FK para Condominios de propósito: as migrations rodam manualmente no
+// Railway e manter estas tabelas independentes simplifica o ALTER/rollback.
+
+model Crm_Faturas {
+  id               Int       @id @default(autoincrement())
+  id_condominio    Int
+  referencia       String    @db.VarChar(7) // "MM/YYYY"
+  valor            Decimal   @db.Decimal(10, 2)
+  vencimento       DateTime? @db.Date
+  status           String    @default("pendente") @db.VarChar(20) // pendente | paga | cancelada
+  metodo_pagamento String?   @db.VarChar(50)
+  data_pagamento   DateTime? @db.DateTime(0)
+  baixa_por        String?   @db.VarChar(255)
+  baixa_motivo     String?   @db.VarChar(500)
+  pix_copia_cola   String?   @db.Text
+  estimada         Boolean   @default(false) // valor veio do fallback (sem assinatura cadastrada)
+  created_at       DateTime  @default(now()) @db.DateTime(0)
+  updated_at       DateTime  @default(now()) @updatedAt @db.DateTime(0)
+
+  @@unique([id_condominio, referencia], map: "uq_crmfat_cond_ref")
+  @@index([status])
+}
+
+model Crm_Config {
+  id         Int      @id @default(autoincrement())
+  chave      String   @unique @db.VarChar(100)
+  valor      String   @db.Text
+  updated_at DateTime @default(now()) @updatedAt @db.DateTime(0)
+}
+
+model Crm_Disparos {
+  id            Int      @id @default(autoincrement())
+  id_condominio Int
+  id_fatura     Int?
+  tipo          String   @db.VarChar(50) // cobranca_manual | pre_vencimento | vencimento | pos_vencimento
+  telefone      String?  @db.VarChar(30)
+  status        String   @default("enviado") @db.VarChar(20) // enviado | falha
+  erro_msg      String?  @db.VarChar(500)
+  mensagem      String?  @db.Text
+  created_at    DateTime @default(now()) @db.DateTime(0)
+
+  @@index([id_condominio])
 }
 
 model Authors {

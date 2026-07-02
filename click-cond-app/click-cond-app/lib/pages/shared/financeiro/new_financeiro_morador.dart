@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:click/controllers/controller_generic.dart';
+import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
+import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/widgets/alerts/bottom_sheet_conta.dart';
 import 'package:click/widgets/alerts/bottom_sheet_aptos.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
@@ -44,10 +47,14 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
   final txtLinhaDigitavel = TextEditingController();
   final txtPixCopiaCola = TextEditingController();
 
-  static const _categories = ["Condomínio", "Aluguel", "Água", "Luz", "Internet", "Outros"];
+  static const _categories = kCategoriasCobranca;
   String _selectedCategoria = _categories[0];
   String? _urlBoleto;
   String? _urlComprovante;
+  // Boleto escolhido no FilePicker fica em memória até o save(): o upload
+  // (/financeiro/upload-shared-file) exige o id do lançamento, que só
+  // existe depois do insert.
+  Uint8List? _boletoBytes;
   var list = [];
   var listBlocos = [];
   bool _isPago = false;
@@ -201,6 +208,17 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
       displayMessage(context, getText('alert'), 'Selecione o apartamento.');
       return;
     }
+    final valorParsed = txtValor.text.isNotEmpty
+        ? (double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0.0)
+        : 0.0;
+    if (valorParsed <= 0) {
+      displayMessage(context, getText('alert'), 'Informe um valor maior que zero.');
+      return;
+    }
+    if (txtVencimento.text.trim().isEmpty) {
+      displayMessage(context, getText('alert'), 'Informe a data de vencimento.');
+      return;
+    }
     try {
       setState(() => _isSaving = true);
       var dtPag = txtPagamento.text.isNotEmpty ? convertStringToDate(txtPagamento.text) : null;
@@ -213,21 +231,38 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
         data: dtPag,
         data_vencimento: convertStringToDate(txtVencimento.text),
         conta: txtConta.text, descricao: txtDescricao.text,
-        valor: txtValor.text.isNotEmpty ? double.parse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) : 0.0,
-        url_boleto: _urlBoleto,
+        valor: valorParsed,
+        // Só URL real: o boleto novo (bytes) sobe via upload-shared-file
+        // depois do save, quando o id do lançamento existe.
+        url_boleto: (_urlBoleto != null && _urlBoleto!.trim().isNotEmpty && _urlBoleto != 'upload_pendente')
+            ? _urlBoleto
+            : null,
         linha_digitavel: txtLinhaDigitavel.text,
         pix_copia_cola: txtPixCopiaCola.text,
         pago: _isPago ? 1 : 0,
       );
-      var res = await apiSaveObject("financeiro", "financeiro", obj, id != null && id != -1);
-      if (res.toString().isEmpty) {
+      final isEdit = id != -1;
+      var res = await apiSaveFinanceiroComId(obj, isEdit);
+      if (res['ok'] == true) {
+        bool boletoOk = true;
+        if (_boletoBytes != null) {
+          final int idFinal = isEdit ? id : (res['id'] ?? -1);
+          boletoOk = idFinal != -1 &&
+              await apiUploadBoleto(idFinal, base64Encode(_boletoBytes!));
+        }
+        if (mounted && !boletoOk) {
+          await displayMessage(
+            context,
+            getText('alert'),
+            'O lançamento foi salvo, mas o boleto não pôde ser anexado. Abra o lançamento e anexe novamente.',
+          );
+        }
         if (mounted) Navigator.of(context).pop(true);
       } else {
-        if (mounted) displayMessage(context, getText('alert_error'), res.toString());
+        if (mounted) displayMessage(context, getText('alert_error'), res['message'].toString());
       }
     } catch (e, st) {
-      // ignore: avoid_print
-      print('[save morador] $e\n$st');
+      debugPrint('[save morador] $e\n$st');
       if (mounted) displayMessage(
         context,
         getText('alert_error'),
@@ -408,12 +443,19 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
                   const SizedBox(height: AppSpacing.md),
                   _section("Boleto Bancário (Documento)"),
                   AppButton(
-                    label: _urlBoleto != null ? "Boleto Anexado ✅" : "Anexar Boleto",
-                    variant: _urlBoleto != null ? AppButtonVariant.primary : AppButtonVariant.secondary,
+                    label: _boletoBytes != null
+                        ? "Boleto Selecionado ✅ (envia ao salvar)"
+                        : (_urlBoleto != null && _urlBoleto!.trim().isNotEmpty)
+                            ? "Boleto Anexado ✅ (toque para trocar)"
+                            : "Anexar Boleto",
+                    variant: (_boletoBytes != null || (_urlBoleto != null && _urlBoleto!.trim().isNotEmpty))
+                        ? AppButtonVariant.primary
+                        : AppButtonVariant.secondary,
                     onPressed: () async {
                       FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'png'], withData: true);
-                      if (result != null) {
-                         setState(() { _urlBoleto = "upload_pendente"; });
+                      final bytes = result?.files.single.bytes;
+                      if (bytes != null && bytes.isNotEmpty) {
+                        setState(() { _boletoBytes = bytes; });
                       }
                     },
                     icon: PhosphorIcons.filePdf,

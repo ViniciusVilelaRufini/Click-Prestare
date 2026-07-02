@@ -1,20 +1,23 @@
 const db = require('./MySQL.js');
 
+// TODO: o restante deste arquivo (e dos outros DB_*.js) ainda concatena
+// valores direto na query com escape manual de aspas — padrão vulnerável a
+// SQL injection. Este backend Express é usado só em dev local, então o
+// esforço de conversão geral não foi priorizado; o insert abaixo já usa
+// placeholders (db.queryParam) e serve de modelo para migrar as demais.
+
 module.exports = {
   insert: async function (id_condominio, financeiro, name) {
-    financeiro.nome = financeiro.nome.replaceAll("'","''");
-    financeiro.descricao = financeiro.descricao.replaceAll("'","''");
-    financeiro.tipo = financeiro.tipo.replaceAll("'","''");
-
     let id_usuario = financeiro.id_usuario;
     if (!id_usuario && financeiro.nome && financeiro.nome.startsWith('Apto ')) {
       try {
         const regex = /Apto\s+([^\s]+)\s+Bloco\s+([^\s]+)/i;
         const match = financeiro.nome.match(regex);
         if (match) {
-          const apto = match[1];
-          const bloco = match[2];
-          const userRes = await db.query(`select id_user from Moradores where id_condominio=${id_condominio} and apartamento='${apto}' and bloco='${bloco}' limit 1`);
+          const userRes = await db.queryParam(
+            'select id_user from Moradores where id_condominio=? and apartamento=? and bloco=? limit 1',
+            [id_condominio, match[1], match[2]],
+          );
           if (userRes.results && userRes.results.length > 0) {
             id_usuario = userRes.results[0].id_user;
           }
@@ -24,33 +27,36 @@ module.exports = {
       }
     }
 
-    const calculatedPago = financeiro.pago !== undefined && financeiro.pago !== null 
-      ? financeiro.pago 
-      : ((financeiro.categoria === 'Arrecadação' || (financeiro.nome && financeiro.nome.startsWith('Apto '))) 
-        ? 0 
+    const calculatedPago = financeiro.pago !== undefined && financeiro.pago !== null
+      ? financeiro.pago
+      : ((financeiro.categoria === 'Arrecadação' || (financeiro.nome && financeiro.nome.startsWith('Apto ')))
+        ? 0
         : (financeiro.data == null || financeiro.data == "" ? 0 : 1));
 
-    const query = `insert into Financeiro (nome, tipo, valor, data, data_vencimento, categoria, conta, descricao, cliente, forma_pagamento, parcelas, nome_operador, id_condominio, photo, pago, url_boleto, status, id_usuario)
-						values ('${financeiro.nome}',
-                    '${financeiro.tipo}',
-                    '${financeiro.valor}',
-                    ${financeiro.data != null ? `'${financeiro.data}'` : 'null'},
-                    ${financeiro.data_vencimento != null ? `'${financeiro.data_vencimento}'` : 'null'},
-                    '${financeiro.categoria}',
-                    ${financeiro.conta != null ? `'${financeiro.conta}'` : 'null'},
-                    ${financeiro.descricao != null ? `'${financeiro.descricao}'` : null},
-                    ${financeiro.cliente != null ? `'${financeiro.cliente}'` : null},
-                    ${financeiro.forma_pagamento != null ? `'${financeiro.forma_pagamento}'` : null},
-                    ${financeiro.parcelas != null ? `'${financeiro.parcelas}'` : null},
-                    '${name}',
-                    ${id_condominio},
-                    '${financeiro.photo}',
-                    ${calculatedPago},
-                    ${financeiro.url_boleto != null ? `'${financeiro.url_boleto}'` : 'null'},
-                    ${financeiro.status != null ? financeiro.status : 0},
-                    ${id_usuario != null ? id_usuario : 'null'}
-                  )`;
-    await db.query(query);
+    await db.queryParam(
+      `insert into Financeiro (nome, tipo, valor, data, data_vencimento, categoria, conta, descricao, cliente, forma_pagamento, parcelas, nome_operador, id_condominio, photo, pago, url_boleto, status, id_usuario)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        financeiro.nome,
+        financeiro.tipo,
+        financeiro.valor,
+        financeiro.data ?? null,
+        financeiro.data_vencimento ?? null,
+        financeiro.categoria,
+        financeiro.conta ?? null,
+        financeiro.descricao ?? null,
+        financeiro.cliente ?? null,
+        financeiro.forma_pagamento ?? null,
+        financeiro.parcelas ?? null,
+        name,
+        id_condominio,
+        financeiro.photo ?? null,
+        calculatedPago,
+        financeiro.url_boleto ?? null,
+        financeiro.status != null ? financeiro.status : 0,
+        id_usuario ?? null,
+      ],
+    );
   },
 
   getAll: async function (id_cond, mes, ano, getPendentes) {

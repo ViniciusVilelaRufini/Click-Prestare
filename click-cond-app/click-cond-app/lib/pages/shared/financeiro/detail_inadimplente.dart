@@ -37,9 +37,91 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
       list = locals;
       if (mounted) setState(() {});
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted) {
+        displayMessage(context, getText('alert_error'),
+            e.toString().replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  double get _totalDivida {
+    double total = 0;
+    for (var item in list) {
+      total += double.tryParse((item['valor'] ?? '0').toString()) ?? 0;
+    }
+    return total;
+  }
+
+  /// Acordo de parcelamento: o backend marca os débitos atuais como
+  /// renegociados (status 3) e cria as parcelas novas com Pix.
+  Future<void> _abrirAcordo() async {
+    final txtValor = TextEditingController(
+        text: _totalDivida.toStringAsFixed(2).replaceAll('.', ','));
+    final txtParcelas = TextEditingController(text: '3');
+
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.surface(c),
+        title: Text('Acordo de Parcelamento', style: AppTypography.title(c)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Os débitos em aberto serão marcados como renegociados e substituídos '
+              'por novas parcelas mensais (vencimento todo dia 10).',
+              style: AppTypography.caption(c),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: txtValor,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Valor total do acordo'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: txtParcelas,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Número de parcelas'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Firmar Acordo'),
+          ),
+        ],
+      ),
+    );
+    if (confirmou != true || !mounted) return;
+
+    final valor = double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0;
+    final parcelas = int.tryParse(txtParcelas.text) ?? 0;
+    if (valor <= 0 || parcelas <= 0) {
+      displayMessage(context, getText('alert'), 'Informe valor e número de parcelas válidos.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    final res = await apiCreateAcordoInadimplente({
+      'apto': widget.apto,
+      'bloco': widget.bloco,
+      'parcelas': parcelas,
+      'valorTotal': valor,
+    });
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (res['ok'] == true) {
+      await displayMessage(context, getText('alert'), res['message'].toString());
+      load();
+    } else {
+      displayMessage(context, getText('alert_error'), res['message'].toString());
     }
   }
 
@@ -61,7 +143,22 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.md),
+                  if (list.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+                      child: OutlinedButton.icon(
+                        onPressed: _abrirAcordo,
+                        icon: const Icon(PhosphorIcons.handshake, color: AppColors.primary),
+                        label: const Text('Firmar Acordo de Parcelamento',
+                            style: TextStyle(color: AppColors.primary)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 44),
+                          side: const BorderSide(color: AppColors.primary),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
                   _section(getText('financeiro_meses_aberto')),
                   if (list.isEmpty)
                     Center(

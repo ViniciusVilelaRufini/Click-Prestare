@@ -2,21 +2,26 @@ import { Component, HostListener, OnInit, OnDestroy, ViewChild, ElementRef, inje
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
-import { CrmApi, CrmCliente, CrmHealth, CrmOverview, EstagioCrm, StatusPagamento } from './crm.service';
+import { CrmApi, CrmCliente, CrmFatura, CrmHealth, CrmOverview, EstagioCrm, StatusPagamento } from './crm.service';
 import { AuthService } from '../auth/auth.service';
 import { CountUpDirective } from '../shared/count-up.directive';
 
 type StatusFatura = 'todos' | 'paga' | 'pendente' | 'vencida';
 
 export interface Fatura {
-  id: string;
+  id: string;          // identificador de exibição (FT-MM-YYYY-cliente)
+  dbId: number;        // id real em Crm_Faturas — usado na baixa/cobrança
   clienteId: number;
   condominio: string;
+  referencia: string;
   valor: number;
   vencimento: string;
   metodoPagamento: string;
   status: 'paga' | 'pendente' | 'vencida';
   dataPagamento: string | null;
+  baixaPor: string | null;
+  baixaMotivo: string | null;
+  estimada: boolean;
 }
 
 type EstagioFiltro = 'todos' | EstagioCrm;
@@ -179,70 +184,57 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly relatorioGerado = signal(true);
   readonly gerandoRelatorio = signal(false);
 
-  // --- Faturamento & Faturas Dinâmicos ---
-  readonly faturas = computed<Fatura[]>(() => {
-    const lista: Fatura[] = [];
-    const clientes = this.clientes();
-    
-    for (const c of clientes) {
-      if (c.mrr <= 0 || !c.vencimento) continue;
-      
-      const dateVenc = new Date(c.vencimento);
-      const metodoPagamento = c.recorrenciaAtiva ? 'Pix' : 'Boleto';
+  // --- Faturamento real: faturas persistidas em Crm_Faturas no backend ---
+  // (antes eram 3 meses sintéticos computados aqui no frontend, com meses
+  // anteriores "assumidos como pagos" — nada era rastreável de verdade)
+  readonly faturas = signal<Fatura[]>([]);
+  readonly faturasLoading = signal(false);
 
-      // 1. Current Month's Invoice
-      let status: 'paga' | 'pendente' | 'vencida' = 'paga';
-      if (c.statusPagamento === 'atrasado') status = 'vencida';
-      else if (c.statusPagamento === 'vencendo') status = 'pendente';
-      else if (c.statusPagamento === 'em_dia') status = 'paga';
+  carregarFaturas(): void {
+    this.faturasLoading.set(true);
+    this.api.faturas().subscribe({
+      next: (rows: CrmFatura[]) => {
+        const lista: Fatura[] = rows
+          .filter((r) => r.status !== 'cancelada')
+          .map((r) => ({
+            id: `FT-${r.referencia.replace('/', '-')}-${r.clienteId}`,
+            dbId: r.id,
+            clienteId: r.clienteId,
+            condominio: r.condominio,
+            referencia: r.referencia,
+            valor: r.valor,
+            vencimento: r.vencimento ?? new Date().toISOString(),
+            metodoPagamento: r.metodoPagamento ?? 'Pix',
+            status: r.status as 'paga' | 'pendente' | 'vencida',
+            dataPagamento: r.dataPagamento,
+            baixaPor: r.baixaPor,
+            baixaMotivo: r.baixaMotivo,
+            estimada: r.estimada,
+          }));
+        this.faturas.set(lista);
+        this.faturasLoading.set(false);
+      },
+      error: () => {
+        this.faturasLoading.set(false);
+        this.triggerToast('Não foi possível carregar as faturas.', 'error');
+      },
+    });
+  }
 
-      const dataPagamento = status === 'paga' 
-        ? new Date(dateVenc.getTime() - 2 * 24 * 3600 * 1000).toISOString()
-        : null;
-
-      lista.push({
-        id: `FT-${dateVenc.getFullYear()}-${String(dateVenc.getMonth() + 1).padStart(2, '0')}-${c.id}`,
-        clienteId: c.id,
-        condominio: c.nome,
-        valor: c.mrr,
-        vencimento: c.vencimento,
-        metodoPagamento,
-        status,
-        dataPagamento
-      });
-
-      // 2. Previous Month's Invoice (30 days ago) - Assumed paid
-      const prevVenc = new Date(dateVenc);
-      prevVenc.setDate(prevVenc.getDate() - 30);
-      lista.push({
-        id: `FT-${prevVenc.getFullYear()}-${String(prevVenc.getMonth() + 1).padStart(2, '0')}-${c.id}`,
-        clienteId: c.id,
-        condominio: c.nome,
-        valor: c.mrr,
-        vencimento: prevVenc.toISOString(),
-        metodoPagamento,
-        status: 'paga',
-        dataPagamento: new Date(prevVenc.getTime() - 2 * 24 * 3600 * 1000).toISOString()
-      });
-
-      // 3. Older Month's Invoice (60 days ago) - Assumed paid
-      const prevPrevVenc = new Date(dateVenc);
-      prevPrevVenc.setDate(prevPrevVenc.getDate() - 60);
-      lista.push({
-        id: `FT-${prevPrevVenc.getFullYear()}-${String(prevPrevVenc.getMonth() + 1).padStart(2, '0')}-${c.id}`,
-        clienteId: c.id,
-        condominio: c.nome,
-        valor: c.mrr,
-        vencimento: prevPrevVenc.toISOString(),
-        metodoPagamento,
-        status: 'paga',
-        dataPagamento: new Date(prevPrevVenc.getTime() - 3 * 24 * 3600 * 1000).toISOString()
-      });
-    }
-
-    // Sort by vencimento descending (most recent first)
-    return lista.sort((a, b) => new Date(b.vencimento).getTime() - new Date(a.vencimento).getTime());
-  });
+  gerarFaturasMes(): void {
+    this.salvando.set(true);
+    this.api.gerarFaturas().subscribe({
+      next: (res) => {
+        this.salvando.set(false);
+        this.triggerToast(`${res?.criadas ?? 0} fatura(s) gerada(s) para a referência ${res?.referencia ?? 'atual'}.`, 'success');
+        this.carregarFaturas();
+      },
+      error: (err) => {
+        this.salvando.set(false);
+        this.triggerToast(err?.error?.message ?? 'Erro ao gerar faturas do mês.', 'error');
+      },
+    });
+  }
 
   // --- Mock Automações & Régua de WhatsApp ---
   readonly configAutomacoes = signal({
@@ -258,12 +250,24 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     templatePosVencimento: 'ATENÇÃO: Olá, *{{sindico}}*.\nIdentificamos pendência financeira na assinatura do *{{condominio}}* vencida há {{dias}} dias ({{vencimento}}).\n\nValor original: *{{valor}}*\n\nEvite a suspensão dos serviços e atualização de hardware. Efetue o pagamento através do link: {{link_pagamento}}'
   });
 
-  readonly historicoDisparos = signal([
-    { data: '2026-06-23T10:15:00Z', condominio: 'Condomínio Spazio Di Sol', tipo: 'Dia do vencimento', status: 'entregue', telefone: '(11) 98112-9988', erroMsg: null },
-    { data: '2026-06-23T08:30:00Z', condominio: 'Residencial Plaza de las Flores', tipo: 'Cobrança atrasada', status: 'entregue', telefone: '(11) 97722-1144', erroMsg: null },
-    { data: '2026-06-22T14:45:00Z', condominio: 'Condomínio Residencial Vista Bella', tipo: 'Aviso prévio', status: 'entregue', telefone: '(11) 98988-5522', erroMsg: null },
-    { data: '2026-06-21T09:00:00Z', condominio: 'Residencial Jardim das Palmeiras', tipo: 'Dia do vencimento', status: 'falhou', telefone: '(11) 99122-3344', erroMsg: 'Dispositivo desconectado no gateway' }
-  ]);
+  // Histórico REAL de disparos WhatsApp (Crm_Disparos via Z-API).
+  readonly historicoDisparos = signal<{ data: string; condominio: string; tipo: string; status: string; telefone: string | null; erroMsg: string | null }[]>([]);
+
+  carregarDisparos(): void {
+    this.api.disparos().subscribe({
+      next: (rows) => {
+        this.historicoDisparos.set(rows.map((d) => ({
+          data: d.data,
+          condominio: d.condominio,
+          tipo: d.tipo === 'cobranca_manual' ? 'Cobrança manual WhatsApp' : d.tipo,
+          status: d.status === 'enviado' ? 'entregue' : 'falhou',
+          telefone: d.telefone,
+          erroMsg: d.erro,
+        })));
+      },
+      error: () => { /* silencioso — histórico não é crítico para a página */ },
+    });
+  }
 
   // --- Mock Configuração de Planos Click Prestare ---
   readonly configPlanos = signal([
@@ -272,13 +276,17 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     { plano: 'Elite', sistema: 'Com Controle de Acesso', valorBase: 497, valorPorUH: 3.80 }
   ]);
 
-  // --- Mock Credenciais de Gateways ---
-  readonly gateways = signal({
-    asaasApiKey: 'prod_asaas_8b5cf606b6d410b9816b7280f2d5a3ef943312c488b5cf606b',
-    asaasWebhookSecret: 'whsec_93310337508751050',
-    zapiInstanceId: 'inst_312015096010201100',
-    zapiToken: 'zapi_tok_f4007a1b3c9d2e4f6a8b0c'
-  });
+  // Status dos gateways — o backend só informa SE cada integração está
+  // configurada; as credenciais vivem em env no Railway e NUNCA chegam ao
+  // navegador (antes ficavam hardcoded fake aqui, expostas no bundle).
+  readonly gatewaysStatus = signal<{ openpix: boolean; openpixWebhook: boolean; asaasWebhook: boolean; zapi: boolean } | null>(null);
+
+  carregarGatewaysStatus(): void {
+    this.api.gatewaysStatus().subscribe({
+      next: (s) => this.gatewaysStatus.set(s),
+      error: () => this.gatewaysStatus.set(null),
+    });
+  }
 
   // --- Mock Logs Técnicos e Webhooks ---
   readonly logsWebhooks = signal([
@@ -544,9 +552,31 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.carregar();
+    this.carregarFaturas();
+    this.carregarDisparos();
+    this.carregarGatewaysStatus();
+    this.carregarConfigAutomacoes();
     this.verificarConexao();
     // Auto-refresh do health check a cada 30s
     this.healthInterval = setInterval(() => this.verificarConexao(), 30000);
+  }
+
+  carregarConfigAutomacoes(): void {
+    this.api.getConfig().subscribe({
+      next: (cfg) => {
+        if (cfg['automacoes']) {
+          try {
+            this.configAutomacoes.update((atual) => ({ ...atual, ...JSON.parse(cfg['automacoes']) }));
+          } catch { /* config corrompida — mantém defaults */ }
+        }
+        if (cfg['planos']) {
+          try {
+            this.configPlanos.set(JSON.parse(cfg['planos']));
+          } catch { /* idem */ }
+        }
+      },
+      error: () => { /* sem config salva ainda — defaults */ },
+    });
   }
 
   ngOnDestroy(): void {
@@ -1379,50 +1409,49 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   salvarReguaWhatsApp(): void {
     this.salvandoRegua.set(true);
-    setTimeout(() => {
-      this.salvandoRegua.set(false);
-      this.triggerToast('Regulagem de automação e templates do WhatsApp salvos.', 'success');
-      
-      this.pushLog({
-        data: new Date().toISOString(),
-        origem: 'System',
-        evento: 'config_updated',
-        status: 'info',
-        payload: '{"section":"automacoes_whatsapp","updatedBy":"admin@clickprestare.com.br"}'
-      });
-    }, 800);
+    const cfg = this.configAutomacoes();
+    this.api.setConfig({
+      automacoes: JSON.stringify(cfg),
+      // Template usado pelo backend na cobrança manual via WhatsApp.
+      template_cobranca: cfg.templateVencimento,
+    }).subscribe({
+      next: () => {
+        this.salvandoRegua.set(false);
+        this.triggerToast('Automações e templates do WhatsApp salvos.', 'success');
+        this.pushLog({
+          data: new Date().toISOString(),
+          origem: 'System',
+          evento: 'config_updated',
+          status: 'info',
+          payload: '{"section":"automacoes_whatsapp"}'
+        });
+      },
+      error: (err) => {
+        this.salvandoRegua.set(false);
+        this.triggerToast(err?.error?.message ?? 'Erro ao salvar as automações.', 'error');
+      },
+    });
   }
 
   salvarConfiguracaoPlanos(): void {
     this.salvandoConfigPlanos.set(true);
-    setTimeout(() => {
-      this.salvandoConfigPlanos.set(false);
-      this.triggerToast('Tabela de preços e limites de planos salva.', 'success');
-      
-      this.pushLog({
-        data: new Date().toISOString(),
-        origem: 'System',
-        evento: 'config_updated',
-        status: 'info',
-        payload: '{"section":"tabela_planos","updatedBy":"admin@clickprestare.com.br"}'
-      });
-    }, 800);
-  }
-
-  salvarCredenciaisGateways(): void {
-    this.salvandoGateways.set(true);
-    setTimeout(() => {
-      this.salvandoGateways.set(false);
-      this.triggerToast('Chaves de API e tokens de gateways atualizados.', 'success');
-      
-      this.pushLog({
-        data: new Date().toISOString(),
-        origem: 'System',
-        evento: 'config_updated',
-        status: 'info',
-        payload: '{"section":"gateways_api","updatedBy":"admin@clickprestare.com.br"}'
-      });
-    }, 800);
+    this.api.setConfig({ planos: JSON.stringify(this.configPlanos()) }).subscribe({
+      next: () => {
+        this.salvandoConfigPlanos.set(false);
+        this.triggerToast('Tabela de preços e limites de planos salva.', 'success');
+        this.pushLog({
+          data: new Date().toISOString(),
+          origem: 'System',
+          evento: 'config_updated',
+          status: 'info',
+          payload: '{"section":"tabela_planos"}'
+        });
+      },
+      error: (err) => {
+        this.salvandoConfigPlanos.set(false);
+        this.triggerToast(err?.error?.message ?? 'Erro ao salvar a tabela de preços.', 'error');
+      },
+    });
   }
 
   triggerToast(msg: string, tipo: 'success' | 'error' | 'info' = 'info'): void {
@@ -1492,44 +1521,36 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     const f = this.whatsCobrancaFatura();
     if (!f) return;
 
-    const tel = this.whatsTelefoneDestinatario().replace(/\D/g, '');
-    const num = tel.length <= 11 ? '55' + tel : tel;
-    const msg = this.whatsMensagemRascunho();
+    // Envio REAL via backend (Z-API) — registrado em Crm_Disparos e auditado.
+    // Nada de abrir wa.me e fingir que foi entregue.
+    this.salvando.set(true);
+    this.api.cobrarWhatsApp(f.dbId).subscribe({
+      next: () => {
+        this.salvando.set(false);
+        const dataAtual = new Date().toISOString();
+        this.ultimoDisparoData.set(dataAtual);
+        setTimeout(() => {
+          if (this.ultimoDisparoData() === dataAtual) this.ultimoDisparoData.set(null);
+        }, 1800);
 
-    const dataAtual = new Date().toISOString();
-    this.ultimoDisparoData.set(dataAtual);
-    setTimeout(() => {
-      if (this.ultimoDisparoData() === dataAtual) this.ultimoDisparoData.set(null);
-    }, 1800);
+        this.pushLog({
+          data: dataAtual,
+          origem: 'Z-API',
+          evento: 'message_sent',
+          status: 'sucesso',
+          payload: JSON.stringify({ faturaId: f.id, destinatario: f.condominio })
+        });
 
-    // Registra nos disparos
-    this.historicoDisparos.update(disp => [
-      {
-        data: dataAtual,
-        condominio: f.condominio,
-        tipo: 'Cobrança manual WhatsApp',
-        status: 'entregue',
-        telefone: this.whatsTelefoneDestinatario(),
-        erroMsg: null
+        this.carregarDisparos();
+        this.triggerToast(`Cobrança enviada por WhatsApp para o condomínio ${f.condominio}.`, 'success');
+        this.whatsCobrancaFatura.set(null);
       },
-      ...disp
-    ]);
-
-    // Log técnico
-    this.pushLog({
-      data: dataAtual,
-      origem: 'Z-API',
-      evento: 'message_sent',
-      status: 'sucesso',
-      payload: JSON.stringify({ faturaId: f.id, destinatario: f.condominio, mensagem: msg })
+      error: (err) => {
+        this.salvando.set(false);
+        this.carregarDisparos();
+        this.triggerToast(err?.error?.message ?? 'Falha ao enviar o WhatsApp de cobrança.', 'error');
+      },
     });
-
-    // Abre em nova aba
-    const link = `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
-    window.open(link, '_blank');
-
-    this.triggerToast(`Notificação enviada com sucesso para o condomínio ${f.condominio}.`, 'success');
-    this.whatsCobrancaFatura.set(null);
   }
 
   abrirBaixaManual(f: Fatura): void {
@@ -1548,53 +1569,56 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     const f = this.baixaManualFatura();
     if (!f) return;
 
-    const c = this.clientes().find(cl => cl.id === f.clienteId);
-    if (!c) return;
-
-    const dataPagamentoCustom = `${this.baixaData()}T${this.baixaHora()}:00.000Z`;
-
-    // Atualiza vencimento no backend
-    const currentVenc = c.vencimento ? new Date(c.vencimento) : new Date();
-    const nextVenc = new Date(currentVenc);
-    nextVenc.setDate(nextVenc.getDate() + 30);
-    const nextVencStr = nextVenc.toISOString().split('T')[0];
+    // Validações de UX antes de chamar o backend (que valida de novo).
+    const motivo = this.baixaObservacoes().trim();
+    if (motivo.length < 5) {
+      this.triggerToast('Informe o motivo/justificativa da baixa manual (mínimo 5 caracteres).', 'error');
+      return;
+    }
+    const valorPago = this.baixaValor();
+    if (!(valorPago > 0)) {
+      this.triggerToast('Informe um valor pago maior que zero.', 'error');
+      return;
+    }
+    const dataPagamento = `${this.baixaData()}T${this.baixaHora() || '12:00'}:00.000Z`;
+    if (new Date(dataPagamento).getTime() > Date.now() + 24 * 3600 * 1000) {
+      this.triggerToast('A data de pagamento não pode ser no futuro.', 'error');
+      return;
+    }
 
     this.salvando.set(true);
-    this.api.atualizar(c.id, { vencimento: nextVencStr }).subscribe({
+    this.api.baixarFatura(f.dbId, {
+      metodo: this.baixaMetodo(),
+      motivo,
+      dataPagamento,
+      valorPago,
+    }).subscribe({
       next: (res) => {
         this.salvando.set(false);
         this.carregar();
+        this.carregarFaturas();
 
-        // Salva metadados da baixa manual no estado reativo
         this.manualPaymentsMetadata.update(map => ({
           ...map,
           [f.id]: {
             metodo: this.baixaMetodo(),
-            dataPagamento: dataPagamentoCustom,
-            valorPago: this.baixaValor(),
-            obs: this.baixaObservacoes()
+            dataPagamento,
+            valorPago,
+            obs: motivo
           }
         }));
 
-        // Registra no log
         this.pushLog({
           data: new Date().toISOString(),
           origem: 'System',
           evento: 'manual_payment_override',
           status: 'sucesso',
-          payload: JSON.stringify({
-            faturaId: f.id,
-            valorPago: this.baixaValor(),
-            metodo: this.baixaMetodo(),
-            dataPagamento: dataPagamentoCustom,
-            obs: this.baixaObservacoes()
-          })
+          payload: JSON.stringify({ faturaId: f.id, valorPago, metodo: this.baixaMetodo(), dataPagamento, motivo })
         });
 
-        this.triggerToast(`Fatura ${f.id} baixada manualmente com sucesso. Novo vencimento: ${nextVenc.toLocaleDateString('pt-BR')}.`, 'success');
+        const novoVenc = res?.novoVencimento ? new Date(res.novoVencimento).toLocaleDateString('pt-BR') : '';
+        this.triggerToast(`Fatura ${f.id} liquidada.${novoVenc ? ` Novo vencimento: ${novoVenc}.` : ''}`, 'success');
         this.baixaManualFatura.set(null);
-        
-        // Se ela estava aberta no modal de detalhe, fecha ou atualiza. Vamos fechar por conveniência
         if (this.faturaDetalhada()?.id === f.id) {
           this.faturaDetalhada.set(null);
         }
@@ -1602,7 +1626,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Erro ao efetuar baixa manual:', err);
         this.salvando.set(false);
-        this.triggerToast(`Erro ao liquidar a fatura ${f.id}.`, 'error');
+        this.triggerToast(err?.error?.message ?? `Erro ao liquidar a fatura ${f.id}.`, 'error');
       }
     });
   }

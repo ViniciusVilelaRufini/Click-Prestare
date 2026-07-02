@@ -66,6 +66,13 @@ class _NewFinanceiroReceitaPageState extends State<NewFinanceiroReceita> {
   }
 
   Future<void> save() async {
+    final valorParsed = txtValor.text.isNotEmpty
+        ? (double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0.0)
+        : 0.0;
+    if (valorParsed <= 0) {
+      displayMessage(context, getText('alert'), 'Informe um valor maior que zero.');
+      return;
+    }
     try {
       setState(() => _isSaving = true);
       var obj = FinanceiroModel(
@@ -75,7 +82,7 @@ class _NewFinanceiroReceitaPageState extends State<NewFinanceiroReceita> {
         data: txtRecebimento.text.isNotEmpty ? convertStringToDate(txtRecebimento.text) : null,
         data_vencimento: txtRecebimento.text.isNotEmpty ? convertStringToDate(txtRecebimento.text) : null,
         conta: txtConta.text, descricao: txtDescricao.text,
-        valor: txtValor.text.isNotEmpty ? double.parse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) : 0.0,
+        valor: valorParsed,
         cliente: txtCliente.text,
       );
       var res = await apiSaveObject("financeiro", "financeiro", obj, widget.id != null && widget.id != -1);
@@ -85,8 +92,7 @@ class _NewFinanceiroReceitaPageState extends State<NewFinanceiroReceita> {
         if (mounted) displayMessage(context, getText('alert_error'), res.toString());
       }
     } catch (e, st) {
-      // ignore: avoid_print
-      print('[save receita] $e\n$st');
+      debugPrint('[save receita] $e\n$st');
       if (mounted) displayMessage(
         context,
         getText('alert_error'),

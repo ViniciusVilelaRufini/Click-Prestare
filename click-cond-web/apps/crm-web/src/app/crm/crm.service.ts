@@ -160,6 +160,66 @@ export class CrmApi {
   reabrirOcorrencia(id: number, novasInformacoes: string): Observable<any> {
     return this.http.put<any>(`${this.base}/ocorrencias/${id}/reabrir`, { novasInformacoes });
   }
+
+  // ============== Faturamento real ==============
+
+  faturas(): Observable<CrmFatura[]> {
+    return this.http.get<CrmFatura[]>(`${this.base}/faturas`);
+  }
+
+  gerarFaturas(referencia?: string): Observable<any> {
+    return this.http.post<any>(`${this.base}/faturas/gerar`, { referencia });
+  }
+
+  baixarFatura(id: number, dados: { metodo: string; motivo: string; dataPagamento?: string; valorPago?: number }): Observable<any> {
+    return this.http.post<any>(`${this.base}/faturas/${id}/baixa`, dados);
+  }
+
+  cobrarWhatsApp(id: number): Observable<any> {
+    return this.http.post<any>(`${this.base}/faturas/${id}/cobrar-whatsapp`, {});
+  }
+
+  getConfig(): Observable<Record<string, string>> {
+    return this.http.get<Record<string, string>>(`${this.base}/config`);
+  }
+
+  setConfig(entries: Record<string, unknown>): Observable<any> {
+    return this.http.post<any>(`${this.base}/config`, entries);
+  }
+
+  gatewaysStatus(): Observable<{ openpix: boolean; openpixWebhook: boolean; asaasWebhook: boolean; zapi: boolean }> {
+    return this.http.get<{ openpix: boolean; openpixWebhook: boolean; asaasWebhook: boolean; zapi: boolean }>(`${this.base}/config/gateways-status`);
+  }
+
+  disparos(): Observable<CrmDisparo[]> {
+    return this.http.get<CrmDisparo[]>(`${this.base}/disparos`);
+  }
+}
+
+export interface CrmFatura {
+  id: number;
+  clienteId: number;
+  condominio: string;
+  referencia: string;
+  valor: number;
+  vencimento: string | null;
+  status: 'pendente' | 'paga' | 'vencida' | 'cancelada';
+  metodoPagamento: string | null;
+  dataPagamento: string | null;
+  baixaPor: string | null;
+  baixaMotivo: string | null;
+  estimada: boolean;
+}
+
+export interface CrmDisparo {
+  id: number;
+  condominio: string;
+  idFatura: number | null;
+  tipo: string;
+  telefone: string | null;
+  status: 'enviado' | 'falha';
+  erro: string | null;
+  data: string;
 }
 
 

@@ -1,4 +1,4 @@
-import 'package:click/controllers/controller_condominio.dart';
+﻿import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/controllers/controller_generic.dart';
@@ -138,7 +138,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     
     Widget? page;
     if (module == 'debts') {
-      page = type == 'morador' ? const MoradorFinanceiroView() : const ListInadimplestes();
+      page = type == 'morador' ? const MoradorFinanceiroView() : const ListInadimplentes();
     } else if (module == 'occurrences') {
       page = const ListOcorrencias();
     } else if (module == 'visits') {
@@ -189,7 +189,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 ),
               ),
               Text(
-                'Selecione o Condomínio',
+                'Selecione o CondomÃ­nio',
                 style: AppTypography.headline(context).copyWith(
                   fontWeight: FontWeight.w600,
                   color: textColor,
@@ -197,7 +197,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'Escolha um condomínio para ver os detalhes.',
+                'Escolha um condomÃ­nio para ver os detalhes.',
                 style: AppTypography.caption(context).copyWith(
                   color: textSecondary,
                 ),
@@ -438,7 +438,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                     MaterialPageRoute(builder: (_) => const NotificationSettingsPage()),
                   );
                 },
-                tooltip: 'Notificações',
+                tooltip: 'NotificaÃ§Ãµes',
                 padding: const EdgeInsets.all(6),
                 constraints: const BoxConstraints(),
               ),
@@ -462,7 +462,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           Text(getText('meus_condominios'),
               style: AppTypography.title(context)),
           AppSpacing.gapXs,
-          Text('${_list.length} ${_list.length == 1 ? "condomínio" : "condomínios"}',
+          Text('${_list.length} ${_list.length == 1 ? "condomÃ­nio" : "condomÃ­nios"}',
               style: AppTypography.bodySecondary(context)),
           AppSpacing.gapXl,
         ],
@@ -484,9 +484,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             if (type == 'sindico') ...[
               Expanded(
                 child: _DashboardCard(
-                  title: 'Inadimplência',
+                  title: 'InadimplÃªncia',
                   value: 'R\$ ${_toDouble(_summary!['debts']['total']).toStringAsFixed(2)}',
-                  subtitle: '${_summary!['debts']['count']} pendências',
+                  subtitle: '${_summary!['debts']['count']} pendÃªncias',
                   icon: PhosphorIcons.money,
                   color: AppColors.error,
                   onTap: () => _onDashboardTap('debts'),
@@ -495,7 +495,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: _DashboardCard(
-                  title: 'Ocorrências',
+                  title: 'OcorrÃªncias',
                   value: _summary!['occurrences'].toString(),
                   subtitle: 'Aguardando resposta',
                   icon: PhosphorIcons.warningCircle,
@@ -573,13 +573,13 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 size: 48, color: AppColors.primary),
           ),
           AppSpacing.gapLg,
-          Text('Nenhum condomínio',
+          Text('Nenhum condomÃ­nio',
               style: AppTypography.headline(context)),
           AppSpacing.gapSm,
           Text(
             isSindico
-                ? 'Toque em "Novo" para cadastrar seu primeiro condomínio'
-                : 'Você ainda não possui condomínios vinculados',
+                ? 'Toque em "Novo" para cadastrar seu primeiro condomÃ­nio'
+                : 'VocÃª ainda nÃ£o possui condomÃ­nios vinculados',
             style: AppTypography.bodySecondary(context),
             textAlign: TextAlign.center,
           ),
@@ -701,7 +701,7 @@ class _CondominioCard extends StatelessWidget {
       final aptoText = numAptos == 1 ? 'unidade' : 'unidades';
 
       subtitleWidget = Text(
-        '$numBlocos $blocoText · $numAptos $aptoText',
+        '$numBlocos $blocoText Â· $numAptos $aptoText',
         style: AppTypography.caption(context).copyWith(
           color: AppColors.textSecondary(context),
           fontWeight: FontWeight.normal,

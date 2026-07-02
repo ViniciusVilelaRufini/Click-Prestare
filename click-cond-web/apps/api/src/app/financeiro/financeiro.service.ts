@@ -151,6 +151,18 @@ export class FinanceiroService implements OnModuleInit {
     return !/\bBloco\s+\S/i.test(nome);
   }
 
+  /**
+   * Unidade "fantasma" = registro de Apartamentos que não representa uma
+   * unidade real (ex.: "Apto 000 Bloco Condominio" criado por engano).
+   * Essas unidades não podem receber cobrança nem contar na inadimplência.
+   */
+  private isUnidadeFantasma(apto?: string | null, bloco?: string | null): boolean {
+    const aptoNorm = (apto ?? '').trim();
+    const blocoNorm = (bloco ?? '').trim().toLowerCase();
+    if (!aptoNorm || /^0+$/.test(aptoNorm)) return true;
+    return blocoNorm === 'condominio' || blocoNorm === 'condomínio';
+  }
+
   private parseDataBR(dStr?: string | null): Date | null {
     if (!dStr) return null;
     let d: Date;
@@ -216,7 +228,7 @@ export class FinanceiroService implements OnModuleInit {
         pago: l.pago === 1,
         codigoStatus: l.status,
         temBoleto: !!l.url_boleto,
-        temComprovante: !!l.photo,
+        temComprovante: !!(l.url_comprovante ?? l.photo),
         temLinhaDigitavel: !!l.linha_digitavel,
         temPix: !!l.pix_copia_cola,
       },
@@ -354,6 +366,7 @@ export class FinanceiroService implements OnModuleInit {
           `financeiro_${criado.id}`,
           Math.abs(criado.valor ? Number(criado.valor) : 0),
           criado.nome ?? 'Cobrança',
+          criado.data_vencimento,
         );
         if (pixData?.brCode) {
           criado = await this.prisma.financeiro.update({
@@ -392,7 +405,9 @@ export class FinanceiroService implements OnModuleInit {
       );
     }
 
-    return { success: true };
+    // id do lançamento criado: permite ao cliente anexar boleto/comprovante
+    // logo após criar (upload-shared-file exige o id). Retrocompatível.
+    return { success: true, id: criado.id };
   }
 
   async update(idCondominio: number, financeiro: any, operatorName: string, user?: JwtPayload) {
@@ -685,7 +700,9 @@ export class FinanceiroService implements OnModuleInit {
       forma_pagamento: result.forma_pagamento,
       parcelas: result.parcelas,
       photo: result.photo,
-      url_comprovante: result.photo,
+      // Fallback para `photo`: comprovantes antigos foram gravados lá antes
+      // da coluna url_comprovante existir.
+      url_comprovante: result.url_comprovante ?? result.photo,
       pago: result.pago,
       status: result.status,
       linha_digitavel: result.linha_digitavel,
@@ -809,7 +826,7 @@ export class FinanceiroService implements OnModuleInit {
         pago: item.pago,
         status: item.status,
         url_boleto: item.url_boleto,
-        url_comprovante: item.photo,
+        url_comprovante: item.url_comprovante ?? item.photo,
         linha_digitavel: item.linha_digitavel,
         pix_copia_cola: item.pix_copia_cola,
         chave_pix: condChavePix,
@@ -935,7 +952,7 @@ export class FinanceiroService implements OnModuleInit {
         pix_copia_cola: fin?.pix_copia_cola ?? '',
         url_boleto: fin?.url_boleto ?? '',
         status: fin?.status ?? '0',
-        url_comprovante: fin?.photo ?? '',
+        url_comprovante: fin?.url_comprovante ?? fin?.photo ?? '',
         mes: mesStr,
         ano: anoStr,
       };
@@ -985,6 +1002,7 @@ export class FinanceiroService implements OnModuleInit {
         id_condominio: Number(idCondominio),
         pago: 0,
         tipo: 'C', // Apenas Receitas (cobranças) pendentes
+        valor: { gt: 0 }, // Cobrança de R$ 0,00 não é dívida
       },
       select: { nome: true, data_vencimento: true },
     });
@@ -1064,11 +1082,13 @@ export class FinanceiroService implements OnModuleInit {
     const dataIni = new Date(ano, mes - 1, 1);
     const dataFim = new Date(ano, mes, 0);
 
-    // Cobranças de taxa do mês (por vencimento ou data).
+    // Cobranças de taxa do mês (por vencimento ou data). Valor 0 fica de
+    // fora: não é arrecadação nem dívida — só poluiria os cards e o feed.
     const cobrancas = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
         categoria: catTaxa,
+        valor: { gt: 0 },
         OR: [
           { data: { gte: dataIni, lte: dataFim } },
           { data_vencimento: { gte: dataIni, lte: dataFim } },
@@ -1240,6 +1260,7 @@ export class FinanceiroService implements OnModuleInit {
         id_condominio: Number(idCondominio),
         pago: 0,
         tipo: 'C', // Apenas Receitas (cobranças) pendentes
+        valor: { gt: 0 }, // Cobrança de R$ 0,00 não é dívida
       },
     });
 
@@ -1278,7 +1299,7 @@ export class FinanceiroService implements OnModuleInit {
         atrasado,
         pix_copia_cola: f.pix_copia_cola ?? '',
         status: f.status,
-        url_comprovante: f.photo ?? '',
+        url_comprovante: f.url_comprovante ?? f.photo ?? '',
       };
     });
 
@@ -1546,7 +1567,7 @@ export class FinanceiroService implements OnModuleInit {
       data: item.data ? item.data.toLocaleDateString('pt-BR') : '',
       pago: item.pago,
       url_boleto: item.url_boleto ?? '',
-      url_comprovante: item.photo ?? '',
+      url_comprovante: item.url_comprovante ?? item.photo ?? '',
       status: item.status ?? '0',
       linha_digitavel: item.linha_digitavel ?? '',
       pix_copia_cola: item.pix_copia_cola ?? '',
@@ -1603,10 +1624,12 @@ export class FinanceiroService implements OnModuleInit {
           data: { url_boleto: url },
         });
       } else {
-        // comprovante, seta status = 2 (aguardando auditoria do sindico)
+        // comprovante, seta status = 2 (aguardando auditoria do sindico).
+        // Coluna própria: antes gravava em `photo` e sobrescrevia a foto
+        // da despesa quando o lançamento tinha as duas coisas.
         await this.prisma.financeiro.update({
           where: { id: Number(id) },
-          data: { photo: url, status: '2' },
+          data: { url_comprovante: url, status: '2' },
         });
       }
     } catch (err: any) {
@@ -1956,13 +1979,13 @@ export class FinanceiroService implements OnModuleInit {
       modulo: 'financeiro',
       entidade_id: lanc.id,
       descricao: `Pagamento confirmado via OpenPix: ${lanc.nome}`,
-      details: {
+      detalhes: {
         event: body.event,
         valorRecebido,
         valorEsperado,
         correlationID,
       },
-    } as any);
+    });
 
     return { success: true };
   }
@@ -2005,7 +2028,7 @@ export class FinanceiroService implements OnModuleInit {
 
     // Generate OpenPix charges for rateio items in background
     for (const charge of createdCharges) {
-      this.openPix.generateCharge(`financeiro_${charge.id}`, valorPorApto, charge.nome ?? 'Rateio')
+      this.openPix.generateCharge(`financeiro_${charge.id}`, valorPorApto, charge.nome ?? 'Rateio', dVenc)
         .then(async (pixData) => {
           if (pixData?.brCode) {
             await this.prisma.financeiro.update({
@@ -2273,13 +2296,17 @@ export class FinanceiroService implements OnModuleInit {
 
     let valor = parseFloat(String(data.valor || '0').replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
     if (isNaN(valor)) valor = 0;
+    if (valor <= 0 || valor > 9999999) {
+      throw new BadRequestException('O valor da conta deve ser maior que zero e menor que R$ 10.000.000,00.');
+    }
 
     const dVenc = this.parseDataBR(data.data_vencimento);
 
     // Mesmo padrao do insert principal: protege contra erros de runtime
     // (Decimal/Prisma) que vazariam mensagens JS internas pro cliente.
+    let criado;
     try {
-      await this.prisma.financeiro.create({
+      criado = await this.prisma.financeiro.create({
         data: {
           nome: data.nome || `${data.categoria} Individual`,
           tipo: 'D',
@@ -2302,7 +2329,7 @@ export class FinanceiroService implements OnModuleInit {
       );
     }
 
-    return { success: true };
+    return { success: true, id: criado.id };
   }
 
   async updateMoradorConta(idUser: number, idCondominio: number, data: any) {
@@ -2319,6 +2346,9 @@ export class FinanceiroService implements OnModuleInit {
 
     let valor = parseFloat(String(data.valor || '0').replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
     if (isNaN(valor)) valor = 0;
+    if (valor <= 0 || valor > 9999999) {
+      throw new BadRequestException('O valor da conta deve ser maior que zero e menor que R$ 10.000.000,00.');
+    }
 
     const dVenc = this.parseDataBR(data.data_vencimento);
     const isPago = data.pago ? Number(data.pago) : 0;
@@ -2687,6 +2717,27 @@ export class FinanceiroService implements OnModuleInit {
     }
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
+    // Ativar recorrência exige valor de taxa > 0 — sem isso o job geraria
+    // faturas de R$ 0,00 para todos os aptos. Valida contra o valor enviado
+    // ou, se não enviado, contra o já salvo no condomínio.
+    if (config.recorrencia_ativa) {
+      let valorCfg: number;
+      if (config.valor_condominio !== undefined) {
+        valorCfg = Number(config.valor_condominio);
+      } else {
+        const atual = await this.prisma.condominios.findUnique({
+          where: { id: Number(idCondominio) },
+          select: { valor_condominio: true },
+        });
+        valorCfg = Number(atual?.valor_condominio ?? 0);
+      }
+      if (!(valorCfg > 0)) {
+        throw new BadRequestException(
+          'Para ativar a recorrência, informe o valor da taxa condominial (maior que zero).',
+        );
+      }
+    }
+
     const updated = await this.prisma.condominios.update({
       where: { id: Number(idCondominio) },
       data: {
@@ -2784,6 +2835,69 @@ export class FinanceiroService implements OnModuleInit {
     return { success: true };
   }
 
+  /**
+   * Limpeza one-shot (síndico/admin): remove unidades fantasma ("Apto 000" /
+   * bloco "Condominio") e cobranças pendentes de R$ 0,00 geradas pelo job de
+   * recorrência antes da validação de valor existir. Idempotente — rodar de
+   * novo num condomínio já limpo não tem efeito. Tudo auditado.
+   *
+   * Cobranças PAGAS não são tocadas (histórico contábil).
+   */
+  async adminLimparCobrancasZeradas(idCondominio: number, operatorName: string, user?: JwtPayload) {
+    if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
+    assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+
+    const aptos = await this.prisma.apartamentos.findMany({
+      where: { id_condominio: Number(idCondominio) },
+    });
+    const fantasmas = aptos.filter((a) => this.isUnidadeFantasma(a.apto, a.bloco));
+
+    const pendentes = await this.prisma.financeiro.findMany({
+      where: { id_condominio: Number(idCondominio), pago: 0, tipo: 'C' },
+      select: { id: true, nome: true, valor: true },
+    });
+    const idsFantasma = pendentes
+      .filter((f) => fantasmas.some((a) => this.nomeFaturaDeApto(f.nome, a.apto, a.bloco)))
+      .map((f) => f.id);
+    const idsZeradas = pendentes
+      .filter((f) => !f.valor || Number(f.valor) <= 0)
+      .map((f) => f.id);
+    const idsRemover = Array.from(new Set([...idsFantasma, ...idsZeradas]));
+    const idsAptosFantasma = fantasmas.map((a) => a.id);
+
+    const [delFinanceiro, , delAptos] = await this.prisma.$transaction([
+      this.prisma.financeiro.deleteMany({ where: { id: { in: idsRemover } } }),
+      // Vínculos de usuários com a unidade fantasma (FK) antes do apartamento.
+      this.prisma.apartamentos_Users.deleteMany({ where: { id_apto: { in: idsAptosFantasma } } }),
+      this.prisma.apartamentos.deleteMany({ where: { id: { in: idsAptosFantasma } } }),
+    ]);
+
+    await this.auditoria.registrar({
+      id_condominio: Number(idCondominio),
+      usuario_nome: operatorName,
+      acao: 'DELETE',
+      modulo: 'financeiro',
+      entidade_id: undefined,
+      descricao: `Limpeza de dados: removeu ${delFinanceiro.count} cobrança(s) zerada(s)/fantasma e ${delAptos.count} unidade(s) inválida(s)`,
+      detalhes: {
+        unidadesRemovidas: fantasmas.map((a) => ({ id: a.id, apto: a.apto, bloco: a.bloco })),
+        cobrancasZeradas: idsZeradas.length,
+        cobrancasDeUnidadeFantasma: idsFantasma.length,
+        idsRemovidos: idsRemover.slice(0, 100),
+      },
+    });
+
+    this.logger.log(
+      `[adminLimparCobrancasZeradas] Condomínio ${idCondominio}: ${delFinanceiro.count} cobranças e ${delAptos.count} unidades removidas.`,
+    );
+
+    return {
+      success: true,
+      cobrancasRemovidas: delFinanceiro.count,
+      unidadesRemovidas: delAptos.count,
+    };
+  }
+
   async runRecurringBillingJob() {
     if (!this.prisma.isConnected) return;
     this.logger.log('Iniciando Job de Faturamento Recorrente...');
@@ -2817,6 +2931,23 @@ export class FinanceiroService implements OnModuleInit {
     });
 
     if (!cond || !cond.recorrencia_ativa) return;
+
+    // Recorrência ativa com valor zero é erro de configuração — sem esta
+    // guarda o job gerava dezenas de faturas de R$ 0,00 por mês, poluindo
+    // a inadimplência (aptos "devendo" R$ 0,00). O insert manual já valida
+    // valor > 0; o job precisa da mesma regra.
+    const valorTaxa = Number(cond.valor_condominio ?? 0);
+    if (valorTaxa <= 0) {
+      if (force) {
+        throw new BadRequestException(
+          'Defina o valor da taxa condominial (maior que zero) nas configurações de recorrência antes de gerar as faturas.',
+        );
+      }
+      this.logger.warn(
+        `[gerarFaturasRecorrentesParaMes] Condomínio ${cond.id} com recorrência ativa e valor_condominio <= 0 — geração pulada.`,
+      );
+      return;
+    }
 
     const refStr = `${String(mes).padStart(2, '0')}/${ano}`;
 
@@ -2858,6 +2989,16 @@ export class FinanceiroService implements OnModuleInit {
     this.logger.log(`[gerarFaturasRecorrentesParaMes] Gerando faturas recorrentes para o condomínio ${cond.nome} (${aptos.length} apartamentos) ref ${refStr}...`);
 
     for (const apto of aptos) {
+      // Defesa em profundidade: unidades fantasma (ex.: "Apto 000 Bloco
+      // Condominio") não recebem cobrança — o cadastro também passa a
+      // rejeitá-las, mas registros antigos podem ainda existir no banco.
+      if (this.isUnidadeFantasma(apto.apto, apto.bloco)) {
+        this.logger.warn(
+          `[gerarFaturasRecorrentesParaMes] Pulando unidade inválida Apto ${apto.apto} Bloco ${apto.bloco} (id ${apto.id})`,
+        );
+        continue;
+      }
+
       const faturaNome = `Apto ${apto.apto} Bloco ${apto.bloco} - ${cond.categoria_padrao} Ref. ${refStr}`;
 
       // Evita gerar faturas duplicadas
@@ -2878,7 +3019,7 @@ export class FinanceiroService implements OnModuleInit {
           id_condominio: cond.id,
           nome: faturaNome,
           tipo: 'C',
-          valor: Number(cond.valor_condominio ?? 0),
+          valor: valorTaxa,
           data: hoje,
           data_vencimento: dataVencimento,
           pago: 0,
@@ -2895,6 +3036,7 @@ export class FinanceiroService implements OnModuleInit {
           `financeiro_${criado.id}`,
           Math.abs(Number(criado.valor)),
           criado.nome ?? 'Cobrança',
+          criado.data_vencimento,
         );
         if (pixData?.brCode) {
           criado = await this.prisma.financeiro.update({

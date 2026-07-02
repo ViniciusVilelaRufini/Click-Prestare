@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface CreateApartamentoDto {
@@ -11,6 +11,25 @@ export interface CreateApartamentoDto {
 @Injectable()
 export class ApartamentosService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Rejeita unidades inválidas/fantasma no cadastro. "Apto 000 Bloco
+   * Condominio" já entrou uma vez no banco e recebeu cobrança do job de
+   * recorrência, poluindo a inadimplência — esta validação impede repetir.
+   */
+  private assertAptoValido(apto?: string | null, bloco?: string | null) {
+    const aptoNorm = (apto ?? '').trim();
+    const blocoNorm = (bloco ?? '').trim().toLowerCase();
+    if (!aptoNorm) {
+      throw new BadRequestException('Informe o número do apartamento.');
+    }
+    if (/^0+$/.test(aptoNorm)) {
+      throw new BadRequestException(`"${aptoNorm}" não é um número de apartamento válido.`);
+    }
+    if (blocoNorm === 'condominio' || blocoNorm === 'condomínio') {
+      throw new BadRequestException('"Condomínio" não pode ser usado como nome de bloco — informe o bloco real da unidade.');
+    }
+  }
 
   async findAll(idCondominio: number, search?: string) {
     if (!this.prisma.isConnected) {
@@ -75,6 +94,7 @@ export class ApartamentosService {
   }
 
   async create(dto: CreateApartamentoDto) {
+    this.assertAptoValido(dto.apto, dto.bloco);
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),
@@ -100,6 +120,17 @@ export class ApartamentosService {
   async update(id: number, dto: Partial<CreateApartamentoDto>) {
     if (!this.prisma.isConnected) {
       return { success: true, id };
+    }
+
+    // Valida o estado FINAL da unidade (campo enviado ou valor atual) —
+    // impede transformar uma unidade válida em fantasma via update parcial.
+    if (dto.apto !== undefined || dto.bloco !== undefined) {
+      const atual = await this.prisma.apartamentos.findUnique({
+        where: { id: Number(id) },
+        select: { apto: true, bloco: true },
+      });
+      if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
+      this.assertAptoValido(dto.apto ?? atual.apto, dto.bloco ?? atual.bloco);
     }
 
     try {
@@ -128,11 +159,20 @@ export class ApartamentosService {
 
   async importBulk(idCondominio: number, linhas: any[]) {
     const criados = [];
+    const ignorados: { apto: string; bloco: string | null; motivo: string }[] = [];
     for (const item of linhas) {
       const apto = item.apto?.toString() || item.lote?.toString();
       if (!apto) continue;
       const bloco = item.bloco?.toString() || item.quadra?.toString() || null;
       const fracao = item.fracao?.toString() || null;
+
+      // Import em massa não aborta por uma linha inválida — pula e reporta.
+      try {
+        this.assertAptoValido(apto, bloco);
+      } catch (err: any) {
+        ignorados.push({ apto, bloco, motivo: err?.message ?? 'Unidade inválida' });
+        continue;
+      }
 
       try {
         if (this.prisma.isConnected) {
@@ -167,6 +207,6 @@ export class ApartamentosService {
         console.log('Erro ao importar apartamento:', apto, err?.message);
       }
     }
-    return { ok: true, total: criados.length, criados };
+    return { ok: true, total: criados.length, criados, ignorados };
   }
 }

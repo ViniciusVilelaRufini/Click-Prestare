@@ -7,6 +7,13 @@ const saveToAWS = require('../utils/saveToAWS');
 module.exports = {
   async insert(req, res) {
     try {
+      // Mesma regra do backend NestJS de produção: lançamento com valor
+      // zero/negativo é rejeitado (evita cobranças R$ 0,00 na inadimplência).
+      const absValor = Math.abs(parseFloat(req.body.financeiro.valor) || 0);
+      if (absValor <= 0 || absValor > 9999999) {
+        return res.status(400).json({ message: 'O valor do lançamento deve ser maior que zero e menor que R$ 10.000.000,00.' });
+      }
+
       if(req.body.financeiro.tipo == 'D'){
         req.body.financeiro.valor = req.body.financeiro.valor * -1;
       }

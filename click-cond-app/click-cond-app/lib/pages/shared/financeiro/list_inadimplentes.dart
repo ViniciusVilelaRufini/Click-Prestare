@@ -1,4 +1,4 @@
-import 'package:click/controllers/controller_generic.dart';
+﻿import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/financeiro/detail_inadimplente.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -9,13 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-class ListInadimplestes extends StatefulWidget {
-  const ListInadimplestes({Key? key}) : super(key: key);
+class ListInadimplentes extends StatefulWidget {
+  const ListInadimplentes({Key? key}) : super(key: key);
   @override
-  _ListInadimplestesPageState createState() => _ListInadimplestesPageState();
+  _ListInadimplentesPageState createState() => _ListInadimplentesPageState();
 }
 
-class _ListInadimplestesPageState extends State<ListInadimplestes> {
+class _ListInadimplentesPageState extends State<ListInadimplentes> {
   List<dynamic> blocos = [];
   bool _isLoading = false;
 
@@ -156,7 +156,7 @@ class _ListInadimplestesPageState extends State<ListInadimplestes> {
                                                     child: FittedBox(
                                                       fit: BoxFit.scaleDown,
                                                       child: Text(
-                                                        '${apto['qtd']} ${apto['qtd'] == 1 ? 'mês em aberto' : 'meses em aberto'}',
+                                                        '${apto['qtd']} ${apto['qtd'] == 1 ? 'mÃªs em aberto' : 'meses em aberto'}',
                                                         style: AppTypography.tiny(context).copyWith(
                                                           color: AppColors.error,
                                                           fontWeight: FontWeight.bold,

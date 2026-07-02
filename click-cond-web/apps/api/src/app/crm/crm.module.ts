@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { CrmController } from './crm.controller';
 import { CrmService } from './crm.service';
+import { CrmFaturasService } from './crm-faturas.service';
 import { CrmAuthController } from './crm-auth.controller';
 import { CrmAuthService } from './crm-auth.service';
 import { CrmAdminGuard } from './crm-admin.guard';
@@ -19,7 +20,7 @@ import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
     OcorrenciasModule,
   ],
   controllers: [CrmController, CrmAuthController],
-  providers: [CrmService, CrmAuthService, CrmAdminGuard],
+  providers: [CrmService, CrmFaturasService, CrmAuthService, CrmAdminGuard],
   exports: [CrmService],
 })
 export class CrmModule {}

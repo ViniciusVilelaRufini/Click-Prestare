@@ -15,6 +15,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:click/utils/financeiro_constants.dart';
 
 enum FinanceiroViewMode { morador, condominio }
 
@@ -152,7 +154,11 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        displayMessage(context, getText('alert_error'),
+            e.toString().replaceFirst('Exception: ', ''));
+      }
     }
   }
 
@@ -199,7 +205,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     }
 
     // Categorias que o morador pode criar manualmente (contas pessoais)
-    const personalCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
+    const personalCategories = kCategoriasPessoais;
 
     List<dynamic> activeItems = _items.where((item) {
       var info = _getMesAno(item);
@@ -678,15 +684,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                                     ),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(12),
-                                      child: Image.network(
-                                        "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${Uri.encodeComponent(item['pix_copia_cola'].toString())}",
-                                        fit: BoxFit.cover,
-                                        loadingBuilder: (context, child, progress) {
-                                          if (progress == null) return child;
-                                          return const Center(child: CircularProgressIndicator());
-                                        },
-                                        errorBuilder: (context, error, stackTrace) =>
-                                            const Center(child: Icon(Icons.qr_code, size: 64)),
+                                      // QR gerado localmente (qr_flutter): funciona
+                                      // offline e sem depender do qrserver.com.
+                                      child: QrImageView(
+                                        data: item['pix_copia_cola'].toString(),
+                                        size: 200,
+                                        backgroundColor: Colors.white,
+                                        padding: const EdgeInsets.all(12),
                                       ),
                                     ),
                                   ),
@@ -994,7 +998,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     final txtNome = TextEditingController(text: isEditing ? item['nome'] : '');
     final txtValor = TextEditingController(text: isEditing ? _parseValorMorador(item['valor']).toStringAsFixed(2) : '');
     final txtVencimento = TextEditingController(text: isEditing ? item['data_vencimento'] : '');
-    final allowedCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
+    final allowedCategories = kCategoriasPessoais;
     
     String clean(String s) {
       return s.replaceAll('í', 'i')

@@ -1,17 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:click/utils/financeiro_constants.dart';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:rflutter_alert/rflutter_alert.dart';
 import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/pages/shared/financeiro/finan_relatorio.dart';
 import 'package:click/pages/shared/financeiro/detail_inadimplente.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_despesa.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 import 'package:click/pages/shared/financeiro/new_financeiro_receita.dart';
+import 'package:click/pages/shared/financeiro/new_rateio.dart';
+import 'package:click/pages/shared/financeiro/config_recorrencia.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart' show MoradorFinanceiroCategoryDetailPage;
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
@@ -133,7 +135,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       }
       _applyFilter();
     } catch (e) {
-      if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
+      if (mounted) {
+        displayMessage(context, getText('alert_error'),
+            e.toString().replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -200,7 +205,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   @override
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
-    final personalCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
+    final personalCategories = kCategoriasPessoais;
     final activeItems = _personalLancamentos.where((item) {
       final info = _getMesAno(item);
       return info['mes'] == mes && info['ano'] == ano;
@@ -443,6 +448,16 @@ class ListFinanceiroState extends State<ListFinanceiro> {
           label: 'Nova Despesa',
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewFinanceiroDespesa())).then((_) => loadList()),
         ),
+        SpeedDialChild(
+          child: const Icon(PhosphorIcons.usersThree),
+          label: 'Rateio Extraordinário',
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewRateio())).then((_) => loadList()),
+        ),
+        SpeedDialChild(
+          child: const Icon(PhosphorIcons.arrowsClockwise),
+          label: 'Cobrança Automática',
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfigRecorrencia())).then((_) => loadList()),
+        ),
       ],
     );
   }
@@ -539,15 +554,21 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         base64File = base64Encode(await file.readAsBytes());
       }
       
-      Alert(context: context, title: "Enviando...", desc: "Aguarde um momento", buttons: []).show();
+      // Loading + diálogo padrão do app (o rflutter_alert antigo vinha com
+      // botão "CANCEL" em inglês num alerta de sucesso).
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (c) => const Center(child: CircularProgressIndicator()),
+      );
       bool success = await apiUploadComprovante(id, base64File);
-      Navigator.pop(context);
-      
+      if (mounted) Navigator.pop(context);
+
       if(success) {
         loadList();
-        Alert(context: context, title: "Sucesso", desc: "Comprovante enviado para análise!", type: AlertType.success).show();
+        if (mounted) displayMessage(context, "Sucesso", "Comprovante enviado para análise!");
       } else {
-        Alert(context: context, title: "Erro", desc: "Falha ao enviar arquivo.", type: AlertType.error).show();
+        if (mounted) displayMessage(context, "Erro", "Falha ao enviar arquivo.");
       }
     }
   }
@@ -774,9 +795,12 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     ElevatedButton.icon(
                       onPressed: () => _uploadComprovante(item['id']),
                       icon: const Icon(PhosphorIcons.uploadSimple, size: 16),
-                      label: const Text("Comprovante"),
+                      label: const Text("Comprovante", style: TextStyle(fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
+                        // Sem foregroundColor o tema escuro pintava o texto
+                        // da mesma cor do fundo — botão azul "vazio".
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
                       ),
                     ),
@@ -1160,7 +1184,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     final txtNome = TextEditingController(text: isEditing ? item['nome'] : '');
     final txtValor = TextEditingController(text: isEditing ? _parseValor(item['valor']).toStringAsFixed(2) : '');
     final txtVencimento = TextEditingController(text: isEditing ? item['data_vencimento'] : '');
-    final allowedCategories = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
+    final allowedCategories = kCategoriasPessoais;
     
     String clean(String s) {
       return s.replaceAll('í', 'i')

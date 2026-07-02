@@ -1,6 +1,9 @@
 import { Controller, Get, Post, Put, Body, Res, NotFoundException, Param, ParseIntPipe, UseGuards, SetMetadata } from '@nestjs/common';
 import { CrmService } from './crm.service';
+import { CrmFaturasService } from './crm-faturas.service';
 import { CrmAdminGuard } from './crm-admin.guard';
+import { ReqUser } from '../auth/req-user.decorator';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 /**
  * CRM comercial — visão da operadora (Click Prestare) sobre seus condomínios-cliente.
@@ -13,7 +16,14 @@ import { CrmAdminGuard } from './crm-admin.guard';
  */
 @Controller('crm')
 export class CrmController {
-  constructor(private readonly service: CrmService) {}
+  constructor(
+    private readonly service: CrmService,
+    private readonly faturas: CrmFaturasService,
+  ) {}
+
+  private operador(payload?: JwtPayload): string {
+    return (payload as any)?.nome ?? (payload as any)?.user?.name ?? (payload as any)?.email ?? 'Admin CRM';
+  }
 
   /**
    * Health check público — retorna status de conexão do banco, latência e
@@ -60,6 +70,60 @@ export class CrmController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=crm-relatorio-condominio-${id}.csv`);
     return res.send(csv);
+  }
+
+  // ============== Faturamento real ==============
+
+  @UseGuards(CrmAdminGuard)
+  @Get('faturas')
+  listarFaturas() {
+    return this.faturas.listarFaturas();
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('faturas/gerar')
+  gerarFaturas(@Body() body: { referencia?: string }, @ReqUser() payload: JwtPayload) {
+    return this.faturas.gerarFaturasDoMes(body?.referencia, this.operador(payload));
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('faturas/:id/baixa')
+  baixarFatura(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { metodo?: string; motivo?: string; dataPagamento?: string; valorPago?: number },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.faturas.baixarFatura(id, body ?? {}, this.operador(payload));
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('faturas/:id/cobrar-whatsapp')
+  cobrarWhatsApp(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
+    return this.faturas.cobrarWhatsApp(id, this.operador(payload));
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Get('config')
+  getConfig() {
+    return this.faturas.getConfig();
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('config')
+  setConfig(@Body() body: Record<string, unknown>, @ReqUser() payload: JwtPayload) {
+    return this.faturas.setConfig(body ?? {}, this.operador(payload));
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Get('config/gateways-status')
+  gatewaysStatus() {
+    return this.faturas.gatewaysStatus();
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Get('disparos')
+  listarDisparos() {
+    return this.faturas.listarDisparos();
   }
 
   @UseGuards(CrmAdminGuard)

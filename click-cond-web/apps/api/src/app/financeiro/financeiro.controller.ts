@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, Post, Query, Res, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Headers, HttpCode, Post, Query, Res, UnauthorizedException } from '@nestjs/common';
 import type { Response } from 'express';
 import { FinanceiroService } from './financeiro.service';
 import { FechamentoService } from './fechamento.service';
@@ -270,6 +270,7 @@ export class FinanceiroController {
   handleOpenPixWebhook(
     @Body() body: any,
     @Headers('x-webhook-token') webhookToken?: string,
+    @Query('token') tokenQuery?: string,
   ) {
     // Validação de token: sem essa checagem, qualquer pessoa na internet
     // manda POST com event=OPENPIX:CHARGE_COMPLETED e correlationID
@@ -284,10 +285,30 @@ export class FinanceiroController {
       // OPENPIX_WEBHOOK_TOKEN antes de habilitar a integração em produção.
       throw new UnauthorizedException('Webhook OpenPix não configurado (OPENPIX_WEBHOOK_TOKEN ausente)');
     }
-    if (!webhookToken || webhookToken !== expected) {
+    // Aceita o token via header OU via query (?token=) — o painel da
+    // OpenPix/Woovi às vezes só permite configurar a URL do webhook.
+    const received = webhookToken || tokenQuery;
+    if (!received || received !== expected) {
       throw new UnauthorizedException('Token de webhook OpenPix inválido');
     }
     return this.service.handleOpenPixWebhook(body);
+  }
+
+  @SkipAudit()
+  @Post('admin/limpar-cobrancas-zeradas')
+  @HttpCode(200)
+  adminLimparCobrancasZeradas(
+    @Body() body: { id_condominio: string | number },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    // Limpeza destrutiva de dados — só síndico (o tenant check no service
+    // garante que é o síndico DESTE condomínio) ou admin.
+    const typeAccess = payload?.typeAccess ?? payload?.user?.typeAccess;
+    if (typeAccess !== 'Sindico' && typeAccess !== 'Admin') {
+      throw new ForbiddenException('Apenas síndico ou administrador pode executar a limpeza de dados.');
+    }
+    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
+    return this.service.adminLimparCobrancasZeradas(Number(body.id_condominio), operatorName, payload);
   }
 
   @SkipAudit()
