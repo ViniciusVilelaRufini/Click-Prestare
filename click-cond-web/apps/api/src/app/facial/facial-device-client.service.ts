@@ -708,7 +708,7 @@ export class FacialDeviceClientService {
           // ou ausente: permanente. Ver agent/ (mesma lógica).
           ValidFrom: validFrom || '2000-01-01 00:00:00',
           ValidTo: validTo || '2037-12-31 23:59:59',
-          UserTimes: typeof userTimes === 'number' ? userTimes : -1,
+          UseTime: typeof userTimes === 'number' ? userTimes : -1,
         },
       ],
     };

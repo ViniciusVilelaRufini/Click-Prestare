@@ -982,7 +982,7 @@ async function dahuaEnroll(device, cmd) {
         // fica em 2000 (sempre vale) e o agente mantém a hora sincronizada.
         ValidFrom: cmd.validFrom || '2000-01-01 00:00:00',
         ValidTo: cmd.validTo || '2037-12-31 23:59:59',
-        UserTimes: typeof cmd.userTimes === 'number' ? cmd.userTimes : -1,
+        UseTime: typeof cmd.userTimes === 'number' ? cmd.userTimes : -1,
       },
     ],
   };
