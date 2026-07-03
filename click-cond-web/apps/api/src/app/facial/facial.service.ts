@@ -1744,6 +1744,7 @@ export class FacialService {
     opts: {
       categorias?: CategoriaPessoa[];
       deviceIds?: number[];
+      keepFaceId?: boolean;
     } = {},
   ) {
     if (FACIAL_DISABLED)
@@ -1828,10 +1829,17 @@ export class FacialService {
         for (const m of moradores) {
           try {
             await this.unsyncMorador(m.id, m.face_id, idCondominio, { deviceIds });
-            await this.prisma.moradores.update({
-              where: { id: m.id },
-              data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
-            });
+            if (opts.keepFaceId) {
+              await this.prisma.moradores.update({
+                where: { id: m.id },
+                data: { face_sync_status: 'pending' },
+              });
+            } else {
+              await this.prisma.moradores.update({
+                where: { id: m.id },
+                data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+              });
+            }
             ok++;
           } catch (e: any) {
             falhou++;
@@ -1841,10 +1849,17 @@ export class FacialService {
         for (const v of visitantes) {
           try {
             await this.unsyncVisitante(v.id, v.face_id, idCondominio, { deviceIds });
-            await this.prisma.visitantes.update({
-              where: { id: v.id },
-              data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
-            });
+            if (opts.keepFaceId) {
+              await this.prisma.visitantes.update({
+                where: { id: v.id },
+                data: { face_sync_status: 'pending' },
+              });
+            } else {
+              await this.prisma.visitantes.update({
+                where: { id: v.id },
+                data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+              });
+            }
             ok++;
           } catch (e: any) {
             falhou++;
@@ -1854,10 +1869,17 @@ export class FacialService {
         for (const p of prestadores) {
           try {
             await this.unsyncPrestadorServico(p.id, p.face_id, idCondominio, { deviceIds });
-            await this.prisma.prestadores_servico.update({
-              where: { id: p.id },
-              data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
-            });
+            if (opts.keepFaceId) {
+              await this.prisma.prestadores_servico.update({
+                where: { id: p.id },
+                data: { face_sync_status: 'pending' },
+              });
+            } else {
+              await this.prisma.prestadores_servico.update({
+                where: { id: p.id },
+                data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+              });
+            }
             ok++;
           } catch (e: any) {
             falhou++;

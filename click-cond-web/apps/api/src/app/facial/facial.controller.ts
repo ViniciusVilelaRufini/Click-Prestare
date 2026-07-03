@@ -176,6 +176,7 @@ export class FacialController {
     @ReqUser() user: JwtPayload,
     @Query('categorias') categorias?: string,
     @Query('deviceIds') deviceIds?: string,
+    @Query('keepFaceId') keepFaceId?: string,
   ) {
     assertTenantStrict(
       idCondominio,
@@ -192,9 +193,11 @@ export class FacialController {
       .split(',')
       .map((s) => Number(s.trim()))
       .filter((n) => Number.isInteger(n));
+    const keep = keepFaceId !== 'false';
     return this.service.unsyncAllForCondominio(idCondominio, {
       categorias: cats.length ? cats : undefined,
       deviceIds: ids.length ? ids : undefined,
+      keepFaceId: keep,
     });
   }
 

@@ -175,6 +175,7 @@ export class TerminaisFaciaisApi {
   unsyncAll(
     categorias?: string[],
     deviceIds?: number[],
+    keepFaceId = true,
   ): Observable<{
     total?: number;
     started?: boolean;
@@ -185,6 +186,7 @@ export class TerminaisFaciaisApi {
     let params = new HttpParams().set('id_condominio', this.idCondominio);
     if (categorias?.length) params = params.set('categorias', categorias.join(','));
     if (deviceIds?.length) params = params.set('deviceIds', deviceIds.join(','));
+    if (keepFaceId) params = params.set('keepFaceId', 'true');
     return this.http.post<any>(`${this.base}/sync/clean`, {}, { params });
   }
 
