@@ -1234,12 +1234,18 @@ export class FacialService {
           continue;
         }
 
+        let userTimes = -1;
+        if (visitante.is_prestador !== 1) {
+          userTimes = device.sentido === 'auto' ? 2 : 1;
+        }
+
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: visitante.nome,
             fotoBase64,
             validFrom,
             validTo,
+            userTimes,
           });
         } else {
           const r = await this.client.enrollPerson(this.toConfig(device), {
@@ -1248,6 +1254,7 @@ export class FacialService {
             fotoBase64,
             validFrom,
             validTo,
+            userTimes,
           });
           faceId = r.faceId;
         }

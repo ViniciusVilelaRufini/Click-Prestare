@@ -20,6 +20,7 @@ export interface EnrollPayload {
   /** Validade no aparelho (Dahua "YYYY-MM-DD HH:MM:SS"). Default = permanente. */
   validFrom?: string;
   validTo?: string;
+  userTimes?: number;
 }
 
 export interface EnrollResult {
@@ -363,6 +364,7 @@ export class FacialDeviceClientService {
         fotoBase64: payload.fotoBase64,
         validFrom: payload.validFrom,
         validTo: payload.validTo,
+        userTimes: payload.userTimes,
       });
       if (!r.ok)
         throw new Error(r.error ?? 'Falha ao cadastrar pessoa via agente');
@@ -385,6 +387,7 @@ export class FacialDeviceClientService {
         payload.nome,
         payload.validFrom,
         payload.validTo,
+        payload.userTimes,
       );
       if (payload.fotoBase64) await this.dahuaSetFace(device, userId, payload.fotoBase64);
       return { faceId: userId };
@@ -417,6 +420,7 @@ export class FacialDeviceClientService {
         fotoBase64: payload.fotoBase64,
         validFrom: payload.validFrom,
         validTo: payload.validTo,
+        userTimes: payload.userTimes,
       });
       if (!r.ok)
         throw new Error(r.error ?? 'Falha ao atualizar pessoa via agente');
@@ -440,6 +444,7 @@ export class FacialDeviceClientService {
         payload.nome ?? userId,
         payload.validFrom,
         payload.validTo,
+        payload.userTimes,
       );
       if (payload.fotoBase64 !== undefined)
         await this.dahuaSetFace(device, userId, payload.fotoBase64);
@@ -688,6 +693,7 @@ export class FacialDeviceClientService {
     nome?: string,
     validFrom?: string,
     validTo?: string,
+    userTimes?: number,
   ): Promise<void> {
     const body = {
       UserList: [
@@ -702,6 +708,7 @@ export class FacialDeviceClientService {
           // ou ausente: permanente. Ver agent/ (mesma lógica).
           ValidFrom: validFrom || '2000-01-01 00:00:00',
           ValidTo: validTo || '2037-12-31 23:59:59',
+          UserTimes: typeof userTimes === 'number' ? userTimes : -1,
         },
       ],
     };
