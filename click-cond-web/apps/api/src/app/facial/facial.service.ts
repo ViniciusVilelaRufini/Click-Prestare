@@ -2472,16 +2472,15 @@ export class FacialService {
       );
     }
 
-    // Dedup de backlog: um evento reenviado (store-and-forward / log interno do
-    // aparelho após reconexão) pode, numa corrida rara, chegar depois que a
-    // stream ao vivo já registrou o MESMO acesso. Como a direção é resolvida por
-    // alternância (sentido "auto"), reprocessar viraria uma saída/entrada falsa.
-    // Janela CURTA (20s): o mesmo acesso via stream e via log tem só o skew de
-    // relógio entre eles (~15s observado); entrada→saída distintas ficam bem mais
-    // longe (dezenas de segundos). Assim o reenvio da MESMA passagem é ignorado,
-    // mas uma saída real logo após a entrada passa normalmente.
+    // Dedup de backlog: guarda mínima contra o MESMO evento reprocessado (ex.:
+    // reenvio duplicado da fila offline). O agente já evita a sobreposição com a
+    // stream avançando a marca d'água (RecNo) após cada evento ao vivo, então a
+    // recuperação normalmente traz só a janela realmente offline. Por isso a
+    // janela é BEM curta (5s): pega só duplicata de timestamp ~idêntico. Uma
+    // entrada e uma saída físicas nunca ocorrem a menos de 5s — assim uma saída
+    // logo após a entrada (visita curta) passa e é registrada corretamente.
     if (isBacklog && idPessoa != null && tipoPessoa) {
-      const JANELA_MS = 20 * 1000;
+      const JANELA_MS = 5 * 1000;
       const dup = await this.prisma.acessos_Facial.findFirst({
         where: {
           id_condominio: device.id_condominio,
