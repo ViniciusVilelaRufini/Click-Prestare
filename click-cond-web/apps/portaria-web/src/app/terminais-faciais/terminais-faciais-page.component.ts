@@ -85,6 +85,10 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly agentDownloadUrl = signal<string | null>(null);
   readonly baixando = signal<string | null>(null);
 
+  get isAgentOnline(): boolean {
+    return this.terminais().some((t) => t.agent_online);
+  }
+
   // Modal
   readonly showModal = signal(false);
   readonly editingId = signal<number | null>(null);

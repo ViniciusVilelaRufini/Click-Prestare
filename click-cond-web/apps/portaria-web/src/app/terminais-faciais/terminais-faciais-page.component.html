@@ -140,7 +140,20 @@
               </svg>
             </div>
             <div>
-              <h3 class="text-xs font-bold text-slate-700 dark:text-white uppercase tracking-wider">Agente Local Gateway</h3>
+              <div class="flex items-center gap-2">
+                <h3 class="text-xs font-bold text-slate-700 dark:text-white uppercase tracking-wider">Agente Local Gateway</h3>
+                @if (isAgentOnline) {
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Agente Local conectado e rodando.">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Online
+                  </span>
+                } @else {
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/5" title="Agente Local desconectado.">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                    Offline
+                  </span>
+                }
+              </div>
               <p class="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5">Comunicação e integração de hardware local</p>
             </div>
           </div>
@@ -214,11 +227,18 @@
               {{ agentToken() ? agentToken()!.slice(0, 8) + '••••••••••••••••••••••••••••••••' : '—' }}
             </code>
             <div class="flex items-center gap-1.5 shrink-0">
-              <span class="relative flex h-2 w-2">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span class="text-[9px] text-slate-400 uppercase tracking-wide font-bold">Ativo</span>
+              @if (isAgentOnline) {
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span class="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase tracking-wide font-bold">Online</span>
+              } @else {
+                <span class="relative flex h-2 w-2">
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
+                </span>
+                <span class="text-[9px] text-slate-400 uppercase tracking-wide font-bold">Offline</span>
+              }
             </div>
           </div>
           <p class="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">

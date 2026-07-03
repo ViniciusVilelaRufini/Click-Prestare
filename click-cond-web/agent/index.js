@@ -50,7 +50,7 @@ const SEM_COMANDO_HTTP = {
 // Versão do agente — sobe no boot para você conferir qual código está
 // realmente rodando (útil ao trocar o .exe: se ainda mostra a versão antiga,
 // o processo velho não foi substituído).
-const AGENT_VERSION = '2026.07.03-offline-recovery';
+const AGENT_VERSION = '2026.07.03-fast-reconnect';
 
 // ---------- Config ----------
 
@@ -68,7 +68,7 @@ const DEFAULT_POLL_MS = Number(process.env.POLL_INTERVAL_MS || 2000);
 const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
 // Intervalo do heartbeat de status do aparelho (online/offline no portal).
 const DEVICE_STATUS_INTERVAL_MS = Number(
-  process.env.DEVICE_STATUS_INTERVAL_MS || 20000,
+  process.env.DEVICE_STATUS_INTERVAL_MS || 5000,
 );
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
@@ -1121,23 +1121,43 @@ function startDahuaEventListener(token, device) {
   if (dahuaListeners.has(device.id)) return;
   dahuaListeners.add(device.id);
   console.log(`[agente] ${device.nome}: assinando eventos de acesso (Dahua)`);
+  let streamWasDown = false;
   (async () => {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
-        await dahuaAttachOnce(token, device);
+        await dahuaAttachOnce(token, device, () => {
+          // Chamado no primeiro byte recebido da stream.
+          // Se a stream estava caída (internet estava desconectada), este é o
+          // sinal imediato de que o aparelho voltou — dispara recovery SEM
+          // esperar o próximo heartbeat (que pode demorar até 5s).
+          if (streamWasDown && !lastDeviceOnline.get(device.id)) {
+            streamWasDown = false;
+            lastDeviceOnline.set(device.id, true);
+            console.log(`[agente] ${device.nome}: aparelho ONLINE (stream reconectou) — recuperando acessos offline`);
+            syncDeviceOfflineLogs(token, device).catch((e) =>
+              console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
+            );
+          } else {
+            streamWasDown = false;
+          }
+        });
       } catch (err) {
-        console.error(
-          `[agente] ${device.nome}: stream de eventos caiu (${err.message || err}); reabrindo em 5s`,
-        );
+        if (!streamWasDown) {
+          console.error(
+            `[agente] ${device.nome}: stream de eventos caiu (${err.message || err}); reabrindo em 5s`,
+          );
+        }
+        streamWasDown = true;
       }
       await sleep(5000); // o aparelho fecha o stream periodicamente — reabre
     }
   })();
 }
 
-/** Abre UMA conexão de streaming (resolve quando o aparelho a encerra). */
-function dahuaAttachOnce(token, device) {
+/** Abre UMA conexão de streaming (resolve quando o aparelho a encerra).
+ *  onConnect é chamado uma única vez no primeiro byte recebido. */
+function dahuaAttachOnce(token, device, onConnect) {
   return new Promise((resolve, reject) => {
     const user = device.api_user || 'admin';
     const pass = device.api_password || 'admin';
@@ -1170,8 +1190,10 @@ function dahuaAttachOnce(token, device) {
               return reject(new Error(`attach HTTP ${sres.statusCode}`));
             }
             let buf = '';
+            let onConnectFired = false;
             sres.setEncoding('utf8');
             sres.on('data', (chunk) => {
+              if (!onConnectFired && onConnect) { onConnectFired = true; onConnect(); }
               buf += chunk;
               buf = consumeDahuaEvents(buf, (data) =>
                 forwardAccessEvent(token, device, data),
