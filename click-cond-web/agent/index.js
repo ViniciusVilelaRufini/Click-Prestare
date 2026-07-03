@@ -47,6 +47,11 @@ const SEM_COMANDO_HTTP = {
   henry: 'protocolo proprietário (SDK Henry)',
 };
 
+// Versão do agente — sobe no boot para você conferir qual código está
+// realmente rodando (útil ao trocar o .exe: se ainda mostra a versão antiga,
+// o processo velho não foi substituído).
+const AGENT_VERSION = '2026.07.03-offline-recovery';
+
 // ---------- Config ----------
 
 loadDotEnv();
@@ -147,7 +152,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`[agente] iniciando — API: ${API_URL}`);
+  console.log(`[agente] iniciando — versão ${AGENT_VERSION} — API: ${API_URL}`);
   startLiveViewServer(); // preview ao vivo da câmera (localhost) p/ o cadastro
   if (AGENT_TOKEN) {
     console.log('[agente] modo condomínio: 1 token gerencia todos os dispositivos');
