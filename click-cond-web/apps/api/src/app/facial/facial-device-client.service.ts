@@ -700,7 +700,7 @@ export class FacialDeviceClientService {
         {
           UserID: userId,
           UserName: nome || userId,
-          UserType: 0,
+          UserType: typeof userTimes === 'number' && userTimes > 0 ? 1 : 0,
           Authority: 2,
           Doors: [0],
           TimeSections: [255],
