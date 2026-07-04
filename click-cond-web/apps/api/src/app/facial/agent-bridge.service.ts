@@ -216,6 +216,7 @@ export interface AgentCommandInput {
   /** Validade no aparelho (Dahua "YYYY-MM-DD HH:MM:SS"). Default = permanente. */
   validFrom?: string;
   validTo?: string;
+  userTimes?: number;
 }
 
 export interface AgentCommand extends AgentCommandInput {

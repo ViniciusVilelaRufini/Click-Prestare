@@ -700,7 +700,9 @@ export class FacialDeviceClientService {
         {
           UserID: userId,
           UserName: nome || userId,
-          UserType: typeof userTimes === 'number' && userTimes > 0 ? 1 : 0,
+          // UseTime só é aplicado pelo firmware quando UserType=2 (Guest).
+          // Tabela Dahua: 0=geral, 1=blocklist, 2=convidado, 3=ronda, 4=VIP.
+          UserType: typeof userTimes === 'number' && userTimes > 0 ? 2 : 0,
           Authority: 2,
           Doors: [0],
           TimeSections: [255],
