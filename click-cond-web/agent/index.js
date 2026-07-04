@@ -1345,6 +1345,15 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
   const userId = data && data.UserID;
   // FFFFFF = rosto não reconhecido; não vira evento de pessoa.
   if (!userId || userId === 'FFFFFF') return;
+  // Reconhecimento NEGADO pelo próprio aparelho (ex.: sem saldo de usos,
+  // fora da validade): o rosto foi identificado mas a porta NÃO abriu.
+  // Encaminhar isso como acesso viraria entrada/saída falsa na auditoria.
+  if (data.ErrorCode != null && String(data.ErrorCode).trim() !== '0') {
+    console.log(
+      `[agente] ${device.nome}: reconhecimento NEGADO no aparelho ignorado (${userId}, ErrorCode ${data.ErrorCode})`,
+    );
+    return;
+  }
 
   // Debounce por (device, UserID): colapsa a rajada de frames de uma aproximação
   // num único evento. Síncrono antes do await → imune à corrida da rajada.
@@ -1816,15 +1825,24 @@ async function syncDeviceOfflineLogs(token, device) {
       }
 
       const janela = records.filter((r) => parseInt(r.RecNo, 10) > baseline);
+      // O log interno guarda TAMBÉM as tentativas NEGADAS pelo aparelho
+      // (ErrorCode != 0, ex.: 16 = sem saldo/na regra). Reenviar negada como
+      // acesso corrompe a auditoria (vira "entrada" falsa na nuvem). Só
+      // passagens de sucesso (ErrorCode 0/ausente) com UserID viram evento.
+      const negadoNoAparelho = (r) =>
+        r.ErrorCode != null && String(r.ErrorCode).trim() !== '0';
       const novos = janela
-        .filter((r) => r.UserID && r.UserID.trim() !== '')
+        .filter((r) => r.UserID && r.UserID.trim() !== '' && !negadoNoAparelho(r))
         .sort((a, b) => parseInt(a.RecNo, 10) - parseInt(b.RecNo, 10));
-      // Diagnóstico: registros na janela offline SEM UserID não podem virar
-      // evento de pessoa — loga cru para investigação em vez de sumir calado.
+      // Diagnóstico: loga cru o que foi pulado, em vez de sumir calado.
       for (const r of janela) {
         if (!r.UserID || r.UserID.trim() === '') {
           console.log(
             `[agente] ${device.nome}: registro offline IGNORADO (sem UserID): ${JSON.stringify(r).slice(0, 300)}`,
+          );
+        } else if (negadoNoAparelho(r)) {
+          console.log(
+            `[agente] ${device.nome}: registro offline IGNORADO (negado no aparelho, ErrorCode ${r.ErrorCode}): ${JSON.stringify(r).slice(0, 300)}`,
           );
         }
       }

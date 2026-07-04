@@ -2507,15 +2507,15 @@ export class FacialService {
       );
     }
 
-    // Dedup de backlog: guarda mínima contra o MESMO evento reprocessado (ex.:
-    // reenvio duplicado da fila offline). O agente já evita a sobreposição com a
-    // stream avançando a marca d'água (RecNo) após cada evento ao vivo, então a
-    // recuperação normalmente traz só a janela realmente offline. Por isso a
-    // janela é BEM curta (5s): pega só duplicata de timestamp ~idêntico. Uma
-    // entrada e uma saída físicas nunca ocorrem a menos de 5s — assim uma saída
-    // logo após a entrada (visita curta) passa e é registrada corretamente.
+    // Dedup de backlog: guarda contra a MESMA passagem reportada duas vezes —
+    // uma ao vivo pela stream (timestamp = hora de CHEGADA na nuvem, o evento
+    // não traz hora) e outra pelo replay do log do aparelho (timestamp =
+    // CreateTime do aparelho). Entre debounce do agente (8s), latência e
+    // relógio do aparelho, o mesmo acesso chega com até ~20s de diferença —
+    // por isso a janela é 30s. Custo: numa visita-relâmpago, saída a menos de
+    // 30s da entrada é deduplicada (caso irreal fora de teste; documentado).
     if (isBacklog && idPessoa != null && tipoPessoa) {
-      const JANELA_MS = 5 * 1000;
+      const JANELA_MS = 30 * 1000;
       const dup = await this.prisma.acessos_Facial.findFirst({
         where: {
           id_condominio: device.id_condominio,
@@ -3051,8 +3051,16 @@ export class FacialService {
           );
         }
       } else if (evento === 'saida') {
+        // data_entrada < timestamp: um replay de backlog com timestamp ANTERIOR
+        // à entrada registrada é o eco da própria entrada (mesma passagem
+        // reportada 2x: ao vivo e pelo log do aparelho) — nunca uma saída real.
+        // Sem esta guarda, data_saida ficava antes de data_entrada.
         const r = await this.prisma.visitantes.updateMany({
-          where: { id: v.id, data_entrada: { not: null }, data_saida: null },
+          where: {
+            id: v.id,
+            data_entrada: { not: null, lt: timestamp },
+            data_saida: null,
+          },
           data: {
             data_saida: timestamp,
             ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),

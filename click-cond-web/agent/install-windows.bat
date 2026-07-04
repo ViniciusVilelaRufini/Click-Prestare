@@ -35,7 +35,15 @@ if not exist "%~dp0.env" (
 )
 
 echo === 2/4  Registrando tarefa "%TASK%" (inicia com o Windows) ===
-schtasks /Create /TN "%TASK%" /TR "\"%EXE%\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
+REM A tarefa roda um wrapper .cmd (nao o exe direto) para o console do agente
+REM ficar gravado em agent-service.log — sem isso o agente roda como SYSTEM e
+REM os logs somem, impossibilitando diagnosticar recuperacao offline/enroll.
+(
+echo @echo off
+echo cd /d "%%~dp0"
+echo "%%~dp0click-agent.exe" ^>^> "%%~dp0agent-service.log" 2^>^&1
+) > "%~dp0run-agent-service.cmd"
+schtasks /Create /TN "%TASK%" /TR "\"%~dp0run-agent-service.cmd\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
 if errorlevel 1 (
   echo [ERRO] Falha ao registrar. Rode este .bat como Administrador.
   pause
