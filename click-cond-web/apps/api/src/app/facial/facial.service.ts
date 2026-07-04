@@ -1234,9 +1234,15 @@ export class FacialService {
           continue;
         }
 
+        // Limite de usos gravado NO APARELHO (UseTime; ele decrementa e nega
+        // sozinho, mesmo offline). O aparelho decrementa por RECONHECIMENTO, e
+        // uma única aproximação dispara vários frames — a entrada pode queimar
+        // mais de 1 uso. Por isso o re-sync pós-entrada regrava o contador:
+        // dentro do condomínio só resta a SAÍDA → exatamente 1 uso.
         let userTimes = -1;
         if (visitante.is_prestador !== 1) {
-          userTimes = device.sentido === 'auto' ? 2 : 1;
+          if (dentroDoCondominio) userTimes = 1;
+          else userTimes = device.sentido === 'auto' ? 2 : 1;
         }
 
         if (faceId) {
@@ -3029,6 +3035,19 @@ export class FacialService {
           });
           throw new BadRequestException(
             'Acesso negado: A liberação deste visitante foi revogada ou já consumida.',
+          );
+        }
+
+        // A entrada consumiu uso(s) do contador local do aparelho (UseTime) —
+        // e o burst de reconhecimento (vários frames por aproximação) pode ter
+        // queimado mais de um. Re-sincroniza em background para regravar o
+        // cadastro com exatamente 1 uso restante (a saída): é isso que garante
+        // que a saída libera UMA única vez mesmo com o aparelho offline.
+        if (v.is_prestador !== 1) {
+          void this.syncVisitante(v.id).catch((err) =>
+            this.logger.warn(
+              `Re-sync pós-entrada do visitante ${v.id} falhou: ${err?.message ?? err}`,
+            ),
           );
         }
       } else if (evento === 'saida') {
