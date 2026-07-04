@@ -453,7 +453,12 @@ export class VisitantesService {
         foto_documento: principal.foto_documento,
         is_visitante: principal.is_visitante,
         is_prestador: principal.is_prestador,
-        liberado: arr.some((r) => r.liberado === 1 && !r.data_entrada && !r.data_saida) ? 1 : 0,
+        liberado: arr.some((r) => {
+          if (r.is_prestador === 1) {
+            return r.liberado === 1;
+          }
+          return r.liberado === 1 && !r.data_entrada && !r.data_saida;
+        }) ? 1 : 0,
 
         // Facial
         face_id: principal.face_id,
@@ -468,7 +473,12 @@ export class VisitantesService {
         temPinAtivo,
         statusLabel: noLocal
           ? 'No condomínio'
-          : arr.some((r) => r.liberado === 1 && !r.data_entrada && !r.data_saida)
+          : arr.some((r) => {
+              if (r.is_prestador === 1) {
+                return r.liberado === 1;
+              }
+              return r.liberado === 1 && !r.data_entrada && !r.data_saida;
+            })
           ? 'Liberado'
           : temPinAtivo
           ? 'Agendado'
@@ -1402,10 +1412,14 @@ export class VisitantesService {
   }
 
   async checkOut(id: number, payload?: JwtPayload) {
-    await this.assertPodeAcessarVisitante(id, payload);
+    const ref = await this.assertPodeAcessarVisitante(id, payload);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
-      data: { data_saida: new Date(), codigo_acesso: null, liberado: 0 },
+      data: {
+        data_saida: new Date(),
+        codigo_acesso: null,
+        liberado: ref.is_prestador === 1 ? 1 : 0,
+      },
     });
     // Rosto revogado: remove do aparelho em background para que o terminal
     // negue fisicamente. Sem isso, a face permanece no dispositivo e a porta

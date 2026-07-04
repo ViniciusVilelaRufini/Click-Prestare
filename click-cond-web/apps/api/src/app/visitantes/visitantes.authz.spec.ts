@@ -75,6 +75,28 @@ describe('VisitantesService — autorização de tenant (IDOR)', () => {
       const { svc } = buildService();
       await expect(svc.checkOut(500, porteiroCond1)).rejects.toBeInstanceOf(ForbiddenException);
     });
+    it('checkOut de prestador mantém liberado=1, checkOut de visitante define liberado=0', async () => {
+      // 1. Visitante
+      const { svc, prisma } = buildService();
+      await svc.checkOut(500, porteiroCond2);
+      expect(prisma.visitantes.update).toHaveBeenCalledWith({
+        where: { id: 500 },
+        data: expect.objectContaining({ liberado: 0 }),
+      });
+
+      // 2. Prestador
+      const { svc: svc2, prisma: prisma2 } = buildService({
+        visitantes: {
+          findUnique: jest.fn(async () => ({ ...visitanteDoCond2, is_prestador: 1 })),
+          update: jest.fn(async () => ({ ...visitanteDoCond2, is_prestador: 1 })),
+        },
+      });
+      await svc2.checkOut(500, porteiroCond2);
+      expect(prisma2.visitantes.update).toHaveBeenCalledWith({
+        where: { id: 500 },
+        data: expect.objectContaining({ liberado: 1 }),
+      });
+    });
   });
 
   describe('findOne (GET /visitantes/get) e detalhes', () => {
