@@ -128,6 +128,38 @@ async function advanceBaselineWhileOnline(device, force = false) {
     /* aparelho oscilou; o próximo ciclo tenta de novo */
   }
 }
+// Relógio do aparelho: sem NTP ele DERIVA (visto em produção: ~2 min atrasado)
+// e volta a 2000 ao perder energia. A nuvem compara a hora do log do aparelho
+// (CreateTime dos replays) com a hora de chegada dos eventos ao vivo — minutos
+// de atraso fazem a saída real parecer "eco da entrada" e serem descartadas.
+// Sincroniza no reconnect (force) e a cada hora enquanto online.
+const lastClockSyncAt = new Map(); // deviceId -> epoch ms
+const CLOCK_SYNC_INTERVAL_MS = 60 * 60 * 1000;
+async function dahuaSyncClock(device, force = false) {
+  if (device.fabricante !== 'intelbras') return;
+  const agora = Date.now();
+  if (!force && agora - (lastClockSyncAt.get(device.id) || 0) < CLOCK_SYNC_INTERVAL_MS)
+    return;
+  lastClockSyncAt.set(device.id, agora);
+  try {
+    const t = formatDahuaTime(new Date());
+    const res = await lanRequest(
+      device,
+      'GET',
+      `/cgi-bin/global.cgi?action=setCurrentTime&time=${encodeURIComponent(t)}`,
+    );
+    if (res.status >= 200 && res.status < 300) {
+      console.log(`[agente] ${device.nome}: relógio do aparelho acertado (${t})`);
+    } else {
+      console.log(
+        `[agente] ${device.nome}: falha ao acertar relógio (HTTP ${res.status}): ${String(res.raw || '').slice(0, 80)}`,
+      );
+    }
+  } catch (e) {
+    console.log(`[agente] ${device.nome}: falha ao acertar relógio (${e.message || e})`);
+  }
+}
+
 // Devices do último poll (p/ o servidor de live view achar IP/credencial).
 let lastDevices = [];
 // Porta local do preview ao vivo (só localhost; o navegador da portaria acessa).
@@ -272,15 +304,18 @@ async function runCondoLoop(token) {
               `[agente] ${device.nome}: aparelho ${online ? 'ONLINE' : 'OFFLINE'}`,
             );
             if (online) {
-              // Transição offline→online: recupera a janela que a stream perdeu.
+              // Transição offline→online: recupera a janela que a stream perdeu
+              // e acerta o relógio (ele deriva; ver dahuaSyncClock).
               syncDeviceOfflineLogs(token, device).catch((e) =>
                 console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e)
               );
+              dahuaSyncClock(device, true).catch(() => {});
             }
           } else if (online) {
             // Online estável: só mantém a marca d'água atual (a stream já cobre
             // os eventos); assim o próximo reconnect só reprocessa a janela real.
             advanceBaselineWhileOnline(device).catch(() => {});
+            dahuaSyncClock(device).catch(() => {});
           }
         }
         if (statuses.length > 0) {
