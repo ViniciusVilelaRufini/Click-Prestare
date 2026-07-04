@@ -2507,15 +2507,16 @@ export class FacialService {
       );
     }
 
-    // Dedup de backlog: guarda contra a MESMA passagem reportada duas vezes —
-    // uma ao vivo pela stream (timestamp = hora de CHEGADA na nuvem, o evento
-    // não traz hora) e outra pelo replay do log do aparelho (timestamp =
-    // CreateTime do aparelho). Entre debounce do agente (8s), latência e
-    // relógio do aparelho, o mesmo acesso chega com até ~20s de diferença —
-    // por isso a janela é 30s. Custo: numa visita-relâmpago, saída a menos de
-    // 30s da entrada é deduplicada (caso irreal fora de teste; documentado).
+    // Dedup de backlog: guarda mínima contra o MESMO evento reprocessado com
+    // timestamp ~idêntico (reenvio duplicado da fila offline). A janela é
+    // CURTA (5s) de propósito: o relógio do aparelho atrasa em relação à
+    // nuvem, e uma janela larga engolia a saída real logo após a entrada
+    // (visto em produção: saída deduplicada por "estar a 14s" da entrada).
+    // O ECO da mesma passagem (ao vivo + replay do log) não é tratado aqui:
+    // ele sempre chega com timestamp <= evento já registrado, e as guardas de
+    // entrada/saída abaixo o descartam quietas (sem 'negado' falso).
     if (isBacklog && idPessoa != null && tipoPessoa) {
-      const JANELA_MS = 30 * 1000;
+      const JANELA_MS = 5 * 1000;
       const dup = await this.prisma.acessos_Facial.findFirst({
         where: {
           id_condominio: device.id_condominio,
@@ -3019,6 +3020,16 @@ export class FacialService {
           data: { data_entrada: timestamp, data_saida: null },
         });
         if (r.count === 0) {
+          // Eco da própria saída no replay do backlog (mesma passagem física
+          // reportada 2x; a alternância a reclassificou como 'entrada' porque
+          // a saída já estava registrada). Descarta quieto — sem 'negado' falso.
+          if (
+            isBacklog &&
+            v.data_saida &&
+            timestamp.getTime() <= new Date(v.data_saida).getTime()
+          ) {
+            return { ok: true, backlog: true, deduped: true };
+          }
           await this.prisma.acessos_Facial.create({
             data: {
               id_condominio: device.id_condominio,
@@ -3068,6 +3079,17 @@ export class FacialService {
           },
         });
         if (r.count === 0) {
+          // Eco da própria entrada no replay do backlog: timestamp do aparelho
+          // <= entrada registrada (o evento ao vivo usa hora de chegada, que é
+          // sempre posterior). Mesma passagem física — descarta QUIETO, sem
+          // poluir a auditoria com um 'negado' falso.
+          if (
+            isBacklog &&
+            v.data_entrada &&
+            timestamp.getTime() <= new Date(v.data_entrada).getTime()
+          ) {
+            return { ok: true, backlog: true, deduped: true };
+          }
           await this.prisma.acessos_Facial.create({
             data: {
               id_condominio: device.id_condominio,
