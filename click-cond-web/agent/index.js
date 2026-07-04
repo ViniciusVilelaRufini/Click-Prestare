@@ -50,7 +50,7 @@ const SEM_COMANDO_HTTP = {
 // Versão do agente — sobe no boot para você conferir qual código está
 // realmente rodando (útil ao trocar o .exe: se ainda mostra a versão antiga,
 // o processo velho não foi substituído).
-const AGENT_VERSION = '2026.07.03-fast-reconnect';
+const AGENT_VERSION = '2026.07.04-guest-usetime-diag';
 
 // ---------- Config ----------
 
@@ -1808,14 +1808,32 @@ async function syncDeviceOfflineLogs(token, device) {
         console.log(`[agente] ${device.nome}: baseline de acessos inicializada em RecNo ${maxRecNo}.`);
         return;
       }
-      if (maxRecNo <= baseline) return; // nada novo desde a última marca
+      if (maxRecNo <= baseline) {
+        console.log(
+          `[agente] ${device.nome}: recovery sem novidade (maior RecNo ${maxRecNo} <= baseline ${baseline}).`,
+        );
+        return;
+      }
 
-      const novos = records
-        .filter((r) => r.UserID && r.UserID.trim() !== '' && parseInt(r.RecNo, 10) > baseline)
+      const janela = records.filter((r) => parseInt(r.RecNo, 10) > baseline);
+      const novos = janela
+        .filter((r) => r.UserID && r.UserID.trim() !== '')
         .sort((a, b) => parseInt(a.RecNo, 10) - parseInt(b.RecNo, 10));
+      // Diagnóstico: registros na janela offline SEM UserID não podem virar
+      // evento de pessoa — loga cru para investigação em vez de sumir calado.
+      for (const r of janela) {
+        if (!r.UserID || r.UserID.trim() === '') {
+          console.log(
+            `[agente] ${device.nome}: registro offline IGNORADO (sem UserID): ${JSON.stringify(r).slice(0, 300)}`,
+          );
+        }
+      }
 
       let enviados = 0;
       for (const rec of novos) {
+        console.log(
+          `[agente] ${device.nome}: replay RecNo ${rec.RecNo} UserID ${rec.UserID} CreateTime ${rec.CreateTime}`,
+        );
         await forwardAccessEvent(token, device, {
           UserID: rec.UserID,
           CardNo: rec.CardNo,
