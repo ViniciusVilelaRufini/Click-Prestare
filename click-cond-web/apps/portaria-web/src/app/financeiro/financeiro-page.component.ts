@@ -40,6 +40,24 @@ export class FinanceiroPageComponent implements OnInit {
   readonly modalLancamento = signal(false);
   novoLancamento: any = { nome: '', tipo: 'C', valor: null, data: '', data_vencimento: '', categoria: 'Taxa Condominial' };
 
+  readonly modalCobrarMorador = signal(false);
+  novaCobranca: any = {
+    bloco: '',
+    apto: '',
+    valor: null,
+    referenciaMes: '',
+    referenciaAno: '',
+    categoria: 'Taxa Condominial',
+    data: '',
+    data_vencimento: '',
+    descricao: '',
+    pago: 0,
+  };
+  selectedAptoOption: string = '';
+  readonly salvandoCobranca = signal(false);
+  readonly cobrancaErro = signal<string | null>(null);
+
+
   readonly modalDetalhe = signal(false);
   readonly selectedApto = signal<any>(null);
   readonly faturasSelected = signal<any[]>([]);
@@ -631,6 +649,100 @@ export class FinanceiroPageComponent implements OnInit {
       this.carregarDados();
     });
   }
+
+  abrirModalCobrarMorador() {
+    const hoje = new Date();
+    const dFmt = hoje.toLocaleDateString('pt-BR');
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const ano = String(hoje.getFullYear());
+
+    this.novaCobranca = {
+      bloco: '',
+      apto: '',
+      valor: null,
+      referenciaMes: mes,
+      referenciaAno: ano,
+      categoria: 'Taxa Condominial',
+      data: dFmt,
+      data_vencimento: dFmt,
+      descricao: '',
+      pago: 0,
+    };
+    this.selectedAptoOption = '';
+    this.cobrancaErro.set(null);
+
+    // Carregar apartamentos se ainda não estiverem carregados
+    if (this.apartamentosConfig().length === 0) {
+      this.api.getApartamentosConfig().subscribe({
+        next: (aptos) => {
+          this.apartamentosConfig.set(aptos || []);
+        }
+      });
+    }
+
+    this.modalCobrarMorador.set(true);
+  }
+
+  onAptoSelectChange() {
+    if (!this.selectedAptoOption) {
+      this.novaCobranca.bloco = '';
+      this.novaCobranca.apto = '';
+      return;
+    }
+    const [bloco, apto] = this.selectedAptoOption.split('|');
+    this.novaCobranca.bloco = bloco;
+    this.novaCobranca.apto = apto;
+  }
+
+  salvarCobranca() {
+    if (!this.novaCobranca.apto || !this.novaCobranca.bloco) {
+      this.cobrancaErro.set('Selecione uma unidade/apartamento.');
+      return;
+    }
+    if (!this.novaCobranca.valor || this.novaCobranca.valor <= 0) {
+      this.cobrancaErro.set('Informe um valor maior que zero.');
+      return;
+    }
+    if (!this.novaCobranca.referenciaMes || !this.novaCobranca.referenciaAno) {
+      this.cobrancaErro.set('Informe o mês e ano de referência.');
+      return;
+    }
+    if (!this.novaCobranca.data || !this.novaCobranca.data_vencimento) {
+      this.cobrancaErro.set('Informe a data de emissão e vencimento.');
+      return;
+    }
+
+    this.salvandoCobranca.set(true);
+    this.cobrancaErro.set(null);
+
+    const refStr = `${this.novaCobranca.referenciaMes}/${this.novaCobranca.referenciaAno}`;
+    const faturaNome = `Apto ${this.novaCobranca.apto} Bloco ${this.novaCobranca.bloco} - ${this.novaCobranca.categoria} Ref. ${refStr}`;
+
+    const payload = {
+      nome: faturaNome,
+      tipo: 'C',
+      valor: this.novaCobranca.valor,
+      data: this.novaCobranca.data,
+      data_vencimento: this.novaCobranca.data_vencimento,
+      categoria: this.novaCobranca.categoria,
+      pago: Number(this.novaCobranca.pago),
+      descricao: this.novaCobranca.descricao || `Cobrança individual para o apartamento ${this.novaCobranca.apto} Bloco ${this.novaCobranca.bloco} referente a ${refStr}.`,
+    };
+
+    this.api.insertLancamento(payload).subscribe({
+      next: () => {
+        this.salvandoCobranca.set(false);
+        this.modalCobrarMorador.set(false);
+        this.carregarDados();
+        this.carregarInadimplencia();
+      },
+      error: (err) => {
+        this.salvandoCobranca.set(false);
+        this.cobrancaErro.set(err?.error?.message ?? 'Falha ao salvar cobrança.');
+      }
+    });
+  }
+
 
   /** Dispara o seletor de arquivo para subir boleto ou comprovante. */
   abrirUpload(item: Lancamento, tipo: 'boleto' | 'comprovante') {

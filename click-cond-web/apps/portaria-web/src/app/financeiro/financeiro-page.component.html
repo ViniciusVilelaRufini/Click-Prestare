@@ -94,6 +94,17 @@
       </button>
 
       <button
+        (click)="abrirModalCobrarMorador()"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold text-sm
+               hover:bg-blue-500 shadow-lg shadow-blue-500/10 transition active:scale-95 animate-fade-in"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        + Cobrar Morador
+      </button>
+
+      <button
         (click)="abrirModalLancamento()"
         class="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-semibold text-sm
                hover:bg-emerald-400 shadow-lg shadow-emerald-500/10 transition active:scale-95"
@@ -1441,3 +1452,181 @@
     </div>
   </div>
 }
+
+<!-- Modal de Cobrar Morador -->
+@if (modalCobrarMorador()) {
+  <div class="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50 animate-fadeIn text-white">
+    <div class="w-full max-w-md rounded-3xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl flex flex-col">
+      <div class="p-5 border-b border-white/10 flex items-center justify-between bg-slate-900/40">
+        <div>
+          <h3 class="text-base font-semibold text-white">Cobrar Morador</h3>
+          <p class="text-[10px] text-slate-400 mt-0.5">Lançar uma cobrança vinculada a um apartamento específico</p>
+        </div>
+        <button (click)="modalCobrarMorador.set(false)" class="text-slate-400 hover:text-white transition">✕</button>
+      </div>
+
+      <div class="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
+        @if (cobrancaErro()) {
+          <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-xs text-red-300">
+            {{ cobrancaErro() }}
+          </div>
+        }
+
+        <!-- Seletor de Apartamento -->
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Unidade / Apartamento <span class="text-rose-500">*</span></label>
+          <select
+            [(ngModel)]="selectedAptoOption"
+            (change)="onAptoSelectChange()"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+          >
+            <option value="">Selecione o Apartamento...</option>
+            @for (apto of apartamentosConfig(); track apto.id) {
+              <option [value]="apto.bloco + '|' + apto.apto">
+                Apto {{ apto.apto }} Bloco {{ apto.bloco }}
+              </option>
+            }
+          </select>
+        </div>
+
+        <!-- Categoria & Valor -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Categoria <span class="text-rose-500">*</span></label>
+            <select
+              [(ngModel)]="novaCobranca.categoria"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+            >
+              <option value="Taxa Condominial">Taxa Condominial</option>
+              <option value="Fundo de Reserva">Fundo de Reserva</option>
+              <option value="Multa">Multa</option>
+              <option value="Acordo">Acordo</option>
+              <option value="Doação">Doação</option>
+              <option value="Água">Água</option>
+              <option value="Gás">Gás</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Valor (R$) <span class="text-rose-500">*</span></label>
+            <input
+              [(ngModel)]="novaCobranca.valor"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+            />
+          </div>
+        </div>
+
+        <!-- Referência (Mês / Ano) -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Mês Referência <span class="text-rose-500">*</span></label>
+            <select
+              [(ngModel)]="novaCobranca.referenciaMes"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+            >
+              <option value="01">01 - Janeiro</option>
+              <option value="02">02 - Fevereiro</option>
+              <option value="03">03 - Março</option>
+              <option value="04">04 - Abril</option>
+              <option value="05">05 - Maio</option>
+              <option value="06">06 - Junho</option>
+              <option value="07">07 - Julho</option>
+              <option value="08">08 - Agosto</option>
+              <option value="09">09 - Setembro</option>
+              <option value="10">10 - Outubro</option>
+              <option value="11">11 - Novembro</option>
+              <option value="12">12 - Dezembro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Ano Referência <span class="text-rose-500">*</span></label>
+            <input
+              [(ngModel)]="novaCobranca.referenciaAno"
+              type="number"
+              placeholder="Ex: 2026"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+            />
+          </div>
+        </div>
+
+        <!-- Data Emissão & Vencimento -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Data Emissão <span class="text-rose-500">*</span></label>
+            <input
+              [(ngModel)]="novaCobranca.data"
+              type="text"
+              placeholder="DD/MM/YYYY"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Vencimento <span class="text-rose-500">*</span></label>
+            <input
+              [(ngModel)]="novaCobranca.data_vencimento"
+              type="text"
+              placeholder="DD/MM/YYYY"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+            />
+          </div>
+        </div>
+
+        <!-- Descrição -->
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Observações (Opcional)</label>
+          <textarea
+            [(ngModel)]="novaCobranca.descricao"
+            placeholder="Ex: Ref. cota extra de obras"
+            rows="2"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Já Pago -->
+        <div class="flex items-center gap-2 py-1">
+          <input
+            id="cobrancaPagoCheckbox"
+            type="checkbox"
+            [(ngModel)]="novaCobranca.pago"
+            [value]="1"
+            class="w-4 h-4 rounded bg-slate-900 border-white/10 text-emerald-500 focus:ring-emerald-400/20 cursor-pointer"
+          />
+          <label for="cobrancaPagoCheckbox" class="text-xs text-slate-350 cursor-pointer select-none">
+            Esta cobrança já foi recebida (marcar como paga)
+          </label>
+        </div>
+
+        <!-- Preview do Título Gerado -->
+        <div class="p-4 rounded-2xl bg-slate-950/40 border border-white/5 flex flex-col gap-1.5">
+          <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Título do lançamento no sistema</div>
+          <div class="text-xs font-mono font-bold text-blue-400 truncate">
+            Apto {{ novaCobranca.apto || '___' }} Bloco {{ novaCobranca.bloco || '___' }} - {{ novaCobranca.categoria }} Ref. {{ novaCobranca.referenciaMes || 'MM' }}/{{ novaCobranca.referenciaAno || 'AAAA' }}
+          </div>
+          <p class="text-[10px] text-slate-500">
+            O nome é gerado automaticamente de forma padronizada para vincular o débito ao histórico de inadimplência da unidade.
+          </p>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-end gap-3">
+        <button (click)="modalCobrarMorador.set(false)" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">Cancelar</button>
+        <button
+          (click)="salvarCobranca()"
+          [disabled]="salvandoCobranca() || !novaCobranca.apto || !novaCobranca.valor || novaCobranca.valor <= 0 || !novaCobranca.referenciaMes || !novaCobranca.referenciaAno"
+          class="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition disabled:opacity-50 flex items-center gap-2"
+        >
+          @if (salvandoCobranca()) {
+            <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Salvando...</span>
+          } @else {
+            <span>Gerar Cobrança</span>
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
