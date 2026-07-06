@@ -77,7 +77,7 @@ export class SidebarComponent {
       category: 'Operação',
       items: [
         { label: 'Visitantes', path: '/visitantes', icon: '◆' },
-        { label: 'Prestadores de Serviço', path: '/prestadores', icon: '✦' },
+        { label: 'Prestadores', path: '/prestadores', icon: '✦' },
         { label: 'Encomendas', path: '/encomendas', icon: '⬚' },
         { label: 'Ocorrências', path: '/ocorrencias', icon: '!' }
       ]
