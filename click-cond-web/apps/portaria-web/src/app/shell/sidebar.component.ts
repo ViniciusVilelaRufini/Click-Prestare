@@ -1,7 +1,8 @@
-import { Component, inject, signal, computed, Output, EventEmitter } from '@angular/core';
+import { Component, inject, computed, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import { ThemeService } from '../shared/theme.service';
 
 interface NavItem {
   label: string;
@@ -22,7 +23,8 @@ interface NavGroup {
 })
 export class SidebarComponent {
   readonly auth = inject(AuthService);
-  readonly isLight = signal<boolean>(false);
+  private theme = inject(ThemeService);
+  readonly isLight = this.theme.isLight;
   @Output() linkClicked = new EventEmitter<void>();
 
   readonly isPorteiro = computed(() => {
@@ -31,40 +33,10 @@ export class SidebarComponent {
     return !!info.turno && info.turno !== 'Síndico';
   });
 
-  constructor() {
-    const saved = localStorage.getItem('theme_mode');
-    if (saved === 'light') {
-      this.isLight.set(true);
-      document.body.classList.add('light');
-      document.documentElement.classList.add('light');
-      document.body.classList.remove('dark');
-      document.documentElement.classList.remove('dark');
-    } else {
-      this.isLight.set(false);
-      document.body.classList.remove('light');
-      document.documentElement.classList.remove('light');
-      document.body.classList.add('dark');
-      document.documentElement.classList.add('dark');
-    }
+  toggleTheme() {
+    this.theme.toggleTheme();
   }
 
-  toggleTheme() {
-    if (this.isLight()) {
-      this.isLight.set(false);
-      localStorage.setItem('theme_mode', 'dark');
-      document.body.classList.remove('light');
-      document.documentElement.classList.remove('light');
-      document.body.classList.add('dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      this.isLight.set(true);
-      localStorage.setItem('theme_mode', 'light');
-      document.body.classList.add('light');
-      document.documentElement.classList.add('light');
-      document.body.classList.remove('dark');
-      document.documentElement.classList.remove('dark');
-    }
-  }
 
   readonly menu: NavGroup[] = [
     {

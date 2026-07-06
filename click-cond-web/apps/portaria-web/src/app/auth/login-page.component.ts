@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from './auth.service';
+import { ThemeService } from '../shared/theme.service';
 
 @Component({
   selector: 'app-login-page',
@@ -448,6 +449,7 @@ export class LoginPageComponent implements OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
+  private theme = inject(ThemeService);
 
   loginValue = '';
   senhaValue = '';
@@ -455,7 +457,7 @@ export class LoginPageComponent implements OnDestroy {
   erro = signal('');
 
   // Theme State
-  isLight = signal<boolean>(false);
+  readonly isLight = this.theme.isLight;
 
   // QR Code States
   isQrMode = signal(false);
@@ -463,43 +465,14 @@ export class LoginPageComponent implements OnDestroy {
   qrExpired = signal(false);
   private pollingTimer: any = null;
 
-  constructor() {
-    const saved = localStorage.getItem('theme_mode');
-    if (saved === 'light') {
-      this.isLight.set(true);
-      document.body.classList.add('light');
-      document.documentElement.classList.add('light');
-      document.body.classList.remove('dark');
-      document.documentElement.classList.remove('dark');
-    } else {
-      this.isLight.set(false);
-      document.body.classList.remove('light');
-      document.documentElement.classList.remove('light');
-      document.body.classList.add('dark');
-      document.documentElement.classList.add('dark');
-    }
-  }
+  constructor() {}
 
   ngOnDestroy() {
     this.clearPolling();
   }
 
   toggleTheme() {
-    if (this.isLight()) {
-      this.isLight.set(false);
-      localStorage.setItem('theme_mode', 'dark');
-      document.body.classList.remove('light');
-      document.documentElement.classList.remove('light');
-      document.body.classList.add('dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      this.isLight.set(true);
-      localStorage.setItem('theme_mode', 'light');
-      document.body.classList.add('light');
-      document.documentElement.classList.add('light');
-      document.body.classList.remove('dark');
-      document.documentElement.classList.remove('dark');
-    }
+    this.theme.toggleTheme();
   }
 
   onSubmit() {
