@@ -32,6 +32,19 @@
       </svg>
       Log de Auditoria (Segurança)
     </button>
+    <button
+      (click)="setSubTab('eventos')"
+      [class.text-emerald-400]="activeSubTab() === 'eventos'"
+      [class.border-emerald-400]="activeSubTab() === 'eventos'"
+      [class.text-slate-400]="activeSubTab() !== 'eventos'"
+      [class.border-transparent]="activeSubTab() !== 'eventos'"
+      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none flex items-center gap-1.5"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      Log de Eventos
+    </button>
   </div>
 
   @if (activeSubTab() === 'gerador') {
@@ -862,6 +875,290 @@
                 {{ pagina() }} / {{ totalPaginas() }}
               </span>
               <button (click)="proximaPagina()" [disabled]="pagina() >= totalPaginas() || loadingAudit()"
+                      class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
+                Próxima ›
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </div>
+  }
+
+  @if (activeSubTab() === 'eventos') {
+    <!-- Log de Eventos -->
+    <div class="rounded-2xl bg-graphite-200 border border-white/10 p-6 space-y-5 animate-fade-in">
+      <!-- Cabeçalho -->
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 class="text-lg font-semibold text-white">Linha do Tempo do Condomínio</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Histórico completo de todos os eventos e acessos registrados.</p>
+        </div>
+        <div class="flex gap-2">
+          <button (click)="carregarEventos()" [disabled]="loadingEvents()" class="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white hover:bg-white/10 transition flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" [class.animate-spin]="loadingEvents()" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18"/></svg>
+            Atualizar
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white/[0.02] rounded-xl border border-white/5">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Buscar por nome/descrição</label>
+          <input type="text" [ngModel]="filtroEventosSearch()" (ngModelChange)="filtroEventosSearch.set($event)" placeholder="Digite para filtrar..."
+                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition placeholder-slate-500" />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Data Início</label>
+          <input type="date" [ngModel]="filtroEventosDataInicio()" (ngModelChange)="filtroEventosDataInicio.set($event)"
+                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition" />
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Data Fim</label>
+          <input type="date" [ngModel]="filtroEventosDataFim()" (ngModelChange)="filtroEventosDataFim.set($event)"
+                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition" />
+        </div>
+        <div class="md:col-span-3 flex gap-3 justify-end">
+          <button (click)="limparFiltros()" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition">
+            Limpar filtros
+          </button>
+          <button (click)="aplicarFiltros()" class="px-4 py-2 text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition">
+            Aplicar Filtros
+          </button>
+        </div>
+      </div>
+
+      @if (errorEvents()) {
+        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>{{ errorEvents() }}</span>
+        </div>
+      }
+
+      @if (loadingEvents()) {
+        <div class="flex flex-col items-center justify-center py-16 space-y-3">
+          <div class="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-sm text-slate-400">Carregando logs de eventos...</p>
+        </div>
+      } @else {
+        <div class="overflow-x-auto rounded-xl border border-white/5">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-white/[0.02] border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400 font-mono">
+                <th class="px-4 py-3 font-semibold whitespace-nowrap">Data / Hora</th>
+                <th class="px-4 py-3 font-semibold">Tipo</th>
+                <th class="px-4 py-3 font-semibold text-center">Direção</th>
+                <th class="px-4 py-3 font-semibold">Descrição</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5 text-xs text-white">
+              @for (ev of eventLogs(); track ev.id) {
+                <tr class="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                    (click)="toggleDetalhes(ev.id)">
+                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                    <div class="flex items-center gap-1.5">
+                      <svg class="w-3 h-3 transition-transform" [class.rotate-90]="expandidos()[ev.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                      </svg>
+                      {{ formatarData(ev.quando) }}
+                    </div>
+                  </td>
+                  <td class="px-4 py-3.5 whitespace-nowrap">
+                    <span class="inline-block text-[9px] uppercase font-bold px-2 py-0.5 rounded border font-mono"
+                          [ngClass]="{
+                            'bg-blue-500/10 text-blue-400 border-blue-500/20': ev.tipo === 'Acesso Facial',
+                            'bg-emerald-500/10 text-emerald-450 border-emerald-500/20': ev.tipo === 'Visitante',
+                            'bg-amber-500/10 text-amber-450 border-amber-500/20': ev.tipo === 'Prestador',
+                            'bg-indigo-500/10 text-indigo-400 border-indigo-500/20': ev.tipo === 'Encomenda',
+                            'bg-purple-500/10 text-purple-400 border-purple-500/20': ev.tipo === 'Ocorrência'
+                          }">
+                      {{ ev.tipo }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3.5 text-center whitespace-nowrap">
+                    @if (ev.direcao) {
+                      <span class="inline-block text-[9px] uppercase font-bold px-2 py-0.5 rounded border"
+                            [ngClass]="{
+                              'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': ev.direcao === 'entrada',
+                              'bg-rose-500/10 text-rose-450 border-rose-500/20': ev.direcao === 'saida',
+                              'bg-amber-500/10 text-amber-400 border-amber-500/20': ev.direcao === 'bloqueado'
+                            }">
+                        {{ ev.direcao === 'entrada' ? 'Entrada' : ev.direcao === 'saida' ? 'Saída' : 'Bloqueado' }}
+                      </span>
+                    } @else {
+                      <span class="text-slate-500">—</span>
+                    }
+                  </td>
+                  <td class="px-4 py-3.5 text-slate-300">
+                    <div [title]="ev.descricao">{{ ev.descricao }}</div>
+                  </td>
+                </tr>
+                @if (expandidos()[ev.id]) {
+                  <tr class="bg-black/30">
+                    <td colspan="4" class="px-4 py-3">
+                      <!-- Renderizar card com base no tipo de evento -->
+                      @if (ev.tipo === 'Acesso Facial' && ev.detalhes) {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div class="flex items-center gap-3 bg-white/[0.02] border border-white/10 p-3 rounded-lg">
+                            @if (ev.detalhes.fotoPessoa) {
+                              <img [src]="ev.detalhes.fotoPessoa" class="w-10 h-10 rounded-full object-cover border border-white/10" />
+                            } @else {
+                              <div class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
+                                {{ (ev.detalhes.nome || 'P').substring(0,1).toUpperCase() }}
+                              </div>
+                            }
+                            <div>
+                              <div class="text-sm font-semibold text-white">{{ ev.detalhes.nome }}</div>
+                              <div class="text-[10px] uppercase text-slate-400 tracking-wider mt-0.5">{{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' : ev.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : ev.detalhes.tipoPessoa }}</div>
+                            </div>
+                          </div>
+
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3 flex flex-col justify-between">
+                            <div>
+                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Método de Acesso</div>
+                              <div class="text-xs text-white">{{ ev.detalhes.metodoLabel || 'Terminal Facial' }}</div>
+                            </div>
+                            @if (ev.detalhes.confianca != null) {
+                              <div class="text-[10px] text-emerald-400 font-semibold mt-1">{{ (ev.detalhes.confianca * 100).toFixed(0) }}% Confiança</div>
+                            }
+                          </div>
+
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Local / Destino</div>
+                            <div class="text-xs text-white">Dispositivo: {{ ev.detalhes.terminalNome }}</div>
+                            @if (ev.detalhes.blocoApto) {
+                              <div class="text-[11px] text-slate-400 mt-1">{{ ev.detalhes.blocoApto }}</div>
+                            }
+                          </div>
+                        </div>
+                      }
+
+                      @if ((ev.tipo === 'Visitante' || ev.tipo === 'Prestador') && ev.detalhes) {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div class="flex items-center gap-3 bg-white/[0.02] border border-white/10 p-3 rounded-lg">
+                            @if (ev.detalhes.fotoPessoa) {
+                              <img [src]="ev.detalhes.fotoPessoa" class="w-10 h-10 rounded-full object-cover border border-white/10" />
+                            } @else {
+                              <div class="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-accent font-bold text-sm">
+                                {{ (ev.detalhes.nome || 'V').substring(0,1).toUpperCase() }}
+                              </div>
+                            }
+                            <div>
+                              <div class="text-sm font-semibold text-white">{{ ev.detalhes.nome }}</div>
+                              <div class="text-[10px] uppercase text-slate-400 tracking-wider mt-0.5">Doc: {{ ev.detalhes.documento }}</div>
+                            </div>
+                          </div>
+
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Destino & Autorização</div>
+                            <div class="text-xs text-white">Apartamento: {{ ev.detalhes.blocoApto }}</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Autorizado por: {{ ev.detalhes.autorizadoPor || 'Não informado' }}</div>
+                          </div>
+
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Entrada / Saída</div>
+                            <div class="text-xs text-white">Entrada: {{ ev.detalhes.dataEntrada ? formatarData(ev.detalhes.dataEntrada) : 'Pendente' }}</div>
+                            <div class="text-xs text-white mt-0.5">Saída: {{ ev.detalhes.dataSaida ? formatarData(ev.detalhes.dataSaida) : 'No local' }}</div>
+                          </div>
+                        </div>
+                      }
+
+                      @if (ev.tipo === 'Encomenda' && ev.detalhes) {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Encomenda</div>
+                            <div class="text-sm font-semibold text-white">{{ ev.detalhes.nome }}</div>
+                            <div class="text-xs text-slate-300 mt-1">{{ ev.descricao }}</div>
+                          </div>
+
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Status & Recebimento</div>
+                            <div class="text-xs text-white">Status: {{ ev.detalhes.status }}</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Recebido por: {{ ev.detalhes.recebidoPor }}</div>
+                            @if (ev.detalhes.retiradoPor) {
+                              <div class="text-[11px] text-slate-400 mt-0.5">Retirado por: {{ ev.detalhes.retiradoPor }}</div>
+                            }
+                          </div>
+
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Data / Hora</div>
+                            <div class="text-xs text-white">Recebimento: {{ formatarData(ev.detalhes.dataEntrada) }}</div>
+                          </div>
+                        </div>
+                      }
+
+                      @if (ev.tipo === 'Ocorrência' && ev.detalhes) {
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3 md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Ocorrência</div>
+                            <div class="text-sm font-semibold text-white">{{ ev.detalhes.nome }}</div>
+                            <div class="text-xs text-slate-300 mt-1 whitespace-pre-line leading-relaxed">{{ ev.detalhes.descricao }}</div>
+                            @if (ev.detalhes.resposta) {
+                              <div class="mt-2.5 pt-2.5 border-t border-white/5">
+                                <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Resposta da Administração</span>
+                                <p class="text-xs text-emerald-350 mt-1 whitespace-pre-line leading-relaxed">{{ ev.detalhes.resposta }}</p>
+                              </div>
+                            }
+                          </div>
+
+                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Histórico & Status</div>
+                            <div class="text-xs text-white">Status: {{ ev.detalhes.status }}</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Registrado em: {{ formatarData(ev.detalhes.dataEntrada) }}</div>
+                            @if (ev.detalhes.dataSaida) {
+                              <div class="text-[11px] text-slate-400 mt-0.5">Resolvido em: {{ formatarData(ev.detalhes.dataSaida) }}</div>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </td>
+                  </tr>
+                }
+              }
+              @if (eventLogs().length === 0) {
+                <tr>
+                  <td colspan="4" class="px-4 py-12 text-center">
+                    <div class="flex flex-col items-center gap-3 text-slate-500">
+                      <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <p class="text-sm">Nenhum evento encontrado para os filtros selecionados.</p>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        @if (total() > 0) {
+          <div class="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
+            <div class="flex items-center gap-2 text-xs text-slate-400">
+              <span>Por página:</span>
+              <select [ngModel]="tamanhoPagina()" (ngModelChange)="mudarTamanhoPagina(+$event)"
+                      class="bg-white/5 border border-white/10 rounded px-2 py-1 text-white text-xs focus:border-emerald-400 outline-none">
+                <option [ngValue]="25" class="bg-slate-900">25</option>
+                <option [ngValue]="50" class="bg-slate-900">50</option>
+                <option [ngValue]="100" class="bg-slate-900">100</option>
+                <option [ngValue]="200" class="bg-slate-900">200</option>
+              </select>
+              <span class="ml-2">
+                {{ ((pagina() - 1) * tamanhoPagina()) + 1 }}–{{ ((pagina() - 1) * tamanhoPagina()) + eventLogs().length }}
+                de {{ total() }}
+              </span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button (click)="paginaAnterior()" [disabled]="pagina() <= 1 || loadingEvents()"
+                      class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
+                ‹ Anterior
+              </button>
+              <span class="px-3 py-1.5 text-xs text-slate-400 font-mono">
+                {{ pagina() }} / {{ totalPaginas() }}
+              </span>
+              <button (click)="proximaPagina()" [disabled]="pagina() >= totalPaginas() || loadingEvents()"
                       class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
                 Próxima ›
               </button>

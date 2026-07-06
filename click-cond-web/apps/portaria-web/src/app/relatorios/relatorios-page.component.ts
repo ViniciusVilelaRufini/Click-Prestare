@@ -12,7 +12,7 @@ import { RelatoriosApi } from './relatorios.service';
 export class RelatoriosPageComponent {
   private api = inject(RelatoriosApi);
 
-  readonly activeSubTab = signal<'gerador' | 'auditoria'>('gerador');
+  readonly activeSubTab = signal<'gerador' | 'auditoria' | 'eventos'>('gerador');
   readonly auditLogs = signal<any[]>([]);
   readonly loadingAudit = signal<boolean>(false);
   readonly errorAudit = signal<string | null>(null);
@@ -22,6 +22,14 @@ export class RelatoriosPageComponent {
   readonly filtroModulo = signal<string>('todos');
   readonly filtroDataInicio = signal<string>('');
   readonly filtroDataFim = signal<string>('');
+
+  // Logs de Eventos
+  readonly eventLogs = signal<any[]>([]);
+  readonly loadingEvents = signal<boolean>(false);
+  readonly errorEvents = signal<string | null>(null);
+  readonly filtroEventosDataInicio = signal<string>('');
+  readonly filtroEventosDataFim = signal<string>('');
+  readonly filtroEventosSearch = signal<string>('');
 
   // Paginação
   readonly pagina = signal<number>(1);
@@ -52,9 +60,9 @@ export class RelatoriosPageComponent {
   ];
 
   /** Toggle para expandir o JSON de detalhes de cada linha. */
-  readonly expandidos = signal<Record<number, boolean>>({});
+  readonly expandidos = signal<Record<string | number, boolean>>({});
 
-  toggleDetalhes(id: number) {
+  toggleDetalhes(id: string | number) {
     this.expandidos.update((m) => ({ ...m, [id]: !m[id] }));
   }
 
@@ -117,10 +125,13 @@ export class RelatoriosPageComponent {
     return 'generico';
   }
 
-  setSubTab(tab: 'gerador' | 'auditoria') {
+  setSubTab(tab: 'gerador' | 'auditoria' | 'eventos') {
     this.activeSubTab.set(tab);
+    this.pagina.set(1);
     if (tab === 'auditoria') {
       this.carregarAuditoria();
+    } else if (tab === 'eventos') {
+      this.carregarEventos();
     }
   }
 
@@ -147,24 +158,61 @@ export class RelatoriosPageComponent {
     });
   }
 
+  carregarEventos() {
+    this.loadingEvents.set(true);
+    this.errorEvents.set(null);
+    this.api.getEventos(
+      this.filtroEventosDataInicio() || undefined,
+      this.filtroEventosDataFim() || undefined,
+      this.pagina(),
+      this.tamanhoPagina(),
+      this.filtroEventosSearch() || undefined,
+    ).subscribe({
+      next: (data) => {
+        this.eventLogs.set(data?.items ?? []);
+        this.total.set(data?.total ?? 0);
+        this.loadingEvents.set(false);
+      },
+      error: (err) => {
+        console.error(err);
+        this.errorEvents.set('Falha ao carregar logs de eventos.');
+        this.loadingEvents.set(false);
+      },
+    });
+  }
+
   aplicarFiltros() {
-    // Mudou filtro: volta para a página 1.
     this.pagina.set(1);
-    this.carregarAuditoria();
+    if (this.activeSubTab() === 'auditoria') {
+      this.carregarAuditoria();
+    } else if (this.activeSubTab() === 'eventos') {
+      this.carregarEventos();
+    }
   }
 
   limparFiltros() {
-    this.filtroModulo.set('todos');
-    this.filtroDataInicio.set('');
-    this.filtroDataFim.set('');
     this.pagina.set(1);
-    this.carregarAuditoria();
+    if (this.activeSubTab() === 'auditoria') {
+      this.filtroModulo.set('todos');
+      this.filtroDataInicio.set('');
+      this.filtroDataFim.set('');
+      this.carregarAuditoria();
+    } else if (this.activeSubTab() === 'eventos') {
+      this.filtroEventosDataInicio.set('');
+      this.filtroEventosDataFim.set('');
+      this.filtroEventosSearch.set('');
+      this.carregarEventos();
+    }
   }
 
   irParaPagina(p: number) {
     if (p < 1 || p > this.totalPaginas()) return;
     this.pagina.set(p);
-    this.carregarAuditoria();
+    if (this.activeSubTab() === 'auditoria') {
+      this.carregarAuditoria();
+    } else if (this.activeSubTab() === 'eventos') {
+      this.carregarEventos();
+    }
   }
 
   proximaPagina() {
@@ -178,7 +226,11 @@ export class RelatoriosPageComponent {
   mudarTamanhoPagina(novo: number) {
     this.tamanhoPagina.set(novo);
     this.pagina.set(1);
-    this.carregarAuditoria();
+    if (this.activeSubTab() === 'auditoria') {
+      this.carregarAuditoria();
+    } else if (this.activeSubTab() === 'eventos') {
+      this.carregarEventos();
+    }
   }
 
   exportarCsv() {

@@ -605,4 +605,414 @@ export class RelatoriosService {
     }
     return str;
   }
+
+  async getEventos(
+    idCondominio: number,
+    dataInicio?: string,
+    dataFim?: string,
+    page = 1,
+    pageSize = 50,
+    search?: string,
+  ) {
+    if (!this.prisma.isConnected) {
+      return { items: [], total: 0, page, pageSize };
+    }
+
+    const safeSize = Math.min(Math.max(pageSize, 1), 200);
+    const safePage = Math.max(page, 1);
+
+    const dateFilter = (dataInicio || dataFim) ? {
+      ...(dataInicio ? { gte: new Date(`${dataInicio}T00:00:00.000-03:00`) } : {}),
+      ...(dataFim ? { lte: new Date(`${dataFim}T23:59:59.999-03:00`) } : {}),
+    } : null;
+
+    const limitPerSource = 2000;
+
+    const [entradasVisitantes, saidasVisitantes, encomendas, ocorrencias, acessosFacial, auditLogs, devicesInfo] = await Promise.all([
+      this.prisma.visitantes.findMany({
+        where: {
+          id_condominio: idCondominio,
+          NOT: { data_entrada: null },
+          ...(dateFilter ? { data_entrada: dateFilter } : {}),
+          ...(search ? {
+            OR: [
+              { nome: { contains: search } },
+              { doc_identificacao: { contains: search } }
+            ]
+          } : {})
+        },
+        orderBy: { data_entrada: 'desc' },
+        take: limitPerSource,
+        include: {
+          apartamento: { select: { bloco: true, apto: true } },
+          criadoPor: { select: { name: true } },
+        },
+      }),
+      this.prisma.visitantes.findMany({
+        where: {
+          id_condominio: idCondominio,
+          NOT: { data_saida: null },
+          ...(dateFilter ? { data_saida: dateFilter } : {}),
+          ...(search ? {
+            OR: [
+              { nome: { contains: search } },
+              { doc_identificacao: { contains: search } }
+            ]
+          } : {})
+        },
+        orderBy: { data_saida: 'desc' },
+        take: limitPerSource,
+        include: {
+          apartamento: { select: { bloco: true, apto: true } },
+          criadoPor: { select: { name: true } },
+        },
+      }),
+      this.prisma.encomendas.findMany({
+        where: {
+          id_condominio: idCondominio,
+          ...(dateFilter ? { recebido_em: dateFilter } : {}),
+          ...(search ? {
+            OR: [
+              { descricao: { contains: search } },
+              { destinatario_nome: { contains: search } }
+            ]
+          } : {})
+        },
+        orderBy: { recebido_em: 'desc' },
+        take: limitPerSource,
+        include: {
+          recebidoPor: { select: { name: true } },
+          entreguePor: { select: { name: true } },
+        },
+      }),
+      this.prisma.ocorrencias.findMany({
+        where: {
+          id_condominio: idCondominio,
+          ...(dateFilter ? { created_at: dateFilter } : {}),
+          ...(search ? { descricao: { contains: search } } : {})
+        },
+        orderBy: { created_at: 'desc' },
+        take: limitPerSource,
+        include: {
+          criadoPor: { select: { name: true } },
+          categoria: { select: { nome: true } },
+        },
+      }),
+      this.prisma.acessos_Facial.findMany({
+        where: {
+          id_condominio: idCondominio,
+          ...(dateFilter ? { timestamp: dateFilter } : {}),
+          ...(search ? { nome_pessoa: { contains: search } } : {})
+        },
+        orderBy: { timestamp: 'desc' },
+        take: limitPerSource,
+      }),
+      this.prisma.auditLog.findMany({
+        where: {
+          id_condominio: idCondominio,
+          modulo: 'dispositivos',
+          ...(dateFilter ? { created_at: dateFilter } : {}),
+          ...(search ? { descricao: { contains: search } } : {})
+        },
+        orderBy: { created_at: 'desc' },
+        take: limitPerSource,
+      }),
+      this.prisma.facial_Devices.findMany({
+        where: { id_condominio: idCondominio },
+        select: { id: true, nome: true },
+      }),
+    ]);
+
+    const deviceById = new Map(devicesInfo.map((d) => [d.id, d.nome]));
+
+    const ultimosEventos: any[] = [];
+
+    const DEDUP_WINDOW_MS = 15_000;
+    const facialKeys = new Set<string>();
+    for (const a of acessosFacial) {
+      if (a.tipo_pessoa !== 'visitante' && a.tipo_pessoa !== 'prestador') continue;
+      const bucket = Math.floor(a.timestamp.getTime() / DEDUP_WINDOW_MS);
+      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket}`);
+      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket - 1}`);
+      facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket + 1}`);
+    }
+
+    const isDuplicadoFacial = (idVisitante: number, evento: 'entrada' | 'saida', ts: Date | null) => {
+      if (!ts) return false;
+      const bucket = Math.floor(ts.getTime() / DEDUP_WINDOW_MS);
+      return facialKeys.has(`${idVisitante}:${evento}:${bucket}`);
+    };
+
+    // 1. Map Visitantes Entradas
+    for (const v of entradasVisitantes) {
+      if (!v.data_entrada) continue;
+      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada)) continue;
+      const aptoStr = v.apartamento ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '';
+      ultimosEventos.push({
+        id: `visitante-ent-${v.id}`,
+        tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
+        descricao: `${v.nome} entrou — ${aptoStr}`.trim(),
+        quando: v.data_entrada.toISOString(),
+        direcao: 'entrada',
+        detalhes: {
+          id: v.id,
+          nome: v.nome,
+          documento: v.doc_identificacao || 'Não informado',
+          blocoApto: aptoStr || 'Não informado',
+          tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+          dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
+          dataSaida: v.data_saida ? v.data_saida.toISOString() : undefined,
+          status: v.data_saida ? 'Saída registrada' : 'No local',
+          autorizadoPor: v.criadoPor?.name || 'Morador',
+          fotoPessoa: v.foto_pessoa || undefined,
+          fotoDocumento: v.foto_documento || undefined,
+          metodoLiberacao: 'pin',
+          metodoLabel: 'PIN / Manual',
+        },
+      });
+    }
+
+    // 2. Map Visitantes Saídas
+    for (const v of saidasVisitantes) {
+      if (!v.data_saida) continue;
+      if (isDuplicadoFacial(v.id, 'saida', v.data_saida)) continue;
+      const aptoStr = v.apartamento ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '';
+      ultimosEventos.push({
+        id: `visitante-sai-${v.id}`,
+        tipo: v.is_prestador === 1 ? 'Prestador' : 'Visitante',
+        descricao: `${v.nome} saiu — ${aptoStr}`.trim(),
+        quando: v.data_saida.toISOString(),
+        direcao: 'saida',
+        detalhes: {
+          id: v.id,
+          nome: v.nome,
+          documento: v.doc_identificacao || 'Não informado',
+          blocoApto: aptoStr || 'Não informado',
+          tipoPessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+          dataEntrada: v.data_entrada ? v.data_entrada.toISOString() : undefined,
+          dataSaida: v.data_saida.toISOString(),
+          status: 'Saiu',
+          autorizadoPor: v.criadoPor?.name || 'Morador',
+          fotoPessoa: v.foto_pessoa || undefined,
+          fotoDocumento: v.foto_documento || undefined,
+          metodoLiberacao: 'pin',
+          metodoLabel: 'PIN / Manual',
+        },
+      });
+    }
+
+    // 3. Map Encomendas
+    for (const e of encomendas) {
+      const aptoStr = `Apto ${e.destinatario_apto}${e.destinatario_bloco ?? ''}`;
+      ultimosEventos.push({
+        id: `encomenda-${e.id}`,
+        tipo: 'Encomenda',
+        descricao: `${e.descricao} — ${aptoStr}`,
+        quando: e.recebido_em.toISOString(),
+        detalhes: {
+          id: e.id,
+          nome: e.destinatario_nome,
+          blocoApto: aptoStr,
+          recebidoDe: e.entregador_nome || 'Courier',
+          dataEntrada: e.recebido_em.toISOString(),
+          status: e.status,
+          recebidoPor: e.recebidoPor?.name || 'Sistema',
+          retiradoPor: e.entreguePor?.name || undefined,
+        },
+      });
+    }
+
+    // 4. Map Ocorrências
+    for (const o of ocorrencias) {
+      ultimosEventos.push({
+        id: `ocorrencia-${o.id}`,
+        tipo: 'Ocorrência',
+        descricao: o.descricao ?? '—',
+        quando: o.created_at.toISOString(),
+        detalhes: {
+          id: o.id,
+          nome: o.categoria?.nome || 'Geral',
+          descricao: o.descricao || 'Sem descrição',
+          status: o.status,
+          dataEntrada: o.created_at.toISOString(),
+          autorizadoPor: o.criadoPor?.name || 'Morador',
+          resposta: o.resposta || undefined,
+          dataSaida: o.resposta_at ? o.resposta_at.toISOString() : undefined,
+        },
+      });
+    }
+
+    // 5. Map Dispositivos (AuditLog)
+    for (const a of auditLogs) {
+      const isOffline = a.acao === 'OFFLINE';
+      ultimosEventos.push({
+        id: `dispositivo-${a.id}`,
+        tipo: 'Ocorrência',
+        descricao: a.descricao,
+        quando: a.created_at.toISOString(),
+        direcao: isOffline ? 'saida' : 'entrada',
+        detalhes: {
+          id: a.id,
+          nome: 'Dispositivos',
+          descricao: a.descricao,
+          status: isOffline ? 'Offline' : 'Resolvido',
+          dataEntrada: a.created_at.toISOString(),
+          autorizadoPor: 'Monitor de Dispositivos',
+        },
+      });
+    }
+
+    // 6. Map Acessos Faciais
+    if (acessosFacial.length > 0) {
+      const idsMorador = acessosFacial
+        .filter((a) => a.tipo_pessoa === 'morador')
+        .map((a) => a.id_pessoa)
+        .filter((id): id is number => id !== null);
+      const idsVisitante = acessosFacial
+        .filter((a) => a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador')
+        .map((a) => a.id_pessoa)
+        .filter((id): id is number => id !== null);
+      const idsFuncionario = acessosFacial
+        .filter((a) => a.tipo_pessoa === 'funcionario')
+        .map((a) => a.id_pessoa)
+        .filter((id): id is number => id !== null);
+
+      const [moradoresInfo, visitantesInfo, funcionariosInfo] = await Promise.all([
+        idsMorador.length > 0
+          ? this.prisma.moradores.findMany({
+              where: { id: { in: idsMorador } },
+              select: {
+                id: true,
+                foto_pessoa: true,
+                bloco: true,
+                apartamento: true,
+                user: { select: { photo: true } },
+              },
+            })
+          : Promise.resolve([]),
+        idsVisitante.length > 0
+          ? this.prisma.visitantes.findMany({
+              where: { id: { in: idsVisitante } },
+              select: {
+                id: true,
+                foto_pessoa: true,
+                doc_identificacao: true,
+                apartamento: { select: { bloco: true, apto: true } },
+              },
+            })
+          : Promise.resolve([]),
+        idsFuncionario.length > 0
+          ? this.prisma.prestadores_servico.findMany({
+              where: { id: { in: idsFuncionario } },
+              select: {
+                id: true,
+                foto_pessoa: true,
+                apartamento: { select: { bloco: true, apto: true } },
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const moradorById = new Map(moradoresInfo.map((m) => [m.id, m]));
+      const visitanteById = new Map(visitantesInfo.map((v) => [v.id, v]));
+      const funcionarioById = new Map(funcionariosInfo.map((f) => [f.id, f]));
+
+      for (const a of acessosFacial) {
+        const confiancaPct = a.confianca != null ? ` · ${Math.round(a.confianca * 100)}%` : '';
+        const acao =
+          a.evento === 'saida' ? 'saiu' :
+          a.evento === 'negado' ? 'tentou acesso (negado)' :
+          a.evento === 'acionado_manual' ? 'acionou manualmente' :
+          a.evento === 'falha_acionamento' ? 'tentou acionar (falhou)' :
+          'entrou';
+
+        const dispLabel = labelDispositivo(a.tipo_dispositivo);
+        const dispMetodoLabel = labelMetodoDispositivo(a.tipo_dispositivo);
+
+        let foto: string | undefined;
+        let aptoStr = '';
+        let documento: string | undefined;
+
+        if (a.tipo_pessoa === 'morador') {
+          const m = moradorById.get(a.id_pessoa);
+          foto = m?.foto_pessoa ?? m?.user?.photo ?? undefined;
+          if (m?.bloco || m?.apartamento) {
+            aptoStr = `Apto ${m?.apartamento ?? ''}${m?.bloco ?? ''}`.trim();
+          }
+        } else if (a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') {
+          const v = visitanteById.get(a.id_pessoa);
+          foto = v?.foto_pessoa ?? undefined;
+          documento = v?.doc_identificacao ?? undefined;
+          if (v?.apartamento) {
+            aptoStr = `Apto ${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim();
+          }
+        } else if (a.tipo_pessoa === 'funcionario') {
+          const f = funcionarioById.get(a.id_pessoa);
+          foto = f?.foto_pessoa ?? undefined;
+          if (f?.apartamento) {
+            aptoStr = `Apto ${f.apartamento.apto ?? ''}${f.apartamento.bloco ?? ''}`.trim();
+          }
+        }
+
+        const terminalNome = deviceById.get(a.id_device) ?? `Terminal #${a.id_device}`;
+
+        ultimosEventos.push({
+          id: `facial-access-${a.id}`,
+          tipo: 'Acesso Facial',
+          descricao: `${a.nome_pessoa.toUpperCase()} ${acao} ${dispLabel} "${terminalNome}"${confiancaPct}`,
+          quando: a.timestamp.toISOString(),
+          direcao: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'bloqueado' : 'entrada',
+          detalhes: {
+            id: a.id,
+            nome: a.nome_pessoa,
+            documento,
+            blocoApto: aptoStr,
+            tipoPessoa: a.tipo_pessoa,
+            fotoPessoa: foto,
+            metodoLiberacao: a.tipo_dispositivo,
+            metodoLabel: dispMetodoLabel,
+            terminalNome,
+            confianca: a.confianca ?? undefined,
+            dataEntrada: a.timestamp.toISOString(),
+          },
+        });
+      }
+    }
+
+    const sorted = ultimosEventos.sort(
+      (a, b) => new Date(b.quando).getTime() - new Date(a.quando).getTime()
+    );
+
+    const total = sorted.length;
+    const pageItems = sorted.slice((safePage - 1) * safeSize, safePage * safeSize);
+
+    return {
+      items: pageItems,
+      total,
+      page: safePage,
+      pageSize: safeSize,
+    };
+  }
+}
+
+function labelDispositivo(tipo?: string | null): string {
+  switch (tipo) {
+    case 'catraca': return 'catraca';
+    case 'botoeira': return 'botoeira';
+    case 'tag_reader': return 'leitor de tag RFID';
+    case 'qrcode_reader': return 'leitor de QR Code';
+    case 'facial':
+    default: return 'terminal facial';
+  }
+}
+
+function labelMetodoDispositivo(tipo?: string | null): string {
+  switch (tipo) {
+    case 'catraca': return 'Catraca Eletrônica';
+    case 'botoeira': return 'Botoeira';
+    case 'tag_reader': return 'Leitor de Tag RFID';
+    case 'qrcode_reader': return 'Leitor de QR Code';
+    case 'facial':
+    default: return 'Terminal Facial';
+  }
 }

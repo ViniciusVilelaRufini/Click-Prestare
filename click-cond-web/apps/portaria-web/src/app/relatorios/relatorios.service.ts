@@ -51,9 +51,32 @@ export class RelatoriosApi {
     if (dataFim) params = params.set('dataFim', dataFim);
     return this.http.get(`${this.base}/auditoria/export`, { params, responseType: 'blob' });
   }
+
+  getEventos(
+    dataInicio?: string,
+    dataFim?: string,
+    page = 1,
+    pageSize = 50,
+    search?: string,
+  ): Observable<EventosPage> {
+    let params = new HttpParams()
+      .set('page', String(page))
+      .set('pageSize', String(pageSize));
+    if (dataInicio) params = params.set('dataInicio', dataInicio);
+    if (dataFim) params = params.set('dataFim', dataFim);
+    if (search) params = params.set('search', search);
+    return this.http.get<EventosPage>(`${this.base}/eventos`, { params });
+  }
 }
 
 export interface AuditoriaPage {
+  items: any[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface EventosPage {
   items: any[];
   total: number;
   page: number;
