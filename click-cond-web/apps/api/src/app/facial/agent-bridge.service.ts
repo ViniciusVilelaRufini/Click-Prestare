@@ -86,7 +86,7 @@ export class AgentBridgeService {
     shouldResolveTicket: boolean;
   } {
     const prev = this.deviceStatus.get(deviceId);
-    const prevOnline = prev && (Date.now() - prev.at < this.deviceStatusTtlMs) ? prev.online : null;
+    const lastKnownOnline = prev ? prev.online : null;
     
     this.deviceStatus.set(deviceId, { online, at: Date.now() });
 
@@ -112,9 +112,16 @@ export class AgentBridgeService {
       }
     }
 
+    // Só considera alterado se:
+    // 1. Tinha um status anterior conhecido e ele mudou (ex: true -> false ou false -> true)
+    // 2. Ou se era desconhecido (null) e mudou para offline (false) - queremos reportar quedas imediatamente.
+    // Se mudou de desconhecido (null) para online (true), não gera log pois assume-se que já estava online
+    // e apenas restabeleceu a comunicação do status.
+    const changed = lastKnownOnline !== null ? (lastKnownOnline !== online) : (online === false);
+
     return {
-      changed: prevOnline !== online,
-      previous: prevOnline,
+      changed,
+      previous: lastKnownOnline,
       shouldOpenTicket,
       shouldResolveTicket,
     };
