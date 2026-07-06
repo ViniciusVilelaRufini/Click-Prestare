@@ -444,12 +444,18 @@ export class DashboardService {
     if (ultAcessosFacial.length > 0) {
       const idsMorador = ultAcessosFacial
         .filter((a) => a.tipo_pessoa === 'morador')
-        .map((a) => a.id_pessoa);
+        .map((a) => a.id_pessoa)
+        .filter((id): id is number => id !== null);
       const idsVisitante = ultAcessosFacial
         .filter((a) => a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador')
-        .map((a) => a.id_pessoa);
+        .map((a) => a.id_pessoa)
+        .filter((id): id is number => id !== null);
+      const idsFuncionario = ultAcessosFacial
+        .filter((a) => a.tipo_pessoa === 'funcionario')
+        .map((a) => a.id_pessoa)
+        .filter((id): id is number => id !== null);
 
-      const [moradoresInfo, visitantesInfo] = await Promise.all([
+      const [moradoresInfo, visitantesInfo, funcionariosInfo] = await Promise.all([
         idsMorador.length > 0
           ? this.prisma.moradores.findMany({
               where: { id: { in: idsMorador } },
@@ -473,10 +479,21 @@ export class DashboardService {
               },
             })
           : Promise.resolve([]),
+        idsFuncionario.length > 0
+          ? this.prisma.prestadores_servico.findMany({
+              where: { id: { in: idsFuncionario } },
+              select: {
+                id: true,
+                foto_pessoa: true,
+                apartamento: { select: { bloco: true, apto: true } },
+              },
+            })
+          : Promise.resolve([]),
       ]);
 
       const moradorById = new Map(moradoresInfo.map((m) => [m.id, m]));
       const visitanteById = new Map(visitantesInfo.map((v) => [v.id, v]));
+      const funcionarioById = new Map(funcionariosInfo.map((f) => [f.id, f]));
 
       for (const a of ultAcessosFacial) {
         const confiancaPct = a.confianca != null ? ` · ${Math.round(a.confianca * 100)}%` : '';
@@ -512,6 +529,12 @@ export class DashboardService {
           documento = v?.doc_identificacao ?? undefined;
           if (v?.apartamento) {
             aptoStr = `Apto ${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim();
+          }
+        } else if (a.tipo_pessoa === 'funcionario') {
+          const f = funcionarioById.get(a.id_pessoa);
+          foto = f?.foto_pessoa ?? undefined;
+          if (f?.apartamento) {
+            aptoStr = `Apto ${f.apartamento.apto ?? ''}${f.apartamento.bloco ?? ''}`.trim();
           }
         }
 
