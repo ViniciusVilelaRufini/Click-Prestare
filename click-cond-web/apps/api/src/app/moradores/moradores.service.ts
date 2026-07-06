@@ -1021,10 +1021,27 @@ export class MoradoresService {
     const ctx = await this.carregarContextoMorador(id);
     const morador = await this.prisma.moradores.findUnique({
       where: { id },
-      select: { face_id: true, id_condominio: true, nome: true },
+      select: { face_id: true, id_condominio: true, nome: true, id_user: true },
     });
     try {
-      await this.prisma.moradores.delete({ where: { id } });
+      await this.prisma.$transaction(async (tx) => {
+        if (morador?.id_user && morador?.id_condominio) {
+          const aptos = await tx.apartamentos.findMany({
+            where: { id_condominio: morador.id_condominio },
+            select: { id: true },
+          });
+          const aptoIds = aptos.map((a) => a.id);
+          if (aptoIds.length > 0) {
+            await tx.apartamentos_Users.deleteMany({
+              where: {
+                id_user: morador.id_user,
+                id_apto: { in: aptoIds },
+              },
+            });
+          }
+        }
+        await tx.moradores.delete({ where: { id } });
+      });
     } catch {
       throw new NotFoundException(`Morador ${id} não encontrado`);
     }
