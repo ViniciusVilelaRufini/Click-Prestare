@@ -2982,14 +2982,14 @@ export class FacialService {
       }
     }
 
-    if (tipoPessoa === 'morador') {
+    if (tipoPessoa === 'morador' || tipoPessoa === 'funcionario') {
       await this.prisma.acessos_Facial.create({
         data: {
           id_condominio: device.id_condominio,
           id_device: device.id,
           tipo_dispositivo: device.tipo,
           face_id: faceIdSalvo,
-          tipo_pessoa: 'morador',
+          tipo_pessoa: tipoPessoa,
           id_pessoa: idPessoa,
           nome_pessoa: nomePessoa,
           evento,
