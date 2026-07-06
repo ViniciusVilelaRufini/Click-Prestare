@@ -421,6 +421,9 @@ export class VisitantesPageComponent implements OnInit {
       if (params['validar'] === 'true') {
         this.abrirValidador();
       }
+      if (params['search']) {
+        this.search.set(params['search']);
+      }
     });
   }
 

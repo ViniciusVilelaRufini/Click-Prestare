@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal, effect, untracked } from '
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
+import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
@@ -28,6 +29,7 @@ export class MoradoresPageComponent implements OnInit {
   private confirm = inject(ConfirmService);
   private auth = inject(AuthService);
   private toast = inject(ToastService);
+  private route = inject(ActivatedRoute);
 
   idCondominioAtual = () => this.auth.porteiroInfo()?.id_condominio ?? null;
 
@@ -189,6 +191,11 @@ export class MoradoresPageComponent implements OnInit {
     this.carregar();
     this.aptApi.list().subscribe({
       next: (data) => this.apartamentos.set(data),
+    });
+    this.route.queryParams.subscribe((params) => {
+      if (params['search']) {
+        this.search.set(params['search']);
+      }
     });
   }
 

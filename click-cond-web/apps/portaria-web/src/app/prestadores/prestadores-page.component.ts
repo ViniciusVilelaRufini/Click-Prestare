@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CreatePrestador, Prestador, PrestadoresApi } from './prestadores.service';
 import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective } from '../shared/input-mask.directive';
@@ -21,6 +21,7 @@ export class PrestadoresPageComponent implements OnInit {
   private confirm = inject(ConfirmService);
   private visitantesApi = inject(VisitantesService);
   private aptApi = inject(ApartamentosApi);
+  private route = inject(ActivatedRoute);
 
   constructor() {
     effect(() => {
@@ -307,6 +308,11 @@ export class PrestadoresPageComponent implements OnInit {
         });
         this.apartamentos.set(data);
       },
+    });
+    this.route.queryParams.subscribe((params) => {
+      if (params['search']) {
+        this.search.set(params['search']);
+      }
     });
   }
 

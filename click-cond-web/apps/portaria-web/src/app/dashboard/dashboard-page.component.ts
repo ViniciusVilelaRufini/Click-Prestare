@@ -492,4 +492,14 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       return `${dia}/${mes}/${ano} às ${horaStr}`;
     }
   }
+
+  obterRotaCadastro(tipoPessoa?: string): string {
+    switch (tipoPessoa) {
+      case 'morador': return '/moradores';
+      case 'visitante': return '/visitantes';
+      case 'prestador': return '/prestadores';
+      case 'funcionario': return '/prestadores/cadastro';
+      default: return '';
+    }
+  }
 }

@@ -1021,10 +1021,12 @@
               Ver Encomendas
             </a>
           } @else if (ev.tipo === 'Acesso Facial') {
-            <a routerLink="/terminais-faciais" (click)="fecharDetalhes()"
-               class="px-4 py-2 text-xs font-bold text-white bg-accent hover:bg-accent/90 rounded-xl shadow-md shadow-accent/15 transition-all active:scale-95 flex items-center">
-              Ver Terminais
-            </a>
+            @if (obterRotaCadastro(ev.detalhes?.tipoPessoa)) {
+              <a [routerLink]="obterRotaCadastro(ev.detalhes?.tipoPessoa)" [queryParams]="{ search: ev.detalhes?.nome }" (click)="fecharDetalhes()"
+                 class="px-4 py-2 text-xs font-bold text-white bg-accent hover:bg-accent/90 rounded-xl shadow-md shadow-accent/15 transition-all active:scale-95 flex items-center">
+                Ver cadastro da pessoa
+              </a>
+            }
           } @else if (ev.tipo === 'Ocorrência') {
             <a routerLink="/ocorrencias" (click)="fecharDetalhes()"
                class="px-4 py-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-md shadow-amber-500/15 transition-all active:scale-95 flex items-center">
