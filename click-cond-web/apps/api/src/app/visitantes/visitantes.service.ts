@@ -556,7 +556,7 @@ export class VisitantesService {
       data_hora_termino: dto.data_hora_termino,
       dias_semana: ref.dias_semana ?? undefined,
       categorias: ref.categorias ?? undefined,
-    });
+    }, payload);
   }
 
   /**
@@ -701,7 +701,7 @@ export class VisitantesService {
     return { ok: true, atualizados: result.count };
   }
 
-  async create(dto: CreateVisitanteDto) {
+  async create(dto: CreateVisitanteDto, operador?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),
@@ -796,13 +796,14 @@ export class VisitantesService {
           liberado: 1,
           dias_semana: dto.dias_semana !== undefined ? dto.dias_semana : existingActive.dias_semana,
           categorias: dto.categorias !== undefined ? dto.categorias : existingActive.categorias,
+          ...(operador?.sub !== undefined && { user: operador.sub }),
         },
       });
 
       const tipoLabel = updated.is_prestador === 1 ? 'Prestador' : 'Visitante';
       await this.auditoria.registrar({
         id_condominio: updated.id_condominio,
-        usuario_nome: 'Sistema / Portaria',
+        usuario_nome: operador?.nome ?? 'Sistema / Portaria',
         acao: 'UPDATE',
         modulo: 'visitantes',
         entidade_id: updated.id,
@@ -886,6 +887,7 @@ export class VisitantesService {
         liberado: 1,
         dias_semana: dto.dias_semana ?? null,
         categorias: dto.categorias ?? null,
+        user: operador ? operador.sub : null,
       },
     });
 
@@ -894,7 +896,7 @@ export class VisitantesService {
     const aptoLabelCreate = ctxCreate?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
       id_condominio: visitante.id_condominio,
-      usuario_nome: 'Sistema / Portaria',
+      usuario_nome: operador?.nome ?? 'Sistema / Portaria',
       acao: 'CREATE',
       modulo: 'visitantes',
       entidade_id: visitante.id,
@@ -1364,7 +1366,12 @@ export class VisitantesService {
     }
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
-      data: { data_entrada: new Date(), data_saida: null, liberado: 1 },
+      data: {
+        data_entrada: new Date(),
+        data_saida: null,
+        liberado: 1,
+        ...(payload?.sub !== undefined && { user: payload.sub }),
+      },
     });
     // Re-enrola o rosto no terminal para garantir que o acesso biométrico
     // funcione (especialmente para saída posterior pelo facial).
@@ -1374,7 +1381,7 @@ export class VisitantesService {
     const aptoLabel = ctx?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: 'Portaria / Sistema',
+      usuario_nome: payload?.nome ?? 'Portaria / Sistema',
       acao: 'CHECK_IN',
       modulo: 'visitantes',
       entidade_id: v.id,
@@ -1391,14 +1398,19 @@ export class VisitantesService {
     }
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
-      data: { liberado: 1, data_entrada: null, data_saida: null },
+      data: {
+        liberado: 1,
+        data_entrada: null,
+        data_saida: null,
+        ...(payload?.sub !== undefined && { user: payload.sub }),
+      },
     });
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: 'Portaria / Morador',
+      usuario_nome: payload?.nome ?? 'Portaria / Sistema',
       acao: 'UPDATE',
       modulo: 'visitantes',
       entidade_id: v.id,

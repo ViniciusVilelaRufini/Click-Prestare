@@ -138,8 +138,9 @@ export class VisitantesController {
   create(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Body() body: Omit<CreateVisitanteDto, 'id_condominio'>,
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.create({ ...body, id_condominio: idCondominio });
+    return this.service.create({ ...body, id_condominio: idCondominio }, payload);
   }
 
   // PUT /:id e DELETE /:id foram removidos. Para atualizar identidade de
@@ -275,7 +276,7 @@ export class VisitantesGlobalController {
       id_condominio: idCondominio,
       foto_documento: vis.foto_documento,
       foto_pessoa: vis.foto_pessoa || vis.photo,
-    });
+    }, payload);
     
     return saved;
   }
