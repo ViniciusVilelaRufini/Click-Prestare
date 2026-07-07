@@ -21,6 +21,7 @@ export interface Morador {
   foto_documento: string | null;
   face_id?: string | null;
   face_sync_status?: string | null;
+  face_sync_error?: string | null;
   tag_rfid?: string | null;
   qrcode_acesso?: string | null;
 }

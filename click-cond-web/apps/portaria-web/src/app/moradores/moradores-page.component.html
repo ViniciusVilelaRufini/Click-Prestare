@@ -333,6 +333,10 @@
                   <p class="font-medium text-white truncate">{{ m.nome }}</p>
                   @if (m.face_sync_status === 'synced') {
                     <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 border border-green-500/30 text-green-400 uppercase">Facial</span>
+                  } @else if (m.face_sync_status === 'pending') {
+                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 uppercase">Sinc.</span>
+                  } @else if (m.face_sync_status === 'error') {
+                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 uppercase" [title]="m.face_sync_error || 'Erro na sincronização facial'">Erro</span>
                   }
                   <span class="text-[11px] px-2 py-0.5 rounded-md border capitalize {{ tipoColor(m.tipo) }}">{{ m.tipo || '—' }}</span>
                 </div>
@@ -396,7 +400,7 @@
                       } @else if (m.face_sync_status === 'pending') {
                         <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 uppercase shrink-0" title="Sincronização pendente">Sinc.</span>
                       } @else if (m.face_sync_status === 'error') {
-                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 uppercase shrink-0" title="Erro na sincronização facial">Erro</span>
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 uppercase shrink-0" [title]="m.face_sync_error || 'Erro na sincronização facial'">Erro</span>
                       }
                     </div>
                     @if (m.email) { <p class="text-[11px] text-slate-500 truncate">{{ m.email }}</p> }
@@ -738,6 +742,14 @@
               <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-green-500/15 border border-green-500/30 text-green-700 dark:text-green-400 uppercase tracking-wider">
                 Facial
               </span>
+            } @else if (selectedMorador()!.face_sync_status === 'pending') {
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                Sinc. Pendente
+              </span>
+            } @else if (selectedMorador()!.face_sync_status === 'error') {
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-400 uppercase tracking-wider" [title]="selectedMorador()!.face_sync_error || 'Erro na sincronização facial'">
+                Erro Facial
+              </span>
             }
           </div>
         </div>
@@ -891,6 +903,24 @@
           </button>
         </div>
       </div>
+
+      <!-- Status da Sincronização Facial (Erro) -->
+      @if (selectedMorador()!.face_sync_status === 'error') {
+        <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2">
+          <div class="flex items-center gap-2 text-rose-750 dark:text-rose-400">
+            <svg class="w-4.5 h-4.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <span class="text-xs font-bold uppercase tracking-wider">Falha na Sincronização Facial</span>
+          </div>
+          <p class="text-xs text-slate-700 dark:text-slate-300">
+            O leitor facial do condomínio recusou o envio da foto com o seguinte erro:
+          </p>
+          <div class="p-2.5 rounded bg-black/20 font-mono text-xs text-rose-600 dark:text-rose-450 border border-rose-500/10 break-words">
+            {{ selectedMorador()!.face_sync_error || 'Erro na foto: certifique-se de que a foto foi tirada de frente, sem inclinação de cabeça e com fundo neutro.' }}
+          </div>
+        </div>
+      }
 
       <!-- Controle de Acesso Físico — 2 cards com bg que existe em ambos modos. -->
       <div>

@@ -901,7 +901,7 @@ export class FacialService {
         );
         await this.prisma.moradores.update({
           where: { id: idMorador },
-          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+          data: { face_id: null, face_sync_status: null, face_sync_error: null, face_enrolled_at: null },
         });
         return { ok: true, removed: true };
       }
@@ -929,7 +929,7 @@ export class FacialService {
     const externalId = `morador_${morador.id}`;
     const fotoBase64 = await this.fetchPhotoAsBase64(morador.foto_pessoa);
     if (!fotoBase64) {
-      await this.markMoradorSyncStatus(idMorador, 'error');
+      await this.markMoradorSyncStatus(idMorador, 'error', 'Erro ao baixar foto do servidor de armazenamento.');
       return { ok: false, reason: 'photo_unreachable' };
     }
 
@@ -996,6 +996,7 @@ export class FacialService {
       data: {
         face_id: faceId,
         face_sync_status: status,
+        face_sync_error: allOk ? null : (ultimoErro ? String(ultimoErro).slice(0, 500) : null),
         face_enrolled_at: allOk ? new Date() : morador.face_enrolled_at,
       },
     });
@@ -1077,7 +1078,7 @@ export class FacialService {
         }
         await this.prisma.visitantes.update({
           where: { id: idVisitante },
-          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+          data: { face_id: null, face_sync_status: null, face_sync_error: null, face_enrolled_at: null },
         });
         return { ok: true, removed: true };
       }
@@ -1148,7 +1149,7 @@ export class FacialService {
         }
         await this.prisma.visitantes.update({
           where: { id: idVisitante },
-          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+          data: { face_id: null, face_sync_status: null, face_sync_error: null, face_enrolled_at: null },
         });
         return { ok: true, removed: true, reason: 'nao_autorizado' };
       }
@@ -1172,7 +1173,7 @@ export class FacialService {
     const externalId = `visitante_${visitante.id}`;
     const fotoBase64 = await this.fetchPhotoAsBase64(visitante.foto_pessoa);
     if (!fotoBase64) {
-      await this.markVisitanteSyncStatus(idVisitante, 'error');
+      await this.markVisitanteSyncStatus(idVisitante, 'error', 'Erro ao baixar foto do servidor de armazenamento.');
       return { ok: false, reason: 'photo_unreachable' };
     }
 
@@ -1295,6 +1296,7 @@ export class FacialService {
       data: {
         face_id: faceId,
         face_sync_status: status,
+        face_sync_error: allOk ? null : (ultimoErro ? String(ultimoErro).slice(0, 500) : null),
         face_enrolled_at: allOk ? new Date() : visitante.face_enrolled_at,
       },
     });
@@ -1402,7 +1404,7 @@ export class FacialService {
         }
         await this.prisma.prestadores_servico.update({
           where: { id: idPrestador },
-          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+          data: { face_id: null, face_sync_status: null, face_sync_error: null, face_enrolled_at: null },
         });
         return { ok: true, removed: true };
       }
@@ -1456,7 +1458,7 @@ export class FacialService {
         }
         await this.prisma.prestadores_servico.update({
           where: { id: idPrestador },
-          data: { face_id: null, face_sync_status: null, face_enrolled_at: null },
+          data: { face_id: null, face_sync_status: null, face_sync_error: null, face_enrolled_at: null },
         });
         return { ok: true, removed: true, reason: 'dia_nao_autorizado' };
       }
@@ -1465,7 +1467,7 @@ export class FacialService {
 
     const fotoBase64 = await this.fetchPhotoAsBase64(prest.foto_pessoa);
     if (!fotoBase64) {
-      await this.markPrestadorSyncStatus(idPrestador, 'error');
+      await this.markPrestadorSyncStatus(idPrestador, 'error', 'Erro ao baixar foto do servidor de armazenamento.');
       return { ok: false, reason: 'photo_unreachable' };
     }
 
@@ -1534,6 +1536,7 @@ export class FacialService {
       data: {
         face_id: faceId,
         face_sync_status: status,
+        face_sync_error: allOk ? null : (ultimoErro ? String(ultimoErro).slice(0, 500) : null),
         face_enrolled_at: allOk ? new Date() : prest.face_enrolled_at,
       },
     });
@@ -3602,33 +3605,42 @@ export class FacialService {
     return foto;
   }
 
-  private async markMoradorSyncStatus(id: number, status: string) {
+  private async markMoradorSyncStatus(id: number, status: string, errorMsg?: string | null) {
     try {
       await this.prisma.moradores.update({
         where: { id },
-        data: { face_sync_status: status },
+        data: {
+          face_sync_status: status,
+          face_sync_error: errorMsg ? errorMsg.slice(0, 500) : null
+        },
       });
     } catch {
       /* noop */
     }
   }
 
-  private async markVisitanteSyncStatus(id: number, status: string) {
+  private async markVisitanteSyncStatus(id: number, status: string, errorMsg?: string | null) {
     try {
       await this.prisma.visitantes.update({
         where: { id },
-        data: { face_sync_status: status },
+        data: {
+          face_sync_status: status,
+          face_sync_error: errorMsg ? errorMsg.slice(0, 500) : null
+        },
       });
     } catch {
       /* noop */
     }
   }
 
-  private async markPrestadorSyncStatus(id: number, status: string) {
+  private async markPrestadorSyncStatus(id: number, status: string, errorMsg?: string | null) {
     try {
       await this.prisma.prestadores_servico.update({
         where: { id },
-        data: { face_sync_status: status },
+        data: {
+          face_sync_status: status,
+          face_sync_error: errorMsg ? errorMsg.slice(0, 500) : null
+        },
       });
     } catch {
       /* noop */

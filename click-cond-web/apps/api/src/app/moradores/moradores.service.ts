@@ -327,6 +327,7 @@ export class MoradoresService {
           foto_documento: m?.foto_documento ?? null,
           face_id: m?.face_id ?? null,
           face_sync_status: m?.face_sync_status ?? null,
+          face_sync_error: m?.face_sync_error ?? null,
         });
       }
       // Busca textual local (mesmo comportamento da query condo-wide).
@@ -399,6 +400,7 @@ export class MoradoresService {
         foto_documento: m.foto_documento ?? null,
         face_id: m.face_id ?? null,
         face_sync_status: m.face_sync_status ?? null,
+        face_sync_error: m.face_sync_error ?? null,
       };
     });
   }
