@@ -435,11 +435,19 @@ async function doSnapshot(device) {
       error: `Captura por câmera não suportada para ${device.fabricante}.`,
     };
   }
+  // Liga o flash automaticamente antes do snapshot
+  await setDeviceLightingMode(device, 'Manual').catch(() => {});
+  await sleep(300); // aguarda acender e exposição regular
+
   const res = await lanRequest(
     device,
     'GET',
     '/cgi-bin/snapshot.cgi?channel=1',
   );
+
+  // Restaura para automático após o snapshot
+  await setDeviceLightingMode(device, 'Auto').catch(() => {});
+
   if (
     !(res.status >= 200 && res.status < 300) ||
     !res.buffer ||
@@ -452,6 +460,23 @@ async function doSnapshot(device) {
     };
   }
   return { ok: true, imageBase64: res.buffer.toString('base64') };
+}
+
+/** Altera o modo de iluminação (LED/Flash) do dispositivo (Manual = ligado, Auto = automático). */
+async function setDeviceLightingMode(device, mode) {
+  if (device.fabricante !== 'intelbras') return;
+  const paths = [
+    `/cgi-bin/configManager.cgi?action=setConfig&Lighting_V2[0][0][0].Mode=${mode}`,
+    `/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].Mode=${mode}`,
+    `/cgi-bin/configManager.cgi?action=setConfig&Lighting[0].Mode=${mode}`,
+  ];
+  for (const p of paths) {
+    try {
+      await lanRequest(device, 'GET', p);
+    } catch (err) {
+      // continua tentando os outros
+    }
+  }
 }
 
 // ---------- Preview ao vivo (servidor local MJPEG por snapshots) ----------
@@ -519,6 +544,10 @@ async function streamLiveView(device, res) {
   res.on('close', () => {
     alive = false;
   });
+
+  // Liga o flash automaticamente antes do preview
+  await setDeviceLightingMode(device, 'Manual').catch(() => {});
+
   const st = {}; // estado do Digest (reusa o nonce entre quadros = mais fps)
   while (alive) {
     let jpeg = null;
@@ -542,6 +571,10 @@ async function streamLiveView(device, res) {
       await sleep(150);
     }
   }
+
+  // Restaura para automático após o fim do preview
+  await setDeviceLightingMode(device, 'Auto').catch(() => {});
+
   try {
     res.end();
   } catch {
