@@ -2634,6 +2634,8 @@ export class FacialService {
           ? new Date(v.data_hora_termino)
           : null;
 
+        const GRACE_PERIOD_MS = 15 * 60 * 1000;
+
         // A entrada só é permitida a partir do horário de início exato (sem tolerância prévia)
         const inicioComTolerancia = inicio;
 
