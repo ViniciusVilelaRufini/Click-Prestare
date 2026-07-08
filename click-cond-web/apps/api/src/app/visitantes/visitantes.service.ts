@@ -26,6 +26,36 @@ export interface UpdateVisitanteDto extends Partial<CreateVisitanteDto> {
   id: number;
 }
 
+export function parseLocalTimeToUTC(dateValue: string | Date | undefined | null): Date {
+  if (!dateValue) return new Date();
+  if (dateValue instanceof Date) return dateValue;
+  
+  if (typeof dateValue === 'string') {
+    if (dateValue.includes('Z') || /[+-]\d{2}:?\d{2}$/.test(dateValue)) {
+      return new Date(dateValue);
+    }
+    const normalized = dateValue.replace('T', ' ');
+    const parts = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (parts) {
+      const year = parseInt(parts[1], 10);
+      const month = parseInt(parts[2], 10) - 1;
+      const day = parseInt(parts[3], 10);
+      const hour = parseInt(parts[4], 10);
+      const minute = parseInt(parts[5], 10);
+      const second = parts[6] ? parseInt(parts[6], 10) : 0;
+      
+      const localAsUtcMs = Date.UTC(year, month, day, hour, minute, second);
+      return new Date(localAsUtcMs + 3 * 3600 * 1000); // UTC = Brasília + 3 horas
+    }
+  }
+  return new Date(dateValue);
+}
+
+export function parseLocalTimeToUTCNullable(dateValue: string | Date | undefined | null): Date | null {
+  if (!dateValue) return null;
+  return parseLocalTimeToUTC(dateValue);
+}
+
 @Injectable()
 export class VisitantesService {
   private readonly logger = new Logger(VisitantesService.name);
@@ -707,8 +737,8 @@ export class VisitantesService {
         id: Date.now(),
         nome: dto.nome,
         doc_identificacao: dto.doc_identificacao ?? null,
-        data_hora_inicio: dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : new Date(),
-        data_hora_termino: dto.data_hora_termino ? new Date(dto.data_hora_termino) : null,
+        data_hora_inicio: parseLocalTimeToUTC(dto.data_hora_inicio),
+        data_hora_termino: parseLocalTimeToUTCNullable(dto.data_hora_termino),
         is_visitante: dto.is_visitante ?? 1,
         is_prestador: dto.is_prestador ?? 0,
         id_apartamento: dto.id_apartamento,
@@ -783,8 +813,8 @@ export class VisitantesService {
         data: {
           nome: dto.nome,
           doc_identificacao: dto.doc_identificacao ?? existingActive.doc_identificacao,
-          data_hora_inicio: dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : existingActive.data_hora_inicio,
-          data_hora_termino: dto.data_hora_termino ? new Date(dto.data_hora_termino) : existingActive.data_hora_termino,
+          data_hora_inicio: dto.data_hora_inicio ? parseLocalTimeToUTC(dto.data_hora_inicio) : existingActive.data_hora_inicio,
+          data_hora_termino: dto.data_hora_termino ? parseLocalTimeToUTCNullable(dto.data_hora_termino) : existingActive.data_hora_termino,
           is_visitante: dto.is_visitante ?? existingActive.is_visitante,
           is_prestador: dto.is_prestador ?? existingActive.is_prestador,
           id_apartamento: dto.id_apartamento,
@@ -872,8 +902,8 @@ export class VisitantesService {
       data: {
         nome: dto.nome,
         doc_identificacao: dto.doc_identificacao ?? null,
-        data_hora_inicio: dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : new Date(),
-        data_hora_termino: dto.data_hora_termino ? dto.data_hora_termino ? new Date(dto.data_hora_termino) : null : null,
+        data_hora_inicio: parseLocalTimeToUTC(dto.data_hora_inicio),
+        data_hora_termino: parseLocalTimeToUTCNullable(dto.data_hora_termino),
         is_visitante: dto.is_visitante ?? 1,
         is_prestador: dto.is_prestador ?? 0,
         id_apartamento: dto.id_apartamento,
@@ -964,10 +994,10 @@ export class VisitantesService {
           ...(dto.nome !== undefined && { nome: dto.nome }),
           ...(dto.doc_identificacao !== undefined && { doc_identificacao: dto.doc_identificacao }),
           ...(dto.data_hora_inicio !== undefined && {
-            data_hora_inicio: new Date(dto.data_hora_inicio),
+            data_hora_inicio: parseLocalTimeToUTC(dto.data_hora_inicio),
           }),
           ...(dto.data_hora_termino !== undefined && {
-            data_hora_termino: dto.data_hora_termino ? new Date(dto.data_hora_termino) : null,
+            data_hora_termino: parseLocalTimeToUTCNullable(dto.data_hora_termino),
           }),
           ...(dto.is_visitante !== undefined && { is_visitante: dto.is_visitante }),
           ...(dto.is_prestador !== undefined && { is_prestador: dto.is_prestador }),
