@@ -1059,9 +1059,9 @@ export class VisitantesService {
     const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
     const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
 
-    // Grace periods: 15 minutes before start, 15 minutes after end to account for server clock drift
+    // Sem tolerância antes do início da liberação. Tolerância de 15 minutos ao término.
+    const inicioComTolerancia = inicio;
     const GRACE_PERIOD_MS = 15 * 60 * 1000;
-    const inicioComTolerancia = new Date(inicio.getTime() - GRACE_PERIOD_MS);
     const terminoComTolerancia = new Date(termino.getTime() + GRACE_PERIOD_MS);
 
     let status = 'ATIVO';
