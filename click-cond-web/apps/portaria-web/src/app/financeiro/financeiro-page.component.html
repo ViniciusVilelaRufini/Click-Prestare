@@ -96,12 +96,13 @@
       <button
         (click)="abrirModalCobrarMorador()"
         class="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white font-semibold text-sm
-               hover:bg-white/10 transition active:scale-95 animate-fade-in"
+               hover:bg-white/10 transition active:scale-95 animate-fade-in group"
+        title="Lançar cobrança individual para morador"
       >
-        <svg class="w-4 h-4 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        <svg class="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        + Cobrar Morador
+        <span>Cobrar Morador</span>
       </button>
 
       <button
@@ -1455,173 +1456,264 @@
 
 <!-- Modal de Cobrar Morador -->
 @if (modalCobrarMorador()) {
-  <div class="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50 animate-fadeIn text-white">
-    <div class="w-full max-w-md rounded-3xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl flex flex-col">
-      <div class="p-5 border-b border-white/10 flex items-center justify-between bg-slate-900/40">
-        <div>
-          <h3 class="text-base font-semibold text-white">Cobrar Morador</h3>
-          <p class="text-[10px] text-slate-400 mt-0.5">Lançar uma cobrança vinculada a um apartamento específico</p>
+  <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 text-white">
+    <div class="w-full max-w-md rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-white/10 overflow-hidden shadow-2xl flex flex-col relative animate-in zoom-in-95 duration-200">
+      
+      <!-- Top Glowing Accent Line -->
+      <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400"></div>
+
+      <!-- Header -->
+      <div class="p-5 border-b border-white/5 flex items-center justify-between bg-slate-950/30">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white tracking-tight">Cobrar Morador</h3>
+            <p class="text-[10px] text-slate-400 mt-0.5">Lançar uma cobrança vinculada a um apartamento específico</p>
+          </div>
         </div>
-        <button (click)="modalCobrarMorador.set(false)" class="text-slate-400 hover:text-white transition">✕</button>
+        <button (click)="modalCobrarMorador.set(false)" 
+                class="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-all">✕</button>
       </div>
 
-      <div class="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
+      <div class="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
         @if (cobrancaErro()) {
-          <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-xs text-red-300">
+          <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300">
             {{ cobrancaErro() }}
           </div>
         }
 
         <!-- Seletor de Apartamento -->
         <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1.5">Unidade / Apartamento <span class="text-rose-500">*</span></label>
-          <select
-            [(ngModel)]="selectedAptoOption"
-            (change)="onAptoSelectChange()"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
-          >
-            <option value="">Selecione o Apartamento...</option>
-            @for (apto of apartamentosConfig(); track apto.id) {
-              <option [value]="apto.bloco + '|' + apto.apto">
-                Apto {{ apto.apto }} Bloco {{ apto.bloco }}
-              </option>
-            }
-          </select>
+          <label class="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">Unidade / Apartamento <span class="text-rose-500">*</span></label>
+          <div class="relative">
+            <svg class="w-4 h-4 text-slate-505 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            <select
+              [(ngModel)]="selectedAptoOption"
+              (change)="onAptoSelectChange()"
+              class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
+            >
+              <option value="" disabled selected>Selecione o Apartamento...</option>
+              @for (apto of apartamentosConfig(); track apto.id) {
+                <option [value]="apto.bloco + '|' + apto.apto">
+                  Apto {{ apto.apto }} Bloco {{ apto.bloco }}
+                </option>
+              }
+            </select>
+            <div class="pointer-events-none absolute right-3 top-3.5 text-slate-400">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+          </div>
         </div>
 
         <!-- Categoria & Valor -->
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Categoria <span class="text-rose-500">*</span></label>
-            <select
-              [(ngModel)]="novaCobranca.categoria"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
-            >
-              <option value="Taxa Condominial">Taxa Condominial</option>
-              <option value="Fundo de Reserva">Fundo de Reserva</option>
-              <option value="Multa">Multa</option>
-              <option value="Acordo">Acordo</option>
-              <option value="Doação">Doação</option>
-              <option value="Água">Água</option>
-              <option value="Gás">Gás</option>
-              <option value="Outros">Outros</option>
-            </select>
+            <label class="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">Categoria <span class="text-rose-500">*</span></label>
+            <div class="relative">
+              <svg class="w-4 h-4 text-slate-505 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <select
+                [(ngModel)]="novaCobranca.categoria"
+                class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
+              >
+                <option value="Taxa Condominial">Taxa Condominial</option>
+                <option value="Fundo de Reserva">Fundo de Reserva</option>
+                <option value="Multa">Multa</option>
+                <option value="Acordo">Acordo</option>
+                <option value="Doação">Doação</option>
+                <option value="Água">Água</option>
+                <option value="Gás">Gás</option>
+                <option value="Outros">Outros</option>
+              </select>
+              <div class="pointer-events-none absolute right-3 top-3.5 text-slate-400">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Valor (R$) <span class="text-rose-500">*</span></label>
-            <input
-              [(ngModel)]="novaCobranca.valor"
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
-            />
+            <label class="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">Valor <span class="text-rose-505">*</span></label>
+            <div class="relative">
+              <span class="text-xs font-bold text-slate-505 absolute left-3.5 top-2.5 font-mono select-none">R$</span>
+              <input
+                [(ngModel)]="novaCobranca.valor"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
+              />
+            </div>
           </div>
         </div>
 
         <!-- Referência (Mês / Ano) -->
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Mês Referência <span class="text-rose-500">*</span></label>
-            <select
-              [(ngModel)]="novaCobranca.referenciaMes"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
-            >
-              <option value="01">01 - Janeiro</option>
-              <option value="02">02 - Fevereiro</option>
-              <option value="03">03 - Março</option>
-              <option value="04">04 - Abril</option>
-              <option value="05">05 - Maio</option>
-              <option value="06">06 - Junho</option>
-              <option value="07">07 - Julho</option>
-              <option value="08">08 - Agosto</option>
-              <option value="09">09 - Setembro</option>
-              <option value="10">10 - Outubro</option>
-              <option value="11">11 - Novembro</option>
-              <option value="12">12 - Dezembro</option>
-            </select>
+            <label class="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">Mês Referência <span class="text-rose-505">*</span></label>
+            <div class="relative">
+              <svg class="w-4 h-4 text-slate-505 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <select
+                [(ngModel)]="novaCobranca.referenciaMes"
+                class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
+              >
+                <option value="01">01 - Janeiro</option>
+                <option value="02">02 - Fevereiro</option>
+                <option value="03">03 - Março</option>
+                <option value="04">04 - Abril</option>
+                <option value="05">05 - Maio</option>
+                <option value="06">06 - Junho</option>
+                <option value="07">07 - Julho</option>
+                <option value="08">08 - Agosto</option>
+                <option value="09">09 - Setembro</option>
+                <option value="10">10 - Outubro</option>
+                <option value="11">11 - Novembro</option>
+                <option value="12">12 - Dezembro</option>
+              </select>
+              <div class="pointer-events-none absolute right-3 top-3.5 text-slate-400">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Ano Referência <span class="text-rose-500">*</span></label>
-            <input
-              [(ngModel)]="novaCobranca.referenciaAno"
-              type="number"
-              placeholder="Ex: 2026"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
-            />
+            <label class="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">Ano Referência <span class="text-rose-500">*</span></label>
+            <div class="relative">
+              <svg class="w-4 h-4 text-slate-505 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              <input
+                [(ngModel)]="novaCobranca.referenciaAno"
+                type="number"
+                placeholder="Ex: 2026"
+                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
+              />
+            </div>
           </div>
         </div>
 
         <!-- Data Emissão & Vencimento -->
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Data Emissão <span class="text-rose-500">*</span></label>
-            <input
-              [(ngModel)]="novaCobranca.data"
-              type="text"
-              placeholder="DD/MM/YYYY"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
-            />
+            <label class="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">Data Emissão <span class="text-rose-505">*</span></label>
+            <div class="relative">
+              <svg class="w-4 h-4 text-slate-505 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <input
+                [(ngModel)]="novaCobranca.data"
+                type="text"
+                placeholder="DD/MM/YYYY"
+                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-505/20 transition font-mono"
+              />
+            </div>
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Vencimento <span class="text-rose-500">*</span></label>
-            <input
-              [(ngModel)]="novaCobranca.data_vencimento"
-              type="text"
-              placeholder="DD/MM/YYYY"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
-            />
+            <label class="block text-[10px] font-bold text-slate-455 uppercase tracking-wider mb-1.5">Vencimento <span class="text-rose-500">*</span></label>
+            <div class="relative">
+              <svg class="w-4 h-4 text-slate-505 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <input
+                [(ngModel)]="novaCobranca.data_vencimento"
+                type="text"
+                placeholder="DD/MM/YYYY"
+                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-505/20 transition font-mono"
+              />
+            </div>
           </div>
         </div>
 
         <!-- Descrição -->
         <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1.5">Observações (Opcional)</label>
-          <textarea
-            [(ngModel)]="novaCobranca.descricao"
-            placeholder="Ex: Ref. cota extra de obras"
-            rows="2"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 resize-none"
-          ></textarea>
+          <label class="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1.5">Observações (Opcional)</label>
+          <div class="relative">
+            <svg class="w-4 h-4 text-slate-505 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <textarea
+              [(ngModel)]="novaCobranca.descricao"
+              placeholder="Ex: Ref. cota extra de obras"
+              rows="2"
+              class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-505/20 transition resize-none"
+            ></textarea>
+          </div>
         </div>
 
-        <!-- Já Pago -->
-        <div class="flex items-center gap-2 py-1">
-          <input
-            id="cobrancaPagoCheckbox"
-            type="checkbox"
-            [(ngModel)]="novaCobranca.pago"
-            [value]="1"
-            class="w-4 h-4 rounded bg-slate-900 border-white/10 text-emerald-500 focus:ring-emerald-400/20 cursor-pointer"
-          />
-          <label for="cobrancaPagoCheckbox" class="text-xs text-slate-350 cursor-pointer select-none">
-            Esta cobrança já foi recebida (marcar como paga)
+        <!-- Já Pago Custom switch toggle -->
+        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950/30 border border-white/5">
+          <span class="text-xs text-slate-350 select-none">Marcar cobrança como paga</span>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              [(ngModel)]="novaCobranca.pago"
+              [value]="1"
+              class="sr-only peer"
+            />
+            <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-checked:after:bg-white peer-checked:after:border-white"></div>
           </label>
         </div>
 
-        <!-- Preview do Título Gerado -->
-        <div class="p-4 rounded-2xl bg-slate-950/40 border border-white/5 flex flex-col gap-1.5">
-          <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Título do lançamento no sistema</div>
-          <div class="text-xs font-mono font-bold text-blue-400 truncate">
+        <!-- Preview do Título Gerado estilo Boleto/Recibo Digital Premium -->
+        <div class="relative p-4 rounded-xl bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-transparent border border-blue-500/20 overflow-hidden">
+          
+          <!-- Decorative Background Barcode Watermark -->
+          <div class="absolute right-3 top-3 opacity-[0.03] text-white">
+            <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M2 4h2v16H2V4zm3 0h1v16H5V4zm3 0h3v16H8V4zm4 0h1v16h-1V4zm2 0h2v16h-2V4zm5 0h1v16h-1V4zm2 0h1v16h-1V4z"/>
+            </svg>
+          </div>
+          
+          <div class="text-[9px] text-blue-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+            Título Gerado no Sistema
+          </div>
+          
+          <!-- Dashed Separator -->
+          <div class="border-t border-dashed border-white/10 my-2.5"></div>
+          
+          <div class="text-xs font-mono font-bold text-blue-300 truncate tracking-wide py-1 select-all" title="Clique duas vezes para copiar">
             Apto {{ novaCobranca.apto || '___' }} Bloco {{ novaCobranca.bloco || '___' }} - {{ novaCobranca.categoria }} Ref. {{ novaCobranca.referenciaMes || 'MM' }}/{{ novaCobranca.referenciaAno || 'AAAA' }}
           </div>
-          <p class="text-[10px] text-slate-500">
-            O nome é gerado automaticamente de forma padronizada para vincular o débito ao histórico de inadimplência da unidade.
+          
+          <div class="border-t border-dashed border-white/10 my-2.5"></div>
+          
+          <p class="text-[9px] text-slate-450 leading-relaxed">
+            * O título acima é gerado e padronizado automaticamente no banco para fins de auditoria e vinculação automática com o histórico de inadimplência da unidade.
           </p>
         </div>
       </div>
 
-      <div class="p-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-end gap-3">
-        <button (click)="modalCobrarMorador.set(false)" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">Cancelar</button>
+      <!-- Footer -->
+      <div class="p-4 border-t border-white/5 bg-slate-950/30 flex items-center justify-end gap-3.5">
+        <button (click)="modalCobrarMorador.set(false)" 
+                class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all active:scale-95">
+          Cancelar
+        </button>
         <button
           (click)="salvarCobranca()"
           [disabled]="salvandoCobranca() || !novaCobranca.apto || !novaCobranca.valor || novaCobranca.valor <= 0 || !novaCobranca.referenciaMes || !novaCobranca.referenciaAno"
-          class="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition disabled:opacity-50 flex items-center gap-2"
+          class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2"
         >
           @if (salvandoCobranca()) {
             <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             <span>Salvando...</span>
           } @else {
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
             <span>Gerar Cobrança</span>
           }
         </button>
