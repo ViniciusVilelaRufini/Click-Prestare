@@ -362,6 +362,7 @@ export class PrestadoresPageComponent implements OnInit {
     this.categoriasSelecionadas.set(new Set(cats));
     this.error.set(null);
     this.showForm = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   removerFotoPessoa() {

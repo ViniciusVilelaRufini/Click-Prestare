@@ -542,6 +542,7 @@ export class VisitantesPageComponent implements OnInit {
     this.fotoDocumentoBase64.set(v.foto_documento ?? null);
     this.error.set(null);
     this.showForm = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   cancelarForm() {
