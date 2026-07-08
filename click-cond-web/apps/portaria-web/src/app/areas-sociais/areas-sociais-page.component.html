@@ -124,17 +124,31 @@
               </div>
 
               <div class="flex items-center gap-2 pt-3 border-t border-white/5 mt-auto justify-between">
-                <button
-                  (click)="abrirModalReserva(area)"
-                  class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent/10 text-accent border border-accent/20
-                         hover:bg-accent hover:text-slate-950 text-xs font-semibold transition active:scale-95"
-                  title="Agendar um horário para o morador"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                  </svg>
-                  Agendar
-                </button>
+                <div class="flex items-center gap-2">
+                  <button
+                    (click)="abrirModalReserva(area)"
+                    class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent/10 text-accent border border-accent/20
+                           hover:bg-accent hover:text-slate-950 text-xs font-semibold transition active:scale-95"
+                    title="Agendar um horário para o morador"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    Agendar
+                  </button>
+
+                  <button
+                    (click)="abrirModalEditarArea(area)"
+                    class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 text-slate-350 border border-white/10
+                           hover:bg-white/10 text-xs font-semibold transition active:scale-95"
+                    title="Editar espaço"
+                  >
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                    Editar
+                  </button>
+                </div>
                 <button
                   (click)="excluirArea(area.id)"
                   class="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
@@ -285,7 +299,7 @@
     <div class="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50 animate-fadeIn">
       <div class="w-full max-w-lg rounded-3xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         <div class="p-5 border-b border-white/10 flex items-center justify-between">
-          <h3 class="text-base font-semibold text-white">Novo Espaço de Lazer</h3>
+          <h3 class="text-base font-semibold text-white">{{ areaEditando() ? 'Editar Espaço de Lazer' : 'Novo Espaço de Lazer' }}</h3>
           <button (click)="fecharModal()" class="text-slate-400 hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
@@ -402,9 +416,9 @@
           >
             @if (salvando()) {
               <span class="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
-              <span>Enviando...</span>
+              <span>Salvando...</span>
             } @else {
-              <span>Confirmar Cadastro</span>
+              <span>{{ areaEditando() ? 'Salvar Alterações' : 'Confirmar Cadastro' }}</span>
             }
           </button>
         </div>

@@ -24,6 +24,7 @@ export class AreasSociaisPageComponent implements OnInit {
   // Controle do Modal
   readonly modalAberto = signal(false);
   novaArea: any = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true };
+  readonly areaEditando = signal<AreaSocial | null>(null);
 
   // Upload da foto do espaço
   readonly fotoPreview = signal<string | null>(null);
@@ -101,6 +102,7 @@ export class AreasSociaisPageComponent implements OnInit {
   }
 
   abrirModalArea() {
+    this.areaEditando.set(null);
     this.novaArea = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true };
     this.fotoPreview.set(null);
     this.fotoNome.set(null);
@@ -110,8 +112,28 @@ export class AreasSociaisPageComponent implements OnInit {
     this.modalAberto.set(true);
   }
 
+  abrirModalEditarArea(area: AreaSocial) {
+    this.areaEditando.set(area);
+    this.novaArea = {
+      id: area.id,
+      nome: area.nome,
+      capacidade: area.capacidade || null,
+      imagem: area.imagem || '',
+      agendar: area.precisa_agendar === 1,
+      autorizacao: area.precisa_autorizacao === 1
+    };
+    this.fotoPreview.set(area.imagem || null);
+    this.fotoNome.set(area.imagem ? 'Imagem Atual' : null);
+    this.fotoErro.set(null);
+    const isUrl = !!area.imagem && area.imagem.startsWith('http');
+    this.modoUrl.set(isUrl);
+    this.salvando.set(false);
+    this.modalAberto.set(true);
+  }
+
   fecharModal() {
     this.modalAberto.set(false);
+    this.areaEditando.set(null);
   }
 
   /** Lê o arquivo escolhido, valida e gera o preview/base64 enviado ao backend. */
@@ -162,17 +184,22 @@ export class AreasSociaisPageComponent implements OnInit {
     this.salvando.set(true);
 
     const payload = {
+      ...(this.areaEditando() ? { id: this.areaEditando()?.id } : {}),
       nome: this.novaArea.nome,
       capacidade: this.novaArea.capacidade,
       imagem: this.novaArea.imagem || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600',
       agendar: this.novaArea.agendar ? 1 : 0,
       autorizacao: this.novaArea.autorizacao ? 1 : 0,
-      horarios: Array.from({ length: 7 }).map(() => ({
+      horarios: this.areaEditando()?.horarios || Array.from({ length: 7 }).map(() => ({
         horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }]
       }))
     };
 
-    this.api.insertArea(payload).subscribe({
+    const request = this.areaEditando()
+      ? this.api.updateArea(payload)
+      : this.api.insertArea(payload);
+
+    request.subscribe({
       next: () => {
         this.salvando.set(false);
         this.fecharModal();
@@ -180,7 +207,7 @@ export class AreasSociaisPageComponent implements OnInit {
       },
       error: (e) => {
         this.salvando.set(false);
-        this.fotoErro.set(`Falha ao cadastrar: ${e?.error?.message ?? e?.message ?? 'erro'}`);
+        this.fotoErro.set(`Falha ao salvar: ${e?.error?.message ?? e?.message ?? 'erro'}`);
       },
     });
   }
