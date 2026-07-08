@@ -552,6 +552,7 @@ model Prestadores_servico {
   id               Int           @id @default(autoincrement())
   nome             String        @db.VarChar(255)
   telefone         String?       @db.VarChar(50)
+  email            String?       @db.VarChar(255)
   categorias       String?       @db.VarChar(500)
   id_condominio    Int
   id_apartamento   Int?

@@ -465,16 +465,31 @@ async function doSnapshot(device) {
 /** Altera o modo de iluminação (LED/Flash) do dispositivo (Manual = ligado, Auto = automático). */
 async function setDeviceLightingMode(device, mode) {
   if (device.fabricante !== 'intelbras') return;
-  const paths = [
-    `/cgi-bin/configManager.cgi?action=setConfig&Lighting_V2[0][0][0].Mode=${mode}`,
-    `/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].Mode=${mode}`,
-    `/cgi-bin/configManager.cgi?action=setConfig&Lighting[0].Mode=${mode}`,
-  ];
-  for (const p of paths) {
+  console.log(`[agente] ${device.nome}: setDeviceLightingMode chamado para "${mode}"`);
+
+  if (mode === 'Manual') {
     try {
-      await lanRequest(device, 'GET', p);
+      // 1. Garante que a câmera principal está no modo Colorido para que a foto do cadastro seja em cores
+      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&VideoInOptions[0].DayNightColor=0');
+      // 2. Desativa o canal secundário (infravermelho) para evitar conflitos de iluminação
+      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[1][0].Mode=Off');
+      // 3. Define o canal principal (LED branco) como Manual
+      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].Mode=Manual');
+      // 4. Define a intensidade do LED branco para 100% (ligado)
+      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].MiddleLight[0].Light=100');
+      console.log(`[agente] ${device.nome}: LED branco ativado com sucesso (Manual, 100%)`);
     } catch (err) {
-      // continua tentando os outros
+      console.error(`[agente] ${device.nome}: falha ao ativar LED branco:`, err.message || err);
+    }
+  } else {
+    try {
+      // Restaura as configurações padrão do dispositivo (Auto)
+      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].Mode=Auto');
+      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[0][0].MiddleLight[0].Light=0');
+      await lanRequest(device, 'GET', '/cgi-bin/configManager.cgi?action=setConfig&Lighting[1][0].Mode=Auto');
+      console.log(`[agente] ${device.nome}: LED branco restaurado para automatico`);
+    } catch (err) {
+      console.error(`[agente] ${device.nome}: falha ao restaurar LED branco:`, err.message || err);
     }
   }
 }
@@ -549,9 +564,15 @@ async function streamLiveView(device, res) {
   await setDeviceLightingMode(device, 'Manual').catch(() => {});
 
   const st = {}; // estado do Digest (reusa o nonce entre quadros = mais fps)
+  let lastLightOnAt = 0;
   while (alive) {
     let jpeg = null;
     try {
+      // Reforça o comando de acendimento do LED a cada 800ms em segundo plano para evitar que o firmware o desligue por inatividade
+      if (Date.now() - lastLightOnAt > 800) {
+        lastLightOnAt = Date.now();
+        void setDeviceLightingMode(device, 'Manual').catch(() => {});
+      }
       jpeg = await snapshotComDigest(device, st);
     } catch {
       /* tenta no próximo ciclo */

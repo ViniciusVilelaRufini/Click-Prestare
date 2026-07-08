@@ -8,6 +8,9 @@ export interface Prestador {
   id: number;
   nome: string;
   telefone: string | null;
+  email?: string | null;
+  senha?: string | null;
+  hasPortariaAccess?: boolean;
   categorias: string | null;
   id_condominio: number;
   id_apartamento?: number | null;
@@ -19,6 +22,9 @@ export interface Prestador {
 export interface CreatePrestador {
   nome: string;
   telefone?: string;
+  email?: string | null;
+  senha?: string | null;
+  hasPortariaAccess?: boolean;
   categorias?: string;
   id_apartamento?: number;
   foto_pessoa?: string | null;

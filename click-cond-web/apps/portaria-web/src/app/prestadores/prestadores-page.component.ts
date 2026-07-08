@@ -292,7 +292,7 @@ export class PrestadoresPageComponent implements OnInit {
     return list;
   });
 
-  novo: CreatePrestador = { nome: '', telefone: '', categorias: '' };
+  novo: CreatePrestador = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '' };
   showForm = false;
   editingId: number | null = null;
   readonly saving = signal(false);
@@ -333,7 +333,7 @@ export class PrestadoresPageComponent implements OnInit {
 
   abrirNovo() {
     this.editingId = null;
-    this.novo = { nome: '', telefone: '', categorias: '', id_apartamento: 0, dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
+    this.novo = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '', id_apartamento: 0, dias_semana: 'seg,ter,qua,qui,sex', foto_pessoa: undefined, foto_documento: undefined };
     this.categoriasSelecionadas.set(new Set());
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
@@ -349,6 +349,9 @@ export class PrestadoresPageComponent implements OnInit {
     this.novo = {
       nome: p.nome,
       telefone: p.telefone ?? '',
+      email: p.email ?? '',
+      senha: '',
+      hasPortariaAccess: !!p.hasPortariaAccess,
       categorias: p.categorias ?? '',
       id_apartamento: p.id_apartamento ?? 0,
       foto_pessoa: p.foto_pessoa ?? undefined,
@@ -400,6 +403,11 @@ export class PrestadoresPageComponent implements OnInit {
     if (!this.novo.nome?.trim()) { this.error.set('Nome é obrigatório.'); return; }
     if (!this.novo.id_apartamento) { this.error.set('Selecione a unidade de destino.'); return; }
 
+    if (this.novo.hasPortariaAccess) {
+      if (!this.novo.email?.trim()) { this.error.set('E-mail é obrigatório para liberar acesso.'); return; }
+      if (!this.editingId && !this.novo.senha?.trim()) { this.error.set('Senha é obrigatória para liberar acesso.'); return; }
+    }
+
     this.novo.categorias = Array.from(this.categoriasSelecionadas()).join(';');
 
     // Usa os signals de preview como fonte de verdade para as fotos.
@@ -417,7 +425,7 @@ export class PrestadoresPageComponent implements OnInit {
       next: () => {
         this.saving.set(false);
         this.cancelarForm();
-        this.novo = { nome: '', telefone: '', categorias: '' };
+        this.novo = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '' };
         this.carregar();
       },
       error: (e) => {
