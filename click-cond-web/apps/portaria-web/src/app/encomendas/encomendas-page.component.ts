@@ -293,19 +293,39 @@ export class EncomendasPageComponent implements OnInit {
     this.loading.set(true);
     if (this.isBatchRetirada) {
       const sel = Array.from(this.selecionadas());
-      import('rxjs').then(({ forkJoin }) => {
-        const requests = sel.map(id => this.api.retirar(id, details, this.retiranteDocumento || undefined, signature || undefined, photo || undefined));
-        forkJoin(requests).subscribe({
-          next: () => {
-            this.selecionadas.set(new Set());
-            this.fecharRetirada();
-            this.carregar();
-          },
-          error: (e) => {
-            this.error.set(e?.message ?? 'Erro ao retirar lote');
-            this.loading.set(false);
+      import('rxjs').then(async ({ lastValueFrom }) => {
+        try {
+          let currentSignature: string | undefined = signature || undefined;
+          let currentPhoto: string | undefined = photo || undefined;
+
+          for (let i = 0; i < sel.length; i++) {
+            const id = sel[i];
+            const res = await lastValueFrom(
+              this.api.retirar(
+                id,
+                details,
+                this.retiranteDocumento || undefined,
+                currentSignature,
+                currentPhoto
+              )
+            );
+            // Once uploaded on backend (first package), update reference with the public URL
+            // for subsequent packages so we avoid redundant concurrent base64 uploads.
+            if (res.retirado_assinatura) {
+              currentSignature = res.retirado_assinatura;
+            }
+            if (res.retirado_foto) {
+              currentPhoto = res.retirado_foto;
+            }
           }
-        });
+
+          this.selecionadas.set(new Set());
+          this.fecharRetirada();
+          this.carregar();
+        } catch (e: any) {
+          this.error.set(e?.error?.message ?? e?.message ?? 'Erro ao retirar lote');
+          this.loading.set(false);
+        }
       });
     } else {
       const e = this.retirandoEncomenda();
