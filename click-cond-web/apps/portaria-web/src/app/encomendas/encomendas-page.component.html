@@ -350,9 +350,11 @@
                   @if (e.status === 'Aguardando') {
                     <input type="checkbox"
                            [checked]="selecionadas().has(e.id)"
+                           [disabled]="deveDesabilitarCheckbox(e)"
+                           [title]="deveDesabilitarCheckbox(e) ? 'Selecione apenas encomendas do mesmo destinatário para retirada em lote' : ''"
                            (change)="toggleSelecionado(e.id)"
                            (click)="$event.stopPropagation()"
-                           class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer" />
+                           class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" />
                   } @else {
                     <span class="text-slate-600 font-mono pl-1">—</span>
                   }

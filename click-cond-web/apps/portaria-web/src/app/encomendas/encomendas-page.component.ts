@@ -355,15 +355,47 @@ export class EncomendasPageComponent implements OnInit {
 
   toggleSelecionarTodos() {
     const list = this.totalAguardandoFiltradas();
+    if (list.length === 0) return;
+
     const current = new Set(this.selecionadas());
     const allSelected = this.todasSelecionadas();
 
     if (allSelected) {
       list.forEach(e => current.delete(e.id));
     } else {
-      list.forEach(e => current.add(e.id));
+      let refApto = '';
+      let refBloco: string | null = null;
+
+      if (current.size > 0) {
+        const refId = Array.from(current)[0];
+        const ref = this.encomendas().find(item => item.id === refId);
+        if (ref) {
+          refApto = ref.destinatario_apto;
+          refBloco = ref.destinatario_bloco;
+        }
+      } else {
+        refApto = list[0].destinatario_apto;
+        refBloco = list[0].destinatario_bloco;
+      }
+
+      list.forEach(e => {
+        if (e.destinatario_apto === refApto && e.destinatario_bloco === refBloco) {
+          current.add(e.id);
+        }
+      });
     }
     this.selecionadas.set(current);
+  }
+
+  deveDesabilitarCheckbox(e: Encomenda): boolean {
+    const sel = this.selecionadas();
+    if (sel.size === 0) return false;
+
+    const refId = Array.from(sel)[0];
+    const ref = this.encomendas().find(item => item.id === refId);
+    if (!ref) return false;
+
+    return e.destinatario_apto !== ref.destinatario_apto || e.destinatario_bloco !== ref.destinatario_bloco;
   }
 
   notificarLote() {
