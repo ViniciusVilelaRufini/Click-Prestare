@@ -34,6 +34,7 @@
     "node-cache": "^5.1.2",
     "nodemailer": "^6.5.0",
     "pagarme": "^4.19.6",
+    "pdf-parse": "^2.4.5",
     "request": "^2.88.2",
     "slugify": "^1.6.2",
     "swagger-ui-express": "^4.1.6",

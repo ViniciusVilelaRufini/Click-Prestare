@@ -27,6 +27,7 @@ import 'package:click/pages/shared/visitantes/list_visitantes.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/enquetes/list_enquetes.dart';
+import 'package:click/pages/shared/chat_ia/chat_ia_page.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -114,6 +115,7 @@ class _MyCondominiumState extends State<MyCondominium> {
       getUserType() == 'morador'
           ? _MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.house, const MyApartamentoView())
           : _MenuItem(getText('lb_apartamentos'), PhosphorIcons.house, ListMoradores()),
+      _MenuItem('Assistente IA', PhosphorIcons.sparkle, const ChatIaPage()),
     ];
     if (getUserType() == 'sindico') {
       all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral()));
@@ -356,6 +358,55 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
+  /// Banner de destaque na Home que abre o Assistente IA (RAG).
+  Widget _buildAssistenteIaBanner(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _navigate(const ChatIaPage()),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary, AppColors.primaryDark],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(PhosphorIcons.sparkle, color: Colors.white, size: 26),
+            ),
+            const SizedBox(width: AppSpacing.lg),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Assistente IA',
+                    style: AppTypography.bodyMedium(context).copyWith(color: Colors.white),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Pergunte sobre atas, visitantes e mais',
+                    style: AppTypography.caption(context)
+                        .copyWith(color: Colors.white.withOpacity(0.85)),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(PhosphorIcons.caretRight, color: Colors.white, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHomeTab(BuildContext context) {
     final saldoNeg = _saldo.contains('-');
     return SafeArea(
@@ -374,6 +425,11 @@ class _MyCondominiumState extends State<MyCondominium> {
                       child: AppSkeleton(width: double.infinity, height: 160, borderRadius: AppRadius.xxl),
                     )
                   : _buildStats(context, saldoNeg),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+              sliver: SliverToBoxAdapter(child: _buildAssistenteIaBanner(context)),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
             SliverPadding(

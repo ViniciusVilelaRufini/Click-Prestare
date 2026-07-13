@@ -8,7 +8,8 @@ module.exports = {
 
     const query = `insert into Documentos (id_condominio, is_ata, nome, link_doc)
 						values ('${id_condominio}',${document.is_ata},'${document.nome}','${document.link_doc}')`;
-    await db.query(query);
+    const result = await db.query(query);
+    return result.results.insertId;
   },
 
   getAll: async function (id_cond, is_ata) {

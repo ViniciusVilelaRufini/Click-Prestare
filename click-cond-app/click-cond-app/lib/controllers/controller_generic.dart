@@ -224,3 +224,36 @@ apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
     return null;
   }
 }
+
+/// Envia uma pergunta ao Assistente IA (RAG) e devolve a resposta em texto.
+/// O escopo dos dados (síndico vê tudo, morador só o próprio) é aplicado no
+/// backend a partir do JWT; o histórico da conversa também é mantido lá.
+/// Retorna a string da resposta, ou uma mensagem de erro amigável.
+Future<String> apiPerguntarChatIa(String pergunta) async {
+  final url = _buildUri('/chat-ia/perguntar');
+  final body = json.encode({
+    "id_condominio": Singleton.instance.id_condominio.toString(),
+    "pergunta": pergunta,
+  });
+  try {
+    final response = await ApiClient.post(
+      url,
+      headers: _authHeaders(withContentType: true),
+      body: body,
+    ).timeout(const Duration(seconds: 60));
+    if (response.statusCode == 200) {
+      final parsed = jsonDecode(response.body);
+      return (parsed["resposta"] ?? "").toString();
+    }
+    try {
+      final parsed = jsonDecode(response.body);
+      return parsed["message"]?.toString() ??
+          "Não consegui responder agora. Tente novamente.";
+    } catch (_) {
+      return "Não consegui responder agora. Tente novamente.";
+    }
+  } catch (e) {
+    print('[apiPerguntarChatIa] Erro: $e');
+    return "Falha de comunicação com o servidor. Verifique sua conexão.";
+  }
+}
