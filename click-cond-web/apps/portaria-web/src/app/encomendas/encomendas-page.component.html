@@ -27,7 +27,16 @@
   </div>
 
   <!-- Stats -->
-  <div class="grid grid-cols-3 gap-3">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
+      <p class="text-[11px] text-slate-400 uppercase tracking-wider">A chegar</p>
+      <div class="flex items-end gap-2 mt-1">
+        <p class="text-2xl font-bold text-sky-400 tabular-nums leading-none">{{ esperando() }}</p>
+        @if (esperando() > 0) {
+          <span class="text-[10px] text-sky-400 mb-1">aguardando entrega</span>
+        }
+      </div>
+    </div>
     <div class="px-4 py-3 rounded-xl bg-graphite-200 border border-white/10">
       <p class="text-[11px] text-slate-400 uppercase tracking-wider">Aguardando retirada</p>
       <div class="flex items-end gap-2 mt-1">
@@ -109,7 +118,7 @@
   <div class="flex flex-wrap items-center justify-between gap-4">
     <!-- Status Tabs -->
     <div class="flex items-center gap-1 p-1 rounded-xl bg-graphite-200 border border-white/10 shrink-0">
-      @for (s of [{key:'',label:'Todas'},{key:'Aguardando',label:'Aguardando'},{key:'Retirada',label:'Retiradas'}]; track s.key) {
+      @for (s of [{key:'',label:'Todas'},{key:'Esperando',label:'A chegar'},{key:'Aguardando',label:'Aguardando'},{key:'Retirada',label:'Retiradas'}]; track s.key) {
         <button (click)="filtro.set(s.key)"
                 class="px-3 py-1.5 text-xs rounded-lg transition"
                 [class.bg-emerald-500]="filtro() === s.key"
@@ -271,8 +280,17 @@
               <div class="min-w-0">
                 <p class="font-medium text-white leading-tight">{{ e.descricao }}</p>
                 @if (e.codigo_rastreio) { <p class="text-[10px] text-slate-500 font-mono mt-0.5">{{ e.codigo_rastreio }}</p> }
+                @if (e.codigo_validacao) {
+                  <p class="inline-flex items-center gap-1 text-[11px] font-mono mt-1 px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-300">
+                    Cód. validação: <span class="font-bold tracking-widest">{{ e.codigo_validacao }}</span>
+                  </p>
+                }
               </div>
-              @if (e.status === 'Aguardando') {
+              @if (e.status === 'Esperando') {
+                <span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-md bg-sky-400/10 border border-sky-400/20 text-sky-400 shrink-0">
+                  <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>A chegar
+                </span>
+              } @else if (e.status === 'Aguardando') {
                 <span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/20 text-amber-400 shrink-0">
                   <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Aguardando
                 </span>
@@ -298,6 +316,9 @@
               }
             </div>
             <div class="mt-2.5 flex items-center gap-2 flex-wrap" (click)="$event.stopPropagation()">
+              @if (e.status === 'Esperando') {
+                <button (click)="receber(e)" class="px-2.5 py-1 text-xs font-medium rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">Receber</button>
+              }
               @if (e.status === 'Aguardando') {
                 @if (!e.notificado) {
                   <button (click)="notificar(e)" class="px-2 py-1 text-[11px] rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">Notificar</button>
@@ -364,6 +385,11 @@
                   <p class="font-medium text-white leading-tight">{{ e.descricao }}</p>
                   @if (e.codigo_rastreio) {
                     <p class="text-[10px] text-slate-500 font-mono mt-0.5 tracking-tight">{{ e.codigo_rastreio }}</p>
+                  }
+                  @if (e.codigo_validacao) {
+                    <p class="inline-flex items-center gap-1 text-[11px] font-mono mt-1 px-2 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-sky-300">
+                      Cód. validação: <span class="font-bold tracking-widest">{{ e.codigo_validacao }}</span>
+                    </p>
                   }
                 </td>
                 <td class="px-5 py-3.5 align-middle">
@@ -450,7 +476,12 @@
                   }
                 </td>
                 <td class="px-5 py-3.5 align-middle">
-                  @if (e.status === 'Aguardando') {
+                  @if (e.status === 'Esperando') {
+                    <span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-md bg-sky-400/10 border border-sky-400/20 text-sky-400">
+                      <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+                      A chegar
+                    </span>
+                  } @else if (e.status === 'Aguardando') {
                     <span class="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/20 text-amber-400">
                       <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
                       Aguardando
@@ -479,6 +510,12 @@
                 </td>
               <td class="px-5 py-3.5 text-right align-middle">
                 <div class="flex items-center justify-end gap-1.5">
+                  @if (e.status === 'Esperando') {
+                    <button (click)="receber(e); $event.stopPropagation()"
+                            class="text-xs font-medium px-2.5 py-1.5 rounded-md bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border border-sky-500/20 transition">
+                      Receber
+                    </button>
+                  }
                   @if (e.status === 'Aguardando') {
                     <button (click)="abrirRetirada(e); $event.stopPropagation()"
                             class="text-xs font-medium px-2.5 py-1.5 rounded-md bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 border border-emerald-400/20 transition">

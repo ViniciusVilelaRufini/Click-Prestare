@@ -14,6 +14,7 @@ class EncomendaModel {
   String? retiradoFoto;
   String? retiradoAssinatura;
   String? codigoRastreio;
+  String? codigoValidacao;
 
   EncomendaModel({
     this.id,
@@ -31,6 +32,7 @@ class EncomendaModel {
     this.retiradoFoto,
     this.retiradoAssinatura,
     this.codigoRastreio,
+    this.codigoValidacao,
   });
 
   factory EncomendaModel.fromJson(Map<String, dynamic> json) {
@@ -50,6 +52,7 @@ class EncomendaModel {
       retiradoFoto: json['retirado_foto'],
       retiradoAssinatura: json['retirado_assinatura'],
       codigoRastreio: json['codigo_rastreio'],
+      codigoValidacao: json['codigo_validacao'],
     );
   }
 
@@ -70,6 +73,7 @@ class EncomendaModel {
       'retirado_foto': retiradoFoto,
       'retirado_assinatura': retiradoAssinatura,
       'codigo_rastreio': codigoRastreio,
+      'codigo_validacao': codigoValidacao,
     };
   }
 }

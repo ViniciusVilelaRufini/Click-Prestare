@@ -170,6 +170,7 @@ export class EncomendasPageComponent implements OnInit {
 
   readonly aguardando = computed(() => this.encomendas().filter((e) => e.status === 'Aguardando').length);
   readonly retiradas = computed(() => this.encomendas().filter((e) => e.status === 'Retirada').length);
+  readonly esperando = computed(() => this.encomendas().filter((e) => e.status === 'Esperando').length);
 
   novo: CreateEncomenda = this.estadoInicial();
   selectedApto: Apartamento | null = null;
@@ -239,6 +240,18 @@ export class EncomendasPageComponent implements OnInit {
         this.error.set(err?.message ?? 'Erro ao notificar morador');
         this.loading.set(false);
       }
+    });
+  }
+
+  /** Porteiro confirma o recebimento de uma encomenda "a chegar" (Esperando). */
+  receber(e: Encomenda) {
+    this.loading.set(true);
+    this.api.receber(e.id).subscribe({
+      next: () => this.carregar(),
+      error: (err) => {
+        this.error.set(err?.message ?? 'Erro ao receber encomenda');
+        this.loading.set(false);
+      },
     });
   }
 

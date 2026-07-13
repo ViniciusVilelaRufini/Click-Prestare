@@ -6,10 +6,11 @@ module.exports = {
    * Filtros opcionais por bloco e apartamento para o morador ver as suas.
    */
   getAll: async function (id_cond, status, bloco, apto) {
-    let query = `select e.id, e.descricao, e.destinatario_apto, e.destinatario_bloco, e.recebido_de, 
+    let query = `select e.id, e.descricao, e.destinatario_apto, e.destinatario_bloco, e.recebido_de,
                     DATE_FORMAT(e.recebido_em, '%d/%m/%Y %H:%i') as recebido_em,
                     DATE_FORMAT(e.retirado_em, '%d/%m/%Y %H:%i') as retirado_em,
-                    e.retirado_por, e.status, e.foto_volume, e.id_condominio, c.nome as condominio_nome
+                    e.retirado_por, e.status, e.foto_volume, e.id_condominio, c.nome as condominio_nome,
+                    e.codigo_rastreio, e.codigo_validacao
                     from Encomendas e
                     left join Condominios c on e.id_condominio = c.id
                     where e.id_condominio=${id_cond}`;
@@ -45,6 +46,31 @@ module.exports = {
   },
 
   /**
+   * Pré-registro do morador: uma encomenda que VAI CHEGAR (ex.: iFood).
+   * Nasce com status 'Esperando' para o porteiro ver na portaria.
+   * `codigo_validacao` é o código que o entregador pede (opcional).
+   * `codigo_rastreio` fica preenchido só para transportadoras (auto-match/rastreio).
+   */
+  insertEsperado: async function (encomenda) {
+    const esc = (v) => (v == null ? '' : String(v).replaceAll("'", "''"));
+    const codigoRastreio = encomenda.codigo_rastreio
+      ? `'${esc(encomenda.codigo_rastreio)}'`
+      : 'NULL';
+    const codigoValidacao = encomenda.codigo_validacao
+      ? `'${esc(encomenda.codigo_validacao)}'`
+      : 'NULL';
+
+    const query = `insert into Encomendas
+        (descricao, destinatario_apto, destinatario_bloco, recebido_de, status,
+         id_condominio, notificado, codigo_rastreio, codigo_validacao)
+      values ('${esc(encomenda.descricao)}', '${esc(encomenda.destinatario_apto)}',
+              '${esc(encomenda.destinatario_bloco)}', '${esc(encomenda.recebido_de)}', 'Esperando',
+              ${Number(encomenda.id_condominio)}, 0, ${codigoRastreio}, ${codigoValidacao})`;
+    const result = await db.query(query);
+    return result.results.insertId;
+  },
+
+  /**
    * Marca uma encomenda como retirada.
    */
   retirar: async function (id, retirado_por) {
@@ -60,10 +86,11 @@ module.exports = {
    * Lista as encomendas de todos os condomínios/apartamentos vinculados ao morador.
    */
   getAllForResident: async function (userId, status) {
-    let query = `select e.id, e.descricao, e.destinatario_apto, e.destinatario_bloco, e.recebido_de, 
+    let query = `select e.id, e.descricao, e.destinatario_apto, e.destinatario_bloco, e.recebido_de,
                     DATE_FORMAT(e.recebido_em, '%d/%m/%Y %H:%i') as recebido_em,
                     DATE_FORMAT(e.retirado_em, '%d/%m/%Y %H:%i') as retirado_em,
-                    e.retirado_por, e.status, e.foto_volume, e.id_condominio, c.nome as condominio_nome
+                    e.retirado_por, e.status, e.foto_volume, e.id_condominio, c.nome as condominio_nome,
+                    e.codigo_rastreio, e.codigo_validacao
                     from Encomendas e
                     left join Condominios c on e.id_condominio = c.id
                     inner join (

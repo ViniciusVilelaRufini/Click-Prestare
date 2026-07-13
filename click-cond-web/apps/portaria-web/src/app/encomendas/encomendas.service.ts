@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
 
-export type EncomendaStatus = 'Aguardando' | 'Retirada';
+export type EncomendaStatus = 'Aguardando' | 'Retirada' | 'Esperando';
 
 export interface Encomenda {
   id: number;
@@ -22,6 +22,7 @@ export interface Encomenda {
   notificado?: number | null;
   notificado_em?: string | null;
   codigo_rastreio?: string | null;
+  codigo_validacao?: string | null;
 }
 
 export interface CreateEncomenda {
@@ -70,6 +71,11 @@ export class EncomendasApi {
 
   notificar(id: number): Observable<Encomenda> {
     return this.http.patch<Encomenda>(`${this.base}/${id}/notificar`, {});
+  }
+
+  /** Confirma o recebimento de uma encomenda pré-registrada ('Esperando' -> 'Aguardando'). */
+  receber(id: number): Observable<Encomenda> {
+    return this.http.patch<Encomenda>(`${this.base}/${id}/receber`, {});
   }
 
   remove(id: number): Observable<{ ok: boolean }> {

@@ -54,6 +54,54 @@ module.exports = {
     }
   },
 
+  /**
+   * Pré-registro pelo morador de uma encomenda que vai chegar (ex.: iFood).
+   * Cria a encomenda com status 'Esperando' para o porteiro ver.
+   * O apto/bloco é resolvido do próprio usuário (não confia no que vem do app).
+   */
+  async cadastrar(req, res) {
+    try {
+      const user = req.session.user;
+      const { descricao, recebido_de, codigo_rastreio, codigo_validacao } = req.body;
+      let { id_condominio, destinatario_apto, destinatario_bloco } = req.body;
+
+      if (!descricao) return res.status(400).json({ message: 'Descrição é obrigatória.' });
+
+      // Para o morador, resolve o apto/bloco a partir do vínculo dele (segurança:
+      // ignora apto/bloco arbitrário vindo do cliente).
+      if (user.typeAccess === 'Morador') {
+        const dbMoradores = require('../database/DB_Moradores');
+        const conds = await dbMoradores.listCondominios(user.id);
+        const cond = id_condominio
+          ? conds.find((c) => c.id == id_condominio)
+          : conds[0];
+        if (!cond) {
+          return res.status(403).json({ message: 'Você não está vinculado a este condomínio.' });
+        }
+        id_condominio = cond.id;
+        destinatario_apto = cond.apto;
+        destinatario_bloco = cond.apto_bloco || '';
+      }
+
+      if (!id_condominio || !destinatario_apto) {
+        return res.status(400).json({ message: 'Apartamento do destinatário não identificado.' });
+      }
+
+      const id = await db.insertEsperado({
+        descricao,
+        recebido_de: recebido_de || '',
+        codigo_rastreio: codigo_rastreio || null,
+        codigo_validacao: codigo_validacao || null,
+        destinatario_apto,
+        destinatario_bloco: destinatario_bloco || '',
+        id_condominio,
+      });
+      return res.status(201).json({ id });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
   async retirar(req, res) {
     try {
       const { id, retirado_por } = req.body;

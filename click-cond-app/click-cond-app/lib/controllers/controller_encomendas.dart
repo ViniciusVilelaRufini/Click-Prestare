@@ -73,7 +73,15 @@ apiInsertEncomenda(Map<String, dynamic> obj) async {
   }
 }
 
-apiCadastrarRastreio(String descricao, String recebidoDe, String codigoRastreio) async {
+/// Pré-registro pelo morador de uma encomenda que vai chegar (ex.: iFood).
+/// [codigoRastreio] é para transportadoras (rastreio); [codigoValidacao] é o
+/// código que o entregador pede (iFood) — ambos opcionais.
+apiCadastrarRastreio(
+  String descricao,
+  String recebidoDe, {
+  String? codigoRastreio,
+  String? codigoValidacao,
+}) async {
   var url = ApiConfig.buildUri('/encomendas/cadastrar');
   try {
     var response = await ApiClient.post(
@@ -85,7 +93,11 @@ apiCadastrarRastreio(String descricao, String recebidoDe, String codigoRastreio)
       body: jsonEncode({
         "descricao": descricao,
         "recebido_de": recebidoDe,
-        "codigo_rastreio": codigoRastreio
+        "id_condominio": Singleton.instance.id_condominio,
+        "destinatario_apto": Singleton.instance.apartamento,
+        "destinatario_bloco": Singleton.instance.bloco,
+        "codigo_rastreio": codigoRastreio,
+        "codigo_validacao": codigoValidacao,
       })
     );
     return response.statusCode == 201 || response.statusCode == 200;

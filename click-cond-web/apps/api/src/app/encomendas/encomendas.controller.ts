@@ -61,6 +61,14 @@ export class EncomendasController {
     return this.service.notificar(id, user);
   }
 
+  // Porteiro confirma o recebimento de uma encomenda pré-registrada pelo morador
+  // (status 'Esperando' -> 'Aguardando') e notifica o morador.
+  @SkipAudit()
+  @Patch(':id/receber')
+  receber(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    return this.service.receber(id, user);
+  }
+
   @SkipAudit()
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {

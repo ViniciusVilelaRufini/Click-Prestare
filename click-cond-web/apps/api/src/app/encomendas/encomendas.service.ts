@@ -459,6 +459,83 @@ export class EncomendasService implements OnModuleInit {
     }
   }
 
+  /**
+   * Confirma o recebimento na portaria de uma encomenda que o morador
+   * pré-registrou (status 'Esperando', ex.: iFood). Vira 'Aguardando' (encomenda
+   * normal), registra quem recebeu e notifica o morador — mesmo fluxo de uma
+   * encomenda recém-chegada.
+   */
+  async receber(id: number, operador?: JwtPayload) {
+    if (!this.prisma.isConnected) {
+      return { success: true, id, status: 'Aguardando' };
+    }
+
+    await this.assertEncomendaDoTenant(id, operador);
+
+    let encomenda;
+    try {
+      encomenda = await this.prisma.encomendas.update({
+        where: { id: Number(id) },
+        data: {
+          status: 'Aguardando',
+          recebido_em: new Date(),
+          recebido_por_user: operador?.sub ?? null,
+          notificado: 1,
+          notificado_em: new Date(),
+        },
+      });
+    } catch {
+      throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    }
+
+    // Notifica o(s) morador(es) do apartamento que a encomenda chegou.
+    try {
+      const moradores = await this.prisma.users.findMany({
+        where: {
+          moradores: {
+            some: {
+              id_condominio: encomenda.id_condominio,
+              apartamento: encomenda.destinatario_apto,
+              ...(encomenda.destinatario_bloco ? { bloco: encomenda.destinatario_bloco } : {}),
+            },
+          },
+          notif_encomendas: 1,
+        },
+        select: { fcm_token: true, name: true, phone: true },
+      });
+
+      for (const morador of moradores) {
+        if (morador.fcm_token) {
+          await this.notifications.sendPushNotification(
+            morador.fcm_token,
+            'Encomenda recebida!',
+            `Sua encomenda (${encomenda.descricao}) chegou na portaria.`,
+            { id: encomenda.id.toString(), type: 'encomenda' },
+          );
+        }
+        if (morador.phone) {
+          const waMessage = `Olá, ${morador.name}! Sua encomenda (${encomenda.descricao}) chegou na portaria do condomínio. Retire quando puder!`;
+          await this.notifications.sendWhatsApp(morador.phone, waMessage);
+        }
+      }
+    } catch (error) {
+      console.error('Falha ao notificar moradores (receber):', error);
+    }
+
+    const ctx = await this.carregarContextoEncomenda(encomenda.id);
+    await this.auditoria.registrar({
+      id_condominio: encomenda.id_condominio,
+      usuario_nome: operador?.nome ?? 'Portaria',
+      acao: 'CREATE',
+      modulo: 'encomendas',
+      entidade_id: encomenda.id,
+      descricao: `Recebeu encomenda esperada "${encomenda.descricao}" (${ctx?.destinatario.label ?? 'apto'})`,
+      detalhes: ctx ?? undefined,
+    });
+
+    return encomenda;
+  }
+
   async remove(id: number, operador?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
     // Carrega contexto + id_condominio ANTES de deletar — depois sumiu.

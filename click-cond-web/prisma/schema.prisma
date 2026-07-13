@@ -677,6 +677,7 @@ model Encomendas {
   notificado          Int?        @default(0) @db.TinyInt
   notificado_em       DateTime?   @db.DateTime(0)
   codigo_rastreio     String?     @db.VarChar(255)
+  codigo_validacao    String?     @db.VarChar(50)
   id_condominio       Int
   recebido_por_user   Int?
   entregue_por_user   Int?

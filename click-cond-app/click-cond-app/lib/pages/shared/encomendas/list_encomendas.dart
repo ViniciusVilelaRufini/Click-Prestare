@@ -121,10 +121,17 @@ class ListEncomendasState extends State<ListEncomendas> {
     );
   }
 
+  /// iFood e delivery de comida usam código de validação (não rastreio).
+  bool _isDeliveryCarrier(String carrier) {
+    final c = carrier.toLowerCase();
+    return c.contains('ifood') || c.contains('food') || c.contains('delivery');
+  }
+
   void showRegisterTrackingDialog(BuildContext context) {
     final formKey = GlobalKey<FormState>();
     final txtDescricao = TextEditingController();
     final txtCodigo = TextEditingController();
+    final txtValidacao = TextEditingController();
     String selectedCarrier = 'Correios';
 
     showDialog(
@@ -145,7 +152,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Cadastre o código de rastreamento para receber notificações automáticas de status e chegada.',
+                        'Avise que uma encomenda vai chegar. Para iFood/delivery, informe o código de validação (se o pedido exigir) para o porteiro receber por você.',
                         style: AppTypography.caption(context),
                       ),
                       const SizedBox(height: 16),
@@ -166,7 +173,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                           labelStyle: AppTypography.caption(context),
                           border: const OutlineInputBorder(),
                         ),
-                        items: ['Correios', 'Mercado Livre', 'Amazon', 'Loggi', 'Jadlog', 'Shopee', 'FedEx', 'DHL']
+                        items: ['iFood', 'Correios', 'Mercado Livre', 'Amazon', 'Loggi', 'Jadlog', 'Shopee', 'FedEx', 'DHL', 'Outro']
                             .map((c) => DropdownMenuItem(value: c, child: Text(c, style: AppTypography.bodySecondary(context))))
                             .toList(),
                         onChanged: (val) {
@@ -176,36 +183,49 @@ class ListEncomendasState extends State<ListEncomendas> {
                         },
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: txtCodigo,
-                              decoration: InputDecoration(
-                                labelText: 'Código de Rastreio',
-                                labelStyle: AppTypography.caption(context),
-                                border: const OutlineInputBorder(),
+                      if (_isDeliveryCarrier(selectedCarrier))
+                        // iFood/delivery: código de validação (opcional) que o entregador pede.
+                        TextFormField(
+                          controller: txtValidacao,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'Código de validação (opcional)',
+                            hintText: 'Ex.: código que o iFood pede na entrega',
+                            labelStyle: AppTypography.caption(context),
+                            border: const OutlineInputBorder(),
+                          ),
+                        )
+                      else
+                        // Transportadora: código de rastreio (opcional) p/ notificações de status.
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: txtCodigo,
+                                decoration: InputDecoration(
+                                  labelText: 'Código de Rastreio (opcional)',
+                                  labelStyle: AppTypography.caption(context),
+                                  border: const OutlineInputBorder(),
+                                ),
                               ),
-                              validator: (value) => value == null || value.isEmpty ? 'Campo obrigatório' : null,
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(PhosphorIcons.barcode, color: AppColors.primary),
-                            onPressed: () async {
-                              final scannedCode = await Navigator.push<String>(
-                                context,
-                                MaterialPageRoute(builder: (_) => _BarcodeScannerPage()),
-                              );
-                              if (scannedCode != null) {
-                                setState(() {
-                                  txtCodigo.text = scannedCode;
-                                });
-                              }
-                            },
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(PhosphorIcons.barcode, color: AppColors.primary),
+                              onPressed: () async {
+                                final scannedCode = await Navigator.push<String>(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => _BarcodeScannerPage()),
+                                );
+                                if (scannedCode != null) {
+                                  setState(() {
+                                    txtCodigo.text = scannedCode;
+                                  });
+                                }
+                              },
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -234,10 +254,12 @@ class ListEncomendasState extends State<ListEncomendas> {
                       ),
                       onPressed: () async {
                         if (formKey.currentState?.validate() ?? false) {
+                          final isDelivery = _isDeliveryCarrier(selectedCarrier);
                           final success = await apiCadastrarRastreio(
                             txtDescricao.text,
                             selectedCarrier,
-                            txtCodigo.text,
+                            codigoRastreio: isDelivery ? null : (txtCodigo.text.trim().isEmpty ? null : txtCodigo.text.trim()),
+                            codigoValidacao: isDelivery ? (txtValidacao.text.trim().isEmpty ? null : txtValidacao.text.trim()) : null,
                           );
                           if (success) {
                             Navigator.pop(context);
@@ -443,7 +465,7 @@ class _EncomendaCard extends StatelessWidget {
                     border: Border.all(color: statusColor.withOpacity(0.3)),
                   ),
                   child: Text(
-                    encomenda.status?.toUpperCase() ?? 'PENDENTE',
+                    statusLower == 'esperando' ? 'A CHEGAR' : (encomenda.status?.toUpperCase() ?? 'PENDENTE'),
                     style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -639,6 +661,15 @@ class _EncomendaCard extends StatelessWidget {
                           icon: PhosphorIcons.barcode,
                           label: 'Código de Rastreio',
                           value: encomenda.codigoRastreio!,
+                        ),
+                      ],
+                      if (encomenda.codigoValidacao != null && encomenda.codigoValidacao!.isNotEmpty) ...[
+                        const Divider(height: 24),
+                        _buildDetailRow(
+                          context,
+                          icon: PhosphorIcons.key,
+                          label: 'Código de validação',
+                          value: encomenda.codigoValidacao!,
                         ),
                       ],
                       if (encomenda.retiradoPor != null) ...[
