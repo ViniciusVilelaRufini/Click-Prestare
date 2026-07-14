@@ -408,3 +408,44 @@ export class EncomendasMobileController {
     return this.service.cadastrarRastreioMorador(Number(idUser), body);
   }
 }
+
+// ==========================================
+// VEÍCULOS (app do morador) — paridade com as rotas Express /veiculos/*
+// ==========================================
+@Controller('veiculos')
+export class VeiculosMobileController {
+  constructor(private readonly service: MobileAuthService) {}
+
+  @Get('get-all')
+  getAll(@ReqUser() payload: JwtPayload, @Query('id_condominio') idCondominio?: string) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.listVeiculosByUser(Number(idUser), Number(idCondominio));
+  }
+
+  @Post('insert')
+  insert(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id_condominio: number | string; veiculo: any },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.criarVeiculoMorador(Number(idUser), Number(body.id_condominio), body.veiculo);
+  }
+
+  @Post('update')
+  update(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id_condominio: number | string; veiculo: any },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.atualizarVeiculoMorador(Number(idUser), Number(body.id_condominio), body.veiculo);
+  }
+
+  @Post('remove')
+  remove(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id: number; id_condominio: number | string },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.removerVeiculoMorador(Number(idUser), Number(body.id_condominio), Number(body.id));
+  }
+}

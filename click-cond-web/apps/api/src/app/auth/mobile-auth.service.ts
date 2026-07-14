@@ -2220,4 +2220,99 @@ export class MobileAuthService {
       },
     });
   }
+
+  // === Veículos do morador (app) =============================================
+
+  /** Resolve o Moradores.id do usuário no condomínio (ou o mais provável). */
+  private async resolveMoradorId(idUser: number, idCondominio?: number): Promise<{ id: number; id_condominio: number } | null> {
+    const where: any = { id_user: idUser };
+    if (idCondominio) where.id_condominio = idCondominio;
+    const morador = await this.prisma.moradores.findFirst({ where });
+    if (!morador || !morador.id_condominio) return null;
+    return { id: morador.id, id_condominio: morador.id_condominio };
+  }
+
+  private normalizarPlaca(v: any) {
+    return (v?.placa ?? '').toString().toUpperCase().trim();
+  }
+
+  async listVeiculosByUser(idUser: number, idCondominio?: number) {
+    if (!this.prisma.isConnected) return [];
+    const m = await this.resolveMoradorId(idUser, idCondominio);
+    if (!m) return [];
+    const list = await this.prisma.veiculos.findMany({
+      where: { id_morador: m.id, ativo: 1 },
+      include: { tag: true },
+      orderBy: { created_at: 'desc' },
+    });
+    // Formato esperado pelo app (VeiculoModel.fromJson lê tag_codigo).
+    return list.map((v) => ({
+      id: v.id,
+      placa: v.placa,
+      cor: v.cor,
+      marca_modelo: v.marca_modelo,
+      id_tag: v.id_tag,
+      id_condominio: v.id_condominio,
+      tag_codigo: v.tag?.codigo ?? null,
+    }));
+  }
+
+  async criarVeiculoMorador(idUser: number, idCondominio: number, veiculo: any) {
+    if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco de dados indisponível.');
+    const placa = this.normalizarPlaca(veiculo);
+    if (!placa) throw new BadRequestException('Placa é obrigatória.');
+    const m = await this.resolveMoradorId(idUser, idCondominio);
+    if (!m) throw new BadRequestException('Você não é morador deste condomínio.');
+    try {
+      return await this.prisma.veiculos.create({
+        data: {
+          id_morador: m.id,
+          id_condominio: m.id_condominio,
+          placa,
+          cor: veiculo?.cor?.toString().trim() || null,
+          marca_modelo: veiculo?.marca_modelo?.toString().trim() || null,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new BadRequestException('Já existe um veículo com essa placa neste condomínio.');
+      }
+      throw err;
+    }
+  }
+
+  async atualizarVeiculoMorador(idUser: number, idCondominio: number, veiculo: any) {
+    if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco de dados indisponível.');
+    const placa = this.normalizarPlaca(veiculo);
+    if (!veiculo?.id) throw new BadRequestException('Veículo inválido.');
+    if (!placa) throw new BadRequestException('Placa é obrigatória.');
+    const m = await this.resolveMoradorId(idUser, idCondominio);
+    if (!m) throw new BadRequestException('Acesso negado.');
+    try {
+      // updateMany escopado ao morador — não deixa editar carro de outro.
+      const r = await this.prisma.veiculos.updateMany({
+        where: { id: Number(veiculo.id), id_morador: m.id },
+        data: {
+          placa,
+          cor: veiculo?.cor?.toString().trim() || null,
+          marca_modelo: veiculo?.marca_modelo?.toString().trim() || null,
+        },
+      });
+      if (r.count === 0) throw new BadRequestException('Veículo não encontrado.');
+      return { ok: true };
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new BadRequestException('Já existe um veículo com essa placa neste condomínio.');
+      }
+      throw err;
+    }
+  }
+
+  async removerVeiculoMorador(idUser: number, idCondominio: number, id: number) {
+    if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco de dados indisponível.');
+    const m = await this.resolveMoradorId(idUser, idCondominio);
+    if (!m) throw new BadRequestException('Acesso negado.');
+    await this.prisma.veiculos.deleteMany({ where: { id: Number(id), id_morador: m.id } });
+    return { ok: true };
+  }
 }
