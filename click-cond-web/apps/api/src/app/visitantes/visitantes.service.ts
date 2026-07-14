@@ -1360,6 +1360,18 @@ export class VisitantesService {
       }
     }
 
+    // dias_semana/categorias são atributos da PESSOA, mas ficam por registro
+    // (cada visita é uma linha). O registro clicado pode ser antigo/sem esses
+    // campos — então usamos o valor do registro MAIS RECENTE que tenha, entre
+    // todas as visitas dessa pessoa.
+    const porRecencia = [...todasVisitas].sort(
+      (a, b) => (b.created_at?.getTime() ?? 0) - (a.created_at?.getTime() ?? 0),
+    );
+    const diasSemanaPessoa =
+      porRecencia.map((r) => r.dias_semana).find((d) => d && String(d).trim()) ?? null;
+    const categoriasPessoa =
+      porRecencia.map((r) => r.categorias).find((c) => c && String(c).trim()) ?? null;
+
     return {
       visitante: {
         id: v.id,
@@ -1383,8 +1395,8 @@ export class VisitantesService {
         data_entrada: v.data_entrada?.toISOString() ?? null,
         data_saida: v.data_saida?.toISOString() ?? null,
         created_at: v.created_at.toISOString(),
-        dias_semana: v.dias_semana ?? null,
-        categorias: v.categorias ?? null,
+        dias_semana: diasSemanaPessoa,
+        categorias: categoriasPessoa,
         bloqueado: v.bloqueado ?? 0,
       },
       stats: {
