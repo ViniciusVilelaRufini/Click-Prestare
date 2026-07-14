@@ -18,8 +18,8 @@ module.exports = {
     // liberado=1: visitante criado pelo morador/app já nasce autorizado (mesma
     // regra do backend NestJS). Sem isso, a validação do PIN (que exige
     // liberado=1) nega "não foi autorizada pelo morador ou portaria".
-    const query = `insert into Visitantes (nome, doc_identificacao, data_hora_inicio, data_hora_termino, is_visitante, is_prestador, user, id_apartamento, id_condominio, avisar, foto_documento, foto_pessoa, codigo_acesso, liberado)
-						values ('${visitante.nome}','${visitante.doc_identificacao}','${visitante.data_inicio}','${visitante.data_termino}',${visitante.is_visitante}, ${visitante.is_prestador}, ${user_id}, ${visitante.id_apartamento}, ${id_condominio}, 1, '${visitante.foto_documento || ''}', '${visitante.foto_pessoa || ''}', '${pin}', 1)`;
+    const query = `insert into Visitantes (nome, doc_identificacao, data_hora_inicio, data_hora_termino, is_visitante, is_prestador, user, id_apartamento, id_condominio, avisar, foto_documento, foto_pessoa, codigo_acesso, liberado, dias_semana)
+						values ('${visitante.nome}','${visitante.doc_identificacao}','${visitante.data_inicio}','${visitante.data_termino}',${visitante.is_visitante}, ${visitante.is_prestador}, ${user_id}, ${visitante.id_apartamento}, ${id_condominio}, 1, '${visitante.foto_documento || ''}', '${visitante.foto_pessoa || ''}', '${pin}', 1, '${visitante.dias_semana || ''}')`;
             console.log(query);
     const result = await db.query(query);
     return { id: result.results.insertId, codigo_acesso: pin };
@@ -83,6 +83,11 @@ module.exports = {
       ? `, foto_documento='${String(visitante.foto_documento).replaceAll("'", "''")}'`
       : '';
 
+    // dias_semana só é atualizado quando enviado (prestador); undefined não mexe.
+    const setDiasSemana = visitante.dias_semana !== undefined
+      ? `, dias_semana='${String(visitante.dias_semana || '').replaceAll("'", "''")}'`
+      : '';
+
     const query = `update Visitantes
                      set nome='${visitante.nome}',
                       doc_identificacao='${visitante.doc_identificacao}',
@@ -90,7 +95,7 @@ module.exports = {
                       data_hora_termino='${visitante.data_termino}',
                       is_visitante=${visitante.is_visitante},
                       is_prestador=${visitante.is_prestador},
-                      id_apartamento=${visitante.id_apartamento}${setFotoDocumento}${setFotoPessoa}
+                      id_apartamento=${visitante.id_apartamento}${setFotoDocumento}${setFotoPessoa}${setDiasSemana}
                     where id=${visitante.id} `;
     await db.query(query);
   },
@@ -102,7 +107,7 @@ module.exports = {
                       v.is_visitante, v.is_prestador,
                       v.foto_documento, v.foto_pessoa,
                       apto.apto, apto.bloco as apto_bloco, apto.id as apto_id,
-                      v.codigo_acesso
+                      v.codigo_acesso, v.dias_semana
                     from Visitantes v
                     inner join Apartamentos apto on apto.id=v.id_apartamento
                       where v.id_condominio=${id_cond} and v.id=${id}`;

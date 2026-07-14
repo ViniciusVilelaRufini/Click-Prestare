@@ -35,9 +35,11 @@
     "nodemailer": "^6.5.0",
     "pagarme": "^4.19.6",
     "pdf-parse": "^2.4.5",
+    "pdfmake": "^0.3.8",
     "request": "^2.88.2",
     "slugify": "^1.6.2",
     "swagger-ui-express": "^4.1.6",
+    "xlsx": "^0.18.5",
     "yup": "^0.29.3"
   },
   "publisher": "vscode",

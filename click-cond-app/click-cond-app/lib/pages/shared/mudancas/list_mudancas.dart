@@ -122,39 +122,115 @@ class _MudancaCard extends StatelessWidget {
 
   Color _statusColor(String? s) {
     switch (s?.toLowerCase()) {
-      case 'aprovada': return const Color(0xFF22C55E);
-      case 'rejeitada': return const Color(0xFFEF4444);
+      case 'aprovada':
+      case 'aceito': return const Color(0xFF22C55E);
+      case 'rejeitada':
+      case 'recusado': return const Color(0xFFEF4444);
       default: return const Color(0xFFF59E0B);
     }
+  }
+
+  Future<void> _recusar(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface(ctx),
+        title: Text('Recusar mudança', style: AppTypography.bodyMedium(ctx).copyWith(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          style: AppTypography.body(ctx),
+          decoration: InputDecoration(
+            hintText: 'Motivo da recusa (opcional)',
+            hintStyle: AppTypography.caption(ctx),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444), foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Recusar'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) onStatusChange(item['id'], false, ctrl.text.trim());
   }
 
   @override
   Widget build(BuildContext context) {
     final status = item['status']?.toString() ?? 'pendente';
+    // Síndico/funcionário podem aprovar/recusar mudanças pendentes.
+    final isManager = getUserType() != 'morador';
+    final canDecide = isManager && status.toLowerCase() == 'pendente';
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(color: _statusColor(status).withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-              child: Icon(PhosphorIcons.truck, color: _statusColor(status), size: 22),
+            Row(
+              children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(color: _statusColor(status).withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(PhosphorIcons.truck, color: _statusColor(status), size: 22),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Apto ${item['apto'] ?? ''} - Bloco ${item['bloco'] ?? ''}', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      if (item['data'] != null)
+                        Text('${item['data']}${item['hora_inicio'] != null ? ' às ${item['hora_inicio']}' : ''}',
+                            style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context))),
+                      Text(status.toUpperCase(), style: AppTypography.tiny(context).copyWith(color: _statusColor(status))),
+                    ],
+                  ),
+                ),
+                if (onTap != null && !canDecide)
+                  Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+              ],
             ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (canDecide) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Row(
                 children: [
-                  Text('Apto ${item['apto'] ?? ''} - Bloco ${item['bloco'] ?? ''}', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(status.toUpperCase(), style: AppTypography.tiny(context).copyWith(color: _statusColor(status))),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _recusar(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFEF4444),
+                        side: const BorderSide(color: Color(0x33EF4444)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(PhosphorIcons.x, size: 16),
+                      label: const Text('Recusar'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => onStatusChange(item['id'], true, ''),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF22C55E),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(PhosphorIcons.check, size: 16),
+                      label: const Text('Aceitar'),
+                    ),
+                  ),
                 ],
               ),
-            ),
-            if (onTap != null)
-              Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
+            ],
           ],
         ),
       ),

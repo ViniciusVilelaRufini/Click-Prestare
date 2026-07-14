@@ -100,12 +100,15 @@ module.exports = {
 
       if (!result) return res.status(404).json({ message: "Mudança não encontrada." });
 
-      // Enforce isolation for residents
+      // Enforce isolation for residents.
+      // A query do get() devolve a coluna do apartamento como `apto_id`
+      // (apto.id as apto_id), então validamos por result.apto_id — usar
+      // result.id_apto (inexistente) causava 403 indevido pro morador.
       if (user.typeAccess === 'Morador') {
         const dbAptos = require('../database/DB_Apartamento.js');
         const userAptos = await dbAptos.getApartmentsByUser(user.id, req.query.id_condominio);
-        
-        if (!userAptos.includes(result.id_apto)) {
+
+        if (!userAptos.includes(result.apto_id)) {
           return res.status(403).json({ message: "Acesso negado: Esta mudança não pertence ao seu apartamento." });
         }
       }

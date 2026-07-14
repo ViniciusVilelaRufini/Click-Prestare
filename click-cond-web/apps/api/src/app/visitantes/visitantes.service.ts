@@ -463,6 +463,16 @@ export class VisitantesService {
         ? `${apto.apto ?? ''}${apto.bloco ? '/' + apto.bloco : ''}`.replace(/^\/|\/$/g, '')
         : null;
 
+      // dias_semana/categorias: valor do registro mais recente que tiver
+      // (cada visita é uma linha; o cadastro mais novo é o que vale).
+      const porRecencia = [...arr].sort(
+        (a, b) => (b.created_at?.getTime() ?? 0) - (a.created_at?.getTime() ?? 0),
+      );
+      const diasSemanaPessoa =
+        porRecencia.map((r) => r.dias_semana).find((d) => d && String(d).trim()) ?? null;
+      const categoriasPessoa =
+        porRecencia.map((r) => r.categorias).find((c) => c && String(c).trim()) ?? null;
+
       // Apartamentos únicos visitados
       const aptosVisitados = new Map<number, string>();
       for (const r of arr) {
@@ -535,8 +545,12 @@ export class VisitantesService {
         codigo_acesso: temPinAtivo ? principal.codigo_acesso : null,
 
         created_at: principal.created_at.toISOString(),
-        dias_semana: principal.dias_semana ?? null,
-        categorias: principal.categorias ?? null,
+        // dias_semana/categorias são atributos da PESSOA, mas ficam por registro
+        // (cada visita é uma linha). O `principal` pode ser um registro antigo
+        // sem esses campos — então pegamos o valor do registro mais recente que
+        // tenha, para o modal/lista mostrar os dias configurados no último cadastro.
+        dias_semana: diasSemanaPessoa,
+        categorias: categoriasPessoa,
       });
     }
 

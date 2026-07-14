@@ -276,8 +276,9 @@ export class VisitantesGlobalController {
       id_condominio: idCondominio,
       foto_documento: vis.foto_documento,
       foto_pessoa: vis.foto_pessoa || vis.photo,
+      dias_semana: vis.dias_semana,
     }, payload);
-    
+
     return saved;
   }
 
@@ -300,6 +301,7 @@ export class VisitantesGlobalController {
       id_apartamento: vis.id_apartamento ? Number(vis.id_apartamento) : undefined,
       foto_documento: vis.foto_documento,
       foto_pessoa: vis.foto_pessoa || vis.photo,
+      dias_semana: vis.dias_semana,
     }, payload);
   }
 }

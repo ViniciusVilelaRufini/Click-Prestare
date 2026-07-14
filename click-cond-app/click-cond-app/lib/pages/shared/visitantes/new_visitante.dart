@@ -44,6 +44,17 @@ class _NewVisitantePageState extends State<NewVisitante> {
 
   var idMyApartment;
   var currentTipo = '';
+  // Dias da semana em que o prestador pode entrar (só para prestador).
+  List<String> diasSemana = [];
+  static const _diasOrdem = [
+    {'key': 'seg', 'label': 'Seg'},
+    {'key': 'ter', 'label': 'Ter'},
+    {'key': 'qua', 'label': 'Qua'},
+    {'key': 'qui', 'label': 'Qui'},
+    {'key': 'sex', 'label': 'Sex'},
+    {'key': 'sab', 'label': 'Sáb'},
+    {'key': 'dom', 'label': 'Dom'},
+  ];
   dynamic imageFile;
   var imageChanged = false;
   var _isLoading = false;
@@ -65,6 +76,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
       load();
     } else {
       currentTipo = widget.defaultType ?? 'visitante';
+      // Prestador novo já vem com os dias úteis pré-selecionados.
+      if (currentTipo == 'prestador') diasSemana = ['seg', 'ter', 'qua', 'qui', 'sex'];
       if (widget.reUseData != null) {
         txtNome.text = widget.reUseData!["nome"] ?? "";
         txtDocumento.text = widget.reUseData!["doc_identificacao"]?.toString() ?? "";
@@ -72,6 +85,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
         txtBloco.text = widget.reUseData!["apto_bloco"] ?? "";
         txtObs.text = widget.reUseData!["observacoes"] ?? "";
         currentTipo = widget.reUseData!["is_visitante"] == 1 ? 'visitante' : 'prestador';
+        diasSemana = _parseDias(widget.reUseData!["dias_semana"]);
         idMyApartment = widget.reUseData!["apto_id"];
         final rawPhoto = widget.reUseData!["foto_pessoa"] ?? widget.reUseData!["photo"];
         imageFile = rawPhoto != null && rawPhoto.toString().isNotEmpty && rawPhoto.toString() != 'null'
@@ -100,6 +114,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
       txtBloco.text = obj["apto_bloco"] ?? "";
       txtObs.text = obj["observacoes"] ?? "";
       currentTipo = obj["is_visitante"] == 1 ? 'visitante' : 'prestador';
+      diasSemana = _parseDias(obj["dias_semana"]);
       imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -146,6 +161,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
         id_apartamento: idMyApartment ?? getIdApto(),
         is_visitante: currentTipo == 'visitante',
         is_prestador: currentTipo == 'prestador',
+        dias_semana: currentTipo == 'prestador' ? diasSemana.join(',') : null,
         photo: imageFile != null && imageChanged
             ? convertToBase64(imageFile, "image/jpeg")
             : (imageFile is String ? imageFile : null),
@@ -486,6 +502,17 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       onChanged: (v) => setState(() => currentTipo = v),
                     ),
                   ],
+                  if (isPrestador) ...[
+                    const SizedBox(height: AppSpacing.xl),
+                    _section('Dias de Acesso'),
+                    Text(
+                      'Dias em que este prestador pode entrar no condomínio.',
+                      style: AppTypography.caption(context)
+                          .copyWith(color: AppColors.textSecondary(context)),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildDiasSemana(),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('lb_infos_apto')),
                   Row(
@@ -566,6 +593,50 @@ class _NewVisitantePageState extends State<NewVisitante> {
     );
   }
 
+  List<String> _parseDias(dynamic raw) {
+    final s = raw?.toString().trim() ?? '';
+    if (s.isEmpty) return [];
+    return s.split(',').map((e) => e.trim().toLowerCase()).where((e) => e.isNotEmpty).toList();
+  }
+
+  Widget _buildDiasSemana() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _diasOrdem.map((d) {
+        final key = d['key']!;
+        final label = d['label']!;
+        final sel = diasSemana.contains(key);
+        return GestureDetector(
+          onTap: () => setState(() {
+            if (sel) {
+              diasSemana.remove(key);
+            } else {
+              diasSemana.add(key);
+            }
+          }),
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: sel ? AppColors.primary : AppColors.surface(context),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: sel ? AppColors.primary : AppColors.border(context)),
+            ),
+            child: Text(
+              label,
+              style: AppTypography.captionMedium(context).copyWith(
+                color: sel ? Colors.white : AppColors.textSecondary(context),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _section(String title) => Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
         child: Text(title.toUpperCase(),
@@ -634,19 +705,19 @@ class _Chip extends StatelessWidget {
 
 class VisitanteModel {
   int? id;
-  String? nome, doc_identificacao, data_inicio, data_termino, observacoes, photo;
+  String? nome, doc_identificacao, data_inicio, data_termino, observacoes, photo, dias_semana;
   int? id_apartamento;
   bool? avisar, is_visitante, is_prestador;
 
   VisitanteModel({this.id, this.nome, this.doc_identificacao, this.data_inicio,
       this.data_termino, this.avisar, this.id_apartamento, this.is_visitante,
-      this.is_prestador, this.observacoes, this.photo});
+      this.is_prestador, this.observacoes, this.photo, this.dias_semana});
 
   Map toJson() => {
         'id': id, 'nome': nome, 'doc_identificacao': doc_identificacao,
         'data_inicio': data_inicio, 'data_termino': data_termino,
         'observacoes': observacoes, 'id_apartamento': id_apartamento,
         'avisar': avisar, 'is_visitante': is_visitante, 'is_prestador': is_prestador,
-        'photo': photo,
+        'dias_semana': dias_semana, 'photo': photo,
       };
 }
