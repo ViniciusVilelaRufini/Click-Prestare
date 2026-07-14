@@ -28,6 +28,7 @@ import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/enquetes/list_enquetes.dart';
 import 'package:click/pages/shared/chat_ia/chat_ia_page.dart';
+import 'package:click/pages/shared/veiculos/list_veiculos.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -115,7 +116,6 @@ class _MyCondominiumState extends State<MyCondominium> {
       getUserType() == 'morador'
           ? _MenuItem(getText('lb_meu_apartamento'), PhosphorIcons.house, const MyApartamentoView())
           : _MenuItem(getText('lb_apartamentos'), PhosphorIcons.house, ListMoradores()),
-      _MenuItem('Assistente IA', PhosphorIcons.sparkle, const ChatIaPage()),
     ];
     if (getUserType() == 'sindico') {
       all.add(_MenuItem('Moradores', PhosphorIcons.usersThree, const ListMoradoresGeral()));
@@ -358,55 +358,6 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
-  /// Banner de destaque na Home que abre o Assistente IA (RAG).
-  Widget _buildAssistenteIaBanner(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _navigate(const ChatIaPage()),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primary, AppColors.primaryDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(PhosphorIcons.sparkle, color: Colors.white, size: 26),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Assistente IA',
-                    style: AppTypography.bodyMedium(context).copyWith(color: Colors.white),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Pergunte sobre atas, visitantes e mais',
-                    style: AppTypography.caption(context)
-                        .copyWith(color: Colors.white.withOpacity(0.85)),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(PhosphorIcons.caretRight, color: Colors.white, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildHomeTab(BuildContext context) {
     final saldoNeg = _saldo.contains('-');
     return SafeArea(
@@ -425,11 +376,6 @@ class _MyCondominiumState extends State<MyCondominium> {
                       child: AppSkeleton(width: double.infinity, height: 160, borderRadius: AppRadius.xxl),
                     )
                   : _buildStats(context, saldoNeg),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-              sliver: SliverToBoxAdapter(child: _buildAssistenteIaBanner(context)),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
             SliverPadding(
@@ -484,6 +430,7 @@ class _MyCondominiumState extends State<MyCondominium> {
       ListEncomendas(key: _encomendasKey, hideAppBar: true, showFab: false),
       ListVisitantes(key: _visitantesKey, hideAppBar: true, showFab: false),
       financeiroPage,
+      const ChatIaPage(hideAppBar: true),
     ];
 
     // Altura ocupada pela navbar flutuante (container 68 + top 8 + bottom 12)
@@ -676,6 +623,8 @@ class _MyCondominiumState extends State<MyCondominium> {
                     });
                   },
                 )),
+      // Botão circular central: acesso ao Assistente IA (RAG).
+      _buildAiNavButton(context),
       showFinanceActions
           ? _buildAnimatedNavItem(
               key: const ValueKey('nav_receita'),
@@ -768,6 +717,47 @@ class _MyCondominiumState extends State<MyCondominium> {
                   },
                 )),
     ];
+  }
+
+  /// Botão circular central da ilha de navegação — abre a aba do Assistente IA
+  /// (índice 4), mantendo a ilha visível.
+  Widget _buildAiNavButton(BuildContext context) {
+    final isSelected = _currentTab == 4;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _currentTab = 4;
+            _isNavBarVisible = true;
+          });
+        },
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [AppColors.primary, AppColors.primaryDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: isSelected
+                ? Border.all(color: Colors.white.withOpacity(0.85), width: 2)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withOpacity(isSelected ? 0.6 : 0.45),
+                blurRadius: isSelected ? 16 : 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(PhosphorIcons.buildingsFill, color: Colors.white, size: 24),
+        ),
+      ),
+    );
   }
 
   Widget _buildAnimatedNavItem({
@@ -918,6 +908,24 @@ class _MyCondominiumState extends State<MyCondominium> {
               ],
             ),
           ),
+          Material(
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.circular(AppRadius.full),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.full),
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const ListVeiculos(),
+                )).then((_) => _loadCond());
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                child: Icon(PhosphorIcons.car,
+                    color: AppColors.textPrimary(context)),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
           if (_isLoading)
             const SizedBox(
               width: 24, height: 24,

@@ -165,6 +165,8 @@ model Condominios {
   facialDevices        Facial_Devices[]
   acessosFacial        Acessos_Facial[]
   regrasAcesso         Regras_Acesso[]
+  veiculos             Veiculos[]
+  tags                 Tags[]
 
   // Recorrência Automática
   recorrencia_ativa      Boolean @default(false)
@@ -259,9 +261,47 @@ model Moradores {
   updated_at       DateTime     @default(now()) @updatedAt @db.DateTime(0)
   condominio       Condominios? @relation(fields: [id_condominio], references: [id], map: "fk_mor_cond")
   user             Users        @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_mor_user")
+  veiculos         Veiculos[]
 
   @@index([id_user])
   @@index([id_condominio])
+}
+
+model Tags {
+  id            Int          @id @default(autoincrement())
+  id_condominio Int
+  codigo        String       @db.VarChar(100)
+  tipo          String       @default("rfid") @db.VarChar(20)
+  descricao     String?      @db.VarChar(255)
+  ativo         Int          @default(1) @db.TinyInt
+  created_at    DateTime     @default(now()) @db.DateTime(0)
+  updated_at    DateTime     @default(now()) @updatedAt @db.DateTime(0)
+  condominio    Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_tag_cond")
+  veiculos      Veiculos[]
+
+  @@unique([id_condominio, codigo], map: "un_tag_cond_codigo")
+  @@index([id_condominio], map: "idx_tag_cond")
+}
+
+model Veiculos {
+  id            Int          @id @default(autoincrement())
+  id_morador    Int
+  id_condominio Int
+  placa         String       @db.VarChar(20)
+  cor           String?      @db.VarChar(50)
+  marca_modelo  String?      @db.VarChar(120)
+  id_tag        Int?
+  ativo         Int          @default(1) @db.TinyInt
+  created_at    DateTime     @default(now()) @db.DateTime(0)
+  updated_at    DateTime     @default(now()) @updatedAt @db.DateTime(0)
+  morador       Moradores    @relation(fields: [id_morador], references: [id], onDelete: Cascade, map: "fk_veiculo_morador")
+  condominio    Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_veiculo_cond")
+  tag           Tags?        @relation(fields: [id_tag], references: [id], map: "fk_veiculo_tag")
+
+  @@unique([id_condominio, placa], map: "un_veiculo_cond_placa")
+  @@index([id_morador], map: "idx_veiculo_morador")
+  @@index([id_condominio], map: "idx_veiculo_cond")
+  @@index([id_tag], map: "fk_veiculo_tag")
 }
 
 model Apartamentos_Users {

@@ -10,7 +10,12 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// atas, informações gerais, funcionários, visitantes e moradores. A resposta é
 /// gerada no backend (Gemini) já com o escopo de dados do papel do usuário.
 class ChatIaPage extends StatefulWidget {
-  const ChatIaPage({Key? key}) : super(key: key);
+  /// [hideAppBar] = true quando a página é usada como ABA (dentro da ilha de
+  /// navegação da home) — remove a AppBar/botão de voltar e usa um cabeçalho
+  /// enxuto no topo do corpo.
+  const ChatIaPage({Key? key, this.hideAppBar = false}) : super(key: key);
+
+  final bool hideAppBar;
 
   @override
   State<ChatIaPage> createState() => _ChatIaPageState();
@@ -90,27 +95,30 @@ class _ChatIaPageState extends State<ChatIaPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: Navigator.canPop(context)
-            ? IconButton(
-                icon: Icon(PhosphorIcons.caretLeft,
-                    color: AppColors.textPrimary(context)),
-                onPressed: () => Navigator.pop(context),
-              )
-            : null,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(PhosphorIcons.sparkle, color: AppColors.primary, size: 22),
-            const SizedBox(width: AppSpacing.sm),
-            Text('Assistente IA', style: AppTypography.headline(context)),
-          ],
-        ),
-      ),
+      appBar: widget.hideAppBar
+          ? null
+          : AppBar(
+              automaticallyImplyLeading: false,
+              leading: Navigator.canPop(context)
+                  ? IconButton(
+                      icon: Icon(PhosphorIcons.caretLeft,
+                          color: AppColors.textPrimary(context)),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  : null,
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(PhosphorIcons.sparkle, color: AppColors.primary, size: 22),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('Assistente IA', style: AppTypography.headline(context)),
+                ],
+              ),
+            ),
       body: SafeArea(
         child: Column(
           children: [
+            if (widget.hideAppBar) _buildEmbeddedHeader(context),
             Expanded(
               child: _mensagens.isEmpty
                   ? _buildEmptyState(context)
@@ -129,6 +137,21 @@ class _ChatIaPageState extends State<ChatIaPage> {
             _buildInput(context),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Cabeçalho compacto exibido quando a página é uma aba (sem AppBar).
+  Widget _buildEmbeddedHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(PhosphorIcons.sparkle, color: AppColors.primary, size: 22),
+          const SizedBox(width: AppSpacing.sm),
+          Text('Assistente IA', style: AppTypography.headline(context)),
+        ],
       ),
     );
   }

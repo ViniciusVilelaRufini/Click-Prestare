@@ -30,6 +30,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CrmModule } from './crm/crm.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { VeiculosModule } from './veiculos/veiculos.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
@@ -72,6 +73,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     AuditoriaModule,
     CrmModule,
     IntegrationsModule,
+    VeiculosModule,
   ],
   controllers: [AppController],
   providers: [

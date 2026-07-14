@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal, effect, untracked } from '
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateMorador, Morador, MoradoresApi, MoradorAtividade, SindicoOption } from './moradores.service';
+import { VeiculosApi, Veiculo, Tag, CreateVeiculo } from './veiculos.service';
 import { ActivatedRoute } from '@angular/router';
 
 type AbaDetalhe = 'geral' | 'visitas' | 'encomendas' | 'ocorrencias' | 'acessos';
@@ -25,6 +26,7 @@ declare var require: any;
 })
 export class MoradoresPageComponent implements OnInit {
   private api = inject(MoradoresApi);
+  private veiculosApi = inject(VeiculosApi);
   private aptApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
   private auth = inject(AuthService);
@@ -178,6 +180,12 @@ export class MoradoresPageComponent implements OnInit {
   editingId: number | null = null;
   readonly saving = signal(false);
 
+  // === Veículos do morador (só ao editar um morador existente) ===
+  readonly veiculos = signal<Veiculo[]>([]);
+  readonly tagsLivres = signal<Tag[]>([]);
+  readonly savingVeiculo = signal(false);
+  novoVeiculo: CreateVeiculo = { placa: '', cor: '', marca_modelo: '', id_tag: null };
+
   // === Vincular síndico como morador ===
   readonly showVincularSindico = signal(false);
   readonly sindicos = signal<SindicoOption[]>([]);
@@ -284,6 +292,8 @@ export class MoradoresPageComponent implements OnInit {
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
     this.novo = this.estadoInicial();
+    this.veiculos.set([]);
+    this.resetNovoVeiculo();
     this.error.set(null);
     this.showForm = true;
   }
@@ -306,6 +316,80 @@ export class MoradoresPageComponent implements OnInit {
     };
     this.error.set(null);
     this.showForm = true;
+    this.resetNovoVeiculo();
+    this.carregarVeiculos(m.id);
+    this.carregarTagsLivres();
+  }
+
+  // === Veículos ===
+  private resetNovoVeiculo() {
+    this.novoVeiculo = { placa: '', cor: '', marca_modelo: '', id_tag: null };
+  }
+
+  private carregarVeiculos(idMorador: number) {
+    this.veiculosApi.listByMorador(idMorador).subscribe({
+      next: (list) => this.veiculos.set(list),
+      error: () => this.veiculos.set([]),
+    });
+  }
+
+  private carregarTagsLivres() {
+    this.veiculosApi.listTags(true).subscribe({
+      next: (list) => this.tagsLivres.set(list),
+      error: () => this.tagsLivres.set([]),
+    });
+  }
+
+  adicionarVeiculo() {
+    if (!this.editingId) return;
+    if (!this.novoVeiculo.placa?.trim()) {
+      this.error.set('Informe a placa do veículo.');
+      return;
+    }
+    this.savingVeiculo.set(true);
+    this.veiculosApi.create(this.editingId, this.novoVeiculo).subscribe({
+      next: () => {
+        this.savingVeiculo.set(false);
+        this.resetNovoVeiculo();
+        this.carregarVeiculos(this.editingId!);
+        this.carregarTagsLivres();
+      },
+      error: (e) => {
+        this.savingVeiculo.set(false);
+        this.error.set(e?.error?.message ?? e?.message ?? 'Erro ao adicionar veículo');
+      },
+    });
+  }
+
+  async removerVeiculo(v: Veiculo) {
+    const ok = await this.confirm.ask({
+      title: 'Remover veículo',
+      message: `O veículo ${v.placa} será removido.`,
+      confirmLabel: 'Remover',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.veiculosApi.remove(v.id).subscribe({
+      next: () => {
+        if (this.editingId) {
+          this.carregarVeiculos(this.editingId);
+          this.carregarTagsLivres();
+        }
+      },
+      error: (e) => this.error.set(e?.error?.message ?? 'Erro ao remover veículo'),
+    });
+  }
+
+  /** Captura de tag nova pelo leitor: cria a tag e vincula ao novo veículo. */
+  onTagVeiculoCaptured(codigo: string) {
+    if (!codigo?.trim()) return;
+    this.veiculosApi.createTag({ codigo: codigo.trim(), tipo: 'rfid' }).subscribe({
+      next: (tag) => {
+        this.novoVeiculo.id_tag = tag.id;
+        this.carregarTagsLivres();
+      },
+      error: (e) => this.error.set(e?.error?.message ?? 'Erro ao capturar tag'),
+    });
   }
   cancelarForm() {
     this.fecharCamera();

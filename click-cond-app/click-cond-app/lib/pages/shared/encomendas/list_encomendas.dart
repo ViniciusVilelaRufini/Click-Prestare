@@ -127,6 +127,39 @@ class ListEncomendasState extends State<ListEncomendas> {
     return c.contains('ifood') || c.contains('food') || c.contains('delivery');
   }
 
+  /// Ícone + cor de marca de cada transportadora (para os chips do seletor).
+  ({IconData icon, Color color}) _carrierVisual(String carrier) {
+    final c = carrier.toLowerCase();
+    if (c.contains('ifood') || c.contains('food') || c.contains('delivery')) {
+      return (icon: PhosphorIcons.hamburger, color: const Color(0xFFEA1D2C));
+    }
+    if (c.contains('mercado')) {
+      return (icon: PhosphorIcons.handshake, color: const Color(0xFFF2C200));
+    }
+    if (c.contains('amazon')) {
+      return (icon: PhosphorIcons.shoppingCart, color: const Color(0xFFFF9900));
+    }
+    if (c.contains('correios') || c.contains('sedex')) {
+      return (icon: PhosphorIcons.envelopeSimple, color: const Color(0xFF005DA5));
+    }
+    if (c.contains('shopee')) {
+      return (icon: PhosphorIcons.shoppingCart, color: const Color(0xFFEE4D2D));
+    }
+    if (c.contains('dhl')) {
+      return (icon: PhosphorIcons.truck, color: const Color(0xFFD40511));
+    }
+    if (c.contains('fedex')) {
+      return (icon: PhosphorIcons.truck, color: const Color(0xFF4D148C));
+    }
+    if (c.contains('loggi')) {
+      return (icon: PhosphorIcons.truck, color: const Color(0xFF00A3E0));
+    }
+    if (c.contains('jadlog')) {
+      return (icon: PhosphorIcons.truck, color: const Color(0xFFE30613));
+    }
+    return (icon: PhosphorIcons.package, color: AppColors.primary);
+  }
+
   void showRegisterTrackingDialog(BuildContext context) {
     final formKey = GlobalKey<FormState>();
     final txtDescricao = TextEditingController();
@@ -166,21 +199,54 @@ class ListEncomendasState extends State<ListEncomendas> {
                         validator: (value) => value == null || value.isEmpty ? 'Campo obrigatório' : null,
                       ),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: selectedCarrier,
-                        decoration: InputDecoration(
-                          labelText: 'Transportadora',
-                          labelStyle: AppTypography.caption(context),
-                          border: const OutlineInputBorder(),
-                        ),
-                        items: ['iFood', 'Correios', 'Mercado Livre', 'Amazon', 'Loggi', 'Jadlog', 'Shopee', 'FedEx', 'DHL', 'Outro']
-                            .map((c) => DropdownMenuItem(value: c, child: Text(c, style: AppTypography.bodySecondary(context))))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => selectedCarrier = val);
-                          }
-                        },
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Transportadora', style: AppTypography.caption(context)),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: ['iFood', 'Correios', 'Mercado Livre', 'Amazon', 'Loggi', 'Outro']
+                            .map((c) {
+                          final selected = selectedCarrier == c;
+                          final vis = _carrierVisual(c);
+                          return GestureDetector(
+                            onTap: () => setState(() => selectedCarrier = c),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppColors.primary.withOpacity(0.12)
+                                    : AppColors.bg(context),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected ? AppColors.primary : AppColors.border(context),
+                                  width: selected ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(vis.icon,
+                                      size: 16,
+                                      color: selected ? AppColors.primary : vis.color),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    c,
+                                    style: AppTypography.bodySecondary(context).copyWith(
+                                      color: selected
+                                          ? AppColors.primary
+                                          : AppColors.textSecondary(context),
+                                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                       const SizedBox(height: 12),
                       if (_isDeliveryCarrier(selectedCarrier))
