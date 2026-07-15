@@ -23,11 +23,26 @@ module.exports = {
       const user = req.session.user;
       const ctx = await db.getMoradorApto(user.id, req.query.id_condominio);
       if (!ctx) return res.status(200).json({ qtd_vagas: 0, ocupadas: 0, vagas: [] });
-      const vagas = await db.getVagasAtivas(ctx.idApto);
+      const [vagas, veiculos] = await Promise.all([
+        db.getVagasAtivas(ctx.idApto),
+        db.getVeiculosProprios(ctx.idMorador),
+      ]);
+      const proprios = veiculos.map((v) => ({
+        id: null,
+        tipo_ocupacao: 'proprio',
+        id_veiculo: v.id,
+        id_visitante: null,
+        id_morador_beneficiario: null,
+        placa: v.placa || null,
+        inicio: null,
+        fim: null,
+        ocupante_nome: v.marca_modelo || null,
+      }));
+      const todas = [...proprios, ...vagas.map(mapVaga)];
       return res.status(200).json({
         qtd_vagas: ctx.qtdVagas,
-        ocupadas: vagas.length,
-        vagas: vagas.map(mapVaga),
+        ocupadas: todas.length,
+        vagas: todas,
       });
     } catch (err) {
       return res.status(500).json({ message: err.message });
@@ -61,8 +76,11 @@ module.exports = {
         return res.status(400).json({ message: 'Tipo de liberação inválido.' });
       }
 
-      const ativas = await db.countAtivas(ctx.idApto);
-      if (ativas >= ctx.qtdVagas) {
+      const [ativas, veiculos] = await Promise.all([
+        db.countAtivas(ctx.idApto),
+        db.getVeiculosProprios(ctx.idMorador),
+      ]);
+      if (ativas + veiculos.length >= ctx.qtdVagas) {
         return res.status(400).json({ message: 'Não há vagas livres neste apartamento.' });
       }
 

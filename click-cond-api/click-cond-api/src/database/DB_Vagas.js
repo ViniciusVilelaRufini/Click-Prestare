@@ -54,6 +54,16 @@ module.exports = {
     return results;
   },
 
+  // Veículos próprios do morador (os que ele vê em "Meus Veículos"). Cada um
+  // ocupa automaticamente uma vaga do tipo "proprio" (sintetizada em leitura,
+  // sem materializar linha em Vagas).
+  getVeiculosProprios: async function (idMorador) {
+    const { results } = await db.queryParam(
+      `select id, placa, marca_modelo from Veiculos
+       where id_morador=? and ativo=1 order by created_at desc`, [idMorador]);
+    return results;
+  },
+
   countAtivas: async function (idApto) {
     const { results } = await db.queryParam(
       `select count(*) as c from Vagas where id_apartamento=? and ativo=1`, [idApto]);

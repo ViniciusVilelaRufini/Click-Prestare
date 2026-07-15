@@ -2369,15 +2369,35 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) return { qtd_vagas: 0, ocupadas: 0, vagas: [] };
     const ctx = await this.resolveMoradorApto(idUser, idCondominio);
     if (!ctx) return { qtd_vagas: 0, ocupadas: 0, vagas: [] };
-    const vagas = await this.prisma.vagas.findMany({
-      where: { id_apartamento: ctx.apto.id, ativo: 1 },
-      include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
-      orderBy: { created_at: 'desc' },
-    });
+    const [vagas, veiculos] = await Promise.all([
+      this.prisma.vagas.findMany({
+        where: { id_apartamento: ctx.apto.id, ativo: 1 },
+        include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
+        orderBy: { created_at: 'desc' },
+      }),
+      // Veículos próprios do morador ocupam automaticamente uma vaga "proprio"
+      // (sintetizada em leitura, sem materializar linha em Vagas).
+      this.prisma.veiculos.findMany({
+        where: { id_morador: ctx.moradorId, ativo: 1 },
+        orderBy: { created_at: 'desc' },
+      }),
+    ]);
+    const proprios = veiculos.map((v) => ({
+      id: null,
+      tipo_ocupacao: 'proprio',
+      id_veiculo: v.id,
+      id_visitante: null,
+      id_morador_beneficiario: null,
+      placa: v.placa ?? null,
+      inicio: null,
+      fim: null,
+      ocupante_nome: v.marca_modelo ?? null,
+    }));
+    const todas = [...proprios, ...vagas.map((v) => this.mapVaga(v))];
     return {
       qtd_vagas: ctx.apto.qtd_vagas ?? 0,
-      ocupadas: vagas.length,
-      vagas: vagas.map((v) => this.mapVaga(v)),
+      ocupadas: todas.length,
+      vagas: todas,
     };
   }
 
@@ -2408,11 +2428,12 @@ export class MobileAuthService {
       throw new BadRequestException('Tipo de liberação inválido.');
     }
 
-    // Checa vaga livre: ativas < qtd_vagas.
-    const ativas = await this.prisma.vagas.count({
-      where: { id_apartamento: ctx.apto.id, ativo: 1 },
-    });
-    if (ativas >= (ctx.apto.qtd_vagas ?? 0)) {
+    // Checa vaga livre: (ativas liberadas + veículos próprios) < qtd_vagas.
+    const [ativas, veiculosProprios] = await Promise.all([
+      this.prisma.vagas.count({ where: { id_apartamento: ctx.apto.id, ativo: 1 } }),
+      this.prisma.veiculos.count({ where: { id_morador: ctx.moradorId, ativo: 1 } }),
+    ]);
+    if (ativas + veiculosProprios >= (ctx.apto.qtd_vagas ?? 0)) {
       throw new BadRequestException('Não há vagas livres neste apartamento.');
     }
 
