@@ -35,6 +35,7 @@ class _NewAptoPageState extends State<NewApto> {
   final txtVagas = TextEditingController();
   List<dynamic> listProprietarios = [];
   List<dynamic> listInquilinos = [];
+  List<dynamic> listMembros = [];
 
   @override
   void dispose() {
@@ -67,8 +68,10 @@ class _NewAptoPageState extends State<NewApto> {
       setState(() => _isLoading = true);
       var resProps = await apiGetAllMoradores('Proprietário', idObj.toString());
       var resInqui = await apiGetAllMoradores('Inquilino', idObj.toString());
+      var resMembros = await apiGetAllMoradores('Membro', idObj.toString());
       listProprietarios = resProps;
       listInquilinos = resInqui;
+      listMembros = resMembros is List ? resMembros : [];
       if (mounted) setState(() {});
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -326,6 +329,31 @@ class _NewAptoPageState extends State<NewApto> {
                             MaterialPageRoute(builder: (_) => NewMorador(
                               obj: item, isEdit: true, apto: txtApto.text, bloco: txtBloco.text,
                               tipo: 'Inquilino', id_apto: idObj.toString(),
+                            )),
+                          ).then((_) => loadMoradores());
+                        }
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    _MoradorSection(
+                      title: getText('apto_membros'),
+                      roleName: getText('lb_membro'),
+                      canEdit: canEdit,
+                      list: listMembros,
+                      onAdd: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => NewMorador(
+                          isEdit: false, apto: txtApto.text, bloco: txtBloco.text,
+                          tipo: 'Membro', id_apto: idObj.toString(),
+                        )),
+                      ).then((_) => loadMoradores()),
+                      onTap: (item) {
+                        if (canEdit) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => NewMorador(
+                              obj: item, isEdit: true, apto: txtApto.text, bloco: txtBloco.text,
+                              tipo: 'Membro', id_apto: idObj.toString(),
                             )),
                           ).then((_) => loadMoradores());
                         }
