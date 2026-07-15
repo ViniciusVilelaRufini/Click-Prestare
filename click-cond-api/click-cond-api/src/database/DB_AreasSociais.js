@@ -78,10 +78,20 @@ module.exports = {
 
   get: async function (id_cond, id) {
     const condFilter = id_cond ? `id_condominio=${id_cond} and` : '';
-    const query = `select id, nome, imagem, precisa_agendar, precisa_autorizacao, precisa_pagamento, horarios, capacidade, id_condominio from Areas_Sociais
-                      where ${condFilter} id=${id}`;
+    const query = `select a.id, a.nome, a.imagem, a.precisa_agendar, a.precisa_autorizacao, a.precisa_pagamento, a.horarios, a.capacidade, a.id_condominio,
+                     (select count(*) from Facial_Devices d where d.id_area_social = a.id) as devices
+                   from Areas_Sociais a
+                   where ${condFilter} a.id=${id}`;
     const { results } = await db.query(query);
-    return results[0];
+    const area = results[0];
+    if (!area) return area;
+    const cid = id_cond || area.id_condominio;
+    const temMonitoramento = Number(area.devices) > 0;
+    const ocupacaoMap = temMonitoramento ? await this.getOcupacaoPorArea(cid) : {};
+    delete area.devices;
+    area.tem_monitoramento = temMonitoramento;
+    area.ocupacao = temMonitoramento ? (ocupacaoMap[area.id] || 0) : 0;
+    return area;
   },
 
   insertAgendamento: async function (agendamento, userId) {

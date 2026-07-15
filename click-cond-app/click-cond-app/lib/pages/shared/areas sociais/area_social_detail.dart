@@ -233,9 +233,42 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    if (obj['tem_monitoramento'] == true) ...[
+                      const SizedBox(width: 10),
+                      _buildOcupacaoChip(int.tryParse('${obj['ocupacao'] ?? 0}') ?? 0),
+                    ],
                   ],
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Selo de ocupação ao vivo ("quantas pessoas estão dentro agora"), exibido no
+  // cabeçalho quando a área tem terminal(is) faciais/catraca vinculados.
+  Widget _buildOcupacaoChip(int ocupacao) {
+    final vazia = ocupacao <= 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(PhosphorIcons.usersThreeFill, size: 14, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            vazia ? 'Vazio agora' : '$ocupacao dentro',
+            style: AppTypography.body(context).copyWith(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

@@ -302,6 +302,13 @@ export class AreasSociaisService {
       }
     });
 
+    // Ocupação atual desta área (contador "quantas pessoas estão dentro agora").
+    const [ocupacaoMap, devicesCount] = await Promise.all([
+      this.getOcupacaoPorArea(area.id_condominio),
+      this.prisma.facial_Devices.count({ where: { id_area_social: area.id } }),
+    ]);
+    const temMonitoramento = devicesCount > 0;
+
     return {
       id: area.id,
       nome: area.nome,
@@ -311,6 +318,8 @@ export class AreasSociaisService {
       precisa_pagamento: area.precisa_pagamento,
       capacidade: area.capacidade ?? 0,
       id_condominio: area.id_condominio,
+      tem_monitoramento: temMonitoramento,
+      ocupacao: temMonitoramento ? (ocupacaoMap.get(area.id) ?? 0) : 0,
       horarios: horariosObj,
       agendamentos,
       horarios_livres: horariosLivres,
