@@ -12,7 +12,7 @@ import { CommonModule } from '@angular/common';
       class="app-bg flex flex-col md:flex-row overflow-x-hidden min-h-screen md:h-screen md:overflow-hidden"
     >
       <!-- Top Navbar for Mobile -->
-      <header class="md:hidden flex items-center justify-between px-4 py-3 bg-graphite-200 border-b border-white/5 select-none z-30 relative">
+      <header class="md:hidden flex items-center justify-between px-4 py-3 bg-slate-100 dark:bg-graphite-200 border-b border-slate-200 dark:border-white/5 select-none z-30 relative">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-accent to-accent/80 flex items-center justify-center shrink-0">
             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

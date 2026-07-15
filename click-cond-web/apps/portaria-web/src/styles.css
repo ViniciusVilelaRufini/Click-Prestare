@@ -33,6 +33,10 @@ html.light, body.light, .light {
   --scrollbar-thumb-hover: rgba(15, 23, 42, 0.15);
 }
 
+app-root {
+  display: block;
+}
+
 html, body {
   height: 100%;
   background: var(--bg-base);
