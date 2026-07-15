@@ -95,13 +95,13 @@ export class ApartamentosPageComponent implements OnInit {
   }
   abrirNovo() {
     this.editingId = null;
-    this.novo = { apto: '', bloco: '', fracao: '' };
+    this.novo = { apto: '', bloco: '', fracao: '', qtd_vagas: 0 };
     this.error.set(null);
     this.showForm = true;
   }
   abrirEditar(a: Apartamento) {
     this.editingId = a.id;
-    this.novo = { apto: a.apto, bloco: a.bloco ?? '', fracao: a.fracao ?? '' };
+    this.novo = { apto: a.apto, bloco: a.bloco ?? '', fracao: a.fracao ?? '', qtd_vagas: a.qtd_vagas ?? 0 };
     this.error.set(null);
     this.showForm = true;
   }
@@ -120,7 +120,7 @@ export class ApartamentosPageComponent implements OnInit {
       next: () => {
         this.saving.set(false);
         this.cancelarForm();
-        this.novo = { apto: '', bloco: '', fracao: '' };
+        this.novo = { apto: '', bloco: '', fracao: '', qtd_vagas: 0 };
         this.carregar();
       },
       error: (e) => {

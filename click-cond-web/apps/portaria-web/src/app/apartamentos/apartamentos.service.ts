@@ -9,6 +9,7 @@ export interface Apartamento {
   bloco: string | null;
   apto: string;
   fracao: string | null;
+  qtd_vagas?: number;
   id_condominio: number;
   qtdMoradores?: number;
 }
@@ -17,6 +18,7 @@ export interface CreateApartamento {
   bloco?: string;
   apto: string;
   fracao?: string;
+  qtd_vagas?: number;
 }
 
 @Injectable({ providedIn: 'root' })

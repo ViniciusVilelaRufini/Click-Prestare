@@ -5,6 +5,7 @@ export interface CreateApartamentoDto {
   bloco?: string;
   apto: string;
   fracao?: string;
+  qtd_vagas?: number;
   id_condominio: number;
 }
 
@@ -77,6 +78,7 @@ export class ApartamentosService {
       bloco: a.bloco,
       apto: a.apto,
       fracao: a.fracao,
+      qtd_vagas: a.qtd_vagas ?? 0,
       id_condominio: a.id_condominio,
       // Contagem canônica = usuários distintos vinculados (Apartamentos_Users), igual ao modal/app.
       qtdMoradores: new Set(a.users.map((u) => u.id_user)).size,
@@ -112,6 +114,7 @@ export class ApartamentosService {
         bloco: dto.bloco ?? null,
         apto: dto.apto,
         fracao: dto.fracao ?? null,
+        qtd_vagas: Number(dto.qtd_vagas) || 0,
         id_condominio: dto.id_condominio,
       },
     });
@@ -140,6 +143,7 @@ export class ApartamentosService {
           ...(dto.bloco !== undefined && { bloco: dto.bloco }),
           ...(dto.apto !== undefined && { apto: dto.apto }),
           ...(dto.fracao !== undefined && { fracao: dto.fracao }),
+          ...(dto.qtd_vagas !== undefined && { qtd_vagas: Number(dto.qtd_vagas) || 0 }),
         },
       });
     } catch {
