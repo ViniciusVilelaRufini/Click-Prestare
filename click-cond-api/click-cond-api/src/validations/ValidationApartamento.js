@@ -7,10 +7,10 @@ module.exports = {
 			const schema = yup.object().shape({
 				bloco: yup.string().required('Informe o bloco.'),
 				apto: yup.string().required('Informe o apartamento.'),
-				fracao: yup.string().required('Informe a fração.'),
+				fracao: yup.string().nullable().notRequired(),
 			});
 
-			await schema.validate(req.body.apartamento, { abortEarly: false });
+			await schema.validate(req.body.Apartamento ?? req.body.apartamento, { abortEarly: false });
 			next();
 		} catch (error) {
 			var message = '';
