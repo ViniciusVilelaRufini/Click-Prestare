@@ -9,11 +9,52 @@ module.exports = {
   },
 
   getAll: async function (id_cond, offset) {
-    const query = `select id, nome, imagem from Areas_Sociais
-                      where id_condominio=${id_cond}
-                    order by created_at desc`;
+    const query = `select a.id, a.nome, a.imagem, a.capacidade,
+                     (select count(*) from Facial_Devices d where d.id_area_social = a.id) as devices
+                   from Areas_Sociais a
+                   where a.id_condominio=${id_cond}
+                   order by a.created_at desc`;
     const { results } = await db.query(query);
-    return results;
+    const ocupacaoMap = await this.getOcupacaoPorArea(id_cond);
+    return results.map((a) => {
+      const temMonitoramento = Number(a.devices) > 0;
+      return {
+        id: a.id,
+        nome: a.nome,
+        imagem: a.imagem,
+        capacidade: a.capacidade,
+        tem_monitoramento: temMonitoramento,
+        ocupacao: temMonitoramento ? (ocupacaoMap[a.id] || 0) : 0,
+      };
+    });
+  },
+
+  // Ocupação atual ("quantas pessoas estão dentro agora") por área de lazer.
+  // Para cada pessoa, entre os dispositivos DAQUELA área, o último evento
+  // entrada/saída do DIA define se está dentro (entrada). Reset diário à
+  // meia-noite. Retorna um objeto { [id_area_social]: ocupacao }.
+  getOcupacaoPorArea: async function (id_cond) {
+    const q = `select sub.area as area, count(*) as ocupacao
+               from (
+                 select d.id_area_social as area,
+                        coalesce(concat(af.tipo_pessoa,'#',af.id_pessoa), af.face_id) as pessoa,
+                        substring_index(
+                          group_concat(af.evento order by af.timestamp desc, af.id desc), ',', 1
+                        ) as ultimo_evento
+                 from Acessos_Facial af
+                 join Facial_Devices d
+                   on d.id = af.id_device and d.id_area_social is not null
+                 where af.id_condominio = ?
+                   and af.evento in ('entrada','saida')
+                   and af.timestamp >= curdate()
+                 group by d.id_area_social, pessoa
+               ) sub
+               where sub.ultimo_evento = 'entrada'
+               group by sub.area`;
+    const { results } = await db.queryParam(q, [id_cond]);
+    const map = {};
+    for (const r of results) map[r.area] = Number(r.ocupacao);
+    return map;
   },
 
   remove: async function (id) {

@@ -8,6 +8,7 @@ import {
   TerminaisFaciaisApi,
   TerminalFacial,
 } from './terminais-faciais.service';
+import { AreaSocial, AreasSociaisApi } from '../areas-sociais/areas-sociais.service';
 
 @Component({
   selector: 'app-terminais-faciais-page',
@@ -18,7 +19,12 @@ import {
 export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   @Input() embedded = false;
   private api = inject(TerminaisFaciaisApi);
+  private areasApi = inject(AreasSociaisApi);
   private statusInterval?: ReturnType<typeof setInterval>;
+
+  // Áreas de lazer do condomínio, para vincular um terminal a uma área
+  // (contador de ocupação). Vazio = nenhuma área cadastrada.
+  readonly areasSociais = signal<AreaSocial[]>([]);
 
   readonly loading = signal(false);
   readonly terminais = signal<TerminalFacial[]>([]);
@@ -211,6 +217,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.load();
+    this.loadAreasSociais();
     this.loadSyncStatus();
     this.loadAgentInfo();
     // Atualiza o status online/offline dos aparelhos a cada 15s (silencioso),
@@ -522,11 +529,25 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       porta: 80,
       api_user: '',
       api_password: '',
+      id_area_social: null,
     };
+  }
+
+  loadAreasSociais() {
+    this.areasApi.listAreas().subscribe({
+      next: (list) => this.areasSociais.set(list ?? []),
+      error: () => this.areasSociais.set([]),
+    });
   }
 
   // Botoeira é só acionador (não identifica pessoa), então sentido não se aplica.
   get mostrarSentido(): boolean {
+    return this.form.tipo !== 'botoeira';
+  }
+
+  // Vincular a uma área de lazer só faz sentido em terminais que identificam
+  // pessoas (facial/catraca) — botoeira não conta ocupação.
+  get mostrarArea(): boolean {
     return this.form.tipo !== 'botoeira';
   }
 
@@ -586,6 +607,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       porta: t.porta,
       api_user: t.api_user ?? '',
       api_password: '',
+      id_area_social: t.id_area_social ?? null,
     };
     this.showModal.set(true);
   }
@@ -631,6 +653,9 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       porta: Number(this.form.porta) || 80,
       api_user: this.form.api_user || undefined,
       api_password: this.form.api_password || undefined,
+      id_area_social: this.mostrarArea
+        ? (this.form.id_area_social ? Number(this.form.id_area_social) : null)
+        : null,
     };
 
     const id = this.editingId();

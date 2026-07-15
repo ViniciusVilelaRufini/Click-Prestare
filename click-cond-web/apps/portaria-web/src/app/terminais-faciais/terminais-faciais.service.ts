@@ -22,6 +22,8 @@ export interface TerminalFacial {
   webhook_token: string;
   ativo: number;
   ultima_sincr: string | null;
+  /** Área de lazer monitorada por este terminal (opcional); conta a ocupação. */
+  id_area_social: number | null;
   created_at: string;
   updated_at: string;
   /** True se há um Agente Local fazendo polling deste device agora. */
@@ -44,6 +46,7 @@ export interface CreateTerminalFacial {
   porta?: number;
   api_user?: string;
   api_password?: string;
+  id_area_social?: number | null;
 }
 
 export interface AcessoFacial {

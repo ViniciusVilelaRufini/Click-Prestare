@@ -921,6 +921,32 @@
             </div>
           }
 
+          <!-- Área de lazer monitorada: quando vinculada, os acessos deste
+               terminal alimentam o contador "quantas pessoas estão dentro"
+               daquela área no app. Opcional; não se aplica a botoeira. -->
+          @if (mostrarArea) {
+            <div class="space-y-1.5">
+              <label
+                class="block text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >Área de Lazer Monitorada (opcional)</label
+              >
+              <select
+                [(ngModel)]="form.id_area_social"
+                name="id_area_social"
+                class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white text-xs focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition"
+              >
+                <option [ngValue]="null">Nenhuma (terminal do condomínio)</option>
+                @for (area of areasSociais(); track area.id) {
+                  <option [ngValue]="area.id">{{ area.nome }}</option>
+                }
+              </select>
+              <p class="text-[10px] text-slate-400 dark:text-slate-500">
+                Vincule à academia, quadra, etc. para mostrar no app quantas
+                pessoas estão dentro agora (entradas menos saídas do dia).
+              </p>
+            </div>
+          }
+
           <!-- Confiança mínima: rede de segurança contra falso positivo (só facial) -->
           @if (mostrarConfianca) {
             <div class="space-y-1.5">

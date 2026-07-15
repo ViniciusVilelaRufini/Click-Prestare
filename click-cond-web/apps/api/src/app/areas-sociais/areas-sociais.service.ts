@@ -133,16 +133,70 @@ export class AreasSociaisService {
         capacidade: true,
         precisa_agendar: true,
         precisa_autorizacao: true,
-        precisa_pagamento: true
+        precisa_pagamento: true,
+        _count: { select: { devices: true } },
       },
     });
 
     const defaultImage = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
+    const ocupacaoMap = await this.getOcupacaoPorArea(Number(idCondominio));
 
-    return areas.map(a => ({
-      ...a,
-      imagem: a.imagem && a.imagem.trim() !== '' ? a.imagem : defaultImage
-    }));
+    return areas.map(a => {
+      const { _count, ...rest } = a;
+      const temMonitoramento = (_count?.devices ?? 0) > 0;
+      return {
+        ...rest,
+        imagem: a.imagem && a.imagem.trim() !== '' ? a.imagem : defaultImage,
+        tem_monitoramento: temMonitoramento,
+        ocupacao: temMonitoramento ? (ocupacaoMap.get(a.id) ?? 0) : 0,
+      };
+    });
+  }
+
+  /**
+   * Ocupação atual ("quantas pessoas estão dentro agora") por área de lazer,
+   * derivada dos acessos faciais/catraca dos dispositivos vinculados à área.
+   *
+   * Para cada pessoa, entre os dispositivos DAQUELA área, olhamos o último
+   * evento entrada/saída do DIA — se for `entrada`, a pessoa está dentro.
+   * Contamos pessoas distintas dentro. Reset diário à meia-noite: eventos de
+   * ontem não contam (uma `entrada` sem `saída` não fica presa para sempre).
+   *
+   * Retorna um Map<id_area_social, ocupacao>. Áreas sem ninguém dentro ficam
+   * ausentes do Map (o chamador usa 0 como default).
+   */
+  private async getOcupacaoPorArea(idCondominio: number): Promise<Map<number, number>> {
+    const inicioDoDia = new Date();
+    inicioDoDia.setHours(0, 0, 0, 0);
+
+    // Agrupa por (área, pessoa) e mantém só o último evento do dia via
+    // GROUP_CONCAT ordenado desc + primeiro elemento. Portável (MySQL 5.7+) e,
+    // como só lemos o primeiro item, o limite de GROUP_CONCAT não afeta.
+    const rows = await this.prisma.$queryRaw<Array<{ area: number; ocupacao: bigint | number }>>`
+      SELECT sub.area AS area, COUNT(*) AS ocupacao
+      FROM (
+        SELECT d.id_area_social AS area,
+               COALESCE(CONCAT(af.tipo_pessoa, '#', af.id_pessoa), af.face_id) AS pessoa,
+               SUBSTRING_INDEX(
+                 GROUP_CONCAT(af.evento ORDER BY af.timestamp DESC, af.id DESC), ',', 1
+               ) AS ultimo_evento
+        FROM Acessos_Facial af
+        JOIN Facial_Devices d
+          ON d.id = af.id_device AND d.id_area_social IS NOT NULL
+        WHERE af.id_condominio = ${idCondominio}
+          AND af.evento IN ('entrada', 'saida')
+          AND af.timestamp >= ${inicioDoDia}
+        GROUP BY d.id_area_social, pessoa
+      ) sub
+      WHERE sub.ultimo_evento = 'entrada'
+      GROUP BY sub.area
+    `;
+
+    const map = new Map<number, number>();
+    for (const r of rows) {
+      map.set(Number(r.area), Number(r.ocupacao));
+    }
+    return map;
   }
 
   async get(idCondominio: number, idArea: number) {

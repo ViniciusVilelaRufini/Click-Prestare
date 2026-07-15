@@ -416,6 +416,7 @@ model Areas_Sociais {
   condominio          Condominios                  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_areas_cond")
   agendamentos        Areas_Sociais_Agendamentos[]
   manutencoes         Areas_Sociais_Manutencoes[]
+  devices             Facial_Devices[]
 
   @@index([id_condominio], map: "fk_areas_cond")
 }
@@ -1036,12 +1037,18 @@ model Facial_Devices {
   webhook_token String                @db.VarChar(255)
   ativo         Int                   @default(1) @db.TinyInt
   ultima_sincr  DateTime?             @db.DateTime(0)
+  // Área de lazer que este terminal monitora (opcional). Quando preenchido, os
+  // acessos deste device contam para a ocupação daquela área (contador "quantas
+  // pessoas estão dentro agora"). null = terminal comum do condomínio.
+  id_area_social Int?                 @db.Int
   created_at    DateTime              @default(now()) @db.DateTime(0)
   updated_at    DateTime              @default(now()) @updatedAt @db.DateTime(0)
   condominio    Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
+  area_social   Areas_Sociais?        @relation(fields: [id_area_social], references: [id], onDelete: SetNull, map: "fk_facdev_area")
   regras        Regras_Dispositivos[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
+  @@index([id_area_social], map: "idx_facdev_area")
 }
 
 model Acessos_Facial {

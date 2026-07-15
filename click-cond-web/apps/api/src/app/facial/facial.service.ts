@@ -40,6 +40,11 @@ export interface CreateDeviceDto {
   porta?: number;
   api_user?: string;
   api_password?: string;
+  /**
+   * Área de lazer que este terminal monitora (opcional). Preenchido = os acessos
+   * deste device contam para a ocupação daquela área. null/omitido = terminal comum.
+   */
+  id_area_social?: number | null;
 }
 
 export interface UpdateDeviceDto extends Partial<CreateDeviceDto> {}
@@ -475,6 +480,7 @@ export class FacialService {
         porta: dto.porta ?? 80,
         api_user: dto.api_user ?? null,
         api_password: encryptSecret(dto.api_password ?? null),
+        id_area_social: dto.id_area_social ?? null,
         webhook_token: token,
       },
     });
@@ -538,6 +544,9 @@ export class FacialService {
         ...(dto.api_user !== undefined && { api_user: dto.api_user }),
         ...(dto.api_password !== undefined && {
           api_password: encryptSecret(dto.api_password),
+        }),
+        ...(dto.id_area_social !== undefined && {
+          id_area_social: dto.id_area_social,
         }),
       },
     });
