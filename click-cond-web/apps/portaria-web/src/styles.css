@@ -33,7 +33,10 @@ html.light, body.light, .light {
   --scrollbar-thumb-hover: rgba(15, 23, 42, 0.15);
 }
 
-app-root {
+app-root,
+app-shell,
+app-confirm-host,
+app-toast-host {
   display: block;
 }
 
