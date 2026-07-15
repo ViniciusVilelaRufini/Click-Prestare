@@ -2031,7 +2031,7 @@
   <!-- Modal de Detalhes do Visitante (timeline, stats) -->
   @if (detalhesLoading() || detalhesData() || detalhesError()) {
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
       (click)="fecharDetalhes()"
     >
       <div
