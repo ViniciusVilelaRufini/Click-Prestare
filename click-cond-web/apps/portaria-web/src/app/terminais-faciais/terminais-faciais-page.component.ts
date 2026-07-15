@@ -44,6 +44,15 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   private initialPending: number | null = null;
   readonly etaText = signal<string | null>(null);
 
+  // Ciclo de vida da barra de progresso (independente do flag "running" do
+  // backend). Mantém o painel visível do clique até um breve estado de
+  // "Concluído" em 100%, evitando que a barra apareça e suma bruscamente.
+  readonly progressVisible = signal(false);
+  readonly progressDone = signal(false);
+  readonly displayPercent = signal(0);
+  private sawRunning = false;
+  private hideProgressTimer?: ReturnType<typeof setTimeout>;
+
   // Preview de Câmera em tempo real
   readonly viewingCameraTerminal = signal<TerminalFacial | null>(null);
   readonly cameraLiveUrl = signal<string | null>(null);
@@ -211,6 +220,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.statusInterval) clearInterval(this.statusInterval);
+    if (this.hideProgressTimer) clearTimeout(this.hideProgressTimer);
   }
 
   loadSyncStatus() {
@@ -264,15 +274,33 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
    * Envia todos os rostos já cadastrados para os terminais faciais (back-fill).
    * Roda em segundo plano no servidor; aqui só dispara e acompanha o status.
    */
+  /** Abre o painel de progresso e zera o estado da barra. */
+  private startProgress() {
+    if (this.hideProgressTimer) clearTimeout(this.hideProgressTimer);
+    this.sawRunning = false;
+    this.progressDone.set(false);
+    this.displayPercent.set(0);
+    this.progressVisible.set(true);
+  }
+
+  /** Esconde o painel imediatamente (sem estado de conclusão). */
+  private hideProgress() {
+    if (this.hideProgressTimer) clearTimeout(this.hideProgressTimer);
+    this.progressVisible.set(false);
+    this.progressDone.set(false);
+  }
+
   syncAllRostos() {
     this.syncing.set(true);
     this.errorMessage.set(null);
+    this.startProgress();
     const cats = Array.from(this.categoriasSync());
     const ids = Array.from(this.terminaisSync());
     this.api.syncAll(cats, ids).subscribe({
       next: (r) => {
         this.syncing.set(false);
         if (r.skipped) {
+          this.hideProgress();
           this.errorMessage.set(
             r.reason === 'no_facial_devices'
               ? 'Cadastre um terminal facial antes de sincronizar.'
@@ -284,6 +312,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         if (r.alreadyRunning) {
           this.successMessage.set('Sincronização já está em andamento.');
         } else if (!r.total) {
+          // Nada a fazer: não há o que acompanhar, fecha o painel.
+          this.hideProgress();
           this.successMessage.set(
             'Nenhum rosto pendente — tudo já sincronizado.',
           );
@@ -298,6 +328,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.syncing.set(false);
+        this.hideProgress();
         this.errorMessage.set(
           err?.error?.message ?? 'Falha ao sincronizar rostos.',
         );
@@ -309,12 +340,14 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   unsyncAllRostos() {
     this.cleaning.set(true);
     this.errorMessage.set(null);
+    this.startProgress();
     const cats = Array.from(this.categoriasSync());
     const ids = Array.from(this.terminaisSync());
     this.api.unsyncAll(cats, ids).subscribe({
       next: (r) => {
         this.cleaning.set(false);
         if (r.skipped) {
+          this.hideProgress();
           this.errorMessage.set(
             r.reason === 'no_facial_devices'
               ? 'Nenhum terminal facial ativo encontrado.'
@@ -326,6 +359,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         if (r.alreadyRunning) {
           this.successMessage.set('Uma operação de sincronização/limpeza já está em andamento.');
         } else if (!r.total) {
+          this.hideProgress();
           this.successMessage.set(
             'Nenhum rosto cadastrado no banco para remover.',
           );
@@ -339,6 +373,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.cleaning.set(false);
+        this.hideProgress();
         this.errorMessage.set(
           err?.error?.message ?? 'Falha ao remover rostos.',
         );
@@ -347,7 +382,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Atualiza o status a cada 3s enquanto o back-fill estiver rodando. */
+  /** Atualiza o status a cada ~1,2s enquanto o back-fill estiver rodando. */
   private pollSyncStatus(restantes = 200) {
     this.api.syncStatus().subscribe({
       next: (s) => {
@@ -355,6 +390,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         if (this.mostrarPessoas()) this.loadPessoas();
 
         if (s.running) {
+          this.sawRunning = true;
+          this.displayPercent.set(this.syncProgressPercentage);
           // Inicializa variáveis do cálculo de ETA se acabou de iniciar
           if (this.syncStartTime === null) {
             this.syncStartTime = Date.now();
@@ -387,15 +424,46 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
           // Reseta variáveis do cálculo de ETA se terminou
           this.syncStartTime = null;
           this.initialPending = null;
-          this.etaText.set(null);
         }
 
+        // Agendamento do próximo ciclo / encerramento do painel.
         if (s.running && restantes > 0) {
-          setTimeout(() => this.pollSyncStatus(restantes - 1), 3000);
+          setTimeout(() => this.pollSyncStatus(restantes - 1), 1200);
+        } else if (!s.running) {
+          if (this.sawRunning) {
+            // Terminou de verdade: segura em 100% "Concluído" por um instante.
+            this.finishProgress();
+          } else if (restantes > 195) {
+            // Pode ainda não ter iniciado no backend; espera alguns ciclos.
+            setTimeout(() => this.pollSyncStatus(restantes - 1), 1200);
+          } else {
+            // Não iniciou após várias tentativas: fecha silenciosamente.
+            this.hideProgress();
+            this.syncing.set(false);
+            this.cleaning.set(false);
+          }
         }
       },
       error: () => {},
     });
+  }
+
+  /** Segura a barra em 100% com selo de "Concluído" e fecha suavemente. */
+  private finishProgress() {
+    this.displayPercent.set(100);
+    this.progressDone.set(true);
+    this.etaText.set(null);
+    this.syncStartTime = null;
+    this.initialPending = null;
+    if (this.hideProgressTimer) clearTimeout(this.hideProgressTimer);
+    this.hideProgressTimer = setTimeout(() => {
+      this.progressVisible.set(false);
+      this.progressDone.set(false);
+      this.syncing.set(false);
+      this.cleaning.set(false);
+      // Recarrega os contadores finais (enviados/erros/sem foto).
+      this.loadSyncStatus();
+    }, 2600);
   }
 
   /** Mostra/oculta a lista por pessoa e carrega quando abre. */

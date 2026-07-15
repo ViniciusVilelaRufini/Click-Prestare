@@ -352,50 +352,66 @@
               <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               <span>Sincronizando…</span>
             } @else {
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H17.5"/></svg>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
               <span>Sincronizar rostos</span>
             }
           </button>
         </div>
 
         <!-- Real-time Progress Bar -->
-        @if (syncStatus(); as s) {
-          @if (s.running || syncing()) {
-            <div class="space-y-3 p-5 rounded-2xl bg-white/40 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 shadow-sm">
-              <style>
-                @keyframes progress-shimmer {
-                  0% { background-position: 0% 50%; }
-                  50% { background-position: 100% 50%; }
-                  100% { background-position: 0% 50%; }
-                }
-                .animate-progress-shimmer {
-                  background-size: 200% auto;
-                  animation: progress-shimmer 2.5s linear infinite;
-                }
-                .progress-bar-fluid {
-                  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-                }
-              </style>
+        @if (progressVisible()) {
+          <div class="space-y-3 p-5 rounded-2xl bg-white/40 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 shadow-sm animate-fade-in">
+            <style>
+              @keyframes progress-sheen {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(250%); }
+              }
+              .progress-sheen {
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+                animation: progress-sheen 1.4s ease-in-out infinite;
+              }
+              .progress-bar-fluid {
+                transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+              }
+            </style>
 
-              <div class="flex items-center justify-between text-xs">
-                <span class="font-semibold text-slate-700 dark:text-white flex items-center gap-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold text-slate-700 dark:text-white flex items-center gap-2">
+                @if (progressDone()) {
+                  <span class="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white">
+                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  </span>
+                  <span>Sincronização concluída</span>
+                } @else {
                   <span class="relative flex h-2 w-2">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
                   </span>
-                  <span>Sincronizando rostos...</span>
-                </span>
-                <span class="font-bold text-accent text-sm">{{ syncProgressPercentage }}%</span>
+                  <span>Sincronizando rostos…</span>
+                }
+              </span>
+              <span class="font-bold text-sm tabular-nums" [class.text-accent]="!progressDone()" [class.text-emerald-500]="progressDone()">{{ displayPercent() }}%</span>
+            </div>
+
+            <!-- Progress Bar Track -->
+            <div class="relative w-full bg-slate-200 dark:bg-slate-900 rounded-full h-2.5 overflow-hidden">
+              <div
+                class="progress-bar-fluid relative h-full rounded-full overflow-hidden shadow-sm"
+                [class.bg-gradient-to-r]="!progressDone()"
+                [class.from-accent]="!progressDone()"
+                [class.via-accent-400]="!progressDone()"
+                [class.to-accent-600]="!progressDone()"
+                [class.shadow-accent/20]="!progressDone()"
+                [class.bg-emerald-500]="progressDone()"
+                [style.width.%]="displayPercent()"
+              >
+                @if (!progressDone()) {
+                  <div class="progress-sheen absolute inset-0"></div>
+                }
               </div>
-              
-              <!-- Progress Bar Track -->
-              <div class="w-full bg-slate-200 dark:bg-slate-900 rounded-full h-2.5 overflow-hidden">
-                <div 
-                  class="bg-gradient-to-r from-accent via-accent-400 to-accent-600 h-full rounded-full progress-bar-fluid animate-progress-shimmer shadow-sm shadow-accent/20"
-                  [style.width.%]="syncProgressPercentage"
-                ></div>
-              </div>
-              
+            </div>
+
+            @if (syncStatus(); as s) {
               <div class="flex items-center justify-between text-[10px] font-medium text-slate-400 dark:text-slate-500">
                 <div class="flex items-center gap-3">
                   <span>Total: <b>{{ s.synced + s.pending + s.error }}</b></span>
@@ -408,8 +424,8 @@
                   </span>
                 }
               </div>
-            </div>
-          }
+            }
+          </div>
         }
 
         <!-- Detail Listing (Sliding/collapsible list) -->
