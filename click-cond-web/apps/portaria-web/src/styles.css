@@ -40,6 +40,15 @@ app-toast-host {
   display: block;
 }
 
+/* O componente roteado é renderizado como IRMÃO depois do <router-outlet>.
+   Deixar o próprio elemento router-outlet inline (padrão) cria uma caixa de
+   linha anônima no topo do app-root (altura = line-height ~24px), que aparece
+   como uma faixa clara no topo da página. display:none remove-a sem afetar o
+   conteúdo roteado. */
+router-outlet {
+  display: none;
+}
+
 html, body {
   height: 100%;
   background: var(--bg-base);
