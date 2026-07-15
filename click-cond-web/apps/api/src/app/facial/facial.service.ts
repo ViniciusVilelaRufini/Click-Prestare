@@ -2029,19 +2029,28 @@ export class FacialService {
   }
 
   /**
-   * Varredura diária de fantasmas biométricos (às 3h BRT): lista UserIDs no terminal
-   * e compara com face_ids no banco. Remove qualquer biometria órfã.
+   * Varredura de fantasmas biométricos (de hora em hora): lista UserIDs no
+   * terminal e compara com os face_ids das TRÊS fontes de pessoa no banco
+   * (moradores, visitantes e prestadores_servico). Remove qualquer biometria
+   * órfã — é a rede de segurança que garante que um rosto EXCLUÍDO pare de
+   * abrir a porta mesmo quando o unsync do delete não chegou ao aparelho
+   * (agente/terminal offline no instante do delete → registro some do banco e
+   * o re-sync normal nunca mais o alcança). Roda de hora em hora (não só às 3h)
+   * para fechar a janela de ~24h em que o fantasma continuava abrindo.
    */
   private async tickFantasmas() {
     if (!this.prisma.isConnected) return;
-    const agoraBRT = new Date(
-      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
-    );
-    if (agoraBRT.getHours() !== 3) return;
 
     try {
+      // Intelbras e Dahua falam o mesmo protocolo RPC2 (list/removeMulti);
+      // ambos precisam da varredura. Fabricantes sem esse protocolo não são
+      // varridos (listDahuaUserIds não se aplica).
       const devices = await this.prisma.facial_Devices.findMany({
-        where: { ativo: 1, tipo: 'facial', fabricante: 'intelbras' },
+        where: {
+          ativo: 1,
+          tipo: 'facial',
+          fabricante: { in: ['intelbras', 'dahua'] },
+        },
       });
 
       for (const device of devices) {
@@ -2050,26 +2059,38 @@ export class FacialService {
           const idsNoAparelho = await this.client.listDahuaUserIds(config);
           if (idsNoAparelho.length === 0) continue;
 
-          const [visitantesNoBanco, moradoresNoBanco] = await Promise.all([
-            this.prisma.visitantes.findMany({
-              where: {
-                id_condominio: device.id_condominio,
-                face_id: { in: idsNoAparelho },
-              },
-              select: { face_id: true },
-            }),
-            this.prisma.moradores.findMany({
-              where: {
-                id_condominio: device.id_condominio,
-                face_id: { in: idsNoAparelho },
-              },
-              select: { face_id: true },
-            }),
-          ]);
+          const [visitantesNoBanco, moradoresNoBanco, prestadoresNoBanco] =
+            await Promise.all([
+              this.prisma.visitantes.findMany({
+                where: {
+                  id_condominio: device.id_condominio,
+                  face_id: { in: idsNoAparelho },
+                },
+                select: { face_id: true },
+              }),
+              this.prisma.moradores.findMany({
+                where: {
+                  id_condominio: device.id_condominio,
+                  face_id: { in: idsNoAparelho },
+                },
+                select: { face_id: true },
+              }),
+              // Sem esta fonte, TODO funcionário legítimo (Prestadores_servico)
+              // seria tratado como fantasma e removido — e um funcionário
+              // excluído nunca seria limpo por aqui.
+              this.prisma.prestadores_servico.findMany({
+                where: {
+                  id_condominio: device.id_condominio,
+                  face_id: { in: idsNoAparelho },
+                },
+                select: { face_id: true },
+              }),
+            ]);
 
           const idsNoBanco = new Set([
             ...visitantesNoBanco.map((v) => v.face_id!),
             ...moradoresNoBanco.map((m) => m.face_id!),
+            ...prestadoresNoBanco.map((p) => p.face_id!),
           ]);
 
           const fantasmas = idsNoAparelho.filter((id) => !idsNoBanco.has(id));
