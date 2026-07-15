@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:click/controllers/controller_generic.dart';
+import 'package:click/pages/shared/funcionarios/list_funcionarios.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/new_prestador.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -55,44 +56,109 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
               child: const Icon(PhosphorIcons.plus, color: Colors.white),
             )
           : null,
-      body: _isLoading
-          ? ListView.separated(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              itemCount: 8,
-              separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (_, __) => AppSkeleton.listTile(context),
-            )
-          : list.isEmpty
-              ? Center(
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(PhosphorIcons.users, size: 56, color: AppColors.textTertiary(context)),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      getText('alert_list_empty_generic'),
-                      style: AppTypography.caption(context),
-                    ),
-                  ]),
-                )
-              : RefreshIndicator(
-                  onRefresh: loadList,
-                  child: ListView.separated(
+      body: Column(
+        children: [
+          if (canEdit) _buildFuncionariosWebButton(context),
+          Expanded(
+            child: _isLoading
+                ? ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    itemCount: list.length,
+                    itemCount: 8,
                     separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                    itemBuilder: (_, i) => _PrestadorCadastroCard(
-                      item: list[i],
-                      onTap: canEdit
-                          ? () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      NewPrestador(isEdit: true, myId: list[i]['id']),
-                                ),
-                              ).then((_) => loadList())
-                          : null,
-                    ),
+                    itemBuilder: (_, __) => AppSkeleton.listTile(context),
+                  )
+                : list.isEmpty
+                    ? Center(
+                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(PhosphorIcons.users, size: 56, color: AppColors.textTertiary(context)),
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            getText('alert_list_empty_generic'),
+                            style: AppTypography.caption(context),
+                          ),
+                        ]),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: loadList,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          itemCount: list.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (_, i) => _PrestadorCadastroCard(
+                            item: list[i],
+                            onTap: canEdit
+                                ? () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            NewPrestador(isEdit: true, myId: list[i]['id']),
+                                      ),
+                                    ).then((_) => loadList())
+                                : null,
+                          ),
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Atalho para o cadastro de funcionários do condomínio (porteiro/zelador etc.),
+  /// que possuem login próprio no sistema web (Portaria) — diferente do prestador
+  /// de serviço e do cadastro do síndico.
+  Widget _buildFuncionariosWebButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ListFuncionarios()),
+          ).then((_) => loadList()),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(PhosphorIcons.identificationCard, color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Funcionários (acesso ao sistema web)',
+                        style: AppTypography.bodyMedium(context).copyWith(color: AppColors.primary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Cadastrar porteiro/zelador e liberar login no Portaria Web',
+                        style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+                      ),
+                    ],
                   ),
                 ),
+                Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
