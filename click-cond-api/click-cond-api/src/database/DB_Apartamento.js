@@ -1,9 +1,10 @@
 const db = require('./MySQL.js');
 
 module.exports = {
-  insertApto: async function (bloco, apto, fracao, id_condominio) {
-    const query = `insert into Apartamentos (bloco, apto, fracao, id_condominio)
-                        values ('${bloco}', '${apto}', '${fracao}', '${id_condominio}')`;
+  insertApto: async function (bloco, apto, fracao, id_condominio, qtd_vagas) {
+    const vagas = Number(qtd_vagas) || 0;
+    const query = `insert into Apartamentos (bloco, apto, fracao, id_condominio, qtd_vagas)
+                        values ('${bloco}', '${apto}', '${fracao}', '${id_condominio}', ${vagas})`;
 
     await db.query(query).then((response) => {
       if (response.status == 'Error') {
@@ -19,7 +20,7 @@ module.exports = {
   },
 
   getAll: async function (id_cond, offset) {
-    const query = `select id, bloco, apto, fracao
+    const query = `select id, bloco, apto, fracao, qtd_vagas
                     from Apartamentos
                       where id_condominio=${id_cond}`;
     console.log(query);
@@ -32,11 +33,13 @@ module.exports = {
     await db.query(query);
   },
 
-  updateApto: async function (idApto, bloco, apto, fracao) {
-    const query = `update Apartamentos set 
+  updateApto: async function (idApto, bloco, apto, fracao, qtd_vagas) {
+    const vagas = Number(qtd_vagas) || 0;
+    const query = `update Apartamentos set
                     bloco='${bloco}',
                     apto='${apto}',
-                    fracao='${fracao}'                   
+                    fracao='${fracao}',
+                    qtd_vagas=${vagas}
                   where id=${idApto}`;
 
     await db.query(query).then((response) => {

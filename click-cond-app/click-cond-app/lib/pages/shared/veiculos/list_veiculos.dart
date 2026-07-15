@@ -1,6 +1,7 @@
 import 'package:click/controllers/controller_veiculos.dart';
 import 'package:click/models/veiculo_model.dart';
 import 'package:click/pages/shared/veiculos/new_veiculo.dart';
+import 'package:click/pages/shared/veiculos/list_vagas.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -65,6 +66,16 @@ class _ListVeiculosState extends State<ListVeiculos> {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: 'Meus Veículos',
+      actions: [
+        IconButton(
+          icon: Icon(PhosphorIcons.carSimple, color: AppColors.primary),
+          tooltip: 'Minhas Vagas',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ListVagas()),
+          ),
+        ),
+      ],
       floatingActionButton: FloatingActionButton(
         onPressed: () => _abrirForm(),
         backgroundColor: AppColors.primary,

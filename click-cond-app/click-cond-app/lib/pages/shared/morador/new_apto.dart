@@ -32,12 +32,13 @@ class _NewAptoPageState extends State<NewApto> {
   final txtBloco = TextEditingController();
   final txtApto = TextEditingController();
   final txtFracao = TextEditingController();
+  final txtVagas = TextEditingController();
   List<dynamic> listProprietarios = [];
   List<dynamic> listInquilinos = [];
 
   @override
   void dispose() {
-    txtBloco.dispose(); txtApto.dispose(); txtFracao.dispose();
+    txtBloco.dispose(); txtApto.dispose(); txtFracao.dispose(); txtVagas.dispose();
     super.dispose();
   }
 
@@ -55,6 +56,9 @@ class _NewAptoPageState extends State<NewApto> {
     txtApto.text = widget.obj['apto'];
     txtBloco.text = widget.obj['bloco'];
     txtFracao.text = widget.obj['fracao'] ?? '';
+    txtVagas.text = (widget.obj['qtd_vagas'] ?? '').toString() == 'null'
+        ? ''
+        : (widget.obj['qtd_vagas']?.toString() ?? '');
     await loadMoradores();
   }
 
@@ -76,7 +80,7 @@ class _NewAptoPageState extends State<NewApto> {
   Future<void> save() async {
     try {
       setState(() => _isSaving = true);
-      var obj = AptoModel(id: idObj, bloco: txtBloco.text, apto: txtApto.text, fracao: txtFracao.text);
+      var obj = AptoModel(id: idObj, bloco: txtBloco.text, apto: txtApto.text, fracao: txtFracao.text, qtdVagas: int.tryParse(txtVagas.text.trim()) ?? 0);
       var res = await apiSaveApto('apartamentos', getText('lb_apartamento'), obj, isEdit);
       await displayMessage(context, getText('alert_success'), 'Apartamento salvo com sucesso!');
       idObj = res['id'];
@@ -263,6 +267,14 @@ class _NewAptoPageState extends State<NewApto> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 16),
+                        AppInput(
+                          label: 'Quantidade de vagas',
+                          controller: txtVagas,
+                          prefixIcon: PhosphorIcons.carSimple,
+                          keyboard: TextInputType.number,
+                          readOnly: !canEdit,
                         ),
                       ],
                     ),
@@ -561,8 +573,9 @@ class AptoModel {
   String? bloco;
   String? apto;
   String? fracao;
+  int? qtdVagas;
 
-  AptoModel({this.id, this.bloco, this.apto, this.fracao});
+  AptoModel({this.id, this.bloco, this.apto, this.fracao, this.qtdVagas});
 
-  Map toJson() => {'id': id, 'bloco': bloco, 'apto': apto, 'fracao': fracao};
+  Map toJson() => {'id': id, 'bloco': bloco, 'apto': apto, 'fracao': fracao, 'qtd_vagas': qtdVagas ?? 0};
 }

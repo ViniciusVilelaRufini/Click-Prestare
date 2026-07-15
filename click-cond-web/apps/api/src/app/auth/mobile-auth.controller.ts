@@ -449,3 +449,41 @@ export class VeiculosMobileController {
     return this.service.removerVeiculoMorador(Number(idUser), Number(body.id_condominio), Number(body.id));
   }
 }
+
+// ==========================================
+// VAGAS (app do morador) — liberar vaga p/ visitante/inquilino
+// ==========================================
+@Controller('vagas')
+export class VagasMobileController {
+  constructor(private readonly service: MobileAuthService) {}
+
+  @Get('get-all')
+  getAll(@ReqUser() payload: JwtPayload, @Query('id_condominio') idCondominio?: string) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.listVagasByUser(Number(idUser), Number(idCondominio));
+  }
+
+  @Get('beneficiarios')
+  beneficiarios(@ReqUser() payload: JwtPayload, @Query('id_condominio') idCondominio?: string) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.listBeneficiariosVaga(Number(idUser), Number(idCondominio));
+  }
+
+  @Post('liberar')
+  liberar(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id_condominio: number | string } & Record<string, any>,
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.liberarVaga(Number(idUser), Number(body.id_condominio), body);
+  }
+
+  @Post('revogar')
+  revogar(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id: number; id_condominio: number | string },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.revogarVaga(Number(idUser), Number(body.id_condominio), Number(body.id));
+  }
+}

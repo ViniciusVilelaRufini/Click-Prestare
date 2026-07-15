@@ -30,6 +30,7 @@ const usersRouter = require('./src/routes/users');
 const facialRouter = require('./src/routes/facial');
 const chatIaRouter = require('./src/routes/chatIa');
 const veiculosRouter = require('./src/routes/veiculos');
+const vagasRouter = require('./src/routes/vagas');
 const relatoriosRouter = require('./src/routes/relatorios');
 
 const app = express();
@@ -88,6 +89,7 @@ app.use('/encomendas', encomendasRouter);
 app.use('/facial', facialRouter);
 app.use('/chat-ia', chatIaRouter);
 app.use('/veiculos', veiculosRouter);
+app.use('/vagas', vagasRouter);
 app.use('/condominios', relatoriosRouter);
 
 // catch 404 and forward to error handler

@@ -1791,6 +1791,7 @@ export class MobileAuthService {
         apto: a.apto ?? '',
         numero: a.apto ?? '',
         fracao: a.fracao ?? '',
+        qtd_vagas: a.qtd_vagas ?? 0,
         id_condominio: a.id_condominio,
         qtdMoradores: idsUnicos.size,
         moradores: nomes.join(', '),
@@ -1869,6 +1870,7 @@ export class MobileAuthService {
             ...(data.bloco !== undefined && { bloco: data.bloco }),
             ...(data.apto !== undefined && { apto: data.apto }),
             ...(data.fracao !== undefined && { fracao: data.fracao }),
+            ...(data.qtd_vagas !== undefined && { qtd_vagas: Number(data.qtd_vagas) || 0 }),
           },
         });
       }
@@ -1879,6 +1881,7 @@ export class MobileAuthService {
           bloco: data.bloco ?? null,
           apto: data.apto,
           fracao: data.fracao ?? null,
+          qtd_vagas: Number(data.qtd_vagas) || 0,
         },
       });
     } catch (e: any) {
@@ -2313,6 +2316,165 @@ export class MobileAuthService {
     const m = await this.resolveMoradorId(idUser, idCondominio);
     if (!m) throw new BadRequestException('Acesso negado.');
     await this.prisma.veiculos.deleteMany({ where: { id: Number(id), id_morador: m.id } });
+    return { ok: true };
+  }
+
+  // ==========================================
+  // VAGAS (app do morador) — liberar vaga p/ visitante/inquilino
+  // ==========================================
+
+  /** Resolve o morador logado + o apartamento a que pertence (com qtd_vagas). */
+  private async resolveMoradorApto(idUser: number, idCondominio?: number) {
+    const m = await this.resolveMoradorId(idUser, idCondominio);
+    if (!m) return null;
+    // Preferimos o vínculo em Apartamentos_Users (id_apto direto); se não houver,
+    // caímos no match por bloco/apto do registro de Moradores.
+    const rel = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: idUser, apartamento: { id_condominio: m.id_condominio } },
+      include: { apartamento: true },
+    });
+    let apto = rel?.apartamento ?? null;
+    if (!apto) {
+      const mor = await this.prisma.moradores.findFirst({ where: { id: m.id } });
+      if (mor?.bloco != null && mor?.apartamento != null) {
+        apto = await this.prisma.apartamentos.findFirst({
+          where: { id_condominio: m.id_condominio, bloco: mor.bloco, apto: mor.apartamento },
+        });
+      }
+    }
+    if (!apto) return null;
+    return { moradorId: m.id, idCondominio: m.id_condominio, apto };
+  }
+
+  private mapVaga(v: any) {
+    return {
+      id: v.id,
+      tipo_ocupacao: v.tipo_ocupacao,
+      id_veiculo: v.id_veiculo,
+      id_visitante: v.id_visitante,
+      id_morador_beneficiario: v.id_morador_beneficiario,
+      placa: v.placa ?? v.veiculo?.placa ?? null,
+      inicio: v.inicio,
+      fim: v.fim,
+      ocupante_nome:
+        v.tipo_ocupacao === 'visitante'
+          ? v.visitante?.nome ?? null
+          : v.tipo_ocupacao === 'inquilino'
+            ? v.beneficiario?.nome ?? null
+            : v.titular?.nome ?? null,
+    };
+  }
+
+  async listVagasByUser(idUser: number, idCondominio?: number) {
+    if (!this.prisma.isConnected) return { qtd_vagas: 0, ocupadas: 0, vagas: [] };
+    const ctx = await this.resolveMoradorApto(idUser, idCondominio);
+    if (!ctx) return { qtd_vagas: 0, ocupadas: 0, vagas: [] };
+    const vagas = await this.prisma.vagas.findMany({
+      where: { id_apartamento: ctx.apto.id, ativo: 1 },
+      include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
+      orderBy: { created_at: 'desc' },
+    });
+    return {
+      qtd_vagas: ctx.apto.qtd_vagas ?? 0,
+      ocupadas: vagas.length,
+      vagas: vagas.map((v) => this.mapVaga(v)),
+    };
+  }
+
+  /** Beneficiários possíveis: visitantes do apto + inquilinos do apto. */
+  async listBeneficiariosVaga(idUser: number, idCondominio?: number) {
+    if (!this.prisma.isConnected) return { visitantes: [], inquilinos: [] };
+    const ctx = await this.resolveMoradorApto(idUser, idCondominio);
+    if (!ctx) return { visitantes: [], inquilinos: [] };
+    const visitantes = await this.prisma.visitantes.findMany({
+      where: { id_apartamento: ctx.apto.id, is_visitante: 1 },
+      select: { id: true, nome: true, doc_identificacao: true },
+      orderBy: { nome: 'asc' },
+    });
+    const inquilinos = await this.getMoradoresApto(ctx.apto.id, 'Inquilino');
+    return {
+      visitantes,
+      inquilinos: (inquilinos ?? []).map((i: any) => ({ id: i.id, nome: i.nome })),
+    };
+  }
+
+  async liberarVaga(idUser: number, idCondominio: number, body: any) {
+    if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco de dados indisponível.');
+    const ctx = await this.resolveMoradorApto(idUser, idCondominio);
+    if (!ctx) throw new BadRequestException('Você não é morador deste condomínio.');
+
+    const tipo = (body?.tipo ?? '').toString();
+    if (tipo !== 'visitante' && tipo !== 'inquilino') {
+      throw new BadRequestException('Tipo de liberação inválido.');
+    }
+
+    // Checa vaga livre: ativas < qtd_vagas.
+    const ativas = await this.prisma.vagas.count({
+      where: { id_apartamento: ctx.apto.id, ativo: 1 },
+    });
+    if (ativas >= (ctx.apto.qtd_vagas ?? 0)) {
+      throw new BadRequestException('Não há vagas livres neste apartamento.');
+    }
+
+    const inicio = body?.inicio ? new Date(body.inicio) : null;
+    const fim = body?.fim ? new Date(body.fim) : null;
+    const placa = body?.placa ? body.placa.toString().toUpperCase().trim() : null;
+
+    let idVisitante: number | null = null;
+    let idBeneficiario: number | null = null;
+
+    if (tipo === 'visitante') {
+      idVisitante = Number(body?.id_visitante) || null;
+      if (!idVisitante) throw new BadRequestException('Selecione um visitante cadastrado.');
+      const vis = await this.prisma.visitantes.findFirst({
+        where: { id: idVisitante, id_apartamento: ctx.apto.id },
+      });
+      if (!vis) throw new BadRequestException('Visitante não encontrado neste apartamento.');
+      // Libera o acesso do visitante na janela informada.
+      await this.prisma.visitantes.update({
+        where: { id: idVisitante },
+        data: {
+          liberado: 1,
+          ...(inicio ? { data_hora_inicio: inicio } : {}),
+          ...(fim ? { data_hora_termino: fim } : {}),
+        },
+      });
+    } else {
+      idBeneficiario = Number(body?.id_morador_beneficiario) || null;
+      if (!idBeneficiario) throw new BadRequestException('Selecione um inquilino.');
+      const inq = await this.prisma.moradores.findFirst({
+        where: { id: idBeneficiario, id_condominio: ctx.idCondominio },
+      });
+      if (!inq) throw new BadRequestException('Inquilino não encontrado.');
+    }
+
+    const vaga = await this.prisma.vagas.create({
+      data: {
+        id_condominio: ctx.idCondominio,
+        id_apartamento: ctx.apto.id,
+        id_morador_titular: ctx.moradorId,
+        tipo_ocupacao: tipo,
+        id_visitante: idVisitante,
+        id_morador_beneficiario: idBeneficiario,
+        id_veiculo: Number(body?.id_veiculo) || null,
+        placa,
+        inicio,
+        fim,
+      },
+      include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
+    });
+    return this.mapVaga(vaga);
+  }
+
+  async revogarVaga(idUser: number, idCondominio: number, id: number) {
+    if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco de dados indisponível.');
+    const ctx = await this.resolveMoradorApto(idUser, idCondominio);
+    if (!ctx) throw new BadRequestException('Acesso negado.');
+    const r = await this.prisma.vagas.updateMany({
+      where: { id: Number(id), id_apartamento: ctx.apto.id, ativo: 1 },
+      data: { ativo: 0 },
+    });
+    if (r.count === 0) throw new BadRequestException('Vaga não encontrada.');
     return { ok: true };
   }
 }

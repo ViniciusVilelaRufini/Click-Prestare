@@ -161,6 +161,7 @@ model Condominios {
   prestadores          Prestadores_servico[]
   sindicosCondominios  Sindicos_Condominios[]
   visitantes           Visitantes[]
+  vagas                Vagas[]
   votacoes             Votacoes[]
   facialDevices        Facial_Devices[]
   acessosFacial        Acessos_Facial[]
@@ -193,6 +194,7 @@ model Apartamentos {
   apto                String?                      @db.VarChar(50)
   fracao              String?                      @db.VarChar(50)
   id_condominio       Int
+  qtd_vagas           Int                          @default(0)
   ignorar_recorrencia Boolean                      @default(false)
   created_at          DateTime                     @default(now()) @db.DateTime(0)
   updated_at          DateTime                     @default(now()) @updatedAt @db.DateTime(0)
@@ -202,6 +204,7 @@ model Apartamentos {
   mudancas            Mudancas[]
   visitantes          Visitantes[]
   prestadores         Prestadores_servico[]
+  vagas               Vagas[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
 }
@@ -262,6 +265,8 @@ model Moradores {
   condominio       Condominios? @relation(fields: [id_condominio], references: [id], map: "fk_mor_cond")
   user             Users        @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_mor_user")
   veiculos         Veiculos[]
+  vagas_titular    Vagas[]      @relation("VagaTitular")
+  vagas_beneficiario Vagas[]    @relation("VagaBeneficiario")
 
   @@index([id_user])
   @@index([id_condominio])
@@ -302,6 +307,37 @@ model Veiculos {
   @@index([id_morador], map: "idx_veiculo_morador")
   @@index([id_condominio], map: "idx_veiculo_cond")
   @@index([id_tag], map: "fk_veiculo_tag")
+  vagas         Vagas[]
+}
+
+model Vagas {
+  id                      Int          @id @default(autoincrement())
+  id_condominio           Int
+  id_apartamento          Int
+  id_morador_titular      Int
+  tipo_ocupacao           String       @default("proprio") @db.VarChar(20)
+  id_veiculo              Int?
+  id_visitante            Int?
+  id_morador_beneficiario Int?
+  placa                   String?      @db.VarChar(20)
+  inicio                  DateTime?    @db.DateTime(0)
+  fim                     DateTime?    @db.DateTime(0)
+  ativo                   Int          @default(1) @db.TinyInt
+  created_at              DateTime     @default(now()) @db.DateTime(0)
+  updated_at              DateTime     @default(now()) @updatedAt @db.DateTime(0)
+  condominio              Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_vaga_cond")
+  apartamento             Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_vaga_apto")
+  titular                 Moradores    @relation("VagaTitular", fields: [id_morador_titular], references: [id], onDelete: Cascade, map: "fk_vaga_titular")
+  beneficiario            Moradores?   @relation("VagaBeneficiario", fields: [id_morador_beneficiario], references: [id], map: "fk_vaga_benef")
+  veiculo                 Veiculos?    @relation(fields: [id_veiculo], references: [id], map: "fk_vaga_veiculo")
+  visitante               Visitantes?  @relation(fields: [id_visitante], references: [id], map: "fk_vaga_visitante")
+
+  @@index([id_apartamento], map: "idx_vaga_apto")
+  @@index([id_condominio], map: "idx_vaga_cond")
+  @@index([id_morador_titular], map: "fk_vaga_titular")
+  @@index([id_morador_beneficiario], map: "fk_vaga_benef")
+  @@index([id_veiculo], map: "fk_vaga_veiculo")
+  @@index([id_visitante], map: "fk_vaga_visitante")
 }
 
 model Apartamentos_Users {
@@ -579,6 +615,7 @@ model Visitantes {
   apartamento       Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_vis_apto")
   condominio        Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_vis_cond")
   criadoPor         Users?       @relation("VisitanteUser", fields: [user], references: [id], map: "fk_vis_user")
+  vagas             Vagas[]
 
   @@index([id_condominio])
   @@index([id_apartamento])

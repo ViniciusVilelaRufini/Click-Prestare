@@ -4,8 +4,9 @@ const saveToAWS = require('../utils/saveToAWS');
 module.exports = {
   async insert(req, res) {
     try {
-      const {bloco, apto, fracao} = req.body.apartamento;
-      const aptoId = await db.insertApto(bloco, apto, fracao, req.body.id_condominio);
+      const ap = req.body.Apartamento ?? req.body.apartamento ?? {};
+      const { bloco, apto, fracao, qtd_vagas } = ap;
+      const aptoId = await db.insertApto(bloco, apto, fracao, req.body.id_condominio, qtd_vagas);
       return res.json(aptoId);
     } catch (err) {
       return res.status(500).json({ message: err.message });
@@ -31,9 +32,10 @@ module.exports = {
   },
 
   async update(req, res) {
-    try {      
-      const {id, bloco, apto, fracao} = req.body.apartamento;      
-      const aptoId = await db.updateApto(id, bloco, apto, fracao, req.body.id_condominio);
+    try {
+      const ap = req.body.Apartamento ?? req.body.apartamento ?? {};
+      const { id, bloco, apto, fracao, qtd_vagas } = ap;
+      const aptoId = await db.updateApto(id, bloco, apto, fracao, qtd_vagas);
       return res.json(aptoId);
     } catch (err) {
       return res.status(500).json({ message: err.message });
