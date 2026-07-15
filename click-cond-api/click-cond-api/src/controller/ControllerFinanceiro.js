@@ -323,6 +323,55 @@ module.exports = {
     }
   },
 
+  /**
+   * Morador cria uma conta pessoal (tipo 'D'). Pode já vir com o código escaneado.
+   */
+  async moradorInsert(req, res) {
+    try {
+      const user = req.session.user;
+      const { id_condominio, data } = req.body;
+      if (!data || !data.nome) return res.status(400).json({ message: 'Informe o nome da conta.' });
+      const id = await db.insertMoradorConta(user.id, id_condominio, data);
+      return res.json({ ok: true, id });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  /**
+   * Morador edita a própria conta pessoal (escopo por id_usuario).
+   */
+  async moradorUpdate(req, res) {
+    try {
+      const user = req.session.user;
+      const { data } = req.body;
+      if (!data || !data.id) return res.status(400).json({ message: 'Conta inválida.' });
+      const affected = await db.updateMoradorConta(user.id, data);
+      if (affected === 0) return res.status(403).json({ message: 'Conta não encontrada ou não pertence a você.' });
+      return res.json();
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  /**
+   * Morador anexa o código escaneado (linha digitável / PIX) à própria conta.
+   */
+  async anexarCodigo(req, res) {
+    try {
+      const user = req.session.user;
+      const { id, linha_digitavel, pix_copia_cola } = req.body;
+      if (!id) return res.status(400).json({ message: 'Conta inválida.' });
+      const affected = await db.anexarCodigo(id, user.id, { linha_digitavel, pix_copia_cola });
+      if (affected === 0) {
+        return res.status(403).json({ message: 'Conta não encontrada ou não pertence a você.' });
+      }
+      return res.json();
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
   async getByUser(req, res) {
     try {
       let id_user = req.query.id_user;

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:click/controllers/controller_financeiro.dart';
+import 'package:click/pages/shared/financeiro/scan_boleto_page.dart';
+import 'package:click/utils/boleto_utils.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/theme/app_typography.dart';
@@ -472,7 +474,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
                 showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
               },
-              buildFinanceiroCard: (item) => _buildFinanceiroCard(item),
+              buildFinanceiroCard: (item, {onChanged}) => _buildFinanceiroCard(item, onChanged: onChanged),
             ),
           ),
         ).then((_) {
@@ -583,7 +585,61 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
-  Widget _buildFinanceiroCard(dynamic item) {
+  /// Conta sem nenhum código de pagamento (nem PIX, nem boleto).
+  bool _semCodigoPagamento(dynamic item) {
+    bool vazio(dynamic v) => v == null || v.toString().trim().isEmpty;
+    return vazio(item['pix_copia_cola']) &&
+        vazio(item['linha_digitavel']) &&
+        vazio(item['url_boleto']);
+  }
+
+  /// Abre o scanner, interpreta (PIX ou código de barras) e salva o código na
+  /// conta do morador para facilitar o pagamento.
+  Future<void> _escanearBoleto(dynamic item, {VoidCallback? onChanged}) async {
+    final raw = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const ScanBoletoPage()),
+    );
+    if (raw == null || raw.trim().isEmpty) return;
+
+    final parsed = parseBoletoScan(raw);
+    if (parsed.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não consegui ler o código. Tente novamente.')),
+        );
+      }
+      return;
+    }
+
+    final id = item['id'] is int ? item['id'] : int.tryParse(item['id'].toString()) ?? 0;
+    final ok = await apiAnexarCodigoBoleto(
+      id,
+      linhaDigitavel: parsed.linhaDigitavel,
+      pixCopiaCola: parsed.pixCopiaCola,
+    );
+    if (!mounted) return;
+
+    if (ok) {
+      // Atualiza em memória para o botão de pagamento aparecer na hora.
+      if (parsed.pixCopiaCola != null) item['pix_copia_cola'] = parsed.pixCopiaCola;
+      if (parsed.linhaDigitavel != null) item['linha_digitavel'] = parsed.linhaDigitavel;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Código salvo! Agora é só copiar para pagar.')),
+      );
+      if (onChanged != null) {
+        onChanged();
+      } else {
+        _loadData();
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível salvar o código.')),
+      );
+    }
+  }
+
+  Widget _buildFinanceiroCard(dynamic item, {VoidCallback? onChanged}) {
     int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
     int status = item['status'] is int ? item['status'] : (int.tryParse(item['status']?.toString() ?? '') ?? 0);
     bool isPago = pago == 1;
@@ -870,6 +926,27 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 ],
               ],
             ),
+            // Sem nenhum código de pagamento: oferece escanear o boleto.
+            if (_semCodigoPagamento(item)) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _escanearBoleto(item, onChanged: onChanged),
+                  icon: const Icon(PhosphorIcons.barcode, size: 16, color: AppColors.primary),
+                  label: Text(
+                    "Escanear boleto",
+                    style: AppTypography.captionMedium(context).copyWith(
+                      color: AppColors.primary, fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
           ],
           Divider(height: 24, color: AppColors.border(context)),
           LayoutBuilder(
@@ -1021,6 +1098,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       );
     }
     bool isPago = isEditing ? item['pago'] == 1 : false;
+    // Código escaneado do boleto (opcional): fica salvo junto com a conta.
+    String? scannedLinha = isEditing ? item['linha_digitavel']?.toString() : null;
+    String? scannedPix = isEditing ? item['pix_copia_cola']?.toString() : null;
 
     showModalBottomSheet(
       context: ctx,
@@ -1207,6 +1287,76 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    Text("Boleto (opcional)",
+                        style: AppTypography.caption(context)
+                            .copyWith(color: AppColors.textSecondary(context))),
+                    const SizedBox(height: 8),
+                    if ((scannedLinha != null && scannedLinha!.trim().isNotEmpty) ||
+                        (scannedPix != null && scannedPix!.trim().isNotEmpty))
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(PhosphorIcons.checkCircle, size: 18, color: AppColors.primary),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                scannedPix != null && scannedPix!.trim().isNotEmpty
+                                    ? "PIX do boleto vinculado"
+                                    : "Código de barras vinculado",
+                                style: AppTypography.caption(context)
+                                    .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () => setModalState(() {
+                                scannedLinha = null;
+                                scannedPix = null;
+                              }),
+                              child: Icon(PhosphorIcons.x, size: 16, color: AppColors.textTertiary(context)),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final raw = await Navigator.push<String>(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ScanBoletoPage()),
+                            );
+                            if (raw == null || raw.trim().isEmpty) return;
+                            final parsed = parseBoletoScan(raw);
+                            if (parsed.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Não consegui ler o código. Tente novamente.')),
+                              );
+                              return;
+                            }
+                            setModalState(() {
+                              scannedLinha = parsed.linhaDigitavel;
+                              scannedPix = parsed.pixCopiaCola;
+                            });
+                          },
+                          icon: const Icon(PhosphorIcons.barcode, size: 16, color: AppColors.primary),
+                          label: Text("Escanear boleto",
+                              style: AppTypography.captionMedium(context)
+                                  .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
@@ -1235,6 +1385,10 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             "data_vencimento": txtVencimento.text.trim(),
                             "categoria": selectedCategoria,
                             "pago": isPago ? 1 : 0,
+                            if (scannedLinha != null && scannedLinha!.trim().isNotEmpty)
+                              "linha_digitavel": scannedLinha,
+                            if (scannedPix != null && scannedPix!.trim().isNotEmpty)
+                              "pix_copia_cola": scannedPix,
                           };
 
                           bool success;
@@ -1546,7 +1700,7 @@ class MoradorFinanceiroCategoryDetailPage extends StatefulWidget {
   final String ano;
   final VoidCallback onRefresh;
   final Function({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) showContaFormModal;
-  final Function(dynamic item) buildFinanceiroCard;
+  final Function(dynamic item, {VoidCallback? onChanged}) buildFinanceiroCard;
 
   const MoradorFinanceiroCategoryDetailPage({
     Key? key,
@@ -1733,7 +1887,10 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
               )
             else
               ...mergedItems.map((item) {
-                return widget.buildFinanceiroCard(item);
+                return widget.buildFinanceiroCard(item, onChanged: () {
+                  if (mounted) setState(() {});
+                  widget.onRefresh();
+                });
               }).toList(),
           ],
         ),

@@ -2317,6 +2317,8 @@ export class FinanceiroService implements OnModuleInit {
           status: data.pago ? '1' : '0',
           id_condominio: Number(idCondominio),
           id_usuario: Number(idUser),
+          ...(data.linha_digitavel ? { linha_digitavel: data.linha_digitavel } : {}),
+          ...(data.pix_copia_cola ? { pix_copia_cola: data.pix_copia_cola } : {}),
         },
       });
     } catch (err: any) {
@@ -2363,6 +2365,8 @@ export class FinanceiroService implements OnModuleInit {
           categoria: data.categoria,
           pago: isPago,
           status: isPago === 1 ? '1' : '0',
+          ...(data.linha_digitavel !== undefined ? { linha_digitavel: data.linha_digitavel } : {}),
+          ...(data.pix_copia_cola !== undefined ? { pix_copia_cola: data.pix_copia_cola } : {}),
         },
       });
     } catch (err: any) {
@@ -2394,6 +2398,34 @@ export class FinanceiroService implements OnModuleInit {
       where: { id: Number(id) },
     });
 
+    return { success: true };
+  }
+
+  /**
+   * Anexa o código escaneado (linha digitável / PIX copia-e-cola) a uma conta do
+   * próprio morador (escopo por id_usuario). Só grava os campos enviados.
+   */
+  async anexarCodigoMorador(
+    idUser: number,
+    id: number,
+    dto: { linha_digitavel?: string; pix_copia_cola?: string },
+  ) {
+    if (!this.prisma.isConnected) return { success: true };
+
+    const record = await this.prisma.financeiro.findFirst({
+      where: { id: Number(id), id_usuario: Number(idUser) },
+      select: { id: true },
+    });
+    if (!record) throw new NotFoundException('Conta não encontrada ou sem permissão.');
+
+    const data: { linha_digitavel?: string; pix_copia_cola?: string } = {};
+    if (dto.linha_digitavel) data.linha_digitavel = dto.linha_digitavel;
+    if (dto.pix_copia_cola) data.pix_copia_cola = dto.pix_copia_cola;
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('Nenhum código informado.');
+    }
+
+    await this.prisma.financeiro.update({ where: { id: Number(id) }, data });
     return { success: true };
   }
 

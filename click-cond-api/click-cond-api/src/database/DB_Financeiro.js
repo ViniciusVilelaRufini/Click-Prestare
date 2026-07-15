@@ -1,5 +1,27 @@
 const db = require('./MySQL.js');
 
+// Converte 'DD/MM/YYYY' -> 'YYYY-MM-DD' (ou null). Aceita também 'YYYY-MM-DD'.
+function _dataBRtoSQL(s) {
+  if (!s) return null;
+  const v = String(s).trim();
+  if (v.includes('-')) return v;
+  const p = v.split('/');
+  if (p.length !== 3) return null;
+  return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+}
+
+// Aceita "150.00" (decimal por ponto) e "1.500,00" (BR). Remove 'R$'.
+function _parseValorFin(v) {
+  let s = String(v || '0').replace('R$', '').trim();
+  if (s.includes('.') && s.includes(',')) {
+    s = s.replace(/\./g, '').replace(',', '.'); // BR: ponto=milhar, vírgula=decimal
+  } else if (s.includes(',')) {
+    s = s.replace(',', '.');
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
 // TODO: o restante deste arquivo (e dos outros DB_*.js) ainda concatena
 // valores direto na query com escape manual de aspas — padrão vulnerável a
 // SQL injection. Este backend Express é usado só em dev local, então o
@@ -413,6 +435,62 @@ module.exports = {
   updatePhoto: async function (url, id){
     const query = `update Financeiro set photo='${url}' where id='${id}' `;
     await db.query(query);
+  },
+
+  /**
+   * Conta pessoal do morador (tipo 'D', escopo por id_usuario). Paridade com o
+   * NestJS de produção. Aceita o código escaneado (linha_digitavel/pix_copia_cola).
+   */
+  insertMoradorConta: async function (idUsuario, idCondominio, data) {
+    const venc = _dataBRtoSQL(data.data_vencimento);
+    const valor = _parseValorFin(data.valor);
+    const nome = (data.nome || `${data.categoria || 'Conta'} Individual`);
+    const pago = data.pago ? Number(data.pago) : 0;
+    const query = `insert into Financeiro
+        (nome, tipo, valor, data_vencimento, categoria, pago, status, id_condominio, id_usuario, linha_digitavel, pix_copia_cola)
+      values (?, 'D', ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    const params = [
+      nome, valor, venc, data.categoria || 'Outros', pago, pago === 1 ? '1' : '0',
+      Number(idCondominio), Number(idUsuario), data.linha_digitavel || null, data.pix_copia_cola || null,
+    ];
+    const { results } = await db.queryParam(query, params);
+    return results.insertId;
+  },
+
+  updateMoradorConta: async function (idUsuario, data) {
+    const venc = _dataBRtoSQL(data.data_vencimento);
+    const valor = _parseValorFin(data.valor);
+    const pago = data.pago ? Number(data.pago) : 0;
+    const sets = ['nome=?', 'valor=?', 'data_vencimento=?', 'categoria=?', 'pago=?', 'status=?'];
+    const params = [data.nome, valor, venc, data.categoria, pago, pago === 1 ? '1' : '0'];
+    if (data.linha_digitavel !== undefined) { sets.push('linha_digitavel=?'); params.push(data.linha_digitavel || null); }
+    if (data.pix_copia_cola !== undefined) { sets.push('pix_copia_cola=?'); params.push(data.pix_copia_cola || null); }
+    const query = `update Financeiro set ${sets.join(', ')} where id=? and id_usuario=?`;
+    params.push(Number(data.id), Number(idUsuario));
+    const { results } = await db.queryParam(query, params);
+    return results.affectedRows;
+  },
+
+  /**
+   * Anexa o código escaneado (linha digitável e/ou PIX copia-e-cola) a uma conta
+   * do próprio morador (escopo por id_usuario). Só grava os campos enviados.
+   */
+  anexarCodigo: async function (id, idUsuario, { linha_digitavel, pix_copia_cola }) {
+    const sets = [];
+    const params = [];
+    if (linha_digitavel !== undefined && linha_digitavel !== null && linha_digitavel !== '') {
+      sets.push('linha_digitavel=?');
+      params.push(linha_digitavel);
+    }
+    if (pix_copia_cola !== undefined && pix_copia_cola !== null && pix_copia_cola !== '') {
+      sets.push('pix_copia_cola=?');
+      params.push(pix_copia_cola);
+    }
+    if (sets.length === 0) return 0;
+    const query = `update Financeiro set ${sets.join(', ')} where id=? and id_usuario=?`;
+    params.push(id, idUsuario);
+    const { results } = await db.queryParam(query, params);
+    return results.affectedRows;
   },
 
   get: async function (id_cond, id) {

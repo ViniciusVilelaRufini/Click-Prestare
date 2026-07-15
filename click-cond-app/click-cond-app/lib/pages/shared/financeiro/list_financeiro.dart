@@ -1098,7 +1098,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
                 showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
               },
-              buildFinanceiroCard: (item) => _buildPersonalFinanceiroCard(item),
+              buildFinanceiroCard: (item, {onChanged}) => _buildPersonalFinanceiroCard(item),
             ),
           ),
         ).then((_) {
