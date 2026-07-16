@@ -571,7 +571,7 @@ module.exports = {
                     where t1.id_condominio=${id_cond}
                       and (
                         t1.id_usuario=${id_user}
-                        or (t1.id_usuario is null and t1.nome like 'Apto %' and ${aptoMatch})
+                        or (t1.nome like 'Apto %' and ${aptoMatch})
                       )
                     order by t1.data_vencimento desc`;
     const { results } = await db.query(query);
