@@ -52,7 +52,11 @@ export class FinanceiroPageComponent implements OnInit {
     data_vencimento: '',
     descricao: '',
     pago: 0,
+    pix_copia_cola: '',
   };
+  // Boleto opcional escolhido no modal de cobrança (sobe após criar o lançamento).
+  cobrancaBoletoDataUrl: string | null = null;
+  cobrancaBoletoNome: string | null = null;
   selectedAptoOption: string = '';
   readonly salvandoCobranca = signal(false);
   readonly cobrancaErro = signal<string | null>(null);
@@ -667,7 +671,10 @@ export class FinanceiroPageComponent implements OnInit {
       data_vencimento: dFmt,
       descricao: '',
       pago: 0,
+      pix_copia_cola: '',
     };
+    this.cobrancaBoletoDataUrl = null;
+    this.cobrancaBoletoNome = null;
     this.selectedAptoOption = '';
     this.cobrancaErro.set(null);
 
@@ -681,6 +688,35 @@ export class FinanceiroPageComponent implements OnInit {
     }
 
     this.modalCobrarMorador.set(true);
+  }
+
+  /** Seleciona um boleto (PDF/imagem) para anexar à cobrança; sobe só ao salvar. */
+  selecionarBoletoCobranca() {
+    this.cobrancaErro.set(null);
+    const inputEl = document.createElement('input');
+    inputEl.type = 'file';
+    inputEl.accept = 'application/pdf,image/*';
+    inputEl.onchange = () => {
+      const file = inputEl.files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        this.cobrancaErro.set('Boleto maior que 5MB. Comprima e tente novamente.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => this.cobrancaErro.set('Falha ao ler o boleto.');
+      reader.onload = () => {
+        this.cobrancaBoletoDataUrl = String(reader.result ?? '');
+        this.cobrancaBoletoNome = file.name;
+      };
+      reader.readAsDataURL(file);
+    };
+    inputEl.click();
+  }
+
+  removerBoletoCobranca() {
+    this.cobrancaBoletoDataUrl = null;
+    this.cobrancaBoletoNome = null;
   }
 
   onAptoSelectChange() {
@@ -718,7 +754,8 @@ export class FinanceiroPageComponent implements OnInit {
     const refStr = `${this.novaCobranca.referenciaMes}/${this.novaCobranca.referenciaAno}`;
     const faturaNome = `Apto ${this.novaCobranca.apto} Bloco ${this.novaCobranca.bloco} - ${this.novaCobranca.categoria} Ref. ${refStr}`;
 
-    const payload = {
+    const pixManual = (this.novaCobranca.pix_copia_cola || '').trim();
+    const payload: any = {
       nome: faturaNome,
       tipo: 'C',
       valor: this.novaCobranca.valor,
@@ -728,19 +765,42 @@ export class FinanceiroPageComponent implements OnInit {
       pago: Number(this.novaCobranca.pago),
       descricao: this.novaCobranca.descricao || `Cobrança individual para o apartamento ${this.novaCobranca.apto} Bloco ${this.novaCobranca.bloco} referente a ${refStr}.`,
     };
+    if (pixManual) payload.pix_copia_cola = pixManual;
 
     this.api.insertLancamento(payload).subscribe({
-      next: () => {
-        this.salvandoCobranca.set(false);
-        this.modalCobrarMorador.set(false);
-        this.carregarDados();
-        this.carregarInadimplencia();
+      next: (res: any) => {
+        const novoId = res?.id ?? res?.insertId ?? res?.financeiro?.id;
+        // Se o síndico anexou um boleto, sobe agora que temos o id do lançamento.
+        if (this.cobrancaBoletoDataUrl && novoId) {
+          this.api.uploadSharedFile(Number(novoId), this.cobrancaBoletoDataUrl, 'boleto').subscribe({
+            next: () => this.finalizarCobranca(),
+            error: () => {
+              // Cobrança criada, mas o boleto falhou: avisa sem perder o lançamento.
+              this.salvandoCobranca.set(false);
+              this.cobrancaErro.set('Cobrança criada, mas houve falha ao anexar o boleto. Anexe pela lista.');
+              this.carregarDados();
+              this.carregarInadimplencia();
+            },
+          });
+        } else {
+          this.finalizarCobranca();
+        }
       },
       error: (err) => {
         this.salvandoCobranca.set(false);
         this.cobrancaErro.set(err?.error?.message ?? 'Falha ao salvar cobrança.');
       }
     });
+  }
+
+  /** Encerra o fluxo de cobrança: fecha o modal, limpa e recarrega os dados. */
+  private finalizarCobranca() {
+    this.salvandoCobranca.set(false);
+    this.modalCobrarMorador.set(false);
+    this.cobrancaBoletoDataUrl = null;
+    this.cobrancaBoletoNome = null;
+    this.carregarDados();
+    this.carregarInadimplencia();
   }
 
 

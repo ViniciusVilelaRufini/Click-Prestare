@@ -563,6 +563,7 @@ module.exports = {
     // Despesas/receitas gerais do condomínio (id_usuario null, nome não-apto)
     // pertencem à aba "Condomínio" e NÃO devem aparecer aqui.
     const query = `select t1.id, t1.nome, t1.tipo, t1.valor, t1.categoria, t1.url_boleto, t1.url_comprovante, t1.status,
+                    t1.pix_copia_cola, t1.linha_digitavel,
                     DATE_FORMAT(t1.data_vencimento, '%d/%m/%Y') as data_vencimento,
                     DATE_FORMAT(t1.data, '%d/%m/%Y') as data, t1.pago, c.chave_pix
                     from Financeiro as t1
