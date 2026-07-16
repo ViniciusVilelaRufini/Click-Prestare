@@ -103,10 +103,25 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
       isDanger: true,
     );
     if (!ok) return;
-    showAppDialog(context,
-        title: getText('label_exclusao'),
-        message: getText('config_delete_account_sucesso'),
-        icon: PhosphorIcons.info);
+
+    final success = await apiDeleteAccount();
+    if (!mounted) return;
+
+    if (success) {
+      await showAppDialog(context,
+          title: getText('label_exclusao'),
+          message: getText('config_delete_account_sucesso'),
+          icon: PhosphorIcons.info);
+      // Conta apagada: encerra a sessão e volta para a tela de login.
+      storageLogout();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+    } else {
+      showAppDialog(context,
+          title: getText('alert_error'),
+          message: 'Não foi possível excluir a conta agora. Tente novamente mais tarde.',
+          icon: PhosphorIcons.warningCircle);
+    }
   }
 
   Future<void> _changeTheme() async {

@@ -18,6 +18,7 @@ import {
   EncomendasMobileController,
   VeiculosMobileController,
   VagasMobileController,
+  UsersMobileController,
 } from './mobile-auth.controller';
 
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
@@ -46,6 +47,7 @@ import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
     EncomendasMobileController,
     VeiculosMobileController,
     VagasMobileController,
+    UsersMobileController,
   ],
   providers: [AuthService, MobileAuthService, JwtStrategy, QrSessionStore],
   exports: [AuthService, QrSessionStore],

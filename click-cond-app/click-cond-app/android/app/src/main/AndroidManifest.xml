@@ -6,8 +6,11 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:replace="android:maxSdkVersion" android:maxSdkVersion="33"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:replace="android:maxSdkVersion" android:maxSdkVersion="33"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <!-- READ_MEDIA_VIDEO/AUDIO removidas: o app só seleciona imagens (image_picker)
+         e documentos (file_picker FileType.custom). Declarar acesso a video/audio
+         sem funcionalidade viola a Photo and Video Permissions policy do Google. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove"/>
 
    <application

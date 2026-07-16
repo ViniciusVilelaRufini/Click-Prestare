@@ -175,6 +175,20 @@ updateMoedaCondominioApi(String idCondominio, String moeda) async {
 // [idCondominio] opcional: quando informado, o resumo (visitas/encomendas) é
 // filtrado por aquele condomínio (dashboard dentro de um condomínio). Sem ele,
 // o backend agrega todos os condomínios do morador (tela "Resumo Geral").
+/// Exclui a conta do usuário logado (requisito Play Store / LGPD).
+/// Retorna true em sucesso.
+Future<bool> apiDeleteAccount() async {
+  final url = _buildUri('/users/delete-account');
+  try {
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: '{}')
+        .timeout(_kTimeout);
+    return response.statusCode == 200;
+  } catch (e) {
+    print('[apiDeleteAccount] Error: $e');
+    return false;
+  }
+}
+
 getMeusEventos() async {
   final url = _buildUri('/dashboard/meus-eventos');
   try {

@@ -28,6 +28,15 @@ module.exports = {
     }
   },
 
+  async deleteAccount(req, res) {
+    try {
+      await dbUsers.deleteAccount(req.session.user.id);
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
   async updateNotificationSettings(req, res) {
     try {
       const { notif_encomendas, notif_comunicados, notif_ocorrencias, notif_visitantes } = req.body;

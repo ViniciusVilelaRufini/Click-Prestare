@@ -493,3 +493,18 @@ export class VagasMobileController {
     return this.service.revogarVaga(Number(idUser), Number(body.id_condominio), Number(body.id));
   }
 }
+
+// ==========================================
+// USUÁRIO / CONTA
+// ==========================================
+@Controller('users')
+export class UsersMobileController {
+  constructor(private readonly service: MobileAuthService) {}
+
+  @Post('delete-account')
+  @HttpCode(200)
+  deleteAccount(@ReqUser() payload: JwtPayload) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.deleteAccount(Number(idUser));
+  }
+}

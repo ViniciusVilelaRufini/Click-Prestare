@@ -279,6 +279,23 @@ module.exports = {
     await db.queryParam(query, [token, id]);
   },
 
+  // Exclusão de conta (LGPD / requisito Play Store): apaga o próprio usuário e,
+  // por cascata de FK no banco, seus dados vinculados. Também remove o login web
+  // de funcionário (Funcionarios_Portaria) casado pelo e-mail, que não tem FK.
+  deleteAccount: async function (userId) {
+    const id = parseInt(userId, 10);
+    if (!id) throw new Error('Usuário inválido');
+    const { results } = await db.queryParam('select login, email from Users where id=?', [id]);
+    const u = results && results[0];
+    if (u) {
+      const emails = [u.login, u.email].filter((e) => !!e);
+      for (const e of emails) {
+        await db.queryParam('delete from Funcionarios_Portaria where login=?', [e]);
+      }
+    }
+    await db.queryParam('delete from Users where id=?', [id]);
+  },
+
   syncUserProfile: async function (userId, data) {
     const name = data.name || data.nome || null;
     const email = data.email || null;

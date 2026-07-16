@@ -853,6 +853,30 @@ export class MobileAuthService {
     }));
   }
 
+  // Exclusão de conta (LGPD / requisito Play Store): apaga o usuário logado e,
+  // por cascata de FK no banco, seus dados vinculados (morador/síndico, veículos,
+  // vagas, etc.). Escopo estrito por id do JWT — remove apenas a própria conta.
+  async deleteAccount(idUser: number) {
+    if (!this.prisma.isConnected) return { success: true };
+    if (!idUser || Number.isNaN(idUser)) {
+      return { success: false, message: 'Usuário inválido' };
+    }
+    // Login web de funcionário (Funcionarios_Portaria) não tem FK para Users;
+    // remove pelo e-mail do usuário para não deixar acesso órfão.
+    const user = await this.prisma.users.findUnique({
+      where: { id: idUser },
+      select: { login: true, email: true },
+    });
+    const emails = [user?.login, user?.email].filter((e): e is string => !!e);
+    if (emails.length > 0) {
+      await this.prisma.funcionarios_Portaria.deleteMany({
+        where: { login: { in: emails } },
+      });
+    }
+    await this.prisma.$executeRaw`DELETE FROM Users WHERE id = ${idUser}`;
+    return { success: true };
+  }
+
   // ==========================================
   // CONDOMÍNIO DETALHES GERAL
   // ==========================================
