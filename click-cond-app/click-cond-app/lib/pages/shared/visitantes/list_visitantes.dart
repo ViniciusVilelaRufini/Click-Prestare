@@ -790,14 +790,10 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                       curve: Curves.easeInOutCubic,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? AppColors.primary.withOpacity(0.50)
-                            : AppColors.primary.withOpacity(0.65),
+                        color: AppColors.primary,
                         borderRadius: BorderRadius.circular(28),
                         border: Border.all(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white.withOpacity(0.15)
-                              : Colors.white.withOpacity(0.35),
+                          color: Colors.white.withOpacity(0.20),
                           width: 1.0,
                         ),
                       ),
