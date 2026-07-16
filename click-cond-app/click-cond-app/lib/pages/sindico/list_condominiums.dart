@@ -327,7 +327,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xxxl),
+                      AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.lg),
                   sliver: SliverList.separated(
                     itemCount: _list.length,
                     separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
@@ -335,6 +335,14 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       item: _list[i],
                       onTap: () => _goToNext(_list[i]),
                     ),
+                  ),
+                ),
+              if (!_isLoading && _errorMessage == null && _eventos.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xxxl),
+                    child: _buildMeusEventos(context),
                   ),
                 ),
             ],
@@ -461,7 +469,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           ),
           const SizedBox(height: AppSpacing.xxl),
           _buildDashboard(context),
-          _buildMeusEventos(context),
           const SizedBox(height: AppSpacing.xxl),
           Text(getText('meus_condominios'),
               style: AppTypography.title(context)),
