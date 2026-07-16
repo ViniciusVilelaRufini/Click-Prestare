@@ -84,35 +84,58 @@ class _ListVagasState extends State<ListVagas> {
             )
           : RefreshIndicator(
               onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                children: [
-                  _header(context),
-                  const SizedBox(height: AppSpacing.lg),
-                  if (_resumo.qtdVagas == 0)
-                    _empty(context)
-                  else ...[
-                    ..._resumo.vagas.map((v) => Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                          child: _VagaCard(vaga: v, onRevogar: () => _revogar(v)),
-                        )),
-                    // Vagas livres (representadas como slots vazios).
-                    ...List.generate(
-                        _resumo.livres,
-                        (_) => Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                              child: _VagaLivreCard(onTap: _abrirLiberar),
-                            )),
-                  ],
-                ],
+              child: VagasBody(
+                resumo: _resumo,
+                onLiberar: _abrirLiberar,
+                onRevogar: _revogar,
               ),
             ),
     );
   }
+}
+
+/// Corpo reutilizável da aba "Minhas Vagas" (header + cards + vagas livres),
+/// sem Scaffold, para ser embutido na tela combinada de Veículos/Vagas.
+class VagasBody extends StatelessWidget {
+  final VagasResumo resumo;
+  final VoidCallback onLiberar;
+  final void Function(VagaModel vaga) onRevogar;
+  const VagasBody({
+    Key? key,
+    required this.resumo,
+    required this.onLiberar,
+    required this.onRevogar,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        _header(context),
+        const SizedBox(height: AppSpacing.lg),
+        if (resumo.qtdVagas == 0)
+          _empty(context)
+        else ...[
+          ...resumo.vagas.map((v) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: VagaCard(vaga: v, onRevogar: () => onRevogar(v)),
+              )),
+          // Vagas livres (representadas como slots vazios).
+          ...List.generate(
+              resumo.livres,
+              (_) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: VagaLivreCard(onTap: onLiberar),
+                  )),
+        ],
+      ],
+    );
+  }
 
   Widget _header(BuildContext context) {
-    final total = _resumo.qtdVagas;
-    final ocup = _resumo.ocupadas;
+    final total = resumo.qtdVagas;
+    final ocup = resumo.ocupadas;
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
@@ -141,8 +164,8 @@ class _ListVagasState extends State<ListVagas> {
                         .copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 2),
                 Text(
-                    _resumo.livres > 0
-                        ? '${_resumo.livres} ${_resumo.livres == 1 ? 'vaga livre' : 'vagas livres'} para liberar'
+                    resumo.livres > 0
+                        ? '${resumo.livres} ${resumo.livres == 1 ? 'vaga livre' : 'vagas livres'} para liberar'
                         : 'Todas as vagas estão ocupadas',
                     style: AppTypography.caption(context)),
               ],
@@ -172,10 +195,10 @@ class _ListVagasState extends State<ListVagas> {
   }
 }
 
-class _VagaCard extends StatelessWidget {
+class VagaCard extends StatelessWidget {
   final VagaModel vaga;
   final VoidCallback onRevogar;
-  const _VagaCard({required this.vaga, required this.onRevogar});
+  const VagaCard({Key? key, required this.vaga, required this.onRevogar}) : super(key: key);
 
   ({IconData icon, Color color, String label}) get _tag {
     if (vaga.isVisitante) {
@@ -273,9 +296,9 @@ class _VagaCard extends StatelessWidget {
   }
 }
 
-class _VagaLivreCard extends StatelessWidget {
+class VagaLivreCard extends StatelessWidget {
   final VoidCallback onTap;
-  const _VagaLivreCard({required this.onTap});
+  const VagaLivreCard({Key? key, required this.onTap}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
