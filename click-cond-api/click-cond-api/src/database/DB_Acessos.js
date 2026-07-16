@@ -114,6 +114,76 @@ module.exports = {
     return mergedList.slice(0, lim);
   },
 
+  // "Meus eventos" da home: acessos (entrada/saída) do próprio usuário como morador
+  // + acessos dos visitantes/prestadores que ele cadastrou ou do seu apartamento.
+  // Últimos 30 dias, ordenados do mais recente para o mais antigo.
+  getMeusEventos: async function (idUser, limit) {
+    const lim = Math.min(Math.max(parseInt(limit, 10) || 15, 1), 50);
+    const uid = parseInt(idUser, 10);
+    if (!uid) return [];
+
+    const { results: moras } = await db.queryParam(
+      'select id from Moradores where id_user = ?', [uid]);
+    const moradorIds = moras.map((m) => m.id);
+
+    const { results: aptosU } = await db.queryParam(
+      'select id_apto from Apartamentos_Users where id_user = ?', [uid]);
+    const aptoIds = aptosU.map((a) => a.id_apto);
+
+    // Visitantes cadastrados pelo usuário OU vinculados ao(s) apartamento(s) dele.
+    let visitorIds = [];
+    {
+      const conds = ['user = ?'];
+      const params = [uid];
+      if (aptoIds.length > 0) {
+        conds.push(`id_apartamento in (${aptoIds.map(() => '?').join(',')})`);
+        params.push(...aptoIds);
+      }
+      const { results: vis } = await db.queryParam(
+        `select id from Visitantes where ${conds.join(' or ')}`, params);
+      visitorIds = vis.map((v) => v.id);
+    }
+
+    const eventos = [];
+    const selectBase = `select af.id, af.nome_pessoa, af.evento, af.timestamp, af.tipo_pessoa,
+                               c.nome as condominio
+                          from Acessos_Facial af
+                          left join Condominios c on c.id = af.id_condominio`;
+
+    if (moradorIds.length > 0) {
+      const ph = moradorIds.map(() => '?').join(',');
+      const { results } = await db.queryParam(
+        `${selectBase}
+          where af.tipo_pessoa = 'morador' and af.id_pessoa in (${ph})
+            and af.evento in ('entrada','saida')
+            and af.timestamp >= date_sub(now(), interval 30 day)
+          order by af.timestamp desc limit 40`, moradorIds);
+      for (const r of results) eventos.push({ ...r, categoria: 'voce' });
+    }
+
+    if (visitorIds.length > 0) {
+      const ph = visitorIds.map(() => '?').join(',');
+      const { results } = await db.queryParam(
+        `${selectBase}
+          where af.tipo_pessoa in ('visitante','prestador') and af.id_pessoa in (${ph})
+            and af.evento in ('entrada','saida')
+            and af.timestamp >= date_sub(now(), interval 30 day)
+          order by af.timestamp desc limit 40`, visitorIds);
+      for (const r of results) eventos.push({ ...r, categoria: 'visitante' });
+    }
+
+    eventos.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return eventos.slice(0, lim).map((e) => ({
+      id: e.id,
+      nome: (e.nome_pessoa || '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
+      evento: e.evento,
+      tipo_pessoa: e.tipo_pessoa,
+      categoria: e.categoria,
+      condominio: e.condominio || '',
+      timestamp: e.timestamp,
+    }));
+  },
+
   // Condomínio de um visitante — usado para validar tenant antes de devolver acessos.
   getCondominioByVisitante: async function (idVisitante) {
     const { results } = await db.queryParam(

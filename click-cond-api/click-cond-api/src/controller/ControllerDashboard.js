@@ -1,4 +1,5 @@
 const db = require('../database/DB_Dashboard.js');
+const dbAcessos = require('../database/DB_Acessos.js');
 const jwt = require('jsonwebtoken');
 const config = require('../configs/config');
 
@@ -66,6 +67,16 @@ module.exports = {
       return res.status(200).json(summary);
     } catch (err) {
       console.error('[getSummary Error]', err);
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  async getMeusEventos(req, res) {
+    try {
+      const eventos = await dbAcessos.getMeusEventos(req.session.user.id, req.query.limit);
+      return res.status(200).json(eventos);
+    } catch (err) {
+      console.error('[getMeusEventos Error]', err);
       return res.status(500).json({ message: err.message });
     }
   },

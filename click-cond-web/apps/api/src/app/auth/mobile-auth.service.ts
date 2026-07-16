@@ -772,6 +772,87 @@ export class MobileAuthService {
     }
   }
 
+  // "Meus eventos" da home: acessos (entrada/saída) do próprio usuário como
+  // morador + acessos dos visitantes/prestadores que ele cadastrou ou do seu
+  // apartamento. Últimos 30 dias, do mais recente para o mais antigo.
+  async getMeusEventos(idUser: number, limit = 15) {
+    if (!this.prisma.isConnected) return [];
+    const lim = Math.min(Math.max(Number(limit) || 15, 1), 50);
+
+    const [moras, aptoUsers] = await Promise.all([
+      this.prisma.moradores.findMany({ where: { id_user: idUser }, select: { id: true } }),
+      this.prisma.apartamentos_Users.findMany({ where: { id_user: idUser }, select: { id_apto: true } }),
+    ]);
+    const moradorIds = moras.map((m) => m.id);
+    const aptoIds = aptoUsers.map((a) => a.id_apto);
+
+    const visitors = await this.prisma.visitantes.findMany({
+      where: {
+        OR: [
+          { user: idUser },
+          ...(aptoIds.length ? [{ id_apartamento: { in: aptoIds } }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    const visitorIds = visitors.map((v) => v.id);
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    const [morEv, visEv] = await Promise.all([
+      moradorIds.length
+        ? this.prisma.acessos_Facial.findMany({
+            where: {
+              tipo_pessoa: 'morador',
+              id_pessoa: { in: moradorIds },
+              evento: { in: ['entrada', 'saida'] },
+              timestamp: { gte: cutoff },
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 40,
+          })
+        : Promise.resolve([]),
+      visitorIds.length
+        ? this.prisma.acessos_Facial.findMany({
+            where: {
+              tipo_pessoa: { in: ['visitante', 'prestador'] },
+              id_pessoa: { in: visitorIds },
+              evento: { in: ['entrada', 'saida'] },
+              timestamp: { gte: cutoff },
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 40,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const condIds = [...new Set([...morEv, ...visEv].map((e) => e.id_condominio))];
+    const conds = condIds.length
+      ? await this.prisma.condominios.findMany({
+          where: { id: { in: condIds } },
+          select: { id: true, nome: true },
+        })
+      : [];
+    const condMap = new Map(conds.map((c) => [c.id, c.nome]));
+
+    const merged = [
+      ...morEv.map((e) => ({ e, categoria: 'voce' })),
+      ...visEv.map((e) => ({ e, categoria: 'visitante' })),
+    ];
+    merged.sort((a, b) => b.e.timestamp.getTime() - a.e.timestamp.getTime());
+
+    return merged.slice(0, lim).map(({ e, categoria }) => ({
+      id: e.id,
+      nome: (e.nome_pessoa || '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
+      evento: e.evento,
+      tipo_pessoa: e.tipo_pessoa,
+      categoria,
+      condominio: condMap.get(e.id_condominio) || '',
+      timestamp: e.timestamp,
+    }));
+  }
+
   // ==========================================
   // CONDOMÍNIO DETALHES GERAL
   // ==========================================

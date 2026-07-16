@@ -222,6 +222,12 @@ export class DashboardMobileController {
     const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Sindico';
     return this.service.getSummary(Number(idUser), typeAccess);
   }
+
+  @Get('meus-eventos')
+  meusEventos(@ReqUser() payload: JwtPayload, @Query('limit') limit?: string) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.getMeusEventos(Number(idUser), limit ? Number(limit) : 15);
+  }
 }
 
 // ==========================================

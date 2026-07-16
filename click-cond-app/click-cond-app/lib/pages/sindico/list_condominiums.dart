@@ -37,6 +37,7 @@ class ListCondomiums extends StatefulWidget {
 class _ListCondomiumsState extends State<ListCondomiums> {
   List<dynamic> _list = [];
   Map<String, dynamic>? _summary;
+  List<dynamic> _eventos = [];
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -71,6 +72,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 : getCondominiosFuncionario(),
         getDashboardSummary(),
         apiGetDetails(detailsRoute, 0),
+        getMeusEventos(),
       ]);
 
       if (!mounted) return;
@@ -87,6 +89,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         setState(() {
           _list = results[0] as List;
           _summary = results[1] as Map<String, dynamic>?;
+          _eventos = results.length > 3 && results[3] is List ? results[3] as List : [];
         });
       } else {
         setState(() => _errorMessage = getText('alert_generic_error'));
@@ -458,6 +461,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           ),
           const SizedBox(height: AppSpacing.xxl),
           _buildDashboard(context),
+          _buildMeusEventos(context),
           const SizedBox(height: AppSpacing.xxl),
           Text(getText('meus_condominios'),
               style: AppTypography.title(context)),
@@ -530,6 +534,150 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         ),
       ],
     );
+  }
+
+  Widget _buildMeusEventos(BuildContext context) {
+    if (_eventos.isEmpty) return const SizedBox.shrink();
+    final mostrar = _eventos.take(6).toList();
+    final multiCond = _list.length > 1;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: AppSpacing.xxl),
+        Row(
+          children: [
+            Text('Meus Eventos',
+                style: AppTypography.bodyMedium(context)
+                    .copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text('${_eventos.length}',
+                  style: AppTypography.tiny(context).copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  )),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            border: Border.all(color: AppColors.border(context)),
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < mostrar.length; i++) ...[
+                if (i > 0)
+                  Divider(height: 1, color: AppColors.border(context)),
+                _buildEventoRow(context, mostrar[i], multiCond),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEventoRow(BuildContext context, dynamic e, bool multiCond) {
+    final isEntrada = (e['evento'] ?? '').toString() == 'entrada';
+    final isVoce = (e['categoria'] ?? '').toString() == 'voce';
+    final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
+    final nome = (e['nome'] ?? '').toString();
+
+    final Color cor = isEntrada ? AppColors.success : AppColors.textTertiary(context);
+    final IconData icon =
+        isEntrada ? PhosphorIcons.arrowDownLeft : PhosphorIcons.arrowUpRight;
+
+    final String tag = isVoce
+        ? 'Você'
+        : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante');
+    final Color tagColor = isVoce ? AppColors.primary : Colors.orange;
+
+    final cond = (e['condominio'] ?? '').toString();
+    final tempo = _tempoRelativo(e['timestamp']);
+    final sub = [
+      if (multiCond && cond.isNotEmpty) cond,
+      tempo,
+    ].where((s) => s.isNotEmpty).join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: cor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: cor, size: 18),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        nome.isNotEmpty ? nome : (isVoce ? 'Você' : 'Visitante'),
+                        style: AppTypography.captionMedium(context)
+                            .copyWith(fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: tagColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(tag,
+                          style: AppTypography.tiny(context)
+                              .copyWith(color: tagColor, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${isEntrada ? 'Entrada' : 'Saída'}${sub.isNotEmpty ? ' · $sub' : ''}',
+                  style: AppTypography.tiny(context)
+                      .copyWith(color: AppColors.textTertiary(context)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "agora", "há 5 min", "há 2 h", "ontem", "há 3 d" ou data curta.
+  String _tempoRelativo(dynamic ts) {
+    final dt = DateTime.tryParse(ts?.toString() ?? '');
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'agora';
+    if (diff.inMinutes < 60) return 'há ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'há ${diff.inHours} h';
+    if (diff.inDays == 1) return 'ontem';
+    if (diff.inDays < 7) return 'há ${diff.inDays} d';
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
   }
 
   Widget _buildError() {
