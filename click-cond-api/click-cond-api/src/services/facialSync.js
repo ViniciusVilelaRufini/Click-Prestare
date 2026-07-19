@@ -1,10 +1,12 @@
-const jwt = require('jsonwebtoken');
-const config = require('../configs/config.js');
 const dbVis = require('../database/DB_Visitantes.js');
 
 // O motor do facial vive no NestJS (produção). O Express (dev) não enrola
 // direto — então dispara o sync lá. URL configurável por env.
 const NEST_URL = process.env.NEST_API_URL || 'https://click-prestare-production.up.railway.app';
+// Token compartilhado (server-to-server) — deve ser IGUAL ao INTERNAL_SYNC_TOKEN
+// definido no NestJS (Railway). Sem ele, o disparo imediato é pulado (o
+// back-fill do NestJS ainda enrola via face_sync_status='pending').
+const INTERNAL_SYNC_TOKEN = process.env.INTERNAL_SYNC_TOKEN || '';
 
 /**
  * Dispara o enrolamento facial de um visitante no NestJS. Best-effort:
@@ -21,17 +23,16 @@ async function triggerFacialSyncVisitante(idVisitante, idCondominio) {
   } catch (e) {
     console.warn('[facialSync] marcar pendente falhou:', e.message);
   }
-  // 2) Enrolamento imediato no NestJS (melhor esforço).
+  // 2) Enrolamento imediato no NestJS via endpoint interno (melhor esforço).
+  if (!INTERNAL_SYNC_TOKEN) {
+    console.log('[facialSync] INTERNAL_SYNC_TOKEN ausente — pulando disparo imediato (back-fill cobre).');
+    return;
+  }
   try {
-    const token = jwt.sign(
-      { id_condominio: Number(idCondominio), sub: 0, typeAccess: 'Sindico' },
-      config.jwt.secretKey,
-      { expiresIn: '2m' },
-    );
-    const url = `${NEST_URL}/api/facial/sync/visitante/${idVisitante}`;
+    const url = `${NEST_URL}/api/facial/internal/sync/visitante/${idVisitante}`;
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { 'x-internal-token': INTERNAL_SYNC_TOKEN },
     });
     console.log(`[facialSync] POST ${url} -> ${resp.status}`);
   } catch (e) {

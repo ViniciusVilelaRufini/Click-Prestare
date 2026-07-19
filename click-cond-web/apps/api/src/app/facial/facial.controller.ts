@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   ParseIntPipe,
   Post,
@@ -10,6 +11,7 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
@@ -294,6 +296,25 @@ export class FacialController {
   ) {
     requireTenant(user, 'sincronização de visitante');
     await this.service.assertVisitanteSameTenant(id, user);
+    return this.service.syncVisitante(id);
+  }
+
+  /**
+   * Sync interno (server-to-server) — usado pelo Express (dev) para enrolar o
+   * facial ao liberar/revogar vaga, já que ele não tem o motor do facial nem
+   * um JWT que este backend aceite. Autenticado por token compartilhado
+   * (INTERNAL_SYNC_TOKEN) em vez de JWT. Sem tenant: o token É a autorização.
+   */
+  @Public()
+  @Post('internal/sync/visitante/:id')
+  async internalSyncVisitante(
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-internal-token') token: string | undefined,
+  ) {
+    const expected = process.env['INTERNAL_SYNC_TOKEN'];
+    if (!expected || !token || token !== expected) {
+      throw new UnauthorizedException('Token interno inválido.');
+    }
     return this.service.syncVisitante(id);
   }
 
