@@ -51,6 +51,10 @@ export class VisitantesPageComponent implements OnInit {
 
   readonly showValidationModal = signal(false);
 
+  // Portaria remota: modal de seleção de apartamento ao solicitar.
+  readonly solicitarModalPessoa = signal<Pessoa | null>(null);
+  readonly solicitarAptoId = signal<number | null>(null);
+
   // Portaria remota: janela "ao vivo" do pedido de autorização.
   readonly authModalPessoaId = signal<number | null>(null);
   readonly authModalPessoa = computed(() => {
@@ -516,17 +520,25 @@ export class VisitantesPageComponent implements OnInit {
     return Date.now() - new Date(p.auth_solicitado_em).getTime() > AUTH_TIMEOUT_MS;
   }
 
-  async solicitarAutorizacao(v: Visitante | Pessoa) {
-    const ok = await this.confirm.ask({
-      title: 'Solicitar autorização',
-      message: `Pedir ao morador para autorizar a entrada de ${v.nome}? Ele receberá uma notificação no app.`,
-      confirmLabel: 'Enviar pedido',
-      variant: 'primary',
-    });
-    if (!ok) return;
-    this.service.solicitarAutorizacao(v.id).subscribe({
+  /** Abre o modal para escolher o apartamento de destino antes de solicitar. */
+  abrirSolicitar(v: Pessoa) {
+    this.solicitarModalPessoa.set(v);
+    this.solicitarAptoId.set(v.id_apartamento ?? null);
+  }
+
+  fecharSolicitar() {
+    this.solicitarModalPessoa.set(null);
+  }
+
+  /** Confirma o pedido de autorização direcionado ao apartamento selecionado. */
+  confirmarSolicitar() {
+    const pessoa = this.solicitarModalPessoa();
+    const idApto = this.solicitarAptoId();
+    if (!pessoa || !idApto) return;
+    this.service.solicitarAutorizacao(pessoa.id, idApto).subscribe({
       next: () => {
-        this.authModalPessoaId.set(v.id); // abre a janela "ao vivo" do pedido
+        this.fecharSolicitar();
+        this.authModalPessoaId.set(pessoa.id); // abre a janela "ao vivo" do pedido
         this.carregar();
         this.startAuthPolling();
       },

@@ -132,8 +132,16 @@ module.exports = {
   },
 
   // ===== Portaria remota — autorização em tempo real =====
-  solicitarAutorizacao: async function (id) {
-    const query = `update Visitantes set auth_status='pendente', auth_solicitado_em=NOW(),
+  getApartamentoById: async function (id) {
+    const { results } = await db.query(
+      `select id, id_condominio, apto, bloco from Apartamentos where id=${parseInt(id)}`,
+    );
+    return results[0];
+  },
+
+  solicitarAutorizacao: async function (id, redirecionarApto) {
+    const setApto = redirecionarApto ? `id_apartamento=${parseInt(redirecionarApto)}, ` : '';
+    const query = `update Visitantes set ${setApto}auth_status='pendente', auth_solicitado_em=NOW(),
                      auth_respondido_em=NULL, auth_respondido_por=NULL, liberado=0 where id=${id}`;
     await db.query(query);
   },

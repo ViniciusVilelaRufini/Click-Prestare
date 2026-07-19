@@ -226,9 +226,14 @@ export class VisitantesGlobalController {
   @Post(':id/solicitar-autorizacao')
   async solicitarAutorizacao(
     @Param('id', ParseIntPipe) id: number,
+    @Body('id_apartamento') idApartamento: number | string | undefined,
     @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.solicitarAutorizacao(id, payload);
+    return this.service.solicitarAutorizacao(
+      id,
+      payload,
+      idApartamento ? Number(idApartamento) : undefined,
+    );
   }
 
   // Morador autoriza (libera acesso + facial).

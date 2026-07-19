@@ -192,7 +192,17 @@ module.exports = {
       const id = req.params.id;
       const existing = await db.getById(id);
       if (!existing) return res.status(404).json({ message: "Visitante não encontrado." });
-      await db.solicitarAutorizacao(id);
+      // Porteiro pode redirecionar para outro apto/bloco (mesmo condomínio).
+      let redirecionarApto;
+      const idApto = req.body && req.body.id_apartamento;
+      if (idApto && parseInt(idApto) !== existing.id_apartamento) {
+        const apto = await db.getApartamentoById(idApto);
+        if (!apto || apto.id_condominio !== existing.id_condominio) {
+          return res.status(400).json({ message: "Apartamento de destino inválido." });
+        }
+        redirecionarApto = parseInt(idApto);
+      }
+      await db.solicitarAutorizacao(id, redirecionarApto);
       return res.json({ ok: true });
     } catch (err) {
       return res.status(500).json({ message: err.message });

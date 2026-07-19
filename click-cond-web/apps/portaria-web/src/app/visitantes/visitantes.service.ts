@@ -238,8 +238,14 @@ export class VisitantesService {
     return this.http.post<any>(`${API_BASE}/visitantes/check-out`, { id });
   }
 
-  /** Portaria remota: pede autorização ao morador (deixa o visitante pendente). */
-  solicitarAutorizacao(id: number): Observable<any> {
-    return this.http.post<any>(`${API_BASE}/visitantes/${id}/solicitar-autorizacao`, {});
+  /**
+   * Portaria remota: pede autorização ao morador (deixa o visitante pendente).
+   * idApartamento (opcional) redireciona o pedido para outro apto/bloco.
+   */
+  solicitarAutorizacao(id: number, idApartamento?: number): Observable<any> {
+    return this.http.post<any>(
+      `${API_BASE}/visitantes/${id}/solicitar-autorizacao`,
+      idApartamento ? { id_apartamento: idApartamento } : {},
+    );
   }
 }

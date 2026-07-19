@@ -1572,14 +1572,25 @@ export class VisitantesService {
    * Porteiro solicita autorização do morador (portaria remota bloqueante).
    * Deixa o visitante PENDENTE (liberado=0, sem PIN/facial) e dispara push.
    */
-  async solicitarAutorizacao(id: number, payload?: JwtPayload) {
+  async solicitarAutorizacao(id: number, payload?: JwtPayload, idApartamento?: number) {
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    // Porteiro pode redirecionar o pedido para outro apartamento/bloco (visitante
+    // que vai a outra unidade). Valida que o apto é do MESMO condomínio.
+    let redirecionarApto: number | undefined;
+    if (idApartamento && Number(idApartamento) !== ref.id_apartamento) {
+      const apto = await this.prisma.apartamentos.findUnique({ where: { id: Number(idApartamento) } });
+      if (!apto || apto.id_condominio !== ref.id_condominio) {
+        throw new BadRequestException('Apartamento de destino inválido.');
+      }
+      redirecionarApto = Number(idApartamento);
+    }
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
       data: {
+        ...(redirecionarApto ? { id_apartamento: redirecionarApto } : {}),
         auth_status: 'pendente',
         auth_solicitado_em: new Date(),
         auth_respondido_em: null,
