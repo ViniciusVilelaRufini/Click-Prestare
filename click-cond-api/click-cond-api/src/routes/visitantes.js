@@ -13,5 +13,12 @@ router.post('/check-in', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario']
 router.post('/check-out', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }), controller.checkOut);
 router.get('/validar/:codigo', jwt({ typeAccess: ['Sindico', 'Funcionario'] }), controller.validarCodigo);
 
+// Portaria remota — autorização em tempo real.
+// Rota estática 'pendentes' antes das rotas com :id para não colidir.
+router.get('/pendentes', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }), controller.pendentes);
+router.post('/:id/solicitar-autorizacao', jwt({ typeAccess: ['Sindico', 'Funcionario'] }), controller.solicitarAutorizacao);
+router.post('/:id/autorizar', jwt({ typeAccess: ['Morador'] }), controller.autorizar);
+router.post('/:id/negar', jwt({ typeAccess: ['Morador'] }), controller.negar);
+
 
 module.exports = router;

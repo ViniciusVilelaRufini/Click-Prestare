@@ -395,6 +395,12 @@ CREATE TABLE IF NOT EXISTS Visitantes (
   foto_pessoa VARCHAR(500),
   data_entrada DATETIME,
   data_saida DATETIME,
+  -- Portaria remota (autorizacao em tempo real): null=fluxo antigo,
+  -- 'pendente' | 'autorizado' | 'negado'. Gate de acesso continua sendo liberado.
+  auth_status VARCHAR(20),
+  auth_solicitado_em DATETIME,
+  auth_respondido_em DATETIME,
+  auth_respondido_por INT,
   CONSTRAINT fk_vis_apto FOREIGN KEY (id_apartamento) REFERENCES Apartamentos(id) ON DELETE CASCADE,
   CONSTRAINT fk_vis_cond FOREIGN KEY (id_condominio) REFERENCES Condominios(id) ON DELETE CASCADE,
   CONSTRAINT fk_vis_user FOREIGN KEY (user) REFERENCES Users(id) ON DELETE SET NULL

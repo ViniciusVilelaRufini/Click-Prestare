@@ -399,12 +399,20 @@ export class VisitantesPageComponent implements OnInit {
   editingId: number | null = null;
   readonly saving = signal(false);
 
+  // Portaria remota: timer de polling enquanto há pedidos pendentes.
+  private authPollTimer: ReturnType<typeof setInterval> | null = null;
+
+  ngOnDestroy() {
+    this.stopAuthPolling();
+  }
+
   ngOnInit() {
     // Define o modo da página a partir da rota (data: { modo: 'prestador' }).
     this.route.data.subscribe((d) => {
       this.modo.set(d['modo'] === 'prestador' ? 'prestador' : 'visitante');
     });
     this.carregar();
+    this.startAuthPolling();
     this.aptApi.list().subscribe({
       next: (data) => {
         data.sort((a, b) => {
@@ -427,8 +435,8 @@ export class VisitantesPageComponent implements OnInit {
     });
   }
 
-  carregar() {
-    this.loading.set(true);
+  carregar(silent = false) {
+    if (!silent) this.loading.set(true);
     this.error.set(null);
     // Lista agrupada por pessoa para a tabela principal
     this.service.listarPessoas().subscribe({
@@ -437,9 +445,67 @@ export class VisitantesPageComponent implements OnInit {
         this.loading.set(false);
       },
       error: (e) => {
-        this.error.set(`Falha ao carregar: ${e?.message ?? e}`);
+        if (!silent) this.error.set(`Falha ao carregar: ${e?.message ?? e}`);
         this.loading.set(false);
       },
+    });
+  }
+
+  // ===== Portaria remota — autorização em tempo real =====
+
+  /** Enquanto houver alguém pendente, atualiza a lista para refletir a decisão do morador. */
+  private startAuthPolling() {
+    this.stopAuthPolling();
+    this.authPollTimer = setInterval(() => {
+      const temPendente = this.pessoas().some((p) => p.auth_status === 'pendente');
+      if (temPendente) this.carregar(true);
+    }, 6000);
+  }
+
+  private stopAuthPolling() {
+    if (this.authPollTimer) {
+      clearInterval(this.authPollTimer);
+      this.authPollTimer = null;
+    }
+  }
+
+  /** Rótulo + classes Tailwind do status de autorização para o badge na lista. */
+  authBadge(p: Pessoa): { label: string; cls: string } | null {
+    switch (p.auth_status) {
+      case 'pendente':
+        return this.autorizacaoSemResposta(p)
+          ? { label: 'Sem resposta', cls: 'bg-orange-500/10 text-orange-400 border border-orange-500/20' }
+          : { label: 'Aguardando morador', cls: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' };
+      case 'autorizado':
+        return { label: 'Autorizado ✅', cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' };
+      case 'negado':
+        return { label: 'Negado ❌', cls: 'bg-red-500/10 text-red-400 border border-red-500/20' };
+      default:
+        return null;
+    }
+  }
+
+  /** Pedido pendente há mais que o TIMEOUT (morador não respondeu). */
+  autorizacaoSemResposta(p: Pessoa): boolean {
+    if (p.auth_status !== 'pendente' || !p.auth_solicitado_em) return false;
+    const AUTH_TIMEOUT_MS = 3 * 60 * 1000; // 3 min
+    return Date.now() - new Date(p.auth_solicitado_em).getTime() > AUTH_TIMEOUT_MS;
+  }
+
+  async solicitarAutorizacao(v: Visitante | Pessoa) {
+    const ok = await this.confirm.ask({
+      title: 'Solicitar autorização',
+      message: `Pedir ao morador para autorizar a entrada de ${v.nome}? Ele receberá uma notificação no app.`,
+      confirmLabel: 'Enviar pedido',
+      variant: 'primary',
+    });
+    if (!ok) return;
+    this.service.solicitarAutorizacao(v.id).subscribe({
+      next: () => {
+        this.carregar();
+        this.startAuthPolling();
+      },
+      error: (e) => this.error.set(`Falha ao solicitar autorização: ${e?.error?.message ?? e?.message ?? e}`),
     });
   }
 

@@ -219,6 +219,51 @@ export class VisitantesGlobalController {
     return this.service.checkOut(id, payload);
   }
 
+  // ===== Portaria remota — autorização em tempo real =====
+
+  // Porteiro/portaria-web pede autorização ao morador (deixa pendente + push).
+  @SkipAudit()
+  @Post(':id/solicitar-autorizacao')
+  async solicitarAutorizacao(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.solicitarAutorizacao(id, payload);
+  }
+
+  // Morador autoriza (libera acesso + facial).
+  @SkipAudit()
+  @Post(':id/autorizar')
+  async autorizar(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.autorizar(id, payload);
+  }
+
+  // Morador nega (mantém bloqueado).
+  @SkipAudit()
+  @Post(':id/negar')
+  async negar(
+    @Param('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.negar(id, payload);
+  }
+
+  // Inbox do morador: solicitações pendentes dos seus apartamentos.
+  @Get('pendentes')
+  async pendentes(
+    @Query('id_condominio') idCondominioStr: string | undefined,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    const idCondominio =
+      idCondominioStr && idCondominioStr !== 'null' && idCondominioStr !== 'undefined'
+        ? Number(idCondominioStr)
+        : undefined;
+    return this.service.listarPendentes(idCondominio, payload);
+  }
+
   @Get('get')
   async getOne(
     @Query('id') id: string,

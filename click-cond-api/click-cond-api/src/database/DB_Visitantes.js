@@ -131,6 +131,41 @@ module.exports = {
     await db.query(query);
   },
 
+  // ===== Portaria remota — autorização em tempo real =====
+  solicitarAutorizacao: async function (id) {
+    const query = `update Visitantes set auth_status='pendente', auth_solicitado_em=NOW(),
+                     auth_respondido_em=NULL, auth_respondido_por=NULL, liberado=0 where id=${id}`;
+    await db.query(query);
+  },
+
+  autorizar: async function (id, respondidoPor) {
+    const por = Number(respondidoPor) || 'NULL';
+    const query = `update Visitantes set auth_status='autorizado', liberado=1,
+                     auth_respondido_em=NOW(), auth_respondido_por=${por} where id=${id}`;
+    await db.query(query);
+  },
+
+  negar: async function (id, respondidoPor) {
+    const por = Number(respondidoPor) || 'NULL';
+    const query = `update Visitantes set auth_status='negado', liberado=0,
+                     auth_respondido_em=NOW(), auth_respondido_por=${por} where id=${id}`;
+    await db.query(query);
+  },
+
+  getPendentesByAptos: async function (idAptos) {
+    const list = (idAptos || []).map((x) => parseInt(x)).filter((n) => !isNaN(n));
+    if (list.length === 0) return [];
+    const query = `select v.id, v.nome, v.doc_identificacao, v.foto_pessoa as photo,
+                      v.is_prestador, v.auth_solicitado_em,
+                      apto.apto, apto.bloco as apto_bloco, apto.id as apto_id
+                    from Visitantes v
+                    inner join Apartamentos apto on apto.id=v.id_apartamento
+                    where v.auth_status='pendente' and v.id_apartamento in (${list.join(',')})
+                    order by v.auth_solicitado_em desc`;
+    const { results } = await db.query(query);
+    return results;
+  },
+
   getByCode: async function (id_cond, codigo) {
     const query = `select v.id, v.nome, v.doc_identificacao, 
                       DATE_FORMAT(v.data_hora_inicio, '%d/%m/%Y %H:%i') as data_inicio, 

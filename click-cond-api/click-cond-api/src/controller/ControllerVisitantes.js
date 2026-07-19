@@ -184,6 +184,73 @@ module.exports = {
     }
   },
 
+  // ===== Portaria remota — autorização em tempo real =====
+
+  // Porteiro/portaria pede autorização ao morador → visitante fica PENDENTE.
+  async solicitarAutorizacao(req, res) {
+    try {
+      const id = req.params.id;
+      const existing = await db.getById(id);
+      if (!existing) return res.status(404).json({ message: "Visitante não encontrado." });
+      await db.solicitarAutorizacao(id);
+      return res.json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  // Morador autoriza (libera acesso). Escopo: só visitante do próprio apto.
+  async autorizar(req, res) {
+    try {
+      const user = req.session.user;
+      const id = req.params.id;
+      const existing = await db.getById(id);
+      if (!existing) return res.status(404).json({ message: "Visitante não encontrado." });
+      const userAptos = await dbAptos.getApartmentsByUser(user.id, existing.id_condominio);
+      if (!userAptos.includes(existing.id_apartamento)) {
+        return res.status(403).json({ message: "Acesso negado: este visitante não pertence a você." });
+      }
+      await db.autorizar(id, user.id);
+      return res.json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  // Morador nega (mantém bloqueado).
+  async negar(req, res) {
+    try {
+      const user = req.session.user;
+      const id = req.params.id;
+      const existing = await db.getById(id);
+      if (!existing) return res.status(404).json({ message: "Visitante não encontrado." });
+      const userAptos = await dbAptos.getApartmentsByUser(user.id, existing.id_condominio);
+      if (!userAptos.includes(existing.id_apartamento)) {
+        return res.status(403).json({ message: "Acesso negado: este visitante não pertence a você." });
+      }
+      await db.negar(id, user.id);
+      return res.json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  // Inbox do morador: solicitações pendentes dos aptos vinculados a ele.
+  async pendentes(req, res) {
+    try {
+      const user = req.session.user;
+      const id_condominio = req.query.id_condominio;
+      const userAptos = id_condominio
+        ? await dbAptos.getApartmentsByUser(user.id, id_condominio)
+        : await dbAptos.getAllApartmentsByUser(user.id);
+      if (!userAptos || userAptos.length === 0) return res.status(200).json([]);
+      const result = await db.getPendentesByAptos(userAptos);
+      return res.status(200).json(result);
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
   async validarCodigo(req, res) {
     try {
       const { codigo } = req.params;

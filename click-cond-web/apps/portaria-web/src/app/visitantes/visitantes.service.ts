@@ -122,6 +122,10 @@ export interface Pessoa {
 
   created_at: string;
   bloqueado?: number;
+
+  // Portaria remota: estado da autorização em tempo real.
+  auth_status?: 'pendente' | 'autorizado' | 'negado' | null;
+  auth_solicitado_em?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -232,5 +236,10 @@ export class VisitantesService {
 
   checkOut(id: number): Observable<any> {
     return this.http.post<any>(`${API_BASE}/visitantes/check-out`, { id });
+  }
+
+  /** Portaria remota: pede autorização ao morador (deixa o visitante pendente). */
+  solicitarAutorizacao(id: number): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/visitantes/${id}/solicitar-autorizacao`, {});
   }
 }

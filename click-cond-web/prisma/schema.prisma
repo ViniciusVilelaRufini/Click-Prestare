@@ -613,6 +613,13 @@ model Visitantes {
   tag_rfid          String?      @db.VarChar(50)
   dias_semana       String?      @db.VarChar(100)
   categorias        String?      @db.VarChar(500)
+  // Portaria remota (autorização em tempo real): null=fluxo antigo,
+  // 'pendente' | 'autorizado' | 'negado'. O gate de acesso continua sendo
+  // `liberado` (pendente ⇒ liberado=0; autorizar ⇒ liberado=1).
+  auth_status         String?    @db.VarChar(20)
+  auth_solicitado_em  DateTime?  @db.DateTime(0)
+  auth_respondido_em  DateTime?  @db.DateTime(0)
+  auth_respondido_por Int?
   apartamento       Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_vis_apto")
   condominio        Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_vis_cond")
   criadoPor         Users?       @relation("VisitanteUser", fields: [user], references: [id], map: "fk_vis_user")

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/acessos_facial_list.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
+import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -38,11 +39,26 @@ class ListVisitantesPageState extends State<ListVisitantes> {
   List<dynamic> list = [];
   bool _isLoading = false;
   bool _isFabExpanded = true;
+  int _pendentesCount = 0;
 
   @override
   void initState() {
     super.initState();
     loadList();
+    _loadPendentes();
+  }
+
+  Future<void> _loadPendentes() async {
+    final data = await apiGetPendentes();
+    if (!mounted) return;
+    setState(() => _pendentesCount = data is List ? data.length : 0);
+  }
+
+  void _abrirPendentes() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PendentesVisitantePage()),
+    ).then((_) => _loadPendentes());
   }
 
   @override
@@ -768,6 +784,37 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         title: getText('visitantes_list'),
         showBackButton: !widget.hideAppBar,
         safeAreaBottom: !widget.hideAppBar,
+        actions: [
+          IconButton(
+            tooltip: 'Solicitações pendentes',
+            onPressed: _abrirPendentes,
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(PhosphorIcons.bell, color: AppColors.textPrimary(context)),
+                if (_pendentesCount > 0)
+                  Positioned(
+                    right: -4,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Text(
+                        '$_pendentesCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
         floatingActionButton: canAdd && widget.showFab
             ? Container(
                 decoration: BoxDecoration(

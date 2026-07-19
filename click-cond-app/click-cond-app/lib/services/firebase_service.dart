@@ -1,6 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 
 class FirebaseService {
   static final FirebaseService instance = FirebaseService._();
@@ -61,7 +62,22 @@ class FirebaseService {
 
   void _logByType(RemoteMessage message) {
     final type = message.data['type']?.toString();
-    if (!kDebugMode || type == null) return;
+    if (type == null) return;
+
+    // Portaria remota: push acionável — abre o diálogo Autorizar/Negar.
+    if (type == 'autorizacao_visitante') {
+      final idStr = message.data['id']?.toString();
+      final id = int.tryParse(idStr ?? '');
+      if (id != null) {
+        mostrarDialogoAutorizacaoVisitante(
+          id: id,
+          nome: message.data['nome']?.toString(),
+        );
+      }
+      return;
+    }
+
+    if (!kDebugMode) return;
     switch (type) {
       case 'visitante':
         print('[FCM] Novo visitante chegou (PIN). id=${message.data['id']}');

@@ -545,6 +545,11 @@ export class VisitantesService {
         codigo_acesso: temPinAtivo ? principal.codigo_acesso : null,
 
         created_at: principal.created_at.toISOString(),
+        // Portaria remota: estado da autorização do registro principal.
+        auth_status: (principal as any).auth_status ?? null,
+        auth_solicitado_em: (principal as any).auth_solicitado_em
+          ? new Date((principal as any).auth_solicitado_em).toISOString()
+          : null,
         // dias_semana/categorias são atributos da PESSOA, mas ficam por registro
         // (cada visita é uma linha). O `principal` pode ser um registro antigo
         // sem esses campos — então pegamos o valor do registro mais recente que
@@ -1427,6 +1432,12 @@ export class VisitantesService {
         data_saida: null,
         liberado: 1,
         ...(payload?.sub !== undefined && { user: payload.sub }),
+        // Override do porteiro: se havia pedido pendente, marca como resolvido.
+        ...(ref.auth_status === 'pendente' && {
+          auth_status: 'autorizado',
+          auth_respondido_em: new Date(),
+          auth_respondido_por: payload?.sub ?? null,
+        }),
       },
     });
     // Re-enrola o rosto no terminal para garantir que o acesso biométrico
@@ -1459,6 +1470,12 @@ export class VisitantesService {
         data_entrada: null,
         data_saida: null,
         ...(payload?.sub !== undefined && { user: payload.sub }),
+        // Override do porteiro: se havia pedido pendente, marca como resolvido.
+        ...(ref.auth_status === 'pendente' && {
+          auth_status: 'autorizado',
+          auth_respondido_em: new Date(),
+          auth_respondido_por: payload?.sub ?? null,
+        }),
       },
     });
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
@@ -1506,6 +1523,174 @@ export class VisitantesService {
       detalhes: ctx ?? undefined,
     });
     return { ok: true };
+  }
+
+  // ==========================================================================
+  // PORTARIA REMOTA — autorização de visitante em tempo real
+  // ==========================================================================
+
+  /** Notifica os moradores do apto que um visitante pede autorização (push + WhatsApp). */
+  private async notificarMoradoresAutorizacao(v: {
+    id: number;
+    nome: string;
+    id_apartamento: number;
+    is_prestador: number;
+  }) {
+    try {
+      const moradores = await this.prisma.users.findMany({
+        where: {
+          apartamentosUsers: { some: { id_apto: v.id_apartamento } },
+          notif_visitantes: 1,
+        },
+        select: { fcm_token: true, name: true, phone: true },
+      });
+      const tipo = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+      for (const m of moradores) {
+        if (m.fcm_token) {
+          await this.notifications.sendPushNotification(
+            m.fcm_token,
+            `${tipo} na portaria`,
+            `${v.nome} quer entrar no seu apartamento. Autorizar?`,
+            { type: 'autorizacao_visitante', id: v.id.toString(), nome: v.nome },
+          );
+        }
+        if (m.phone) {
+          await this.notifications.sendWhatsApp(
+            m.phone,
+            `Olá, ${m.name}! ${v.nome} está na portaria pedindo autorização para entrar. Abra o app para Autorizar ou Negar.`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Falha ao notificar autorização do visitante ${v.id}: ${(error as any)?.message ?? error}`,
+      );
+    }
+  }
+
+  /**
+   * Porteiro solicita autorização do morador (portaria remota bloqueante).
+   * Deixa o visitante PENDENTE (liberado=0, sem PIN/facial) e dispara push.
+   */
+  async solicitarAutorizacao(id: number, payload?: JwtPayload) {
+    const ref = await this.assertPodeAcessarVisitante(id, payload);
+    if (ref.bloqueado === 1) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+    const v = await this.prisma.visitantes.update({
+      where: { id: Number(id) },
+      data: {
+        auth_status: 'pendente',
+        auth_solicitado_em: new Date(),
+        auth_respondido_em: null,
+        auth_respondido_por: null,
+        liberado: 0,
+      },
+    });
+    await this.notificarMoradoresAutorizacao(v);
+    const ctx = await this.carregarContextoVisitante(v.id);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: payload?.nome ?? 'Portaria / Sistema',
+      acao: 'UPDATE',
+      modulo: 'visitantes',
+      entidade_id: v.id,
+      descricao: `Autorização solicitada ao morador: "${v.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
+    });
+    return { ok: true };
+  }
+
+  /** Morador autoriza: libera o acesso (liberado=1) e enrola no facial. */
+  async autorizar(id: number, payload?: JwtPayload) {
+    const ref = await this.assertPodeAcessarVisitante(id, payload);
+    if (ref.bloqueado === 1) {
+      throw new BadRequestException('Este visitante está bloqueado no condomínio.');
+    }
+    const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
+    const v = await this.prisma.visitantes.update({
+      where: { id: Number(id) },
+      data: {
+        auth_status: 'autorizado',
+        liberado: 1,
+        auth_respondido_em: new Date(),
+        auth_respondido_por: respondidoPor,
+      },
+    });
+    // Enrola (ou re-enrola) o rosto no terminal agora que liberado=1.
+    this.fireFacialSync(v.id);
+    const ctx = await this.carregarContextoVisitante(v.id);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: payload?.nome ?? 'Morador',
+      acao: 'UPDATE',
+      modulo: 'visitantes',
+      entidade_id: v.id,
+      descricao: `Visitante autorizado pelo morador: "${v.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
+    });
+    return { ok: true };
+  }
+
+  /** Morador nega: mantém bloqueado (liberado=0) e remove do facial. */
+  async negar(id: number, payload?: JwtPayload) {
+    await this.assertPodeAcessarVisitante(id, payload);
+    const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
+    const v = await this.prisma.visitantes.update({
+      where: { id: Number(id) },
+      data: {
+        auth_status: 'negado',
+        liberado: 0,
+        auth_respondido_em: new Date(),
+        auth_respondido_por: respondidoPor,
+      },
+    });
+    // liberado=0 → syncVisitante remove o rosto do terminal (se estava enrolado).
+    this.fireFacialSync(v.id);
+    const ctx = await this.carregarContextoVisitante(v.id);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: payload?.nome ?? 'Morador',
+      acao: 'UPDATE',
+      modulo: 'visitantes',
+      entidade_id: v.id,
+      descricao: `Visitante negado pelo morador: "${v.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
+    });
+    return { ok: true };
+  }
+
+  /** Inbox do morador: solicitações pendentes dos apartamentos vinculados a ele. */
+  async listarPendentes(idCondominio: number | undefined, payload?: JwtPayload) {
+    const userId = Number(payload?.user?.id ?? payload?.sub);
+    if (!userId) throw new ForbiddenException('Sessão sem usuário válido.');
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: {
+        id_user: userId,
+        ...(idCondominio ? { apartamento: { id_condominio: Number(idCondominio) } } : {}),
+      },
+      select: { id_apto: true },
+    });
+    const aptoIds = vinculos.map((x) => x.id_apto);
+    if (aptoIds.length === 0) return [];
+    const pendentes = await this.prisma.visitantes.findMany({
+      where: { id_apartamento: { in: aptoIds }, auth_status: 'pendente' },
+      include: { apartamento: { select: { bloco: true, apto: true } } },
+      orderBy: { auth_solicitado_em: 'desc' },
+    });
+    return pendentes.map((v) => ({
+      id: v.id,
+      nome: v.nome,
+      doc_identificacao: v.doc_identificacao,
+      photo: v.foto_pessoa ?? null,
+      apto: v.apartamento?.apto ?? null,
+      apto_bloco: v.apartamento?.bloco ?? null,
+      is_prestador: v.is_prestador,
+      auth_solicitado_em: v.auth_solicitado_em,
+    }));
   }
 
   async findAllMobile(
