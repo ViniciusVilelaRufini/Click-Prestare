@@ -1713,11 +1713,11 @@
   <!-- Modal de Validação de Código (PIN) -->
   <!-- Portaria remota: seleção do apartamento de destino ao solicitar -->
   @if (solicitarModalPessoa(); as sp) {
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
-      <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in">
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-white">Solicitar autorização</h3>
-          <button (click)="fecharSolicitar()" class="text-slate-400 hover:text-white transition">
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 dark:bg-black/80 p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl animate-fade-in">
+        <div class="px-6 py-4 bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Solicitar autorização</h3>
+          <button (click)="fecharSolicitar()" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1725,27 +1725,27 @@
         </div>
         <div class="p-6 space-y-4">
           <div>
-            <div class="text-base font-semibold text-white">{{ sp.nome }}</div>
-            <div class="text-xs text-slate-400 mt-0.5">Escolha o apartamento de destino do pedido.</div>
+            <div class="text-base font-semibold text-slate-900 dark:text-white">{{ sp.nome }}</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Escolha o apartamento de destino do pedido.</div>
           </div>
           <label class="block">
-            <span class="text-xs font-medium text-slate-400 block mb-1.5">Apartamento de destino *</span>
+            <span class="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1.5">Apartamento de destino *</span>
             <select
               [ngModel]="solicitarAptoId()"
               (ngModelChange)="solicitarAptoId.set($event)"
-              class="w-full rounded-lg bg-white/5 border border-white/10 text-white px-3 py-2.5 text-sm focus:outline-none focus:border-accent"
+              class="w-full rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:border-accent"
             >
               @for (a of apartamentos(); track a.id) {
                 <option [ngValue]="a.id">{{ a.bloco ? 'Bloco ' + a.bloco + ' - ' : '' }}Apto {{ a.apto }}</option>
               }
             </select>
           </label>
-          <p class="text-[11px] text-slate-400">
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
             O morador desse apartamento receberá a notificação e poderá Autorizar ou Negar no app.
           </p>
           <div class="flex justify-end gap-2 pt-2">
             <button (click)="fecharSolicitar()"
-              class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition">
+              class="px-4 py-2 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white text-sm hover:bg-slate-200 dark:hover:bg-white/10 transition">
               Cancelar
             </button>
             <button (click)="confirmarSolicitar()" [disabled]="!solicitarAptoId()"
@@ -1760,45 +1760,60 @@
 
   <!-- Portaria remota: janela "ao vivo" do pedido de autorização -->
   @if (authModalPessoa(); as ap) {
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
-      <div class="w-full max-w-md rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in">
-        <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 dark:bg-black/80 p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl animate-fade-in">
+        <div class="px-6 py-4 bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
             <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
             Autorização de visitante
           </h3>
-          <button (click)="fecharAuthModal()" class="text-slate-400 hover:text-white transition">
+          <button (click)="fecharAuthModal()" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div class="p-6 text-center">
-          <div class="text-lg font-semibold text-white">{{ ap.nome }}</div>
-          @if (ap.apartamentoAtual) {
-            <div class="text-xs text-slate-400 mt-0.5">{{ ap.apartamentoAtual }}</div>
-          }
+        <div class="p-6">
+          <!-- Cabeçalho da pessoa -->
+          <div class="flex flex-col items-center gap-2">
+            <div class="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-sm font-bold">
+              {{ iniciais(ap.nome) }}
+            </div>
+            <div class="text-center">
+              <div class="text-base font-semibold text-slate-900 dark:text-white">{{ ap.nome }}</div>
+              @if (ap.apartamentoAtual) {
+                <div class="text-xs text-slate-500 dark:text-slate-400">{{ ap.apartamentoAtual }}</div>
+              }
+            </div>
+          </div>
 
           <!-- AGUARDANDO -->
           @if (ap.auth_status === 'pendente' && !autorizacaoSemResposta(ap)) {
-            <div class="mt-6 flex flex-col items-center gap-3">
-              <div class="w-16 h-16 rounded-full border-4 border-amber-400/30 border-t-amber-400 animate-spin"></div>
-              <div class="text-amber-400 font-semibold text-lg">Aguardando o morador…</div>
-              <div class="text-xs text-slate-400">O morador foi notificado no app. A resposta aparece aqui automaticamente.</div>
+            <div class="mt-5 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 p-6 flex flex-col items-center gap-3 animate-fade-in">
+              <div class="w-14 h-14 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center">
+                <div class="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
+              </div>
+              <div class="text-slate-900 dark:text-white font-semibold text-sm">Aguardando o morador</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 text-center -mt-1">Notificamos o morador no app. A resposta aparece aqui automaticamente.</div>
             </div>
           }
 
           <!-- SEM RESPOSTA (timeout) -->
           @if (ap.auth_status === 'pendente' && autorizacaoSemResposta(ap)) {
-            <div class="mt-6 rounded-xl bg-orange-500/10 border border-orange-500/30 p-5">
-              <div class="text-orange-400 font-bold text-xl">⏳ Sem resposta do morador</div>
-              <div class="text-xs text-slate-300 mt-1">O morador não respondeu a tempo. Você pode decidir manualmente.</div>
+            <div class="mt-5 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 p-6 flex flex-col items-center gap-3 animate-fade-in">
+              <div class="w-14 h-14 rounded-full bg-warn/10 border border-warn/30 flex items-center justify-center">
+                <svg class="w-7 h-7 text-warn" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="text-warn font-semibold text-sm">Sem resposta do morador</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 text-center -mt-1">O morador não respondeu a tempo. Você pode liberar manualmente.</div>
               <button (click)="registrarEntradaEFechar(ap)"
-                class="mt-4 w-full py-2.5 rounded-lg bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition">
+                class="mt-1 w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition">
                 Liberar entrada mesmo assim
               </button>
             </div>
@@ -1806,12 +1821,19 @@
 
           <!-- AUTORIZADO -->
           @if (ap.auth_status === 'autorizado') {
-            <div class="mt-6 rounded-xl bg-emerald-500/10 border border-emerald-500/40 p-6 animate-fade-in">
-              <div class="text-6xl">✅</div>
-              <div class="text-emerald-400 font-extrabold text-2xl mt-2">AUTORIZADO</div>
-              <div class="text-sm text-slate-300 mt-1">O morador liberou a entrada.</div>
+            <div class="mt-5 rounded-xl bg-emerald-50 dark:bg-white/[0.02] border border-emerald-200 dark:border-emerald-500/20 p-6 flex flex-col items-center gap-3 animate-fade-in">
+              <div class="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                <svg class="w-8 h-8 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div class="text-emerald-600 dark:text-emerald-400 font-bold text-lg">Autorizado</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 -mt-2">O morador liberou a entrada.</div>
               <button (click)="registrarEntradaEFechar(ap)"
-                class="mt-5 w-full py-3 rounded-lg bg-emerald-500 text-white font-semibold hover:bg-emerald-600 transition">
+                class="mt-2 w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
                 Registrar Entrada
               </button>
             </div>
@@ -1819,12 +1841,16 @@
 
           <!-- NEGADO -->
           @if (ap.auth_status === 'negado') {
-            <div class="mt-6 rounded-xl bg-red-500/10 border border-red-500/40 p-6 animate-fade-in">
-              <div class="text-6xl">🚫</div>
-              <div class="text-red-400 font-extrabold text-2xl mt-2">NEGADO</div>
-              <div class="text-sm text-slate-300 mt-1">O morador não autorizou a entrada.</div>
+            <div class="mt-5 rounded-xl bg-red-50 dark:bg-white/[0.02] border border-red-200 dark:border-red-500/20 p-6 flex flex-col items-center gap-3 animate-fade-in">
+              <div class="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                <svg class="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <div class="text-red-600 dark:text-red-400 font-bold text-lg">Negado</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 -mt-2">O morador não autorizou a entrada.</div>
               <button (click)="fecharAuthModal()"
-                class="mt-5 w-full py-3 rounded-lg bg-white/5 border border-white/10 text-white font-semibold hover:bg-white/10 transition">
+                class="mt-2 w-full py-2.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white text-sm font-medium hover:bg-slate-200 dark:hover:bg-white/10 transition">
                 Fechar
               </button>
             </div>
