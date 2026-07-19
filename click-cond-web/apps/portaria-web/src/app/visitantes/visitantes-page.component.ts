@@ -50,6 +50,14 @@ export class VisitantesPageComponent implements OnInit {
   readonly pinsRevelados = signal<Set<number>>(new Set());
 
   readonly showValidationModal = signal(false);
+
+  // Portaria remota: janela "ao vivo" do pedido de autorização.
+  readonly authModalPessoaId = signal<number | null>(null);
+  readonly authModalPessoa = computed(() => {
+    const id = this.authModalPessoaId();
+    if (id == null) return null;
+    return this.pessoas().find((p) => p.id === id) ?? null;
+  });
   readonly pinCode = signal('');
   readonly validationResult = signal<any | null>(null);
   readonly validationError = signal<string | null>(null);
@@ -453,13 +461,29 @@ export class VisitantesPageComponent implements OnInit {
 
   // ===== Portaria remota — autorização em tempo real =====
 
-  /** Enquanto houver alguém pendente, atualiza a lista para refletir a decisão do morador. */
+  /** Enquanto houver alguém pendente (ou o modal aberto), atualiza a lista p/ refletir a decisão. */
   private startAuthPolling() {
     this.stopAuthPolling();
     this.authPollTimer = setInterval(() => {
       const temPendente = this.pessoas().some((p) => p.auth_status === 'pendente');
-      if (temPendente) this.carregar(true);
-    }, 6000);
+      const modalAberto = this.authModalPessoaId() != null;
+      if (temPendente || modalAberto) this.carregar(true);
+    }, 3000);
+  }
+
+  fecharAuthModal() {
+    this.authModalPessoaId.set(null);
+  }
+
+  /** Registra a entrada direto da janela de autorização e fecha. */
+  registrarEntradaEFechar(p: Pessoa) {
+    this.service.checkIn(p.id).subscribe({
+      next: () => {
+        this.fecharAuthModal();
+        this.carregar();
+      },
+      error: (e) => this.error.set(`Falha ao registrar entrada: ${e?.message ?? e}`),
+    });
   }
 
   private stopAuthPolling() {
@@ -502,6 +526,7 @@ export class VisitantesPageComponent implements OnInit {
     if (!ok) return;
     this.service.solicitarAutorizacao(v.id).subscribe({
       next: () => {
+        this.authModalPessoaId.set(v.id); // abre a janela "ao vivo" do pedido
         this.carregar();
         this.startAuthPolling();
       },
