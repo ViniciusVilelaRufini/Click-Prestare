@@ -1,4 +1,5 @@
 const db = require('../database/DB_Vagas.js');
+const facialSync = require('../services/facialSync.js');
 
 function mapVaga(r) {
   return {
@@ -116,6 +117,12 @@ module.exports = {
         inicio,
         fim,
       });
+      // Libera o facial/portão do visitante (via NestJS) — fire-and-forget.
+      if (idVisitante) {
+        facialSync
+          .triggerFacialSyncVisitante(idVisitante, ctx.idCondominio)
+          .catch((e) => console.warn('[vagas] facial sync falhou:', e.message));
+      }
       return res.status(201).json({ id });
     } catch (err) {
       return res.status(500).json({ message: err.message });
@@ -128,8 +135,17 @@ module.exports = {
       const { id, id_condominio } = req.body || {};
       const ctx = await db.getMoradorApto(user.id, id_condominio);
       if (!ctx) return res.status(403).json({ message: 'Acesso negado.' });
+      // Descobre o visitante afetado ANTES de revogar (p/ reconciliar o facial).
+      const vaga = await db.getVagaById(id);
       const affected = await db.revogar(id, ctx.idApto);
       if (!affected) return res.status(400).json({ message: 'Vaga não encontrada.' });
+      // Reconcilia o facial do visitante (o back-fill do NestJS remove se não
+      // estiver mais autorizado) — fire-and-forget.
+      if (vaga && vaga.tipo_ocupacao === 'visitante' && vaga.id_visitante) {
+        facialSync
+          .triggerFacialSyncVisitante(vaga.id_visitante, ctx.idCondominio)
+          .catch((e) => console.warn('[vagas] facial sync (revogar) falhou:', e.message));
+      }
       return res.status(200).json({ ok: true });
     } catch (err) {
       return res.status(500).json({ message: err.message });

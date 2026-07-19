@@ -131,6 +131,12 @@ module.exports = {
     await db.query(query);
   },
 
+  // Marca o rosto do visitante como pendente de sincronização. O back-fill do
+  // NestJS (tickSyncRetry / onlyPending) enrola quem está pending/face_id nulo.
+  marcarFacialPendente: async function (id) {
+    await db.query(`update Visitantes set face_sync_status='pending' where id=${parseInt(id)}`);
+  },
+
   // ===== Portaria remota — autorização em tempo real =====
   getApartamentoById: async function (id) {
     const { results } = await db.query(

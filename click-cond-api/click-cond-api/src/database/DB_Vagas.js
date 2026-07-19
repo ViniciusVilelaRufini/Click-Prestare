@@ -11,6 +11,15 @@ module.exports = {
    * Preferimos o vínculo direto em Apartamentos_Users; caso não exista, caímos
    * no match por bloco/apto do registro de Moradores. Retorna null se não achar.
    */
+  // Busca uma vaga por id (usado no revogar p/ descobrir o visitante afetado).
+  getVagaById: async function (id) {
+    const { results } = await db.queryParam(
+      `select id, id_visitante, tipo_ocupacao, id_condominio from Vagas where id=?`,
+      [id],
+    );
+    return results[0];
+  },
+
   getMoradorApto: async function (idUser, idCondominio) {
     const mq = `select id, id_condominio, bloco, apartamento
                 from Moradores where id_user=? and id_condominio=? limit 1`;
