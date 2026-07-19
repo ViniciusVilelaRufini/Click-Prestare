@@ -22,6 +22,7 @@ import {
 } from './mobile-auth.controller';
 
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
+import { FacialModule } from '../facial/facial.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
       signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '8h') as any },
     }),
     OcorrenciasModule,
+    FacialModule,
   ],
   controllers: [
     AuthController,

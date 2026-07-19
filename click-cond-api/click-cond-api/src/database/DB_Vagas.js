@@ -72,7 +72,9 @@ module.exports = {
 
   getVisitantesApto: async function (idApto) {
     const { results } = await db.queryParam(
-      `select id, nome, doc_identificacao from Visitantes
+      `select id, nome, doc_identificacao,
+              case when foto_pessoa is not null and foto_pessoa <> '' then 1 else 0 end as tem_foto
+       from Visitantes
        where id_apartamento=? and is_visitante=1 order by nome asc`, [idApto]);
     return results;
   },

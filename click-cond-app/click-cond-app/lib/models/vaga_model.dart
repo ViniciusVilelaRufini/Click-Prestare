@@ -77,11 +77,20 @@ class BeneficiarioItem {
   final int id;
   final String nome;
   final String? doc;
-  BeneficiarioItem({required this.id, required this.nome, this.doc});
+  // Se o visitante tem foto cadastrada. Sem foto, o facial/portão não abre
+  // (só PIN/código). Default true quando o backend não informa, pra não
+  // exibir aviso falso em endpoints antigos.
+  final bool temFoto;
+  BeneficiarioItem({required this.id, required this.nome, this.doc, this.temFoto = true});
 
   factory BeneficiarioItem.fromJson(Map<String, dynamic> json) => BeneficiarioItem(
         id: json['id'],
         nome: (json['nome'] ?? '').toString(),
         doc: json['doc_identificacao']?.toString(),
+        temFoto: json['tem_foto'] == null
+            ? true
+            : (json['tem_foto'] == true ||
+                json['tem_foto'] == 1 ||
+                json['tem_foto'].toString() == '1'),
       );
 }

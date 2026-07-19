@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { StorageService } from '../common/storage/storage.service';
+import { FacialService } from '../facial/facial.service';
 
 @Injectable()
 export class MobileAuthService {
@@ -14,6 +15,7 @@ export class MobileAuthService {
     private readonly jwt: JwtService,
     private readonly mail: MailService,
     private readonly storage: StorageService,
+    private readonly facial: FacialService,
   ) {}
 
   /**
@@ -2513,12 +2515,19 @@ export class MobileAuthService {
     if (!ctx) return { visitantes: [], inquilinos: [] };
     const visitantes = await this.prisma.visitantes.findMany({
       where: { id_apartamento: ctx.apto.id, is_visitante: 1 },
-      select: { id: true, nome: true, doc_identificacao: true },
+      select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true },
       orderBy: { nome: 'asc' },
     });
     const inquilinos = await this.getMoradoresApto(ctx.apto.id, 'Inquilino');
     return {
-      visitantes,
+      // tem_foto indica se o visitante pode ser liberado no facial/portão: sem
+      // foto, o app avisa que o reconhecimento não abre (só PIN/código).
+      visitantes: visitantes.map((v) => ({
+        id: v.id,
+        nome: v.nome,
+        doc_identificacao: v.doc_identificacao,
+        tem_foto: !!(v.foto_pessoa && v.foto_pessoa.trim() !== ''),
+      })),
       inquilinos: (inquilinos ?? []).map((i: any) => ({ id: i.id, nome: i.nome })),
     };
   }
@@ -2589,6 +2598,20 @@ export class MobileAuthService {
       },
       include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
     });
+
+    // Liberação automática do facial/portão: enrola o visitante em todos os
+    // terminais faciais do condomínio já com a janela da reserva (ValidFrom/
+    // ValidTo derivados de data_hora_inicio/termino que acabamos de gravar).
+    // Fire-and-forget: uma falha de device não pode derrubar a reserva; o
+    // próprio syncVisitante grava face_sync_status e os ticks fazem retry.
+    if (idVisitante) {
+      this.facial
+        .syncVisitante(idVisitante)
+        .catch((err) =>
+          console.error('[vagas] falha ao sincronizar facial do visitante', idVisitante, err?.message),
+        );
+    }
+
     return this.mapVaga(vaga);
   }
 
@@ -2596,11 +2619,25 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) throw new ServiceUnavailableException('Banco de dados indisponível.');
     const ctx = await this.resolveMoradorApto(idUser, idCondominio);
     if (!ctx) throw new BadRequestException('Acesso negado.');
-    const r = await this.prisma.vagas.updateMany({
+    // Busca a vaga antes de revogar para conhecer o tipo/visitante afetado.
+    const vaga = await this.prisma.vagas.findFirst({
       where: { id: Number(id), id_apartamento: ctx.apto.id, ativo: 1 },
-      data: { ativo: 0 },
     });
-    if (r.count === 0) throw new BadRequestException('Vaga não encontrada.');
+    if (!vaga) throw new BadRequestException('Vaga não encontrada.');
+    await this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } });
+
+    // Reconcilia o estado no device: re-sincroniza o visitante para refletir a
+    // vaga revogada. Não-destrutivo (não força liberado=0), pois o visitante
+    // pode estar autorizado por outro caminho; o acesso encerra em `fim` via o
+    // tick de expiração já existente.
+    if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visitante) {
+      this.facial
+        .syncVisitante(vaga.id_visitante)
+        .catch((err) =>
+          console.error('[vagas] falha ao reconciliar facial do visitante', vaga.id_visitante, err?.message),
+        );
+    }
+
     return { ok: true };
   }
 }

@@ -54,6 +54,10 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
   List<BeneficiarioItem> get _lista =>
       _tipo == 'visitante' ? _visitantes : _inquilinos;
 
+  /// Visitante selecionado sem foto → facial/portão não abre automaticamente.
+  bool get _mostrarAvisoSemFoto =>
+      _tipo == 'visitante' && _selecionado != null && !_selecionado!.temFoto;
+
   Future<void> _pickData({required bool inicio}) async {
     final base = inicio ? (_inicio ?? DateTime.now()) : (_fim ?? _inicio ?? DateTime.now());
     final d = await showDatePicker(
@@ -133,6 +137,10 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
                         .copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: AppSpacing.sm),
                 _beneficiarioList(context),
+                if (_mostrarAvisoSemFoto) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  _avisoSemFoto(context),
+                ],
                 const SizedBox(height: AppSpacing.lg),
                 Text('Placa do veículo (opcional)',
                     style: AppTypography.bodyMedium(context)
@@ -302,6 +310,21 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
                           const SizedBox(height: 2),
                           Text(b.doc!, style: AppTypography.caption(context)),
                         ],
+                        if (_tipo == 'visitante' && !b.temFoto) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(PhosphorIcons.warningCircle,
+                                  size: 14, color: AppColors.warning),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text('Sem foto — facial não abre',
+                                    style: AppTypography.tiny(context)
+                                        .copyWith(color: AppColors.warning)),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -311,6 +334,43 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _avisoSemFoto(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(PhosphorIcons.warningCircleFill,
+              size: 20, color: AppColors.warning),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Esse visitante não tem foto',
+                    style: AppTypography.caption(context).copyWith(
+                        fontWeight: FontWeight.bold, color: AppColors.warning)),
+                const SizedBox(height: 2),
+                Text(
+                  'Sem foto, o portão/facial não abre sozinho. Ele poderá entrar '
+                  'pelo código de acesso (PIN). Para liberar no facial, cadastre '
+                  'uma foto do visitante.',
+                  style: AppTypography.caption(context),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
