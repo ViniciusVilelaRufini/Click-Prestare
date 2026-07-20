@@ -685,14 +685,16 @@ export class FacialService {
       : [];
     const reservadoSet = new Set(moradoresReservados.map((m) => m.id));
 
-    // Remove do terminal quem NÃO tem reserva vigente.
+    // Remove do terminal quem NÃO tem reserva vigente — EXCETO funcionários
+    // (administração acessa qualquer terminal, mesmo com a regra de reserva).
     const todos = await this.prisma.moradores.findMany({
       where: { id_condominio: area.id_condominio },
-      select: { id: true, face_id: true },
+      select: { id: true, face_id: true, tipo: true },
     });
     for (const device of devices) {
       for (const m of todos) {
-        if (reservadoSet.has(m.id)) continue;
+        const ehFuncionario = (m.tipo ?? '').toLowerCase() === 'funcionario';
+        if (ehFuncionario || reservadoSet.has(m.id)) continue;
         try {
           await this.client.removePerson(this.toConfig(device), m.face_id ?? `morador_${m.id}`);
         } catch (e: any) {
@@ -704,6 +706,26 @@ export class FacialService {
     for (const r of reservas) {
       this.syncReservaArea(r.id).catch((e) =>
         this.logger.warn(`reconcile enroll reserva ${r.id}: ${e?.message ?? e}`),
+      );
+    }
+
+    // Garante que os FUNCIONÁRIOS (administração) fiquem enrolados no terminal:
+    // moradores tipo='funcionario' + prestadores de serviço (com foto).
+    const deviceIds = devices.map((d) => d.id);
+    for (const m of todos) {
+      if ((m.tipo ?? '').toLowerCase() === 'funcionario') {
+        this.syncMorador(m.id, { deviceIds }).catch((e) =>
+          this.logger.warn(`reconcile enroll funcionario-morador ${m.id}: ${e?.message ?? e}`),
+        );
+      }
+    }
+    const prestadores = await this.prisma.prestadores_servico.findMany({
+      where: { id_condominio: area.id_condominio, foto_pessoa: { not: null } },
+      select: { id: true },
+    });
+    for (const p of prestadores) {
+      this.syncPrestadorServico(p.id, { deviceIds }).catch((e) =>
+        this.logger.warn(`reconcile enroll prestador ${p.id}: ${e?.message ?? e}`),
       );
     }
   }
@@ -1079,7 +1101,9 @@ export class FacialService {
     let ultimoErro: string | null = null;
     const devicesSincronizados: number[] = [];
     for (const device of devices) {
-      if (gatedAreaIds.has(device.id)) continue;
+      // Terminal de área gated: pula só MORADOR comum. Funcionário (administração)
+      // sempre é enrolado — acessa qualquer terminal mesmo com a regra de reserva.
+      if (gatedAreaIds.has(device.id) && categoria !== 'funcionario') continue;
       try {
         const permitidas = await this.categoriasPermitidasNoDispositivo(device);
         if (!this.categoriaAutorizada(permitidas, categoria)) {
