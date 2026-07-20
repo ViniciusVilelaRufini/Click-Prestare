@@ -3106,6 +3106,15 @@ export class FacialService {
           );
         }
       } else if (evento === 'saida') {
+        // Visitante com VAGA ativa (o morador reservou vaga p/ o carro) NÃO é
+        // deautorizado ao sair — pode reentrar quantas vezes quiser na janela,
+        // como prestador. Sem isso, a 1ª saída zera liberado e o remove do
+        // aparelho, impedindo a reentrada.
+        const temVagaAtiva =
+          v.is_prestador !== 1 &&
+          (await this.prisma.vagas.count({
+            where: { id_visitante: v.id, ativo: 1 },
+          })) > 0;
         // data_entrada < timestamp: um replay de backlog com timestamp ANTERIOR
         // à entrada registrada é o eco da própria entrada (mesma passagem
         // reportada 2x: ao vivo e pelo log do aparelho) — nunca uma saída real.
@@ -3119,7 +3128,7 @@ export class FacialService {
           data: {
             data_saida: timestamp,
             ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),
-            liberado: v.is_prestador === 1 ? 1 : 0,
+            liberado: v.is_prestador === 1 || temVagaAtiva ? 1 : 0,
           },
         });
         if (r.count === 0) {
