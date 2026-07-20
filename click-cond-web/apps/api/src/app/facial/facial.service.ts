@@ -1070,10 +1070,10 @@ export class FacialService {
   // ÁREAS SOCIAIS — check-in por facial gated por reserva
   // ==========================================================================
 
-  /** IDs dos terminais faciais de áreas com reserva obrigatória (gated). */
+  /** IDs dos terminais faciais de áreas com controle de acesso por reserva. */
   private async gatedAreaDeviceIds(idCondominio: number): Promise<Set<number>> {
     const areas = await this.prisma.areas_Sociais.findMany({
-      where: { id_condominio: idCondominio, precisa_agendar: 1 },
+      where: { id_condominio: idCondominio, controle_acesso_facial: 1 },
       select: { id: true },
     });
     const areaIds = areas.map((a) => a.id);
@@ -1139,10 +1139,10 @@ export class FacialService {
 
     const ag = await this.prisma.areas_Sociais_Agendamentos.findUnique({
       where: { id: Number(idAgendamento) },
-      include: { area: { select: { id_condominio: true, precisa_agendar: true } } },
+      include: { area: { select: { id_condominio: true, controle_acesso_facial: true } } },
     });
     if (!ag || !ag.area) return { skipped: true, reason: 'not_found' };
-    if (ag.area.precisa_agendar !== 1) return { skipped: true, reason: 'area_sem_reserva' };
+    if (ag.area.controle_acesso_facial !== 1) return { skipped: true, reason: 'area_sem_controle' };
     const idCond = ag.area.id_condominio;
 
     const devices = await this.prisma.facial_Devices.findMany({
@@ -1218,7 +1218,7 @@ export class FacialService {
           status: 'aprovado',
           data: new Date(hojeStr),
           area: {
-            precisa_agendar: 1,
+            controle_acesso_facial: 1,
             devices: { some: { ativo: 1, tipo: 'facial' } },
           },
         },

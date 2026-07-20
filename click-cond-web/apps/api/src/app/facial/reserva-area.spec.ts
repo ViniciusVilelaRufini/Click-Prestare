@@ -35,7 +35,7 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
       hora_de: new Date('1970-01-01T14:00:00.000Z'),
       hora_ate: new Date('1970-01-01T18:00:00.000Z'),
       status: 'aprovado',
-      area: { id_condominio: 1, precisa_agendar: 1 },
+      area: { id_condominio: 1, controle_acesso_facial: 1 },
       ...agOverrides,
     };
     const client = {
@@ -99,8 +99,8 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
     expect(client.removePerson).not.toHaveBeenCalled();
   });
 
-  it('área sem reserva obrigatória (precisa_agendar!=1) → não faz nada', async () => {
-    const { svc, client } = build({ area: { id_condominio: 1, precisa_agendar: 0 } });
+  it('área sem controle de acesso (controle_acesso_facial!=1) → não faz nada', async () => {
+    const { svc, client } = build({ area: { id_condominio: 1, controle_acesso_facial: 0 } });
     const res = await svc.syncReservaArea(100);
     expect(res).toEqual(expect.objectContaining({ skipped: true }));
     expect(client.enrollPerson).not.toHaveBeenCalled();

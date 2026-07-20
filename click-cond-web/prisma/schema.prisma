@@ -408,6 +408,10 @@ model Areas_Sociais {
   precisa_agendar     Int                          @default(0) @db.TinyInt
   precisa_autorizacao Int                          @default(0) @db.TinyInt
   precisa_pagamento   Int                          @default(0) @db.TinyInt
+  // Controle de acesso por reserva no facial (só quem reservou entra). Separado
+  // de id_area_social (que serve só p/ CONTAR ocupação — pode ser a portaria).
+  // Só habilite em áreas com terminal DEDICADO — nunca na entrada principal.
+  controle_acesso_facial Int                       @default(0) @db.TinyInt
   horarios            String?                      @db.Text
   capacidade          Int?
   id_condominio       Int
