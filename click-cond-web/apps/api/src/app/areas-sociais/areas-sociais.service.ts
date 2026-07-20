@@ -2,6 +2,7 @@ import { Injectable, ForbiddenException, NotFoundException, BadRequestException,
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
+import { FacialService } from '../facial/facial.service';
 
 const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
 
@@ -13,6 +14,7 @@ export class AreasSociaisService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly storage: StorageService,
+    private readonly facial: FacialService,
   ) {}
 
   private parseTime(timeStr: string | null | undefined): [number, number] {
@@ -407,7 +409,7 @@ export class AreasSociaisService {
       ? 'aprovado'
       : area?.precisa_autorizacao === 1 ? 'pendente' : 'aprovado';
 
-    await this.prisma.areas_Sociais_Agendamentos.create({
+    const criado = await this.prisma.areas_Sociais_Agendamentos.create({
       data: {
         id_area_social: Number(agendamento.id_area_social),
         id_user: donoReservaId,
@@ -418,6 +420,13 @@ export class AreasSociaisService {
         status: statusInicial,
       },
     });
+
+    // Já nasceu aprovada → enrola os moradores do apto no facial da área.
+    if (statusInicial === 'aprovado') {
+      this.facial
+        .syncReservaArea(criado.id)
+        .catch((err) => this.logger.warn(`syncReservaArea (insert) ag ${criado.id}: ${err?.message ?? err}`));
+    }
 
     return { success: true, status: statusInicial };
   }
@@ -432,6 +441,21 @@ export class AreasSociaisService {
       if (!ag || ag.id_user !== Number(userId)) {
         throw new ForbiddenException('Você só pode remover seus próprios agendamentos.');
       }
+    }
+
+    // Cancelamento: se estava aprovada, revoga o acesso facial ANTES de apagar
+    // (marca 'recusado' → syncReservaArea remove os moradores do terminal).
+    const agAntes = await this.prisma.areas_Sociais_Agendamentos.findUnique({
+      where: { id: Number(id) },
+    });
+    if (agAntes?.status === 'aprovado') {
+      await this.prisma.areas_Sociais_Agendamentos.update({
+        where: { id: Number(id) },
+        data: { status: 'recusado' },
+      });
+      await this.facial
+        .syncReservaArea(Number(id))
+        .catch((err) => this.logger.warn(`syncReservaArea (remove) ag ${id}: ${err?.message ?? err}`));
     }
 
     await this.prisma.areas_Sociais_Agendamentos.delete({
@@ -552,6 +576,14 @@ export class AreasSociaisService {
         area: true,
       },
     });
+
+    // Check-in por facial: aprovado enrola os moradores do apto no terminal da
+    // área (janela do horário); recusado remove. Fire-and-forget.
+    this.facial
+      .syncReservaArea(Number(id))
+      .catch((err) =>
+        this.logger.warn(`syncReservaArea (status) ag ${id}: ${err?.message ?? err}`),
+      );
 
     // Send push notification if the user has an fcm_token
     if (agendamento && agendamento.user && agendamento.user.fcm_token) {

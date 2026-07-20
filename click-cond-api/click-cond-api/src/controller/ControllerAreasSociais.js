@@ -2,6 +2,7 @@ const { insertAgendamento } = require('../database/DB_AreasSociais.js');
 const db = require('../database/DB_AreasSociais.js');
 const saveToAWS = require('../utils/saveToAWS');
 const stringExtension = require('../utils/stringExtension.js');
+const facialSync = require('../services/facialSync.js');
 
 module.exports = {
   async insert(req, res) {
@@ -183,7 +184,13 @@ module.exports = {
 
   async updateStatusAgendamento(req, res) {
     try {
-      await db.updateStatusAgendamento(req.body.agendamento, id, req.body.id, req.body.agendamento.status, req.body.agendamento.motivo);
+      const idAg = req.body.id;
+      const status = req.body.agendamento && req.body.agendamento.status;
+      await db.updateStatusAgendamento(idAg, status);
+      // Check-in por facial: dispara enrolamento/remoção no NestJS (best-effort).
+      facialSync
+        .triggerReservaAreaSync(idAg)
+        .catch((e) => console.warn('[areas] facial reserva sync falhou:', e.message));
       return res.json();
     } catch (err) {
       return res.status(500).json({ message: err.message });

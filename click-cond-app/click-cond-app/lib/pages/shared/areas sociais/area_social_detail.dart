@@ -399,6 +399,32 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                                 _buildWeatherWidget(),
                                 if (obj['precisa_agendar'] == 1) ...[
                                   const SizedBox(height: AppSpacing.lg),
+                                  if (obj['tem_monitoramento'] == true)
+                                    Container(
+                                      width: double.infinity,
+                                      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                                      padding: const EdgeInsets.all(AppSpacing.md),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                            color: AppColors.primary.withOpacity(0.25)),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(PhosphorIcons.userCircle,
+                                              size: 18, color: AppColors.primary),
+                                          const SizedBox(width: AppSpacing.sm),
+                                          Expanded(
+                                            child: Text(
+                                              'Acesso por reconhecimento facial: liberado automaticamente durante o horário da sua reserva aprovada.',
+                                              style: AppTypography.caption(context),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [

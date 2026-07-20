@@ -318,6 +318,23 @@ export class FacialController {
     return this.service.syncVisitante(id);
   }
 
+  /**
+   * Sync interno de reserva de área social (server-to-server) — usado pelo
+   * Express (dev) ao aprovar/recusar reserva. Autenticado por INTERNAL_SYNC_TOKEN.
+   */
+  @Public()
+  @Post('internal/sync/reserva/:id')
+  async internalSyncReserva(
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-internal-token') token: string | undefined,
+  ) {
+    const expected = process.env['INTERNAL_SYNC_TOKEN'];
+    if (!expected || !token || token !== expected) {
+      throw new UnauthorizedException('Token interno inválido.');
+    }
+    return this.service.syncReservaArea(id);
+  }
+
   @Get('acessos')
   acessos(
     @Query('id_condominio', ParseIntPipe) idCondominio: number,

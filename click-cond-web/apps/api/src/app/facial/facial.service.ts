@@ -118,6 +118,11 @@ export class FacialService {
     // depender de clique manual no portal. Só roda com agente online.
     setTimeout(() => void this.tickSyncRetry(), 7 * 60 * 1000);
     setInterval(() => void this.tickSyncRetry(), 30 * 60 * 1000);
+
+    // Tick novo — áreas sociais: pré-enrola/reconcilia reservas aprovadas de
+    // hoje no facial da área (delay 4 min, a cada 10 min).
+    setTimeout(() => void this.tickReservasAreas(), 4 * 60 * 1000);
+    setInterval(() => void this.tickReservasAreas(), 10 * 60 * 1000);
   }
 
   /**
@@ -944,11 +949,15 @@ export class FacialService {
 
     const categoria: CategoriaPessoa =
       morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador';
+    // Terminais de área com reserva obrigatória são geridos SÓ pelo motor de
+    // reservas (syncReservaArea): morador não é enrolado por padrão aqui.
+    const gatedAreaIds = await this.gatedAreaDeviceIds(morador.id_condominio);
     let faceId: string | null = morador.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
     const devicesSincronizados: number[] = [];
     for (const device of devices) {
+      if (gatedAreaIds.has(device.id)) continue;
       try {
         const permitidas = await this.categoriasPermitidasNoDispositivo(device);
         if (!this.categoriaAutorizada(permitidas, categoria)) {
@@ -1055,6 +1064,182 @@ export class FacialService {
       .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
       .slice(0, 10);
     return `${hoje} 23:59:59`;
+  }
+
+  // ==========================================================================
+  // ÁREAS SOCIAIS — check-in por facial gated por reserva
+  // ==========================================================================
+
+  /** IDs dos terminais faciais de áreas com reserva obrigatória (gated). */
+  private async gatedAreaDeviceIds(idCondominio: number): Promise<Set<number>> {
+    const areas = await this.prisma.areas_Sociais.findMany({
+      where: { id_condominio: idCondominio, precisa_agendar: 1 },
+      select: { id: true },
+    });
+    const areaIds = areas.map((a) => a.id);
+    if (areaIds.length === 0) return new Set();
+    const rows = await this.prisma.facial_Devices.findMany({
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        tipo: 'facial',
+        id_area_social: { in: areaIds },
+      },
+      select: { id: true },
+    });
+    return new Set(rows.map((r) => r.id));
+  }
+
+  /**
+   * Janela "YYYY-MM-DD HH:MM:SS" (BRT, wall-clock) da reserva, montada direto
+   * dos campos DATE + TIME (que já são horário local, sem timezone) — é o
+   * formato que o aparelho espera. Ver formatDahuaTime (que é p/ instantes).
+   */
+  private janelaReserva(ag: {
+    data: Date | null;
+    hora_de: Date | null;
+    hora_ate: Date | null;
+  }): { validFrom?: string; validTo?: string } {
+    if (!ag.data) return {};
+    const dia = ag.data.toISOString().slice(0, 10); // YYYY-MM-DD
+    const hhmmss = (t: Date | null) => (t ? t.toISOString().slice(11, 19) : null);
+    const de = hhmmss(ag.hora_de) ?? '00:00:00';
+    const ate = hhmmss(ag.hora_ate) ?? '23:59:59';
+    return { validFrom: `${dia} ${de}`, validTo: `${dia} ${ate}` };
+  }
+
+  /** O apartamento tem OUTRA reserva aprovada vigente/futura nesta área? */
+  private async aptoTemOutraReservaVigente(
+    idArea: number,
+    idApto: number,
+    excluirAgId: number,
+  ): Promise<boolean> {
+    const hojeStr = new Date().toISOString().slice(0, 10);
+    const c = await this.prisma.areas_Sociais_Agendamentos.count({
+      where: {
+        id_area_social: idArea,
+        id_apartamento: idApto,
+        status: 'aprovado',
+        NOT: { id: excluirAgId },
+        data: { gte: new Date(hojeStr) },
+      },
+    });
+    return c > 0;
+  }
+
+  /**
+   * Enrola/remove os moradores do apartamento no(s) terminal(is) facial(is) da
+   * área conforme o status da reserva. Aprovado → enrola com a janela do
+   * horário (o aparelho nega sozinho fora dela). Recusado/removido → remove
+   * (a menos que o apto tenha outra reserva vigente). Fire-and-forget.
+   */
+  async syncReservaArea(idAgendamento: number) {
+    if (FACIAL_DISABLED) return { skipped: true, reason: 'integration_disabled' };
+    if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
+
+    const ag = await this.prisma.areas_Sociais_Agendamentos.findUnique({
+      where: { id: Number(idAgendamento) },
+      include: { area: { select: { id_condominio: true, precisa_agendar: true } } },
+    });
+    if (!ag || !ag.area) return { skipped: true, reason: 'not_found' };
+    if (ag.area.precisa_agendar !== 1) return { skipped: true, reason: 'area_sem_reserva' };
+    const idCond = ag.area.id_condominio;
+
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: { id_area_social: ag.id_area_social, ativo: 1, tipo: 'facial' },
+    });
+    if (devices.length === 0) return { skipped: true, reason: 'no_area_device' };
+
+    // Moradores do apartamento (com foto) que reservou.
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_apto: ag.id_apartamento },
+      select: { id_user: true },
+    });
+    const userIds = vinculos.map((v) => v.id_user);
+    const moradores = userIds.length
+      ? await this.prisma.moradores.findMany({
+          where: { id_user: { in: userIds }, id_condominio: idCond },
+        })
+      : [];
+
+    const aprovado = ag.status === 'aprovado';
+    const { validFrom, validTo } = this.janelaReserva(ag);
+    const manterSeOutraReserva = !aprovado
+      ? await this.aptoTemOutraReservaVigente(ag.id_area_social, ag.id_apartamento, ag.id)
+      : false;
+
+    for (const device of devices) {
+      for (const m of moradores) {
+        const externalId = `morador_${m.id}`;
+        try {
+          if (aprovado) {
+            if (!m.foto_pessoa) continue; // sem foto: não dá p/ enrolar
+            const fotoBase64 = await this.fetchPhotoAsBase64(m.foto_pessoa);
+            if (!fotoBase64) continue;
+            await this.client.enrollPerson(this.toConfig(device), {
+              externalId,
+              nome: m.nome,
+              fotoBase64,
+              validFrom,
+              validTo,
+              userTimes: -1,
+            });
+          } else if (!manterSeOutraReserva) {
+            await this.client.removePerson(
+              this.toConfig(device),
+              m.face_id ?? externalId,
+            );
+          }
+        } catch (err: any) {
+          this.logger.warn(
+            `syncReservaArea ag ${idAgendamento} morador ${m.id} device ${device.id}: ${err?.message ?? err}`,
+          );
+        }
+      }
+    }
+    return { ok: true, devices: devices.length, moradores: moradores.length, aprovado };
+  }
+
+  /**
+   * Reconciliação periódica: re-enrola (idempotente) as reservas APROVADAS de
+   * hoje cujo horário ainda não terminou — cobre pré-enrolamento e re-tentativa
+   * quando o agente estava offline na aprovação. Cleanup pós-horário é feito
+   * pelo próprio aparelho (validTo). Espelha os demais ticks.
+   */
+  private async tickReservasAreas() {
+    if (FACIAL_DISABLED || !this.prisma.isConnected) return;
+    try {
+      const hojeStr = new Date().toISOString().slice(0, 10);
+      const agoraStr = new Date()
+        .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
+        .replace(',', '');
+      const ags = await this.prisma.areas_Sociais_Agendamentos.findMany({
+        where: {
+          status: 'aprovado',
+          data: new Date(hojeStr),
+          area: {
+            precisa_agendar: 1,
+            devices: { some: { ativo: 1, tipo: 'facial' } },
+          },
+        },
+        select: { id: true, data: true, hora_de: true, hora_ate: true },
+      });
+      let processados = 0;
+      for (const ag of ags) {
+        const { validTo } = this.janelaReserva(ag);
+        // Já terminou hoje? aparelho já nega sozinho — não gasta ciclo.
+        if (validTo && validTo < agoraStr) continue;
+        await this.syncReservaArea(ag.id).catch((e) =>
+          this.logger.warn(`tickReservasAreas ag ${ag.id}: ${e?.message ?? e}`),
+        );
+        processados++;
+      }
+      if (processados > 0) {
+        this.logger.log(`tickReservasAreas: ${processados} reserva(s) sincronizada(s)`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`tickReservasAreas erro: ${e?.message ?? e}`);
+    }
   }
 
   async syncVisitante(idVisitante: number, opts: { deviceIds?: number[] } = {}) {

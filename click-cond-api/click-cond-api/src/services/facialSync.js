@@ -40,4 +40,22 @@ async function triggerFacialSyncVisitante(idVisitante, idCondominio) {
   }
 }
 
-module.exports = { triggerFacialSyncVisitante };
+/**
+ * Dispara o sync de uma reserva de área social no NestJS (enrola/remove os
+ * moradores do apto no terminal facial da área conforme o status). Best-effort.
+ */
+async function triggerReservaAreaSync(idAgendamento) {
+  if (!idAgendamento || !INTERNAL_SYNC_TOKEN) return;
+  try {
+    const url = `${NEST_URL}/api/facial/internal/sync/reserva/${idAgendamento}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'x-internal-token': INTERNAL_SYNC_TOKEN },
+    });
+    console.log(`[facialSync] POST ${url} -> ${resp.status}`);
+  } catch (e) {
+    console.warn('[facialSync] POST reserva NestJS falhou:', e.message);
+  }
+}
+
+module.exports = { triggerFacialSyncVisitante, triggerReservaAreaSync };
