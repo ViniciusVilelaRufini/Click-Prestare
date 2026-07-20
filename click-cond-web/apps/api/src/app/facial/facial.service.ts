@@ -1212,6 +1212,15 @@ export class FacialService {
       // Strings "YYYY-MM-DD HH:MM:SS" comparam cronologicamente.
       validTo = !validTo || validTo > fimHoje ? fimHoje : validTo;
     }
+    // Visitante com VAGA ativa (o morador reservou uma vaga p/ o carro dele)
+    // pode entrar/sair quantas vezes quiser na janela — como prestador, UseTime
+    // ilimitado. Sem isso, o contador (2 = entra+sai) esgota após a 1ª saída e
+    // ele não consegue reentrar mesmo dentro da validade.
+    const temVagaAtiva =
+      (await this.prisma.vagas.count({
+        where: { id_visitante: visitante.id, ativo: 1 },
+      })) > 0;
+
     let faceId: string | null = visitante.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
@@ -1249,8 +1258,10 @@ export class FacialService {
         // uma única aproximação dispara vários frames — a entrada pode queimar
         // mais de 1 uso. Por isso o re-sync pós-entrada regrava o contador:
         // dentro do condomínio só resta a SAÍDA → exatamente 1 uso.
+        // Prestador e visitante-com-vaga: usos ILIMITADOS (-1) — entram/saem
+        // livremente dentro da janela. Visitante comum: contador limitado.
         let userTimes = -1;
-        if (visitante.is_prestador !== 1) {
+        if (visitante.is_prestador !== 1 && !temVagaAtiva) {
           if (dentroDoCondominio) userTimes = 1;
           else userTimes = device.sentido === 'auto' ? 2 : 1;
         }
