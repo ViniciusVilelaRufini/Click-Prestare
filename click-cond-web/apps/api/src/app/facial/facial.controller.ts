@@ -335,6 +335,21 @@ export class FacialController {
     return this.service.syncReservaArea(id);
   }
 
+  /** Reconcilia o gating de uma área (remove não-reservados / re-enrola). Token interno. */
+  @Public()
+  @Post('internal/reconcile-area/:id')
+  async internalReconcileArea(
+    @Param('id', ParseIntPipe) id: number,
+    @Headers('x-internal-token') token: string | undefined,
+  ) {
+    const expected = process.env['INTERNAL_SYNC_TOKEN'];
+    if (!expected || !token || token !== expected) {
+      throw new UnauthorizedException('Token interno inválido.');
+    }
+    await this.service.reconcileAreaGating(id);
+    return { ok: true };
+  }
+
   /** Re-sync em massa dos rostos do condomínio (ops/restauração). Token interno. */
   @Public()
   @Post('internal/resync-condominio/:id')
