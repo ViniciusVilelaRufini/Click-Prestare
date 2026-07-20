@@ -1211,6 +1211,13 @@
                             >Erro</span
                           >
                         }
+                        @if (v.temVaga) {
+                          <span
+                            class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 uppercase"
+                            [title]="v.vagaMorador ? 'Vaga vinculada por ' + v.vagaMorador : 'Vaga vinculada'"
+                            >Vaga</span
+                          >
+                        }
                         @if ($any(v).visitasAnteriores > 0) {
                           <span
                             class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-accent/10 border border-accent/25 text-accent"
@@ -2669,6 +2676,44 @@
                 </div>
               </div>
             </div>
+
+            <!-- Vaga vinculada -->
+            @if (d.visitante.vaga; as vg) {
+              <div
+                class="bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl p-4"
+              >
+                <h3
+                  class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11m-14 0h14m-14 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-5M7 14h.01M17 14h.01" />
+                  </svg>
+                  Vaga vinculada
+                </h3>
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <div class="text-[10px] text-slate-500 mb-0.5">Vinculada por</div>
+                    <div class="font-semibold text-slate-800 dark:text-white">{{ vg.morador || '—' }}</div>
+                  </div>
+                  @if (vg.placa) {
+                    <div>
+                      <div class="text-[10px] text-slate-500 mb-0.5">Placa</div>
+                      <div class="font-semibold text-slate-800 dark:text-white">{{ vg.placa }}</div>
+                    </div>
+                  }
+                  @if (vg.inicio) {
+                    <div class="col-span-2">
+                      <div class="text-[10px] text-slate-500 mb-0.5">Período da vaga</div>
+                      <div class="font-semibold text-slate-800 dark:text-white text-[11px]">
+                        {{ vg.inicio | date: 'dd/MM HH:mm' }} →
+                        {{ vg.fim ? (vg.fim | date: 'dd/MM HH:mm') : 'aberto' }}
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
 
             <!-- Timeline -->
             <div

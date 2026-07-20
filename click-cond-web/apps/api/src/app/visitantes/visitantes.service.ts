@@ -424,6 +424,22 @@ export class VisitantesService {
       grupos.set(key, arr);
     }
 
+    // Vagas ativas (uma consulta) → mapa id_visitante → nome do morador que
+    // vinculou, p/ mostrar o selo "Vaga" e quem reservou na lista.
+    const idsTodos = todas.map((v) => v.id);
+    const vagasAtivas = idsTodos.length
+      ? await this.prisma.vagas.findMany({
+          where: { id_visitante: { in: idsTodos }, ativo: 1 },
+          include: { titular: { select: { nome: true } } },
+        })
+      : [];
+    const vagaPorVisitante = new Map<number, string | null>();
+    for (const vg of vagasAtivas) {
+      if (vg.id_visitante != null) {
+        vagaPorVisitante.set(vg.id_visitante, vg.titular?.nome ?? null);
+      }
+    }
+
     // Score do registro principal (qual representa a pessoa na lista)
     const score = (v: Reg) => {
       if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
@@ -484,6 +500,11 @@ export class VisitantesService {
         }
       }
 
+      // Vaga vinculada ativa (qualquer registro dessa pessoa) + quem vinculou.
+      const idVisComVaga = arr.map((r) => r.id).find((id) => vagaPorVisitante.has(id));
+      const temVaga = idVisComVaga != null;
+      const vagaMorador = temVaga ? vagaPorVisitante.get(idVisComVaga) ?? null : null;
+
       pessoas.push({
         // Identidade da pessoa
         id: principal.id, // id do registro principal (compatível com ações antigas)
@@ -507,6 +528,10 @@ export class VisitantesService {
         // Tag RFID (credencial) — dado da pessoa, usado na edição e no badge
         tag_rfid: principal.tag_rfid ?? null,
         bloqueado: arr.some((r) => r.bloqueado === 1) ? 1 : 0,
+
+        // Vaga vinculada (o morador reservou vaga p/ o carro do visitante).
+        temVaga,
+        vagaMorador,
 
         // Status atual (agregado de TODAS as visitas)
         noLocal,
@@ -1377,6 +1402,22 @@ export class VisitantesService {
     const categoriasPessoa =
       porRecencia.map((r) => r.categorias).find((c) => c && String(c).trim()) ?? null;
 
+    // Vaga vinculada ativa (o morador reservou uma vaga p/ o carro do visitante).
+    // Mostra quem vinculou (titular da vaga) + placa/janela.
+    const vagaAtiva = await this.prisma.vagas.findFirst({
+      where: { id_visitante: { in: todosVisIds }, ativo: 1 },
+      include: { titular: { select: { nome: true } } },
+      orderBy: { id: 'desc' },
+    });
+    const vaga = vagaAtiva
+      ? {
+          morador: vagaAtiva.titular?.nome ?? null,
+          placa: vagaAtiva.placa ?? null,
+          inicio: vagaAtiva.inicio?.toISOString() ?? null,
+          fim: vagaAtiva.fim?.toISOString() ?? null,
+        }
+      : null;
+
     return {
       visitante: {
         id: v.id,
@@ -1403,6 +1444,7 @@ export class VisitantesService {
         dias_semana: diasSemanaPessoa,
         categorias: categoriasPessoa,
         bloqueado: v.bloqueado ?? 0,
+        vaga,
       },
       stats: {
         totalEntradas,

@@ -54,6 +54,13 @@ export interface VisitanteDetalhes {
     categorias?: string | null;
     bloqueado?: number;
     created_at: string;
+    // Vaga vinculada (o morador reservou vaga p/ o carro do visitante).
+    vaga?: {
+      morador: string | null;
+      placa: string | null;
+      inicio: string | null;
+      fim: string | null;
+    } | null;
   };
   stats: {
     totalEntradas: number;
@@ -126,6 +133,10 @@ export interface Pessoa {
   // Portaria remota: estado da autorização em tempo real.
   auth_status?: 'pendente' | 'autorizado' | 'negado' | null;
   auth_solicitado_em?: string | null;
+
+  // Vaga vinculada (morador reservou vaga p/ o carro do visitante).
+  temVaga?: boolean;
+  vagaMorador?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
