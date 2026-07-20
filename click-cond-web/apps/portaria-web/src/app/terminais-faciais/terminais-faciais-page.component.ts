@@ -530,6 +530,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       api_user: '',
       api_password: '',
       id_area_social: null,
+      controle_acesso_facial: false,
     };
   }
 
@@ -608,6 +609,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       api_user: t.api_user ?? '',
       api_password: '',
       id_area_social: t.id_area_social ?? null,
+      controle_acesso_facial: t.controle_acesso_facial === 1,
     };
     this.showModal.set(true);
   }
@@ -656,6 +658,11 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       id_area_social: this.mostrarArea
         ? (this.form.id_area_social ? Number(this.form.id_area_social) : null)
         : null,
+      // Só faz sentido com área vinculada; sem área, sempre 0.
+      controle_acesso_facial:
+        this.mostrarArea && this.form.id_area_social
+          ? !!this.form.controle_acesso_facial
+          : false,
     };
 
     const id = this.editingId();

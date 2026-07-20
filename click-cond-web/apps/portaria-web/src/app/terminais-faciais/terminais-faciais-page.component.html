@@ -944,6 +944,31 @@
                 Vincule à academia, quadra, etc. para mostrar no app quantas
                 pessoas estão dentro agora (entradas menos saídas do dia).
               </p>
+
+              <!-- Controle de acesso por reserva (só aparece com área vinculada) -->
+              @if (form.id_area_social) {
+                <label
+                  class="flex items-start gap-2 mt-1.5 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="form.controle_acesso_facial"
+                    name="controle_acesso_facial"
+                    class="mt-0.5 accent-accent"
+                  />
+                  <span class="text-[11px] text-slate-600 dark:text-slate-300">
+                    <span class="font-semibold text-amber-700 dark:text-amber-400"
+                      >Exigir reserva aprovada para entrar</span
+                    >
+                    — só moradores com reserva aprovada acessam, na janela do
+                    horário; o resto é negado no aparelho.
+                    <span class="text-red-600 dark:text-red-400"
+                      >⚠️ Não use na ENTRADA PRINCIPAL do prédio (trancaria todos
+                      os moradores).</span
+                    >
+                  </span>
+                </label>
+              }
             </div>
           }
 

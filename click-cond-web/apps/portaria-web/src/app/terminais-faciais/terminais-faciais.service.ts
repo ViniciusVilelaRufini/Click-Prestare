@@ -24,6 +24,8 @@ export interface TerminalFacial {
   ultima_sincr: string | null;
   /** Área de lazer monitorada por este terminal (opcional); conta a ocupação. */
   id_area_social: number | null;
+  /** Controle de acesso por reserva da área vinculada (1 = só entra quem reservou). */
+  controle_acesso_facial?: number;
   created_at: string;
   updated_at: string;
   /** True se há um Agente Local fazendo polling deste device agora. */
@@ -47,6 +49,7 @@ export interface CreateTerminalFacial {
   api_user?: string;
   api_password?: string;
   id_area_social?: number | null;
+  controle_acesso_facial?: number | boolean;
 }
 
 export interface AcessoFacial {

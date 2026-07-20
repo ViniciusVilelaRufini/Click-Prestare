@@ -45,6 +45,12 @@ export interface CreateDeviceDto {
    * deste device contam para a ocupação daquela área. null/omitido = terminal comum.
    */
   id_area_social?: number | null;
+  /**
+   * Liga o CONTROLE DE ACESSO POR RESERVA na área vinculada (só entra quem
+   * reservou). Aplicado à Areas_Sociais.controle_acesso_facial da área do
+   * id_area_social. Separado da ocupação. NUNCA usar na entrada principal.
+   */
+  controle_acesso_facial?: number | boolean;
 }
 
 export interface UpdateDeviceDto extends Partial<CreateDeviceDto> {}
@@ -223,6 +229,7 @@ export class FacialService {
     });
     // agent_online: indica se há um Agente Local fazendo polling deste device
     // agora. É o sinal de "está pronto para receber comandos da nuvem".
+    const flagPorArea = await this.flagsControleAcessoPorArea(devices);
     return devices.map((d) => ({
       ...d,
       api_password: decryptSecret(d.api_password),
@@ -230,7 +237,27 @@ export class FacialService {
       // null = desconhecido (sem reporte recente do agente); true/false = status
       // real do aparelho na LAN, atualizado pelo heartbeat do agente.
       device_online: this.agent.isDeviceOnline(d.id),
+      // Controle de acesso por reserva da ÁREA vinculada (p/ o toggle na UI).
+      controle_acesso_facial:
+        d.id_area_social != null ? flagPorArea.get(d.id_area_social) ?? 0 : 0,
     }));
+  }
+
+  /** Mapa id_area → controle_acesso_facial p/ um conjunto de devices. */
+  private async flagsControleAcessoPorArea(
+    devices: { id_area_social: number | null }[],
+  ): Promise<Map<number, number>> {
+    const areaIds = [
+      ...new Set(
+        devices.map((d) => d.id_area_social).filter((x): x is number => x != null),
+      ),
+    ];
+    if (areaIds.length === 0) return new Map();
+    const areas = await this.prisma.areas_Sociais.findMany({
+      where: { id: { in: areaIds } },
+      select: { id: true, controle_acesso_facial: true },
+    });
+    return new Map(areas.map((a) => [a.id, a.controle_acesso_facial]));
   }
 
   /**
@@ -322,7 +349,13 @@ export class FacialService {
   async getDevice(id: number) {
     const d = await this.prisma.facial_Devices.findUnique({ where: { id } });
     if (!d) throw new NotFoundException(`Terminal facial ${id} não encontrado`);
-    return { ...d, api_password: decryptSecret(d.api_password) };
+    const flagPorArea = await this.flagsControleAcessoPorArea([d]);
+    return {
+      ...d,
+      api_password: decryptSecret(d.api_password),
+      controle_acesso_facial:
+        d.id_area_social != null ? flagPorArea.get(d.id_area_social) ?? 0 : 0,
+    };
   }
 
   /**
@@ -583,7 +616,96 @@ export class FacialService {
       descricao: `Alterou dispositivo "${atual.nome}"`,
       detalhes: { changes: diff },
     });
+
+    // Controle de acesso por reserva: aplica na ÁREA vinculada e reconcilia
+    // (remove/re-enrola moradores conforme ligar/desligar).
+    if (dto.controle_acesso_facial !== undefined && atual.id_area_social != null) {
+      const valor = dto.controle_acesso_facial ? 1 : 0;
+      await this.prisma.areas_Sociais.update({
+        where: { id: atual.id_area_social },
+        data: { controle_acesso_facial: valor },
+      });
+      this.reconcileAreaGating(atual.id_area_social).catch((e) =>
+        this.logger.warn(`reconcileAreaGating ${atual.id_area_social}: ${e?.message ?? e}`),
+      );
+    }
+
     return { ...atual, api_password: decryptSecret(atual.api_password) };
+  }
+
+  /**
+   * Reconcilia o gating de uma área ao ligar/desligar `controle_acesso_facial`.
+   * LIGADO: remove do(s) terminal(is) da área todos os moradores SEM reserva
+   * vigente e enrola os reservados (janela). DESLIGADO: re-enrola todos os
+   * moradores do condomínio nesses terminais (restaura acesso). Fire-and-forget.
+   */
+  async reconcileAreaGating(idArea: number) {
+    if (FACIAL_DISABLED || !this.prisma.isConnected) return;
+    const area = await this.prisma.areas_Sociais.findUnique({ where: { id: Number(idArea) } });
+    if (!area) return;
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: { id_area_social: Number(idArea), ativo: 1, tipo: 'facial' },
+    });
+    if (devices.length === 0) return;
+
+    if (area.controle_acesso_facial !== 1) {
+      // Desligou → re-enrola todos os moradores do condomínio nesses terminais.
+      const moradores = await this.prisma.moradores.findMany({
+        where: { id_condominio: area.id_condominio },
+        select: { id: true },
+      });
+      const deviceIds = devices.map((d) => d.id);
+      for (const m of moradores) {
+        this.syncMorador(m.id, { deviceIds }).catch((e) =>
+          this.logger.warn(`reconcile re-enroll morador ${m.id}: ${e?.message ?? e}`),
+        );
+      }
+      return;
+    }
+
+    // Ligou → conjunto reservado (aptos com reserva aprovada vigente/futura).
+    const hojeStr = new Date().toISOString().slice(0, 10);
+    const reservas = await this.prisma.areas_Sociais_Agendamentos.findMany({
+      where: { id_area_social: Number(idArea), status: 'aprovado', data: { gte: new Date(hojeStr) } },
+      select: { id: true, id_apartamento: true },
+    });
+    const aptosReservados = [...new Set(reservas.map((r) => r.id_apartamento))];
+    const usersReservados = aptosReservados.length
+      ? await this.prisma.apartamentos_Users.findMany({
+          where: { id_apto: { in: aptosReservados } },
+          select: { id_user: true },
+        })
+      : [];
+    const userIds = usersReservados.map((u) => u.id_user);
+    const moradoresReservados = userIds.length
+      ? await this.prisma.moradores.findMany({
+          where: { id_user: { in: userIds }, id_condominio: area.id_condominio },
+          select: { id: true },
+        })
+      : [];
+    const reservadoSet = new Set(moradoresReservados.map((m) => m.id));
+
+    // Remove do terminal quem NÃO tem reserva vigente.
+    const todos = await this.prisma.moradores.findMany({
+      where: { id_condominio: area.id_condominio },
+      select: { id: true, face_id: true },
+    });
+    for (const device of devices) {
+      for (const m of todos) {
+        if (reservadoSet.has(m.id)) continue;
+        try {
+          await this.client.removePerson(this.toConfig(device), m.face_id ?? `morador_${m.id}`);
+        } catch (e: any) {
+          this.logger.warn(`reconcile remove morador ${m.id} device ${device.id}: ${e?.message ?? e}`);
+        }
+      }
+    }
+    // Enrola os reservados vigentes (com a janela do horário).
+    for (const r of reservas) {
+      this.syncReservaArea(r.id).catch((e) =>
+        this.logger.warn(`reconcile enroll reserva ${r.id}: ${e?.message ?? e}`),
+      );
+    }
   }
 
   async removeDevice(id: number, operador?: JwtPayload) {
