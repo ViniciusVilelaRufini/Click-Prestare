@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/ocorrencias/new_ocorrencia.dart';
+import 'package:click/pages/shared/ocorrencias/ocorrencia_sla.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -88,6 +89,78 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
       if (mounted) displayMessage(context, getText('alert_error'), e.toString());
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _abrirAtribuir() async {
+    // Carrega funcionários do condomínio (id_user = Users.id p/ o responsável).
+    List<dynamic> funcs = [];
+    try {
+      funcs = await apiGetAll("funcionarios");
+    } catch (_) {}
+    // Filtra os que possuem vínculo com Users (id_user em prod, id em dev).
+    final elegiveis = funcs.where((f) => (f['id_user'] ?? f['id']) != null).toList();
+    if (!mounted) return;
+    if (elegiveis.isEmpty) {
+      displayMessage(context, getText('alert_ops'), 'Nenhum funcionário disponível para atribuição.');
+      return;
+    }
+    final selecionado = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: AppSpacing.md),
+            Text('Atribuir responsável', style: AppTypography.bodyMedium(ctx).copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: AppSpacing.sm),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  if (obj?['id_responsavel'] != null)
+                    ListTile(
+                      leading: Icon(PhosphorIcons.userMinus, color: AppColors.error),
+                      title: Text('Remover atribuição', style: AppTypography.body(ctx).copyWith(color: AppColors.error)),
+                      onTap: () => Navigator.pop(ctx, {'id_user': null}),
+                    ),
+                  ...elegiveis.map((f) => ListTile(
+                        leading: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          child: Text(
+                            (f['nome'] ?? '?').toString().substring(0, 1).toUpperCase(),
+                            style: AppTypography.captionMedium(ctx).copyWith(color: AppColors.primary),
+                          ),
+                        ),
+                        title: Text(f['nome'] ?? '', style: AppTypography.body(ctx)),
+                        subtitle: (f['funcao'] ?? '').toString().isNotEmpty
+                            ? Text(f['funcao'], style: AppTypography.caption(ctx))
+                            : null,
+                        onTap: () => Navigator.pop(ctx, {'id_user': f['id_user'] ?? f['id']}),
+                      )),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+    if (selecionado == null || !mounted) return;
+    final idResp = selecionado['id_user'] == null ? null : (selecionado['id_user'] as num).toInt();
+    setState(() => _isSaving = true);
+    final res = await apiUpdateResponsavel(widget.id, idResp);
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    if (res == "") {
+      await load();
+    } else {
+      displayMessage(context, getText('alert_error'), res.toString());
     }
   }
 
@@ -191,6 +264,53 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                               ],
                             ),
                           ],
+                          // Prazo (SLA)
+                          const SizedBox(height: AppSpacing.sm),
+                          Row(
+                            children: [
+                              Icon(PhosphorIcons.timer, size: 16, color: AppColors.textSecondary(context)),
+                              const SizedBox(width: 8),
+                              Text('Prazo: ', style: AppTypography.captionMedium(context)),
+                              OcorrenciaSlaBadge(item: obj),
+                            ],
+                          ),
+                          // Responsável
+                          const SizedBox(height: AppSpacing.sm),
+                          Row(
+                            children: [
+                              Icon(PhosphorIcons.userGear, size: 16, color: AppColors.textSecondary(context)),
+                              const SizedBox(width: 8),
+                              Text('Responsável: ', style: AppTypography.captionMedium(context)),
+                              Expanded(
+                                child: Text(
+                                  (obj['responsavelNome']?.toString().isNotEmpty ?? false)
+                                      ? obj['responsavelNome'].toString()
+                                      : 'Não atribuído',
+                                  style: AppTypography.captionMedium(context).copyWith(
+                                    color: (obj['responsavelNome']?.toString().isNotEmpty ?? false)
+                                        ? AppColors.textPrimary(context)
+                                        : AppColors.textSecondary(context),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isPrivileged)
+                                TextButton.icon(
+                                  onPressed: _isSaving ? null : _abrirAtribuir,
+                                  icon: Icon(PhosphorIcons.userPlus, size: 15, color: AppColors.primary),
+                                  label: Text(
+                                    (obj['id_responsavel'] != null) ? 'Trocar' : 'Atribuir',
+                                    style: AppTypography.captionMedium(context).copyWith(color: AppColors.primary),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    minimumSize: const Size(0, 0),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ]),
                         const SizedBox(height: AppSpacing.md),
                         _InfoCard(children: [

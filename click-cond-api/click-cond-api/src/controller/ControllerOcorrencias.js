@@ -153,4 +153,50 @@ module.exports = {
     }
   },
 
+  // Atribui a ocorrencia a um funcionario (Users.id). Push do responsavel roda no
+  // NestJS (prod); em dev apenas persiste. id_responsavel null desatribui.
+  async updateResponsavel(req, res) {
+    try {
+      const user = req.session.user;
+      if (user.typeAccess !== 'Sindico' && user.typeAccess !== 'Funcionario') {
+        return res.status(403).json({ message: 'Acesso negado.' });
+      }
+      await db.updateResponsavel(req.body.id_condominio, req.body.id, req.body.id_responsavel);
+      return res.json();
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  async insertCategoria(req, res) {
+    try {
+      if (req.session.user.typeAccess !== 'Sindico') return res.status(403).json({ message: 'Acesso negado.' });
+      await db.insertCategoria(req.body.categoria || req.body);
+      return res.json();
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  async updateCategoria(req, res) {
+    try {
+      if (req.session.user.typeAccess !== 'Sindico') return res.status(403).json({ message: 'Acesso negado.' });
+      const cat = req.body.categoria || req.body;
+      await db.updateCategoria(cat.id, cat);
+      return res.json();
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
+  async removeCategoria(req, res) {
+    try {
+      if (req.session.user.typeAccess !== 'Sindico') return res.status(403).json({ message: 'Acesso negado.' });
+      await db.removeCategoria(req.body.id);
+      return res.json();
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  },
+
 };

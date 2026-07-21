@@ -1,5 +1,6 @@
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/ocorrencias/detail_ocorrencia.dart';
+import 'package:click/pages/shared/ocorrencias/ocorrencia_sla.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -60,7 +61,7 @@ class _ListOcorrenciasPendentesPageState extends State<ListOcorrenciasPendentes>
 
   Future<void> loadList() async {
     try {
-      setState(() => _isLoading = true);
+      if (list.isEmpty) setState(() => _isLoading = true);
       list = await apiGetAll("ocorrencias/pendentes");
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -240,14 +241,15 @@ class _OcorrenciaCard extends StatelessWidget {
                         child: Text(
                           (item['publica'] == true) ? 'Pública' : 'Privada',
                           style: AppTypography.captionMedium(context).copyWith(
-                            color: (item['publica'] == true) 
-                                ? const Color(0xFF22C55E) 
+                            color: (item['publica'] == true)
+                                ? const Color(0xFF22C55E)
                                 : AppColors.textSecondary(context),
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
+                      OcorrenciaSlaBadge(item: item, compact: true),
                     ],
                   ),
                   if (item['descricao'] != null)

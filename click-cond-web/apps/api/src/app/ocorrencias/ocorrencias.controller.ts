@@ -19,6 +19,32 @@ export class OcorrenciasController {
     return this.service.listCategorias();
   }
 
+  @Post('categorias')
+  createCategoria(
+    @Body() body: { nome: string; prioridade?: number; sla_horas?: number | null },
+  ) {
+    return this.service.createCategoria(body);
+  }
+
+  @Patch('categorias/:catId')
+  updateCategoria(
+    @Param('catId', ParseIntPipe) catId: number,
+    @Body() body: { nome?: string; prioridade?: number; sla_horas?: number | null },
+  ) {
+    return this.service.updateCategoria(catId, body);
+  }
+
+  @Delete('categorias/:catId')
+  removeCategoria(@Param('catId', ParseIntPipe) catId: number) {
+    this.service.removeCategoria(catId);
+    return { ok: true };
+  }
+
+  @Get('funcionarios')
+  funcionarios(@Param('idCondominio', ParseIntPipe) idCondominio: number) {
+    return this.service.listFuncionariosAtribuiveis(idCondominio);
+  }
+
   @Get()
   list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
@@ -69,6 +95,14 @@ export class OcorrenciasController {
     @Body() body: { resposta: string },
   ) {
     return this.service.updateResposta(id, body.resposta);
+  }
+
+  @Patch(':id/responsavel')
+  atribuir(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { id_responsavel: number | null },
+  ) {
+    return this.service.atribuir(id, body.id_responsavel ?? null);
   }
 
   @Delete(':id')

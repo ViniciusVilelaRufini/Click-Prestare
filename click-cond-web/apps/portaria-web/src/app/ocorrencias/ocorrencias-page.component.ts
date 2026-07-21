@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import {
-  Categoria, CreateOcorrencia, Ocorrencia, OcorrenciaStatus, OcorrenciasApi, OcorrenciaMensagem,
+  Categoria, CreateOcorrencia, FuncionarioAtribuivel, Ocorrencia, OcorrenciaStatus, OcorrenciasApi, OcorrenciaMensagem,
 } from './ocorrencias.service';
 import { ConfirmService } from '../shared/confirm.service';
 
@@ -51,16 +51,18 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
   novo: CreateOcorrencia = { descricao: '', tipo: 0 };
   showForm = false;
 
+  // Mini-helpdesk: funcionários atribuíveis + gestão de categorias/SLA.
+  readonly funcionarios = signal<FuncionarioAtribuivel[]>([]);
+  showCategorias = false;
+  catForm: { id?: number; nome: string; prioridade: number; sla_horas: number | null } =
+    { nome: '', prioridade: 0, sla_horas: null };
+
   chatInterval: any = null;
   ocorrenciasInterval: any = null;
 
   ngOnInit() {
-    this.api.categorias().subscribe({
-      next: (cats) => {
-        this.categorias.set(cats);
-        if (cats.length > 0) this.novo.tipo = cats[0].id;
-      },
-    });
+    this.recarregarCategorias();
+    this.api.funcionarios().subscribe({ next: (f) => this.funcionarios.set(f), error: () => {} });
     this.carregar();
     this.route.queryParams.subscribe((params) => {
       if (params['novo'] === 'true') {
@@ -259,6 +261,82 @@ export class OcorrenciasPageComponent implements OnInit, OnDestroy {
         this.cancelarEdicaoResposta();
         this.carregar();
       }
+    });
+  }
+
+  recarregarCategorias() {
+    this.api.categorias().subscribe({
+      next: (cats) => {
+        this.categorias.set(cats);
+        if (cats.length > 0 && !this.novo.tipo) this.novo.tipo = cats[0].id;
+      },
+    });
+  }
+
+  // ----- Atribuição de responsável -----
+  atribuir(o: Ocorrencia, idResponsavelRaw: any) {
+    const idResponsavel = idResponsavelRaw === '' || idResponsavelRaw == null ? null : Number(idResponsavelRaw);
+    this.api.atribuir(o.id, idResponsavel).subscribe({
+      next: () => this.carregar(),
+      error: (e) => this.error.set(e?.message ?? 'Erro ao atribuir'),
+    });
+  }
+
+  // ----- Selo de SLA (no prazo / atrasada / sem prazo) -----
+  slaInfo(o: Ocorrencia): { label: string; classes: string } | null {
+    const s = (o.status ?? '').toLowerCase();
+    if (s === 'solucionado' || s === 'resolvida') {
+      return { label: 'Concluída', classes: 'bg-slate-400/10 border-slate-400/20 text-slate-400' };
+    }
+    if (!o.prazo) {
+      return { label: 'Sem prazo', classes: 'bg-slate-400/10 border-slate-400/20 text-slate-400' };
+    }
+    const prazo = new Date(o.prazo);
+    if (isNaN(prazo.getTime())) return null;
+    const now = new Date();
+    if (now.getTime() > prazo.getTime()) {
+      return { label: 'Atrasada', classes: 'bg-red-400/10 border-red-400/20 text-red-400' };
+    }
+    const diffH = Math.floor((prazo.getTime() - now.getTime()) / 3600000);
+    const label = diffH >= 48 ? `Vence em ${Math.floor(diffH / 24)}d`
+      : diffH >= 1 ? `Vence em ${diffH}h`
+      : `Vence em ${Math.max(1, Math.floor((prazo.getTime() - now.getTime()) / 60000))}min`;
+    const classes = diffH >= 24
+      ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400'
+      : 'bg-amber-400/10 border-amber-400/20 text-amber-400';
+    return { label, classes };
+  }
+
+  // ----- Gestão de categorias / SLA -----
+  abrirCategorias() { this.showCategorias = true; this.resetCatForm(); this.recarregarCategorias(); }
+  fecharCategorias() { this.showCategorias = false; }
+  resetCatForm() { this.catForm = { nome: '', prioridade: 0, sla_horas: null }; }
+  editarCategoria(c: Categoria) {
+    this.catForm = { id: c.id, nome: c.nome, prioridade: c.prioridade, sla_horas: c.sla_horas ?? null };
+  }
+
+  salvarCategoria() {
+    const f = this.catForm;
+    if (!f.nome?.trim()) { this.error.set('Informe o nome da categoria.'); return; }
+    const dto = { nome: f.nome.trim(), prioridade: Number(f.prioridade) || 0, sla_horas: f.sla_horas === null || (f.sla_horas as any) === '' ? null : Number(f.sla_horas) };
+    const req = f.id ? this.api.atualizarCategoria(f.id, dto) : this.api.criarCategoria(dto);
+    req.subscribe({
+      next: () => { this.resetCatForm(); this.recarregarCategorias(); },
+      error: (e) => this.error.set(e?.message ?? 'Erro ao salvar categoria'),
+    });
+  }
+
+  async removerCategoria(c: Categoria) {
+    const ok = await this.confirm.ask({
+      title: 'Remover categoria',
+      message: `Remover "${c.nome}"? Ocorrências existentes não são apagadas.`,
+      confirmLabel: 'Remover',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.api.removerCategoria(c.id).subscribe({
+      next: () => { if (this.catForm.id === c.id) this.resetCatForm(); this.recarregarCategorias(); },
+      error: (e) => this.error.set(e?.message ?? 'Erro ao remover categoria'),
     });
   }
 }

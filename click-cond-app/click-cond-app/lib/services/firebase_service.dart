@@ -85,6 +85,12 @@ class FirebaseService {
       case 'visitante_acesso':
         print('[FCM] Visitante reconhecido pelo terminal facial. id=${message.data['id']}');
         break;
+      case 'ocorrencia_atribuida':
+        print('[FCM] Ocorrência atribuída ao funcionário. id=${message.data['id']}');
+        break;
+      case 'ocorrencia_chat':
+        print('[FCM] Nova mensagem na ocorrência. id=${message.data['id']}');
+        break;
       default:
         print('[FCM] Tipo desconhecido: $type');
     }

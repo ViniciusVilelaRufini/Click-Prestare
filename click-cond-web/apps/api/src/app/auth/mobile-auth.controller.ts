@@ -371,6 +371,48 @@ export class OcorrenciasMobileController {
     return this.service.getOcorrenciaById(Number(id));
   }
 
+  // Atribui a ocorrência a um funcionário (Users.id) e dispara push a ele.
+  @Post('update-responsavel')
+  @HttpCode(200)
+  atribuir(@Body() body: { id: number; id_responsavel: number | null }) {
+    return this.ocorrenciasService.atribuir(
+      Number(body.id),
+      body.id_responsavel != null && body.id_responsavel !== ('' as any)
+        ? Number(body.id_responsavel)
+        : null,
+    );
+  }
+
+  // ----- Categorias (gestão pelo síndico no app) -----
+  @Post('categorias/insert')
+  @HttpCode(200)
+  insertCategoria(@Body() body: any) {
+    const c = body.categoria ?? body;
+    return this.ocorrenciasService.createCategoria({
+      nome: c.nome,
+      prioridade: c.prioridade != null ? Number(c.prioridade) : 0,
+      sla_horas: c.sla_horas != null && c.sla_horas !== '' ? Number(c.sla_horas) : null,
+    });
+  }
+
+  @Post('categorias/update')
+  @HttpCode(200)
+  updateCategoria(@Body() body: any) {
+    const c = body.categoria ?? body;
+    return this.ocorrenciasService.updateCategoria(Number(c.id), {
+      nome: c.nome,
+      prioridade: c.prioridade != null ? Number(c.prioridade) : undefined,
+      sla_horas: c.sla_horas === '' ? null : (c.sla_horas != null ? Number(c.sla_horas) : undefined),
+    });
+  }
+
+  @Post('categorias/remove')
+  @HttpCode(200)
+  removeCategoria(@Body() body: { id: number }) {
+    this.ocorrenciasService.removeCategoria(Number(body.id));
+    return { ok: true };
+  }
+
   @Get('mensagens/get-all')
   listMessages(@Query('id') id: string) {
     return this.ocorrenciasService.listMessages(Number(id));

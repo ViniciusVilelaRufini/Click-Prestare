@@ -6,7 +6,9 @@ import { AuthService } from '../auth/auth.service';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
 
-export interface Categoria { id: number; nome: string; prioridade: number; }
+export interface Categoria { id: number; nome: string; prioridade: number; sla_horas?: number | null; }
+
+export interface FuncionarioAtribuivel { id_user: number; nome: string; funcao?: string; }
 
 export interface Ocorrencia {
   id: number;
@@ -19,6 +21,10 @@ export interface Ocorrencia {
   created_at: string;
   publica?: boolean;
   criadoPorNome?: string;
+  prazo?: string | null;
+  sla_horas?: number | null;
+  id_responsavel?: number | null;
+  responsavelNome?: string | null;
 }
 
 export interface CreateOcorrencia {
@@ -45,6 +51,26 @@ export class OcorrenciasApi {
 
   categorias(): Observable<Categoria[]> {
     return this.http.get<Categoria[]>(`${this.base}/categorias`);
+  }
+
+  criarCategoria(dto: { nome: string; prioridade?: number; sla_horas?: number | null }): Observable<Categoria> {
+    return this.http.post<Categoria>(`${this.base}/categorias`, dto);
+  }
+
+  atualizarCategoria(id: number, dto: { nome?: string; prioridade?: number; sla_horas?: number | null }): Observable<Categoria> {
+    return this.http.patch<Categoria>(`${this.base}/categorias/${id}`, dto);
+  }
+
+  removerCategoria(id: number): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.base}/categorias/${id}`);
+  }
+
+  funcionarios(): Observable<FuncionarioAtribuivel[]> {
+    return this.http.get<FuncionarioAtribuivel[]>(`${this.base}/funcionarios`);
+  }
+
+  atribuir(id: number, idResponsavel: number | null): Observable<Ocorrencia> {
+    return this.http.patch<Ocorrencia>(`${this.base}/${id}/responsavel`, { id_responsavel: idResponsavel });
   }
 
   create(dto: CreateOcorrencia): Observable<Ocorrencia> {

@@ -1,7 +1,9 @@
+import 'package:click/pages/shared/ocorrencias/list_categorias_ocorrencia.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias_todos.dart';
 import 'package:click/pages/shared/ocorrencias/new_ocorrencia.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:flutter/material.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -16,10 +18,23 @@ class ListOcorrencias extends StatefulWidget {
 class _ListOcorrenciasPageState extends State<ListOcorrencias> {
   @override
   Widget build(BuildContext context) {
+    final canManage = getUserType() == 'sindico' || getUserPermission('ocorrencias') == 1;
     return DefaultTabController(
       length: 4,
       child: AppScaffold(
         title: getText('ocorrencia_abertura_nav'),
+        actions: canManage
+            ? [
+                IconButton(
+                  tooltip: 'Categorias e SLA',
+                  icon: const Icon(PhosphorIcons.slidersHorizontal),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ListCategoriasOcorrencia()),
+                  ),
+                ),
+              ]
+            : null,
         floatingActionButton: FloatingActionButton(
           onPressed: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const NewOcorrencia(isEdit: false)))

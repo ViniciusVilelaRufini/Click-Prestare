@@ -11,6 +11,10 @@ router.post('/remove', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }
 router.post('/update', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }),   validate.validateInsert, controller.update);
 router.get('/get', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }), controller.get);
 router.post('/update-status', jwt({ typeAccess: ['Sindico', 'Funcionario'] }), controller.updateStatus);
+router.post('/update-responsavel', jwt({ typeAccess: ['Sindico', 'Funcionario'] }), controller.updateResponsavel);
 router.get('/categorias/get-all', jwt({ typeAccess: ['Sindico', 'Morador', 'Funcionario'] }), controller.getAllCategorias);
+router.post('/categorias/insert', jwt({ typeAccess: ['Sindico'] }), controller.insertCategoria);
+router.post('/categorias/update', jwt({ typeAccess: ['Sindico'] }), controller.updateCategoria);
+router.post('/categorias/remove', jwt({ typeAccess: ['Sindico'] }), controller.removeCategoria);
 
 module.exports = router;

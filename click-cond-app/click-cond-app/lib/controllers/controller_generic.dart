@@ -188,6 +188,26 @@ apiUpdateStatusOcorrManut(String route, int idItem, String status) async {
   }
 }
 
+/// Atribui uma ocorrência a um funcionário (Users.id). idResponsavel null desatribui.
+/// Dispara push ao funcionário em produção (NestJS). Retorna "" em sucesso.
+apiUpdateResponsavel(int idOcorrencia, int? idResponsavel) async {
+  final url = _buildUri('/ocorrencias/update-responsavel');
+  final body = json.encode({
+    "id": idOcorrencia,
+    "id_responsavel": idResponsavel,
+    "id_condominio": Singleton.instance.id_condominio.toString(),
+  });
+  try {
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+        .timeout(_kTimeout);
+    if (response.statusCode >= 200 && response.statusCode < 300) return "";
+    final parsed = jsonDecode(response.body);
+    return (parsed is Map ? parsed["message"]?.toString() : null) ?? "Erro HTTP ${response.statusCode}";
+  } catch (e) {
+    return "Falha de comunicação com o servidor.";
+  }
+}
+
 apiGetOcorrenciaMessages(int idOcorrencia) async {
   final url = _buildUri('/ocorrencias/mensagens/get-all', {
     'id': idOcorrencia.toString(),

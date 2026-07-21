@@ -1281,12 +1281,15 @@ export class MobileAuthService {
     const logins = reais.map(f => f.login).filter(Boolean);
     const users = await this.prisma.users.findMany({
       where: { login: { in: logins } },
-      select: { login: true, photo: true }
+      select: { id: true, login: true, photo: true }
     });
     const userPhotoMap = new Map(users.map(u => [u.login, u.photo]));
+    // id_user (Users.id) é usado como responsável de ocorrências (mini-helpdesk).
+    const userIdMap = new Map(users.map(u => [u.login, u.id]));
 
     return reais.map(f => ({
       id: f.id,
+      id_user: userIdMap.get(f.login) ?? null,
       nome: f.nome ?? '',
       documento: '',
       email: f.email ?? f.login ?? '',
@@ -2036,15 +2039,30 @@ export class MobileAuthService {
 
     if (!descricao) throw new BadRequestException('Descrição é obrigatória.');
     if (!idCondominio) throw new BadRequestException('id_condominio é obrigatório.');
+
+    // SLA: prazo = agora + sla_horas da categoria (se configurado).
+    const tipoNum = tipo ? Number(tipo) : null;
+    let prazo: Date | null = null;
+    if (tipoNum != null) {
+      const cat = await this.prisma.ocorrencias_Categorias.findUnique({
+        where: { id: tipoNum },
+        select: { sla_horas: true },
+      });
+      if (cat?.sla_horas != null) {
+        prazo = new Date(Date.now() + cat.sla_horas * 3600 * 1000);
+      }
+    }
+
     try {
       return await this.prisma.ocorrencias.create({
         data: {
           id_condominio: Number(idCondominio),
           descricao: descricao,
-          tipo: tipo ? Number(tipo) : null,
+          tipo: tipoNum,
           user: idUser,
           status: 'Pendente',
           publica: publica,
+          prazo,
         },
       });
     } catch (e: any) {
@@ -2080,7 +2098,7 @@ export class MobileAuthService {
       orderBy: { created_at: 'desc' },
     });
 
-    return list.map(o => this.mapOcorrencia(o));
+    return this.mapOcorrenciasComResp(list);
   }
 
   /**
@@ -2104,7 +2122,7 @@ export class MobileAuthService {
       include: { categoria: true, criadoPor: { select: { name: true } } },
       orderBy: { created_at: 'desc' },
     });
-    return list.map(o => this.mapOcorrencia(o));
+    return this.mapOcorrenciasComResp(list);
   }
 
   /**
@@ -2129,14 +2147,33 @@ export class MobileAuthService {
       include: { categoria: true, criadoPor: { select: { name: true } } },
       orderBy: { created_at: 'desc' },
     });
-    return list.map(o => this.mapOcorrencia(o));
+    return this.mapOcorrenciasComResp(list);
   }
 
-  private mapOcorrencia(o: any) {
+  /** Resolve os nomes dos responsáveis (Users.name) em lote e mapeia a lista. */
+  private async mapOcorrenciasComResp(list: any[]) {
+    const ids = [...new Set(list.map(o => o.id_responsavel).filter((v): v is number => v != null))];
+    let nomes = new Map<number, string>();
+    if (ids.length > 0) {
+      const users = await this.prisma.users.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, name: true },
+      });
+      nomes = new Map(users.map(u => [u.id, u.name ?? '']));
+    }
+    return list.map(o => this.mapOcorrencia(o, o.id_responsavel ? nomes.get(o.id_responsavel) ?? null : null));
+  }
+
+  private mapOcorrencia(o: any, responsavelNome: string | null = null) {
     return {
       id: o.id,
       descricao: o.descricao ?? '',
       tipo: o.categoria?.nome ?? '',
+      tipoId: o.tipo,
+      sla_horas: o.categoria?.sla_horas ?? null,
+      prazo: o.prazo ?? null,
+      id_responsavel: o.id_responsavel ?? null,
+      responsavelNome: responsavelNome,
       status: o.status ?? 'Pendente',
       resposta: o.resposta ?? '',
       resposta_at: o.resposta_at,
@@ -2156,7 +2193,15 @@ export class MobileAuthService {
       include: { categoria: true, criadoPor: { select: { name: true } } },
     });
     if (!o) return null;
-    return this.mapOcorrencia(o);
+    let respNome: string | null = null;
+    if (o.id_responsavel) {
+      const u = await this.prisma.users.findUnique({
+        where: { id: o.id_responsavel },
+        select: { name: true },
+      });
+      respNome = u?.name ?? null;
+    }
+    return this.mapOcorrencia(o, respNome);
   }
 
   // ==========================================
