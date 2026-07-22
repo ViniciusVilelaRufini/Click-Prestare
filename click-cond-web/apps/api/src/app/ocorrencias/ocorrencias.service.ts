@@ -1,6 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import { assertStaff } from '../auth/tenant.util';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 export type OcorrenciaStatus = 'Pendente' | 'Ciente' | 'Solucionado';
 
@@ -19,7 +22,33 @@ export class OcorrenciasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly tenant: TenantAccessService,
   ) {}
+
+  /**
+   * Carrega uma ocorrência, confirma que pertence ao condomínio do operador
+   * e que o operador é síndico/funcionário. Use antes de qualquer mutação
+   * administrativa (status, resposta, atribuição, remoção) — sem isso, um
+   * morador (ou usuário de outro condomínio) altera/apaga ocorrência alheia
+   * só chutando o id.
+   */
+  private async loadParaMutacaoStaff(id: number, user: JwtPayload | undefined, contexto: string) {
+    assertStaff(user, contexto);
+    const o = await this.prisma.ocorrencias.findUnique({ where: { id }, select: { id_condominio: true } });
+    if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, user, `ocorrência #${id}`);
+  }
+
+  /** Só a equipe (síndico/funcionário), o autor, ou qualquer um se a ocorrência é pública. */
+  private assertPodeVer(o: { user: number | null; publica: boolean }, requester?: JwtPayload) {
+    const typeAccess = requester?.typeAccess ?? requester?.user?.typeAccess;
+    const isStaff = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
+    if (isStaff || o.publica) return;
+    const callerId = requester?.user?.id ?? requester?.sub;
+    if (o.user !== callerId) {
+      throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
+    }
+  }
 
   listCategorias() {
     return this.prisma.ocorrencias_Categorias.findMany({
@@ -28,7 +57,11 @@ export class OcorrenciasService {
   }
 
   // ----- Categorias CRUD (mini-helpdesk: nome, prioridade, SLA em horas) -----
-  async createCategoria(data: { nome: string; prioridade?: number; sla_horas?: number | null }) {
+  // Categorias são globais (tabela sem id_condominio) — não há tenant a
+  // checar aqui, só o papel: qualquer morador autenticado não pode mexer
+  // na taxonomia inteira do sistema.
+  async createCategoria(data: { nome: string; prioridade?: number; sla_horas?: number | null }, user?: JwtPayload) {
+    assertStaff(user, 'criar categoria de ocorrência');
     return this.prisma.ocorrencias_Categorias.create({
       data: {
         nome: data.nome,
@@ -38,7 +71,8 @@ export class OcorrenciasService {
     });
   }
 
-  async updateCategoria(id: number, data: { nome?: string; prioridade?: number; sla_horas?: number | null }) {
+  async updateCategoria(id: number, data: { nome?: string; prioridade?: number; sla_horas?: number | null }, user?: JwtPayload) {
+    assertStaff(user, 'editar categoria de ocorrência');
     try {
       return await this.prisma.ocorrencias_Categorias.update({
         where: { id },
@@ -53,7 +87,8 @@ export class OcorrenciasService {
     }
   }
 
-  async removeCategoria(id: number) {
+  async removeCategoria(id: number, user?: JwtPayload) {
+    assertStaff(user, 'remover categoria de ocorrência');
     try {
       await this.prisma.ocorrencias_Categorias.delete({ where: { id } });
     } catch {
@@ -129,7 +164,7 @@ export class OcorrenciasService {
     }));
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, requester?: JwtPayload) {
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id },
       include: {
@@ -138,6 +173,8 @@ export class OcorrenciasService {
       },
     });
     if (!o) throw new NotFoundException(`Ocorrência ${id} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, requester, `ocorrência #${id}`);
+    this.assertPodeVer(o, requester);
     const nomes = await this.responsavelNomes([o.id_responsavel]);
     return {
       ...o,
@@ -187,7 +224,8 @@ export class OcorrenciasService {
     }
   }
 
-  async updateStatus(id: number, status: OcorrenciaStatus) {
+  async updateStatus(id: number, status: OcorrenciaStatus, user?: JwtPayload) {
+    await this.loadParaMutacaoStaff(id, user, 'alterar status da ocorrência');
     try {
       return await this.prisma.ocorrencias.update({
         where: { id },
@@ -198,7 +236,8 @@ export class OcorrenciasService {
     }
   }
 
-  async updatePublica(id: number, publica: boolean) {
+  async updatePublica(id: number, publica: boolean, user?: JwtPayload) {
+    await this.loadParaMutacaoStaff(id, user, 'alterar visibilidade da ocorrência');
     try {
       return await this.prisma.ocorrencias.update({
         where: { id },
@@ -209,7 +248,8 @@ export class OcorrenciasService {
     }
   }
 
-  async updateResposta(id: number, resposta: string) {
+  async updateResposta(id: number, resposta: string, user?: JwtPayload) {
+    await this.loadParaMutacaoStaff(id, user, 'responder ocorrência');
     try {
       return await this.prisma.ocorrencias.update({
         where: { id },
@@ -223,7 +263,8 @@ export class OcorrenciasService {
     }
   }
 
-  async remove(id: number) {
+  async remove(id: number, user?: JwtPayload) {
+    await this.loadParaMutacaoStaff(id, user, 'remover ocorrência');
     try {
       await this.prisma.ocorrencias.delete({ where: { id } });
     } catch {
@@ -235,7 +276,8 @@ export class OcorrenciasService {
    * Atribui a ocorrência a um funcionário (Users.id) e dispara push a ele.
    * idResponsavel = null desatribui.
    */
-  async atribuir(id: number, idResponsavel: number | null) {
+  async atribuir(id: number, idResponsavel: number | null, user?: JwtPayload) {
+    await this.loadParaMutacaoStaff(id, user, 'atribuir ocorrência');
     let updated;
     try {
       updated = await this.prisma.ocorrencias.update({
@@ -270,7 +312,13 @@ export class OcorrenciasService {
     return updated;
   }
 
-  async listMessages(idOcorrencia: number) {
+  async listMessages(idOcorrencia: number, requester?: JwtPayload) {
+    const o = await this.prisma.ocorrencias.findUnique({
+      where: { id: idOcorrencia },
+      select: { id_condominio: true },
+    });
+    if (!o) throw new NotFoundException(`Ocorrência ${idOcorrencia} não encontrada`);
+    await this.tenant.assertEntidade(o.id_condominio, requester, `ocorrência #${idOcorrencia}`);
     return this.prisma.ocorrenciaMensagens.findMany({
       where: { id_ocorrencia: idOcorrencia },
       include: {
@@ -280,7 +328,13 @@ export class OcorrenciasService {
     });
   }
 
-  async createMessage(idOcorrencia: number, idUsuario: number, mensagem: string) {
+  async createMessage(idOcorrencia: number, idUsuario: number, mensagem: string, requester?: JwtPayload) {
+    const oc = await this.prisma.ocorrencias.findUnique({
+      where: { id: idOcorrencia },
+      select: { id_condominio: true },
+    });
+    if (!oc) throw new NotFoundException(`Ocorrência ${idOcorrencia} não encontrada`);
+    await this.tenant.assertEntidade(oc.id_condominio, requester, `ocorrência #${idOcorrencia}`);
     const msg = await this.prisma.ocorrenciaMensagens.create({
       data: {
         id_ocorrencia: idOcorrencia,

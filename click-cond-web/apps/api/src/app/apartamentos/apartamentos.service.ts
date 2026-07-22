@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import { assertStaff } from '../auth/tenant.util';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 export interface CreateApartamentoDto {
   bloco?: string;
@@ -11,7 +14,10 @@ export interface CreateApartamentoDto {
 
 @Injectable()
 export class ApartamentosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenant: TenantAccessService,
+  ) {}
 
   /**
    * Rejeita unidades inválidas/fantasma no cadastro. "Apto 000 Bloco
@@ -85,17 +91,20 @@ export class ApartamentosService {
     }));
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return { id, bloco: 'A', apto: '101', fracao: null, id_condominio: 1, qtdMoradores: 2 };
     }
 
     const a = await this.prisma.apartamentos.findUnique({ where: { id: Number(id) } });
     if (!a) throw new NotFoundException(`Apartamento ${id} não encontrado`);
+    await this.tenant.assertEntidade(a.id_condominio, user, `apartamento #${id}`);
     return a;
   }
 
-  async create(dto: CreateApartamentoDto) {
+  async create(dto: CreateApartamentoDto, user?: JwtPayload) {
+    assertStaff(user, 'cadastrar apartamento');
+    await this.tenant.assertCondominio(dto.id_condominio, user);
     this.assertAptoValido(dto.apto, dto.bloco);
     if (!this.prisma.isConnected) {
       return {
@@ -120,19 +129,22 @@ export class ApartamentosService {
     });
   }
 
-  async update(id: number, dto: Partial<CreateApartamentoDto>) {
+  async update(id: number, dto: Partial<CreateApartamentoDto>, user?: JwtPayload) {
+    assertStaff(user, 'editar apartamento');
     if (!this.prisma.isConnected) {
       return { success: true, id };
     }
 
+    const atual = await this.prisma.apartamentos.findUnique({
+      where: { id: Number(id) },
+      select: { apto: true, bloco: true, id_condominio: true },
+    });
+    if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+
     // Valida o estado FINAL da unidade (campo enviado ou valor atual) —
     // impede transformar uma unidade válida em fantasma via update parcial.
     if (dto.apto !== undefined || dto.bloco !== undefined) {
-      const atual = await this.prisma.apartamentos.findUnique({
-        where: { id: Number(id) },
-        select: { apto: true, bloco: true },
-      });
-      if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
       this.assertAptoValido(dto.apto ?? atual.apto, dto.bloco ?? atual.bloco);
     }
 
@@ -151,8 +163,12 @@ export class ApartamentosService {
     }
   }
 
-  async remove(id: number) {
+  async remove(id: number, user?: JwtPayload) {
+    assertStaff(user, 'remover apartamento');
     if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.apartamentos.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
     try {
       await this.prisma.apartamentos.delete({ where: { id: Number(id) } });
       return { success: true };
@@ -161,7 +177,9 @@ export class ApartamentosService {
     }
   }
 
-  async importBulk(idCondominio: number, linhas: any[]) {
+  async importBulk(idCondominio: number, linhas: any[], user?: JwtPayload) {
+    assertStaff(user, 'importar apartamentos em massa');
+    await this.tenant.assertCondominio(idCondominio, user);
     const criados = [];
     const ignorados: { apto: string; bloco: string | null; motivo: string }[] = [];
     for (const item of linhas) {

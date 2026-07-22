@@ -1,0 +1,106 @@
+import { ForbiddenException } from '@nestjs/common';
+import { AreasSociaisService } from './areas-sociais.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+
+/**
+ * Cobre os dois achados mais graves do módulo de áreas sociais:
+ * 1. `agendarPeloSindico` deixava qualquer morador auto-aprovar a própria
+ *    reserva (pulando a fila de autorização) — agora exige assertStaff.
+ * 2. `remove`/`updateStatusAgendamento` não checavam tenant nem papel —
+ *    qualquer usuário apagava área/aprovava reserva de qualquer condomínio.
+ */
+describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', () => {
+  const areaCond2 = { id: 30, id_condominio: 2, precisa_autorizacao: 1 };
+
+  function build(overrides: Partial<any> = {}) {
+    const prisma: any = {
+      isConnected: true,
+      areas_Sociais: {
+        findUnique: jest.fn(async ({ where }: any) => (where.id === 30 ? { ...areaCond2 } : null)),
+        delete: jest.fn(async () => ({})),
+      },
+      areas_Sociais_Agendamentos: {
+        findMany: jest.fn(async () => []),
+        create: jest.fn(async () => ({ id: 500, status: 'pendente' })),
+        findUnique: jest.fn(async () => null),
+      },
+      apartamentos_Users: { findFirst: jest.fn(async () => null), findMany: jest.fn(async () => []) },
+      sindicos_Condominios: { findFirst: jest.fn(async () => null) },
+      ...overrides,
+    };
+    const notifications: any = { sendPushNotification: jest.fn() };
+    const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
+    const facial: any = { syncReservaArea: jest.fn().mockResolvedValue({}) };
+    const tenant = new TenantAccessService(prisma);
+    const svc = new AreasSociaisService(prisma, notifications, storage, facial, tenant);
+    return { svc, prisma };
+  }
+
+  const moradorCond2: JwtPayload = { sub: 5, nome: 'Morador X', id_condominio: 2 };
+  const funcionarioCond2: JwtPayload = { sub: 6, nome: 'Porteiro Y', id_condominio: 2, typeAccess: 'Funcionario' };
+  const moradorCond1: JwtPayload = { sub: 7, nome: 'Morador de outro condo', id_condominio: 1 };
+
+  describe('insertAgendamento — agendarPeloSindico', () => {
+    const agendamento = {
+      id_area_social: 30,
+      id_apartamento: 100,
+      data: '20/05/2026',
+      horaDe: '10:00',
+      horaAte: '11:00',
+      agendarPeloSindico: true,
+    };
+
+    it('NEGA morador auto-aprovar a própria reserva via agendarPeloSindico', async () => {
+      const { svc, prisma } = build();
+      await expect(
+        svc.insertAgendamento(agendamento, 5, 'Morador', moradorCond2),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.areas_Sociais_Agendamentos.create).not.toHaveBeenCalled();
+    });
+
+    it('PERMITE funcionário usar agendarPeloSindico no próprio condomínio', async () => {
+      const { svc, prisma } = build();
+      await svc.insertAgendamento(agendamento, 6, 'Funcionario', funcionarioCond2);
+      expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
+    });
+
+    it('NEGA reserva em área de outro condomínio (tenant)', async () => {
+      const { svc, prisma } = build();
+      await expect(
+        svc.insertAgendamento({ ...agendamento, agendarPeloSindico: false }, 7, 'Morador', moradorCond1),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.areas_Sociais_Agendamentos.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove (área social)', () => {
+    it('NEGA morador remover área social', async () => {
+      const { svc, prisma } = build();
+      await expect(svc.remove(30, moradorCond2)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.areas_Sociais.delete).not.toHaveBeenCalled();
+    });
+
+    it('NEGA funcionário de outro condomínio remover área do condomínio 2', async () => {
+      const { svc, prisma } = build();
+      const funcionarioCond1: JwtPayload = { sub: 8, nome: 'Porteiro Outro', id_condominio: 1, typeAccess: 'Funcionario' };
+      await expect(svc.remove(30, funcionarioCond1)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.areas_Sociais.delete).not.toHaveBeenCalled();
+    });
+
+    it('PERMITE funcionário do mesmo condomínio remover área social', async () => {
+      const { svc, prisma } = build();
+      await svc.remove(30, funcionarioCond2);
+      expect(prisma.areas_Sociais.delete).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateStatusAgendamento (aprovar/recusar reserva)', () => {
+    it('NEGA morador aprovar/recusar reserva', async () => {
+      const { svc } = build();
+      await expect(
+        svc.updateStatusAgendamento(500, true, '', moradorCond2),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+});

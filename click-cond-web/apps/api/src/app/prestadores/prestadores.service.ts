@@ -2,6 +2,8 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
 
 export interface CreatePrestadorDto {
@@ -26,6 +28,7 @@ export class PrestadoresService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly facial: FacialService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   /** Empurra (ou remove) o rosto do prestador nos terminais faciais, sem bloquear a resposta. */
@@ -47,7 +50,8 @@ export class PrestadoresService {
     return value;
   }
 
-  async findAll(idCondominio: number, search?: string) {
+  async findAll(idCondominio: number, search?: string, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       const mocks = [
         { id: 601, nome: 'Eletricista 24h - João da Silva', telefone: '(11) 95555-4444', categorias: 'Elétrica, Instalações', id_condominio: Number(idCondominio), created_at: new Date(), updated_at: new Date() },
@@ -91,20 +95,7 @@ export class PrestadoresService {
     }));
   }
 
-  /**
-   * Garante que o prestador pertence ao condomínio da URL. O TenantGuard só
-   * valida o :idCondominio do path contra o JWT, mas NÃO impede que o :id
-   * do prestador seja de outro condomínio — IDOR. Quando idCondominioUrl é
-   * informado, exigimos que o registro carregado seja desse condomínio.
-   */
-  private assertTenant(condDoRegistro: number, idCondominioUrl?: number, id?: number) {
-    if (idCondominioUrl != null && condDoRegistro !== Number(idCondominioUrl)) {
-      // 404 (não 403) para não revelar que o id existe em outro condomínio.
-      throw new NotFoundException(`Prestador ${id} não encontrado`);
-    }
-  }
-
-  async findOne(id: number, idCondominio?: number) {
+  async findOne(id: number, idCondominio?: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return { id, nome: 'Prestador Exemplo', telefone: '(11) 99999-9999', categorias: 'Geral', id_condominio: 1, hasPortariaAccess: false };
     }
@@ -114,7 +105,10 @@ export class PrestadoresService {
       include: { apartamento: { select: { bloco: true, apto: true } } },
     });
     if (!p) throw new NotFoundException(`Prestador ${id} não encontrado`);
-    this.assertTenant(p.id_condominio, idCondominio, id);
+    // TenantAccessService cobre tanto o caso web (idCondominio da URL, no
+    // JWT) quanto o mobile (token sem id_condominio, resolve via banco) —
+    // sem isso, o app conseguia ler/editar/apagar prestador de outro condomínio.
+    await this.tenant.assertEntidade(p.id_condominio, user, `prestador #${id}`);
 
     const hasPortariaAccess = p.email
       ? await this.prisma.funcionarios_Portaria.findFirst({
@@ -126,7 +120,8 @@ export class PrestadoresService {
     return { ...p, hasPortariaAccess };
   }
 
-  async create(dto: CreatePrestadorDto) {
+  async create(dto: CreatePrestadorDto, user?: JwtPayload) {
+    await this.tenant.assertCondominio(dto.id_condominio, user);
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),
@@ -214,7 +209,7 @@ export class PrestadoresService {
     return criado;
   }
 
-  async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number) {
+  async update(id: number, dto: Partial<CreatePrestadorDto>, idCondominio?: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return { success: true, id };
     }
@@ -225,7 +220,7 @@ export class PrestadoresService {
       select: { id_condominio: true, email: true, nome: true, telefone: true },
     });
     if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
-    this.assertTenant(atual.id_condominio, idCondominio, id);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
 
     if (dto.email && dto.hasPortariaAccess) {
       const conflito = await this.prisma.funcionarios_Portaria.findFirst({
@@ -311,14 +306,14 @@ export class PrestadoresService {
     }
   }
 
-  async clearFoto(id: number, campo: 'pessoa' | 'documento', idCondominio?: number) {
+  async clearFoto(id: number, campo: 'pessoa' | 'documento', idCondominio?: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
     const atual = await this.prisma.prestadores_servico.findUnique({
       where: { id: Number(id) },
       select: { id_condominio: true },
     });
     if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
-    this.assertTenant(atual.id_condominio, idCondominio, id);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
     return this.prisma.prestadores_servico.update({
       where: { id: Number(id) },
       data: campo === 'pessoa' ? { foto_pessoa: null } : { foto_documento: null },
@@ -326,7 +321,7 @@ export class PrestadoresService {
     });
   }
 
-  async remove(id: number, idCondominio?: number) {
+  async remove(id: number, idCondominio?: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
 
     // Valida tenant antes de deletar (IDOR).
@@ -335,7 +330,7 @@ export class PrestadoresService {
       select: { id_condominio: true, face_id: true, email: true },
     });
     if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
-    this.assertTenant(atual.id_condominio, idCondominio, id);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
 
     // Remove o rosto dos terminais faciais antes de apagar o cadastro, senão
     // ficaria um rosto órfão abrindo a porta sem dono no banco.

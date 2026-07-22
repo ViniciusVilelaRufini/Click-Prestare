@@ -17,7 +17,7 @@ export class AssembleiasController {
     @ReqUser() payload: JwtPayload,
   ) {
     const userId = payload?.user?.id ?? payload?.sub ?? 1;
-    return this.service.insert(Number(body.id_condominio), body.assembleia, Number(userId));
+    return this.service.insert(Number(body.id_condominio), body.assembleia, Number(userId), payload);
   }
 
   @Post('update')
@@ -27,18 +27,18 @@ export class AssembleiasController {
     @ReqUser() payload: JwtPayload,
   ) {
     const userId = payload?.user?.id ?? payload?.sub ?? 1;
-    return this.service.update(Number(body.id_condominio), body.assembleia, Number(userId));
+    return this.service.update(Number(body.id_condominio), body.assembleia, Number(userId), payload);
   }
 
   @Post('remove')
   @HttpCode(200)
-  remove(@Body() body: { id: string | number }) {
-    return this.service.remove(Number(body.id));
+  remove(@Body() body: { id: string | number }, @ReqUser() payload: JwtPayload) {
+    return this.service.remove(Number(body.id), payload);
   }
 
   @Get('get-all')
-  getAll(@Query('id_condominio') idCondominio: string) {
-    return this.service.getAll(Number(idCondominio));
+  getAll(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getAll(Number(idCondominio), payload);
   }
 
   @Get('get')
@@ -48,13 +48,13 @@ export class AssembleiasController {
     @ReqUser() payload: JwtPayload,
   ) {
     const userId = payload?.user?.id ?? payload?.sub ?? 1;
-    return this.service.get(Number(idCondominio), Number(id), Number(userId));
+    return this.service.get(Number(idCondominio), Number(id), Number(userId), payload);
   }
 
   @Post('finish/insert')
   @HttpCode(200)
-  finish(@Body() body: { id_condominio: string | number; assembleia: any }) {
-    return this.service.finish(Number(body.id_condominio), body.assembleia);
+  finish(@Body() body: { id_condominio: string | number; assembleia: any }, @ReqUser() payload: JwtPayload) {
+    return this.service.finish(Number(body.id_condominio), body.assembleia, payload);
   }
 
   // ==========================================
@@ -62,20 +62,20 @@ export class AssembleiasController {
   // ==========================================
   @Post('votacoes/insert')
   @HttpCode(200)
-  insertVotacao(@Body() body: { id_condominio: string | number; votacao: any }) {
-    return this.service.insertVotacao(body.votacao, Number(body.id_condominio));
+  insertVotacao(@Body() body: { id_condominio: string | number; votacao: any }, @ReqUser() payload: JwtPayload) {
+    return this.service.insertVotacao(body.votacao, Number(body.id_condominio), payload);
   }
 
   @Post('votacoes/remove')
   @HttpCode(200)
-  removeVotacao(@Body() body: { id: string | number }) {
-    return this.service.removeVotacao(Number(body.id));
+  removeVotacao(@Body() body: { id: string | number }, @ReqUser() payload: JwtPayload) {
+    return this.service.removeVotacao(Number(body.id), payload);
   }
 
   @Post('votacoes/finish')
   @HttpCode(200)
-  finishVotacao(@Body() body: { id: string | number }) {
-    return this.service.finishVotacao(Number(body.id));
+  finishVotacao(@Body() body: { id: string | number }, @ReqUser() payload: JwtPayload) {
+    return this.service.finishVotacao(Number(body.id), payload);
   }
 
   @Post('votacoes/voto/insert')
@@ -93,17 +93,18 @@ export class AssembleiasController {
       Number(voto.votacao_id),
       Number(voto.opcao_id),
       Number(userId),
+      payload,
     );
   }
 
   @Get('votacoes/enquetes/get-all')
-  enqueteGetAll(@Query('id_condominio') idCondominio: string) {
-    return this.service.enqueteGetAll(Number(idCondominio));
+  enqueteGetAll(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
+    return this.service.enqueteGetAll(Number(idCondominio), payload);
   }
 
   @Get('votacoes/enquetes/get')
   enqueteGetDetails(@Query('id') id: string, @ReqUser() payload: JwtPayload) {
     const userId = payload?.user?.id ?? payload?.sub ?? 1;
-    return this.service.enqueteGetDetails(Number(id), Number(userId));
+    return this.service.enqueteGetDetails(Number(id), Number(userId), payload);
   }
 }

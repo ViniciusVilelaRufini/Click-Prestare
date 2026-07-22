@@ -1,12 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import { assertStaff } from '../auth/tenant.util';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 @Injectable()
 export class MudancasService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenant: TenantAccessService,
+  ) {}
 
   /** Lista todas as mudanças de um condomínio. Sindico vê tudo, morador vê só as do seu apto. */
-  async findAll(idCondominio: number, idApto?: number) {
+  async findAll(idCondominio: number, idApto?: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     const where: any = { id_condominio: Number(idCondominio) };
     if (idApto && Number(idApto) > 0) {
       where.id_apartamento = Number(idApto);
@@ -24,7 +31,7 @@ export class MudancasService {
     return list.map((m) => this.flatten(m));
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, user?: JwtPayload) {
     const m = await this.prisma.mudancas.findUnique({
       where: { id: Number(id) },
       include: {
@@ -32,6 +39,7 @@ export class MudancasService {
       },
     });
     if (!m) throw new NotFoundException(`Mudança ${id} não encontrada`);
+    await this.tenant.assertEntidade(m.id_condominio, user, `mudança #${id}`);
     return this.flatten(m);
   }
 
@@ -41,7 +49,8 @@ export class MudancasService {
     id_apartamento: number;
     id_condominio: number;
     user?: number | null;
-  }) {
+  }, requester?: JwtPayload) {
+    await this.tenant.assertCondominio(dto.id_condominio, requester);
     return this.prisma.mudancas.create({
       data: {
         data: dto.data ? new Date(dto.data) : null,
@@ -61,7 +70,13 @@ export class MudancasService {
       hora_inicio: string | null;
       id_apartamento: number;
     }>,
+    user?: JwtPayload,
   ) {
+    const atual = await this.prisma.mudancas.findUnique({ where: { id: Number(id) }, select: { id_condominio: true, user: true } });
+    if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
+    const callerId = user?.user?.id ?? user?.sub;
+    if (atual.user !== callerId) assertStaff(user, 'editar mudança de outro morador');
     try {
       return await this.prisma.mudancas.update({
         where: { id: Number(id) },
@@ -78,7 +93,11 @@ export class MudancasService {
     }
   }
 
-  async updateStatus(id: number, isAccept: boolean, motivo?: string) {
+  async updateStatus(id: number, isAccept: boolean, motivo?: string, user?: JwtPayload) {
+    assertStaff(user, 'aprovar ou recusar mudança');
+    const atual = await this.prisma.mudancas.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
     try {
       return await this.prisma.mudancas.update({
         where: { id: Number(id) },
@@ -92,7 +111,12 @@ export class MudancasService {
     }
   }
 
-  async remove(id: number) {
+  async remove(id: number, user?: JwtPayload) {
+    const atual = await this.prisma.mudancas.findUnique({ where: { id: Number(id) }, select: { id_condominio: true, user: true } });
+    if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
+    await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
+    const callerId = user?.user?.id ?? user?.sub;
+    if (atual.user !== callerId) assertStaff(user, 'remover mudança de outro morador');
     try {
       await this.prisma.mudancas.delete({ where: { id: Number(id) } });
     } catch {

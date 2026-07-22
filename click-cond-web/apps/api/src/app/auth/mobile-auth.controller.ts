@@ -99,8 +99,8 @@ export class MoradoresMobileController {
   }
 
   @Get('get-all')
-  getAllMoradores(@Query('id_condominio') idCond: string) {
-    return this.service.getAllMoradores(Number(idCond));
+  getAllMoradores(@Query('id_condominio') idCond: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getAllMoradores(Number(idCond), payload);
   }
 
   @Get('get')
@@ -114,25 +114,26 @@ export class MoradoresMobileController {
       Number(id),
       Number(idUser),
       idCondominio ? Number(idCondominio) : undefined,
+      payload,
     );
   }
 
   @Post('insert')
   @HttpCode(200)
-  insertMorador(@Body() body: any) {
-    return this.service.saveMorador(body, false);
+  insertMorador(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.saveMorador(body, false, payload);
   }
 
   @Post('update')
   @HttpCode(200)
-  updateMorador(@Body() body: any) {
-    return this.service.saveMorador(body, true);
+  updateMorador(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.saveMorador(body, true, payload);
   }
 
   @Post('remove')
   @HttpCode(200)
-  removeMorador(@Body() body: { id: number }) {
-    return this.service.removeMorador(Number(body.id));
+  removeMorador(@Body() body: { id: number }, @ReqUser() payload: JwtPayload) {
+    return this.service.removeMorador(Number(body.id), payload);
   }
 
   @Post('new-password')
@@ -173,31 +174,31 @@ export class FuncionariosMobileController {
   }
 
   @Get('get-all')
-  getAllFuncionarios(@Query('id_condominio') idCond: string) {
-    return this.service.getAllFuncionarios(Number(idCond));
+  getAllFuncionarios(@Query('id_condominio') idCond: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getAllFuncionarios(Number(idCond), payload);
   }
 
   @Get('get')
-  getFuncionario(@Query('id') id: string) {
-    return this.service.getFuncionarioById(Number(id));
+  getFuncionario(@Query('id') id: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getFuncionarioById(Number(id), payload);
   }
 
   @Post('insert')
   @HttpCode(200)
-  insertFuncionario(@Body() body: any) {
-    return this.service.saveFuncionario(body, false);
+  insertFuncionario(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.saveFuncionario(body, false, payload);
   }
 
   @Post('update')
   @HttpCode(200)
-  updateFuncionario(@Body() body: any) {
-    return this.service.saveFuncionario(body, true);
+  updateFuncionario(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.saveFuncionario(body, true, payload);
   }
 
   @Post('remove')
   @HttpCode(200)
-  removeFuncionario(@Body() body: { id: number }) {
-    return this.service.removeFuncionario(Number(body.id));
+  removeFuncionario(@Body() body: { id: number }, @ReqUser() payload: JwtPayload) {
+    return this.service.removeFuncionario(Number(body.id), payload);
   }
 
   @Post('new-password')
@@ -261,27 +262,27 @@ export class CondominioMobileController {
 
   @Post('update')
   @HttpCode(200)
-  update(@Body() body: any) {
-    return this.service.updateInfosCondominio(body);
+  update(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.updateInfosCondominio(body, payload);
   }
 
   @Post('update-address')
   @HttpCode(200)
-  updateAddress(@Body() body: any) {
-    return this.service.updateAddressCondominio(body);
+  updateAddress(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.updateAddressCondominio(body, payload);
   }
 
   @Post('update-moeda')
   @HttpCode(200)
-  updateMoeda(@Body() body: any) {
-    return this.service.updateMoedaCondominio(body);
+  updateMoeda(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.updateMoedaCondominio(body, payload);
   }
 
   @Post('update-assinatura')
   @HttpCode(200)
   updateAssinatura(@ReqUser() payload: JwtPayload, @Body() body: any) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.updateAssinaturaCondominio(body, Number(idUser));
+    return this.service.updateAssinaturaCondominio(body, Number(idUser), payload);
   }
 }
 
@@ -293,28 +294,28 @@ export class ApartamentosMobileController {
   constructor(private readonly service: MobileAuthService) {}
 
   @Get('get-all')
-  getAllApartamentos(@Query('id_condominio') idCond: string) {
-    return this.service.getAllApartamentos(Number(idCond));
+  getAllApartamentos(@Query('id_condominio') idCond: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getAllApartamentos(Number(idCond), payload);
   }
 
   @Get('get-moradores')
-  getMoradoresApto(@Query('id_apto') idApto: string, @Query('tipo') tipo?: string) {
-    return this.service.getMoradoresApto(Number(idApto), tipo);
+  getMoradoresApto(@Query('id_apto') idApto: string, @Query('tipo') tipo: string | undefined, @ReqUser() payload: JwtPayload) {
+    return this.service.getMoradoresApto(Number(idApto), tipo, payload);
   }
 
   @Post('insert')
-  insertApto(@Body() body: any) {
-    return this.service.saveApto(body, false);
+  insertApto(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.saveApto(body, false, payload);
   }
 
   @Post('update')
-  updateApto(@Body() body: any) {
-    return this.service.saveApto(body, true);
+  updateApto(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.saveApto(body, true, payload);
   }
 
   @Post('remove')
-  removeApto(@Body() body: any) {
-    return this.service.removeApto(Number(body.id));
+  removeApto(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.removeApto(Number(body.id), payload);
   }
 }
 
@@ -337,7 +338,7 @@ export class OcorrenciasMobileController {
   @HttpCode(200)
   insert(@Body() body: any, @ReqUser() payload: JwtPayload) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.saveOcorrencia(body, Number(idUser));
+    return this.service.saveOcorrencia(body, Number(idUser), payload);
   }
 
   @Get('get-all')
@@ -353,7 +354,7 @@ export class OcorrenciasMobileController {
   ) {
     const idUser = payload.user?.id ?? payload.sub;
     const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador';
-    return this.service.listOcorrenciasTodos(Number(idCond), Number(idUser), typeAccess);
+    return this.service.listOcorrenciasTodos(Number(idCond), Number(idUser), typeAccess, payload);
   }
 
   @Get('pendentes/get-all')
@@ -363,59 +364,60 @@ export class OcorrenciasMobileController {
   ) {
     const idUser = payload.user?.id ?? payload.sub;
     const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador';
-    return this.service.listOcorrenciasPendentes(Number(idCond), Number(idUser), typeAccess);
+    return this.service.listOcorrenciasPendentes(Number(idCond), Number(idUser), typeAccess, payload);
   }
 
   @Get('get')
-  get(@Query('id') id: string) {
-    return this.service.getOcorrenciaById(Number(id));
+  get(@Query('id') id: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getOcorrenciaById(Number(id), payload);
   }
 
   // Atribui a ocorrência a um funcionário (Users.id) e dispara push a ele.
   @Post('update-responsavel')
   @HttpCode(200)
-  atribuir(@Body() body: { id: number; id_responsavel: number | null }) {
+  atribuir(@Body() body: { id: number; id_responsavel: number | null }, @ReqUser() payload: JwtPayload) {
     return this.ocorrenciasService.atribuir(
       Number(body.id),
       body.id_responsavel != null && body.id_responsavel !== ('' as any)
         ? Number(body.id_responsavel)
         : null,
+      payload,
     );
   }
 
   // ----- Categorias (gestão pelo síndico no app) -----
   @Post('categorias/insert')
   @HttpCode(200)
-  insertCategoria(@Body() body: any) {
+  insertCategoria(@Body() body: any, @ReqUser() payload: JwtPayload) {
     const c = body.categoria ?? body;
     return this.ocorrenciasService.createCategoria({
       nome: c.nome,
       prioridade: c.prioridade != null ? Number(c.prioridade) : 0,
       sla_horas: c.sla_horas != null && c.sla_horas !== '' ? Number(c.sla_horas) : null,
-    });
+    }, payload);
   }
 
   @Post('categorias/update')
   @HttpCode(200)
-  updateCategoria(@Body() body: any) {
+  updateCategoria(@Body() body: any, @ReqUser() payload: JwtPayload) {
     const c = body.categoria ?? body;
     return this.ocorrenciasService.updateCategoria(Number(c.id), {
       nome: c.nome,
       prioridade: c.prioridade != null ? Number(c.prioridade) : undefined,
       sla_horas: c.sla_horas === '' ? null : (c.sla_horas != null ? Number(c.sla_horas) : undefined),
-    });
+    }, payload);
   }
 
   @Post('categorias/remove')
   @HttpCode(200)
-  removeCategoria(@Body() body: { id: number }) {
-    this.ocorrenciasService.removeCategoria(Number(body.id));
+  removeCategoria(@Body() body: { id: number }, @ReqUser() payload: JwtPayload) {
+    this.ocorrenciasService.removeCategoria(Number(body.id), payload);
     return { ok: true };
   }
 
   @Get('mensagens/get-all')
-  listMessages(@Query('id') id: string) {
-    return this.ocorrenciasService.listMessages(Number(id));
+  listMessages(@Query('id') id: string, @ReqUser() payload: JwtPayload) {
+    return this.ocorrenciasService.listMessages(Number(id), payload);
   }
 
   @Post('mensagens/enviar')
@@ -429,6 +431,7 @@ export class OcorrenciasMobileController {
       Number(body.id_ocorrencia),
       Number(idUser),
       body.mensagem,
+      payload,
     );
   }
 }

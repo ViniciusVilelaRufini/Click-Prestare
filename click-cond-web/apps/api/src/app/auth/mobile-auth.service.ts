@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
@@ -7,6 +7,8 @@ import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
+import { TenantAccessService } from './tenant-access.service';
+import { assertStaff, assertSindico } from './tenant.util';
 
 @Injectable()
 export class MobileAuthService {
@@ -16,6 +18,7 @@ export class MobileAuthService {
     private readonly mail: MailService,
     private readonly storage: StorageService,
     private readonly facial: FacialService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   /**
@@ -1071,10 +1074,12 @@ export class MobileAuthService {
     return c?.enderecoRel ?? null;
   }
 
-  async updateInfosCondominio(body: any) {
+  async updateInfosCondominio(body: any, user?: JwtPayload) {
     const data = body.condominio || {};
     const id = Number(data.id);
     if (!id) throw new BadRequestException('ID do condomínio é obrigatório.');
+    assertSindico(user, 'editar dados do condomínio');
+    await this.tenant.assertCondominio(id, user);
 
     if (!this.prisma.isConnected) return { success: true };
 
@@ -1099,10 +1104,12 @@ export class MobileAuthService {
     return { success: true };
   }
 
-  async updateAddressCondominio(body: any) {
+  async updateAddressCondominio(body: any, user?: JwtPayload) {
     const addr = body.address || {};
     const idCondominio = Number(addr.idCondominio);
     if (!idCondominio) throw new BadRequestException('ID do condomínio é obrigatório.');
+    assertSindico(user, 'editar endereço do condomínio');
+    await this.tenant.assertCondominio(idCondominio, user);
 
     if (!this.prisma.isConnected) return { success: true };
 
@@ -1142,10 +1149,12 @@ export class MobileAuthService {
     return { success: true };
   }
 
-  async updateMoedaCondominio(body: any) {
+  async updateMoedaCondominio(body: any, user?: JwtPayload) {
     const data = body.condominio || {};
     const id = Number(data.id);
     if (!id) throw new BadRequestException('ID do condomínio é obrigatório.');
+    assertSindico(user, 'editar moeda do condomínio');
+    await this.tenant.assertCondominio(id, user);
 
     if (!this.prisma.isConnected) return { success: true };
 
@@ -1157,7 +1166,7 @@ export class MobileAuthService {
     return { success: true };
   }
 
-  async updateAssinaturaCondominio(body: any, idUser: number) {
+  async updateAssinaturaCondominio(body: any, idUser: number, requester?: JwtPayload) {
     const data = body.assinatura || {};
     const idCondominio = Number(data.id_condominio);
     const idPlano = data.id_plano;
@@ -1166,6 +1175,8 @@ export class MobileAuthService {
 
     if (!idCondominio) throw new BadRequestException('ID do condomínio é obrigatório.');
     if (!idPlano) throw new BadRequestException('ID/Nome do plano é obrigatório.');
+    assertSindico(requester, 'editar assinatura do condomínio');
+    await this.tenant.assertCondominio(idCondominio, requester);
 
     if (!this.prisma.isConnected) return { success: true };
 
@@ -1269,7 +1280,8 @@ export class MobileAuthService {
   // FUNCIONÁRIOS DE PORTARIA (MOBILE) — persistência real
   // ==========================================
 
-  async getAllFuncionarios(idCond: number) {
+  async getAllFuncionarios(idCond: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCond, user);
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
@@ -1302,12 +1314,13 @@ export class MobileAuthService {
     }));
   }
 
-  async getFuncionarioById(id: number) {
+  async getFuncionarioById(id: number, requester?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
     const f = await this.prisma.funcionarios_Portaria.findUnique({ where: { id: Number(id) } });
     if (!f) throw new NotFoundException('Funcionário não encontrado.');
+    await this.tenant.assertEntidade(f.id_condominio, requester, `funcionário #${id}`);
     const user = await this.prisma.users.findFirst({
       where: { login: f.login },
       select: { photo: true }
@@ -1325,10 +1338,13 @@ export class MobileAuthService {
     };
   }
 
-  async saveFuncionario(body: any, isEdit: boolean) {
+  async saveFuncionario(body: any, isEdit: boolean, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
+    // Gerenciar porteiro/funcionário é exclusivo de síndico — um porteiro
+    // não deveria conseguir criar/editar outro porteiro (nem de si mesmo).
+    assertSindico(user, 'gerenciar funcionários');
     const func = body.funcionario || body.funcionarios || {};
     const idCondominio = Number(body.id_condominio);
 
@@ -1422,6 +1438,7 @@ export class MobileAuthService {
       if (!id) throw new BadRequestException('ID do funcionário é obrigatório para edição.');
       const atual = await this.prisma.funcionarios_Portaria.findUnique({ where: { id } });
       if (!atual) throw new NotFoundException('Funcionário não encontrado.');
+      await this.tenant.assertEntidade(atual.id_condominio, user, `funcionário #${id}`);
 
       const data: any = {};
       if (func.nome !== undefined) data.nome = func.nome;
@@ -1445,6 +1462,7 @@ export class MobileAuthService {
 
     // Criação
     if (!idCondominio) throw new BadRequestException('id_condominio é obrigatório.');
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!func.nome) throw new BadRequestException('Nome é obrigatório.');
     const loginFinal = func.email || func.login;
     if (!loginFinal) throw new BadRequestException('E-mail é obrigatório para login do porteiro.');
@@ -1474,31 +1492,33 @@ export class MobileAuthService {
     return { id: created.id };
   }
 
-  async removeFuncionario(id: number) {
+  async removeFuncionario(id: number, requester?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
+    assertSindico(requester, 'remover funcionário');
+    const fp = await this.prisma.funcionarios_Portaria.findUnique({ where: { id: Number(id) } });
+    if (!fp) throw new NotFoundException('Funcionário não encontrado.');
+    await this.tenant.assertEntidade(fp.id_condominio, requester, `funcionário #${id}`);
     try {
-      const fp = await this.prisma.funcionarios_Portaria.findUnique({ where: { id: Number(id) } });
-      if (fp) {
-        const user = await this.prisma.users.findFirst({ where: { login: fp.login } });
-        if (user) {
-          await this.prisma.funcionarios.deleteMany({ where: { id_user: user.id } });
-          // Só deleta o Users se ele não for síndico nem morador — evita destruir
-          // vínculos de condomínio de contas que compartilham o mesmo e-mail.
-          if (!user.is_sindico && !user.is_morador) {
-            await this.prisma.users.delete({ where: { id: user.id } });
-          }
+      const user = await this.prisma.users.findFirst({ where: { login: fp.login } });
+      if (user) {
+        await this.prisma.funcionarios.deleteMany({ where: { id_user: user.id } });
+        // Só deleta o Users se ele não for síndico nem morador — evita destruir
+        // vínculos de condomínio de contas que compartilham o mesmo e-mail.
+        if (!user.is_sindico && !user.is_morador) {
+          await this.prisma.users.delete({ where: { id: user.id } });
         }
-        await this.prisma.funcionarios_Portaria.delete({ where: { id: Number(id) } });
       }
+      await this.prisma.funcionarios_Portaria.delete({ where: { id: Number(id) } });
     } catch {
       throw new NotFoundException('Funcionário não encontrado.');
     }
     return true;
   }
 
-  async getAllMoradores(idCond: number) {
+  async getAllMoradores(idCond: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCond, user);
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
@@ -1529,12 +1549,14 @@ export class MobileAuthService {
     }));
   }
 
-  async getMoradorById(id: number, idUser: number, idCondominio?: number) {
+  async getMoradorById(id: number, idUser: number, idCondominio?: number, requester?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
     let m;
     if (id === 0) {
+      // id===0 = "meu próprio perfil" — idUser vem do JWT, não do cliente, então
+      // já é inerentemente seguro (não dá pra ler o perfil de outro morador aqui).
       if (idCondominio) {
         m = await this.prisma.moradores.findFirst({
           where: { id_user: idUser, id_condominio: idCondominio },
@@ -1555,6 +1577,11 @@ export class MobileAuthService {
     }
 
     if (!m) throw new NotFoundException('Morador não encontrado.');
+    if (Number(id) !== 0) {
+      await this.tenant.assertEntidade(m.id_condominio, requester, `morador #${id}`);
+      // Só o próprio morador ou a equipe (síndico/funcionário) pode ver o perfil.
+      if (m.id_user !== idUser) assertStaff(requester, 'ver dados de outro morador');
+    }
 
     // Formatar data_nascimento para DD/MM/YYYY
     let dobString = '';
@@ -1586,7 +1613,7 @@ export class MobileAuthService {
     };
   }
 
-  async saveMorador(body: any, isEdit: boolean) {
+  async saveMorador(body: any, isEdit: boolean, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível. Tente novamente em instantes.');
     }
@@ -1621,6 +1648,11 @@ export class MobileAuthService {
           include: { user: true },
         });
         if (!atual) throw new NotFoundException('Morador não encontrado.');
+        await this.tenant.assertEntidade(atual.id_condominio, user, `morador #${idMorador}`);
+        // O próprio morador pode editar o próprio cadastro; editar o de outro é
+        // ação de síndico/funcionário.
+        const callerId = user?.user?.id ?? user?.sub;
+        if (atual.id_user !== callerId) assertStaff(user, 'editar dados de outro morador');
 
         const emailMudou = mor.email !== undefined && mor.email !== atual.email;
         if (emailMudou && mor.email) {
@@ -1681,12 +1713,15 @@ export class MobileAuthService {
       }
 
       // ===== CRIAÇÃO =====
+      // Cadastrar um novo morador é ação de síndico/funcionário, não self-service.
+      assertStaff(user, 'cadastrar morador');
       if (!idApto) throw new BadRequestException('Apartamento não informado.');
 
       const apto = await this.prisma.apartamentos.findUnique({ where: { id: idApto } });
       if (!apto) throw new NotFoundException('Apartamento não encontrado.');
 
       const idCondominio = Number(body.id_condominio) || apto.id_condominio;
+      await this.tenant.assertCondominio(idCondominio, user);
 
       // Validar duplicidade de morador no condomínio
       const emailNorm = mor.email ? mor.email.toLowerCase().trim() : null;
@@ -1855,10 +1890,14 @@ export class MobileAuthService {
     }
   }
 
-  async removeMorador(id: number) {
+  async removeMorador(id: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
+    assertStaff(user, 'remover morador');
+    const atual = await this.prisma.moradores.findUnique({ where: { id: Number(id) } });
+    if (!atual) throw new NotFoundException('Morador não encontrado.');
+    await this.tenant.assertEntidade(atual.id_condominio, user, `morador #${id}`);
     try {
       await this.prisma.moradores.delete({ where: { id: Number(id) } });
     } catch {
@@ -1871,7 +1910,8 @@ export class MobileAuthService {
   // APARTAMENTOS (MOBILE)
   // ==========================================
 
-  async getAllApartamentos(idCond: number) {
+  async getAllApartamentos(idCond: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCond, user);
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
@@ -1909,10 +1949,16 @@ export class MobileAuthService {
     });
   }
 
-  async getMoradoresApto(idApto: number, tipo?: string) {
+  async getMoradoresApto(idApto: number, tipo?: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
+    const apto = await this.prisma.apartamentos.findUnique({
+      where: { id: Number(idApto) },
+      select: { id_condominio: true },
+    });
+    if (!apto) throw new NotFoundException('Apartamento não encontrado.');
+    await this.tenant.assertEntidade(apto.id_condominio, user, `apartamento #${idApto}`);
     // Filtro de tipo opcional, comparado de forma robusta (normalizado x normalizado),
     // pois o banco tem valores legados/sujos ('Proprietário'/'morador'/null/'dependente').
     const tipoFiltro = tipo ? this.normalizeTipo(tipo) : undefined;
@@ -1961,10 +2007,11 @@ export class MobileAuthService {
     return result;
   }
 
-  async saveApto(body: any, isEdit: boolean) {
+  async saveApto(body: any, isEdit: boolean, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
+    assertStaff(user, 'gerenciar apartamentos');
     const idCond = Number(body.id_condominio);
     const data = body.Apartamento ?? body.apartamento ?? {};
 
@@ -1974,6 +2021,9 @@ export class MobileAuthService {
       if (isEdit) {
         const id = Number(data.id);
         if (!id) throw new BadRequestException('ID do apartamento é obrigatório para edição.');
+        const atual = await this.prisma.apartamentos.findUnique({ where: { id }, select: { id_condominio: true } });
+        if (!atual) throw new NotFoundException('Apartamento não encontrado.');
+        await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
         return await this.prisma.apartamentos.update({
           where: { id },
           data: {
@@ -1985,6 +2035,7 @@ export class MobileAuthService {
         });
       }
       if (!idCond) throw new BadRequestException('id_condominio é obrigatório.');
+      await this.tenant.assertCondominio(idCond, user);
       return await this.prisma.apartamentos.create({
         data: {
           id_condominio: idCond,
@@ -2004,10 +2055,14 @@ export class MobileAuthService {
     }
   }
 
-  async removeApto(id: number) {
+  async removeApto(id: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
+    assertStaff(user, 'remover apartamento');
+    const atual = await this.prisma.apartamentos.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    if (!atual) throw new NotFoundException('Apartamento não encontrado.');
+    await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
     try {
       await this.prisma.apartamentos.delete({ where: { id: Number(id) } });
     } catch {
@@ -2027,7 +2082,7 @@ export class MobileAuthService {
     });
   }
 
-  async saveOcorrencia(body: any, idUser: number) {
+  async saveOcorrencia(body: any, idUser: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
@@ -2039,6 +2094,7 @@ export class MobileAuthService {
 
     if (!descricao) throw new BadRequestException('Descrição é obrigatória.');
     if (!idCondominio) throw new BadRequestException('id_condominio é obrigatório.');
+    await this.tenant.assertCondominio(Number(idCondominio), user);
 
     // SLA: prazo = agora + sla_horas da categoria (se configurado).
     const tipoNum = tipo ? Number(tipo) : null;
@@ -2106,7 +2162,8 @@ export class MobileAuthService {
    * - Síndico/Funcionário: vê todas do condomínio.
    * - Morador: vê só as próprias ou as públicas.
    */
-  async listOcorrenciasTodos(idCondominio: number, idUser: number, typeAccess: string) {
+  async listOcorrenciasTodos(idCondominio: number, idUser: number, typeAccess: string, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return [];
     const isPrivileged = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
     const where: any = { id_condominio: Number(idCondominio) };
@@ -2128,7 +2185,8 @@ export class MobileAuthService {
   /**
    * Lista somente as ocorrências NÃO solucionadas (Pendente, Ciente, etc.).
    */
-  async listOcorrenciasPendentes(idCondominio: number, idUser: number, typeAccess: string) {
+  async listOcorrenciasPendentes(idCondominio: number, idUser: number, typeAccess: string, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return [];
     const isPrivileged = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
     const where: any = {
@@ -2186,13 +2244,20 @@ export class MobileAuthService {
     };
   }
 
-  async getOcorrenciaById(id: number) {
+  async getOcorrenciaById(id: number, requester?: JwtPayload) {
     if (!this.prisma.isConnected) return null;
     const o = await this.prisma.ocorrencias.findUnique({
       where: { id },
       include: { categoria: true, criadoPor: { select: { name: true } } },
     });
     if (!o) return null;
+    await this.tenant.assertEntidade(o.id_condominio, requester, `ocorrência #${id}`);
+    const typeAccess = requester?.typeAccess ?? requester?.user?.typeAccess;
+    const isPrivileged = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
+    const callerId = requester?.user?.id ?? requester?.sub;
+    if (!isPrivileged && !o.publica && o.user !== callerId) {
+      throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
+    }
     let respNome: string | null = null;
     if (o.id_responsavel) {
       const u = await this.prisma.users.findUnique({

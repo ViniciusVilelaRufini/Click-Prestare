@@ -11,13 +11,13 @@ export class ComunicadosController {
   constructor(private readonly service: ComunicadosService) {}
 
   @Get()
-  list(@Param('idCondominio', ParseIntPipe) idCondominio: number) {
-    return this.service.findAll(idCondominio);
+  list(@Param('idCondominio', ParseIntPipe) idCondominio: number, @ReqUser() user: JwtPayload) {
+    return this.service.findAll(idCondominio, user);
   }
 
   @Get(':id')
-  get(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findOne(id);
+  get(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    return this.service.findOne(id, user);
   }
 
   @SkipAudit()

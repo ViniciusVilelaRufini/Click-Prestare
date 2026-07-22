@@ -15,17 +15,18 @@ export class MudancasController {
   @Get('get-all')
   getAll(
     @Query('id_condominio') idCondominio: string,
-    @Query('id_apto') idApto?: string,
+    @Query('id_apto') idApto: string | undefined,
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.findAll(Number(idCondominio), idApto ? Number(idApto) : undefined);
+    return this.service.findAll(Number(idCondominio), idApto ? Number(idApto) : undefined, payload);
   }
 
   // ──────────────────────────────────────────────────────
   // GET  /mudancas/get?id=
   // ──────────────────────────────────────────────────────
   @Get('get')
-  getOne(@Query('id') id: string) {
-    return this.service.findOne(Number(id));
+  getOne(@Query('id') id: string, @ReqUser() payload: JwtPayload) {
+    return this.service.findOne(Number(id), payload);
   }
 
   // ──────────────────────────────────────────────────────
@@ -44,7 +45,7 @@ export class MudancasController {
       id_apartamento: Number(data.id_apartamento),
       id_condominio: idCondominio,
       user: idUser ? Number(idUser) : null,
-    });
+    }, payload);
   }
 
   // ──────────────────────────────────────────────────────
@@ -53,14 +54,14 @@ export class MudancasController {
   // ──────────────────────────────────────────────────────
   @Post('update')
   @HttpCode(200)
-  async update(@Body() body: any) {
+  async update(@Body() body: any, @ReqUser() payload: JwtPayload) {
     const data = body.mudanca ?? body.Mudanca ?? {};
     const id = Number(data.id);
     return this.service.update(id, {
       data: data.data ?? undefined,
       hora_inicio: data.hora_inicio ?? undefined,
       id_apartamento: data.id_apartamento ? Number(data.id_apartamento) : undefined,
-    });
+    }, payload);
   }
 
   // ──────────────────────────────────────────────────────
@@ -69,11 +70,12 @@ export class MudancasController {
   // ──────────────────────────────────────────────────────
   @Post('update-status')
   @HttpCode(200)
-  async updateStatus(@Body() body: any) {
+  async updateStatus(@Body() body: any, @ReqUser() payload: JwtPayload) {
     return this.service.updateStatus(
       Number(body.id),
       Boolean(body.isAccept),
       body.motivo_recusa ?? '',
+      payload,
     );
   }
 
@@ -83,8 +85,8 @@ export class MudancasController {
   // ──────────────────────────────────────────────────────
   @Post('remove')
   @HttpCode(200)
-  async remove(@Body() body: { id: string | number }) {
-    await this.service.remove(Number(body.id));
+  async remove(@Body() body: { id: string | number }, @ReqUser() payload: JwtPayload) {
+    await this.service.remove(Number(body.id), payload);
     return { ok: true };
   }
 }

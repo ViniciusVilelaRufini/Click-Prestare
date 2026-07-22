@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import { assertStaff } from '../auth/tenant.util';
 
 export interface CreateComunicadoDto {
   titulo: string;
@@ -14,6 +16,7 @@ export class ComunicadosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditoria: AuditoriaService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   /**
@@ -48,20 +51,24 @@ export class ComunicadosService {
     };
   }
 
-  findAll(idCondominio: number) {
+  async findAll(idCondominio: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     return this.prisma.comunicados.findMany({
       where: { id_condominio: idCondominio },
       orderBy: { created_at: 'desc' },
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, user?: JwtPayload) {
     const c = await this.prisma.comunicados.findUnique({ where: { id } });
     if (!c) throw new NotFoundException(`Comunicado ${id} não encontrado`);
+    await this.tenant.assertEntidade(c.id_condominio, user, `comunicado #${id}`);
     return c;
   }
 
   async create(dto: CreateComunicadoDto, operador?: JwtPayload) {
+    assertStaff(operador, 'publicar comunicado');
+    await this.tenant.assertCondominio(dto.id_condominio, operador);
     const criado = await this.prisma.comunicados.create({
       data: {
         titulo: dto.titulo,
@@ -84,8 +91,10 @@ export class ComunicadosService {
   }
 
   async update(id: number, dto: Partial<CreateComunicadoDto>, operador?: JwtPayload) {
+    assertStaff(operador, 'editar comunicado');
     const antes = await this.prisma.comunicados.findUnique({ where: { id } });
     if (!antes) throw new NotFoundException(`Comunicado ${id} não encontrado`);
+    await this.tenant.assertEntidade(antes.id_condominio, operador, `comunicado #${id}`);
 
     try {
       const atualizado = await this.prisma.comunicados.update({
@@ -127,11 +136,14 @@ export class ComunicadosService {
   }
 
   async remove(id: number, operador?: JwtPayload) {
+    assertStaff(operador, 'remover comunicado');
     const ctx = await this.carregarContextoComunicado(id);
     const existing = await this.prisma.comunicados.findUnique({
       where: { id },
       select: { id_condominio: true, titulo: true },
     });
+    if (!existing) throw new NotFoundException(`Comunicado ${id} não encontrado`);
+    await this.tenant.assertEntidade(existing.id_condominio, operador, `comunicado #${id}`);
     try {
       await this.prisma.comunicados.delete({ where: { id } });
       if (existing) {

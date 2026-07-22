@@ -80,3 +80,19 @@ export function assertStaff(user: JwtPayload | undefined, contexto = 'ação'): 
     throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico ou funcionário.`);
   }
 }
+
+/**
+ * Versão mais restrita de assertStaff: exige Síndico, exclui Funcionário.
+ *
+ * Use em ações de maior confiança que um porteiro/funcionário não deveria
+ * acionar — gerenciar outros funcionários (criar/editar/remover porteiro)
+ * e editar perfil/assinatura do condomínio (nome, endereço, moeda,
+ * vencimento). Sem essa distinção, um porteiro comprometido poderia criar
+ * outro porteiro ou mexer na assinatura do condomínio.
+ */
+export function assertSindico(user: JwtPayload | undefined, contexto = 'ação'): void {
+  const tipo = user?.typeAccess ?? user?.user?.typeAccess;
+  if (tipo !== 'Sindico') {
+    throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico.`);
+  }
+}

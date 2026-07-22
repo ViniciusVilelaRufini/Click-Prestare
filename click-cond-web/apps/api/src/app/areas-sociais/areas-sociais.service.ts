@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import { assertStaff } from '../auth/tenant.util';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
 
@@ -15,6 +18,7 @@ export class AreasSociaisService {
     private readonly notifications: NotificationsService,
     private readonly storage: StorageService,
     private readonly facial: FacialService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   private parseTime(timeStr: string | null | undefined): [number, number] {
@@ -53,7 +57,9 @@ export class AreasSociaisService {
   // ==========================================
   // GESTÃO DE ÁREAS SOCIAIS
   // ==========================================
-  async insert(idCondominio: number, areaSocial: any) {
+  async insert(idCondominio: number, areaSocial: any, user?: JwtPayload) {
+    assertStaff(user, 'criar área social');
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return { success: true };
     }
@@ -81,7 +87,9 @@ export class AreasSociaisService {
     return { success: true };
   }
 
-  async update(idCondominio: number, areaSocial: any) {
+  async update(idCondominio: number, areaSocial: any, user?: JwtPayload) {
+    assertStaff(user, 'editar área social');
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return { success: true };
     }
@@ -111,13 +119,18 @@ export class AreasSociaisService {
     return { success: true };
   }
 
-  async remove(id: number) {
+  async remove(id: number, user?: JwtPayload) {
+    assertStaff(user, 'remover área social');
     if (!this.prisma.isConnected) return { success: true };
+    const area = await this.prisma.areas_Sociais.findUnique({ where: { id: Number(id) } });
+    if (!area) throw new NotFoundException('Área social não encontrada');
+    await this.tenant.assertEntidade(area.id_condominio, user, `área social #${id}`);
     await this.prisma.areas_Sociais.delete({ where: { id: Number(id) } });
     return { success: true };
   }
 
-  async getAll(idCondominio: number) {
+  async getAll(idCondominio: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return [
         { id: 1, nome: 'Churrasqueira Gourmet', imagem: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600' },
@@ -201,7 +214,7 @@ export class AreasSociaisService {
     return map;
   }
 
-  async get(idCondominio: number, idArea: number) {
+  async get(idCondominio: number, idArea: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       const mockHorarios = Array.from({ length: 7 }).map(() => ({
         horarios: [{ horarioDe: '10:00', horarioAte: '14:00' }, { horarioDe: '15:00', horarioAte: '22:00' }],
@@ -227,6 +240,7 @@ export class AreasSociaisService {
     });
 
     if (!area) throw new NotFoundException('Área social não encontrada');
+    await this.tenant.assertEntidade(area.id_condominio, user, `área social #${idArea}`);
 
     let horariosObj: any[] = [];
     try {
@@ -331,14 +345,26 @@ export class AreasSociaisService {
   // ==========================================
   // AGENDAMENTOS E RESERVAS
   // ==========================================
-  async insertAgendamento(agendamento: any, userId: number, typeAccess: string) {
+  async insertAgendamento(agendamento: any, userId: number, typeAccess: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
+
+    // A área precisa existir e pertencer ao condomínio do operador — sem
+    // isso, um usuário de outro condomínio reserva (ou vê conflitos de)
+    // uma área alheia só chutando id_area_social.
+    const areaAlvo = await this.prisma.areas_Sociais.findUnique({
+      where: { id: Number(agendamento.id_area_social) },
+    });
+    if (!areaAlvo) throw new NotFoundException('Área social não encontrada');
+    await this.tenant.assertEntidade(areaAlvo.id_condominio, user, 'área social');
 
     // Reserva feita pelo síndico/porteiro em nome de um morador (via web).
     // Neste caso a reserva deve pertencer ao morador do apartamento escolhido
     // (para aparecer em "minhas reservas" e disparar push para ele), e a
     // checagem de isolamento de morador não se aplica.
     const peloSindico = !!agendamento.agendarPeloSindico;
+    // Sem essa checagem, qualquer morador mandava agendarPeloSindico:true e
+    // auto-aprovava a própria reserva pulando a fila de autorização.
+    if (peloSindico) assertStaff(user, 'agendar em nome de outro morador (auto-aprovação)');
     let donoReservaId = Number(userId);
 
     if (peloSindico) {
@@ -401,9 +427,7 @@ export class AreasSociaisService {
     // Definir status inicial baseado na regra da área.
     // Reserva criada pelo síndico/porteiro já entra aprovada (a própria
     // criação pela administração equivale à aprovação).
-    const area = await this.prisma.areas_Sociais.findUnique({
-      where: { id: Number(agendamento.id_area_social) },
-    });
+    const area = areaAlvo;
 
     const statusInicial = peloSindico
       ? 'aprovado'
@@ -431,14 +455,18 @@ export class AreasSociaisService {
     return { success: true, status: statusInicial };
   }
 
-  async removeAgendamento(id: number, userId: number, typeAccess: string) {
+  async removeAgendamento(id: number, userId: number, typeAccess: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
 
+    const agTenantCheck = await this.prisma.areas_Sociais_Agendamentos.findUnique({
+      where: { id: Number(id) },
+      include: { area: { select: { id_condominio: true } } },
+    });
+    if (!agTenantCheck) throw new NotFoundException('Agendamento não encontrado.');
+    await this.tenant.assertEntidade(agTenantCheck.area?.id_condominio, user, `agendamento #${id}`);
+
     if (typeAccess === 'Morador') {
-      const ag = await this.prisma.areas_Sociais_Agendamentos.findUnique({
-        where: { id: Number(id) },
-      });
-      if (!ag || ag.id_user !== Number(userId)) {
+      if (agTenantCheck.id_user !== Number(userId)) {
         throw new ForbiddenException('Você só pode remover seus próprios agendamentos.');
       }
     }
@@ -465,7 +493,11 @@ export class AreasSociaisService {
     return { success: true };
   }
 
-  async getAllAgendamentos(idCondominio: number) {
+  async getAllAgendamentos(idCondominio: number, user?: JwtPayload) {
+    // Lista global de reservas do condomínio (fila de aprovação) — é
+    // ferramenta de gestão, não deveria ser lida por um morador qualquer.
+    assertStaff(user, 'ver todas as reservas do condomínio');
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return [
         {
@@ -503,7 +535,8 @@ export class AreasSociaisService {
     }));
   }
 
-  async getAllMeusAgendamentos(idCondominio: number, userId: number, idAptoQuery?: number) {
+  async getAllMeusAgendamentos(idCondominio: number, userId: number, idAptoQuery?: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return [
         {
@@ -555,8 +588,16 @@ export class AreasSociaisService {
     }));
   }
 
-  async updateStatusAgendamento(id: number, statusRaw: string | boolean, motivo?: string) {
+  async updateStatusAgendamento(id: number, statusRaw: string | boolean, motivo?: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
+
+    assertStaff(user, 'aprovar ou recusar reserva');
+    const agAlvo = await this.prisma.areas_Sociais_Agendamentos.findUnique({
+      where: { id: Number(id) },
+      include: { area: { select: { id_condominio: true } } },
+    });
+    if (!agAlvo) throw new NotFoundException('Agendamento não encontrado.');
+    await this.tenant.assertEntidade(agAlvo.area?.id_condominio, user, `agendamento #${id}`);
 
     let novoStatus = 'pendente';
     if (typeof statusRaw === 'boolean') {
@@ -621,8 +662,15 @@ export class AreasSociaisService {
   // ==========================================
   // MANUTENÇÕES
   // ==========================================
-  async insertManutencao(manutencao: any) {
+  async insertManutencao(manutencao: any, user?: JwtPayload) {
+    assertStaff(user, 'agendar manutenção');
     if (!this.prisma.isConnected) return { success: true };
+
+    const area = await this.prisma.areas_Sociais.findUnique({
+      where: { id: Number(manutencao.id_area_social) },
+    });
+    if (!area) throw new NotFoundException('Área social não encontrada');
+    await this.tenant.assertEntidade(area.id_condominio, user, 'área social');
 
     // Converter datas
     const pIni = manutencao.data_inicio.split('/');
@@ -648,8 +696,16 @@ export class AreasSociaisService {
     return { success: true };
   }
 
-  async updateManutencao(manutencao: any) {
+  async updateManutencao(manutencao: any, user?: JwtPayload) {
+    assertStaff(user, 'editar manutenção');
     if (!this.prisma.isConnected) return { success: true };
+
+    const atual = await this.prisma.areas_Sociais_Manutencoes.findUnique({
+      where: { id: Number(manutencao.id) },
+      include: { area: { select: { id_condominio: true } } },
+    });
+    if (!atual) throw new NotFoundException('Manutenção não encontrada.');
+    await this.tenant.assertEntidade(atual.area?.id_condominio, user, `manutenção #${manutencao.id}`);
 
     const pIni = manutencao.data_inicio.split('/');
     const dIni = new Date(Number(pIni[2]), Number(pIni[1]) - 1, Number(pIni[0]));
@@ -674,8 +730,15 @@ export class AreasSociaisService {
     return { success: true };
   }
 
-  async removeManutencao(id: number) {
+  async removeManutencao(id: number, user?: JwtPayload) {
+    assertStaff(user, 'remover manutenção');
     if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.areas_Sociais_Manutencoes.findUnique({
+      where: { id: Number(id) },
+      include: { area: { select: { id_condominio: true } } },
+    });
+    if (!atual) throw new NotFoundException('Manutenção não encontrada.');
+    await this.tenant.assertEntidade(atual.area?.id_condominio, user, `manutenção #${id}`);
     await this.prisma.areas_Sociais_Manutencoes.delete({ where: { id: Number(id) } });
     return { success: true };
   }

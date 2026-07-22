@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { JwtPayload } from './jwt-payload.interface';
+import { TenantAccessService } from './tenant-access.service';
 
 /**
  * Bloqueia acesso cross-tenant em rotas estruturadas como
@@ -17,17 +18,26 @@ import { JwtPayload } from './jwt-payload.interface';
  * `id_condominio` do JWT. Sem essa verificação, qualquer porteiro
  * autenticado consegue ler/editar dados de outros condomínios chutando IDs.
  *
+ * Tokens mobile (síndico/morador/funcionário do app) não carregam
+ * id_condominio — para esses, resolve o vínculo de verdade via
+ * TenantAccessService (consulta Sindicos_Condominios/Apartamentos_Users),
+ * em vez de liberar sem checar. Sem isso, qualquer usuário do app conseguia
+ * escolher um :idCondominio arbitrário na URL e passar por este guard.
+ *
  * Rotas marcadas como @Public (login, webhook) são liberadas.
  * Rotas sem :idCondominio na URL não são afetadas — o tenant precisa ser
- * checado no service (o helper assertSameTenant ajuda).
+ * checado no service (os helpers assertSameTenant/TenantAccessService ajudam).
  */
 @Injectable()
 export class TenantGuard implements CanActivate {
   private readonly logger = new Logger(TenantGuard.name);
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly tenant: TenantAccessService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -41,25 +51,26 @@ export class TenantGuard implements CanActivate {
     const user: JwtPayload | undefined = request.user;
     if (!user) return true; // JwtAuthGuard já barra o que precisa
 
-    // Síndico no app pode acessar qualquer condomínio dele; porteiro tem 1 só.
-    // Para a portaria-web (porteiro), o id_condominio vem fixo no JWT.
-    const userCondId = user.id_condominio;
     const urlCondId = Number(idCondominioParam);
-
-    if (!userCondId) {
-      // JWT sem id_condominio: tipicamente síndico no app — checagem
-      // específica fica para o módulo (síndico precisa validar via Users x Condominios).
-      // Não bloqueamos aqui para não quebrar fluxos válidos do app mobile.
-      return true;
-    }
-
-    if (Number.isNaN(urlCondId) || urlCondId !== userCondId) {
-      this.logger.warn(
-        `Tenant mismatch: user ${user.sub} (cond ${userCondId}) tentou acessar cond ${idCondominioParam} em ${request.method} ${request.url}`,
-      );
+    if (Number.isNaN(urlCondId)) {
       throw new ForbiddenException('Acesso negado: condomínio inválido para esta sessão');
     }
 
+    // Porteiro/portaria-web: id_condominio fixo no JWT, compara direto.
+    const userCondId = user.id_condominio;
+    if (userCondId) {
+      if (urlCondId !== userCondId) {
+        this.logger.warn(
+          `Tenant mismatch: user ${user.sub} (cond ${userCondId}) tentou acessar cond ${idCondominioParam} em ${request.method} ${request.url}`,
+        );
+        throw new ForbiddenException('Acesso negado: condomínio inválido para esta sessão');
+      }
+      return true;
+    }
+
+    // Token mobile (síndico/morador/funcionário) sem id_condominio: resolve
+    // o vínculo de verdade via banco. Lança ForbiddenException se não pertencer.
+    await this.tenant.assertCondominio(urlCondId, user);
     return true;
   }
 }

@@ -1,12 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import { assertStaff } from '../auth/tenant.util';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 @Injectable()
 export class AssembleiasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   private async uploadDocs(docs: unknown, prefix: string): Promise<string[]> {
@@ -27,7 +31,9 @@ export class AssembleiasService {
   // ==========================================
   // ASSEMBLEIAS
   // ==========================================
-  async insert(idCondominio: number, assembleia: any, userId: number) {
+  async insert(idCondominio: number, assembleia: any, userId: number, requester?: JwtPayload) {
+    assertStaff(requester, 'criar assembleia');
+    await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) return { success: true };
 
     // Processar anexos (docs) — upload real para R2 quando vierem em base64
@@ -80,7 +86,9 @@ export class AssembleiasService {
     return { success: true };
   }
 
-  async update(idCondominio: number, assembleia: any, userId: number) {
+  async update(idCondominio: number, assembleia: any, userId: number, requester?: JwtPayload) {
+    assertStaff(requester, 'editar assembleia');
+    await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) return { success: true };
 
     const listDocs = await this.uploadDocs(assembleia.docs, 'assembleias');
@@ -134,13 +142,18 @@ export class AssembleiasService {
     return { success: true };
   }
 
-  async remove(id: number) {
+  async remove(id: number, requester?: JwtPayload) {
+    assertStaff(requester, 'remover assembleia');
     if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.assembleias.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    if (!atual) throw new NotFoundException('Assembleia não encontrada');
+    await this.tenant.assertEntidade(atual.id_condominio, requester, `assembleia #${id}`);
     await this.prisma.assembleias.delete({ where: { id: Number(id) } });
     return { success: true };
   }
 
-  async getAll(idCondominio: number) {
+  async getAll(idCondominio: number, requester?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) {
       return [
         { id: 1, titulo: 'Assembleia Geral Ordinária', descricao: 'Aprovação de contas e eleição de síndico', data: '20/05/2026', hora: '19:30' },
@@ -161,7 +174,8 @@ export class AssembleiasService {
     }));
   }
 
-  async get(idCondominio: number, idAssembleia: number, userId: number) {
+  async get(idCondominio: number, idAssembleia: number, userId: number, requester?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) {
       return {
         assembleia: {
@@ -201,8 +215,21 @@ export class AssembleiasService {
     };
   }
 
-  async finish(idCondominio: number, assembleia: any) {
+  async finish(idCondominio: number, assembleia: any, requester?: JwtPayload) {
+    assertStaff(requester, 'finalizar assembleia');
+    await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) return { success: true };
+
+    // Confirma que a assembleia a ser apagada pertence mesmo a este
+    // condomínio — sem isso, um síndico de outro condomínio (que já passou
+    // no assertCondominio acima para o SEU idCondominio) conseguia apagar
+    // a assembleia de qualquer outro só chutando o id.
+    const alvo = await this.prisma.assembleias.findUnique({
+      where: { id: Number(assembleia.id) },
+      select: { id_condominio: true },
+    });
+    if (!alvo) throw new NotFoundException('Assembleia não encontrada');
+    await this.tenant.assertEntidade(alvo.id_condominio, requester, `assembleia #${assembleia.id}`);
 
     let linkDoc = '';
     if (this.storage.isDataUrl(assembleia.doc)) {
@@ -236,7 +263,9 @@ export class AssembleiasService {
   // ==========================================
   // VOTAÇÕES E ENQUETES
   // ==========================================
-  async insertVotacao(votacao: any, idCondominio: number) {
+  async insertVotacao(votacao: any, idCondominio: number, requester?: JwtPayload) {
+    assertStaff(requester, 'criar votação/enquete');
+    await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) return { success: true };
 
     const parseDate = (dStr: string) => {
@@ -278,14 +307,22 @@ export class AssembleiasService {
     return { success: true };
   }
 
-  async removeVotacao(id: number) {
+  async removeVotacao(id: number, requester?: JwtPayload) {
+    assertStaff(requester, 'remover votação/enquete');
     if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.votacoes.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    if (!atual) throw new NotFoundException('Votação não encontrada');
+    await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${id}`);
     await this.prisma.votacoes.delete({ where: { id: Number(id) } });
     return { success: true };
   }
 
-  async finishVotacao(id: number) {
+  async finishVotacao(id: number, requester?: JwtPayload) {
+    assertStaff(requester, 'encerrar votação/enquete');
     if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.votacoes.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    if (!atual) throw new NotFoundException('Votação não encontrada');
+    await this.tenant.assertEntidade(atual.id_condominio, requester, `votação #${id}`);
 
     const ontem = new Date();
     ontem.setDate(ontem.getDate() - 1);
@@ -298,7 +335,7 @@ export class AssembleiasService {
     return { success: true };
   }
 
-  async registerVoto(votacaoId: number, opcaoId: number, userId: number) {
+  async registerVoto(votacaoId: number, opcaoId: number, userId: number, requester?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
 
     const votacao = await this.prisma.votacoes.findUnique({
@@ -306,6 +343,7 @@ export class AssembleiasService {
       include: { opcoes: { select: { id: true } } },
     });
     if (!votacao) throw new NotFoundException('Votação não encontrada');
+    await this.tenant.assertEntidade(votacao.id_condominio, requester, `votação #${votacaoId}`);
 
     const status = this.calcStatusInt(votacao.data_inicio, votacao.data_termino);
     if (status === 0) throw new BadRequestException('Votação ainda não foi iniciada');
@@ -334,7 +372,8 @@ export class AssembleiasService {
     return { success: true };
   }
 
-  async enqueteGetAll(idCondominio: number) {
+  async enqueteGetAll(idCondominio: number, requester?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, requester);
     if (!this.prisma.isConnected) {
       return [
         {
@@ -348,7 +387,7 @@ export class AssembleiasService {
     return this.getVotacoesFormatadas(undefined, true, Number(idCondominio));
   }
 
-  async enqueteGetDetails(idVotacao: number, userId: number) {
+  async enqueteGetDetails(idVotacao: number, userId: number, requester?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return {
         votacao: {
@@ -359,6 +398,13 @@ export class AssembleiasService {
         meuVoto: ['1'],
       };
     }
+
+    const raw = await this.prisma.votacoes.findUnique({
+      where: { id: Number(idVotacao) },
+      select: { id_condominio: true },
+    });
+    if (!raw) throw new NotFoundException('Enquete não encontrada');
+    await this.tenant.assertEntidade(raw.id_condominio, requester, `enquete #${idVotacao}`);
 
     const list = await this.getVotacoesFormatadas(undefined, true, undefined, Number(idVotacao));
     const votacao = list[0];

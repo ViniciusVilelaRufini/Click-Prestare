@@ -1,15 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { TenantAccessService } from '../auth/tenant-access.service';
+import { assertStaff } from '../auth/tenant.util';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 @Injectable()
 export class DocumentosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
-  async insert(idCondominio: number, documento: any) {
+  async insert(idCondominio: number, documento: any, user?: JwtPayload) {
+    assertStaff(user, 'publicar documento');
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: true };
 
     let linkDoc = documento.link_doc ?? '';
@@ -35,7 +41,8 @@ export class DocumentosService {
     return { success: true };
   }
 
-  async getAll(idCondominio: number, isAtaParam?: string | number | boolean) {
+  async getAll(idCondominio: number, isAtaParam?: string | number | boolean, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       const isAta = (isAtaParam === '1' || isAtaParam === 1 || isAtaParam === true);
       if (isAta) {
@@ -69,8 +76,12 @@ export class DocumentosService {
     return list;
   }
 
-  async remove(id: number) {
+  async remove(id: number, user?: JwtPayload) {
+    assertStaff(user, 'remover documento');
     if (!this.prisma.isConnected) return { success: true };
+    const atual = await this.prisma.documentos.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    if (!atual) throw new NotFoundException('Documento não encontrado.');
+    await this.tenant.assertEntidade(atual.id_condominio, user, `documento #${id}`);
     await this.prisma.documentos.delete({ where: { id: Number(id) } });
     return { success: true };
   }

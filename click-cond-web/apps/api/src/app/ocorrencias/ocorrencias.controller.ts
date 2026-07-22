@@ -22,21 +22,23 @@ export class OcorrenciasController {
   @Post('categorias')
   createCategoria(
     @Body() body: { nome: string; prioridade?: number; sla_horas?: number | null },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.createCategoria(body);
+    return this.service.createCategoria(body, payload);
   }
 
   @Patch('categorias/:catId')
   updateCategoria(
     @Param('catId', ParseIntPipe) catId: number,
     @Body() body: { nome?: string; prioridade?: number; sla_horas?: number | null },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.updateCategoria(catId, body);
+    return this.service.updateCategoria(catId, body, payload);
   }
 
   @Delete('categorias/:catId')
-  removeCategoria(@Param('catId', ParseIntPipe) catId: number) {
-    this.service.removeCategoria(catId);
+  removeCategoria(@Param('catId', ParseIntPipe) catId: number, @ReqUser() payload: JwtPayload) {
+    this.service.removeCategoria(catId, payload);
     return { ok: true };
   }
 
@@ -54,8 +56,8 @@ export class OcorrenciasController {
   }
 
   @Get(':id')
-  get(@Param('id', ParseIntPipe) id: number) {
-    return this.service.findOne(id);
+  get(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
+    return this.service.findOne(id, payload);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -77,44 +79,48 @@ export class OcorrenciasController {
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { status: OcorrenciaStatus },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.updateStatus(id, body.status);
+    return this.service.updateStatus(id, body.status, payload);
   }
 
   @Patch(':id/publica')
   updatePublica(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { publica: boolean },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.updatePublica(id, body.publica);
+    return this.service.updatePublica(id, body.publica, payload);
   }
 
   @Patch(':id/resposta')
   updateResposta(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { resposta: string },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.updateResposta(id, body.resposta);
+    return this.service.updateResposta(id, body.resposta, payload);
   }
 
   @Patch(':id/responsavel')
   atribuir(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { id_responsavel: number | null },
+    @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.atribuir(id, body.id_responsavel ?? null);
+    return this.service.atribuir(id, body.id_responsavel ?? null, payload);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    this.service.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
+    this.service.remove(id, payload);
     return { ok: true };
   }
 
   @UseGuards(JwtAuthGuard)
   @Get(':id/mensagens')
-  listMessages(@Param('id', ParseIntPipe) id: number) {
-    return this.service.listMessages(id);
+  listMessages(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
+    return this.service.listMessages(id, payload);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -125,6 +131,6 @@ export class OcorrenciasController {
     @Body() body: { mensagem: string },
   ) {
     const idUser = payload?.user?.id ?? payload?.sub ?? null;
-    return this.service.createMessage(id, Number(idUser), body.mensagem);
+    return this.service.createMessage(id, Number(idUser), body.mensagem, payload);
   }
 }
