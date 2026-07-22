@@ -5,6 +5,7 @@ import { FechamentoService } from './fechamento.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { Public } from '../auth/public.decorator';
+import { assertStaff } from '../auth/tenant.util';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('financeiro')
@@ -21,6 +22,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; financeiro: any },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'lançar movimento financeiro');
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
     return this.service.insert(Number(body.id_condominio), body.financeiro, operatorName, payload);
   }
@@ -32,6 +34,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; financeiro: any },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'editar movimento financeiro');
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
     return this.service.update(Number(body.id_condominio), body.financeiro, operatorName, payload);
   }
@@ -40,6 +43,7 @@ export class FinanceiroController {
   @Post('remove')
   @HttpCode(200)
   remove(@Body() body: { id: string | number }, @ReqUser() payload: JwtPayload) {
+    assertStaff(payload, 'remover movimento financeiro');
     return this.service.remove(Number(body.id), payload);
   }
 
@@ -50,15 +54,13 @@ export class FinanceiroController {
     @Query('ano') ano: string,
     @ReqUser() payload: JwtPayload,
   ) {
-    const isSindico = payload?.user?.typeAccess === 'Sindico';
+    const isSindico = (payload?.typeAccess ?? payload?.user?.typeAccess) === 'Sindico';
     return this.service.getAll(Number(idCondominio), mes, ano, isSindico, payload);
   }
 
   @Get('get')
   get(@Query('id_condominio') idCondominio: string, @Query('id') id: string, @ReqUser() payload: JwtPayload) {
-    // Para o get, o service espera payload.user para checagem de typeAccess de morador.
-    // Passa o payload inteiro pra que id_condominio também esteja disponível para tenant check.
-    return this.service.get(Number(idCondominio), Number(id), payload?.user ?? payload);
+    return this.service.get(Number(idCondominio), Number(id), payload);
   }
 
   @Get('moradores/get-all')
@@ -147,6 +149,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; config: any },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'configurar cobrança automática');
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
     return this.service.updateConfigAuto(Number(body.id_condominio), body.config, operatorName, payload);
   }
@@ -162,6 +165,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; aptoId: string | number; ignorar: boolean },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'configurar recorrência de apartamento');
     return this.service.updateApartamentoRecorrencia(Number(body.id_condominio), Number(body.aptoId), body.ignorar, payload);
   }
 
@@ -243,6 +247,7 @@ export class FinanceiroController {
     },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'alterar status de pagamento');
     return this.service.updateStatus(Number(body.id), body.status, payload, {
       motivo: body.motivo,
       formaPagamento: body.formaPagamento,
@@ -332,6 +337,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; rateioData: any },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'criar rateio');
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
     return this.service.createRateio(Number(body.id_condominio), body.rateioData, operatorName, payload);
   }
@@ -343,6 +349,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; acordoData: any },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'criar acordo de inadimplência');
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
     return this.service.createAcordoInadimplente(Number(body.id_condominio), body.acordoData, operatorName, payload);
   }
@@ -353,6 +360,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; ofxContent: string },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'importar conciliação bancária');
     return this.service.parseOfxContent(Number(body.id_condominio), body.ofxContent, payload);
   }
 
@@ -363,6 +371,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; reconciliations: { databaseId: number; dataPagamento: string }[] },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'confirmar conciliação bancária');
     return this.service.confirmarConciliacao(Number(body.id_condominio), body.reconciliations, payload);
   }
 
@@ -383,6 +392,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; mes: number; ano: number; observacao?: string },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'fechar competência');
     return this.fechamento.fechar(
       Number(body.id_condominio),
       Number(body.mes),
@@ -399,6 +409,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; mes: number; ano: number; motivo: string },
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'reabrir competência');
     return this.fechamento.reabrir(
       Number(body.id_condominio),
       Number(body.mes),

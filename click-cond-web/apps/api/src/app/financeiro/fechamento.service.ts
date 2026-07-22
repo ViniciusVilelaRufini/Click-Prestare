@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
-import { assertSameTenant } from '../auth/tenant.util';
+import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 /**
@@ -23,15 +23,14 @@ export class FechamentoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditoria: AuditoriaService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   /**
    * Lista fechamentos do condomínio (ativos e históricos).
    */
   async listar(idCondominio: number, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return [];
 
     return this.prisma.fechamentoMensal.findMany({
@@ -63,9 +62,7 @@ export class FechamentoService {
     user?: JwtPayload,
     observacao?: string,
   ) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { ok: true };
 
     if (!mes || mes < 1 || mes > 12) {
@@ -138,9 +135,7 @@ export class FechamentoService {
     motivo: string,
     user?: JwtPayload,
   ) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { ok: true };
 
     const motivoLimpo = motivo?.trim();

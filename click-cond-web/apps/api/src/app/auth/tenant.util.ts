@@ -65,3 +65,18 @@ export function assertTenantStrict(
   requireTenant(user, contexto);
   assertSameTenant(entityCondId, user, contexto);
 }
+
+/**
+ * Garante que o usuário autenticado é Síndico ou Funcionário (staff).
+ *
+ * Use em ações administrativas do financeiro (lançar, editar, remover,
+ * marcar como pago, fechar/reabrir competência, etc) que não fazem sentido
+ * para um Morador — sem essa checagem, qualquer JWT válido (inclusive de
+ * morador) pode acionar a rota.
+ */
+export function assertStaff(user: JwtPayload | undefined, contexto = 'ação'): void {
+  const tipo = user?.typeAccess ?? user?.user?.typeAccess;
+  if (tipo !== 'Sindico' && tipo !== 'Funcionario') {
+    throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico ou funcionário.`);
+  }
+}

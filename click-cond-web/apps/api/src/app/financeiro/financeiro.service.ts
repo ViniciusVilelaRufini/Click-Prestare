@@ -4,7 +4,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { MailService } from '../common/mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertSameTenant } from '../auth/tenant.util';
+import { TenantAccessService } from '../auth/tenant-access.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FechamentoService } from './fechamento.service';
 import { OpenPixService } from './openpix.service';
@@ -21,6 +21,7 @@ export class FinanceiroService implements OnModuleInit {
     private readonly auditoria: AuditoriaService,
     private readonly fechamento: FechamentoService,
     private readonly openPix: OpenPixService,
+    private readonly tenant: TenantAccessService,
   ) {}
 
   // Lock para impedir execução concorrente do job (se o intervalo se sobrepuser
@@ -163,6 +164,25 @@ export class FinanceiroService implements OnModuleInit {
     return blocoNorm === 'condominio' || blocoNorm === 'condomínio';
   }
 
+  /**
+   * Parser unificado de valor monetário BR/US.
+   *
+   * Só trata `.` como separador de milhar quando também há `,` na string
+   * (ex.: "1.234,56") — senão um valor já em formato decimal com ponto
+   * (ex.: "150.50", comum em teclados/locale EN) teria o ponto removido e
+   * viraria "15050" (inflação de 100x). Era exatamente o bug que existia
+   * em insertMoradorConta/updateMoradorConta antes desta unificação.
+   */
+  private parseValorMonetario(raw: unknown): number {
+    if (typeof raw === 'number') return raw;
+    let str = String(raw || '0').replace('R$', '').trim();
+    if (str.includes(',')) {
+      str = str.replace(/\./g, '').replace(',', '.');
+    }
+    const valor = parseFloat(str);
+    return isNaN(valor) ? 0 : valor;
+  }
+
   private parseDataBR(dStr?: string | null): Date | null {
     if (!dStr) return null;
     let d: Date;
@@ -183,10 +203,10 @@ export class FinanceiroService implements OnModuleInit {
   private async getLancamentoForTenant(id: number, user?: JwtPayload) {
     const lanc = await this.prisma.financeiro.findUnique({
       where: { id: Number(id) },
-      select: { id: true, id_condominio: true, nome: true, valor: true, tipo: true, pago: true, status: true, id_usuario: true },
+      select: { id: true, id_condominio: true, nome: true, valor: true, tipo: true, pago: true, status: true, id_usuario: true, data: true, data_vencimento: true },
     });
     if (!lanc) throw new NotFoundException(`Lançamento ${id} não encontrado`);
-    assertSameTenant(lanc.id_condominio, user, `lançamento #${id}`);
+    await this.tenant.assertEntidade(lanc.id_condominio, user, `lançamento #${id}`);
     return lanc;
   }
 
@@ -247,22 +267,12 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return { success: true };
 
     // Valida: id_condominio do body bate com JWT do operador.
-    assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    await this.tenant.assertCondominio(idCondominio, user);
 
     // Bloqueia inserção em mês fechado. Checagem feita já com a data
     // parseada para reaproveitar o helper, abaixo após o parsing.
 
-    let valor = 0;
-    if (typeof financeiro.valor === 'number') {
-      valor = financeiro.valor;
-    } else {
-      let str = String(financeiro.valor || '0').replace('R$', '').trim();
-      if (str.includes(',')) {
-        str = str.replace(/\./g, '').replace(',', '.');
-      }
-      valor = parseFloat(str);
-    }
-    if (isNaN(valor)) valor = 0;
+    let valor = this.parseValorMonetario(financeiro.valor);
 
     const absValor = Math.abs(valor);
     if (absValor <= 0 || absValor > 9999999) {
@@ -414,22 +424,12 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return { success: true };
 
     // Valida: id_condominio do body bate com JWT, e lançamento existe nesse condomínio.
-    assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    await this.tenant.assertCondominio(idCondominio, user);
     if (financeiro?.id) {
       await this.getLancamentoForTenant(Number(financeiro.id), user);
     }
 
-    let valor = 0;
-    if (typeof financeiro.valor === 'number') {
-      valor = financeiro.valor;
-    } else {
-      let str = String(financeiro.valor || '0').replace('R$', '').trim();
-      if (str.includes(',')) {
-        str = str.replace(/\./g, '').replace(',', '.');
-      }
-      valor = parseFloat(str);
-    }
-    if (isNaN(valor)) valor = 0;
+    let valor = this.parseValorMonetario(financeiro.valor);
 
     const absValor = Math.abs(valor);
     if (absValor <= 0 || absValor > 9999999) {
@@ -622,7 +622,7 @@ export class FinanceiroService implements OnModuleInit {
     return { success: true };
   }
 
-  async get(idCondominio: number, id: number, user: any) {
+  async get(idCondominio: number, id: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return {
         id, nome: 'Taxa Condominial', tipo: 'C', valor: 650.0,
@@ -631,13 +631,10 @@ export class FinanceiroService implements OnModuleInit {
       };
     }
 
-    // Validação de tenant: para porteiro/síndico tradicional, o JWT carrega
-    // id_condominio e precisa bater. Moradores no app não tem id_condominio
-    // no JWT — para eles a validação adicional vem abaixo (só vê o próprio).
-    const jwtPayload: JwtPayload | undefined = user?.id_condominio ? user : undefined;
-    if (jwtPayload) {
-      assertSameTenant(idCondominio, jwtPayload, `condomínio ${idCondominio}`);
-    }
+    // Validação de tenant mobile-aware: porteiro/síndico web tem id_condominio
+    // fixo no JWT (compara direto); síndico/morador do app não têm — o
+    // TenantAccessService resolve o vínculo real consultando o banco.
+    await this.tenant.assertCondominio(idCondominio, user);
 
     const result = await this.prisma.financeiro.findFirst({
       where: { id: Number(id), id_condominio: Number(idCondominio) },
@@ -647,9 +644,10 @@ export class FinanceiroService implements OnModuleInit {
 
     // Morador só pode ver lançamentos vinculados a ele OU cobranças do seu apto.
     // Sem isso, morador chuta IDs e lê dados financeiros de qualquer um.
-    const isMorador = user?.typeAccess === 'Morador';
+    const typeAccess = user?.typeAccess ?? user?.user?.typeAccess;
+    const isMorador = typeAccess === 'Morador';
     if (isMorador) {
-      const userId = user?.id ?? user?.sub;
+      const userId = user?.sub ?? user?.user?.id;
       const podeVer = result.id_usuario === userId;
       if (!podeVer && result.nome) {
         // Para faturas de apto (nome "Apto X Bloco Y - Ref. ..."), verifica se o
@@ -714,9 +712,7 @@ export class FinanceiroService implements OnModuleInit {
   // LISTAGEM E AGRUPAMENTO GERAL
   // ==========================================
   async getAll(idCondominio: number, mesStr?: string, anoStr?: string, isSindico: boolean = true, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return {
         lancamentos: {
@@ -854,9 +850,7 @@ export class FinanceiroService implements OnModuleInit {
   // INADIMPLÊNCIA E TAXAS DE MORADORES
   // ==========================================
   async getAllMoradores(idCondominio: number, mesStr: string, anoStr: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { meses: [], blocos: [] };
 
     const meses = await this.getAllMeses(idCondominio);
@@ -978,9 +972,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async getAllInadimplentes(idCondominio: number, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return {
         blocos: [
@@ -1060,9 +1052,7 @@ export class FinanceiroService implements OnModuleInit {
    * aparecem mais no Financeiro do condomínio.
    */
   async getInadimplenciaDashboard(idCondominio: number, mesStr?: string, anoStr?: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
 
     const cond = await this.prisma.condominios.findUnique({
       where: { id: Number(idCondominio) },
@@ -1221,9 +1211,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async getInadimplenteDetail(idCondominio: number, apto: string, bloco: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return [
         {
@@ -1307,9 +1295,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async notifyInadimplente(idCondominio: number, apto: string, bloco: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return { success: true, message: 'Simulado com sucesso (modo offline).' };
     }
@@ -1388,9 +1374,7 @@ export class FinanceiroService implements OnModuleInit {
   // GRÁFICOS E COMPARTILHAMENTO DE ARQUIVOS
   // ==========================================
   async getGrafico(idCondominio: number, mesStr: string, anoStr: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return {
         meses: [{ mes: '05', ano: '2026', periodo: 'Maio/2026' }],
@@ -1991,9 +1975,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async createRateio(idCondominio: number, rateioData: { nome: string; valorTotal: number; data_vencimento: string; categoria: string }, operatorName: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
     const aptos = await this.prisma.apartamentos.findMany({
@@ -2067,9 +2049,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async createAcordoInadimplente(idCondominio: number, acordoData: { apto: string; bloco: string; parcelas: number; valorTotal: number }, operatorName: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
     // Busca débitos com filtro amplo (contains) mas FILTRA na aplicação
@@ -2294,8 +2274,7 @@ export class FinanceiroService implements OnModuleInit {
   async insertMoradorConta(idUser: number, idCondominio: number, data: any) {
     if (!this.prisma.isConnected) return { success: true };
 
-    let valor = parseFloat(String(data.valor || '0').replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
-    if (isNaN(valor)) valor = 0;
+    const valor = this.parseValorMonetario(data.valor);
     if (valor <= 0 || valor > 9999999) {
       throw new BadRequestException('O valor da conta deve ser maior que zero e menor que R$ 10.000.000,00.');
     }
@@ -2346,8 +2325,7 @@ export class FinanceiroService implements OnModuleInit {
 
     if (!record) throw new NotFoundException('Conta não encontrada ou sem permissão.');
 
-    let valor = parseFloat(String(data.valor || '0').replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
-    if (isNaN(valor)) valor = 0;
+    const valor = this.parseValorMonetario(data.valor);
     if (valor <= 0 || valor > 9999999) {
       throw new BadRequestException('O valor da conta deve ser maior que zero e menor que R$ 10.000.000,00.');
     }
@@ -2430,9 +2408,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async parseOfxContent(idCondominio: number, ofxContent: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     const transactions: any[] = [];
     const stmttrnRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
     let match;
@@ -2533,13 +2509,19 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async confirmarConciliacao(idCondominio: number, reconciliations: { databaseId: number; dataPagamento: string }[], user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     // Cada databaseId precisa pertencer ao condomínio — sem isso, atacante
-    // marca como pago lançamentos de outros condomínios em massa.
+    // marca como pago lançamentos de outros condomínios em massa. Também
+    // bloqueia conciliar lançamento de competência fechada, igual updateStatus
+    // (mesma exceção: cobrança de morador atrasada passa mesmo assim).
     for (const rec of reconciliations) {
-      await this.getLancamentoForTenant(rec.databaseId, user);
+      const lanc = await this.getLancamentoForTenant(rec.databaseId, user);
+      await this.fechamento.assertPodeAlterar(
+        lanc.id_condominio,
+        lanc.data ?? lanc.data_vencimento,
+        'updateStatus',
+        lanc.nome,
+      );
     }
     const confirmados: number[] = [];
     const falhas: number[] = [];
@@ -2609,9 +2591,7 @@ export class FinanceiroService implements OnModuleInit {
     anoStr?: string,
     user?: JwtPayload,
   ): Promise<{ buffer: Buffer; filename: string }> {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return { buffer: Buffer.from('Data\n'), filename: 'livro_caixa_vazio.csv' };
     }
@@ -2717,9 +2697,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async getConfigAuto(idCondominio: number, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
     const cond = await this.prisma.condominios.findUnique({
@@ -2744,9 +2722,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async updateConfigAuto(idCondominio: number, config: any, operatorName: string, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
     // Ativar recorrência exige valor de taxa > 0 — sem isso o job geraria
@@ -2822,9 +2798,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async getApartamentosConfig(idCondominio: number, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return [];
 
     const aptos = await this.prisma.apartamentos.findMany({
@@ -2842,9 +2816,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   async updateApartamentoRecorrencia(idCondominio: number, aptoId: number, ignorar: boolean, user?: JwtPayload) {
-    if (user?.id_condominio) {
-      assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
-    }
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: false };
 
     // Certifica que o apartamento pertence ao condomínio
@@ -2877,7 +2849,7 @@ export class FinanceiroService implements OnModuleInit {
    */
   async adminLimparCobrancasZeradas(idCondominio: number, operatorName: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
-    assertSameTenant(idCondominio, user, `condomínio ${idCondominio}`);
+    await this.tenant.assertCondominio(idCondominio, user);
 
     const aptos = await this.prisma.apartamentos.findMany({
       where: { id_condominio: Number(idCondominio) },
