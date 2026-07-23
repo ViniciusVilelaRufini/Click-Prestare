@@ -2349,6 +2349,70 @@ export class MobileAuthService {
     return [];
   }
 
+  /**
+   * Retirada feita pelo próprio morador — condomínios sem portaria, onde não há
+   * porteiro para dar baixa. O morador confirma que pegou o volume e (opcional)
+   * anexa uma foto como comprovante.
+   *
+   * Só libera se a encomenda for endereçada a um dos apto/bloco do morador; sem
+   * essa checagem qualquer morador daria baixa na encomenda alheia (IDOR).
+   */
+  async retirarEncomendaMorador(
+    idUser: number,
+    idEncomenda: number,
+    fotoDataUrl?: string,
+  ) {
+    if (!this.prisma.isConnected) {
+      throw new ServiceUnavailableException('Banco de dados indisponível.');
+    }
+
+    const encomenda = await this.prisma.encomendas.findUnique({
+      where: { id: Number(idEncomenda) },
+    });
+    if (!encomenda) {
+      throw new NotFoundException('Encomenda não encontrada.');
+    }
+
+    const norm = (v?: string | null) => (v ?? '').trim().toLowerCase();
+
+    const moras = await this.prisma.moradores.findMany({
+      where: { id_user: idUser },
+    });
+    const dono = moras.find(
+      (m) =>
+        m.id_condominio === encomenda.id_condominio &&
+        norm(m.apartamento) === norm(encomenda.destinatario_apto) &&
+        norm(m.bloco) === norm(encomenda.destinatario_bloco),
+    );
+    if (!dono) {
+      throw new ForbiddenException('Esta encomenda não é do seu apartamento.');
+    }
+
+    if (norm(encomenda.status) === 'retirada') {
+      throw new BadRequestException('Esta encomenda já foi retirada.');
+    }
+
+    // Foto chega como data URL do app; o storage devolve a URL pública.
+    let fotoUrl: string | null = fotoDataUrl ?? null;
+    if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
+      const uploaded = await this.storage.uploadDataUrl(fotoUrl, 'encomendas');
+      if (uploaded) {
+        fotoUrl = uploaded;
+      }
+    }
+
+    return this.prisma.encomendas.update({
+      where: { id: encomenda.id },
+      data: {
+        retirado_em: new Date(),
+        retirado_por: dono.nome,
+        retirado_foto: fotoUrl,
+        status: 'Retirada',
+        entregue_por_user: idUser,
+      },
+    });
+  }
+
   async updatePassword(idUser: number, newPasswordPlana: string, typeAccess: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');

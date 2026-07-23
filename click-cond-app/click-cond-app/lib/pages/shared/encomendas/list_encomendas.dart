@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:click/controllers/controller_encomendas.dart';
 import 'package:click/models/encomenda_model.dart';
 import 'package:click/theme/app_colors.dart';
@@ -39,7 +42,8 @@ class ListEncomendasState extends State<ListEncomendas> {
   }
 
   Future<void> _loadList() async {
-    setState(() => _isLoading = true);
+    // Stale-while-revalidate: skeleton só sem cache; ao voltar, mantém a lista.
+    if (_encomendas.isEmpty) setState(() => _isLoading = true);
     try {
       final List<dynamic> result = await apiGetAllEncomendas(allCondos: widget.allCondos);
       if (mounted) {
@@ -94,7 +98,10 @@ class ListEncomendasState extends State<ListEncomendas> {
                       ),
                       itemCount: _encomendas.length,
                       itemBuilder: (context, index) {
-                        return _EncomendaCard(encomenda: _encomendas[index]);
+                        return _EncomendaCard(
+                          encomenda: _encomendas[index],
+                          onRetirada: _loadList,
+                        );
                       },
                     ),
             ),
@@ -357,8 +364,191 @@ class ListEncomendasState extends State<ListEncomendas> {
 
 class _EncomendaCard extends StatelessWidget {
   final EncomendaModel encomenda;
+  final VoidCallback? onRetirada;
 
-  const _EncomendaCard({required this.encomenda});
+  const _EncomendaCard({required this.encomenda, this.onRetirada});
+
+  bool get _jaRetirada {
+    final s = (encomenda.status ?? '').toLowerCase();
+    return s == 'retirado' || s == 'retirada' || s == 'entregue';
+  }
+
+  /// Retirada pelo próprio morador — usado em condomínios sem portaria, onde
+  /// não há porteiro para dar baixa. A foto é opcional e serve de comprovante.
+  Future<void> _abrirRetirada(BuildContext detailContext) async {
+    Uint8List? fotoBytes;
+    bool enviando = false;
+
+    await showModalBottomSheet(
+      context: detailContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Future<void> anexarFoto() async {
+              final img = await getPhoto(context);
+              if (img == null) return;
+              final bytes = await img.readAsBytes();
+              setSheetState(() => fotoBytes = bytes);
+            }
+
+            Future<void> confirmar() async {
+              setSheetState(() => enviando = true);
+
+              final foto = fotoBytes == null
+                  ? null
+                  : 'data:image/jpeg;base64,${base64Encode(fotoBytes!)}';
+
+              final ok = await apiRetirarEncomenda(
+                encomenda.id ?? 0,
+                getUsername(),
+                retiradoFoto: foto,
+              );
+
+              if (!sheetContext.mounted) return;
+              Navigator.pop(sheetContext);
+              if (detailContext.mounted) Navigator.pop(detailContext);
+
+              if (ok) {
+                onRetirada?.call();
+              }
+              ScaffoldMessenger.of(detailContext).showSnackBar(
+                SnackBar(
+                  content: Text(ok
+                      ? 'Retirada confirmada com sucesso!'
+                      : 'Não foi possível confirmar a retirada. Tente novamente.'),
+                  backgroundColor: ok ? Colors.green : AppColors.error,
+                ),
+              );
+            }
+
+            return Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.md,
+                AppSpacing.xl,
+                MediaQuery.of(context).padding.bottom + AppSpacing.xl,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.textTertiary(context).withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  Row(
+                    children: [
+                      Icon(PhosphorIcons.checkCircle, color: Colors.green, size: 24),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          'Confirmar retirada',
+                          style: AppTypography.headline(context)
+                              .copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Confirme que você retirou este volume. Ficam registrados o seu '
+                    'nome e a data/hora da retirada.',
+                    style: AppTypography.caption(context),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  if (fotoBytes == null)
+                    OutlinedButton.icon(
+                      onPressed: enviando ? null : anexarFoto,
+                      icon: Icon(PhosphorIcons.camera, size: 18),
+                      label: const Text('Anexar foto (opcional)'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        fotoBytes!,
+                        height: 170,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: enviando ? null : anexarFoto,
+                            icon: Icon(PhosphorIcons.arrowsClockwise, size: 16),
+                            label: const Text('Trocar'),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: enviando
+                                ? null
+                                : () => setSheetState(() => fotoBytes = null),
+                            icon: Icon(PhosphorIcons.trash,
+                                size: 16, color: Colors.redAccent),
+                            label: const Text('Remover',
+                                style: TextStyle(color: Colors.redAccent)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: enviando ? null : confirmar,
+                    child: enviando
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Confirmar retirada',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildBrandIcon(BuildContext context) {
     final recebidoDe = (encomenda.recebidoDe ?? '').toLowerCase();
@@ -838,6 +1028,23 @@ class _EncomendaCard extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: AppSpacing.xl),
+                // Condomínios sem portaria: o morador dá baixa na própria
+                // encomenda. Some assim que o volume consta como retirado.
+                if (!_jaRetirada && getUserType().toLowerCase() == 'morador') ...[
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () => _abrirRetirada(context),
+                    icon: Icon(PhosphorIcons.checkCircle, size: 20),
+                    label: const Text('Marcar como retirada',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,

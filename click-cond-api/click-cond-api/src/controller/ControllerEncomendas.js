@@ -104,8 +104,36 @@ module.exports = {
 
   async retirar(req, res) {
     try {
-      const { id, retirado_por } = req.body;
-      await db.retirar(id, retirado_por);
+      const user = req.session.user;
+      const { id, retirado_por, retirado_foto } = req.body;
+
+      const encomenda = await db.get(id);
+      if (!encomenda) return res.status(404).json({ message: "Encomenda não encontrada." });
+
+      let nomeRetirada = retirado_por;
+
+      // Morador dando baixa na propria encomenda (condominio sem portaria):
+      // so pode retirar o que esta endereçado ao apto/bloco dele.
+      if (user.typeAccess === 'Morador') {
+        const dbMoradores = require('../database/DB_Moradores');
+        const conds = await dbMoradores.listCondominios(user.id);
+        const currentCond = conds.find(c => c.id == encomenda.id_condominio);
+
+        if (!currentCond ||
+            encomenda.destinatario_apto !== currentCond.apto ||
+            (encomenda.destinatario_bloco && encomenda.destinatario_bloco !== currentCond.apto_bloco)) {
+          return res.status(403).json({ message: "Acesso negado: Esta encomenda não pertence ao seu apartamento." });
+        }
+
+        // Nome vem da sessao, nao do corpo: o morador nao escolhe quem retirou.
+        nomeRetirada = user.nome || currentCond.nome || 'Morador';
+      }
+
+      if ((encomenda.status || '').toLowerCase() === 'retirada') {
+        return res.status(400).json({ message: "Esta encomenda já foi retirada." });
+      }
+
+      await db.retirar(id, nomeRetirada, retirado_foto);
       return res.json();
     } catch (err) {
       return res.status(500).json({ message: err.message });

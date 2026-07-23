@@ -458,6 +458,21 @@ export class EncomendasMobileController {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.cadastrarRastreioMorador(Number(idUser), body);
   }
+
+  // Condomínios sem portaria: o próprio morador dá baixa na encomenda e pode
+  // anexar uma foto como comprovante da retirada.
+  @Post('retirar')
+  retirar(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id: number | string; retirado_foto?: string },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.retirarEncomendaMorador(
+      Number(idUser),
+      Number(body.id),
+      body.retirado_foto,
+    );
+  }
 }
 
 // ==========================================

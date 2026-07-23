@@ -33,7 +33,7 @@ apiGetAllEncomendas({String? status, bool allCondos = false}) async {
   }
 }
 
-apiRetirarEncomenda(int id, String retiradoPor) async {
+apiRetirarEncomenda(int id, String retiradoPor, {String? retiradoFoto}) async {
   var url = ApiConfig.buildUri('/encomendas/retirar');
   try {
     var response = await ApiClient.post(
@@ -44,7 +44,8 @@ apiRetirarEncomenda(int id, String retiradoPor) async {
       },
       body: jsonEncode({
         "id": id,
-        "retirado_por": retiradoPor
+        "retirado_por": retiradoPor,
+        if (retiradoFoto != null) "retirado_foto": retiradoFoto,
       })
     );
     return response.statusCode == 200;

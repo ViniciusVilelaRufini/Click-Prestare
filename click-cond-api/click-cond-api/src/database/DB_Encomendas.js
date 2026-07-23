@@ -73,13 +73,16 @@ module.exports = {
   /**
    * Marca uma encomenda como retirada.
    */
-  retirar: async function (id, retirado_por) {
-    const query = `update Encomendas 
-                    set status='Retirada', 
-                    retirado_em=NOW(), 
-                    retirado_por='${retirado_por}'
-                    where id=${id}`;
-    await db.query(query);
+  retirar: async function (id, retirado_por, retirado_foto) {
+    // Parametrizado: a foto vem como data URL (base64 grande) e o nome é texto
+    // livre — interpolar quebraria a query e abriria injecao.
+    const query = `update Encomendas
+                    set status='Retirada',
+                    retirado_em=NOW(),
+                    retirado_por=?,
+                    retirado_foto=COALESCE(?, retirado_foto)
+                    where id=?`;
+    await db.queryParam(query, [retirado_por, retirado_foto ?? null, id]);
   },
 
   /**
