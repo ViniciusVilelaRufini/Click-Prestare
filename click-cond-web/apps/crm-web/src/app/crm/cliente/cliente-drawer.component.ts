@@ -1,6 +1,7 @@
-import { Component, HostListener, effect, inject, signal } from '@angular/core';
+import { Component, HostListener, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { CrmApi } from '../crm.service';
 import { CrmStore } from '../crm.store';
@@ -60,16 +61,48 @@ export class ClienteDrawerComponent {
   readonly registrarDocumento = signal('');
   readonly registrarSenha = signal('');
 
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+
+  /** Cliente pedido pela URL na entrada da página — consumido uma única vez. */
+  private idPendenteDaUrl = Number(this.route.snapshot.queryParamMap.get('cliente')) || null;
+
   constructor() {
-    // Sempre que o cliente selecionado muda, o drawer volta ao estado inicial.
+    // Sempre que o cliente selecionado muda, o drawer volta ao estado inicial
+    // e a URL passa a refletir quem está aberto (deep-link ?cliente=ID).
     effect(() => {
-      this.store.clienteSelecionado();
+      const c = this.store.clienteSelecionado();
       this.abaSelecionada.set('geral');
       this.modoEdicao.set(false);
       this.moradores.set([]);
       this.apartamentos.set([]);
       this.mostrandoFormMorador.set(false);
       this.buscaMorador.set('');
+
+      // Não apaga o ?cliente=ID da URL enquanto o cliente pedido não abriu.
+      if (!c && this.idPendenteDaUrl) return;
+
+      untracked(() => {
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { cliente: c ? c.id : null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+      });
+    });
+
+    // Reabre o drawer quando a lista chega e a URL pedia um cliente específico.
+    effect(() => {
+      const clientes = this.store.clientes();
+      const idUrl = this.idPendenteDaUrl;
+      if (!idUrl || !clientes.length) return;
+
+      untracked(() => {
+        this.idPendenteDaUrl = null;
+        const alvo = clientes.find((c) => c.id === idUrl);
+        if (alvo) this.store.abrirCliente(alvo);
+      });
     });
   }
 

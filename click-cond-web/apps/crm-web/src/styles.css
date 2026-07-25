@@ -48,10 +48,8 @@ body {
 }
 
 @layer components {
-  /* Painel padrão: superfície elevada com borda fina e sombra leve.
-     (.glass é alias legado — remover quando o markup migrar p/ .card) */
-  .card,
-  .glass {
+  /* Painel padrão: superfície elevada com borda fina e sombra leve. */
+  .card {
     @apply relative rounded-xl border border-line bg-surface-raised shadow-card;
   }
   .card-hover {
@@ -91,20 +89,6 @@ body {
     @apply w-full rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-muted transition-colors focus:border-accent focus:outline-none;
   }
 }
-
-/* ── Classes legadas ainda referenciadas no template (remover na migração) ── */
-.crm-table-header-container { background-color: var(--surface-sunken); }
-.crm-textarea-custom,
-.crm-mrr-input-custom {
-  background-color: var(--surface-raised);
-  border-color: var(--border-default);
-  color: var(--text-primary);
-}
-.crm-mobile-topbar {
-  background-color: var(--surface-raised);
-  border-color: var(--border-default);
-}
-.crm-mobile-nav { background-color: var(--surface-sunken); }
 
 /* Acessibilidade: foco visível e consistente */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
@@ -383,90 +367,3 @@ body {
 .nav-active-rail.is-active::before {
   height: 60%;
 }
-
-/* ════════════════════════════════════════════════════════════════
-   PONTE DE COMPATIBILIDADE — REMOVER NA FASE 6 DA MIGRAÇÃO
-   O markup legado foi escrito para o tema escuro (texto branco,
-   overlays brancos translúcidos, fundos #hex escuros). Este bloco
-   remapeia essas classes para o tema claro até cada aba ser migrada
-   para os tokens semânticos (surface/ink/line/...). Conforme as abas
-   forem restyladas, estas regras perdem os alvos e o bloco sai.
-   ════════════════════════════════════════════════════════════════ */
-
-/* Superfícies #hex escuras hardcoded */
-.bg-\[\#050507\] { background-color: var(--surface-raised); }
-.bg-\[\#060608\] { background-color: var(--surface-page); }
-.bg-\[\#000\]    { background-color: var(--surface-page); }
-.bg-\[\#0b0b0f\],
-.bg-\[\#08080c\],
-.bg-\[\#09090d\],
-.bg-\[\#0b0c0e\] { background-color: var(--surface-raised); }
-.bg-\[\#160b0b\] { background-color: var(--danger-soft); }
-.bg-\[\#111d0e\],
-.bg-\[\#0a130d\] { background-color: var(--success-soft); }
-
-/* Texto branco/zinc-claro de origem dark → tinta escura */
-.text-white,
-.text-zinc-100,
-.text-zinc-150,
-.text-zinc-200,
-.text-zinc-300 { color: var(--text-primary); }
-.text-zinc-350,
-.text-zinc-400,
-.text-zinc-450,
-.text-zinc-500,
-.text-zinc-550,
-.text-zinc-555,
-.text-zinc-600,
-.text-zinc-650 { color: var(--text-secondary); }
-.placeholder\:text-zinc-500::placeholder,
-.placeholder\:text-zinc-600::placeholder,
-.placeholder\:text-zinc-650::placeholder { color: var(--text-muted); }
-/* texto branco sobre botões/superfícies coloridas continua branco */
-.bg-accent-500.text-white,
-.bg-accent-600.text-white,
-.bg-accent.text-white,
-.bg-danger.text-white,
-.bg-success.text-white { color: var(--text-inverse); }
-
-/* Cores de status "400" pastel (legíveis no escuro) → tons fortes */
-.text-emerald-300, .text-emerald-400 { color: var(--success); }
-.text-rose-400 { color: var(--danger); }
-.text-amber-400 { color: var(--warning); }
-.text-sky-400 { color: var(--accent); }
-.text-violet-400 { color: #5b21b6; }
-.group:hover .group-hover\:text-accent-300 { color: var(--accent); }
-
-/* Overlays brancos translúcidos → overlay de tinta leve */
-.bg-white\/\[0\.003\] { background-color: rgba(24, 24, 27, 0.015); }
-.bg-white\/\[0\.005\] { background-color: rgba(24, 24, 27, 0.02); }
-.bg-white\/\[0\.01\]  { background-color: rgba(24, 24, 27, 0.025); }
-.bg-white\/\[0\.012\] { background-color: rgba(24, 24, 27, 0.03); }
-.bg-white\/\[0\.015\] { background-color: rgba(24, 24, 27, 0.03); }
-.bg-white\/\[0\.02\]  { background-color: rgba(24, 24, 27, 0.04); }
-.bg-white\/\[0\.03\]  { background-color: rgba(24, 24, 27, 0.05); }
-.bg-white\/\[0\.04\]  { background-color: rgba(24, 24, 27, 0.065); }
-.bg-white\/\[0\.05\]  { background-color: rgba(24, 24, 27, 0.075); }
-.bg-white\/\[0\.06\]  { background-color: rgba(24, 24, 27, 0.09); }
-.bg-white\/\[0\.08\]  { background-color: rgba(24, 24, 27, 0.11); }
-.hover\:bg-white\/\[0\.01\]:hover  { background-color: rgba(24, 24, 27, 0.03); }
-.hover\:bg-white\/\[0\.012\]:hover { background-color: rgba(24, 24, 27, 0.035); }
-.hover\:bg-white\/\[0\.02\]:hover  { background-color: rgba(24, 24, 27, 0.05); }
-.hover\:bg-white\/\[0\.03\]:hover  { background-color: rgba(24, 24, 27, 0.06); }
-.hover\:bg-white\/\[0\.04\]:hover  { background-color: rgba(24, 24, 27, 0.075); }
-.hover\:bg-white\/\[0\.05\]:hover  { background-color: rgba(24, 24, 27, 0.085); }
-.hover\:bg-white\/\[0\.06\]:hover  { background-color: rgba(24, 24, 27, 0.10); }
-.hover\:bg-white\/\[0\.08\]:hover  { background-color: rgba(24, 24, 27, 0.12); }
-
-/* Bordas/divisores brancos translúcidos → linhas claras */
-.border-white\/\[0\.02\],
-.border-white\/\[0\.03\] { border-color: var(--border-subtle); }
-.border-white\/\[0\.04\],
-.border-white\/\[0\.05\] { border-color: var(--border-default); }
-.border-white\/\[0\.06\],
-.border-white\/\[0\.08\],
-.border-white\/\[0\.1\]  { border-color: var(--border-strong); }
-.divide-white\/\[0\.015\] > :not([hidden]) ~ :not([hidden]),
-.divide-white\/\[0\.02\]  > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-subtle); }
-.divide-white\/\[0\.04\]  > :not([hidden]) ~ :not([hidden]) { border-color: var(--border-default); }
-/* FIM DA PONTE DE COMPATIBILIDADE */
