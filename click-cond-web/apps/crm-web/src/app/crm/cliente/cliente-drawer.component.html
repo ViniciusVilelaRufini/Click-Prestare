@@ -449,6 +449,9 @@
                     @if (r.offline > 0) {
                       <span class="badge badge-danger">{{ r.offline }} offline</span>
                     }
+                    @if (r.semStatus > 0) {
+                      <span class="badge badge-warning">{{ r.semStatus }} sem status</span>
+                    }
                     @if (r.desativados > 0) {
                       <span class="badge badge-neutral">{{ r.desativados }} desativado(s)</span>
                     }
@@ -468,7 +471,7 @@
                       <div class="flex min-w-0 items-center gap-3">
                         <span
                           class="h-2.5 w-2.5 shrink-0 rounded-full"
-                          [class]="!t.ativo ? 'bg-ink-muted' : t.online ? 'bg-success status-dot-live' : 'bg-danger'"
+                          [class]="!t.ativo ? 'bg-ink-muted' : t.online === true ? 'bg-success status-dot-live' : t.online === false ? 'bg-danger' : 'bg-warning'"
                         ></span>
                         <div class="min-w-0">
                           <p class="truncate text-sm font-semibold text-ink">{{ t.nome }}</p>
@@ -481,16 +484,22 @@
                       <div class="shrink-0 text-right">
                         @if (!t.ativo) {
                           <span class="badge badge-neutral">Desativado</span>
-                        } @else if (t.online) {
+                        } @else if (t.online === true) {
                           <span class="badge badge-success">Online</span>
-                        } @else {
+                        } @else if (t.online === false) {
                           <span class="badge badge-danger">Offline</span>
+                        } @else {
+                          <span class="badge badge-warning" title="O agente local não reportou o estado deste terminal recentemente">
+                            Sem status
+                          </span>
                         }
                         <p class="mt-1 font-mono text-2xs text-ink-muted">
-                          @if (t.ultimaSincr) {
-                            Sinc. {{ t.ultimaSincr | date:'dd/MM HH:mm' }}
+                          @if (t.ativo && !t.agenteConectado) {
+                            Agente local desconectado
+                          } @else if (t.ultimaSincr) {
+                            Rostos sinc. {{ t.ultimaSincr | date:'dd/MM HH:mm' }}
                           } @else {
-                            Nunca sincronizou
+                            Rostos nunca sincronizados
                           }
                         </p>
                       </div>

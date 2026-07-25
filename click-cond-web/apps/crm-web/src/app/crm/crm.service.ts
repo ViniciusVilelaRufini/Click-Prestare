@@ -228,9 +228,11 @@ export interface CrmTerminal {
   ip: string;
   tipo: string;
   ativo: boolean;
-  online: boolean;
+  /** Status ao vivo do aparelho na LAN; null = sem reporte recente do agente. */
+  online: boolean | null;
+  /** O agente local está fazendo polling deste terminal agora. */
+  agenteConectado: boolean;
   ultimaSincr: string | null;
-  offlineHaMinutos: number | null;
 }
 
 export interface CrmDisparo {

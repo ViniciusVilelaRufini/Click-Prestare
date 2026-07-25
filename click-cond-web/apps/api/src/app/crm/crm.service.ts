@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
+import { AgentBridgeService } from '../facial/agent-bridge.service';
 
 
 /**
@@ -106,7 +107,8 @@ export interface CrmOverview {
 export class CrmService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ocorrenciasService: OcorrenciasService
+    private readonly ocorrenciasService: OcorrenciasService,
+    private readonly agent: AgentBridgeService,
   ) {}
 
 
@@ -340,14 +342,11 @@ export class CrmService {
     ip: string;
     tipo: string;
     ativo: boolean;
-    online: boolean;
+    online: boolean | null;
+    agenteConectado: boolean;
     ultimaSincr: string | null;
-    offlineHaMinutos: number | null;
   }[]> {
     if (!this.prisma.isConnected) return [];
-
-    const OFFLINE_MS = 10 * 60 * 1000;
-    const agora = Date.now();
 
     const devices = await this.prisma.facial_Devices
       .findMany({ where: { id_condominio: idCondominio }, orderBy: { nome: 'asc' } })
@@ -355,8 +354,6 @@ export class CrmService {
 
     return devices.map((d) => {
       const sincr = d.ultima_sincr ? new Date(d.ultima_sincr).getTime() : null;
-      const ativo = d.ativo === 1;
-      const online = ativo && sincr != null && agora - sincr <= OFFLINE_MS;
       return {
         id: d.id,
         nome: d.nome,
@@ -364,10 +361,14 @@ export class CrmService {
         modelo: d.modelo ?? null,
         ip: d.ip,
         tipo: d.tipo,
-        ativo,
-        online,
+        ativo: d.ativo === 1,
+        // Status ao vivo (mesmo sinal da portaria-web): o agente local reporta
+        // se alcança o aparelho na LAN. null = sem reporte recente.
+        online: this.agent.isDeviceOnline(d.id),
+        agenteConectado: this.agent.isOnline(d.id),
+        // Última sincronização de rostos — informativo, NÃO é sinal de online:
+        // essa coluna só muda quando há back-fill de faces.
         ultimaSincr: sincr ? new Date(sincr).toISOString() : null,
-        offlineHaMinutos: online || !sincr ? null : Math.round((agora - sincr) / 60000),
       };
     });
   }
@@ -473,8 +474,8 @@ export class CrmService {
         .catch(() => 0),
       // Terminais ativos com a última sincronização — para calcular offline + duração real
       this.prisma.facial_Devices
-        .findMany({ where: { id_condominio: idCond, ativo: 1 }, select: { ultima_sincr: true } })
-        .catch(() => [] as { ultima_sincr: Date | null }[]),
+        .findMany({ where: { id_condominio: idCond, ativo: 1 }, select: { id: true, ultima_sincr: true } })
+        .catch(() => [] as { id: number; ultima_sincr: Date | null }[]),
       this.prisma.moradores
         .count({ where: { id_condominio: idCond, face_id: { not: null } } })
         .catch(() => 0),
@@ -552,12 +553,20 @@ export class CrmService {
       agora,
     });
 
-    // Terminais offline + duração (mesmo limiar de 10min usado antes)
-    const OFFLINE_MS = 10 * 60 * 1000;
+    // Terminais offline: usa o mesmo sinal ao vivo da portaria-web — o agente
+    // local reporta se alcança cada aparelho na LAN (AgentBridgeService).
+    //
+    // `ultima_sincr` NÃO serve para isso: só é gravada quando há back-fill de
+    // rostos, então um terminal saudável que não recebe cadastro novo há dias
+    // aparecia como "offline há 4 dias" e disparava risco de churn falso.
+    // Sem reporte recente (agente caído/nunca instalado) o status é
+    // desconhecido — e desconhecido não é contado como offline.
     const offlineDevices = (dispositivosRows ?? []).filter(
-      (d) => !d.ultima_sincr || agora.getTime() - new Date(d.ultima_sincr).getTime() > OFFLINE_MS,
+      (d) => this.agent.isDeviceOnline(d.id) === false,
     );
     const dispositivosOffline = offlineDevices.length;
+    // Há quanto tempo está fora: a queda é observada em memória, então usamos
+    // a última sincronização apenas como piso da estimativa quando existe.
     const maxOfflineDias = offlineDevices.reduce((max, d) => {
       if (!d.ultima_sincr) return Math.max(max, 999); // nunca sincronizou
       const dias = (agora.getTime() - new Date(d.ultima_sincr).getTime()) / (24 * 3600 * 1000);

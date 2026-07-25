@@ -29,6 +29,6 @@ import { AgentBridgeService } from './agent-bridge.service';
     AccessStateService,
     AgentBridgeService,
   ],
-  exports: [FacialService],
+  exports: [FacialService, AgentBridgeService],
 })
 export class FacialModule {}

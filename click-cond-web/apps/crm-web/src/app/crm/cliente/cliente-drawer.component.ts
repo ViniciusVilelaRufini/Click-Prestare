@@ -58,8 +58,10 @@ export class ClienteDrawerComponent {
     const ativos = ts.filter((t) => t.ativo);
     return {
       total: ts.length,
-      online: ativos.filter((t) => t.online).length,
-      offline: ativos.filter((t) => !t.online).length,
+      online: ativos.filter((t) => t.online === true).length,
+      offline: ativos.filter((t) => t.online === false).length,
+      // Sem reporte do agente: não dá para afirmar nem online nem offline.
+      semStatus: ativos.filter((t) => t.online === null).length,
       desativados: ts.length - ativos.length,
     };
   });

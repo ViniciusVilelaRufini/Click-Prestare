@@ -10,6 +10,7 @@ import { resolveJwtSecret } from '../auth/jwt-secret';
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 import { MoradoresModule } from '../moradores/moradores.module';
 import { ApartamentosModule } from '../apartamentos/apartamentos.module';
+import { FacialModule } from '../facial/facial.module';
 
 @Module({
   imports: [
@@ -24,6 +25,9 @@ import { ApartamentosModule } from '../apartamentos/apartamentos.module';
     // sem passar pelas rotas /condominios/:id/* que são exclusivas de cada tenant.
     MoradoresModule,
     ApartamentosModule,
+    // Status ao vivo dos terminais (heartbeat do agente local), o mesmo sinal
+    // que a portaria-web usa — ver AgentBridgeService.
+    FacialModule,
   ],
   controllers: [CrmController, CrmAuthController],
   providers: [CrmService, CrmFaturasService, CrmAuthService, CrmAdminGuard],
