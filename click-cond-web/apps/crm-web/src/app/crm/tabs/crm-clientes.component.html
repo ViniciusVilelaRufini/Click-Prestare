@@ -65,7 +65,7 @@
         <h3 class="text-sm font-semibold text-ink">Condomínios</h3>
         <p class="mt-0.5 text-xs text-ink-soft">Clique em um registro para ver os dados completos ou editar.</p>
       </div>
-      <span class="font-mono text-xs text-ink-muted">{{ clientesFiltrados().length }} registros</span>
+      <span class="whitespace-nowrap font-mono text-xs text-ink-muted">{{ clientesFiltrados().length }} registros</span>
     </div>
 
     @if (store.loading() && !store.clientes().length) {

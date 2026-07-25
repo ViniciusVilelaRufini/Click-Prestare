@@ -116,7 +116,7 @@
               <span class="h-2 w-2 shrink-0 rounded-full bg-current" [class.status-dot-live]="h.connected"></span>
               @if (h.connected) {
                 <span>Dados ao vivo</span>
-                <span class="font-mono opacity-70">{{ h.dbLatencyMs }}ms · {{ h.totalCondominios }} condomínios</span>
+                <span class="hidden font-mono opacity-70 sm:inline">{{ h.dbLatencyMs }}ms · {{ h.totalCondominios }} condomínios</span>
               } @else {
                 <span>Modo desenvolvimento (mock)</span>
               }
