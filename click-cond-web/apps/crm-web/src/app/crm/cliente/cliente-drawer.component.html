@@ -267,7 +267,7 @@
                 <div class="flex items-center justify-between">
                   <p class="stat-label">Saúde da Conta &amp; Risco</p>
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
-                    Risco {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}
+                    {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}/100
                   </span>
                 </div>
                 <div class="flex items-center gap-3">

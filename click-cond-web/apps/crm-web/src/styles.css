@@ -67,7 +67,7 @@ body {
     @apply bg-surface-sunken text-2xs font-semibold uppercase tracking-wider text-ink-muted;
   }
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-semibold;
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-2xs font-semibold;
   }
   .badge-success { @apply border-success-border bg-success-soft text-success; }
   .badge-warning { @apply border-warning-border bg-warning-soft text-warning; }
@@ -76,16 +76,16 @@ body {
   .badge-accent  { @apply border-accent-border bg-accent-soft text-accent; }
   .badge-neutral { @apply border-line bg-surface-sunken text-ink-soft; }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-600 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-600 disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface-raised px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-line bg-surface-raised px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:pointer-events-none;
   }
   .input {
     @apply w-full rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-muted transition-colors focus:border-accent focus:outline-none;

@@ -84,21 +84,20 @@
         <table class="w-full border-collapse text-left text-sm">
           <thead>
             <tr class="table-head border-b border-line">
-              <th scope="col" class="px-6 py-3">Condomínio</th>
-              <th scope="col" class="px-6 py-3">Estágio</th>
-              <th scope="col" class="px-6 py-3">Plano</th>
-              <th scope="col" class="px-6 py-3">UHs</th>
-              <th scope="col" class="px-6 py-3">MRR / vencimento</th>
-              <th scope="col" class="px-6 py-3">Terminais</th>
-              <th scope="col" class="px-6 py-3">Health</th>
-              <th scope="col" class="px-6 py-3">Contato</th>
-              <th scope="col" class="px-6 py-3 text-right">Ações</th>
+              <th scope="col" class="px-4 py-3">Condomínio</th>
+              <th scope="col" class="px-4 py-3">Estágio</th>
+              <th scope="col" class="px-4 py-3">Plano</th>
+              <th scope="col" class="px-4 py-3">UHs</th>
+              <th scope="col" class="px-4 py-3">MRR</th>
+              <th scope="col" class="px-4 py-3">Terminais</th>
+              <th scope="col" class="px-4 py-3">Health</th>
+              <th scope="col" class="hidden px-4 py-3 xl:table-cell">Contato</th>
             </tr>
           </thead>
           <tbody class="stagger-children divide-y divide-line-subtle">
             @for (c of clientesFiltrados(); track c.id) {
               <tr class="group cursor-pointer transition-colors hover:bg-surface-sunken" [style.--i]="$index < 10 ? $index : 10" (click)="abrirCliente(c)">
-                <td class="px-6 py-3">
+                <td class="px-4 py-3">
                   <div class="flex items-center gap-3">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-sunken text-2xs font-bold text-ink-soft transition-colors group-hover:border-accent-border group-hover:bg-accent-soft group-hover:text-accent">
                       {{ iniciais(c.nome) }}
@@ -110,8 +109,8 @@
                   </div>
                 </td>
 
-                <td class="px-6 py-3">
-                  <div class="flex flex-col items-start gap-1">
+                <td class="px-4 py-3">
+                  <div class="flex flex-wrap items-center gap-1">
                     <span class="badge {{ estagioClasse(c.estagio) }}">
                       <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
                       {{ estagioLabel(c.estagio) }}
@@ -127,22 +126,22 @@
                   </div>
                 </td>
 
-                <td class="px-6 py-3 text-ink-soft">{{ c.plano || 'Sem plano' }}</td>
+                <td class="whitespace-nowrap px-4 py-3 text-ink-soft">{{ c.plano || 'Sem plano' }}</td>
 
-                <td class="px-6 py-3 font-mono tabular-nums text-ink-soft">{{ c.totalApartamentos }}</td>
+                <td class="px-4 py-3 font-mono tabular-nums text-ink-soft">{{ c.totalApartamentos }}</td>
 
-                <td class="px-6 py-3">
+                <td class="px-4 py-3">
                   <p class="font-mono font-semibold tabular-nums text-ink">{{ moeda(c.mrr) }}</p>
                   @if (c.diasParaVencer !== null) {
-                    <p class="mt-0.5 text-xs font-medium {{ pagamentoClasse(c.statusPagamento) }}">
+                    <p class="mt-0.5 whitespace-nowrap text-xs font-medium {{ pagamentoClasse(c.statusPagamento) }}">
                       {{ c.diasParaVencer < 0 ? 'Venceu há ' + (-c.diasParaVencer) + 'd' : 'Vence em ' + c.diasParaVencer + 'd' }}
                     </p>
                   } @else {
-                    <p class="mt-0.5 text-xs text-ink-muted">Sem cobrança</p>
+                    <p class="mt-0.5 whitespace-nowrap text-xs text-ink-muted">Sem cobrança</p>
                   }
                 </td>
 
-                <td class="px-6 py-3">
+                <td class="px-4 py-3">
                   @if (c.dispositivosFaciais > 0) {
                     <span class="badge" [class]="c.dispositivosOffline > 0 ? 'badge badge-danger' : 'badge badge-success'">
                       <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
@@ -153,7 +152,7 @@
                   }
                 </td>
 
-                <td class="px-6 py-3">
+                <td class="px-4 py-3">
                   <div class="flex max-w-[120px] items-center gap-2">
                     <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken">
                       <div class="h-full rounded-full transition-[width] duration-700 ease-out {{ healthBg(c.healthScore) }}" [style.width.%]="c.healthScore"></div>
@@ -162,7 +161,7 @@
                   </div>
                 </td>
 
-                <td class="min-w-[140px] px-6 py-3">
+                <td class="hidden min-w-[140px] px-4 py-3 xl:table-cell">
                   @if (c.contatoPrincipal; as ct) {
                     <p class="max-w-[150px] truncate font-medium text-ink">{{ ct.nome }}</p>
                     <p class="mt-0.5 max-w-[150px] truncate text-xs text-ink-soft">{{ ct.telefone || ct.email || '—' }}</p>
@@ -171,18 +170,6 @@
                   }
                 </td>
 
-                <td class="px-6 py-3 text-right" (click)="$event.stopPropagation()">
-                  <button
-                    type="button"
-                    class="press inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
-                    [attr.aria-label]="'Ver detalhes de ' + c.nome"
-                    (click)="abrirCliente(c)"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </td>
               </tr>
             }
           </tbody>
