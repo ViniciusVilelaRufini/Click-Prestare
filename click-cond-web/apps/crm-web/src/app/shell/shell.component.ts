@@ -12,7 +12,7 @@ import { RouterOutlet } from '@angular/router';
   standalone: true,
   imports: [CommonModule, RouterOutlet],
   template: `
-    <div class="min-h-screen bg-graphite text-slate-100">
+    <div class="min-h-screen bg-surface-page text-ink">
       <router-outlet></router-outlet>
     </div>
   `,
