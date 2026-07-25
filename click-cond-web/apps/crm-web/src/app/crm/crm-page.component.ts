@@ -9,6 +9,8 @@ import { ToastService, ToastTipo } from '../shared/toast.service';
 import { CountUpDirective } from '../shared/count-up.directive';
 import { CrmConfiguracoesComponent } from './tabs/crm-configuracoes.component';
 import { CrmAutomacoesComponent } from './tabs/crm-automacoes.component';
+import { CrmRelatoriosComponent } from './tabs/crm-relatorios.component';
+import { CrmChamadosComponent } from './tabs/crm-chamados.component';
 import { Apartamento, EstagioFiltro, Fatura, Morador, Ordenacao, StatusFatura } from './crm.models';
 import * as fmt from './crm-format';
 
@@ -17,7 +19,7 @@ export type { Fatura } from './crm.models';
 @Component({
   selector: 'app-crm-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, CountUpDirective, CrmConfiguracoesComponent, CrmAutomacoesComponent],
+  imports: [CommonModule, FormsModule, CountUpDirective, CrmConfiguracoesComponent, CrmAutomacoesComponent, CrmRelatoriosComponent, CrmChamadosComponent],
   templateUrl: './crm-page.component.html',
 })
 export class CrmPageComponent implements OnInit, OnDestroy {
@@ -87,81 +89,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   // ── Navegação entre abas ──
   readonly abaNavegacao = signal<'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios' | 'chamados'>('overview');
-
-  // ── Estado local: aba Chamados ──
-  readonly ocorrenciasList = signal<any[]>([]);
-  readonly subFiltroChamados = signal<'todos' | 'app' | 'facial' | 'acesso'>('todos');
-  readonly ocorrenciasFiltradas = computed(() => {
-    const list = this.ocorrenciasList();
-    const subFiltro = this.subFiltroChamados();
-
-    const techKeywords = [
-      'app', 'aplicativo', 'facial', 'face', 'reconhecimento',
-      'sistema', 'software', 'bug', 'erro', 'falha', 'instabilidade',
-      'entrar', 'acesso', 'bloqueado', 'bloqueada', 'nao consegue',
-      'nao esta conseguindo', 'liberar', 'liberacao', 'visitante',
-      'morador', 'botoeira', 'portao', 'abrir', 'abre', 'travado',
-      'travada', 'controle de acesso', 'rfid', 'tag', 'chaveiro',
-      'biometria', 'leitor', 'leitora', 'interfone', 'tecnico', 'tecnica',
-      'camera'
-    ];
-
-    const normalize = (text: string): string => {
-      return (text || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[̀-ͯ]/g, '');
-    };
-
-    // 1. Filtra permanentemente ocorrências não-técnicas (oculta barulho, lixo, etc.)
-    const baseTechList = list.filter((o) => {
-      const desc = normalize(o.descricao || '');
-      const cat = normalize(o.categoria?.nome || '');
-      return techKeywords.some((k) => desc.includes(k) || cat.includes(k));
-    });
-
-    // 2. Aplica sub-filtros específicos de suporte B2B
-    if (subFiltro === 'todos') {
-      return baseTechList;
-    }
-
-    let filterKeywords: string[] = [];
-    if (subFiltro === 'app') {
-      filterKeywords = ['app', 'aplicativo', 'sistema', 'software', 'bug', 'erro', 'falha', 'instabilidade', 'senha', 'cadastro', 'login'];
-    } else if (subFiltro === 'facial') {
-      filterKeywords = ['facial', 'face', 'reconhecimento', 'camera'];
-    } else if (subFiltro === 'acesso') {
-      filterKeywords = ['botoeira', 'portao', 'abrir', 'abre', 'travado', 'travada', 'controle de acesso', 'rfid', 'tag', 'chaveiro', 'biometria', 'leitor', 'leitora', 'interfone', 'acesso', 'entrar', 'bloqueado', 'bloqueada', 'nao consegue', 'nao esta conseguindo', 'liberar', 'liberacao', 'visitante', 'morador', 'tecnico', 'tecnica'];
-    }
-
-    return baseTechList.filter((o) => {
-      const desc = normalize(o.descricao || '');
-      const cat = normalize(o.categoria?.nome || '');
-      return filterKeywords.some((k) => desc.includes(k) || cat.includes(k));
-    });
-  });
-  readonly ocorrenciasLoading = signal(false);
-  readonly ocorrenciaSelecionada = signal<any | null>(null);
-  readonly respostaTexto = signal('');
-  readonly enviandoResposta = signal(false);
-  readonly reabrindoChamado = signal(false);
-  reaberturaTexto = '';
-  readonly enviandoReabertura = signal(false);
-  readonly chatMensagens = signal<any[]>([]);
-  readonly loadingChatMensagens = signal(false);
-  chatNovaMensagem = '';
-  chatInterval: any = null;
-  ocorrenciasInterval: any = null;
-  readonly modalNovoChamadoAberto = signal(false);
-  readonly novoChamadoCondominioId = signal<number | null>(null);
-  readonly novoChamadoDescricao = signal('');
-  readonly criandoNovoChamado = signal(false);
-
-  // ── Estado local: aba Relatórios ──
-  readonly relatorioTipo = signal<'financeiro' | 'clientes' | 'portaria' | 'notificacoes'>('financeiro');
-  readonly relatorioPeriodo = signal<'30d' | '90d' | 'ano' | 'tudo'>('tudo');
-  readonly relatorioGerado = signal(true);
-  readonly gerandoRelatorio = signal(false);
 
   // ── Gráficos (overview) ──
 
@@ -315,10 +242,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.store.pararHealthPolling();
-    if (this.chatInterval) {
-      clearInterval(this.chatInterval);
-    }
-    this.limparIntervaloOcorrencias();
   }
 
   // ── Delegações para o store (mantêm os nomes usados no template) ──
@@ -728,230 +651,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     this.abaNavegacao.set(aba);
     // Limpar cliente selecionado ao trocar de aba principal para evitar sobreposições
     this.store.fecharCliente();
-    this.limparIntervaloOcorrencias();
-
-    if (aba === 'chamados') {
-      this.carregarOcorrencias();
-      // Polling a cada 10 segundos para novos chamados no CRM
-      this.ocorrenciasInterval = setInterval(() => {
-        this.recargaSilenciosaOcorrencias();
-      }, 10000);
-    }
-  }
-
-  // ── Chamados / ocorrências ──
-
-  carregarOcorrencias(): void {
-    this.ocorrenciasLoading.set(true);
-    this.api.getOcorrencias().subscribe({
-      next: (data) => {
-        this.ocorrenciasList.set(data);
-        this.ocorrenciasLoading.set(false);
-      },
-      error: (err) => {
-        console.error('Erro ao carregar ocorrências no CRM:', err);
-        this.ocorrenciasLoading.set(false);
-      }
-    });
-  }
-
-  recargaSilenciosaOcorrencias(): void {
-    this.api.getOcorrencias().subscribe({
-      next: (data) => {
-        this.ocorrenciasList.set(data);
-      }
-    });
-  }
-
-  private limparIntervaloOcorrencias(): void {
-    if (this.ocorrenciasInterval) {
-      clearInterval(this.ocorrenciasInterval);
-      this.ocorrenciasInterval = null;
-    }
-  }
-
-  abrirRespostaOcorrencia(o: any): void {
-    this.ocorrenciaSelecionada.set(o);
-    this.respostaTexto.set(o.resposta || '');
-    this.chatMensagens.set([]);
-    this.chatNovaMensagem = '';
-    this.limparIntervaloChat();
-    this.carregarMensagensChat(o.id);
-
-    // Polling a cada 2.5s para receber novas mensagens
-    this.chatInterval = setInterval(() => {
-      this.atualizarChatSilenciosamente(o.id);
-    }, 2500);
-  }
-
-  fecharRespostaOcorrencia(): void {
-    this.limparIntervaloChat();
-    this.ocorrenciaSelecionada.set(null);
-    this.respostaTexto.set('');
-    this.reabrindoChamado.set(false);
-    this.reaberturaTexto = '';
-  }
-
-  private limparIntervaloChat(): void {
-    if (this.chatInterval) {
-      clearInterval(this.chatInterval);
-      this.chatInterval = null;
-    }
-  }
-
-  carregarMensagensChat(idOcorrencia: number): void {
-    this.loadingChatMensagens.set(true);
-    this.api.listMessages(idOcorrencia).subscribe({
-      next: (msgs) => {
-        this.chatMensagens.set(msgs);
-        this.loadingChatMensagens.set(false);
-        this.scrollChatParaFim();
-      },
-      error: (err) => {
-        console.error('Erro ao carregar mensagens do chat:', err);
-        this.loadingChatMensagens.set(false);
-      }
-    });
-  }
-
-  atualizarChatSilenciosamente(idOcorrencia: number): void {
-    this.api.listMessages(idOcorrencia).subscribe({
-      next: (msgs) => {
-        if (msgs.length !== this.chatMensagens().length) {
-          this.chatMensagens.set(msgs);
-          this.scrollChatParaFim();
-        }
-      }
-    });
-  }
-
-  enviarMensagemChat(): void {
-    const o = this.ocorrenciaSelecionada();
-    const msg = this.chatNovaMensagem.trim();
-    if (!o || !msg) return;
-
-    this.api.sendMessage(o.id, msg).subscribe({
-      next: (novaMsg) => {
-        this.chatMensagens.update(curr => [...curr, novaMsg]);
-        this.chatNovaMensagem = '';
-        this.scrollChatParaFim();
-      },
-      error: (err) => {
-        console.error('Erro ao enviar mensagem:', err);
-        this.triggerToast('Erro ao enviar mensagem de chat.', 'error');
-      }
-    });
-  }
-
-  private scrollChatParaFim(): void {
-    setTimeout(() => {
-      const container = document.getElementById('crm-chat-container');
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-    }, 100);
-  }
-
-  enviarRespostaOcorrencia(): void {
-    const o = this.ocorrenciaSelecionada();
-    const resp = this.respostaTexto().trim();
-    if (!o || !resp) return;
-
-    this.enviandoResposta.set(true);
-    this.api.responderOcorrencia(o.id, resp).subscribe({
-      next: () => {
-        this.enviandoResposta.set(false);
-        this.triggerToast('Chamado respondido e resolvido com sucesso!', 'success');
-        this.fecharRespostaOcorrencia();
-        this.carregarOcorrencias(); // Recarrega a lista
-        this.carregar(); // Recarrega overview para atualizar contadores
-      },
-      error: (err) => {
-        console.error(err);
-        this.enviandoResposta.set(false);
-        this.triggerToast('Erro ao responder chamado.', 'error');
-      }
-    });
-  }
-
-  iniciarReabertura(): void {
-    this.reabrindoChamado.set(true);
-    this.reaberturaTexto = '';
-  }
-
-  cancelarReabertura(): void {
-    this.reabrindoChamado.set(false);
-    this.reaberturaTexto = '';
-  }
-
-  confirmarReabertura(idOcorrencia: number): void {
-    const info = this.reaberturaTexto.trim();
-    if (!info) return;
-
-    this.enviandoReabertura.set(true);
-    this.api.reabrirOcorrencia(idOcorrencia, info).subscribe({
-      next: (res) => {
-        this.enviandoReabertura.set(false);
-        this.reabrindoChamado.set(false);
-        this.reaberturaTexto = '';
-        this.triggerToast('Chamado reaberto e sincronizado com o Kanban!', 'success');
-
-        // Atualiza a ocorrência selecionada local
-        if (res && res.data) {
-          this.ocorrenciaSelecionada.set(res.data);
-          this.respostaTexto.set('');
-        }
-
-        // Recarrega a lista geral de ocorrências
-        this.carregarOcorrencias();
-        // Recarrega as mensagens do chat
-        this.carregarMensagensChat(idOcorrencia);
-        // Recarrega overview para atualizar contadores
-        this.carregar();
-      },
-      error: (err) => {
-        console.error('Erro ao reabrir ocorrência:', err);
-        this.enviandoReabertura.set(false);
-        this.triggerToast('Erro ao reabrir e sincronizar o chamado.', 'error');
-      }
-    });
-  }
-
-  abrirNovoChamado(): void {
-    this.modalNovoChamadoAberto.set(true);
-    this.novoChamadoCondominioId.set(null);
-    this.novoChamadoDescricao.set('');
-  }
-
-  fecharNovoChamado(): void {
-    this.modalNovoChamadoAberto.set(false);
-    this.novoChamadoCondominioId.set(null);
-    this.novoChamadoDescricao.set('');
-  }
-
-  enviarNovoChamado(): void {
-    const idCondominio = this.novoChamadoCondominioId();
-    const descricao = this.novoChamadoDescricao().trim();
-    if (!idCondominio || !descricao) {
-      this.triggerToast('Por favor, selecione o condomínio e digite a descrição.', 'error');
-      return;
-    }
-
-    this.criandoNovoChamado.set(true);
-    this.api.criarOcorrencia(Number(idCondominio), descricao).subscribe({
-      next: () => {
-        this.criandoNovoChamado.set(false);
-        this.triggerToast('Novo chamado criado e enviado para o Kanban com sucesso!', 'success');
-        this.fecharNovoChamado();
-        this.carregarOcorrencias(); // Recarrega a lista
-        this.carregar(); // Recarrega contadores
-      },
-      error: (err) => {
-        console.error(err);
-        this.criandoNovoChamado.set(false);
-        this.triggerToast('Erro ao criar o chamado.', 'error');
-      }
-    });
   }
 
   // ── Modais de faturamento ──
@@ -1119,62 +818,4 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ── Relatórios ──
-
-  gerarRelatorio(): void {
-    this.gerandoRelatorio.set(true);
-    setTimeout(() => {
-      this.relatorioGerado.set(true);
-      this.gerandoRelatorio.set(false);
-      this.triggerToast('Visualização do relatório atualizada.', 'success');
-    }, 600);
-  }
-
-  exportarCSV(tipo: string): void {
-    let csvContent = '﻿'; // BOM para suporte UTF-8 no Excel
-    const filename = `relatorio_${tipo}_${new Date().toISOString().split('T')[0]}.csv`;
-
-    if (tipo === 'financeiro') {
-      csvContent += 'Condomínio;Plano;Mensalidade (MRR);Status de Cobrança;Dias para Vencer;Saúde Financeira\n';
-      for (const c of this.clientes()) {
-        csvContent += `"${c.nome}";"${c.plano || 'Sem plano'}";"${c.mrr}";"${c.statusPagamento}";"${c.diasParaVencer ?? '—'}";"${this.pagamentoLabel(c.statusPagamento)}"\n`;
-      }
-    } else if (tipo === 'clientes') {
-      csvContent += 'Condomínio;Estágio;Cidade;UF;Plano;Health Score;Dias para Vencer\n';
-      for (const c of this.clientes()) {
-        csvContent += `"${c.nome}";"${c.estagio}";"${c.cidade || '—'}";"${c.uf || '—'}";"${c.plano || 'Sem plano'}";${c.healthScore};"${c.diasParaVencer ?? '—'}"\n`;
-      }
-    } else if (tipo === 'portaria') {
-      csvContent += 'Condomínio;Apartamentos;Moradores;Cadastros Faciais;Adoção RFID (Tags);Terminais Faciais;Dispositivos Offline\n';
-      for (const c of this.clientes()) {
-        csvContent += `"${c.nome}";${c.totalApartamentos};${c.totalMoradores};${c.moradoresComFace};${c.moradoresComTag};${c.dispositivosFaciais};${c.dispositivosOffline}\n`;
-      }
-    } else if (tipo === 'notificacoes') {
-      csvContent += 'Data;Condomínio;Tipo de Disparo;Status;Telefone/WhatsApp;Erro\n';
-      for (const d of this.historicoDisparos()) {
-        csvContent += `"${d.data}";"${d.condominio}";"${d.tipo}";"${d.status}";"${d.telefone}";"${d.erroMsg || 'Nenhum'}"\n`;
-      }
-    }
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      this.triggerToast(`Relatório CSV baixado com sucesso: ${filename}`, 'success');
-    }
-  }
-
-  exportarPDF(tipo: string): void {
-    this.triggerToast('Gerando visualização PDF do relatório...', 'info');
-    setTimeout(() => {
-      window.print();
-    }, 500);
-  }
 }

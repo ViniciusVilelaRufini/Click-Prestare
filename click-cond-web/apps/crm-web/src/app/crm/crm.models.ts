@@ -52,19 +52,19 @@ export interface Ocorrencia {
   id: number;
   descricao: string;
   resposta: string | null;
+  resposta_at: string | null;
   status: string;
+  created_at: string;
   categoria: OcorrenciaCategoria | null;
-  condominio?: { nome: string } | null;
-  [k: string]: unknown;
+  condominio: { nome: string } | null;
+  criadoPor: { name: string } | null;
 }
 
 export interface ChatMensagem {
   id: number;
   mensagem: string;
-  autor: string | null;
-  origem: string | null;
-  data: string;
-  [k: string]: unknown;
+  created_at: string;
+  usuario: { name: string; is_sindico: number } | null;
 }
 
 export interface ConfigAutomacoes {

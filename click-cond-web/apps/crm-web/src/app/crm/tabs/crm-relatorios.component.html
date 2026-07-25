@@ -1,0 +1,296 @@
+<div class="animate-fade-in space-y-6">
+  <!-- Cabeçalho + ações de exportação -->
+  <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div>
+      <h2 class="text-2xl font-bold tracking-tight text-ink">Relatórios</h2>
+      <p class="mt-1 text-sm text-ink-soft">Consolide e exporte dados operacionais e financeiros da Click Prestare.</p>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button type="button" class="btn-secondary press" (click)="exportarCSV(relatorioTipo())">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Exportar CSV
+      </button>
+      <button type="button" class="btn-secondary press" (click)="exportarPDF(relatorioTipo())">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        Imprimir / PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card p-6">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div>
+        <label class="stat-label mb-1.5 block" for="rel-tipo">Tipo de relatório</label>
+        <select
+          id="rel-tipo"
+          class="input cursor-pointer font-medium"
+          [ngModel]="relatorioTipo()"
+          (ngModelChange)="relatorioTipo.set($event); gerarRelatorio()"
+        >
+          <option value="financeiro">Faturamento e conciliação de cobranças</option>
+          <option value="clientes">Crescimento de condomínios e planos</option>
+          <option value="portaria">Adoção de tecnologia e hardware (portaria)</option>
+          <option value="notificacoes">Logs e régua de disparos WhatsApp</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="stat-label mb-1.5 block" for="rel-periodo">Período de análise</label>
+        <select
+          id="rel-periodo"
+          class="input cursor-pointer font-medium"
+          [ngModel]="relatorioPeriodo()"
+          (ngModelChange)="relatorioPeriodo.set($event); gerarRelatorio()"
+        >
+          <option value="30d">Últimos 30 dias</option>
+          <option value="90d">Últimos 90 dias</option>
+          <option value="ano">Este ano (2026)</option>
+          <option value="tudo">Todo o histórico cadastrado</option>
+        </select>
+      </div>
+
+      <div class="flex items-end">
+        <button type="button" class="btn-primary press w-full" (click)="gerarRelatorio()" [disabled]="gerandoRelatorio()">
+          @if (gerandoRelatorio()) {
+            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Atualizando dados…
+          } @else {
+            Atualizar dados do relatório
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (relatorioGerado()) {
+    <!-- KPIs por tipo de relatório -->
+    <div class="stagger-children grid grid-cols-2 gap-5 lg:grid-cols-4">
+      @switch (relatorioTipo()) {
+        @case ('financeiro') {
+          <div class="card p-5">
+            <p class="stat-label">Receita recorrente (MRR)</p>
+            <p class="stat-value mt-2 text-accent">{{ moeda(store.overview()?.mrrTotal || 0) }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Assinaturas ativas do CRM</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Receita projetada (ARR)</p>
+            <p class="stat-value mt-2">{{ moeda((store.overview()?.mrrTotal || 0) * 12) }}</p>
+            <p class="mt-2 text-xs text-ink-soft">MRR anualizado</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Taxa de adimplência</p>
+            <p class="stat-value mt-2 text-success">{{ adimplencia() }}%</p>
+            <p class="mt-2 text-xs text-ink-soft">Recebido sobre emitido</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Inadimplência real</p>
+            <p class="stat-value mt-2 text-danger">{{ moeda(store.overview()?.emAtraso?.valor || 0) }}</p>
+            <p class="mt-2 text-xs text-ink-soft">{{ store.overview()?.emAtraso?.quantidade || 0 }} condomínio(s) em atraso</p>
+          </div>
+        }
+        @case ('clientes') {
+          <div class="card p-5">
+            <p class="stat-label">Condomínios totais</p>
+            <p class="stat-value mt-2 text-accent">{{ store.clientes().length }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Total registrado no CRM</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Clientes ativos</p>
+            <p class="stat-value mt-2 text-success">{{ store.overview()?.clientesAtivos || 0 }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Operação regular ativa</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Novas contratações (30d)</p>
+            <p class="stat-value mt-2">{{ store.overview()?.novos30d || 0 }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Novos condomínios adicionados</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Ticket médio mensal</p>
+            <p class="stat-value mt-2 text-accent">{{ moeda(store.overview()?.ticketMedio || 0) }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Faturamento médio por cliente</p>
+          </div>
+        }
+        @case ('portaria') {
+          <div class="card p-5">
+            <p class="stat-label">Terminais faciais</p>
+            <p class="stat-value mt-2 text-accent">{{ totaisPortaria().terminais }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Dispositivos de acesso</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Terminais conectados</p>
+            <p class="stat-value mt-2 text-success">{{ totaisPortaria().conectados }}</p>
+            <p class="mt-2 text-xs text-ink-soft">{{ totaisPortaria().offline }} equipamento(s) offline</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Total de moradores</p>
+            <p class="stat-value mt-2">{{ totaisPortaria().moradores }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Residentes cadastrados</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Adoção facial média</p>
+            <p class="stat-value mt-2 text-accent">{{ totaisPortaria().adocaoFacial }}%</p>
+            <p class="mt-2 text-xs text-ink-soft">Com foto facial válida</p>
+          </div>
+        }
+        @case ('notificacoes') {
+          <div class="card p-5">
+            <p class="stat-label">Notificações disparadas</p>
+            <p class="stat-value mt-2 text-accent">{{ totaisDisparos().total }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Total de mensagens no período</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Mensagens entregues</p>
+            <p class="stat-value mt-2 text-success">{{ totaisDisparos().entregues }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Entregues com sucesso</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Falhas de envio</p>
+            <p class="stat-value mt-2 text-danger">{{ totaisDisparos().falhas }}</p>
+            <p class="mt-2 text-xs text-ink-soft">Rejeitadas pelo gateway</p>
+          </div>
+          <div class="card p-5">
+            <p class="stat-label">Taxa de entrega (Z-API)</p>
+            <p class="stat-value mt-2 text-accent">{{ totaisDisparos().taxa }}%</p>
+            <p class="mt-2 text-xs text-ink-soft">Sucesso sobre total disparado</p>
+          </div>
+        }
+      }
+    </div>
+
+    <!-- Prévia tabular -->
+    <div class="card overflow-hidden">
+      <div class="border-b border-line px-6 py-4">
+        <h3 class="text-sm font-semibold text-ink">Prévia dos dados consolidados</h3>
+        <p class="mt-0.5 text-xs text-ink-soft">O arquivo exportado contém exatamente estas linhas.</p>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left text-sm">
+          <thead>
+            @switch (relatorioTipo()) {
+              @case ('financeiro') {
+                <tr class="table-head border-b border-line">
+                  <th scope="col" class="px-6 py-3">Condomínio</th>
+                  <th scope="col" class="px-6 py-3">MRR atual</th>
+                  <th scope="col" class="px-6 py-3">Plano</th>
+                  <th scope="col" class="px-6 py-3">Status de faturamento</th>
+                  <th scope="col" class="px-6 py-3">Vencimento</th>
+                  <th scope="col" class="px-6 py-3 text-right">Risco churn</th>
+                </tr>
+              }
+              @case ('clientes') {
+                <tr class="table-head border-b border-line">
+                  <th scope="col" class="px-6 py-3">Condomínio</th>
+                  <th scope="col" class="px-6 py-3">Cidade / UF</th>
+                  <th scope="col" class="px-6 py-3">Estágio</th>
+                  <th scope="col" class="px-6 py-3">Plano</th>
+                  <th scope="col" class="px-6 py-3">Cliente desde</th>
+                  <th scope="col" class="px-6 py-3 text-right">Health score</th>
+                </tr>
+              }
+              @case ('portaria') {
+                <tr class="table-head border-b border-line">
+                  <th scope="col" class="px-6 py-3">Condomínio</th>
+                  <th scope="col" class="px-6 py-3">Aptos / UHs</th>
+                  <th scope="col" class="px-6 py-3">Moradores</th>
+                  <th scope="col" class="px-6 py-3">Cadastros faciais</th>
+                  <th scope="col" class="px-6 py-3">RFID tags</th>
+                  <th scope="col" class="px-6 py-3 text-right">Terminais (offline)</th>
+                </tr>
+              }
+              @case ('notificacoes') {
+                <tr class="table-head border-b border-line">
+                  <th scope="col" class="px-6 py-3">Data/hora</th>
+                  <th scope="col" class="px-6 py-3">Condomínio</th>
+                  <th scope="col" class="px-6 py-3">Régua / tipo</th>
+                  <th scope="col" class="px-6 py-3">Destinatário</th>
+                  <th scope="col" class="px-6 py-3">Status</th>
+                  <th scope="col" class="px-6 py-3 text-right">Retorno</th>
+                </tr>
+              }
+            }
+          </thead>
+
+          <tbody class="divide-y divide-line-subtle">
+            @switch (relatorioTipo()) {
+              @case ('financeiro') {
+                @for (c of store.clientes(); track c.id) {
+                  <tr class="transition-colors hover:bg-surface-sunken">
+                    <td class="px-6 py-3 font-semibold text-ink">{{ c.nome }}</td>
+                    <td class="px-6 py-3 font-mono tabular-nums text-ink">{{ moeda(c.mrr) }}</td>
+                    <td class="px-6 py-3 text-ink-soft">{{ c.plano || 'Sem plano' }}</td>
+                    <td class="px-6 py-3">
+                      <span class="text-xs font-semibold {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
+                    </td>
+                    <td class="px-6 py-3 font-mono text-ink-soft">{{ c.vencimento ? (c.vencimento | date:'dd/MM/yyyy') : '—' }}</td>
+                    <td
+                      class="px-6 py-3 text-right font-mono font-semibold tabular-nums"
+                      [class]="c.riscoChurn.nivel === 'alto' ? 'text-danger' : c.riscoChurn.nivel === 'medio' ? 'text-warning' : 'text-success'"
+                    >
+                      {{ c.riscoChurn.score }}/100
+                    </td>
+                  </tr>
+                }
+              }
+              @case ('clientes') {
+                @for (c of store.clientes(); track c.id) {
+                  <tr class="transition-colors hover:bg-surface-sunken">
+                    <td class="px-6 py-3 font-semibold text-ink">{{ c.nome }}</td>
+                    <td class="px-6 py-3 text-ink-soft">{{ c.cidade || '—' }} / {{ c.uf || '—' }}</td>
+                    <td class="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-ink-soft">{{ c.estagio }}</td>
+                    <td class="px-6 py-3 text-ink-soft">{{ c.plano || 'Sem plano' }}</td>
+                    <td class="px-6 py-3 font-mono text-ink-soft">{{ c.clienteDesde ? (c.clienteDesde | date:'dd/MM/yyyy') : '—' }}</td>
+                    <td class="px-6 py-3 text-right font-mono font-semibold tabular-nums text-accent">{{ c.healthScore }}/100</td>
+                  </tr>
+                }
+              }
+              @case ('portaria') {
+                @for (c of store.clientes(); track c.id) {
+                  <tr class="transition-colors hover:bg-surface-sunken">
+                    <td class="px-6 py-3 font-semibold text-ink">{{ c.nome }}</td>
+                    <td class="px-6 py-3 font-mono tabular-nums text-ink-soft">{{ c.totalApartamentos }}</td>
+                    <td class="px-6 py-3 font-mono tabular-nums text-ink-soft">{{ c.totalMoradores }}</td>
+                    <td class="px-6 py-3 font-mono tabular-nums text-ink">
+                      {{ c.moradoresComFace }} ({{ c.totalMoradores > 0 ? Math.round((c.moradoresComFace / c.totalMoradores) * 100) : 0 }}%)
+                    </td>
+                    <td class="px-6 py-3 font-mono tabular-nums text-ink">
+                      {{ c.moradoresComTag }} ({{ c.totalMoradores > 0 ? Math.round((c.moradoresComTag / c.totalMoradores) * 100) : 0 }}%)
+                    </td>
+                    <td class="px-6 py-3 text-right font-mono tabular-nums" [class.text-danger]="c.dispositivosOffline > 0">
+                      {{ c.dispositivosFaciais }} ({{ c.dispositivosOffline }} offline)
+                    </td>
+                  </tr>
+                }
+              }
+              @case ('notificacoes') {
+                @for (d of store.historicoDisparos(); track d.data) {
+                  <tr class="transition-colors hover:bg-surface-sunken">
+                    <td class="px-6 py-3 font-mono text-ink-soft">{{ d.data | date:'dd/MM/yyyy HH:mm:ss' }}</td>
+                    <td class="px-6 py-3 font-semibold text-ink">{{ d.condominio }}</td>
+                    <td class="px-6 py-3 text-ink-soft">{{ d.tipo }}</td>
+                    <td class="px-6 py-3 font-mono text-ink-soft">{{ d.telefone }}</td>
+                    <td class="px-6 py-3">
+                      <span class="badge" [class]="d.status === 'entregue' ? 'badge badge-success' : 'badge badge-danger'">
+                        {{ d.status === 'entregue' ? 'Sucesso' : 'Falhou' }}
+                      </span>
+                    </td>
+                    <td class="max-w-[160px] truncate px-6 py-3 text-right font-mono text-ink-muted">{{ d.erroMsg || 'Nenhum' }}</td>
+                  </tr>
+                }
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

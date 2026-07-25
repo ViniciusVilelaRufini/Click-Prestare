@@ -1,0 +1,335 @@
+<div class="animate-fade-in space-y-6">
+  <!-- Cabeçalho -->
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <div class="flex items-center gap-2">
+        <h2 class="text-2xl font-bold tracking-tight text-ink">Chamados</h2>
+        <span class="badge badge-accent">Suporte B2B</span>
+      </div>
+      <p class="mt-1 text-sm text-ink-soft">Suporte técnico, solicitações de hardware e ocorrências dos condomínios.</p>
+    </div>
+
+    <button type="button" class="btn-primary press" (click)="abrirNovoChamado()">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+      </svg>
+      Novo chamado
+    </button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div class="flex flex-wrap items-center gap-1 self-start rounded-lg border border-line bg-surface-sunken p-1" role="group" aria-label="Filtrar chamados por área">
+      @for (f of filtros; track f.valor) {
+        <button
+          type="button"
+          class="press rounded-md px-3.5 py-1.5 text-xs font-semibold transition-all"
+          [attr.aria-pressed]="subFiltroChamados() === f.valor"
+          [class]="subFiltroChamados() === f.valor ? 'bg-surface-raised text-accent shadow-card' : 'text-ink-soft hover:text-ink'"
+          (click)="subFiltroChamados.set(f.valor)"
+        >
+          {{ f.label }}
+        </button>
+      }
+    </div>
+
+    <p class="text-xs text-ink-muted">{{ dicaFiltroAtivo() }}</p>
+  </div>
+
+  @if (ocorrenciasLoading()) {
+    <app-skeleton variante="tabela" [rows]="5" />
+  } @else if (ocorrenciasFiltradas().length === 0) {
+    <div class="card">
+      <app-empty-state
+        icone="check"
+        titulo="Nenhum chamado neste filtro"
+        descricao="Quando um condomínio abrir uma ocorrência técnica, ela aparece aqui."
+        ctaLabel="Abrir chamado manual"
+        (cta)="abrirNovoChamado()"
+      />
+    </div>
+  } @else {
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left text-sm">
+          <thead>
+            <tr class="table-head border-b border-line">
+              <th scope="col" class="px-6 py-3">ID</th>
+              <th scope="col" class="px-6 py-3">Condomínio</th>
+              <th scope="col" class="px-6 py-3">Categoria</th>
+              <th scope="col" class="px-6 py-3">Descrição</th>
+              <th scope="col" class="px-6 py-3">Status</th>
+              <th scope="col" class="px-6 py-3">Abertura</th>
+              <th scope="col" class="px-6 py-3 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody class="stagger-children divide-y divide-line-subtle">
+            @for (o of ocorrenciasFiltradas(); track o.id) {
+              <tr class="transition-colors hover:bg-surface-sunken" [style.--i]="$index < 10 ? $index : 10">
+                <td class="px-6 py-3 font-mono text-ink-muted">#{{ o.id }}</td>
+                <td class="px-6 py-3 font-semibold text-ink">{{ o.condominio?.nome || 'Geral' }}</td>
+                <td class="px-6 py-3">
+                  <span class="badge badge-neutral">{{ o.categoria?.nome || 'Suporte' }}</span>
+                </td>
+                <td class="max-w-xs truncate px-6 py-3 text-ink-soft" [title]="o.descricao">{{ o.descricao }}</td>
+                <td class="px-6 py-3">
+                  <span class="badge" [class]="o.status === 'Pendente' ? 'badge badge-warning' : 'badge badge-success'">
+                    <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+                    {{ o.status }}
+                  </span>
+                </td>
+                <td class="px-6 py-3 font-mono text-ink-soft">{{ o.created_at | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td class="px-6 py-3 text-right">
+                  @if (o.status === 'Pendente') {
+                    <button type="button" class="btn-primary press !px-3 !py-1.5 !text-xs" (click)="abrirRespostaOcorrencia(o)">Responder</button>
+                  } @else {
+                    <button type="button" class="btn-secondary press !px-3 !py-1.5 !text-xs" (click)="abrirRespostaOcorrencia(o)">Ver resposta</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>
+
+<!-- Modal: detalhe do chamado + chat -->
+@if (ocorrenciaSelecionada(); as o) {
+  <app-modal-shell maxWidth="max-w-4xl" ariaLabel="Detalhe do chamado" (fechar)="fecharRespostaOcorrencia()">
+    <div class="flex h-[85vh] flex-col md:flex-row">
+      <!-- Lado esquerdo: detalhes e resolução -->
+      <div class="flex flex-1 flex-col overflow-y-auto border-line md:border-r">
+        <div class="flex items-center justify-between border-b border-line px-6 py-4">
+          <div>
+            <h3 class="text-sm font-semibold text-ink">Chamado #{{ o.id }}</h3>
+            <p class="mt-0.5 text-xs text-ink-soft">Retorno e controle do chamado no CRM</p>
+          </div>
+          <button type="button" class="btn-ghost press !p-2 md:hidden" aria-label="Fechar" (click)="fecharRespostaOcorrencia()">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="flex-1 space-y-5 p-6">
+          <div class="grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface-sunken/60 p-4">
+            <div>
+              <p class="stat-label">Condomínio</p>
+              <p class="mt-1 text-sm font-semibold text-ink">{{ o.condominio?.nome || 'Geral' }}</p>
+            </div>
+            <div>
+              <p class="stat-label">Solicitante</p>
+              <p class="mt-1 text-sm text-ink-soft">{{ o.criadoPor?.name || 'Administrador' }}</p>
+            </div>
+          </div>
+
+          <div>
+            <p class="stat-label mb-1.5">Descrição do problema</p>
+            <div class="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-line bg-surface-sunken/60 p-4 text-sm leading-relaxed text-ink-soft">
+              {{ o.descricao }}
+            </div>
+          </div>
+
+          <div>
+            <p class="stat-label mb-1.5">Resposta / resolução <span class="normal-case tracking-normal text-ink-muted">(finaliza o chamado)</span></p>
+
+            @if (o.status === 'Pendente') {
+              <textarea
+                [(ngModel)]="respostaTexto"
+                rows="4"
+                placeholder="Escreva aqui a resolução definitiva do chamado…"
+                class="input resize-none"
+                aria-label="Resposta do chamado"
+              ></textarea>
+            } @else {
+              <div class="mb-4 whitespace-pre-wrap rounded-lg border border-success-border bg-success-soft p-4 text-sm leading-relaxed text-ink">
+                {{ o.resposta }}
+                <p class="mt-2 font-mono text-2xs text-success">Resolvido em {{ o.resposta_at | date:'dd/MM/yyyy HH:mm' }}</p>
+              </div>
+
+              @if (!reabrindoChamado()) {
+                <button type="button" class="btn-secondary press w-full border-warning-border bg-warning-soft text-warning" (click)="iniciarReabertura()">
+                  Reabrir e direcionar chamado (volta ao Kanban)
+                </button>
+              } @else {
+                <div class="reveal-down space-y-3 rounded-lg border border-warning-border bg-warning-soft p-4">
+                  <label class="stat-label block text-warning" for="reabertura">Motivo / novas informações do cliente</label>
+                  <textarea
+                    id="reabertura"
+                    [(ngModel)]="reaberturaTexto"
+                    rows="3"
+                    placeholder="Escreva as novas informações relatadas pelo cliente…"
+                    class="input resize-none"
+                  ></textarea>
+                  <div class="flex justify-end gap-2">
+                    <button type="button" class="btn-ghost press" (click)="cancelarReabertura()">Cancelar</button>
+                    <button
+                      type="button"
+                      class="btn-primary press"
+                      [disabled]="enviandoReabertura() || !reaberturaTexto.trim()"
+                      (click)="confirmarReabertura(o.id)"
+                    >
+                      {{ enviandoReabertura() ? 'Processando…' : 'Reabrir e sincronizar' }}
+                    </button>
+                  </div>
+                </div>
+              }
+            }
+          </div>
+        </div>
+
+        <div class="mt-auto flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+          <button type="button" class="btn-secondary press" (click)="fecharRespostaOcorrencia()">Fechar</button>
+          @if (o.status === 'Pendente') {
+            <button
+              type="button"
+              class="btn-primary press"
+              [disabled]="enviandoResposta() || !respostaTexto().trim()"
+              (click)="enviarRespostaOcorrencia()"
+            >
+              @if (enviandoResposta()) {
+                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Salvando…
+              } @else {
+                Resolver e fechar chamado
+              }
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Lado direito: chat em tempo real -->
+      <div class="flex h-full w-full flex-col bg-surface-sunken/60 md:w-96">
+        <div class="flex items-center justify-between border-b border-line px-5 py-4">
+          <div>
+            <h4 class="flex items-center gap-1.5 text-sm font-semibold text-ink">
+              <span class="status-dot-live h-2 w-2 rounded-full bg-success"></span>
+              Chat em tempo real
+            </h4>
+            <p class="mt-0.5 text-xs text-ink-soft">Conversa direta com o morador no app</p>
+          </div>
+          <button type="button" class="btn-ghost press !hidden !p-2 md:!block" aria-label="Fechar" (click)="fecharRespostaOcorrencia()">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div id="crm-chat-container" class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+          @if (loadingChatMensagens()) {
+            <div class="flex h-full items-center justify-center">
+              <svg class="h-5 w-5 animate-spin text-accent" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+            </div>
+          } @else if (chatMensagens().length === 0) {
+            <app-empty-state
+              icone="chat"
+              titulo="Nenhuma mensagem trocada"
+              descricao="Envie uma mensagem abaixo para iniciar a conversa com o morador."
+            />
+          } @else {
+            @for (msg of chatMensagens(); track msg.id) {
+              <div
+                class="flex flex-col"
+                [class.items-end]="msg.usuario?.is_sindico === 1"
+                [class.items-start]="msg.usuario?.is_sindico !== 1"
+              >
+                <span class="mb-1 px-1 text-2xs text-ink-muted">{{ msg.usuario?.name || 'Administração' }}</span>
+                <div
+                  class="max-w-[85%] rounded-lg px-3 py-2 text-sm leading-normal"
+                  [class]="msg.usuario?.is_sindico === 1
+                    ? 'bg-accent text-white'
+                    : 'border border-line bg-surface-raised text-ink'"
+                >
+                  {{ msg.mensagem }}
+                </div>
+                <span class="mt-1 px-1 font-mono text-2xs text-ink-muted">{{ msg.created_at | date:'dd/MM HH:mm' }}</span>
+              </div>
+            }
+          }
+        </div>
+
+        <div class="border-t border-line p-3">
+          <form (submit)="$event.preventDefault(); enviarMensagemChat()" class="flex gap-2">
+            <input
+              type="text"
+              [(ngModel)]="chatNovaMensagem"
+              name="novaMensagem"
+              placeholder="Escreva uma mensagem…"
+              class="input flex-1"
+              aria-label="Nova mensagem"
+            />
+            <button type="submit" class="btn-primary press" [disabled]="!chatNovaMensagem.trim()">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </app-modal-shell>
+}
+
+<!-- Modal: novo chamado -->
+@if (modalNovoChamadoAberto()) {
+  <app-modal-shell maxWidth="max-w-lg" ariaLabel="Novo chamado de suporte" (fechar)="fecharNovoChamado()">
+    <div class="flex items-center justify-between border-b border-line px-6 py-4">
+      <div>
+        <h3 class="text-sm font-semibold text-ink">Novo chamado de suporte</h3>
+        <p class="mt-0.5 text-xs text-ink-soft">Cria um chamado manual para um condomínio-cliente</p>
+      </div>
+      <button type="button" class="btn-ghost press !p-2" aria-label="Fechar" (click)="fecharNovoChamado()">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="space-y-4 p-6">
+      <div>
+        <label class="stat-label mb-1.5 block" for="novo-cond">Condomínio</label>
+        <select id="novo-cond" [(ngModel)]="novoChamadoCondominioId" class="input cursor-pointer">
+          <option [value]="null" disabled selected>Escolha um condomínio…</option>
+          @for (c of store.clientes(); track c.id) {
+            <option [value]="c.id">{{ c.nome }}</option>
+          }
+        </select>
+      </div>
+
+      <div>
+        <label class="stat-label mb-1.5 block" for="novo-desc">Descrição do chamado</label>
+        <textarea
+          id="novo-desc"
+          [(ngModel)]="novoChamadoDescricao"
+          rows="5"
+          placeholder="Descreva detalhadamente o problema ou a solicitação de suporte…"
+          class="input resize-none"
+        ></textarea>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+      <button type="button" class="btn-secondary press" (click)="fecharNovoChamado()">Cancelar</button>
+      <button
+        type="button"
+        class="btn-primary press"
+        [disabled]="criandoNovoChamado() || !novoChamadoCondominioId() || !novoChamadoDescricao().trim()"
+        (click)="enviarNovoChamado()"
+      >
+        @if (criandoNovoChamado()) {
+          <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          Criando…
+        } @else {
+          Criar chamado
+        }
+      </button>
+    </div>
+  </app-modal-shell>
+}
