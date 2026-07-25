@@ -5,24 +5,24 @@
     <!-- Backdrop fade -->
     <div class="absolute inset-0 bg-surface-overlay backdrop-blur-sm animate-fade-in"></div>
 
-    <!-- Modal body -->
-    <div class="relative w-full max-w-lg max-h-[90vh] bg-surface-raised border border-line rounded-xl shadow-modal overflow-auto p-6 space-y-6 animate-fade-in flex flex-col justify-between"
+    <!-- Painel: retângulo largo com cabeçalho fixo e corpo rolável -->
+    <div class="relative flex w-full max-w-5xl max-h-[88vh] flex-col overflow-hidden rounded-xl border border-line bg-surface-raised shadow-modal animate-scale-in"
       (click)="$event.stopPropagation()">
-      
-      <div class="space-y-6 flex-1">
-        <!-- Drawer Header -->
-        <div class="flex items-start justify-between border-b border-line pb-4">
+
+      <!-- Cabeçalho fixo -->
+      <div class="shrink-0 border-b border-line px-6 pt-5">
+        <div class="flex items-start justify-between gap-4 pb-4">
           <div class="flex items-center gap-3 min-w-0 flex-1">
             <div class="w-11 h-11 rounded border border-accent-border bg-accent-soft flex items-center justify-center text-accent font-bold shrink-0" aria-hidden="true">
               {{ iniciais(c.nome) }}
             </div>
             <div class="min-w-0 flex-1 pr-1">
               @if (modoEdicao()) {
-                <div class="space-y-1.5">
-                  <input type="text" [(ngModel)]="dadosEditados.nome" placeholder="Nome do Condomínio"
-                    class="input" />
+                <div class="max-w-md space-y-1.5">
+                  <input type="text" [(ngModel)]="dadosEditados.nome" placeholder="Nome do condomínio"
+                    class="input" aria-label="Nome do condomínio" />
                   <input type="text" [(ngModel)]="dadosEditados.identificacao" placeholder="Identificação / CNPJ"
-                    class="input" />
+                    class="input" aria-label="Identificação ou CNPJ" />
                 </div>
               } @else {
                 <h2 id="drawer-cliente-titulo" class="text-base font-bold text-ink leading-tight truncate">{{ c.nome }}</h2>
@@ -57,58 +57,62 @@
           </div>
         </div>
 
-        <!-- Badges -->
-        <div class="flex items-center gap-1.5 flex-wrap">
-          <span class="px-2 py-0.5 text-2xs font-bold rounded border {{ estagioClasse(c.estagio) }}">{{ estagioLabel(c.estagio) }}</span>
-          <span class="px-2 py-0.5 text-2xs font-bold rounded border border-line {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
-          @if (store.dbHealth(); as h) {
-            <span class="px-2 py-0.5 text-2xs font-bold rounded border inline-flex items-center gap-1"
-              [class]="h.connected ? 'text-success bg-success-soft border-success-border' : 'text-warning bg-warning-soft border-warning-border'">
-              <span class="w-1 h-1 rounded-full bg-current"></span>
-              {{ h.connected ? 'API Real' : 'Mock' }}
-            </span>
-          }
-        </div>
-
-        <!-- Drawer Navigation Tabs -->
+        <!-- Abas + selos de estado -->
         @if (!modoEdicao()) {
-          <div class="flex border-b border-line gap-1" role="tablist" aria-label="Informações do condomínio">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="scrollbar-none -mb-px flex max-w-full gap-6 overflow-x-auto" role="tablist" aria-label="Informações do condomínio">
             <button (click)="selecionarAba('geral')"
               [attr.aria-selected]="abaSelecionada() === 'geral'"
               role="tab"
-              class="press flex-1 pb-2.5 text-xs font-semibold text-center border-b-2 transition-all"
+              class="press whitespace-nowrap border-b-2 pb-3 text-sm font-semibold transition-all"
               [class]="abaSelecionada() === 'geral' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
               Geral & Finanças
             </button>
             <button (click)="selecionarAba('portaria')"
               [attr.aria-selected]="abaSelecionada() === 'portaria'"
               role="tab"
-              class="press flex-1 pb-2.5 text-xs font-semibold text-center border-b-2 transition-all"
+              class="press whitespace-nowrap border-b-2 pb-3 text-sm font-semibold transition-all"
               [class]="abaSelecionada() === 'portaria' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
               Hardware & Acessos
             </button>
             <button (click)="selecionarAba('servicos')"
               [attr.aria-selected]="abaSelecionada() === 'servicos'"
               role="tab"
-              class="press flex-1 pb-2.5 text-xs font-semibold text-center border-b-2 transition-all"
+              class="press whitespace-nowrap border-b-2 pb-3 text-sm font-semibold transition-all"
               [class]="abaSelecionada() === 'servicos' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
               Serviços & Uso
             </button>
             <button (click)="selecionarAba('moradores')"
               [attr.aria-selected]="abaSelecionada() === 'moradores'"
               role="tab"
-              class="press flex-1 pb-2.5 text-xs font-semibold text-center border-b-2 transition-all"
+              class="press whitespace-nowrap border-b-2 pb-3 text-sm font-semibold transition-all"
               [class]="abaSelecionada() === 'moradores' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
               Moradores
             </button>
+            </div>
+
+            <div class="flex items-center gap-1.5 pb-3">
+              <span class="badge {{ estagioClasse(c.estagio) }}">{{ estagioLabel(c.estagio) }}</span>
+              <span class="badge border-line {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
+              @if (store.dbHealth(); as h) {
+                <span class="badge" [class]="h.connected ? 'badge badge-success' : 'badge badge-warning'">
+                  <span class="h-1 w-1 rounded-full bg-current"></span>
+                  {{ h.connected ? 'API real' : 'Mock' }}
+                </span>
+              }
+            </div>
           </div>
         }
+      </div>
+
+      <!-- Corpo rolável -->
+      <div class="flex-1 overflow-y-auto p-6">
 
         <!-- Drawer Tab Content 1: Geral & Finanças -->
         @if (abaSelecionada() === 'geral') {
           @if (modoEdicao()) {
-            <!-- Edit mode form container -->
-            <div class="space-y-4">
+            <!-- Formulário de edição: duas colunas em telas largas -->
+            <div class="grid animate-fade-in grid-cols-1 items-start gap-4 lg:grid-cols-2">
               <!-- Commercial Fields -->
               <div class="card p-4 space-y-3.5">
                 <p class="stat-label">Comercial</p>
@@ -143,7 +147,8 @@
                 </div>
               </div>
 
-              <!-- Automations settings -->
+              <!-- Coluna direita: automações + contato -->
+              <div class="space-y-4">
               <div class="card p-4 space-y-3.5">
                 <p class="stat-label">Automações Integradas</p>
                 <div class="space-y-3">
@@ -165,7 +170,6 @@
                 </div>
               </div>
 
-              <!-- Síndico primary contact -->
               <div class="card p-4 space-y-3.5">
                 <p class="stat-label">Contato principal (Administrativo)</p>
                 <div class="space-y-3">
@@ -186,13 +190,14 @@
                   </div>
                 </div>
               </div>
+              </div>
             </div>
           } @else {
-            <!-- View mode container -->
-            <div class="space-y-4 animate-fade-in">
+            <!-- Visualização: grade de duas colunas em telas largas -->
+            <div class="grid animate-fade-in grid-cols-1 items-start gap-4 lg:grid-cols-2">
 
-              <!-- AÇÕES RÁPIDAS -->
-              <div class="grid grid-cols-2 gap-2">
+              <!-- AÇÕES RÁPIDAS (faixa cheia) -->
+              <div class="grid grid-cols-2 gap-2 lg:col-span-2 lg:grid-cols-4">
                 @if (store.waLink(c); as wa) {
                   <a [href]="wa" target="_blank" rel="noopener"
                     class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-success-soft border border-success-border text-success hover:bg-success-soft transition-all"
@@ -293,10 +298,10 @@
                 }
               </div>
 
-              <!-- RESUMO OPERACIONAL (visão rápida; detalhes nas outras abas) -->
-              <div class="card p-4 space-y-3">
+              <!-- RESUMO OPERACIONAL (faixa cheia; detalhes nas outras abas) -->
+              <div class="card space-y-3 p-4 lg:col-span-2">
                 <p class="stat-label">Resumo Operacional</p>
-                <div class="grid grid-cols-3 gap-3">
+                <div class="grid grid-cols-3 gap-3 lg:grid-cols-6">
                   <div class="text-center">
                     <p class="font-mono text-lg font-bold text-ink leading-none">{{ c.totalApartamentos }}</p>
                     <p class="text-2xs text-ink-soft mt-1 uppercase tracking-wide">Aptos</p>
@@ -327,35 +332,53 @@
                 </p>
               </div>
 
-              <!-- AUTOMAÇÕES + CONTATO -->
-              <div class="card p-4 space-y-3">
-                <p class="stat-label">Automação & Contato</p>
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-ink-soft">Recorrência Automática</span>
-                  <span class="px-2 py-0.5 rounded text-2xs font-bold"
-                    [class]="c.recorrenciaAtiva ? 'bg-success-soft text-success border border-success-border' : 'bg-surface-sunken text-ink-soft border border-line'">
+              <!-- AUTOMAÇÕES -->
+              <div class="card space-y-3 p-4">
+                <p class="stat-label">Automações da conta</p>
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-ink-soft">Recorrência automática</span>
+                  <span class="badge" [class]="c.recorrenciaAtiva ? 'badge badge-success' : 'badge badge-neutral'">
                     {{ c.recorrenciaAtiva ? 'Ativa' : 'Inativa' }}
                   </span>
                 </div>
-                <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center justify-between text-sm">
                   <span class="text-ink-soft">Régua de WhatsApp</span>
-                  <span class="px-2 py-0.5 rounded text-2xs font-bold"
-                    [class]="c.cobrancaAutoWhats ? 'bg-success-soft text-success border border-success-border' : 'bg-surface-sunken text-ink-soft border border-line'">
+                  <span class="badge" [class]="c.cobrancaAutoWhats ? 'badge badge-success' : 'badge badge-neutral'">
                     {{ c.cobrancaAutoWhats ? 'Ativa' : 'Inativa' }}
                   </span>
                 </div>
+                <div class="flex items-center justify-between border-t border-line pt-3 text-sm">
+                  <span class="text-ink-soft">Prestadores cadastrados</span>
+                  <span class="font-mono font-semibold text-ink">{{ c.prestadoresCadastrados }}</span>
+                </div>
+              </div>
+
+              <!-- CONTATO ADMINISTRATIVO -->
+              <div class="card space-y-3 p-4">
+                <p class="stat-label">Contato administrativo</p>
                 @if (c.contatoPrincipal; as ct) {
-                  <div class="pt-2.5 border-t border-line">
-                    <p class="text-xs font-semibold text-ink">{{ ct.nome }} <span class="text-2xs font-normal text-ink-soft">· {{ ct.papel }}</span></p>
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-sunken text-2xs font-bold text-ink-soft">
+                      {{ iniciais(ct.nome) }}
+                    </div>
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-semibold text-ink">{{ ct.nome }}</p>
+                      <p class="text-xs text-ink-soft">{{ ct.papel }}</p>
+                    </div>
+                  </div>
+                  <div class="space-y-1 border-t border-line pt-3">
                     @if (ct.telefone) {
-                      <a [href]="'tel:' + ct.telefone" class="block text-2xs text-accent hover:text-accent hover:underline transition-all font-mono mt-1">{{ ct.telefone }}</a>
+                      <a [href]="'tel:' + ct.telefone" class="block font-mono text-sm text-accent transition-colors hover:underline">{{ ct.telefone }}</a>
                     }
                     @if (ct.email) {
-                      <a [href]="'mailto:' + ct.email" class="block text-2xs text-accent hover:text-accent hover:underline transition-all">{{ ct.email }}</a>
+                      <a [href]="'mailto:' + ct.email" class="block truncate text-sm text-accent transition-colors hover:underline">{{ ct.email }}</a>
+                    }
+                    @if (!ct.telefone && !ct.email) {
+                      <p class="text-sm text-ink-muted">Sem telefone ou e-mail cadastrado.</p>
                     }
                   </div>
                 } @else {
-                  <p class="text-2xs text-ink-soft pt-2.5 border-t border-line">Sem síndico ou contato administrativo cadastrado.</p>
+                  <p class="text-sm text-ink-muted">Sem síndico ou contato administrativo cadastrado.</p>
                 }
               </div>
             </div>
@@ -364,7 +387,7 @@
 
         <!-- Drawer Tab Content 2: Portaria & Hardware -->
         @if (abaSelecionada() === 'portaria') {
-          <div class="space-y-4 animate-fade-in">
+          <div class="grid animate-fade-in grid-cols-1 items-start gap-4 lg:grid-cols-2">
             <!-- Radar de risco do condomínio -->
             @if (c.riscoChurn) {
               <div class="card p-4 space-y-3 border {{ riscoClasse(c.riscoChurn.nivel) }}">
@@ -477,7 +500,7 @@
 
         <!-- Drawer Tab Content 3: Serviços & Uso -->
         @if (abaSelecionada() === 'servicos') {
-          <div class="space-y-4 animate-fade-in">
+          <div class="grid animate-fade-in grid-cols-1 items-start gap-4 lg:grid-cols-2">
             <!-- Deliveries flow -->
             <div class="card p-4 space-y-3">
               <p class="stat-label">Encomendas & Prestadores</p>
@@ -676,11 +699,15 @@
         }
       </div>
 
-      <!-- Footer Control Buttons (Edit Mode only) -->
+      <!-- Rodapé fixo (apenas no modo de edição) -->
       @if (modoEdicao()) {
-        <div class="pt-4 border-t border-line flex items-center gap-3 bg-surface-raised sticky bottom-0 z-10">
+        <div class="flex shrink-0 items-center justify-end gap-3 border-t border-line bg-surface-raised px-6 py-4">
+          <button (click)="cancelarEdicao()" [disabled]="store.salvando()"
+            class="btn-secondary press">
+            Cancelar
+          </button>
           <button (click)="salvarEdicao()" [disabled]="store.salvando()"
-            class="btn-primary press flex-1">
+            class="btn-primary press">
             @if (store.salvando()) {
               <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -688,12 +715,8 @@
               </svg>
               Salvando alterações
             } @else {
-              Confirmar
+              Confirmar alterações
             }
-          </button>
-          <button (click)="cancelarEdicao()" [disabled]="store.salvando()"
-            class="btn-secondary press flex-1">
-            Cancelar
           </button>
         </div>
       }
