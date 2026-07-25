@@ -1,0 +1,250 @@
+<div class="animate-fade-in space-y-6">
+  <!-- Cabeçalho da página -->
+  <div>
+    <h2 class="text-2xl font-bold tracking-tight text-ink">Automações</h2>
+    <p class="mt-1 text-sm text-ink-soft">Régua de cobrança por WhatsApp: quando disparar e o que dizer em cada etapa.</p>
+  </div>
+
+  <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+    <!-- Coluna de configuração dos gatilhos -->
+    <div class="space-y-5 lg:col-span-2">
+      <!-- Gatilho 1: aviso prévio -->
+      <div class="card space-y-4 p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-sm font-semibold text-ink">1. Aviso prévio de lançamento</h3>
+            <p class="mt-0.5 text-xs text-ink-soft">Envia a fatura e o Pix copia/cola alguns dias antes do vencimento.</p>
+          </div>
+          <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+            <input type="checkbox" [(ngModel)]="store.configAutomacoes().triggerPreVencimento" class="peer sr-only" aria-label="Ativar aviso prévio" />
+            <div class="h-5 w-9 rounded-full border border-line bg-surface-sunken transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-ink-muted after:transition-all after:content-[''] peer-checked:border-accent peer-checked:bg-accent-soft peer-checked:after:translate-x-full peer-checked:after:bg-accent"></div>
+          </label>
+        </div>
+
+        <div class="space-y-3 transition-opacity duration-300" [class.opacity-50]="!store.configAutomacoes().triggerPreVencimento">
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-ink-soft">Enviar aviso</span>
+            <input
+              type="number"
+              [(ngModel)]="store.configAutomacoes().diasPreVencimento"
+              [disabled]="!store.configAutomacoes().triggerPreVencimento"
+              class="input w-16 text-center font-mono"
+              aria-label="Dias antes do vencimento"
+            />
+            <span class="text-sm text-ink-soft">dias antes do vencimento</span>
+          </div>
+
+          <div>
+            <label class="stat-label mb-1.5 block" for="tpl-pre">Template da mensagem (WhatsApp)</label>
+            <textarea
+              id="tpl-pre"
+              [(ngModel)]="store.configAutomacoes().templatePreVencimento"
+              [disabled]="!store.configAutomacoes().triggerPreVencimento"
+              rows="4"
+              class="input resize-none font-mono text-xs leading-relaxed"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gatilho 2: no vencimento -->
+      <div class="card space-y-4 p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-sm font-semibold text-ink">2. Alerta no dia do vencimento</h3>
+            <p class="mt-0.5 text-xs text-ink-soft">Cobra ativamente no dia em que a assinatura vence.</p>
+          </div>
+          <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+            <input type="checkbox" [(ngModel)]="store.configAutomacoes().triggerVencimento" class="peer sr-only" aria-label="Ativar alerta no vencimento" />
+            <div class="h-5 w-9 rounded-full border border-line bg-surface-sunken transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-ink-muted after:transition-all after:content-[''] peer-checked:border-accent peer-checked:bg-accent-soft peer-checked:after:translate-x-full peer-checked:after:bg-accent"></div>
+          </label>
+        </div>
+
+        <div class="space-y-3 transition-opacity duration-300" [class.opacity-50]="!store.configAutomacoes().triggerVencimento">
+          <div>
+            <label class="stat-label mb-1.5 block" for="tpl-venc">Template da mensagem (WhatsApp)</label>
+            <textarea
+              id="tpl-venc"
+              [(ngModel)]="store.configAutomacoes().templateVencimento"
+              [disabled]="!store.configAutomacoes().triggerVencimento"
+              rows="4"
+              class="input resize-none font-mono text-xs leading-relaxed"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gatilho 3: pós-vencimento -->
+      <div class="card space-y-4 p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-sm font-semibold text-ink">3. Cobrança pós-vencimento</h3>
+            <p class="mt-0.5 text-xs text-ink-soft">Régua de inadimplência recorrente para contas em atraso.</p>
+          </div>
+          <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+            <input type="checkbox" [(ngModel)]="store.configAutomacoes().triggerPosVencimento" class="peer sr-only" aria-label="Ativar cobrança pós-vencimento" />
+            <div class="h-5 w-9 rounded-full border border-line bg-surface-sunken transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-ink-muted after:transition-all after:content-[''] peer-checked:border-accent peer-checked:bg-accent-soft peer-checked:after:translate-x-full peer-checked:after:bg-accent"></div>
+          </label>
+        </div>
+
+        <div class="space-y-3 transition-opacity duration-300" [class.opacity-50]="!store.configAutomacoes().triggerPosVencimento">
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-ink-soft">Enviar aviso de atraso</span>
+            <input
+              type="number"
+              [(ngModel)]="store.configAutomacoes().diasPosVencimento"
+              [disabled]="!store.configAutomacoes().triggerPosVencimento"
+              class="input w-16 text-center font-mono"
+              aria-label="Dias após o vencimento"
+            />
+            <span class="text-sm text-ink-soft">dias após o vencimento</span>
+          </div>
+
+          <div>
+            <label class="stat-label mb-1.5 block" for="tpl-pos">Template da mensagem (WhatsApp)</label>
+            <textarea
+              id="tpl-pos"
+              [(ngModel)]="store.configAutomacoes().templatePosVencimento"
+              [disabled]="!store.configAutomacoes().triggerPosVencimento"
+              rows="4"
+              class="input resize-none font-mono text-xs leading-relaxed"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end pt-1">
+        <button type="button" class="btn-primary press" (click)="store.salvarReguaWhatsApp()" [disabled]="store.salvandoRegua()">
+          @if (store.salvandoRegua()) {
+            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Salvando…
+          } @else {
+            Salvar réguas de comunicação
+          }
+        </button>
+      </div>
+    </div>
+
+    <!-- Coluna do preview -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold text-ink">Preview ao vivo</h3>
+        <span class="inline-flex items-center gap-1.5 text-2xs font-semibold text-success">
+          <span class="h-1.5 w-1.5 rounded-full bg-success status-dot-live"></span>
+          Atualiza enquanto digita
+        </span>
+      </div>
+
+      <!-- Seletor de qual template visualizar -->
+      <div class="flex items-center gap-1 rounded-lg border border-line bg-surface-sunken p-1" role="group" aria-label="Selecionar template para preview">
+        @for (t of previewTabs; track t.valor) {
+          <button
+            type="button"
+            class="press flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-all"
+            [attr.aria-pressed]="previewTemplate() === t.valor"
+            [class]="previewTemplate() === t.valor ? 'bg-surface-raised text-accent shadow-card' : 'text-ink-soft hover:text-ink'"
+            (click)="previewTemplate.set(t.valor)"
+          >
+            {{ t.label }}
+          </button>
+        }
+      </div>
+
+      <!-- Mockup de celular -->
+      <div class="relative mx-auto flex h-[520px] w-[280px] flex-col overflow-hidden rounded-[36px] border-[8px] border-zinc-800 bg-zinc-900 p-2 shadow-modal">
+        <div class="absolute left-1/2 top-1 z-20 h-4 w-20 -translate-x-1/2 rounded-b-xl bg-zinc-800"></div>
+
+        <div class="flex flex-1 flex-col overflow-hidden rounded-[24px] bg-[#efeae2]">
+          <!-- Header do WhatsApp -->
+          <div class="flex items-center gap-2 bg-[#075e54] px-3 pb-2 pt-6">
+            <div class="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-2xs font-bold text-white">CP</div>
+            <div>
+              <p class="text-2xs font-semibold leading-none text-white">Click Prestare Suporte</p>
+              <p class="mt-1 text-[10px] leading-none text-white/70">online</p>
+            </div>
+          </div>
+
+          <!-- Área de mensagens -->
+          <div class="flex flex-1 flex-col justify-end gap-2 overflow-y-auto p-3">
+            <div class="relative max-w-[90%] self-start rounded-lg rounded-tl-none bg-white p-2.5 shadow-card animate-fade-in" [attr.key]="previewTemplate()">
+              <p class="whitespace-pre-line break-words text-[11px] leading-relaxed text-zinc-900" [innerHTML]="previewMensagemHtml()"></p>
+              <span class="mt-1.5 block text-right font-mono text-[9px] text-zinc-400">10:15</span>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="p-2">
+            <div class="rounded-full bg-white px-3 py-2">
+              <span class="text-[11px] text-zinc-400">Mensagem…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tags dinâmicas -->
+      <div class="card space-y-2 p-4">
+        <p class="stat-label">Tags dinâmicas disponíveis</p>
+        <div class="flex flex-wrap gap-1.5">
+          @for (tag of tagsDisponiveis; track tag) {
+            <span class="rounded border border-line bg-surface-sunken px-1.5 py-0.5 font-mono text-2xs text-ink-soft">{{ tag }}</span>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Histórico de disparos -->
+  <div class="card overflow-hidden">
+    <div class="border-b border-line px-6 py-4">
+      <h3 class="text-sm font-semibold text-ink">Histórico recente de disparos (Z-API)</h3>
+      <p class="mt-0.5 text-xs text-ink-soft">Notificações enviadas por WhatsApp aos contatos cadastrados.</p>
+    </div>
+
+    @if (store.historicoDisparos().length) {
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-left">
+          <thead>
+            <tr class="table-head border-b border-line">
+              <th scope="col" class="px-6 py-3">Data/hora</th>
+              <th scope="col" class="px-6 py-3">Condomínio</th>
+              <th scope="col" class="px-6 py-3">Tipo de disparo</th>
+              <th scope="col" class="px-6 py-3">Destinatário</th>
+              <th scope="col" class="px-6 py-3">Status</th>
+              <th scope="col" class="px-6 py-3">Erros / retorno</th>
+            </tr>
+          </thead>
+          <tbody class="stagger-children divide-y divide-line-subtle text-sm">
+            @for (d of store.historicoDisparos(); track d.data + d.condominio) {
+              <tr
+                class="transition-colors hover:bg-surface-sunken"
+                [style.--i]="$index < 10 ? $index : 10"
+                [class.row-highlight]="store.ultimoDisparoData() === d.data"
+              >
+                <td class="px-6 py-3 font-mono text-ink-soft">{{ d.data | date:'dd/MM/yyyy HH:mm:ss' }}</td>
+                <td class="px-6 py-3 font-semibold text-ink">{{ d.condominio }}</td>
+                <td class="px-6 py-3 text-ink-soft">{{ d.tipo }}</td>
+                <td class="px-6 py-3 font-mono text-ink-soft">{{ d.telefone }}</td>
+                <td class="px-6 py-3">
+                  <span class="badge" [class]="d.status === 'entregue' ? 'badge badge-success' : 'badge badge-danger'">
+                    <span class="h-1 w-1 rounded-full bg-current"></span>
+                    {{ d.status === 'entregue' ? 'Entregue' : 'Falhou' }}
+                  </span>
+                </td>
+                <td class="px-6 py-3 italic text-ink-muted">{{ d.erroMsg || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <app-empty-state
+        icone="raio"
+        titulo="Nenhum disparo registrado"
+        descricao="As mensagens enviadas pela régua de cobrança aparecem aqui."
+      />
+    }
+  </div>
+</div>

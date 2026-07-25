@@ -7,6 +7,8 @@ import { CrmStore } from './crm.store';
 import { AuthService } from '../auth/auth.service';
 import { ToastService, ToastTipo } from '../shared/toast.service';
 import { CountUpDirective } from '../shared/count-up.directive';
+import { CrmConfiguracoesComponent } from './tabs/crm-configuracoes.component';
+import { CrmAutomacoesComponent } from './tabs/crm-automacoes.component';
 import { Apartamento, EstagioFiltro, Fatura, Morador, Ordenacao, StatusFatura } from './crm.models';
 import * as fmt from './crm-format';
 
@@ -15,7 +17,7 @@ export type { Fatura } from './crm.models';
 @Component({
   selector: 'app-crm-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, CountUpDirective],
+  imports: [CommonModule, FormsModule, CountUpDirective, CrmConfiguracoesComponent, CrmAutomacoesComponent],
   templateUrl: './crm-page.component.html',
 })
 export class CrmPageComponent implements OnInit, OnDestroy {
@@ -40,14 +42,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly faturamentoCards = this.store.faturamentoCards;
   readonly configAutomacoes = this.store.configAutomacoes;
   readonly historicoDisparos = this.store.historicoDisparos;
-  readonly ultimoDisparoData = this.store.ultimoDisparoData;
   readonly configPlanos = this.store.configPlanos;
-  readonly gatewaysStatus = this.store.gatewaysStatus;
-  readonly logsWebhooks = this.store.logsWebhooks;
-  readonly ultimoLogData = this.store.ultimoLogData;
-  readonly salvandoRegua = this.store.salvandoRegua;
-  readonly salvandoConfigPlanos = this.store.salvandoConfigPlanos;
-  readonly salvandoGateways = this.store.salvandoGateways;
   readonly historicoReceita = this.store.historicoReceita;
   readonly toasts = this.toast.toasts;
 
@@ -167,71 +162,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly relatorioPeriodo = signal<'30d' | '90d' | 'ano' | 'tudo'>('tudo');
   readonly relatorioGerado = signal(true);
   readonly gerandoRelatorio = signal(false);
-
-  // ── Estado local: aba Automações (preview) ──
-  readonly previewTemplate = signal<'pre' | 'venc' | 'pos'>('pre');
-
-  private readonly previewSampleData: Record<string, string> = {
-    sindico: 'Vinícius Síndico',
-    condominio: 'Condomínio Vista Bella',
-    plano: 'Profissional',
-    valor: 'R$ 450,00',
-    vencimento: '30/06/2026',
-    dias: '5',
-    copia_cola: '00020126360014br.gov.bcb.pix0114+5511999998888',
-    link_pagamento: 'clickprestare.com.br/faturas/1',
-  };
-
-  // Método (não computed): os textareas mutam o objeto in-place, então
-  // precisa reavaliar a cada ciclo de detecção de mudanças (zone-based).
-  previewMensagemHtml(): string {
-    const cfg = this.configAutomacoes();
-    const sel = this.previewTemplate();
-    const tpl =
-      sel === 'pre' ? cfg.templatePreVencimento
-      : sel === 'venc' ? cfg.templateVencimento
-      : cfg.templatePosVencimento;
-
-    const data = { ...this.previewSampleData };
-    if (sel === 'pre') data['dias'] = String(cfg.diasPreVencimento);
-    if (sel === 'pos') data['dias'] = String(cfg.diasPosVencimento);
-
-    // 1) substitui variáveis  2) escapa HTML  3) aplica markdown do WhatsApp
-    const substituido = (tpl || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) =>
-      data[k] !== undefined ? data[k] : m,
-    );
-    const escapado = substituido
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    return escapado
-      .replace(/\*([^*]+)\*/g, '<b>$1</b>')
-      .replace(/`([^`]+)`/g, '<code class="bg-surface-sunken px-1 rounded text-accent">$1</code>')
-      .replace(/_([^_]+)_/g, '<i>$1</i>');
-  }
-
-  readonly previewTabs: { valor: 'pre' | 'venc' | 'pos'; label: string }[] = [
-    { valor: 'pre', label: 'Aviso prévio' },
-    { valor: 'venc', label: 'No vencimento' },
-    { valor: 'pos', label: 'Atraso' },
-  ];
-
-  // ── Estado local: aba Configurações ──
-  readonly chavesVisiveis = signal<Record<string, boolean>>({});
-
-  toggleChave(k: string): void {
-    this.chavesVisiveis.update((s) => ({ ...s, [k]: !s[k] }));
-  }
-
-  copiarTexto(texto: string, label: string): void {
-    const ok = () => this.triggerToast(`${label} copiado para a área de transferência.`, 'success');
-    const fail = () => this.triggerToast('Não foi possível copiar para a área de transferência.', 'error');
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(texto).then(ok, fail);
-    } else {
-      fail();
-    }
-  }
 
   // ── Gráficos (overview) ──
 
@@ -397,13 +327,9 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   carregarFaturas(): void { this.store.carregarFaturas(); }
   gerarFaturasMes(): void { this.store.gerarFaturasMes(); }
   carregarDisparos(): void { this.store.carregarDisparos(); }
-  carregarGatewaysStatus(): void { this.store.carregarGatewaysStatus(); }
-  carregarConfigAutomacoes(): void { this.store.carregarConfigAutomacoes(); }
   verificarConexao(): void { this.store.verificarConexao(); }
   confirmarPagamentoManual(idFatura: string): void { this.store.confirmarPagamentoManual(idFatura); }
   reenviarWhatsApp(idFatura: string): void { this.store.reenviarWhatsApp(idFatura); }
-  salvarReguaWhatsApp(): void { this.store.salvarReguaWhatsApp(); }
-  salvarConfiguracaoPlanos(): void { this.store.salvarConfiguracaoPlanos(); }
   findCliente(id: number): CrmCliente | undefined { return this.store.findCliente(id); }
   waLink(cliente: CrmCliente): string | null { return this.store.waLink(cliente); }
   estagioCount(estagio: EstagioCrm): number { return this.store.estagioCount(estagio); }

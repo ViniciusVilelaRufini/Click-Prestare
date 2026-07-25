@@ -1,0 +1,144 @@
+<div class="animate-fade-in space-y-6">
+  <!-- Cabeçalho da página -->
+  <div>
+    <h2 class="text-2xl font-bold tracking-tight text-ink">Configurações</h2>
+    <p class="mt-1 text-sm text-ink-soft">Planos, integrações de pagamento e log técnico de eventos.</p>
+  </div>
+
+  <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+    <!-- Coluna esquerda: tabela de preços dos planos -->
+    <div class="card space-y-5 p-6">
+      <div>
+        <h3 class="text-sm font-semibold text-ink">Configuração de planos Click Prestare</h3>
+        <p class="mt-0.5 text-xs text-ink-soft">Valores recorrentes mensais e limites padrão por condomínio.</p>
+      </div>
+
+      <div class="stagger-children space-y-4">
+        @for (p of store.configPlanos(); track p.plano) {
+          <div class="space-y-3 rounded-lg border border-line bg-surface-sunken/60 p-4" [style.--i]="$index">
+            <div class="flex items-center justify-between border-b border-line pb-2">
+              <span class="text-sm font-semibold text-accent">{{ p.plano }}</span>
+              <span class="badge badge-neutral">{{ p.sistema }}</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="stat-label mb-1 block" [attr.for]="'valor-base-' + p.plano">Valor mensal base</label>
+                <div class="relative">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-2xs text-ink-muted">R$</span>
+                  <input [id]="'valor-base-' + p.plano" type="number" [(ngModel)]="p.valorBase" class="input pl-8 font-mono" />
+                </div>
+              </div>
+
+              <div>
+                <label class="stat-label mb-1 block" [attr.for]="'valor-uh-' + p.plano">Valor por UH</label>
+                <div class="relative">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-2xs text-ink-muted">R$</span>
+                  <input [id]="'valor-uh-' + p.plano" type="number" step="0.1" [(ngModel)]="p.valorPorUH" class="input pl-8 font-mono" />
+                </div>
+              </div>
+
+              <div class="col-span-2">
+                <label class="stat-label mb-1 block" [attr.for]="'sistema-' + p.plano">Sistema utilizado</label>
+                <input [id]="'sistema-' + p.plano" type="text" [(ngModel)]="p.sistema" class="input" />
+              </div>
+            </div>
+
+            <div class="mt-1 flex items-center justify-between border-t border-line pt-2">
+              <span class="stat-label">Simulação (50 UH)</span>
+              <span class="font-mono text-sm font-semibold text-success">
+                R$ {{ p.valorBase + (p.valorPorUH * 50) }}/mês
+              </span>
+            </div>
+          </div>
+        }
+
+        <div class="flex items-center justify-end pt-2">
+          <button
+            type="button"
+            class="btn-primary press"
+            (click)="store.salvarConfiguracaoPlanos()"
+            [disabled]="store.salvandoConfigPlanos()"
+          >
+            @if (store.salvandoConfigPlanos()) {
+              <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Salvando…
+            } @else {
+              Salvar configuração de planos
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coluna direita: gateways + log de webhooks -->
+    <div class="space-y-5">
+      <div class="card space-y-4 p-6">
+        <div>
+          <h3 class="text-sm font-semibold text-ink">Gateways de integração</h3>
+          <p class="mt-0.5 text-xs text-ink-soft">
+            As credenciais vivem nas variáveis de ambiente do servidor (Railway) e nunca são expostas ao navegador.
+            Aqui você vê apenas o status de cada integração.
+          </p>
+        </div>
+
+        <div class="space-y-2.5">
+          @for (g of [
+            { label: 'OpenPix — geração de Pix (OPENPIX_APP_ID)', ok: store.gatewaysStatus()?.openpix },
+            { label: 'OpenPix — webhook de confirmação (OPENPIX_WEBHOOK_TOKEN)', ok: store.gatewaysStatus()?.openpixWebhook },
+            { label: 'Asaas — webhook de confirmação (ASAAS_WEBHOOK_TOKEN)', ok: store.gatewaysStatus()?.asaasWebhook },
+            { label: 'Z-API — WhatsApp (Z_API_INSTANCE_ID / Z_API_TOKEN)', ok: store.gatewaysStatus()?.zapi }
+          ]; track g.label) {
+            <div class="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-sunken/60 px-4 py-3">
+              <span class="text-sm text-ink-soft">{{ g.label }}</span>
+              @if (g.ok) {
+                <span class="badge badge-success shrink-0">
+                  <span class="h-1.5 w-1.5 rounded-full bg-success"></span> Configurado
+                </span>
+              } @else {
+                <span class="badge badge-neutral shrink-0">
+                  <span class="h-1.5 w-1.5 rounded-full bg-ink-muted"></span> Não configurado
+                </span>
+              }
+            </div>
+          }
+          @if (!store.gatewaysStatus()) {
+            <p class="text-xs text-ink-muted">Carregando status das integrações…</p>
+          }
+        </div>
+      </div>
+
+      <!-- Log de webhooks -->
+      <div class="card space-y-4 p-6">
+        <div>
+          <h3 class="text-sm font-semibold text-ink">Webhooks recebidos &amp; log de eventos</h3>
+          <p class="mt-0.5 text-xs text-ink-soft">Registro em tempo real de pagamentos liquidados e falhas de envio.</p>
+        </div>
+
+        <div class="stagger-children max-h-[240px] space-y-3 overflow-y-auto rounded-lg border border-line bg-surface-sunken/60 p-4 font-mono text-2xs leading-relaxed">
+          @for (l of store.logsWebhooks(); track l.data + l.payload) {
+            <div
+              class="-mx-1 rounded border-b border-line-subtle px-1 pb-2 last:border-0"
+              [style.--i]="$index"
+              [class.row-highlight]="store.ultimoLogData() === l.data"
+            >
+              <div class="mb-1 flex items-center justify-between">
+                <span
+                  class="font-semibold"
+                  [class]="l.status === 'sucesso' ? 'text-success' : l.status === 'info' ? 'text-accent' : 'text-danger'"
+                >
+                  [{{ l.origem }}] {{ l.evento }}
+                </span>
+                <span class="text-ink-muted">{{ l.data | date:'dd/MM HH:mm:ss' }}</span>
+              </div>
+              <p class="break-all rounded bg-surface-raised p-1.5 text-ink-soft">{{ l.payload }}</p>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
