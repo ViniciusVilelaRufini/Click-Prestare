@@ -1133,7 +1133,7 @@ model Rag_Embeddings {
   source_id     Int // Documentos.id
   chunk_index   Int
   chunk_text    String   @db.Text
-  embedding     Json // vetor float[768] (text-embedding-004)
+  embedding     Json // vetor float[768] (gemini-embedding-2 truncado p/ 768)
   updated_at    DateTime @default(now()) @updatedAt @db.Timestamp(0)
 
   @@index([id_condominio], map: "idx_rag_cond")

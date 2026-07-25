@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertSindico } from '../auth/tenant.util';
@@ -64,7 +69,18 @@ export class ChatIaService {
       papel: this.papelDe(user),
     });
 
-    const resposta = await this.gemini.gerarResposta(prompt);
+    // O erro do provedor NUNCA vai para a tela: o app exibe o `message` da
+    // resposta, e um 404 de modelo aposentado apareceu como se fosse a fala do
+    // assistente. Detalhe fica no log, usuário recebe algo acionável.
+    let resposta: string;
+    try {
+      resposta = await this.gemini.gerarResposta(prompt);
+    } catch (e: any) {
+      this.logger.error(`falha ao gerar resposta: ${e?.message ?? e}`);
+      throw new ServiceUnavailableException(
+        'Não consegui responder agora. Tente novamente em instantes.',
+      );
+    }
 
     // Persiste o turno sem bloquear a resposta se a escrita falhar.
     void this.salvarTurno(idCondominio, idUser, 'user', texto);

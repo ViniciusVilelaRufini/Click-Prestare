@@ -6,12 +6,28 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
  * Usa o `fetch` nativo do Node — sem SDK. A chave vem de GEMINI_API_KEY e
  * NUNCA vai para o app: o Flutter só fala com este backend.
  *
- *  - text-embedding-004 → embeddings (768 dims) do RAG de atas/documentos
- *  - gemini-2.0-flash   → geração da resposta final
+ *  - gemini-embedding-2 → embeddings do RAG de atas/documentos
+ *  - gemini-3.6-flash   → geração da resposta final
+ *
+ * O Google aposenta modelo com data marcada e a chamada passa a devolver 404:
+ * `text-embedding-004` morreu em 14/01/2026 e `gemini-2.0-flash` em 01/06/2026.
+ * Por isso os nomes são sobrescrevíveis por env — na próxima aposentadoria dá
+ * para trocar pela variável no Railway, sem esperar deploy.
  */
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const EMBED_MODEL = 'text-embedding-004';
-const GEN_MODEL = 'gemini-2.0-flash';
+const EMBED_MODEL = process.env['GEMINI_EMBED_MODEL'] || 'gemini-embedding-2';
+const GEN_MODEL = process.env['GEMINI_GEN_MODEL'] || 'gemini-3.6-flash';
+
+/**
+ * O gemini-embedding-2 devolve 3072 dimensões por padrão. Pedimos 768: o
+ * ranking é feito em memória percorrendo todos os trechos do condomínio, então
+ * vetor 4x menor é 4x menos storage e 4x menos conta por pergunta. O Google
+ * documenta 768 como tamanho recomendado de truncamento, sem perda relevante.
+ *
+ * Truncar desnormaliza o vetor, mas o cosseno divide pelas magnitudes — o
+ * score não muda por causa disso.
+ */
+const EMBED_DIMS = 768;
 
 @Injectable()
 export class GeminiClient {
@@ -43,11 +59,12 @@ export class GeminiClient {
     return res.json();
   }
 
-  /** Embedding de um texto. Retorna array de floats (768). */
+  /** Embedding de um texto. Retorna array de floats (EMBED_DIMS). */
   async embedText(texto: string): Promise<number[]> {
     const data = await this.call(`models/${EMBED_MODEL}:embedContent`, {
       model: `models/${EMBED_MODEL}`,
       content: { parts: [{ text: texto }] },
+      output_dimensionality: EMBED_DIMS,
     });
     return data?.embedding?.values ?? [];
   }
@@ -59,6 +76,7 @@ export class GeminiClient {
       requests: textos.map((t) => ({
         model: `models/${EMBED_MODEL}`,
         content: { parts: [{ text: t }] },
+        output_dimensionality: EMBED_DIMS,
       })),
     });
     return (data?.embeddings ?? []).map((e: any) => e.values);

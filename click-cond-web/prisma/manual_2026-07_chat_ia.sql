@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS Rag_Embeddings (
   source_id INT NOT NULL,             -- Documentos.id
   chunk_index INT NOT NULL,
   chunk_text TEXT NOT NULL,
-  embedding JSON NOT NULL,            -- vetor float[768] (text-embedding-004)
+  embedding JSON NOT NULL,            -- vetor float[768] (gemini-embedding-2)
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_rag_cond (id_condominio),
   INDEX idx_rag_source (id_condominio, source_id)
