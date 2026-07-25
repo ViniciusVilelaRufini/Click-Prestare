@@ -21,6 +21,21 @@ export type StatusFatura = 'todos' | 'paga' | 'pendente' | 'vencida';
 export type EstagioFiltro = 'todos' | EstagioCrm;
 export type Ordenacao = 'mrr' | 'health' | 'nome' | 'vencimento';
 
+/** Campos editáveis do condomínio no drawer (enviados ao PUT /crm/clientes/:id). */
+export interface ClienteEdicao {
+  nome: string;
+  identificacao: string;
+  plano: string;
+  totalApartamentos: number;
+  mrr: number;
+  vencimento: string;
+  recorrenciaAtiva: boolean;
+  cobrancaAutoWhats: boolean;
+  sindicoNome: string;
+  sindicoEmail: string;
+  sindicoTelefone: string;
+}
+
 export interface Morador {
   id: number;
   nome: string;

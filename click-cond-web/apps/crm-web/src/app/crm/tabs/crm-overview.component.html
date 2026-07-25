@@ -20,10 +20,10 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
-        <button type="button" class="btn-primary press !px-3 !py-1.5 !text-xs" (click)="navegar.emit('clientes')">Ver clientes</button>
-        <button type="button" class="btn-secondary press !px-3 !py-1.5 !text-xs" (click)="navegar.emit('faturamento')">Lançar baixa</button>
-        <button type="button" class="btn-secondary press !px-3 !py-1.5 !text-xs" (click)="navegar.emit('automacoes')">Régua de WhatsApp</button>
-        <button type="button" class="btn-secondary press !px-3 !py-1.5 !text-xs" (click)="navegar.emit('configuracoes')">Configurações</button>
+        <a class="btn-primary press !px-3 !py-1.5 !text-xs" routerLink="../clientes">Ver clientes</a>
+        <a class="btn-secondary press !px-3 !py-1.5 !text-xs" routerLink="../faturamento">Lançar baixa</a>
+        <a class="btn-secondary press !px-3 !py-1.5 !text-xs" routerLink="../automacoes">Régua de WhatsApp</a>
+        <a class="btn-secondary press !px-3 !py-1.5 !text-xs" routerLink="../configuracoes">Configurações</a>
       </div>
     </div>
 

@@ -1,94 +1,55 @@
-<div class="flex min-h-screen bg-graphite text-zinc-100 font-sans">
-  
-  <!-- Sidebar Menu (SaaS style) -->
-  <aside class="w-64 border-r border-white/[0.04] bg-[#050507] hidden lg:flex flex-col justify-between p-6 shrink-0 h-screen sticky top-0">
+<div class="flex min-h-screen bg-surface-page font-sans text-ink">
+  <!-- Sidebar (≥ lg) -->
+  <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col justify-between border-r border-line bg-surface-raised p-6 lg:flex">
     <div class="space-y-8">
-      <!-- Brand Logo -->
+      <!-- Marca -->
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-md bg-accent-500/10 border border-accent-500/20 flex items-center justify-center text-accent-300 font-extrabold shadow-glow shrink-0">
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent-border bg-accent-soft font-extrabold text-accent">
           C
         </div>
         <div>
-          <span class="font-extrabold tracking-tight text-xs text-white">CLICK <span class="text-accent-400">PRESTARE</span></span>
-          <p class="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">Painel Comercial</p>
+          <p class="text-sm font-extrabold tracking-tight text-ink">CLICK <span class="text-accent">PRESTARE</span></p>
+          <p class="stat-label">Painel comercial</p>
         </div>
       </div>
 
-      <!-- Menu Items -->
-      <nav class="space-y-1">
-        <button (click)="alterarAbaNavegacao('overview')"
-          [class]="abaNavegacao() === 'overview'
-            ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
-            : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border-transparent'"
-          class="nav-active-rail press w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-md border transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-          Overview CRM
-        </button>
-        <button (click)="alterarAbaNavegacao('clientes')"
-          [class]="abaNavegacao() === 'clientes'
-            ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
-            : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border-transparent'"
-          class="nav-active-rail press w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-md border transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          Condomínios-Cliente
-        </button>
-        <button (click)="alterarAbaNavegacao('faturamento')"
-          [class]="abaNavegacao() === 'faturamento'
-            ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
-            : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border-transparent'"
-          class="nav-active-rail press w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-md border transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-          Faturamento & Cobranças
-        </button>
-        <button (click)="alterarAbaNavegacao('automacoes')"
-          [class]="abaNavegacao() === 'automacoes'
-            ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
-            : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border-transparent'"
-          class="nav-active-rail press w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-md border transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-          Automações & WhatsApp
-        </button>
-        <button (click)="alterarAbaNavegacao('relatorios')"
-          [class]="abaNavegacao() === 'relatorios'
-            ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
-            : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border-transparent'"
-          class="nav-active-rail press w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-md border transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          Relatórios & Exportações
-        </button>
-        <button (click)="alterarAbaNavegacao('chamados')"
-          [class]="abaNavegacao() === 'chamados'
-            ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
-            : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border-transparent'"
-          class="nav-active-rail press w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-md border transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          Chamados dos Condomínios
-        </button>
-        <button (click)="alterarAbaNavegacao('configuracoes')"
-          [class]="abaNavegacao() === 'configuracoes'
-            ? 'is-active bg-white/[0.03] text-accent-400 border-accent-500/15'
-            : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border-transparent'"
-          class="nav-active-rail press w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-md border transition-all">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          Configurações Gerais
-        </button>
+      <!-- Navegação -->
+      <nav class="space-y-1" aria-label="Seções do CRM">
+        @for (item of navItens; track item.rota) {
+          <a
+            class="nav-active-rail press flex w-full items-center gap-3 rounded-lg border px-3.5 py-2.5 text-sm font-medium transition-all"
+            [routerLink]="item.rota"
+            routerLinkActive="is-active border-accent-border bg-accent-soft text-accent font-semibold"
+            [routerLinkActiveOptions]="{ exact: false }"
+            #rla="routerLinkActive"
+            [class.border-transparent]="!rla.isActive"
+            [class.text-ink-soft]="!rla.isActive"
+            [class.hover:bg-surface-sunken]="!rla.isActive"
+            [class.hover:text-ink]="!rla.isActive"
+            (click)="onTrocarAba()"
+          >
+            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="item.icone" />
+            </svg>
+            {{ item.label }}
+          </a>
+        }
       </nav>
     </div>
 
-    <!-- Admin profile + logout at bottom -->
-    <div class="pt-4 border-t border-white/[0.04] space-y-3">
+    <!-- Perfil + logout -->
+    <div class="space-y-3 border-t border-line pt-4">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-full bg-accent-500/20 flex items-center justify-center text-xs font-bold text-accent-300 border border-accent-500/30 shadow-glow shrink-0">
+        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-accent-border bg-accent-soft text-2xs font-bold text-accent">
           {{ iniciais(auth.adminInfo()?.nome || 'Admin Prestare') }}
         </div>
         <div class="min-w-0">
-          <p class="text-xs font-semibold text-white truncate">{{ auth.adminInfo()?.nome || 'Admin Prestare' }}</p>
-          <p class="text-[10px] text-zinc-500 truncate">Operadora Click</p>
+          <p class="truncate text-sm font-semibold text-ink">{{ auth.adminInfo()?.nome || 'Admin Prestare' }}</p>
+          <p class="truncate text-xs text-ink-soft">Operadora Click</p>
         </div>
       </div>
-      <button (click)="auth.logout()" aria-label="Sair do painel" title="Sair"
-        class="press w-full flex items-center justify-center gap-2 px-3 py-2 text-2xs font-semibold rounded-md bg-white/[0.02] border border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.05] hover:border-danger-500/30 transition-all">
-        <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <button type="button" class="btn-secondary press w-full !text-xs" (click)="auth.logout()">
+        <svg class="h-3.5 w-3.5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1" />
         </svg>
         Sair do painel
@@ -96,81 +57,95 @@
     </div>
   </aside>
 
-  <!-- Main content area -->
-  <main class="flex-1 min-w-0 overflow-y-auto">
-
-    <!-- Mobile / Tablet top bar (chrome) — substitui o header do shell em <lg -->
-    <div class="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 border-b border-white/[0.04] crm-mobile-topbar backdrop-blur">
-      <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-8 h-8 rounded-md bg-accent-500/10 border border-accent-500/20 flex items-center justify-center text-accent-300 font-extrabold shadow-glow shrink-0 text-sm">
+  <!-- Conteúdo -->
+  <main class="min-w-0 flex-1 overflow-y-auto">
+    <!-- Barra superior (< lg) -->
+    <div class="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-surface-raised px-4 lg:hidden">
+      <div class="flex min-w-0 items-center gap-2.5">
+        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-accent-border bg-accent-soft text-sm font-extrabold text-accent">
           C
         </div>
         <div class="min-w-0">
-          <span class="font-extrabold tracking-tight text-[11px] text-white">CLICK <span class="text-accent-400">PRESTARE</span></span>
-          <p class="text-[8px] uppercase tracking-widest text-zinc-600 font-bold leading-none">Painel Comercial</p>
+          <p class="text-xs font-extrabold tracking-tight text-ink">CLICK <span class="text-accent">PRESTARE</span></p>
+          <p class="stat-label leading-none">Painel comercial</p>
         </div>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <div class="w-8 h-8 rounded-full bg-accent-500/20 flex items-center justify-center text-[10px] font-bold text-accent-300 border border-accent-500/30 shadow-glow" aria-hidden="true">
+      <div class="flex shrink-0 items-center gap-2">
+        <div class="flex h-8 w-8 items-center justify-center rounded-full border border-accent-border bg-accent-soft text-2xs font-bold text-accent" aria-hidden="true">
           {{ iniciais(auth.adminInfo()?.nome || 'Admin Prestare') }}
         </div>
-        <button (click)="auth.logout()" aria-label="Sair do painel" title="Sair"
-          class="press w-9 h-9 rounded-md flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-all">
-          <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <button
+          type="button"
+          class="press flex h-9 w-9 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
+          aria-label="Sair do painel"
+          (click)="auth.logout()"
+        >
+          <svg class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1" />
           </svg>
         </button>
       </div>
     </div>
 
-    <div class="mx-auto max-w-[1240px] px-6 py-7 space-y-6 animate-fade-in">
-      
-      <!-- Top Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/[0.04] pb-5">
-        <div>
-          <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            Visão Geral do CRM
-            <span class="px-2 py-0.5 text-[9px] font-bold text-accent-300 bg-accent-500/10 border border-accent-500/20 rounded uppercase tracking-wider">
-              Métricas Live
-            </span>
-          </h1>
-          <p class="text-xs text-zinc-500 mt-1">
-            Faturamento recorrente, saúde das contas e adoção operacional dos condomínios-cliente.
-          </p>
-        </div>
+    <!-- Navegação horizontal (< lg) -->
+    <div class="scrollbar-none flex gap-2 overflow-x-auto border-b border-line bg-surface-sunken px-4 py-2.5 lg:hidden">
+      @for (item of navItens; track item.rota) {
+        <a
+          class="press shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors"
+          [routerLink]="item.rota"
+          routerLinkActive="bg-surface-raised text-accent shadow-card"
+          #rlaM="routerLinkActive"
+          [class.text-ink-soft]="!rlaM.isActive"
+          (click)="onTrocarAba()"
+        >
+          {{ item.labelCurto }}
+        </a>
+      }
+    </div>
+
+    <div class="mx-auto max-w-[1240px] space-y-6 px-6 py-7">
+      <!-- Cabeçalho: status de conexão e ações globais -->
+      <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div class="flex items-center gap-2">
-          <!-- Connection Status Badge -->
-          @if (dbHealth(); as h) {
-            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-2xs font-semibold transition-all cursor-default"
-              [class]="h.connected
-                ? 'bg-emerald-500/[0.06] border-emerald-500/20 text-emerald-400'
-                : 'bg-amber-500/[0.06] border-amber-500/20 text-amber-400'"
-              [title]="h.connected ? 'Conectado ao banco MySQL Railway — Latência: ' + h.dbLatencyMs + 'ms' : 'API em modo offline — usando dados mock em memória'">
-              <span class="w-2 h-2 rounded-full shrink-0"
-                [class]="h.connected ? 'bg-emerald-400 status-dot-live' : 'bg-amber-400 animate-pulse'"></span>
+          @if (store.dbHealth(); as h) {
+            <div
+              class="badge"
+              [class]="h.connected ? 'badge badge-success' : 'badge badge-warning'"
+              [title]="h.connected ? 'Conectado ao banco MySQL (Railway) — latência ' + h.dbLatencyMs + 'ms' : 'API em modo offline — usando dados mock em memória'"
+            >
+              <span class="h-2 w-2 shrink-0 rounded-full bg-current" [class.status-dot-live]="h.connected"></span>
               @if (h.connected) {
-                <span>Dados ao Vivo</span>
-                <span class="font-mono text-emerald-500/70">{{ h.dbLatencyMs }}ms</span>
-                <span class="text-emerald-500/50">·</span>
-                <span class="text-emerald-500/70">{{ h.totalCondominios }} condos</span>
+                <span>Dados ao vivo</span>
+                <span class="font-mono opacity-70">{{ h.dbLatencyMs }}ms · {{ h.totalCondominios }} condomínios</span>
               } @else {
-                <span>Modo Desenvolvimento</span>
-                <span class="text-amber-500/60 font-mono">(mock)</span>
+                <span>Modo desenvolvimento (mock)</span>
               }
             </div>
-          } @else if (healthLoading()) {
-            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-white/[0.06] bg-white/[0.02] text-2xs text-zinc-500">
-              <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-              Verificando conexão...
+          } @else if (store.healthLoading()) {
+            <div class="badge badge-neutral">
+              <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              Verificando conexão…
             </div>
           }
-          <button (click)="verificarConexao()" aria-label="Verificar conexão" title="Forçar verificação de conexão"
-            class="w-8 h-8 rounded-md flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.03] transition-all">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" /></svg>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="press flex h-9 w-9 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink"
+            aria-label="Verificar conexão com o banco"
+            title="Forçar verificação de conexão"
+            (click)="verificarConexao()"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+            </svg>
           </button>
-          <button (click)="carregar()" aria-label="Atualizar dados do CRM"
-            class="inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-md bg-white/[0.02] border border-white/[0.06] text-zinc-300 hover:bg-white/[0.05] transition">
-            <svg class="w-3.5 h-3.5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <button type="button" class="btn-secondary press" aria-label="Atualizar dados do CRM" (click)="carregar()">
+            <svg class="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0 0 4.582 9M20 20v-5h-.581m0 0A8.003 8.003 0 0 1 4.06 13" />
             </svg>
             Sincronizar
@@ -178,1094 +153,30 @@
         </div>
       </div>
 
-      @if (loading()) {
-        <!-- Loading skeletons -->
-        <div class="space-y-6" role="status" aria-busy="true" aria-label="Carregando dados do CRM">
-          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            @for (_ of [1,2,3,4]; track $index) {
-              <div class="glass h-[116px] animate-pulse"></div>
-            }
-          </div>
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            @for (_ of [1,2,3]; track $index) {
-              <div class="glass h-60 animate-pulse"></div>
-            }
-          </div>
-          <div class="glass h-64 animate-pulse"></div>
-        </div>
-      } @else if (erro()) {
-        <!-- Error panel -->
-        <div class="glass p-8 text-center max-w-md mx-auto mt-12">
-          <div class="mx-auto w-11 h-11 rounded-lg bg-danger-500/10 border border-danger-500/25 flex items-center justify-center mb-3">
-            <svg class="w-5 h-5 text-danger-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      @if (store.erro()) {
+        <!-- Falha de carregamento -->
+        <div class="card mx-auto mt-12 max-w-md p-8 text-center">
+          <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-lg border border-danger-border bg-danger-soft">
+            <svg class="h-5 w-5 text-danger" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
             </svg>
           </div>
-          <p class="text-sm text-zinc-300 font-medium">{{ erro() }}</p>
-          <button (click)="carregar()" class="mt-4 px-4 py-2 text-xs font-semibold rounded-md bg-accent-500 hover:bg-accent-600 text-white transition">
-            Tentar novamente
-          </button>
+          <p class="text-sm font-medium text-ink">{{ store.erro() }}</p>
+          <button type="button" class="btn-primary press mt-4" (click)="carregar()">Tentar novamente</button>
+        </div>
+      } @else if (store.loading() && !store.overview()) {
+        <div class="space-y-6" role="status" aria-busy="true" aria-label="Carregando dados do CRM">
+          <app-skeleton variante="kpi" />
+          <app-skeleton variante="tabela" [rows]="5" />
         </div>
       } @else {
-
-        <!-- Mobile / Tablet Navigation Row (Hidden on Desktop) -->
-        <div class="lg:hidden flex overflow-x-auto border-b border-white/[0.04] crm-mobile-nav py-2.5 px-4 -mx-6 -mt-6 mb-4 gap-2 scrollbar-none">
-          <button (click)="alterarAbaNavegacao('overview')"
-            [class]="abaNavegacao() === 'overview' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
-            class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
-            Overview
-          </button>
-          <button (click)="alterarAbaNavegacao('clientes')"
-            [class]="abaNavegacao() === 'clientes' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
-            class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
-            Condomínios
-          </button>
-          <button (click)="alterarAbaNavegacao('faturamento')"
-            [class]="abaNavegacao() === 'faturamento' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
-            class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
-            Faturamento
-          </button>
-          <button (click)="alterarAbaNavegacao('automacoes')"
-            [class]="abaNavegacao() === 'automacoes' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
-            class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
-            Automações
-          </button>
-          <button (click)="alterarAbaNavegacao('relatorios')"
-            [class]="abaNavegacao() === 'relatorios' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
-            class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
-            Relatórios
-          </button>
-          <button (click)="alterarAbaNavegacao('chamados')"
-            [class]="abaNavegacao() === 'chamados' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
-            class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
-            Chamados
-          </button>
-          <button (click)="alterarAbaNavegacao('configuracoes')"
-            [class]="abaNavegacao() === 'configuracoes' ? 'bg-white/[0.04] text-accent-400 border border-accent-500/10' : 'text-zinc-400 border border-transparent bg-transparent'"
-            class="press px-3.5 py-1.5 rounded-md text-2xs font-semibold shrink-0 transition">
-            Configurações
-          </button>
-        </div>
-        @switch (abaNavegacao()) {
-          @case ('overview') {
-            <crm-overview (navegar)="alterarAbaNavegacao($event)" />
-          }
-
-          @case ('clientes') {
-            <div class="space-y-6 animate-fade-in">
-            <!-- Filter and Search Toolbar -->
-            <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-2">
-              <!-- Search input -->
-              <div class="relative flex-1">
-                <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" />
-                </svg>
-                <input #buscaInput type="search" [ngModel]="buscaRaw()" (ngModelChange)="onBuscaInput($event)"
-                  aria-label="Buscar clientes"
-                  placeholder="Buscar por condomínio, cidade, síndico ou identificação…  ( / )"
-                  class="w-full pl-10 pr-10 min-h-[40px] py-2 text-xs rounded-md bg-white/[0.02] border border-white/[0.06] text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-accent-500/60 focus:bg-white/[0.04] transition-all" />
-                @if (buscaRaw()) {
-                  <button (click)="limparBusca()" aria-label="Limpar busca" title="Limpar"
-                    class="press absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-all animate-fade-in">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"/></svg>
-                  </button>
-                }
-              </div>
-
-              <!-- Filters -->
-              <div class="flex items-center gap-2 flex-wrap">
-                <!-- Stage filter group -->
-                <div class="flex items-center gap-1" role="group" aria-label="Filtrar por estágio">
-                  @for (e of estagios; track e.valor) {
-                    <button (click)="filtroEstagio.set(e.valor)"
-                      [attr.aria-pressed]="filtroEstagio() === e.valor"
-                      class="press min-h-[36px] px-3.5 py-1.5 text-2xs font-semibold rounded-md border transition-all"
-                      [class]="filtroEstagio() === e.valor
-                        ? 'bg-accent-500/10 border-accent-500/30 text-accent-300 shadow-glow'
-                        : 'bg-white/[0.02] border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'">
-                      {{ e.label }}
-                    </button>
-                  }
-                </div>
-
-                <!-- Sort dropdown -->
-                <select [ngModel]="ordenacao()" (ngModelChange)="ordenacao.set($event)"
-                  aria-label="Ordenar clientes"
-                  class="min-h-[36px] px-3 py-1.5 text-2xs font-semibold rounded-md bg-white/[0.02] border border-white/[0.06] text-zinc-300 focus:outline-none focus:border-accent-500/60 cursor-pointer">
-                  <option value="mrr">Ordenar: Maior MRR</option>
-                  <option value="health">Ordenar: Health Score</option>
-                  <option value="vencimento">Ordenar: Vencimento</option>
-                  <option value="nome">Ordenar: Nome</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- High-fidelity clients directory datagrid -->
-            <div class="glass overflow-hidden">
-              <div class="px-5 py-4 border-b border-white/[0.04] crm-table-header-container flex items-center justify-between">
-                <div>
-                  <h3 class="text-xs font-bold text-zinc-200 uppercase tracking-wider">Clientes Disponíveis</h3>
-                  <p class="text-[10px] text-zinc-500 mt-0.5">Clique em qualquer registro para visualizar dados completos ou editar</p>
-                </div>
-                <span class="text-2xs text-zinc-500 font-semibold font-mono">{{ clientesFiltrados().length }} registros</span>
-              </div>
-
-              <!-- Safe horizontal scroll zone (desktop/tablet ≥ md) -->
-              <div class="hidden md:block overflow-x-auto relative">
-                <table class="w-full text-left border-collapse">
-                  <thead>
-                    <tr class="border-b border-white/[0.04] text-[10px] font-bold text-zinc-500 uppercase tracking-wider bg-white/[0.003]">
-                      <th class="py-3 px-5">Condomínio</th>
-                      <th class="py-3 px-5">Estágio</th>
-                      <th class="py-3 px-5">Plano</th>
-                      <th class="py-3 px-5">UHs</th>
-                      <th class="py-3 px-5">MRR / Vencimento</th>
-                      <th class="py-3 px-5">Terminais Faciais</th>
-                      <th class="py-3 px-5">Saúde (Health)</th>
-                      <th class="py-3 px-5">Contato Principal</th>
-                      <th class="py-3 px-5 text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-white/[0.015] text-xs stagger-children">
-                    @for (c of clientesFiltrados(); track c.id) {
-                      <tr class="hover:bg-white/[0.012] transition cursor-pointer group row-glow" [style.--i]="$index" (click)="abrirCliente(c)">
-                        <!-- Name & Location -->
-                        <td class="py-3 px-5">
-                          <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border border-white/[0.06] flex items-center justify-center text-accent-300 font-extrabold text-[10px] group-hover:border-accent-500/30 transition shrink-0 shadow-glow">
-                              {{ iniciais(c.nome) }}
-                            </div>
-                            <div class="min-w-0">
-                              <p class="font-semibold text-white truncate leading-snug group-hover:text-accent-300 transition">{{ c.nome }}</p>
-                              <p class="text-[10px] text-zinc-500 truncate leading-snug mt-0.5">{{ c.cidade || '—' }}{{ c.uf ? '/' + c.uf : '' }}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <!-- Stage status + risco operacional -->
-                        <td class="py-3 px-5">
-                          <div class="flex flex-col items-start gap-1">
-                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded border {{ estagioClasse(c.estagio) }} shrink-0">
-                              <span class="w-1 h-1 rounded-full bg-current animate-pulse"></span>
-                              {{ estagioLabel(c.estagio) }}
-                            </span>
-                            @if (c.riscoChurn && c.riscoChurn.nivel !== 'baixo') {
-                              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}"
-                                [title]="c.riscoChurn.motivos[0]?.texto">
-                                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-                                {{ riscoLabel(c.riscoChurn.nivel) }}
-                              </span>
-                            }
-                          </div>
-                        </td>
-                        <!-- Subscription Plan -->
-                        <td class="py-3 px-5 font-medium text-zinc-300">
-                          {{ c.plano || 'Sem plano' }}
-                        </td>
-                        <!-- UHs -->
-                        <td class="py-3 px-5">
-                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-violet-500/10 text-violet-400 border border-violet-500/20">
-                            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                            {{ c.totalApartamentos }}
-                          </span>
-                        </td>
-                        <!-- MRR / Vencimento -->
-                        <td class="py-3 px-5 font-mono">
-                          <span class="font-semibold text-white">{{ moeda(c.mrr) }}</span>
-                          @if (c.diasParaVencer !== null) {
-                            <p class="text-[9px] font-semibold mt-0.5 {{ pagamentoClasse(c.statusPagamento) }}">
-                              {{ c.diasParaVencer < 0 ? 'Venceu há ' + (-c.diasParaVencer) + 'd' : 'Vence em ' + c.diasParaVencer + 'd' }}
-                            </p>
-                          } @else {
-                            <p class="text-[9px] font-semibold text-zinc-500 mt-0.5">Sem cobrança</p>
-                          }
-                        </td>
-                        <!-- Terminais Faciais -->
-                        <td class="py-3 px-5 font-mono">
-                          @if (c.dispositivosFaciais > 0) {
-                            @if (c.dispositivosOffline > 0) {
-                              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded border border-rose-500/25 bg-rose-500/10 text-rose-400" title="Offline: {{ c.dispositivosOffline }}">
-                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                                {{ c.dispositivosFaciais - c.dispositivosOffline }}/{{ c.dispositivosFaciais }} Online
-                              </span>
-                            } @else {
-                              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded border border-emerald-500/25 bg-emerald-500/10 text-emerald-400">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                {{ c.dispositivosFaciais }} Online
-                              </span>
-                            }
-                          } @else {
-                            <span class="text-zinc-500">—</span>
-                          }
-                        </td>
-                        <!-- Health score bar -->
-                        <td class="py-3 px-5">
-                          <div class="flex items-center gap-2 max-w-[110px]">
-                            <div class="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
-                              <div class="h-full rounded-full {{ healthBg(c.healthScore) }} transition-[width] duration-700 ease-out" [style.width.%]="c.healthScore"></div>
-                            </div>
-                            <span class="font-mono font-bold text-[10px] tabular-nums {{ healthClasse(c.healthScore) }}">{{ c.healthScore }}</span>
-                          </div>
-                        </td>
-                        <!-- Síndico info -->
-                        <td class="py-3 px-5 min-w-[130px]">
-                          @if (c.contatoPrincipal; as ct) {
-                            <p class="font-semibold text-zinc-200 truncate max-w-[140px]">{{ ct.nome }}</p>
-                            <p class="text-[10px] text-zinc-500 truncate max-w-[140px] mt-0.5">{{ ct.telefone || ct.email || '—' }}</p>
-                          } @else {
-                            <span class="text-zinc-650">—</span>
-                          }
-                        </td>
-                        <!-- Edit drawer trigger -->
-                        <td class="py-3 px-5 text-right" (click)="$event.stopPropagation()">
-                          <button (click)="abrirCliente(c)" class="w-8 h-8 rounded-md inline-flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.04] transition" title="Visualizar Detalhes">
-                            <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                          </button>
-                        </td>
-                      </tr>
-                    } @empty {
-                      <tr>
-                        <td colspan="9" class="py-12 px-5 text-center text-zinc-500 border-dashed">
-                          Nenhum condomínio encontrado com estes filtros de pesquisa.
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-
-              <!-- Mobile cards (< md): cada cliente vira um card empilhado -->
-              <div class="md:hidden divide-y divide-white/[0.04] stagger-children">
-                @for (c of clientesFiltrados(); track c.id) {
-                  <button (click)="abrirCliente(c)" [style.--i]="$index"
-                    class="press w-full text-left p-4 flex flex-col gap-3 hover:bg-white/[0.012] transition active:bg-white/[0.02]">
-                    <div class="flex items-center gap-3">
-                      <div class="w-9 h-9 rounded bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border border-white/[0.06] flex items-center justify-center text-accent-300 font-extrabold text-[11px] shrink-0 shadow-glow">
-                        {{ iniciais(c.nome) }}
-                      </div>
-                      <div class="min-w-0 flex-1">
-                        <p class="font-semibold text-white truncate leading-snug text-sm">{{ c.nome }}</p>
-                        <p class="text-[10px] text-zinc-500 truncate leading-snug mt-0.5">{{ c.cidade || '—' }}{{ c.uf ? '/' + c.uf : '' }}</p>
-                      </div>
-                      <div class="flex flex-col items-end gap-1 shrink-0">
-                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded border {{ estagioClasse(c.estagio) }}">
-                          <span class="w-1 h-1 rounded-full bg-current animate-pulse"></span>
-                          {{ estagioLabel(c.estagio) }}
-                        </span>
-                        @if (c.riscoChurn && c.riscoChurn.nivel !== 'baixo') {
-                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
-                            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3l17 0a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-                            {{ riscoLabel(c.riscoChurn.nivel) }}
-                          </span>
-                        }
-                      </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-2xs">
-                      <div>
-                        <p class="text-zinc-500">MRR</p>
-                        <p class="font-mono font-semibold text-white mt-0.5">{{ moeda(c.mrr) }}</p>
-                        @if (c.diasParaVencer !== null) {
-                          <p class="text-[9px] font-semibold mt-0.5 {{ pagamentoClasse(c.statusPagamento) }}">
-                            {{ c.diasParaVencer < 0 ? 'Venceu ' + (-c.diasParaVencer) + 'd' : 'Vence em ' + c.diasParaVencer + 'd' }}
-                          </p>
-                        } @else {
-                          <p class="text-[9px] font-semibold text-zinc-500 mt-0.5">Sem cobrança</p>
-                        }
-                      </div>
-                      <div>
-                        <p class="text-zinc-500">Plano</p>
-                        <p class="font-medium text-zinc-300 truncate mt-0.5">{{ c.plano || 'Sem plano' }}</p>
-                      </div>
-                      <div>
-                        <p class="text-zinc-500">Terminais</p>
-                        <div class="mt-1">
-                          @if (c.dispositivosFaciais > 0) {
-                            @if (c.dispositivosOffline > 0) {
-                              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded border border-rose-500/25 bg-rose-500/10 text-rose-400">
-                                <span class="w-1 h-1 rounded-full bg-rose-500 animate-pulse"></span>
-                                {{ c.dispositivosFaciais - c.dispositivosOffline }}/{{ c.dispositivosFaciais }}
-                              </span>
-                            } @else {
-                              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded border border-emerald-500/25 bg-emerald-500/10 text-emerald-400">
-                                <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
-                                {{ c.dispositivosFaciais }}
-                              </span>
-                            }
-                          } @else {
-                            <span class="text-zinc-500">—</span>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="text-2xs text-zinc-500 shrink-0">Saúde</span>
-                      <div class="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
-                        <div class="h-full rounded-full {{ healthBg(c.healthScore) }} transition-[width] duration-700 ease-out" [style.width.%]="c.healthScore"></div>
-                      </div>
-                      <span class="font-mono font-bold text-[10px] tabular-nums {{ healthClasse(c.healthScore) }}">{{ c.healthScore }}</span>
-                    </div>
-                  </button>
-                } @empty {
-                  <div class="py-12 px-5 text-center text-zinc-500 text-xs">
-                    Nenhum condomínio encontrado com estes filtros de pesquisa.
-                  </div>
-                }
-              </div>
-            </div>
-            </div>
-          }
-
-          @case ('faturamento') {
-            <crm-faturamento />
-          }
-
-          @case ('automacoes') {
-            <crm-automacoes />
-          }
-
-          @case ('configuracoes') {
-            <crm-configuracoes />
-          }
-
-          @case ('relatorios') {
-            <crm-relatorios />
-          }
-
-          @case ('chamados') {
-            <crm-chamados />
-          }
-        }
+        <router-outlet />
       }
     </div>
   </main>
 
-  <!-- Centered Modal Panel (Details / Edit) -->
-  @if (clienteSelecionado(); as c) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" (click)="fecharCliente()"
-      role="dialog" aria-modal="true" aria-labelledby="drawer-cliente-titulo">
+  <!-- Drawer de detalhe do cliente (aberto por qualquer aba via CrmStore) -->
+  <crm-cliente-drawer />
 
-      <!-- Backdrop fade -->
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"></div>
-
-      <!-- Modal body -->
-      <div class="relative w-full max-w-lg max-h-[90vh] bg-[#0b0b0f] border border-white/[0.06] rounded-xl shadow-2xl overflow-auto p-6 space-y-6 animate-fade-in flex flex-col justify-between"
-        (click)="$event.stopPropagation()">
-        
-        <div class="space-y-6 flex-1">
-          <!-- Drawer Header -->
-          <div class="flex items-start justify-between border-b border-white/[0.04] pb-4">
-            <div class="flex items-center gap-3 min-w-0 flex-1">
-              <div class="w-11 h-11 rounded bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border border-white/[0.06] flex items-center justify-center text-accent-300 font-bold shrink-0 shadow-glow" aria-hidden="true">
-                {{ iniciais(c.nome) }}
-              </div>
-              <div class="min-w-0 flex-1 pr-1">
-                @if (modoEdicao()) {
-                  <div class="space-y-1.5">
-                    <input type="text" [(ngModel)]="dadosEditados.nome" placeholder="Nome do Condomínio"
-                      class="w-full px-2.5 py-1.5 text-xs rounded bg-white/[0.02] border border-white/[0.08] text-white focus:outline-none focus:border-accent-500/65 transition" />
-                    <input type="text" [(ngModel)]="dadosEditados.identificacao" placeholder="Identificação / CNPJ"
-                      class="w-full px-2.5 py-1.5 text-[10px] rounded bg-white/[0.02] border border-white/[0.08] text-zinc-300 focus:outline-none focus:border-accent-500/65 transition" />
-                  </div>
-                } @else {
-                  <h2 id="drawer-cliente-titulo" class="text-sm font-bold text-white leading-tight truncate">{{ c.nome }}</h2>
-                  <p class="text-2xs text-zinc-500 truncate mt-0.5">{{ c.identificacao || 'DEMO-MANUAL' }}</p>
-                }
-              </div>
-            </div>
-            
-            <!-- Action Toolbar inside Drawer header -->
-            <div class="flex items-center gap-0.5 shrink-0 ml-2">
-              @if (!modoEdicao()) {
-                <button (click)="iniciarEdicao()" aria-label="Editar condomínio"
-                  class="w-9 h-9 rounded-md flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/[0.03] transition-all"
-                  title="Editar dados comercial">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                </button>
-                <button (click)="exportarRelatorio()" aria-label="Exportar relatório CSV"
-                  class="w-9 h-9 rounded-md flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/[0.03] transition-all"
-                  title="Exportar dados (CSV)">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                </button>
-              }
-              <button (click)="fecharCliente()" aria-label="Fechar detalhes"
-                class="w-9 h-9 rounded-md flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/[0.03] transition-all"
-                title="Fechar">
-                <svg class="w-4.5 h-4.5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"/></svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Badges -->
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <span class="px-2 py-0.5 text-[9px] font-bold rounded border {{ estagioClasse(c.estagio) }}">{{ estagioLabel(c.estagio) }}</span>
-            <span class="px-2 py-0.5 text-[9px] font-bold rounded border border-white/[0.05] {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
-            @if (dbHealth(); as h) {
-              <span class="px-2 py-0.5 text-[9px] font-bold rounded border inline-flex items-center gap-1"
-                [class]="h.connected ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-amber-400 bg-amber-500/10 border-amber-500/20'">
-                <span class="w-1 h-1 rounded-full bg-current"></span>
-                {{ h.connected ? 'API Real' : 'Mock' }}
-              </span>
-            }
-          </div>
-
-          <!-- Drawer Navigation Tabs -->
-          @if (!modoEdicao()) {
-            <div class="flex border-b border-white/[0.04] gap-1" role="tablist" aria-label="Informações do condomínio">
-              <button (click)="selecionarAba('geral')"
-                [attr.aria-selected]="abaSelecionada() === 'geral'"
-                role="tab"
-                class="press flex-1 pb-2.5 text-[10px] font-bold text-center border-b-2 transition-all"
-                [class]="abaSelecionada() === 'geral' ? 'border-accent-500 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'">
-                Geral & Finanças
-              </button>
-              <button (click)="selecionarAba('portaria')"
-                [attr.aria-selected]="abaSelecionada() === 'portaria'"
-                role="tab"
-                class="press flex-1 pb-2.5 text-[10px] font-bold text-center border-b-2 transition-all"
-                [class]="abaSelecionada() === 'portaria' ? 'border-accent-500 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'">
-                Hardware & Acessos
-              </button>
-              <button (click)="selecionarAba('servicos')"
-                [attr.aria-selected]="abaSelecionada() === 'servicos'"
-                role="tab"
-                class="press flex-1 pb-2.5 text-[10px] font-bold text-center border-b-2 transition-all"
-                [class]="abaSelecionada() === 'servicos' ? 'border-accent-500 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'">
-                Serviços & Uso
-              </button>
-              <button (click)="selecionarAba('moradores')"
-                [attr.aria-selected]="abaSelecionada() === 'moradores'"
-                role="tab"
-                class="press flex-1 pb-2.5 text-[10px] font-bold text-center border-b-2 transition-all"
-                [class]="abaSelecionada() === 'moradores' ? 'border-accent-500 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'">
-                Moradores
-              </button>
-            </div>
-          }
-
-          <!-- Drawer Tab Content 1: Geral & Finanças -->
-          @if (abaSelecionada() === 'geral') {
-            @if (modoEdicao()) {
-              <!-- Edit mode form container -->
-              <div class="space-y-4">
-                <!-- Commercial Fields -->
-                <div class="glass p-4 space-y-3.5">
-                  <p class="stat-label">Comercial</p>
-                  <div class="space-y-3">
-                    <div>
-                      <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Plano de Assinatura</label>
-                      <select [(ngModel)]="dadosEditados.plano" (ngModelChange)="atualizarMrrCalculado()"
-                        class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-300 focus:outline-none focus:border-accent-500/65 cursor-pointer">
-                        <option value="Essencial">Essencial</option>
-                        <option value="Profissional">Profissional</option>
-                        <option value="Elite">Elite</option>
-                        <option value="Sem plano">Sem plano</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Faturamento Recorrente (MRR)</label>
-                      <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 font-mono">R$</span>
-                        <input type="number" [value]="dadosEditados.mrr" readonly
-                          class="w-full pl-8 pr-3 py-2 text-xs rounded crm-mrr-input-custom border border-white/[0.08] text-zinc-400 font-mono focus:outline-none cursor-not-allowed" />
-                      </div>
-                      <p class="text-[9px] text-zinc-500 mt-1 italic">
-                        Cálculo automático: Base do plano + ({{ dadosEditados.totalApartamentos }} UHs cadastradas * taxa por UH)
-                      </p>
-                    </div>
-                    <div>
-                      <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Próximo Vencimento</label>
-                      <input type="date" [(ngModel)]="dadosEditados.vencimento"
-                        class="w-full px-3 py-2 text-xs rounded bg-white/[0.01] border border-white/[0.08] text-zinc-100 focus:outline-none focus:border-accent-500/65 transition-all" />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Automations settings -->
-                <div class="glass p-4 space-y-3.5">
-                  <p class="stat-label">Automações Integradas</p>
-                  <div class="space-y-3">
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="text-zinc-400">Recorrência Automática</span>
-                      <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" [(ngModel)]="dadosEditados.recorrenciaAtiva" class="sr-only peer">
-                        <div class="w-9 h-5 bg-white/[0.04] border border-white/[0.08] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:bg-emerald-450 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-500 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500/20 peer-checked:border-emerald-500/30"></div>
-                      </label>
-                    </div>
-                    
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="text-zinc-400">Régua de WhatsApp</span>
-                      <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" [(ngModel)]="dadosEditados.cobrancaAutoWhats" class="sr-only peer">
-                        <div class="w-9 h-5 bg-white/[0.04] border border-white/[0.08] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:bg-emerald-450 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-500 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500/20 peer-checked:border-emerald-500/30"></div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Síndico primary contact -->
-                <div class="glass p-4 space-y-3.5">
-                  <p class="stat-label">Contato principal (Administrativo)</p>
-                  <div class="space-y-3">
-                    <div>
-                      <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Nome do Síndico</label>
-                      <input type="text" [(ngModel)]="dadosEditados.sindicoNome" placeholder="Ex: Vinicius Teste"
-                        class="w-full px-3 py-2 text-xs rounded bg-white/[0.01] border border-white/[0.08] text-zinc-150 placeholder:text-zinc-600 focus:outline-none focus:border-accent-500/65 transition-all" />
-                    </div>
-                    <div>
-                      <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">E-mail</label>
-                      <input type="email" [(ngModel)]="dadosEditados.sindicoEmail" placeholder="sindico@clickprestare.com"
-                        class="w-full px-3 py-2 text-xs rounded bg-white/[0.01] border border-white/[0.08] text-zinc-150 placeholder:text-zinc-600 focus:outline-none focus:border-accent-500/65 transition-all" />
-                    </div>
-                    <div>
-                      <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Telefone / WhatsApp</label>
-                      <input type="text" [(ngModel)]="dadosEditados.sindicoTelefone" placeholder="(11) 99999-9999"
-                        class="w-full px-3 py-2 text-xs rounded bg-white/[0.01] border border-white/[0.08] text-zinc-150 placeholder:text-zinc-600 focus:outline-none focus:border-accent-500/65 transition-all" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            } @else {
-              <!-- View mode container -->
-              <div class="space-y-4 animate-fade-in">
-
-                <!-- AÇÕES RÁPIDAS -->
-                <div class="grid grid-cols-2 gap-2">
-                  @if (waLink(c); as wa) {
-                    <a [href]="wa" target="_blank" rel="noopener"
-                      class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-success-500/12 border border-success-500/25 text-success-400 hover:bg-success-500/20 transition-all"
-                      title="Abrir conversa de cobrança no WhatsApp">
-                      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
-                      Cobrar (WhatsApp)
-                    </a>
-                  }
-                  @if (c.contatoPrincipal?.email; as em) {
-                    <a [href]="'mailto:' + em"
-                      class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-white/[0.03] border border-white/[0.08] text-zinc-200 hover:bg-white/[0.06] transition-all"
-                      title="Enviar e-mail ao contato principal">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                      E-mail
-                    </a>
-                  }
-                  <button (click)="iniciarEdicao()"
-                    class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-white/[0.03] border border-white/[0.08] text-zinc-200 hover:bg-white/[0.06] transition-all">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                    Editar
-                  </button>
-                  <button (click)="exportarRelatorio()"
-                    class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-white/[0.03] border border-white/[0.08] text-zinc-200 hover:bg-white/[0.06] transition-all">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Exportar
-                  </button>
-                </div>
-
-                <!-- SAÚDE FINANCEIRA -->
-                <div class="glass p-4 space-y-3.5">
-                  <div class="flex items-center justify-between">
-                    <p class="stat-label">Saúde Financeira</p>
-                    <span class="px-2 py-0.5 text-[9px] font-bold rounded border {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
-                  </div>
-                  <div class="flex items-end justify-between">
-                    <div>
-                      <p class="text-[10px] text-zinc-500">Faturamento Recorrente</p>
-                      <p class="font-mono text-2xl font-bold text-white leading-none mt-1">{{ moeda(c.mrr) }}<span class="text-xs text-zinc-500 font-normal">/mês</span></p>
-                    </div>
-                    <div class="text-right">
-                      <p class="text-[10px] text-zinc-500">Plano</p>
-                      <p class="font-semibold text-zinc-100 mt-0.5">{{ c.plano || 'Sem plano' }}</p>
-                    </div>
-                  </div>
-                  <!-- Vencimento em destaque -->
-                  <div class="flex items-center justify-between pt-3 border-t border-white/[0.04] text-xs">
-                    <div>
-                      <p class="text-[10px] text-zinc-500">Próximo Vencimento</p>
-                      <p class="font-semibold text-zinc-100 mt-0.5">{{ c.vencimento ? (c.vencimento | date:'dd/MM/yyyy') : '—' }}</p>
-                    </div>
-                    @if (c.diasParaVencer != null) {
-                      @if (c.diasParaVencer < 0) {
-                        <span class="px-2 py-1 rounded text-[10px] font-bold bg-danger-500/12 text-danger-400 border border-danger-500/25">
-                          Venceu há {{ Math.abs(c.diasParaVencer) }}d · {{ moeda(c.mrr) }} retido
-                        </span>
-                      } @else if (c.diasParaVencer <= 7) {
-                        <span class="px-2 py-1 rounded text-[10px] font-bold bg-warning-500/12 text-warning-400 border border-warning-500/25">
-                          Vence em {{ c.diasParaVencer }}d
-                        </span>
-                      } @else {
-                        <span class="px-2 py-1 rounded text-[10px] font-bold bg-success-500/10 text-success-400 border border-success-500/20">
-                          Vence em {{ c.diasParaVencer }}d
-                        </span>
-                      }
-                    }
-                  </div>
-                  <p class="text-[10px] text-zinc-500">Cliente desde {{ c.clienteDesde ? (c.clienteDesde | date:'dd/MM/yyyy') : '—' }}</p>
-                </div>
-
-                <!-- RISCO & SAÚDE DA CONTA -->
-                <div class="glass p-4 space-y-3 border {{ riscoClasse(c.riscoChurn.nivel) }}">
-                  <div class="flex items-center justify-between">
-                    <p class="stat-label">Saúde da Conta &amp; Risco</p>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
-                      Risco {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <div class="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
-                      <div class="h-full rounded-full {{ healthBg(c.healthScore) }}" [style.width.%]="c.healthScore"></div>
-                    </div>
-                    <span class="text-sm font-mono font-bold tabular-nums {{ healthClasse(c.healthScore) }}">{{ c.healthScore }}/100</span>
-                  </div>
-                  @if (c.riscoChurn.motivos.length) {
-                    <ul class="space-y-2 pt-1">
-                      @for (m of c.riscoChurn.motivos; track m.texto) {
-                        <li class="flex items-start gap-2 text-xs">
-                          <span class="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5 {{ severidadeDot(m.severidade) }}"></span>
-                          <span class="text-zinc-300 leading-relaxed">{{ m.texto }}</span>
-                        </li>
-                      }
-                    </ul>
-                  } @else {
-                    <p class="text-2xs text-success-400 flex items-center gap-1.5 pt-1">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
-                      Conta saudável — nenhum sinal de risco no momento.
-                    </p>
-                  }
-                </div>
-
-                <!-- RESUMO OPERACIONAL (visão rápida; detalhes nas outras abas) -->
-                <div class="glass p-4 space-y-3">
-                  <p class="stat-label">Resumo Operacional</p>
-                  <div class="grid grid-cols-3 gap-3">
-                    <div class="text-center">
-                      <p class="font-mono text-lg font-bold text-zinc-100 leading-none">{{ c.totalApartamentos }}</p>
-                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Aptos</p>
-                    </div>
-                    <div class="text-center">
-                      <p class="font-mono text-lg font-bold text-zinc-100 leading-none">{{ c.totalMoradores }}</p>
-                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Moradores</p>
-                    </div>
-                    <div class="text-center">
-                      <p class="font-mono text-lg font-bold leading-none" [class]="c.dispositivosOffline > 0 ? 'text-danger-400' : 'text-zinc-100'">{{ c.dispositivosFaciais }}</p>
-                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Terminais</p>
-                    </div>
-                    <div class="text-center">
-                      <p class="font-mono text-lg font-bold leading-none" [class]="c.ocorrenciasPendentes > 0 ? 'text-warning-400' : 'text-zinc-100'">{{ c.ocorrenciasPendentes }}</p>
-                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Ocorrências</p>
-                    </div>
-                    <div class="text-center">
-                      <p class="font-mono text-lg font-bold leading-none" [class]="c.encomendasAguardando > 0 ? 'text-accent-400' : 'text-zinc-100'">{{ c.encomendasAguardando }}</p>
-                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Encomendas</p>
-                    </div>
-                    <div class="text-center">
-                      <p class="font-mono text-lg font-bold text-zinc-100 leading-none">{{ c.visitantesAtivos }}</p>
-                      <p class="text-[9px] text-zinc-500 mt-1 uppercase tracking-wide">Visitantes</p>
-                    </div>
-                  </div>
-                  <p class="text-[10px] text-zinc-500 pt-2 border-t border-white/[0.04]">
-                    Última atividade: <span class="text-zinc-300">{{ c.ultimaAtividade ? (c.ultimaAtividade | date:'dd/MM/yyyy HH:mm') : 'sem conexões recentes' }}</span>
-                  </p>
-                </div>
-
-                <!-- AUTOMAÇÕES + CONTATO -->
-                <div class="glass p-4 space-y-3">
-                  <p class="stat-label">Automação & Contato</p>
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-zinc-400">Recorrência Automática</span>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold"
-                      [class]="c.recorrenciaAtiva ? 'bg-success-500/10 text-success-400 border border-success-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'">
-                      {{ c.recorrenciaAtiva ? 'Ativa' : 'Inativa' }}
-                    </span>
-                  </div>
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-zinc-400">Régua de WhatsApp</span>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold"
-                      [class]="c.cobrancaAutoWhats ? 'bg-success-500/10 text-success-400 border border-success-500/20' : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'">
-                      {{ c.cobrancaAutoWhats ? 'Ativa' : 'Inativa' }}
-                    </span>
-                  </div>
-                  @if (c.contatoPrincipal; as ct) {
-                    <div class="pt-2.5 border-t border-white/[0.04]">
-                      <p class="text-xs font-semibold text-zinc-100">{{ ct.nome }} <span class="text-[10px] font-normal text-zinc-500">· {{ ct.papel }}</span></p>
-                      @if (ct.telefone) {
-                        <a [href]="'tel:' + ct.telefone" class="block text-2xs text-accent-400 hover:text-accent-300 hover:underline transition-all font-mono mt-1">{{ ct.telefone }}</a>
-                      }
-                      @if (ct.email) {
-                        <a [href]="'mailto:' + ct.email" class="block text-2xs text-accent-400 hover:text-accent-300 hover:underline transition-all">{{ ct.email }}</a>
-                      }
-                    </div>
-                  } @else {
-                    <p class="text-2xs text-zinc-500 pt-2.5 border-t border-white/[0.04]">Sem síndico ou contato administrativo cadastrado.</p>
-                  }
-                </div>
-              </div>
-            }
-          }
-
-          <!-- Drawer Tab Content 2: Portaria & Hardware -->
-          @if (abaSelecionada() === 'portaria') {
-            <div class="space-y-4 animate-fade-in">
-              <!-- Radar de risco do condomínio -->
-              @if (c.riscoChurn) {
-                <div class="glass p-4 space-y-3 border {{ riscoClasse(c.riscoChurn.nivel) }}">
-                  <div class="flex items-center justify-between">
-                    <p class="stat-label">Risco de Churn (operacional)</p>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
-                      {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}
-                    </span>
-                  </div>
-                  @if (c.riscoChurn.motivos.length) {
-                    <ul class="space-y-2">
-                      @for (m of c.riscoChurn.motivos; track m.texto) {
-                        <li class="flex items-start gap-2 text-xs">
-                          <span class="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5 {{ severidadeDot(m.severidade) }}"></span>
-                          <span class="text-zinc-300 leading-relaxed">{{ m.texto }}</span>
-                        </li>
-                      }
-                    </ul>
-                  } @else {
-                    <p class="text-2xs text-emerald-400 flex items-center gap-1.5">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
-                      Operação saudável — nenhum sinal de risco no controle de acesso.
-                    </p>
-                  }
-                </div>
-              }
-              <!-- Dimensionamento -->
-              <div class="glass p-4 space-y-3">
-                <p class="stat-label">Dimensionamento Operacional</p>
-                <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Apartamentos</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.totalApartamentos }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Moradores</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.totalMoradores }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Porteiros Ativos</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.totalPorteiros }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Funcionários Gerais</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.totalFuncionarios }}</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Hardware Terminals status -->
-              <div class="glass p-4 space-y-3">
-                <div class="flex items-center justify-between">
-                  <p class="stat-label">Terminais Faciais (Hardware)</p>
-                  @if (c.dispositivosOffline > 0) {
-                    <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-danger-500/10 text-danger-400 border border-danger-500/20 animate-pulse">
-                      {{ c.dispositivosOffline }} Offline
-                    </span>
-                  } @else {
-                    <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-success-500/10 text-success-400 border border-success-500/20">
-                      Terminais Online
-                    </span>
-                  }
-                </div>
-                <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Total Instalados</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.dispositivosFaciais }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Online</p>
-                    <p class="font-mono font-semibold text-emerald-450 mt-0.5">{{ c.dispositivosFaciais - c.dispositivosOffline }}</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Biometry & Access metrics -->
-              <div class="glass p-4 space-y-3">
-                <p class="stat-label">Adoção de Tecnologia & Acessos</p>
-                <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Moradores Cadastrados (Face)</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">
-                      {{ c.moradoresComFace }}
-                      <span class="text-[10px] text-zinc-500 font-normal">({{ c.totalMoradores > 0 ? Math.round((c.moradoresComFace / c.totalMoradores) * 100) : 0 }}%)</span>
-                    </p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Adoção de Tags RFID</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">
-                      {{ c.moradoresComTag }}
-                      <span class="text-[10px] text-zinc-500 font-normal">({{ c.totalMoradores > 0 ? Math.round((c.moradoresComTag / c.totalMoradores) * 100) : 0 }}%)</span>
-                    </p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Acessos Faciais (30d)</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.acessos30d }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Visitantes Ativos</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.visitantesAtivos }}</p>
-                  </div>
-                  <div class="col-span-2">
-                    <p class="text-[10px] text-zinc-500">Última Atividade Registrada</p>
-                    <p class="font-semibold text-zinc-100 mt-0.5">{{ c.ultimaAtividade ? (c.ultimaAtividade | date:'dd/MM/yyyy HH:mm') : 'Sem conexões recentes' }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          }
-
-          <!-- Drawer Tab Content 3: Serviços & Uso -->
-          @if (abaSelecionada() === 'servicos') {
-            <div class="space-y-4 animate-fade-in">
-              <!-- Deliveries flow -->
-              <div class="glass p-4 space-y-3">
-                <p class="stat-label">Encomendas & Prestadores</p>
-                <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Aguardando Retirada</p>
-                    <p class="font-mono font-semibold mt-0.5" [class.text-accent-400]="c.encomendasAguardando > 0">{{ c.encomendasAguardando }} encomendas</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Recebidas (30 dias)</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.encomendasRecebidas30d }} entregas</p>
-                  </div>
-                  <div class="col-span-2">
-                    <p class="text-[10px] text-zinc-500">Prestadores de Serviço Cadastrados</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.prestadoresCadastrados }} cadastrados</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Communication logs -->
-              <div class="glass p-4 space-y-3">
-                <p class="stat-label">Engajamento & Comunidades</p>
-                <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Comunicados Enviados (30d)</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.comunicados30d }}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] text-zinc-500">Reservas de Áreas (30d)</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.reservasAreas30d }} agendamentos</p>
-                  </div>
-                  <div class="col-span-2">
-                    <p class="text-[10px] text-zinc-500">Assembleias Agendadas</p>
-                    <p class="font-mono font-semibold text-zinc-100 mt-0.5">{{ c.assembleiasAgendadas }} futuro(s)</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Support and open occurrences tickets -->
-              <div class="glass p-4 space-y-3">
-                <p class="stat-label">Suporte & Ocorrências</p>
-                <div class="space-y-2">
-                  <p class="text-[10px] text-zinc-500">Ocorrências abertas pendentes</p>
-                  <div class="flex items-center gap-2">
-                    <span class="font-mono text-base font-bold tabular-nums" [class.text-warning-400]="c.ocorrenciasPendentes > 0">
-                      {{ c.ocorrenciasPendentes }}
-                    </span>
-                    @if (c.ocorrenciasPendentes > 0) {
-                      <span class="text-[10px] text-zinc-500">requer atenção imediata de suporte</span>
-                    } @else {
-                      <span class="text-[10px] text-emerald-400 font-semibold">Nenhuma pendência operacional</span>
-                    }
-                  </div>
-                </div>
-              </div>
-            </div>
-          }
-
-          <!-- Drawer Tab Content 4: Moradores -->
-          @if (abaSelecionada() === 'moradores') {
-            <div class="space-y-4 animate-fade-in text-xs">
-              
-              <!-- Formulário de cadastro de Morador (se visível) -->
-              @if (mostrandoFormMorador()) {
-                <div class="glass p-4 space-y-3.5 border border-accent-500/20 bg-accent-500/[0.02]">
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs font-bold text-accent-400 uppercase tracking-wide">Novo Morador</p>
-                    <button (click)="resetFormMorador()" class="text-zinc-550 hover:text-zinc-350 text-[10px] font-bold">Cancelar</button>
-                  </div>
-                  
-                  <div class="space-y-3">
-                    <div>
-                      <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Nome Completo</label>
-                      <input type="text" [ngModel]="registrarNome()" (ngModelChange)="registrarNome.set($event)" placeholder="Ex: Vinícius Síndico"
-                        class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 transition-all" />
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-3">
-                      <div>
-                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Telefone / WhatsApp</label>
-                        <input type="text" [ngModel]="registrarTelefone()" (ngModelChange)="registrarTelefone.set($event)" placeholder="Ex: 17992559990"
-                          class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 transition-all" />
-                      </div>
-                      <div>
-                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Documento (CPF)</label>
-                        <input type="text" [ngModel]="registrarDocumento()" (ngModelChange)="registrarDocumento.set($event)" placeholder="Ex: 12345678900"
-                          class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 transition-all" />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">E-mail (Login do App)</label>
-                      <input type="email" [ngModel]="registrarEmail()" (ngModelChange)="registrarEmail.set($event)" placeholder="morador@clickprestare.com"
-                        class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 transition-all" />
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                      <div>
-                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Apartamento</label>
-                        <select [ngModel]="registrarAptoId()" (ngModelChange)="registrarAptoId.set($event)"
-                          class="w-full px-3 py-1.8 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-300 focus:outline-none focus:border-accent-500/65 cursor-pointer">
-                          <option [value]="null" disabled selected>Selecione...</option>
-                          @for (apto of apartamentos(); track apto.id) {
-                            <option [value]="apto.id">Apto {{ apto.apto }} (Bloco {{ apto.bloco }})</option>
-                          }
-                        </select>
-                      </div>
-                      <div>
-                        <label class="block text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Senha de Acesso (Gerada)</label>
-                        <input type="text" [ngModel]="registrarSenha()" (ngModelChange)="registrarSenha.set($event)"
-                          class="w-full px-3 py-2 text-xs rounded bg-[#0b0b0f] border border-white/[0.08] text-zinc-150 focus:outline-none focus:border-accent-500/65 font-mono" />
-                      </div>
-                    </div>
-
-                    <button (click)="salvarMorador()"
-                      class="w-full min-h-[36px] mt-2 px-4 py-2 text-xs font-bold rounded-md bg-accent-500 hover:bg-accent-600 text-white transition-all flex items-center justify-center gap-1.5 shadow-glow">
-                      <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
-                      Registrar e Enviar Acesso (Whats)
-                    </button>
-                  </div>
-                </div>
-              }
-
-              <!-- Toolbar -->
-              <div class="flex items-center gap-2">
-                <div class="relative flex-1">
-                  <input type="text" [ngModel]="buscaMorador()" (ngModelChange)="buscaMorador.set($event)" placeholder="Buscar morador..."
-                    class="w-full pl-8 pr-3 py-1.8 text-xs rounded bg-white/[0.01] border border-white/[0.08] text-zinc-150 placeholder:text-zinc-650 focus:outline-none focus:border-accent-500/65 transition-all" />
-                  <svg class="w-3.5 h-3.5 text-zinc-555 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                </div>
-                @if (!mostrandoFormMorador()) {
-                  <button (click)="abrirFormMorador()"
-                    class="press px-3 py-1.8 rounded bg-accent-500 hover:bg-accent-600 text-white font-bold transition flex items-center gap-1 shrink-0">
-                    + Registrar Morador
-                  </button>
-                }
-              </div>
-
-              <!-- Residents list container -->
-              <div class="space-y-2">
-                @if (moradoresLoading()) {
-                  <div class="py-8 flex flex-col items-center justify-center text-zinc-550 gap-2">
-                    <svg class="animate-spin h-5 w-5 text-accent-500" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span class="text-[10px] uppercase font-bold tracking-wider">Carregando Moradores...</span>
-                  </div>
-                } @else {
-                  @for (m of moradores(); track m.id) {
-                    @if (!buscaMorador() || m.nome.toLowerCase().includes(buscaMorador().toLowerCase()) || (m.apartamento && m.apartamento.includes(buscaMorador()))) {
-                      <div class="glass p-3 flex items-center justify-between gap-3 hover:border-white/[0.08] transition duration-200">
-                        <div class="flex items-center gap-2.5 min-w-0">
-                          <div class="w-7 h-7 rounded-full bg-accent-500/10 flex items-center justify-center text-accent-400 font-bold shrink-0 text-[10px]">
-                            {{ m.nome.substring(0,2).toUpperCase() }}
-                          </div>
-                          <div class="min-w-0">
-                            <p class="font-bold text-zinc-150 truncate leading-snug">{{ m.nome }}</p>
-                            <p class="text-[10px] text-zinc-500 leading-snug font-mono mt-0.5 font-semibold">
-                              Apto {{ m.apartamento || '—' }} @if(m.bloco){ (Bloco {{ m.bloco }}) }
-                              <span class="mx-1 text-zinc-700">·</span>
-                              {{ m.telefone || 'Sem telefone' }}
-                            </p>
-                            @if (m.email) {
-                              <p class="text-[9px] text-zinc-550 truncate mt-0.5">{{ m.email }}</p>
-                            }
-                          </div>
-                        </div>
-                        
-                        <div class="flex items-center gap-1.5 shrink-0">
-                          <!-- WhatsApp credentials resend button -->
-                          @if (m.telefone) {
-                            <button (click)="reenviarCredenciaisMorador(m)"
-                              class="press p-1.5 rounded bg-success-500/10 hover:bg-success-500/20 text-success-400 border border-success-500/15"
-                              title="Reenviar dados de acesso por WhatsApp">
-                              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
-                            </button>
-                          }
-                          <!-- Remove resident button -->
-                          <button (click)="removerMorador(m.id)"
-                            class="press p-1.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/15"
-                            title="Remover morador do condomínio">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                          </button>
-                        </div>
-                      </div>
-                    }
-                  } @empty {
-                    <div class="py-8 text-center text-zinc-550 border border-dashed border-white/[0.04] rounded-lg">
-                      Nenhum morador cadastrado para este condomínio.
-                    </div>
-                  }
-                }
-              </div>
-            </div>
-          }
-        </div>
-
-        <!-- Footer Control Buttons (Edit Mode only) -->
-        @if (modoEdicao()) {
-          <div class="pt-4 border-t border-white/[0.04] flex items-center gap-3 bg-[#0b0b0f] sticky bottom-0 z-10">
-            <button (click)="salvarEdicao()" [disabled]="salvando()"
-              class="flex-1 min-h-[38px] px-4 py-2 text-xs font-bold rounded-md bg-accent-500 hover:bg-accent-600 disabled:opacity-60 text-white transition-all flex items-center justify-center gap-2 shadow-glow">
-              @if (salvando()) {
-                <svg class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Salvando alterações
-              } @else {
-                Confirmar
-              }
-            </button>
-            <button (click)="cancelarEdicao()" [disabled]="salvando()"
-              class="flex-1 min-h-[38px] px-4 py-2 text-xs font-bold rounded-md bg-white/[0.02] border border-white/[0.06] text-zinc-350 hover:bg-white/[0.05] disabled:opacity-60 transition-all">
-              Cancelar
-            </button>
-          </div>
-        }
-      </div>
-    </div>
-  }
-
-  <!-- Toasts empilháveis com variantes -->
-  <div class="fixed bottom-5 right-5 z-[100] flex flex-col gap-2.5 items-end" role="status" aria-live="polite">
-    @for (t of toasts(); track t.id) {
-      <div class="animate-toast-in px-4 py-3 rounded-lg border backdrop-blur-md text-xs font-semibold shadow-glow flex items-center gap-2.5 max-w-[340px]"
-        [class]="t.tipo === 'success' ? 'border-emerald-500/25 bg-[#0a130d]/95 text-emerald-100'
-               : t.tipo === 'error' ? 'border-danger-500/30 bg-[#160b0b]/95 text-rose-100'
-               : 'border-accent-500/20 bg-[#09090d]/95 text-white'">
-        @switch (t.tipo) {
-          @case ('success') {
-            <svg class="w-4 h-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
-          }
-          @case ('error') {
-            <svg class="w-4 h-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-          }
-          @default {
-            <span class="w-2 h-2 rounded-full bg-accent-450 animate-pulse shrink-0"></span>
-          }
-        }
-        <span class="flex-1">{{ t.message }}</span>
-        <button (click)="dismissToast(t.id)" aria-label="Fechar notificação"
-          class="press shrink-0 w-5 h-5 rounded flex items-center justify-center text-current/60 hover:text-current hover:bg-white/[0.08] transition-all">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"/></svg>
-        </button>
-      </div>
-    }
-  </div>
+  <app-toast-container />
 </div>

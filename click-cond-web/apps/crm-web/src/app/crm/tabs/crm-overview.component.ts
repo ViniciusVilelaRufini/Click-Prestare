@@ -1,5 +1,6 @@
-import { Component, EventEmitter, Output, computed, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { CrmStore } from '../crm.store';
 import { AuthService } from '../../auth/auth.service';
 import { KpiCardComponent } from '../../shared/ui/kpi-card.component';
@@ -16,15 +17,12 @@ export type AbaCrm = 'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'c
 @Component({
   selector: 'crm-overview',
   standalone: true,
-  imports: [CommonModule, KpiCardComponent, EmptyStateComponent, SkeletonComponent],
+  imports: [CommonModule, RouterLink, KpiCardComponent, EmptyStateComponent, SkeletonComponent],
   templateUrl: './crm-overview.component.html',
 })
 export class CrmOverviewComponent {
   readonly store = inject(CrmStore);
   readonly auth = inject(AuthService);
-
-  /** Navegação entre abas continua no componente pai (até virar rota). */
-  @Output() navegar = new EventEmitter<AbaCrm>();
 
   readonly Math = Math;
   readonly moeda = moeda;

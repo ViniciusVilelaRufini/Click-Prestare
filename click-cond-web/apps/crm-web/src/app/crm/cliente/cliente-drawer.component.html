@@ -1,0 +1,702 @@
+@if (store.clienteSelecionado(); as c) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" (click)="fecharCliente()"
+    role="dialog" aria-modal="true" aria-labelledby="drawer-cliente-titulo">
+
+    <!-- Backdrop fade -->
+    <div class="absolute inset-0 bg-surface-overlay backdrop-blur-sm animate-fade-in"></div>
+
+    <!-- Modal body -->
+    <div class="relative w-full max-w-lg max-h-[90vh] bg-surface-raised border border-line rounded-xl shadow-modal overflow-auto p-6 space-y-6 animate-fade-in flex flex-col justify-between"
+      (click)="$event.stopPropagation()">
+      
+      <div class="space-y-6 flex-1">
+        <!-- Drawer Header -->
+        <div class="flex items-start justify-between border-b border-line pb-4">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="w-11 h-11 rounded border border-accent-border bg-accent-soft flex items-center justify-center text-accent font-bold shrink-0" aria-hidden="true">
+              {{ iniciais(c.nome) }}
+            </div>
+            <div class="min-w-0 flex-1 pr-1">
+              @if (modoEdicao()) {
+                <div class="space-y-1.5">
+                  <input type="text" [(ngModel)]="dadosEditados.nome" placeholder="Nome do Condomínio"
+                    class="input" />
+                  <input type="text" [(ngModel)]="dadosEditados.identificacao" placeholder="Identificação / CNPJ"
+                    class="input" />
+                </div>
+              } @else {
+                <h2 id="drawer-cliente-titulo" class="text-base font-bold text-ink leading-tight truncate">{{ c.nome }}</h2>
+                <p class="text-xs text-ink-soft truncate mt-0.5">{{ c.identificacao || 'DEMO-MANUAL' }}</p>
+              }
+            </div>
+          </div>
+          
+          <!-- Action Toolbar inside Drawer header -->
+          <div class="flex items-center gap-0.5 shrink-0 ml-2">
+            @if (!modoEdicao()) {
+              <button (click)="iniciarEdicao()" aria-label="Editar condomínio"
+                class="w-9 h-9 rounded-md flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
+                title="Editar dados comercial">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+              <button (click)="exportarRelatorio()" aria-label="Exportar relatório CSV"
+                class="w-9 h-9 rounded-md flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
+                title="Exportar dados (CSV)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </button>
+            }
+            <button (click)="fecharCliente()" aria-label="Fechar detalhes"
+              class="w-9 h-9 rounded-md flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
+              title="Fechar">
+              <svg class="w-4.5 h-4.5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Badges -->
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="px-2 py-0.5 text-2xs font-bold rounded border {{ estagioClasse(c.estagio) }}">{{ estagioLabel(c.estagio) }}</span>
+          <span class="px-2 py-0.5 text-2xs font-bold rounded border border-line {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
+          @if (store.dbHealth(); as h) {
+            <span class="px-2 py-0.5 text-2xs font-bold rounded border inline-flex items-center gap-1"
+              [class]="h.connected ? 'text-success bg-success-soft border-success-border' : 'text-warning bg-warning-soft border-warning-border'">
+              <span class="w-1 h-1 rounded-full bg-current"></span>
+              {{ h.connected ? 'API Real' : 'Mock' }}
+            </span>
+          }
+        </div>
+
+        <!-- Drawer Navigation Tabs -->
+        @if (!modoEdicao()) {
+          <div class="flex border-b border-line gap-1" role="tablist" aria-label="Informações do condomínio">
+            <button (click)="selecionarAba('geral')"
+              [attr.aria-selected]="abaSelecionada() === 'geral'"
+              role="tab"
+              class="press flex-1 pb-2.5 text-xs font-semibold text-center border-b-2 transition-all"
+              [class]="abaSelecionada() === 'geral' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
+              Geral & Finanças
+            </button>
+            <button (click)="selecionarAba('portaria')"
+              [attr.aria-selected]="abaSelecionada() === 'portaria'"
+              role="tab"
+              class="press flex-1 pb-2.5 text-xs font-semibold text-center border-b-2 transition-all"
+              [class]="abaSelecionada() === 'portaria' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
+              Hardware & Acessos
+            </button>
+            <button (click)="selecionarAba('servicos')"
+              [attr.aria-selected]="abaSelecionada() === 'servicos'"
+              role="tab"
+              class="press flex-1 pb-2.5 text-xs font-semibold text-center border-b-2 transition-all"
+              [class]="abaSelecionada() === 'servicos' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
+              Serviços & Uso
+            </button>
+            <button (click)="selecionarAba('moradores')"
+              [attr.aria-selected]="abaSelecionada() === 'moradores'"
+              role="tab"
+              class="press flex-1 pb-2.5 text-xs font-semibold text-center border-b-2 transition-all"
+              [class]="abaSelecionada() === 'moradores' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
+              Moradores
+            </button>
+          </div>
+        }
+
+        <!-- Drawer Tab Content 1: Geral & Finanças -->
+        @if (abaSelecionada() === 'geral') {
+          @if (modoEdicao()) {
+            <!-- Edit mode form container -->
+            <div class="space-y-4">
+              <!-- Commercial Fields -->
+              <div class="card p-4 space-y-3.5">
+                <p class="stat-label">Comercial</p>
+                <div class="space-y-3">
+                  <div>
+                    <label class="stat-label block mb-1.5">Plano de Assinatura</label>
+                    <select [(ngModel)]="dadosEditados.plano" (ngModelChange)="atualizarMrrCalculado()"
+                      class="input cursor-pointer">
+                      <option value="Essencial">Essencial</option>
+                      <option value="Profissional">Profissional</option>
+                      <option value="Elite">Elite</option>
+                      <option value="Sem plano">Sem plano</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="stat-label block mb-1.5">Faturamento Recorrente (MRR)</label>
+                    <div class="relative">
+                      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-ink-soft font-mono">R$</span>
+                      <input type="number" [value]="dadosEditados.mrr" readonly
+                        class="input pl-8 font-mono cursor-not-allowed" />
+                    </div>
+                    <p class="text-2xs text-ink-soft mt-1 italic">
+                      Cálculo automático: Base do plano + ({{ dadosEditados.totalApartamentos }} UHs cadastradas * taxa por UH)
+                    </p>
+                  </div>
+                  <div>
+                    <label class="stat-label block mb-1.5">Próximo Vencimento</label>
+                    <input type="date" [(ngModel)]="dadosEditados.vencimento"
+                      class="input" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Automations settings -->
+              <div class="card p-4 space-y-3.5">
+                <p class="stat-label">Automações Integradas</p>
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-ink-soft">Recorrência Automática</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" [(ngModel)]="dadosEditados.recorrenciaAtiva" class="sr-only peer">
+                      <div class="w-9 h-5 bg-surface-sunken border border-line peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:bg-accent after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-ink-muted after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent-soft peer-checked:border-accent"></div>
+                    </label>
+                  </div>
+                  
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-ink-soft">Régua de WhatsApp</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" [(ngModel)]="dadosEditados.cobrancaAutoWhats" class="sr-only peer">
+                      <div class="w-9 h-5 bg-surface-sunken border border-line peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:bg-accent after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-ink-muted after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent-soft peer-checked:border-accent"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Síndico primary contact -->
+              <div class="card p-4 space-y-3.5">
+                <p class="stat-label">Contato principal (Administrativo)</p>
+                <div class="space-y-3">
+                  <div>
+                    <label class="stat-label block mb-1.5">Nome do Síndico</label>
+                    <input type="text" [(ngModel)]="dadosEditados.sindicoNome" placeholder="Ex: Vinicius Teste"
+                      class="input" />
+                  </div>
+                  <div>
+                    <label class="stat-label block mb-1.5">E-mail</label>
+                    <input type="email" [(ngModel)]="dadosEditados.sindicoEmail" placeholder="sindico@clickprestare.com"
+                      class="input" />
+                  </div>
+                  <div>
+                    <label class="stat-label block mb-1.5">Telefone / WhatsApp</label>
+                    <input type="text" [(ngModel)]="dadosEditados.sindicoTelefone" placeholder="(11) 99999-9999"
+                      class="input" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          } @else {
+            <!-- View mode container -->
+            <div class="space-y-4 animate-fade-in">
+
+              <!-- AÇÕES RÁPIDAS -->
+              <div class="grid grid-cols-2 gap-2">
+                @if (store.waLink(c); as wa) {
+                  <a [href]="wa" target="_blank" rel="noopener"
+                    class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-success-soft border border-success-border text-success hover:bg-success-soft transition-all"
+                    title="Abrir conversa de cobrança no WhatsApp">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                    Cobrar (WhatsApp)
+                  </a>
+                }
+                @if (c.contatoPrincipal?.email; as em) {
+                  <a [href]="'mailto:' + em"
+                    class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-surface-sunken border border-line text-ink hover:bg-surface-sunken transition-all"
+                    title="Enviar e-mail ao contato principal">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    E-mail
+                  </a>
+                }
+                <button (click)="iniciarEdicao()"
+                  class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-surface-sunken border border-line text-ink hover:bg-surface-sunken transition-all">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                  Editar
+                </button>
+                <button (click)="exportarRelatorio()"
+                  class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-surface-sunken border border-line text-ink hover:bg-surface-sunken transition-all">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  Exportar
+                </button>
+              </div>
+
+              <!-- SAÚDE FINANCEIRA -->
+              <div class="card p-4 space-y-3.5">
+                <div class="flex items-center justify-between">
+                  <p class="stat-label">Saúde Financeira</p>
+                  <span class="px-2 py-0.5 text-2xs font-bold rounded border {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
+                </div>
+                <div class="flex items-end justify-between">
+                  <div>
+                    <p class="text-2xs text-ink-soft">Faturamento Recorrente</p>
+                    <p class="font-mono text-2xl font-bold text-ink leading-none mt-1">{{ moeda(c.mrr) }}<span class="text-xs text-ink-soft font-normal">/mês</span></p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-2xs text-ink-soft">Plano</p>
+                    <p class="font-semibold text-ink mt-0.5">{{ c.plano || 'Sem plano' }}</p>
+                  </div>
+                </div>
+                <!-- Vencimento em destaque -->
+                <div class="flex items-center justify-between pt-3 border-t border-line text-xs">
+                  <div>
+                    <p class="text-2xs text-ink-soft">Próximo Vencimento</p>
+                    <p class="font-semibold text-ink mt-0.5">{{ c.vencimento ? (c.vencimento | date:'dd/MM/yyyy') : '—' }}</p>
+                  </div>
+                  @if (c.diasParaVencer != null) {
+                    @if (c.diasParaVencer < 0) {
+                      <span class="px-2 py-1 rounded text-2xs font-bold bg-danger-500/12 text-danger-400 border border-danger-500/25">
+                        Venceu há {{ Math.abs(c.diasParaVencer) }}d · {{ moeda(c.mrr) }} retido
+                      </span>
+                    } @else if (c.diasParaVencer <= 7) {
+                      <span class="px-2 py-1 rounded text-2xs font-bold bg-warning-500/12 text-warning-400 border border-warning-500/25">
+                        Vence em {{ c.diasParaVencer }}d
+                      </span>
+                    } @else {
+                      <span class="px-2 py-1 rounded text-2xs font-bold bg-success-soft text-success border border-success-border">
+                        Vence em {{ c.diasParaVencer }}d
+                      </span>
+                    }
+                  }
+                </div>
+                <p class="text-2xs text-ink-soft">Cliente desde {{ c.clienteDesde ? (c.clienteDesde | date:'dd/MM/yyyy') : '—' }}</p>
+              </div>
+
+              <!-- RISCO & SAÚDE DA CONTA -->
+              <div class="card p-4 space-y-3 border {{ riscoClasse(c.riscoChurn.nivel) }}">
+                <div class="flex items-center justify-between">
+                  <p class="stat-label">Saúde da Conta &amp; Risco</p>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
+                    Risco {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="flex-1 h-2 rounded-full bg-surface-sunken overflow-hidden">
+                    <div class="h-full rounded-full {{ healthBg(c.healthScore) }}" [style.width.%]="c.healthScore"></div>
+                  </div>
+                  <span class="text-sm font-mono font-bold tabular-nums {{ healthClasse(c.healthScore) }}">{{ c.healthScore }}/100</span>
+                </div>
+                @if (c.riscoChurn.motivos.length) {
+                  <ul class="space-y-2 pt-1">
+                    @for (m of c.riscoChurn.motivos; track m.texto) {
+                      <li class="flex items-start gap-2 text-xs">
+                        <span class="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5 {{ severidadeDot(m.severidade) }}"></span>
+                        <span class="text-ink leading-relaxed">{{ m.texto }}</span>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="text-2xs text-success flex items-center gap-1.5 pt-1">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+                    Conta saudável — nenhum sinal de risco no momento.
+                  </p>
+                }
+              </div>
+
+              <!-- RESUMO OPERACIONAL (visão rápida; detalhes nas outras abas) -->
+              <div class="card p-4 space-y-3">
+                <p class="stat-label">Resumo Operacional</p>
+                <div class="grid grid-cols-3 gap-3">
+                  <div class="text-center">
+                    <p class="font-mono text-lg font-bold text-ink leading-none">{{ c.totalApartamentos }}</p>
+                    <p class="text-2xs text-ink-soft mt-1 uppercase tracking-wide">Aptos</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="font-mono text-lg font-bold text-ink leading-none">{{ c.totalMoradores }}</p>
+                    <p class="text-2xs text-ink-soft mt-1 uppercase tracking-wide">Moradores</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="font-mono text-lg font-bold leading-none" [class]="c.dispositivosOffline > 0 ? 'text-danger-400' : 'text-ink'">{{ c.dispositivosFaciais }}</p>
+                    <p class="text-2xs text-ink-soft mt-1 uppercase tracking-wide">Terminais</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="font-mono text-lg font-bold leading-none" [class]="c.ocorrenciasPendentes > 0 ? 'text-warning-400' : 'text-ink'">{{ c.ocorrenciasPendentes }}</p>
+                    <p class="text-2xs text-ink-soft mt-1 uppercase tracking-wide">Ocorrências</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="font-mono text-lg font-bold leading-none" [class]="c.encomendasAguardando > 0 ? 'text-accent' : 'text-ink'">{{ c.encomendasAguardando }}</p>
+                    <p class="text-2xs text-ink-soft mt-1 uppercase tracking-wide">Encomendas</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="font-mono text-lg font-bold text-ink leading-none">{{ c.visitantesAtivos }}</p>
+                    <p class="text-2xs text-ink-soft mt-1 uppercase tracking-wide">Visitantes</p>
+                  </div>
+                </div>
+                <p class="text-2xs text-ink-soft pt-2 border-t border-line">
+                  Última atividade: <span class="text-ink">{{ c.ultimaAtividade ? (c.ultimaAtividade | date:'dd/MM/yyyy HH:mm') : 'sem conexões recentes' }}</span>
+                </p>
+              </div>
+
+              <!-- AUTOMAÇÕES + CONTATO -->
+              <div class="card p-4 space-y-3">
+                <p class="stat-label">Automação & Contato</p>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-ink-soft">Recorrência Automática</span>
+                  <span class="px-2 py-0.5 rounded text-2xs font-bold"
+                    [class]="c.recorrenciaAtiva ? 'bg-success-soft text-success border border-success-border' : 'bg-surface-sunken text-ink-soft border border-line'">
+                    {{ c.recorrenciaAtiva ? 'Ativa' : 'Inativa' }}
+                  </span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-ink-soft">Régua de WhatsApp</span>
+                  <span class="px-2 py-0.5 rounded text-2xs font-bold"
+                    [class]="c.cobrancaAutoWhats ? 'bg-success-soft text-success border border-success-border' : 'bg-surface-sunken text-ink-soft border border-line'">
+                    {{ c.cobrancaAutoWhats ? 'Ativa' : 'Inativa' }}
+                  </span>
+                </div>
+                @if (c.contatoPrincipal; as ct) {
+                  <div class="pt-2.5 border-t border-line">
+                    <p class="text-xs font-semibold text-ink">{{ ct.nome }} <span class="text-2xs font-normal text-ink-soft">· {{ ct.papel }}</span></p>
+                    @if (ct.telefone) {
+                      <a [href]="'tel:' + ct.telefone" class="block text-2xs text-accent hover:text-accent hover:underline transition-all font-mono mt-1">{{ ct.telefone }}</a>
+                    }
+                    @if (ct.email) {
+                      <a [href]="'mailto:' + ct.email" class="block text-2xs text-accent hover:text-accent hover:underline transition-all">{{ ct.email }}</a>
+                    }
+                  </div>
+                } @else {
+                  <p class="text-2xs text-ink-soft pt-2.5 border-t border-line">Sem síndico ou contato administrativo cadastrado.</p>
+                }
+              </div>
+            </div>
+          }
+        }
+
+        <!-- Drawer Tab Content 2: Portaria & Hardware -->
+        @if (abaSelecionada() === 'portaria') {
+          <div class="space-y-4 animate-fade-in">
+            <!-- Radar de risco do condomínio -->
+            @if (c.riscoChurn) {
+              <div class="card p-4 space-y-3 border {{ riscoClasse(c.riscoChurn.nivel) }}">
+                <div class="flex items-center justify-between">
+                  <p class="stat-label">Risco de Churn (operacional)</p>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
+                    {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}
+                  </span>
+                </div>
+                @if (c.riscoChurn.motivos.length) {
+                  <ul class="space-y-2">
+                    @for (m of c.riscoChurn.motivos; track m.texto) {
+                      <li class="flex items-start gap-2 text-xs">
+                        <span class="shrink-0 w-1.5 h-1.5 rounded-full mt-1.5 {{ severidadeDot(m.severidade) }}"></span>
+                        <span class="text-ink leading-relaxed">{{ m.texto }}</span>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="text-2xs text-success flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+                    Operação saudável — nenhum sinal de risco no controle de acesso.
+                  </p>
+                }
+              </div>
+            }
+            <!-- Dimensionamento -->
+            <div class="card p-4 space-y-3">
+              <p class="stat-label">Dimensionamento Operacional</p>
+              <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
+                <div>
+                  <p class="text-2xs text-ink-soft">Apartamentos</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.totalApartamentos }}</p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Moradores</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.totalMoradores }}</p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Porteiros Ativos</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.totalPorteiros }}</p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Funcionários Gerais</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.totalFuncionarios }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hardware Terminals status -->
+            <div class="card p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <p class="stat-label">Terminais Faciais (Hardware)</p>
+                @if (c.dispositivosOffline > 0) {
+                  <span class="px-2 py-0.5 rounded text-2xs font-bold bg-danger-500/10 text-danger-400 border border-danger-500/20 animate-pulse">
+                    {{ c.dispositivosOffline }} Offline
+                  </span>
+                } @else {
+                  <span class="px-2 py-0.5 rounded text-2xs font-bold bg-success-soft text-success border border-success-border">
+                    Terminais Online
+                  </span>
+                }
+              </div>
+              <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
+                <div>
+                  <p class="text-2xs text-ink-soft">Total Instalados</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.dispositivosFaciais }}</p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Online</p>
+                  <p class="font-mono font-semibold text-success mt-0.5">{{ c.dispositivosFaciais - c.dispositivosOffline }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Biometry & Access metrics -->
+            <div class="card p-4 space-y-3">
+              <p class="stat-label">Adoção de Tecnologia & Acessos</p>
+              <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
+                <div>
+                  <p class="text-2xs text-ink-soft">Moradores Cadastrados (Face)</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">
+                    {{ c.moradoresComFace }}
+                    <span class="text-2xs text-ink-soft font-normal">({{ c.totalMoradores > 0 ? Math.round((c.moradoresComFace / c.totalMoradores) * 100) : 0 }}%)</span>
+                  </p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Adoção de Tags RFID</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">
+                    {{ c.moradoresComTag }}
+                    <span class="text-2xs text-ink-soft font-normal">({{ c.totalMoradores > 0 ? Math.round((c.moradoresComTag / c.totalMoradores) * 100) : 0 }}%)</span>
+                  </p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Acessos Faciais (30d)</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.acessos30d }}</p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Visitantes Ativos</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.visitantesAtivos }}</p>
+                </div>
+                <div class="col-span-2">
+                  <p class="text-2xs text-ink-soft">Última Atividade Registrada</p>
+                  <p class="font-semibold text-ink mt-0.5">{{ c.ultimaAtividade ? (c.ultimaAtividade | date:'dd/MM/yyyy HH:mm') : 'Sem conexões recentes' }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Drawer Tab Content 3: Serviços & Uso -->
+        @if (abaSelecionada() === 'servicos') {
+          <div class="space-y-4 animate-fade-in">
+            <!-- Deliveries flow -->
+            <div class="card p-4 space-y-3">
+              <p class="stat-label">Encomendas & Prestadores</p>
+              <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
+                <div>
+                  <p class="text-2xs text-ink-soft">Aguardando Retirada</p>
+                  <p class="font-mono font-semibold mt-0.5" [class.text-accent]="c.encomendasAguardando > 0">{{ c.encomendasAguardando }} encomendas</p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Recebidas (30 dias)</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.encomendasRecebidas30d }} entregas</p>
+                </div>
+                <div class="col-span-2">
+                  <p class="text-2xs text-ink-soft">Prestadores de Serviço Cadastrados</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.prestadoresCadastrados }} cadastrados</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Communication logs -->
+            <div class="card p-4 space-y-3">
+              <p class="stat-label">Engajamento & Comunidades</p>
+              <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
+                <div>
+                  <p class="text-2xs text-ink-soft">Comunicados Enviados (30d)</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.comunicados30d }}</p>
+                </div>
+                <div>
+                  <p class="text-2xs text-ink-soft">Reservas de Áreas (30d)</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.reservasAreas30d }} agendamentos</p>
+                </div>
+                <div class="col-span-2">
+                  <p class="text-2xs text-ink-soft">Assembleias Agendadas</p>
+                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.assembleiasAgendadas }} futuro(s)</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Support and open occurrences tickets -->
+            <div class="card p-4 space-y-3">
+              <p class="stat-label">Suporte & Ocorrências</p>
+              <div class="space-y-2">
+                <p class="text-2xs text-ink-soft">Ocorrências abertas pendentes</p>
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-base font-bold tabular-nums" [class.text-warning-400]="c.ocorrenciasPendentes > 0">
+                    {{ c.ocorrenciasPendentes }}
+                  </span>
+                  @if (c.ocorrenciasPendentes > 0) {
+                    <span class="text-2xs text-ink-soft">requer atenção imediata de suporte</span>
+                  } @else {
+                    <span class="text-2xs text-success font-semibold">Nenhuma pendência operacional</span>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Drawer Tab Content 4: Moradores -->
+        @if (abaSelecionada() === 'moradores') {
+          <div class="space-y-4 animate-fade-in text-xs">
+            
+            <!-- Formulário de cadastro de Morador (se visível) -->
+            @if (mostrandoFormMorador()) {
+              <div class="card p-4 space-y-3.5 border border-accent bg-accent-500/[0.02]">
+                <div class="flex items-center justify-between">
+                  <p class="text-xs font-bold text-accent uppercase tracking-wide">Novo Morador</p>
+                  <button (click)="resetFormMorador()" class="text-ink-soft hover:text-ink-soft text-2xs font-bold">Cancelar</button>
+                </div>
+                
+                <div class="space-y-3">
+                  <div>
+                    <label class="stat-label block mb-1.5">Nome Completo</label>
+                    <input type="text" [ngModel]="registrarNome()" (ngModelChange)="registrarNome.set($event)" placeholder="Ex: Vinícius Síndico"
+                      class="input" />
+                  </div>
+                  
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="stat-label block mb-1.5">Telefone / WhatsApp</label>
+                      <input type="text" [ngModel]="registrarTelefone()" (ngModelChange)="registrarTelefone.set($event)" placeholder="Ex: 17992559990"
+                        class="input" />
+                    </div>
+                    <div>
+                      <label class="stat-label block mb-1.5">Documento (CPF)</label>
+                      <input type="text" [ngModel]="registrarDocumento()" (ngModelChange)="registrarDocumento.set($event)" placeholder="Ex: 12345678900"
+                        class="input" />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label class="stat-label block mb-1.5">E-mail (Login do App)</label>
+                    <input type="email" [ngModel]="registrarEmail()" (ngModelChange)="registrarEmail.set($event)" placeholder="morador@clickprestare.com"
+                      class="input" />
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="stat-label block mb-1.5">Apartamento</label>
+                      <select [ngModel]="registrarAptoId()" (ngModelChange)="registrarAptoId.set($event)"
+                        class="input cursor-pointer">
+                        <option [value]="null" disabled selected>Selecione...</option>
+                        @for (apto of apartamentos(); track apto.id) {
+                          <option [value]="apto.id">Apto {{ apto.apto }} (Bloco {{ apto.bloco }})</option>
+                        }
+                      </select>
+                    </div>
+                    <div>
+                      <label class="stat-label block mb-1.5">Senha de Acesso (Gerada)</label>
+                      <input type="text" [ngModel]="registrarSenha()" (ngModelChange)="registrarSenha.set($event)"
+                        class="input font-mono" />
+                    </div>
+                  </div>
+
+                  <button (click)="salvarMorador()"
+                    class="w-full min-h-[36px] mt-2 px-4 py-2 text-xs font-bold rounded-md bg-accent hover:bg-accent-600 text-ink transition-all flex items-center justify-center gap-1.5 shadow-modal">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                    Registrar e Enviar Acesso (Whats)
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- Toolbar -->
+            <div class="flex items-center gap-2">
+              <div class="relative flex-1">
+                <input type="text" [ngModel]="buscaMorador()" (ngModelChange)="buscaMorador.set($event)" placeholder="Buscar morador..."
+                  class="w-full pl-8 pr-3 py-1.8 text-xs rounded bg-surface-sunken border border-line text-ink placeholder:text-ink-soft focus:outline-none focus:border-accent transition-all" />
+                <svg class="w-3.5 h-3.5 text-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              </div>
+              @if (!mostrandoFormMorador()) {
+                <button (click)="abrirFormMorador()"
+                  class="press px-3 py-1.8 rounded bg-accent hover:bg-accent-600 text-ink font-bold transition flex items-center gap-1 shrink-0">
+                  + Registrar Morador
+                </button>
+              }
+            </div>
+
+            <!-- Residents list container -->
+            <div class="space-y-2">
+              @if (moradoresLoading()) {
+                <div class="py-8 flex flex-col items-center justify-center text-ink-soft gap-2">
+                  <svg class="animate-spin h-5 w-5 text-accent" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span class="text-2xs uppercase font-bold tracking-wider">Carregando Moradores...</span>
+                </div>
+              } @else {
+                @for (m of moradores(); track m.id) {
+                  @if (!buscaMorador() || m.nome.toLowerCase().includes(buscaMorador().toLowerCase()) || (m.apartamento && m.apartamento.includes(buscaMorador()))) {
+                    <div class="card p-3 flex items-center justify-between gap-3 hover:border-line transition duration-200">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-7 h-7 rounded-full bg-accent-soft flex items-center justify-center text-accent font-bold shrink-0 text-2xs">
+                          {{ m.nome.substring(0,2).toUpperCase() }}
+                        </div>
+                        <div class="min-w-0">
+                          <p class="font-bold text-ink truncate leading-snug">{{ m.nome }}</p>
+                          <p class="text-2xs text-ink-soft leading-snug font-mono mt-0.5 font-semibold">
+                            Apto {{ m.apartamento || '—' }} @if(m.bloco){ (Bloco {{ m.bloco }}) }
+                            <span class="mx-1 text-ink-muted">·</span>
+                            {{ m.telefone || 'Sem telefone' }}
+                          </p>
+                          @if (m.email) {
+                            <p class="text-xs text-ink-soft truncate mt-0.5">{{ m.email }}</p>
+                          }
+                        </div>
+                      </div>
+                      
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        <!-- WhatsApp credentials resend button -->
+                        @if (m.telefone) {
+                          <button (click)="reenviarCredenciaisMorador(m)"
+                            class="press p-1.5 rounded bg-success-soft hover:bg-success-soft text-success border border-success-border"
+                            title="Reenviar dados de acesso por WhatsApp">
+                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                          </button>
+                        }
+                        <!-- Remove resident button -->
+                        <button (click)="removerMorador(m.id)"
+                          class="press p-1.5 rounded bg-danger-soft hover:bg-danger-soft text-danger border border-danger-border"
+                          title="Remover morador do condomínio">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  }
+                } @empty {
+                  <div class="py-8 text-center text-ink-soft border border-dashed border-line rounded-lg">
+                    Nenhum morador cadastrado para este condomínio.
+                  </div>
+                }
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Footer Control Buttons (Edit Mode only) -->
+      @if (modoEdicao()) {
+        <div class="pt-4 border-t border-line flex items-center gap-3 bg-surface-raised sticky bottom-0 z-10">
+          <button (click)="salvarEdicao()" [disabled]="store.salvando()"
+            class="btn-primary press flex-1">
+            @if (store.salvando()) {
+              <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Salvando alterações
+            } @else {
+              Confirmar
+            }
+          </button>
+          <button (click)="cancelarEdicao()" [disabled]="store.salvando()"
+            class="btn-secondary press flex-1">
+            Cancelar
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}
