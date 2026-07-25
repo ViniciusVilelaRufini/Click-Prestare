@@ -2,30 +2,15 @@ import { Component, HostListener, OnInit, OnDestroy, ViewChild, ElementRef, inje
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
-import { CrmApi, CrmCliente, CrmFatura, CrmHealth, CrmOverview, EstagioCrm, StatusPagamento } from './crm.service';
+import { CrmApi, CrmCliente, EstagioCrm, StatusPagamento } from './crm.service';
+import { CrmStore } from './crm.store';
 import { AuthService } from '../auth/auth.service';
+import { ToastService, ToastTipo } from '../shared/toast.service';
 import { CountUpDirective } from '../shared/count-up.directive';
+import { Apartamento, EstagioFiltro, Fatura, Morador, Ordenacao, StatusFatura } from './crm.models';
+import * as fmt from './crm-format';
 
-type StatusFatura = 'todos' | 'paga' | 'pendente' | 'vencida';
-
-export interface Fatura {
-  id: string;          // identificador de exibição (FT-MM-YYYY-cliente)
-  dbId: number;        // id real em Crm_Faturas — usado na baixa/cobrança
-  clienteId: number;
-  condominio: string;
-  referencia: string;
-  valor: number;
-  vencimento: string;
-  metodoPagamento: string;
-  status: 'paga' | 'pendente' | 'vencida';
-  dataPagamento: string | null;
-  baixaPor: string | null;
-  baixaMotivo: string | null;
-  estimada: boolean;
-}
-
-type EstagioFiltro = 'todos' | EstagioCrm;
-type Ordenacao = 'mrr' | 'health' | 'nome' | 'vencimento';
+export type { Fatura } from './crm.models';
 
 @Component({
   selector: 'app-crm-page',
@@ -36,72 +21,79 @@ type Ordenacao = 'mrr' | 'health' | 'nome' | 'vencimento';
 export class CrmPageComponent implements OnInit, OnDestroy {
   private api = inject(CrmApi);
   readonly auth = inject(AuthService);
-  private healthInterval: any = null;
+  readonly store = inject(CrmStore);
+  private toast = inject(ToastService);
 
-  readonly overview = signal<CrmOverview | null>(null);
-  readonly clientes = signal<CrmCliente[]>([]);
-  readonly loading = signal(true);
-  readonly erro = signal<string | null>(null);
+  // ── Estado compartilhado: aliases para o CrmStore (template inalterado) ──
+  readonly overview = this.store.overview;
+  readonly clientes = this.store.clientes;
+  readonly loading = this.store.loading;
+  readonly erro = this.store.erro;
+  readonly clienteSelecionado = this.store.clienteSelecionado;
+  readonly dbHealth = this.store.dbHealth;
+  readonly healthLoading = this.store.healthLoading;
+  readonly faturas = this.store.faturas;
+  readonly faturasLoading = this.store.faturasLoading;
+  readonly ultimaFaturaPaga = this.store.ultimaFaturaPaga;
+  readonly manualPaymentsMetadata = this.store.manualPaymentsMetadata;
+  readonly salvando = this.store.salvando;
+  readonly faturamentoCards = this.store.faturamentoCards;
+  readonly configAutomacoes = this.store.configAutomacoes;
+  readonly historicoDisparos = this.store.historicoDisparos;
+  readonly ultimoDisparoData = this.store.ultimoDisparoData;
+  readonly configPlanos = this.store.configPlanos;
+  readonly gatewaysStatus = this.store.gatewaysStatus;
+  readonly logsWebhooks = this.store.logsWebhooks;
+  readonly ultimoLogData = this.store.ultimoLogData;
+  readonly salvandoRegua = this.store.salvandoRegua;
+  readonly salvandoConfigPlanos = this.store.salvandoConfigPlanos;
+  readonly salvandoGateways = this.store.salvandoGateways;
+  readonly historicoReceita = this.store.historicoReceita;
+  readonly toasts = this.toast.toasts;
 
+  readonly Math = Math;
+
+  // ── Estado de UI local: aba Clientes ──
   readonly busca = signal('');          // termo aplicado ao filtro (debounced)
   readonly buscaRaw = signal('');       // valor imediato do input
   private buscaTimer: any = null;
   readonly filtroEstagio = signal<EstagioFiltro>('todos');
   readonly ordenacao = signal<Ordenacao>('mrr');
-  readonly clienteSelecionado = signal<CrmCliente | null>(null);
   readonly abaSelecionada = signal<'geral' | 'portaria' | 'servicos' | 'moradores'>('geral');
-  readonly Math = Math;
 
-  // --- Estados de Gestão de Moradores ---
-  readonly moradores = signal<any[]>([]);
-  readonly apartamentos = signal<any[]>([]);
+  // ── Estado local: gestão de moradores (drawer) ──
+  readonly moradores = signal<Morador[]>([]);
+  readonly apartamentos = signal<Apartamento[]>([]);
   readonly moradoresLoading = signal(false);
   readonly buscaMorador = signal('');
   readonly mostrandoFormMorador = signal(false);
-
-  // Campos do formulário de criação de moradores
   readonly registrarNome = signal('');
   readonly registrarTelefone = signal('');
   readonly registrarEmail = signal('');
   readonly registrarAptoId = signal<number | null>(null);
   readonly registrarDocumento = signal('');
   readonly registrarSenha = signal('');
-
   readonly modoEdicao = signal(false);
-  readonly salvando = signal(false);
   dadosEditados: any = {};
 
-  // --- Status de conexão com banco de dados ---
-  readonly dbHealth = signal<CrmHealth | null>(null);
-  readonly healthLoading = signal(false);
-
-  // --- Filtro de faturas ---
+  // ── Estado local: aba Faturamento (filtros e modais) ──
   readonly filtroFatura = signal<StatusFatura>('todos');
-  // Linha recém-liquidada (para flash de sucesso)
-  readonly ultimaFaturaPaga = signal<string | null>(null);
-
-  // --- Estados detalhados e personalizados de Faturamento ---
   readonly selectedKpiCard = signal<'emitido' | 'recebido' | 'pendente' | 'inadimplencia' | null>(null);
   readonly faturaDetalhada = signal<Fatura | null>(null);
   readonly whatsCobrancaFatura = signal<Fatura | null>(null);
   readonly whatsMensagemRascunho = signal<string>('');
   readonly whatsTelefoneDestinatario = signal<string>('');
   readonly baixaManualFatura = signal<Fatura | null>(null);
-
-  // Campos do formulário de baixa manual
   readonly baixaMetodo = signal<'Pix' | 'Boleto' | 'Dinheiro' | 'Transferência' | 'Outro'>('Pix');
   readonly baixaData = signal<string>('');
   readonly baixaHora = signal<string>('');
   readonly baixaValor = signal<number>(0);
   readonly baixaObservacoes = signal<string>('');
 
-  // Metadados das baixas manuais realizadas (chave: faturaId)
-  readonly manualPaymentsMetadata = signal<Record<string, { metodo: string, dataPagamento: string, valorPago: number, obs: string }>>({});
-
-  // --- Estado de Navegação CRM ---
+  // ── Navegação entre abas ──
   readonly abaNavegacao = signal<'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios' | 'chamados'>('overview');
 
-  // --- Estados de Ocorrências / Chamados ---
+  // ── Estado local: aba Chamados ──
   readonly ocorrenciasList = signal<any[]>([]);
   readonly subFiltroChamados = signal<'todos' | 'app' | 'facial' | 'acesso'>('todos');
   readonly ocorrenciasFiltradas = computed(() => {
@@ -123,7 +115,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       return (text || '')
         .toLowerCase()
         .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
+        .replace(/[̀-ͯ]/g, '');
     };
 
     // 1. Filtra permanentemente ocorrências não-técnicas (oculta barulho, lixo, etc.)
@@ -157,146 +149,26 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly ocorrenciaSelecionada = signal<any | null>(null);
   readonly respostaTexto = signal('');
   readonly enviandoResposta = signal(false);
-
-  // --- Controle de Reabertura de Chamado ---
   readonly reabrindoChamado = signal(false);
   reaberturaTexto = '';
   readonly enviandoReabertura = signal(false);
-
-
-  // --- Chat de Ocorrências ---
   readonly chatMensagens = signal<any[]>([]);
   readonly loadingChatMensagens = signal(false);
   chatNovaMensagem = '';
   chatInterval: any = null;
-
-
-  // --- Modal Novo Chamado ---
+  ocorrenciasInterval: any = null;
   readonly modalNovoChamadoAberto = signal(false);
   readonly novoChamadoCondominioId = signal<number | null>(null);
   readonly novoChamadoDescricao = signal('');
   readonly criandoNovoChamado = signal(false);
 
-
-  // --- Estados da aba de Relatórios ---
+  // ── Estado local: aba Relatórios ──
   readonly relatorioTipo = signal<'financeiro' | 'clientes' | 'portaria' | 'notificacoes'>('financeiro');
   readonly relatorioPeriodo = signal<'30d' | '90d' | 'ano' | 'tudo'>('tudo');
   readonly relatorioGerado = signal(true);
   readonly gerandoRelatorio = signal(false);
 
-  // --- Faturamento real: faturas persistidas em Crm_Faturas no backend ---
-  // (antes eram 3 meses sintéticos computados aqui no frontend, com meses
-  // anteriores "assumidos como pagos" — nada era rastreável de verdade)
-  readonly faturas = signal<Fatura[]>([]);
-  readonly faturasLoading = signal(false);
-
-  carregarFaturas(): void {
-    this.faturasLoading.set(true);
-    this.api.faturas().subscribe({
-      next: (rows: CrmFatura[]) => {
-        const lista: Fatura[] = rows
-          .filter((r) => r.status !== 'cancelada')
-          .map((r) => ({
-            id: `FT-${r.referencia.replace('/', '-')}-${r.clienteId}`,
-            dbId: r.id,
-            clienteId: r.clienteId,
-            condominio: r.condominio,
-            referencia: r.referencia,
-            valor: r.valor,
-            vencimento: r.vencimento ?? new Date().toISOString(),
-            metodoPagamento: r.metodoPagamento ?? 'Pix',
-            status: r.status as 'paga' | 'pendente' | 'vencida',
-            dataPagamento: r.dataPagamento,
-            baixaPor: r.baixaPor,
-            baixaMotivo: r.baixaMotivo,
-            estimada: r.estimada,
-          }));
-        this.faturas.set(lista);
-        this.faturasLoading.set(false);
-      },
-      error: () => {
-        this.faturasLoading.set(false);
-        this.triggerToast('Não foi possível carregar as faturas.', 'error');
-      },
-    });
-  }
-
-  gerarFaturasMes(): void {
-    this.salvando.set(true);
-    this.api.gerarFaturas().subscribe({
-      next: (res) => {
-        this.salvando.set(false);
-        this.triggerToast(`${res?.criadas ?? 0} fatura(s) gerada(s) para a referência ${res?.referencia ?? 'atual'}.`, 'success');
-        this.carregarFaturas();
-      },
-      error: (err) => {
-        this.salvando.set(false);
-        this.triggerToast(err?.error?.message ?? 'Erro ao gerar faturas do mês.', 'error');
-      },
-    });
-  }
-
-  // --- Mock Automações & Régua de WhatsApp ---
-  readonly configAutomacoes = signal({
-    triggerPreVencimento: true,
-    diasPreVencimento: 5,
-    templatePreVencimento: 'Olá, *{{sindico}}*!\nLembramos que a fatura do *{{condominio}}* referente ao plano *{{plano}}* vencerá em {{dias}} dias ({{vencimento}}).\n\nValor: *{{valor}}*\nCódigo Copia/Cola Pix: `{{copia_cola}}`\n\nLink para segunda via: {{link_pagamento}}',
-    
-    triggerVencimento: true,
-    templateVencimento: 'Olá, *{{sindico}}*!\nSua fatura do *{{condominio}}* vence hoje.\n\nValor: *{{valor}}*\nCódigo Copia/Cola Pix: `{{copia_cola}}`\n\nLink para segunda via: {{link_pagamento}}',
-    
-    triggerPosVencimento: true,
-    diasPosVencimento: 3,
-    templatePosVencimento: 'ATENÇÃO: Olá, *{{sindico}}*.\nIdentificamos pendência financeira na assinatura do *{{condominio}}* vencida há {{dias}} dias ({{vencimento}}).\n\nValor original: *{{valor}}*\n\nEvite a suspensão dos serviços e atualização de hardware. Efetue o pagamento através do link: {{link_pagamento}}'
-  });
-
-  // Histórico REAL de disparos WhatsApp (Crm_Disparos via Z-API).
-  readonly historicoDisparos = signal<{ data: string; condominio: string; tipo: string; status: string; telefone: string | null; erroMsg: string | null }[]>([]);
-
-  carregarDisparos(): void {
-    this.api.disparos().subscribe({
-      next: (rows) => {
-        this.historicoDisparos.set(rows.map((d) => ({
-          data: d.data,
-          condominio: d.condominio,
-          tipo: d.tipo === 'cobranca_manual' ? 'Cobrança manual WhatsApp' : d.tipo,
-          status: d.status === 'enviado' ? 'entregue' : 'falhou',
-          telefone: d.telefone,
-          erroMsg: d.erro,
-        })));
-      },
-      error: () => { /* silencioso — histórico não é crítico para a página */ },
-    });
-  }
-
-  // --- Mock Configuração de Planos Click Prestare ---
-  readonly configPlanos = signal([
-    { plano: 'Essencial', sistema: 'Somente App', valorBase: 149, valorPorUH: 2.00 },
-    { plano: 'Profissional', sistema: 'Com Portaria', valorBase: 297, valorPorUH: 2.80 },
-    { plano: 'Elite', sistema: 'Com Controle de Acesso', valorBase: 497, valorPorUH: 3.80 }
-  ]);
-
-  // Status dos gateways — o backend só informa SE cada integração está
-  // configurada; as credenciais vivem em env no Railway e NUNCA chegam ao
-  // navegador (antes ficavam hardcoded fake aqui, expostas no bundle).
-  readonly gatewaysStatus = signal<{ openpix: boolean; openpixWebhook: boolean; asaasWebhook: boolean; zapi: boolean } | null>(null);
-
-  carregarGatewaysStatus(): void {
-    this.api.gatewaysStatus().subscribe({
-      next: (s) => this.gatewaysStatus.set(s),
-      error: () => this.gatewaysStatus.set(null),
-    });
-  }
-
-  // --- Mock Logs Técnicos e Webhooks ---
-  readonly logsWebhooks = signal([
-    { data: '2026-06-24T00:12:00Z', origem: 'Asaas', evento: 'payment_received', status: 'sucesso', payload: '{"paymentId":"pay_4839201","value":450.00,"condominioId":1,"method":"Pix"}' },
-    { data: '2026-06-23T23:45:00Z', origem: 'Z-API', evento: 'message_sent', status: 'sucesso', payload: '{"messageId":"msg_8820491","to":"5511981129988","status":"delivered"}' },
-    { data: '2026-06-23T18:22:00Z', origem: 'Asaas', evento: 'webhook_validated', status: 'sucesso', payload: '{"verification":"ok","gateway_status":"healthy"}' },
-    { data: '2026-06-23T14:30:00Z', origem: 'System', evento: 'config_updated', status: 'info', payload: '{"updatedBy":"admin@clickprestare.com.br","section":"automacoes"}' }
-  ]);
-
-  // --- Preview de template em tempo real (Automações) ---
+  // ── Estado local: aba Automações (preview) ──
   readonly previewTemplate = signal<'pre' | 'venc' | 'pos'>('pre');
 
   private readonly previewSampleData: Record<string, string> = {
@@ -334,7 +206,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       .replace(/>/g, '&gt;');
     return escapado
       .replace(/\*([^*]+)\*/g, '<b>$1</b>')
-      .replace(/`([^`]+)`/g, '<code class="bg-white/[0.06] px-1 rounded text-accent-300">$1</code>')
+      .replace(/`([^`]+)`/g, '<code class="bg-surface-sunken px-1 rounded text-accent">$1</code>')
       .replace(/_([^_]+)_/g, '<i>$1</i>');
   }
 
@@ -344,12 +216,8 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     { valor: 'pos', label: 'Atraso' },
   ];
 
-  // Disparo recém-registrado (para highlight na lista)
-  readonly ultimoDisparoData = signal<string | null>(null);
-
-  // Visibilidade das chaves de API (show/hide) + log recém-registrado
+  // ── Estado local: aba Configurações ──
   readonly chavesVisiveis = signal<Record<string, boolean>>({});
-  readonly ultimoLogData = signal<string | null>(null);
 
   toggleChave(k: string): void {
     this.chavesVisiveis.update((s) => ({ ...s, [k]: !s[k] }));
@@ -365,40 +233,8 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  private pushLog(entry: { data: string; origem: string; evento: string; status: string; payload: string }): void {
-    this.ultimoLogData.set(entry.data);
-    setTimeout(() => {
-      if (this.ultimoLogData() === entry.data) this.ultimoLogData.set(null);
-    }, 1800);
-    this.logsWebhooks.update((log) => [entry, ...log]);
-  }
+  // ── Gráficos (overview) ──
 
-  // Estados de feedback visual
-  readonly salvandoRegua = signal(false);
-  readonly salvandoConfigPlanos = signal(false);
-  readonly salvandoGateways = signal(false);
-
-  // Fila de toasts empilháveis com variantes (success/error/info)
-  readonly toasts = signal<{ id: number; message: string; tipo: 'success' | 'error' | 'info' }[]>([]);
-  private toastSeq = 0;
-
-  // Mock dados históricos para o gráfico de área de MRR (12 meses)
-  readonly historicoReceita = signal([
-    { mes: 'Jul 25', valor: 2800 },
-    { mes: 'Ago 25', valor: 3100 },
-    { mes: 'Set 25', valor: 3000 },
-    { mes: 'Out 25', valor: 3500 },
-    { mes: 'Nov 25', valor: 4200 },
-    { mes: 'Dez 25', valor: 4000 },
-    { mes: 'Jan 26', valor: 4800 },
-    { mes: 'Fev 26', valor: 5100 },
-    { mes: 'Mar 26', valor: 5500 },
-    { mes: 'Abr 26', valor: 5300 },
-    { mes: 'Mai 26', valor: 6200 },
-    { mes: 'Jun 26', valor: 6800 }
-  ]);
-
-  // Sparklines para os 4 cards principais de KPIs
   readonly sparklines = computed(() => {
     return {
       mrr: this.sparklinePath([2800, 3100, 3000, 3500, 4200, 4000, 4800, 5100, 5500, 5300, 6200, 6800], 120, 36),
@@ -414,10 +250,10 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     const maxVal = Math.max(...values) * 1.1;
     const minVal = Math.min(...values) * 0.9;
     const range = maxVal - minVal;
-    
+
     const width = 600;
     const height = 150;
-    
+
     const points = dados.map((d, index) => {
       const x = (index / (dados.length - 1)) * width;
       const y = height - 10 - ((d.valor - minVal) / range) * (height - 20);
@@ -433,7 +269,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   readonly planosDoughnut = computed(() => {
     const ov = this.overview();
     if (!ov) return [];
-    
+
     const total = ov.clientesAtivos || 1;
     let acumulado = 0;
     const raio = 40;
@@ -446,10 +282,10 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       acumulado -= strokeLength;
 
       const cores = [
-        { stroke: '#F2884B', text: 'text-accent-500', bg: 'bg-accent-500' },       // Pro / Orange
-        { stroke: '#E7D181', text: 'text-accent-400', bg: 'bg-accent-400' },       // Enterprise / Gold
-        { stroke: '#F2E530', text: 'text-accent-300', bg: 'bg-accent-300' },       // Essencial / Yellow
-        { stroke: '#EFEDDD', text: 'text-zinc-350', bg: 'bg-zinc-500' },           // Sem plano / Cream
+        { stroke: '#2563eb', text: 'text-accent', bg: 'bg-accent' },          // Azul royal
+        { stroke: '#7c3aed', text: 'text-info', bg: 'bg-info' },              // Violeta
+        { stroke: '#16a34a', text: 'text-success', bg: 'bg-success' },        // Verde
+        { stroke: '#a1a1aa', text: 'text-ink-soft', bg: 'bg-ink-muted' },     // Neutro
       ];
       const cor = cores[idx % cores.length];
 
@@ -470,7 +306,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     const maxVal = Math.max(...valores);
     const minVal = Math.min(...valores);
     const range = maxVal === minVal ? 1 : (maxVal - minVal);
-    
+
     const points = valores.map((val, idx) => {
       const x = (idx / (valores.length - 1)) * width;
       const y = height - 2 - ((val - minVal) / range) * (height - 4);
@@ -522,7 +358,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     return lista;
   });
 
-  // --- Computeds dinâmicos para aba Faturamento ---
+  // ── Computeds locais da aba Faturamento ──
   readonly faturasFiltradas = computed(() => {
     const filtro = this.filtroFatura();
     if (filtro === 'todos') return this.faturas();
@@ -540,85 +376,44 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     return [];
   });
 
-  readonly faturamentoCards = computed(() => {
-    const lista = this.faturas();
-    const emitido = lista.reduce((s, f) => s + f.valor, 0);
-    const recebido = lista.filter(f => f.status === 'paga').reduce((s, f) => s + f.valor, 0);
-    const pendente = lista.filter(f => f.status === 'pendente').reduce((s, f) => s + f.valor, 0);
-    const inadimplencia = lista.filter(f => f.status === 'vencida').reduce((s, f) => s + f.valor, 0);
-    const taxa = emitido > 0 ? Math.round((inadimplencia / emitido) * 100) : 0;
-    return { emitido, recebido, pendente, inadimplencia, taxa };
-  });
+  // ── Ciclo de vida ──
 
   ngOnInit(): void {
-    this.carregar();
-    this.carregarFaturas();
-    this.carregarDisparos();
-    this.carregarGatewaysStatus();
-    this.carregarConfigAutomacoes();
-    this.verificarConexao();
-    // Auto-refresh do health check a cada 30s
-    this.healthInterval = setInterval(() => this.verificarConexao(), 30000);
-  }
-
-  carregarConfigAutomacoes(): void {
-    this.api.getConfig().subscribe({
-      next: (cfg) => {
-        if (cfg['automacoes']) {
-          try {
-            this.configAutomacoes.update((atual) => ({ ...atual, ...JSON.parse(cfg['automacoes']) }));
-          } catch { /* config corrompida — mantém defaults */ }
-        }
-        if (cfg['planos']) {
-          try {
-            this.configPlanos.set(JSON.parse(cfg['planos']));
-          } catch { /* idem */ }
-        }
-      },
-      error: () => { /* sem config salva ainda — defaults */ },
-    });
+    this.store.carregarTudo();
+    this.store.iniciarHealthPolling();
   }
 
   ngOnDestroy(): void {
-    if (this.healthInterval) {
-      clearInterval(this.healthInterval);
-    }
+    this.store.pararHealthPolling();
     if (this.chatInterval) {
       clearInterval(this.chatInterval);
     }
     this.limparIntervaloOcorrencias();
   }
 
+  // ── Delegações para o store (mantêm os nomes usados no template) ──
 
-  verificarConexao(): void {
-    this.healthLoading.set(true);
-    this.api.health().subscribe({
-      next: (h) => {
-        this.dbHealth.set(h);
-        this.healthLoading.set(false);
-      },
-      error: () => {
-        this.dbHealth.set({ connected: false, mode: 'mock', totalCondominios: 0, serverTime: new Date().toISOString(), dbLatencyMs: -1 });
-        this.healthLoading.set(false);
-      }
-    });
-  }
+  carregar(): void { this.store.carregar(); }
+  carregarFaturas(): void { this.store.carregarFaturas(); }
+  gerarFaturasMes(): void { this.store.gerarFaturasMes(); }
+  carregarDisparos(): void { this.store.carregarDisparos(); }
+  carregarGatewaysStatus(): void { this.store.carregarGatewaysStatus(); }
+  carregarConfigAutomacoes(): void { this.store.carregarConfigAutomacoes(); }
+  verificarConexao(): void { this.store.verificarConexao(); }
+  confirmarPagamentoManual(idFatura: string): void { this.store.confirmarPagamentoManual(idFatura); }
+  reenviarWhatsApp(idFatura: string): void { this.store.reenviarWhatsApp(idFatura); }
+  salvarReguaWhatsApp(): void { this.store.salvarReguaWhatsApp(); }
+  salvarConfiguracaoPlanos(): void { this.store.salvarConfiguracaoPlanos(); }
+  findCliente(id: number): CrmCliente | undefined { return this.store.findCliente(id); }
+  waLink(cliente: CrmCliente): string | null { return this.store.waLink(cliente); }
+  estagioCount(estagio: EstagioCrm): number { return this.store.estagioCount(estagio); }
+  estagioPct(estagio: EstagioCrm): number { return this.store.estagioPct(estagio); }
+  planoPct(mrr: number): number { return this.store.planoPct(mrr); }
 
-  carregar(): void {
-    this.loading.set(true);
-    this.erro.set(null);
-    forkJoin({ overview: this.api.overview(), clientes: this.api.clientes() }).subscribe({
-      next: ({ overview, clientes }) => {
-        this.overview.set(overview);
-        this.clientes.set(clientes);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.erro.set('Não foi possível carregar os dados do CRM. Tente novamente.');
-        this.loading.set(false);
-      },
-    });
-  }
+  triggerToast(msg: string, tipo: ToastTipo = 'info'): void { this.toast.trigger(msg, tipo); }
+  dismissToast(id: number): void { this.toast.dismiss(id); }
+
+  // ── Busca (aba Clientes) ──
 
   onBuscaInput(v: string): void {
     this.buscaRaw.set(v);
@@ -632,16 +427,18 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     this.busca.set('');
   }
 
+  // ── Drawer de cliente ──
+
   abrirCliente(c: CrmCliente): void {
     this.abaSelecionada.set('geral');
-    this.clienteSelecionado.set(c);
+    this.store.abrirCliente(c);
     this.modoEdicao.set(false);
     this.moradores.set([]);
     this.apartamentos.set([]);
   }
 
   fecharCliente(): void {
-    this.clienteSelecionado.set(null);
+    this.store.fecharCliente();
     this.modoEdicao.set(false);
   }
 
@@ -655,12 +452,12 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  gerarMockMoradores(idCondominio: number, count: number): any[] {
+  gerarMockMoradores(idCondominio: number, count: number): Morador[] {
     const nomes = ['João Silva', 'Maria Oliveira', 'Carlos Souza', 'Ana Santos', 'Pedro Lima', 'Julia Costa', 'Lucas Fernandes', 'Beatriz Alencar', 'Marcos Rocha', 'Fernanda Ribeiro'];
     const blocos = ['A', 'B', 'C'];
     const tipos = ['proprietario', 'inquilino'];
-    
-    const list: any[] = [];
+
+    const list: Morador[] = [];
     for (let i = 0; i < count; i++) {
       const nome = nomes[i % nomes.length] + (i >= nomes.length ? ` ${Math.floor(i / nomes.length) + 1}` : '');
       const bloco = blocos[i % blocos.length];
@@ -686,8 +483,8 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     return list;
   }
 
-  gerarMockApartamentos(idCondominio: number): any[] {
-    const list: any[] = [];
+  gerarMockApartamentos(idCondominio: number): Apartamento[] {
+    const list: Apartamento[] = [];
     const blocos = ['A', 'B', 'C'];
     let id = 1;
     for (const b of blocos) {
@@ -755,7 +552,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     this.mostrandoFormMorador.set(false);
   }
 
-  gerarMensagemWhatsApp(morador: any, senha: string, condominioNome: string): string {
+  gerarMensagemWhatsApp(morador: Morador, senha: string, condominioNome: string): string {
     return `Olá, *${morador.nome}*!\n` +
            `Seu acesso ao aplicativo *Click Prestare* foi cadastrado.\n\n` +
            `Condomínio: *${condominioNome}*\n` +
@@ -768,7 +565,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
            `Seja bem-vindo!`;
   }
 
-  dispararWhatsAppCredenciais(morador: any, senha: string, condominioNome: string): void {
+  dispararWhatsAppCredenciais(morador: Morador, senha: string, condominioNome: string): void {
     if (!morador.telefone) {
       this.triggerToast('Morador cadastrado sem número de telefone para WhatsApp.', 'info');
       return;
@@ -831,7 +628,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
           c.totalMoradores += 1;
           this.moradoresLoading.set(false);
           this.triggerToast(`Morador ${nome} registrado com sucesso.`, 'success');
-          
+
           this.dispararWhatsAppCredenciais(created, senha, c.nome);
           this.resetFormMorador();
         },
@@ -842,7 +639,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
         }
       });
     } else {
-      const mockCreated = {
+      const mockCreated: Morador = {
         id: Date.now(),
         nome,
         documento,
@@ -857,20 +654,20 @@ export class CrmPageComponent implements OnInit, OnDestroy {
         face_id: `face_${Date.now()}`,
         face_sync_status: 'sincronizado'
       };
-      
+
       setTimeout(() => {
         this.moradores.update(m => [mockCreated, ...m]);
         c.totalMoradores += 1;
         this.moradoresLoading.set(false);
         this.triggerToast(`Morador ${nome} registrado com sucesso.`, 'success');
-        
+
         this.dispararWhatsAppCredenciais(mockCreated, senha, c.nome);
         this.resetFormMorador();
       }, 600);
     }
   }
 
-  reenviarCredenciaisMorador(morador: any): void {
+  reenviarCredenciaisMorador(morador: Morador): void {
     const c = this.clienteSelecionado();
     if (!c) return;
     this.dispararWhatsAppCredenciais(morador, morador.documento || '123456', c.nome);
@@ -882,7 +679,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
     if (confirm('Deseja realmente remover este morador?')) {
       this.moradoresLoading.set(true);
-      
+
       setTimeout(() => {
         this.moradores.update(list => list.filter(m => m.id !== moradorId));
         if (c.totalMoradores > 0) c.totalMoradores -= 1;
@@ -920,7 +717,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   atualizarMrrCalculado(): void {
     const planoName = this.dadosEditados.plano;
     const uh = this.dadosEditados.totalApartamentos || 0;
-    
+
     const planoConfig = this.configPlanos().find(p => p.plano === planoName);
     if (planoConfig) {
       this.dadosEditados.mrr = planoConfig.valorBase + (uh * planoConfig.valorPorUH);
@@ -937,18 +734,18 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     const c = this.clienteSelecionado();
     if (!c) return;
 
-    this.salvando.set(true);
+    this.store.salvando.set(true);
     this.api.atualizar(c.id, this.dadosEditados).subscribe({
       next: (res) => {
-        this.salvando.set(false);
+        this.store.salvando.set(false);
         this.modoEdicao.set(false);
-        this.clienteSelecionado.set(res.data);
+        this.store.clienteSelecionado.set(res.data);
         this.carregar();
         this.triggerToast('Dados do condomínio atualizados com sucesso.', 'success');
       },
       error: (err) => {
         console.error('Erro ao salvar cliente:', err);
-        this.salvando.set(false);
+        this.store.salvando.set(false);
         this.triggerToast('Não foi possível salvar as alterações. Verifique os dados e tente novamente.', 'error');
       }
     });
@@ -984,122 +781,27 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     this.buscaInputEl?.nativeElement.focus();
   }
 
-  // ---- Helpers de apresentação ----
+  // ── Helpers de apresentação (funções puras em crm-format.ts) ──
 
-  estagioLabel(e: EstagioCrm): string {
-    return (
-      { lead: 'Lead', trial: 'Trial', ativo: 'Ativo', em_atraso: 'Em atraso', churn: 'Churn' } as Record<EstagioCrm, string>
-    )[e];
-  }
+  estagioLabel(e: EstagioCrm): string { return fmt.estagioLabel(e); }
+  estagioClasse(e: EstagioCrm): string { return fmt.estagioClasse(e); }
+  pagamentoLabel(s: StatusPagamento): string { return fmt.pagamentoLabel(s); }
+  pagamentoClasse(s: StatusPagamento): string { return fmt.pagamentoClasse(s); }
+  riscoLabel(nivel: 'alto' | 'medio' | 'baixo'): string { return fmt.riscoLabel(nivel); }
+  riscoClasse(nivel: 'alto' | 'medio' | 'baixo'): string { return fmt.riscoClasse(nivel); }
+  healthClasse(score: number): string { return fmt.healthClasse(score); }
+  healthBg(score: number): string { return fmt.healthBg(score); }
+  severidadeClasse(s: 'alta' | 'media' | 'baixa'): string { return fmt.severidadeClasse(s); }
+  severidadeDot(s: 'alta' | 'media' | 'baixa'): string { return fmt.severidadeDot(s); }
+  iniciais(nome: string): string { return fmt.iniciais(nome); }
+  moeda(v: number): string { return fmt.moeda(v); }
 
-  estagioClasse(e: EstagioCrm): string {
-    return (
-      {
-        ativo: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
-        trial: 'text-sky-400 bg-sky-500/10 border-sky-500/25',
-        lead: 'text-violet-400 bg-violet-500/10 border-violet-500/25',
-        em_atraso: 'text-amber-400 bg-amber-500/10 border-amber-500/25',
-        churn: 'text-rose-400 bg-rose-500/10 border-rose-500/25',
-      } as Record<EstagioCrm, string>
-    )[e];
-  }
-
-  pagamentoLabel(s: StatusPagamento): string {
-    return (
-      { em_dia: 'Em dia', vencendo: 'Vencendo', atrasado: 'Atrasado', sem_cobranca: 'Sem cobrança' } as Record<StatusPagamento, string>
-    )[s];
-  }
-
-  pagamentoClasse(s: StatusPagamento): string {
-    return (
-      {
-        em_dia: 'text-emerald-400',
-        vencendo: 'text-amber-400',
-        atrasado: 'text-rose-400',
-        sem_cobranca: 'text-zinc-500',
-      } as Record<StatusPagamento, string>
-    )[s];
-  }
-
-  riscoLabel(nivel: 'alto' | 'medio' | 'baixo'): string {
-    return ({ alto: 'Risco alto', medio: 'Risco médio', baixo: 'Estável' } as Record<string, string>)[nivel];
-  }
-
-  riscoClasse(nivel: 'alto' | 'medio' | 'baixo'): string {
-    return (
-      {
-        alto: 'text-rose-400 bg-rose-500/10 border-rose-500/25',
-        medio: 'text-amber-400 bg-amber-500/10 border-amber-500/25',
-        baixo: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
-      } as Record<string, string>
-    )[nivel];
-  }
-
-  healthClasse(score: number): string {
-    if (score >= 70) return 'text-emerald-400';
-    if (score >= 40) return 'text-amber-400';
-    return 'text-rose-400';
-  }
-
-  healthBg(score: number): string {
-    if (score >= 70) return 'bg-emerald-500';
-    if (score >= 40) return 'bg-amber-500';
-    return 'bg-rose-500';
-  }
-
-  severidadeClasse(s: 'alta' | 'media' | 'baixa'): string {
-    return (
-      {
-        alta: 'border-rose-500/30 bg-rose-500/[0.07]',
-        media: 'border-amber-500/30 bg-amber-500/[0.07]',
-        baixa: 'border-white/[0.08] bg-white/[0.02]',
-      } as Record<string, string>
-    )[s];
-  }
-
-  severidadeDot(s: 'alta' | 'media' | 'baixa'): string {
-    return (
-      { alta: 'bg-rose-400', media: 'bg-amber-400', baixa: 'bg-zinc-500' } as Record<string, string>
-    )[s];
-  }
-
-  iniciais(nome: string): string {
-    return nome
-      .split(' ')
-      .filter((p) => p.length > 2)
-      .slice(0, 2)
-      .map((p) => p[0])
-      .join('')
-      .toUpperCase();
-  }
-
-  moeda(v: number): string {
-    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
-  }
-
-  estagioCount(estagio: EstagioCrm): number {
-    const ov = this.overview();
-    return ov ? ov.porEstagio[estagio] : 0;
-  }
-
-  estagioPct(estagio: EstagioCrm): number {
-    const ov = this.overview();
-    if (!ov || !ov.totalClientes) return 0;
-    return Math.round((ov.porEstagio[estagio] / ov.totalClientes) * 100);
-  }
-
-  planoPct(mrr: number): number {
-    const ov = this.overview();
-    if (!ov || !ov.mrrTotal) return 0;
-    return Math.round((mrr / ov.mrrTotal) * 100);
-  }
-
-  ocorrenciasInterval: any = null;
+  // ── Navegação entre abas principais ──
 
   alterarAbaNavegacao(aba: 'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios' | 'chamados'): void {
     this.abaNavegacao.set(aba);
     // Limpar cliente selecionado ao trocar de aba principal para evitar sobreposições
-    this.clienteSelecionado.set(null);
+    this.store.fecharCliente();
     this.limparIntervaloOcorrencias();
 
     if (aba === 'chamados') {
@@ -1110,6 +812,8 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       }, 10000);
     }
   }
+
+  // ── Chamados / ocorrências ──
 
   carregarOcorrencias(): void {
     this.ocorrenciasLoading.set(true);
@@ -1140,7 +844,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     }
   }
 
-
   abrirRespostaOcorrencia(o: any): void {
     this.ocorrenciaSelecionada.set(o);
     this.respostaTexto.set(o.resposta || '');
@@ -1148,7 +851,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     this.chatNovaMensagem = '';
     this.limparIntervaloChat();
     this.carregarMensagensChat(o.id);
-    
+
     // Polling a cada 2.5s para receber novas mensagens
     this.chatInterval = setInterval(() => {
       this.atualizarChatSilenciosamente(o.id);
@@ -1162,7 +865,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     this.reabrindoChamado.set(false);
     this.reaberturaTexto = '';
   }
-
 
   private limparIntervaloChat(): void {
     if (this.chatInterval) {
@@ -1215,7 +917,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     });
   }
 
-
   private scrollChatParaFim(): void {
     setTimeout(() => {
       const container = document.getElementById('crm-chat-container');
@@ -1224,7 +925,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       }
     }, 100);
   }
-
 
   enviarRespostaOcorrencia(): void {
     const o = this.ocorrenciaSelecionada();
@@ -1269,13 +969,13 @@ export class CrmPageComponent implements OnInit, OnDestroy {
         this.reabrindoChamado.set(false);
         this.reaberturaTexto = '';
         this.triggerToast('Chamado reaberto e sincronizado com o Kanban!', 'success');
-        
+
         // Atualiza a ocorrência selecionada local
         if (res && res.data) {
           this.ocorrenciaSelecionada.set(res.data);
           this.respostaTexto.set('');
         }
-        
+
         // Recarrega a lista geral de ocorrências
         this.carregarOcorrencias();
         // Recarrega as mensagens do chat
@@ -1290,7 +990,6 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       }
     });
   }
-
 
   abrirNovoChamado(): void {
     this.modalNovoChamadoAberto.set(true);
@@ -1329,140 +1028,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  confirmarPagamentoManual(idFatura: string): void {
-    this.ultimaFaturaPaga.set(idFatura);
-    setTimeout(() => {
-      if (this.ultimaFaturaPaga() === idFatura) this.ultimaFaturaPaga.set(null);
-    }, 1400);
-
-    const fat = this.faturas().find(f => f.id === idFatura);
-    if (!fat) return;
-
-    const c = this.clientes().find(cl => cl.id === fat.clienteId);
-    if (!c) return;
-
-    // Calculate new vencimento date by adding 30 days to current vencimento
-    const currentVenc = c.vencimento ? new Date(c.vencimento) : new Date();
-    const nextVenc = new Date(currentVenc);
-    nextVenc.setDate(nextVenc.getDate() + 30);
-    const nextVencStr = nextVenc.toISOString().split('T')[0];
-
-    // Call API to persist the updated vencimento
-    this.api.atualizar(c.id, { vencimento: nextVencStr }).subscribe({
-      next: (res) => {
-        this.carregar();
-
-        // Registrar no log
-        this.pushLog({
-          data: new Date().toISOString(),
-          origem: 'System',
-          evento: 'manual_payment_override',
-          status: 'sucesso',
-          payload: JSON.stringify({ faturaId: idFatura, valor: fat.valor, condominio: fat.condominio })
-        });
-
-        this.triggerToast(`Fatura ${idFatura} liquidada manualmente com sucesso. Novo vencimento: ${nextVenc.toLocaleDateString('pt-BR')}.`, 'success');
-      },
-      error: (err) => {
-        console.error('Erro ao confirmar pagamento manual:', err);
-        this.triggerToast(`Não foi possível liquidar a fatura ${idFatura}. Tente novamente.`, 'error');
-      }
-    });
-  }
-
-  reenviarWhatsApp(idFatura: string): void {
-    const fat = this.faturas().find(f => f.id === idFatura);
-    if (!fat) return;
-
-    const dataAtual = new Date().toISOString();
-    this.ultimoDisparoData.set(dataAtual);
-    setTimeout(() => {
-      if (this.ultimoDisparoData() === dataAtual) this.ultimoDisparoData.set(null);
-    }, 1800);
-
-    const c = this.clientes().find(cl => cl.id === fat.clienteId);
-    const telefone = c?.contatoPrincipal?.telefone ?? '(11) 99999-8888';
-
-    this.historicoDisparos.update(disp => [
-      {
-        data: dataAtual,
-        condominio: fat.condominio,
-        tipo: fat.status === 'vencida' ? 'Cobrança atrasada' : 'Aviso prévio',
-        status: 'entregue',
-        telefone,
-        erroMsg: null
-      },
-      ...disp
-    ]);
-
-    // Log técnico
-    this.pushLog({
-      data: dataAtual,
-      origem: 'Z-API',
-      evento: 'message_sent',
-      status: 'sucesso',
-      payload: JSON.stringify({ faturaId: idFatura, destinatario: fat.condominio, status: 'enviado_manual' })
-    });
-
-    this.triggerToast(`Notificação enviada com sucesso para o condomínio ${fat.condominio}.`, 'success');
-  }
-
-  salvarReguaWhatsApp(): void {
-    this.salvandoRegua.set(true);
-    const cfg = this.configAutomacoes();
-    this.api.setConfig({
-      automacoes: JSON.stringify(cfg),
-      // Template usado pelo backend na cobrança manual via WhatsApp.
-      template_cobranca: cfg.templateVencimento,
-    }).subscribe({
-      next: () => {
-        this.salvandoRegua.set(false);
-        this.triggerToast('Automações e templates do WhatsApp salvos.', 'success');
-        this.pushLog({
-          data: new Date().toISOString(),
-          origem: 'System',
-          evento: 'config_updated',
-          status: 'info',
-          payload: '{"section":"automacoes_whatsapp"}'
-        });
-      },
-      error: (err) => {
-        this.salvandoRegua.set(false);
-        this.triggerToast(err?.error?.message ?? 'Erro ao salvar as automações.', 'error');
-      },
-    });
-  }
-
-  salvarConfiguracaoPlanos(): void {
-    this.salvandoConfigPlanos.set(true);
-    this.api.setConfig({ planos: JSON.stringify(this.configPlanos()) }).subscribe({
-      next: () => {
-        this.salvandoConfigPlanos.set(false);
-        this.triggerToast('Tabela de preços e limites de planos salva.', 'success');
-        this.pushLog({
-          data: new Date().toISOString(),
-          origem: 'System',
-          evento: 'config_updated',
-          status: 'info',
-          payload: '{"section":"tabela_planos"}'
-        });
-      },
-      error: (err) => {
-        this.salvandoConfigPlanos.set(false);
-        this.triggerToast(err?.error?.message ?? 'Erro ao salvar a tabela de preços.', 'error');
-      },
-    });
-  }
-
-  triggerToast(msg: string, tipo: 'success' | 'error' | 'info' = 'info'): void {
-    const id = ++this.toastSeq;
-    this.toasts.update((list) => [...list, { id, message: msg, tipo }]);
-    setTimeout(() => this.dismissToast(id), tipo === 'error' ? 5000 : 3200);
-  }
-
-  dismissToast(id: number): void {
-    this.toasts.update((list) => list.filter((t) => t.id !== id));
-  }
+  // ── Modais de faturamento ──
 
   abrirDetalheCard(tipo: 'emitido' | 'recebido' | 'pendente' | 'inadimplencia'): void {
     this.selectedKpiCard.set(tipo);
@@ -1511,7 +1077,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     };
 
     const resolvida = baseMsg.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) =>
-      data[k as keyof typeof data] !== undefined ? data[k as keyof typeof data] : m
+      data[k as keyof typeof data] !== undefined ? String(data[k as keyof typeof data]) : m
     );
 
     this.whatsMensagemRascunho.set(resolvida);
@@ -1522,18 +1088,14 @@ export class CrmPageComponent implements OnInit, OnDestroy {
     if (!f) return;
 
     // Envio REAL via backend (Z-API) — registrado em Crm_Disparos e auditado.
-    // Nada de abrir wa.me e fingir que foi entregue.
-    this.salvando.set(true);
+    this.store.salvando.set(true);
     this.api.cobrarWhatsApp(f.dbId).subscribe({
       next: () => {
-        this.salvando.set(false);
+        this.store.salvando.set(false);
         const dataAtual = new Date().toISOString();
-        this.ultimoDisparoData.set(dataAtual);
-        setTimeout(() => {
-          if (this.ultimoDisparoData() === dataAtual) this.ultimoDisparoData.set(null);
-        }, 1800);
+        this.store.marcarDisparoRecente(dataAtual);
 
-        this.pushLog({
+        this.store.pushLog({
           data: dataAtual,
           origem: 'Z-API',
           evento: 'message_sent',
@@ -1546,7 +1108,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
         this.whatsCobrancaFatura.set(null);
       },
       error: (err) => {
-        this.salvando.set(false);
+        this.store.salvando.set(false);
         this.carregarDisparos();
         this.triggerToast(err?.error?.message ?? 'Falha ao enviar o WhatsApp de cobrança.', 'error');
       },
@@ -1586,7 +1148,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.salvando.set(true);
+    this.store.salvando.set(true);
     this.api.baixarFatura(f.dbId, {
       metodo: this.baixaMetodo(),
       motivo,
@@ -1594,11 +1156,11 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       valorPago,
     }).subscribe({
       next: (res) => {
-        this.salvando.set(false);
+        this.store.salvando.set(false);
         this.carregar();
         this.carregarFaturas();
 
-        this.manualPaymentsMetadata.update(map => ({
+        this.store.manualPaymentsMetadata.update(map => ({
           ...map,
           [f.id]: {
             metodo: this.baixaMetodo(),
@@ -1608,7 +1170,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
           }
         }));
 
-        this.pushLog({
+        this.store.pushLog({
           data: new Date().toISOString(),
           origem: 'System',
           evento: 'manual_payment_override',
@@ -1625,30 +1187,13 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Erro ao efetuar baixa manual:', err);
-        this.salvando.set(false);
+        this.store.salvando.set(false);
         this.triggerToast(err?.error?.message ?? `Erro ao liquidar a fatura ${f.id}.`, 'error');
       }
     });
   }
 
-  findCliente(id: number): CrmCliente | undefined {
-    return this.clientes().find(c => c.id === id);
-  }
-
-  /** Link de WhatsApp (wa.me) pré-preenchido com contexto de cobrança. Null se não há telefone. */
-  waLink(cliente: CrmCliente): string | null {
-    const tel = (cliente.contatoPrincipal?.telefone || '').replace(/\D/g, '');
-    if (!tel) return null;
-    const num = tel.length <= 11 ? '55' + tel : tel;
-    const venc =
-      cliente.diasParaVencer != null && cliente.diasParaVencer < 0
-        ? `está vencida há ${Math.abs(cliente.diasParaVencer)} dia(s)`
-        : 'está próxima do vencimento';
-    const msg = `Olá! Aqui é da Click Prestare. A assinatura do ${cliente.nome} (${this.moeda(
-      cliente.mrr,
-    )}/mês) ${venc}. Podemos ajudar a regularizar?`;
-    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
-  }
+  // ── Relatórios ──
 
   gerarRelatorio(): void {
     this.gerandoRelatorio.set(true);
@@ -1660,9 +1205,9 @@ export class CrmPageComponent implements OnInit, OnDestroy {
   }
 
   exportarCSV(tipo: string): void {
-    let csvContent = '\uFEFF'; // BOM para suporte UTF-8 no Excel
-    let filename = `relatorio_${tipo}_${new Date().toISOString().split('T')[0]}.csv`;
-    
+    let csvContent = '﻿'; // BOM para suporte UTF-8 no Excel
+    const filename = `relatorio_${tipo}_${new Date().toISOString().split('T')[0]}.csv`;
+
     if (tipo === 'financeiro') {
       csvContent += 'Condomínio;Plano;Mensalidade (MRR);Status de Cobrança;Dias para Vencer;Saúde Financeira\n';
       for (const c of this.clientes()) {
@@ -1695,7 +1240,7 @@ export class CrmPageComponent implements OnInit, OnDestroy {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       this.triggerToast(`Relatório CSV baixado com sucesso: ${filename}`, 'success');
     }
   }
