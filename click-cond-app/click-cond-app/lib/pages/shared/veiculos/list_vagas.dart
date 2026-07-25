@@ -20,6 +20,7 @@ class ListVagas extends StatefulWidget {
 class _ListVagasState extends State<ListVagas> {
   VagasResumo _resumo = VagasResumo.empty();
   bool _isLoading = false;
+  bool _loaded = false;
 
   @override
   void initState() {
@@ -28,9 +29,11 @@ class _ListVagasState extends State<ListVagas> {
   }
 
   Future<void> _load() async {
-    setState(() => _isLoading = true);
+    // Stale-while-revalidate: skeleton só no 1º load; ao voltar, mantém o cache.
+    if (!_loaded) setState(() => _isLoading = true);
     try {
       _resumo = await apiGetVagas();
+      _loaded = true;
     } catch (_) {
       _resumo = VagasResumo.empty();
     } finally {

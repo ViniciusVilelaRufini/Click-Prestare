@@ -30,7 +30,7 @@ class _ListComunicadosPageState extends State<ListComunicados> {
 
   Future<void> loadList() async {
     try {
-      setState(() => _isLoading = true);
+      if (list.isEmpty) setState(() => _isLoading = true);
       list = await apiGetAll("comunicados");
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));

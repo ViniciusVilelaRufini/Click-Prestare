@@ -32,7 +32,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
 
   Future<void> loadList() async {
     try {
-      setState(() => _isLoading = true);
+      if (list.isEmpty) setState(() => _isLoading = true);
       list = await apiGetAll("prestadores");
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));

@@ -348,18 +348,18 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   ] else ...[
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+                        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.lg),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               "Contas",
-                              style: AppTypography.bodyMedium(context).copyWith(
+                              style: AppTypography.headline(context).copyWith(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 18,
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: AppSpacing.xl),
                             _buildCategoriesGrid(activeItems, personalCategories),
                           ],
                         ),
@@ -601,30 +601,77 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     final statusInt = statusVal is int ? statusVal : int.tryParse(statusVal.toString()) ?? 0;
     bool isVerifying = statusInt == 2;
 
+    final Color statusColor = isPago
+        ? Colors.green
+        : (isVerifying ? Colors.blue : Colors.orange);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white10)
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border(context)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                width: 4,
+                height: 40,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    Text("Vencimento: ${item['data_vencimento'] ?? ''}", style: AppTypography.caption(context)),
+                    Text(
+                      item['nome'] ?? '',
+                      style: AppTypography.bodyMedium(context)
+                          .copyWith(fontWeight: FontWeight.w600, height: 1.3),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(PhosphorIcons.calendarBlank,
+                            size: 13, color: AppColors.textTertiary(context)),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            "Vence em ${item['data_vencimento'] ?? '—'}",
+                            style: AppTypography.caption(context),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
-              Text(item['valorReal'] ?? '', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold, color: isPago ? Colors.green : AppColors.textPrimary(context))),
+              Text(
+                item['valorReal'] ?? '',
+                style: AppTypography.bodyMedium(context).copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isPago ? Colors.green : AppColors.textPrimary(context),
+                ),
+              ),
             ],
           ),
           if (!isPago) ...[

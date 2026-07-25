@@ -16,7 +16,7 @@ export interface DashboardSummary {
     tipo: string;
     descricao: string;
     quando: string;
-    direcao?: 'entrada' | 'saida';
+    direcao?: 'entrada' | 'saida' | 'negado' | 'bloqueado';
     detalhes: {
       id: number;
       nome?: string;

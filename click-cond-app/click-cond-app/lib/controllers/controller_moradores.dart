@@ -190,17 +190,20 @@ apiGetAllMoradoresGeral(int idCondominio) async {
   }
 }
 
-apiSendCredentialsGeral(String email, String nome, String documento) async {
-  final url = _buildUri('/moradores/send-credentials');
-  final body = jsonEncode({
-    'email': email,
-    'nome': nome,
-    'documento': documento,
-  });
+// Reenvia as credenciais de acesso ao morador.
+//
+// Usa a rota REST por id em vez de mandar e-mail/nome/documento no corpo: o
+// backend resolve os dados do próprio morador e o TenantGuard garante que o
+// operador só alcança moradores do condomínio dele. A versão antiga aceitava
+// um e-mail arbitrário, o que permitia disparar "boas-vindas" para qualquer
+// endereço.
+apiSendCredentialsGeral(int idMorador) async {
+  final idCondominio = Singleton.instance.id_condominio;
+  final url = _buildUri('/condominios/$idCondominio/moradores/$idMorador/send-credentials');
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true))
         .timeout(_kTimeout);
-    if (response.statusCode == 200) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
       return true;
     }
     throw 'Erro ao enviar credenciais';

@@ -29,7 +29,7 @@ class _ListMudancasPageState extends State<ListMudancas> {
 
   Future<void> loadList() async {
     try {
-      setState(() => _isLoading = true);
+      if (list.isEmpty) setState(() => _isLoading = true);
       list = await apiGetAll("mudancas");
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));

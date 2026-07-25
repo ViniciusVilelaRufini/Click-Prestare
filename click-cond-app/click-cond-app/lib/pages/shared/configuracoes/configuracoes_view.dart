@@ -1,8 +1,6 @@
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/configuracoes/modal_new_password.dart';
-import 'package:click/pages/shared/morador/assinatura_morador.dart';
-import 'package:click/pages/sindico/assinatura_sindico.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';

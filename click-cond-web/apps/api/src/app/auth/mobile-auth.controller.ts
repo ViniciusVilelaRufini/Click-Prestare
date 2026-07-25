@@ -124,6 +124,13 @@ export class MoradoresMobileController {
     return this.service.saveMorador(body, false, payload);
   }
 
+  // Cadastro de familiar pelo próprio morador proprietário do apartamento.
+  @Post('insert-familiar')
+  @HttpCode(200)
+  insertFamiliar(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.insertFamiliar(body, payload);
+  }
+
   @Post('update')
   @HttpCode(200)
   updateMorador(@Body() body: any, @ReqUser() payload: JwtPayload) {
@@ -193,6 +200,13 @@ export class FuncionariosMobileController {
   @HttpCode(200)
   updateFuncionario(@Body() body: any, @ReqUser() payload: JwtPayload) {
     return this.service.saveFuncionario(body, true, payload);
+  }
+
+  // Funcionário editando o próprio perfil. O alvo vem do JWT, não do corpo.
+  @Post('update-infos')
+  @HttpCode(200)
+  updateInfos(@Body() body: any, @ReqUser() payload: JwtPayload) {
+    return this.service.updateInfosFuncionario(body, payload);
   }
 
   @Post('remove')
@@ -566,5 +580,41 @@ export class UsersMobileController {
   deleteAccount(@ReqUser() payload: JwtPayload) {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.deleteAccount(Number(idUser));
+  }
+
+  // Registro do token de push. O app chama logo após o login — é o que
+  // popula Users.fcm_token, lido por visitantes/ocorrências/áreas/financeiro
+  // para disparar notificação.
+  @Post('update-fcm-token')
+  @HttpCode(200)
+  updateFcmToken(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { fcm_token?: string },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.updateFcmToken(Number(idUser), body?.fcm_token ?? '');
+  }
+
+  // Preferências de notificação (tela NotificationSettingsPage do app).
+  @Get('settings')
+  getSettings(@ReqUser() payload: JwtPayload) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.getNotificationSettings(Number(idUser));
+  }
+
+  @Post('settings')
+  @HttpCode(200)
+  updateSettings(
+    @ReqUser() payload: JwtPayload,
+    @Body()
+    body: {
+      notif_encomendas?: boolean;
+      notif_comunicados?: boolean;
+      notif_ocorrencias?: boolean;
+      notif_visitantes?: boolean;
+    },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.updateNotificationSettings(Number(idUser), body ?? {});
   }
 }

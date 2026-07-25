@@ -96,7 +96,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
 
   Future<void> loadList() async {
     try {
-      setState(() => _isLoading = true);
+      // Stale-while-revalidate: skeleton só sem cache; ao voltar, mantém a lista.
+      if (list.isEmpty) setState(() => _isLoading = true);
       list = await apiGetAllVisitantes(txtSearch.text, allCondos: widget.allCondos);
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));

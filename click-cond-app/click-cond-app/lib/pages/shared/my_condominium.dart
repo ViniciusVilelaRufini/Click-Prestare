@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/agenda/list_agenda.dart';
@@ -54,6 +55,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   late List<_MenuItem> _menu;
   String _saldo = '';
   String _inadimplencia = '';
+  int _ocorrenciasAbertas = 0;
   Map<String, dynamic>? _summary;
   int _currentTab = 0;
   bool _isNavBarVisible = true;
@@ -83,6 +85,25 @@ class _MyCondominiumState extends State<MyCondominium> {
     Singleton.instance.id_condominio = widget.id;
     _menu = _buildMenu();
     _loadCond();
+  }
+
+  /// Formata um valor cru ("30180.88", "R$30180.88" ou "30.180,88") como
+  /// moeda local (ex.: "R$ 30.180,88"). Usa o símbolo do condomínio.
+  String _formatMoeda(String raw) {
+    final moeda = Singleton.instance.getCurrentMoeda();
+    if (raw.trim().isEmpty) return '$moeda 0,00';
+    var cleaned = raw.replaceAll(RegExp(r'[^0-9,.-]'), '').trim();
+    if (cleaned.isEmpty) return '$moeda 0,00';
+    // Normaliza para ponto decimal antes do parse.
+    if (cleaned.contains(',') && cleaned.contains('.')) {
+      // Formato BR "30.180,88": remove separador de milhar e troca vírgula.
+      cleaned = cleaned.replaceAll('.', '').replaceAll(',', '.');
+    } else if (cleaned.contains(',')) {
+      cleaned = cleaned.replaceAll(',', '.');
+    }
+    final valor = double.tryParse(cleaned) ?? 0;
+    final nf = NumberFormat('#,##0.00', 'pt_BR');
+    return '$moeda ${nf.format(valor)}';
   }
 
   String _normalize(String str) {
@@ -141,24 +162,32 @@ class _MyCondominiumState extends State<MyCondominium> {
 
   Future<void> _loadCond() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    // Stale-while-revalidate: skeleton só no 1º load (sem cache). Ao voltar,
+    // mantém o conteúdo e atualiza em segundo plano.
+    setState(() {
+      if (_cond == null) _isLoading = true;
+    });
     try {
       final results = await Future.wait<dynamic>([
         getCondominio(widget.id),
         // Resumo escopado ao condomínio aberto (visitas/encomendas deste condomínio).
         getDashboardSummary(widget.id),
+        // Ocorrências não solucionadas (abertas/pendentes) p/ o selo do dashboard.
+        if (getUserType() == 'sindico') apiGetAll("ocorrencias/pendentes") else Future.value(const []),
       ]);
 
       if (!mounted) return;
-      
+
       if (results[0] is Map<String, dynamic>) {
         final cond = results[0] as Map<String, dynamic>;
         final raw = (cond['saldo'] ?? '').toString();
         final rawInadimplencia = (cond['inadimplencia'] ?? '').toString();
+        final ocorrList = results[2];
         setState(() {
           _cond = cond;
-          _saldo = raw.replaceAll("R\$", Singleton.instance.getCurrentMoeda());
-          _inadimplencia = rawInadimplencia.replaceAll("R\$", Singleton.instance.getCurrentMoeda());
+          _saldo = _formatMoeda(raw);
+          _inadimplencia = _formatMoeda(rawInadimplencia);
+          _ocorrenciasAbertas = ocorrList is List ? ocorrList.length : 0;
           _summary = results[1] as Map<String, dynamic>?;
         });
 
@@ -954,6 +983,52 @@ class _MyCondominiumState extends State<MyCondominium> {
     );
   }
 
+  /// Ícone de ocorrências com badge da quantidade de abertas/pendentes.
+  /// Toca para abrir a lista de Ocorrências.
+  Widget _buildOcorrenciasBadge(BuildContext context) {
+    final count = _ocorrenciasAbertas;
+    return Material(
+      color: Colors.white.withOpacity(0.18),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        onTap: () => _navigate(ListOcorrencias()),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(PhosphorIcons.warningCircle, color: Colors.white, size: 20),
+              if (count > 0)
+                Positioned(
+                  right: -6,
+                  top: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    constraints: const BoxConstraints(minWidth: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      count > 99 ? '99+' : '$count',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.tiny(context).copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 9,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStats(BuildContext context, bool saldoNeg) {
     final type = getUserType();
     return Padding(
@@ -1055,6 +1130,9 @@ class _MyCondominiumState extends State<MyCondominium> {
                       ],
                     ),
                   ),
+                  // Ocorrências abertas/pendentes: ícone com badge de contagem.
+                  _buildOcorrenciasBadge(context),
+                  AppSpacing.gapSm,
                   Material(
                     color: Colors.white.withOpacity(0.18),
                     borderRadius: BorderRadius.circular(AppRadius.md),

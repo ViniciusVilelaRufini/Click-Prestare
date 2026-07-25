@@ -2,7 +2,9 @@
     package="br.com.clickprestare.app"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="com.android.vending.BILLING" />       
+    <!-- BILLING removida junto com o in_app_purchase: sem a biblioteca de
+         faturamento, a permissao sozinha faz o Google classificar o app como
+         integracao AIDL legada e rejeitar a versao. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:replace="android:maxSdkVersion" android:maxSdkVersion="33"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:replace="android:maxSdkVersion" android:maxSdkVersion="33"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>

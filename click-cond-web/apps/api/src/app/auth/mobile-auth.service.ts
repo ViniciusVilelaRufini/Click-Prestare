@@ -883,6 +883,112 @@ export class MobileAuthService {
   }
 
   // ==========================================
+  // PUSH / FCM
+  // ==========================================
+
+  /**
+   * Registra o token FCM do aparelho para o usuário logado.
+   *
+   * Chamado pelo app logo após qualquer login (síndico/morador/funcionário).
+   * Sem isso `Users.fcm_token` fica nulo e TODO push vira no-op — inclusive a
+   * autorização de portaria remota, que depende da notificação chegar no
+   * morador para ele liberar ou negar a entrada.
+   *
+   * O mesmo aparelho pode trocar de dono (o porteiro sai, o morador entra):
+   * antes de gravar, solta o token de qualquer outro usuário, senão a
+   * notificação do usuário novo continuaria caindo na conta antiga.
+   */
+  async updateFcmToken(idUser: number, fcmToken: string) {
+    if (!this.prisma.isConnected) return { success: true };
+    if (!idUser || Number.isNaN(idUser)) {
+      throw new BadRequestException('Usuário inválido');
+    }
+    const token = (fcmToken ?? '').trim();
+    if (!token) {
+      throw new BadRequestException('FCM Token é obrigatório');
+    }
+
+    await this.prisma.users.updateMany({
+      where: { fcm_token: token, id: { not: idUser } },
+      data: { fcm_token: null },
+    });
+    await this.prisma.users.update({
+      where: { id: idUser },
+      data: { fcm_token: token },
+    });
+    return { success: true };
+  }
+
+  /**
+   * Preferências de notificação do usuário logado.
+   *
+   * Devolve 1/0 (não booleano) de propósito: a tela do app compara
+   * `data['notif_encomendas'] == 1`, então booleano viria como desligado.
+   */
+  async getNotificationSettings(idUser: number) {
+    const padrao = {
+      notif_encomendas: 1,
+      notif_comunicados: 1,
+      notif_ocorrencias: 1,
+      notif_visitantes: 1,
+    };
+    if (!this.prisma.isConnected) return padrao;
+    if (!idUser || Number.isNaN(idUser)) {
+      throw new BadRequestException('Usuário inválido');
+    }
+    const u = await this.prisma.users.findUnique({
+      where: { id: idUser },
+      select: {
+        notif_encomendas: true,
+        notif_comunicados: true,
+        notif_ocorrencias: true,
+        notif_visitantes: true,
+      },
+    });
+    if (!u) throw new NotFoundException('Usuário não encontrado');
+    return {
+      notif_encomendas: u.notif_encomendas ?? 1,
+      notif_comunicados: u.notif_comunicados ?? 1,
+      notif_ocorrencias: u.notif_ocorrencias ?? 1,
+      notif_visitantes: u.notif_visitantes ?? 1,
+    };
+  }
+
+  async updateNotificationSettings(
+    idUser: number,
+    prefs: {
+      notif_encomendas?: boolean;
+      notif_comunicados?: boolean;
+      notif_ocorrencias?: boolean;
+      notif_visitantes?: boolean;
+    },
+  ) {
+    if (!this.prisma.isConnected) return { success: true };
+    if (!idUser || Number.isNaN(idUser)) {
+      throw new BadRequestException('Usuário inválido');
+    }
+    const flag = (v: unknown) => (v === true || v === 1 || v === '1' ? 1 : 0);
+    await this.prisma.users.update({
+      where: { id: idUser },
+      data: {
+        ...(prefs.notif_encomendas !== undefined && {
+          notif_encomendas: flag(prefs.notif_encomendas),
+        }),
+        ...(prefs.notif_comunicados !== undefined && {
+          notif_comunicados: flag(prefs.notif_comunicados),
+        }),
+        ...(prefs.notif_ocorrencias !== undefined && {
+          notif_ocorrencias: flag(prefs.notif_ocorrencias),
+        }),
+        ...(prefs.notif_visitantes !== undefined && {
+          notif_visitantes: flag(prefs.notif_visitantes),
+        }),
+      },
+    });
+    return { success: true };
+  }
+
+  // ==========================================
   // CONDOMÍNIO DETALHES GERAL
   // ==========================================
   async getCondominioById(id: number) {
@@ -1318,6 +1424,16 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
+
+    // Quando quem pergunta é o próprio funcionário, o `id` da query é ignorado
+    // e devolvemos o cadastro dele. É o que a tela "Editar meus dados" do app
+    // espera: ela chama /funcionarios/get?id=0 sem saber o próprio id.
+    // (Sem isso, o findUnique com id=0 devolvia 404 e a tela não abria.)
+    const tipo = requester?.typeAccess ?? requester?.user?.typeAccess;
+    if (tipo === 'Funcionario') {
+      return this.getMeuCadastroFuncionario(requester);
+    }
+
     const f = await this.prisma.funcionarios_Portaria.findUnique({ where: { id: Number(id) } });
     if (!f) throw new NotFoundException('Funcionário não encontrado.');
     await this.tenant.assertEntidade(f.id_condominio, requester, `funcionário #${id}`);
@@ -1336,6 +1452,119 @@ export class MobileAuthService {
       photo: user?.photo ?? '',
       hasPortariaAccess: true,
     };
+  }
+
+  /** Cadastro do funcionário logado (tabela Funcionarios, do app). */
+  private async getMeuCadastroFuncionario(requester?: JwtPayload) {
+    const idUser = Number(requester?.user?.id ?? requester?.sub);
+    if (!idUser || Number.isNaN(idUser)) {
+      throw new UnauthorizedException('Sessão inválida.');
+    }
+    const f = await this.prisma.funcionarios.findFirst({
+      where: { id_user: idUser },
+      include: { user: { select: { photo: true, email: true } } },
+    });
+    if (!f) throw new NotFoundException('Funcionário não encontrado.');
+    return {
+      id: f.id_user,
+      nome: f.nome ?? '',
+      documento: f.documento ?? '',
+      email: f.email ?? f.user?.email ?? '',
+      telefone: f.telefone ?? '',
+      funcao: f.funcao ?? '',
+      ch: f.ch ?? '',
+      photo: f.user?.photo ?? '',
+    };
+  }
+
+  /**
+   * Funcionário editando o PRÓPRIO perfil (nome, documento, e-mail, telefone,
+   * foto). Diferente de saveFuncionario, que é gestão de porteiros e exige
+   * síndico — aqui o alvo é sempre quem está no JWT, nunca um id do corpo.
+   *
+   * Devolve token+user novos porque o login do app é o e-mail: se ele mudar,
+   * o token antigo continuaria apontando para o login velho.
+   */
+  async updateInfosFuncionario(body: any, requester?: JwtPayload) {
+    if (!this.prisma.isConnected) {
+      throw new ServiceUnavailableException('Banco indisponível.');
+    }
+    const idUser = Number(requester?.user?.id ?? requester?.sub);
+    if (!idUser || Number.isNaN(idUser)) {
+      throw new UnauthorizedException('Sessão inválida.');
+    }
+
+    const func = body?.funcionario ?? body?.funcionarios ?? {};
+    const atual = await this.prisma.funcionarios.findFirst({
+      where: { id_user: idUser },
+    });
+    if (!atual) throw new NotFoundException('Funcionário não encontrado.');
+
+    const email = func.email ? String(func.email).trim() : null;
+    if (email) {
+      const conflito = await this.prisma.users.findFirst({
+        where: { OR: [{ email }, { login: email }], NOT: { id: idUser } },
+        select: { id: true },
+      });
+      if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
+    }
+
+    let photoUrl: string | null = null;
+    if (func.photo) {
+      photoUrl = this.storage.isDataUrl(func.photo)
+        ? await this.storage.uploadDataUrl(func.photo, 'funcionarios')
+        : func.photo;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.funcionarios.update({
+        where: { id: atual.id },
+        data: {
+          ...(func.nome !== undefined && { nome: func.nome }),
+          ...(func.documento !== undefined && { documento: func.documento || null }),
+          ...(email !== null && { email }),
+          ...(func.telefone !== undefined && { telefone: func.telefone || null }),
+        },
+      });
+      await tx.users.update({
+        where: { id: idUser },
+        data: {
+          ...(func.nome !== undefined && { name: func.nome }),
+          ...(func.documento !== undefined && { cpf: func.documento || null }),
+          ...(email !== null && { email, login: email }),
+          ...(func.telefone !== undefined && { phone: func.telefone || null }),
+          ...(photoUrl !== null && { photo: photoUrl, profile_image: photoUrl }),
+        },
+      });
+    });
+
+    // Reemite a sessão com os dados atualizados (mesmo shape do loginFuncionario,
+    // que é o que o storageFuncionario do app consome).
+    const user = await this.prisma.users.findUnique({
+      where: { id: idUser },
+      include: { funcionarios: true },
+    });
+    const f = user?.funcionarios?.[0];
+    const userObj = {
+      id: idUser,
+      nome: f?.nome ?? func.nome ?? '',
+      photo: user?.photo ?? '',
+      areas_sociais: f?.areas_sociais ?? 0,
+      comunicados: f?.comunicados ?? 0,
+      ocorrencias: f?.ocorrencias ?? 0,
+      manutencoes_programadas: f?.manutencoes_programadas ?? 0,
+      prestadores_servico: f?.prestadores_servico ?? 0,
+      agendar_mudanca: f?.agendar_mudanca ?? 0,
+      cadastrar_visitante: f?.cadastrar_visitante ?? 0,
+      apartamentos: f?.apartamentos ?? 0,
+    };
+    const payload = {
+      sub: idUser,
+      nome: userObj.nome,
+      typeAccess: 'Funcionario',
+      user: userObj,
+    };
+    return { token: this.jwt.sign(payload), user: userObj };
   }
 
   async saveFuncionario(body: any, isEdit: boolean, user?: JwtPayload) {
@@ -1613,7 +1842,12 @@ export class MobileAuthService {
     };
   }
 
-  async saveMorador(body: any, isEdit: boolean, user?: JwtPayload) {
+  async saveMorador(
+    body: any,
+    isEdit: boolean,
+    user?: JwtPayload,
+    opts: { permitirSemStaff?: boolean } = {},
+  ) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível. Tente novamente em instantes.');
     }
@@ -1714,7 +1948,9 @@ export class MobileAuthService {
 
       // ===== CRIAÇÃO =====
       // Cadastrar um novo morador é ação de síndico/funcionário, não self-service.
-      assertStaff(user, 'cadastrar morador');
+      // A exceção é o cadastro de familiar (insertFamiliar), que já validou que
+      // quem chama é o proprietário do apartamento antes de delegar para cá.
+      if (!opts.permitirSemStaff) assertStaff(user, 'cadastrar morador');
       if (!idApto) throw new BadRequestException('Apartamento não informado.');
 
       const apto = await this.prisma.apartamentos.findUnique({ where: { id: idApto } });
@@ -1888,6 +2124,51 @@ export class MobileAuthService {
       }
       throw new BadRequestException(e?.message ?? 'Erro ao salvar morador.');
     }
+  }
+
+  /**
+   * Cadastro de familiar ("membro") feito pelo próprio morador.
+   *
+   * Diferente de saveMorador, que é ação de síndico/funcionário: aqui quem
+   * chama é o morador, então a autorização não é "é staff?" e sim "é o
+   * PROPRIETÁRIO deste apartamento?". Inquilino e membro não podem cadastrar
+   * mais gente no apto — senão qualquer morador vinculado conseguiria criar
+   * acessos no apartamento em que mora.
+   *
+   * O tipo é forçado para 'membro': o corpo vem do app e não pode escolher
+   * virar proprietário.
+   */
+  async insertFamiliar(body: any, user?: JwtPayload) {
+    if (!this.prisma.isConnected) {
+      throw new ServiceUnavailableException('Banco indisponível. Tente novamente em instantes.');
+    }
+    const mor = body?.morador ?? {};
+    const idApto = Number(mor.id_apto ?? body?.id_apto);
+    if (!idApto || Number.isNaN(idApto)) {
+      throw new BadRequestException('Apartamento não informado.');
+    }
+
+    const callerId = Number(user?.user?.id ?? user?.sub);
+    if (!callerId || Number.isNaN(callerId)) {
+      throw new UnauthorizedException('Sessão inválida.');
+    }
+
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_apto: idApto, id_user: callerId },
+      select: { tipo: true },
+    });
+    if (!vinculo || this.normalizeTipo(vinculo.tipo) !== 'proprietario') {
+      throw new ForbiddenException(
+        'Apenas o proprietário do apartamento pode cadastrar familiares.',
+      );
+    }
+
+    return this.saveMorador(
+      { ...body, morador: { ...mor, id_apto: idApto, tipo: 'membro' } },
+      false,
+      user,
+      { permitirSemStaff: true },
+    );
   }
 
   async removeMorador(id: number, user?: JwtPayload) {

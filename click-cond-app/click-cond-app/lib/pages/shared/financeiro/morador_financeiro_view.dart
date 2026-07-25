@@ -599,19 +599,39 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     bool isPago = pago == 1;
     bool isVerifying = status == 2;
 
+    final Color statusColor = isPago
+        ? Colors.green
+        : (isVerifying ? Colors.blue : Colors.orange);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.border(context))
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border(context)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                width: 4,
+                height: 40,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -621,7 +641,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         Flexible(
                           child: Text(
                             item['nome'] ?? 'Despesa',
-                            style: AppTypography.bodyMedium(context),
+                            style: AppTypography.bodyMedium(context)
+                                .copyWith(fontWeight: FontWeight.w600, height: 1.3),
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -641,8 +663,21 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         ],
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text("Vencimento: ${item['data_vencimento'] ?? item['data'] ?? '—'}", style: AppTypography.caption(context)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(PhosphorIcons.calendarBlank,
+                            size: 13, color: AppColors.textTertiary(context)),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            "Vence em ${item['data_vencimento'] ?? item['data'] ?? '—'}",
+                            style: AppTypography.caption(context),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -650,6 +685,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               Text(
                 item['valorReal'] ?? item['valorString'] ?? 'R\$ 0,00',
                 style: AppTypography.bodyMedium(context).copyWith(
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: isPago ? Colors.green : AppColors.textPrimary(context),
                 ),

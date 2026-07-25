@@ -36,6 +36,7 @@ class _ListVeiculosState extends State<ListVeiculos> {
   // Vagas
   VagasResumo _resumoVagas = VagasResumo.empty();
   bool _loadingVagas = false;
+  bool _loadedVagas = false;
 
   @override
   void initState() {
@@ -45,7 +46,8 @@ class _ListVeiculosState extends State<ListVeiculos> {
   }
 
   Future<void> _loadVeiculos() async {
-    setState(() => _loadingVeiculos = true);
+    // Stale-while-revalidate: skeleton só sem cache; ao voltar, mantém a lista.
+    if (_veiculos.isEmpty) setState(() => _loadingVeiculos = true);
     try {
       final raw = await apiGetAllVeiculos();
       _veiculos = (raw as List).map((e) => VeiculoModel.fromJson(e)).toList();
@@ -57,9 +59,10 @@ class _ListVeiculosState extends State<ListVeiculos> {
   }
 
   Future<void> _loadVagas() async {
-    setState(() => _loadingVagas = true);
+    if (!_loadedVagas) setState(() => _loadingVagas = true);
     try {
       _resumoVagas = await apiGetVagas();
+      _loadedVagas = true;
     } catch (_) {
       _resumoVagas = VagasResumo.empty();
     } finally {

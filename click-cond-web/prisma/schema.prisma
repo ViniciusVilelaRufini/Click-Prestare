@@ -1119,3 +1119,34 @@ model Regras_Dispositivos {
   @@index([id_dispositivo], map: "idx_regdisp_disp")
   @@map("regras_dispositivos")
 }
+
+// ---------------------------------------------------------------------------
+// Assistente IA (RAG). Sem FK para Documentos de proposito: o embedding e um
+// cache derivado e a exclusao do documento e tratada no service.
+// Criar em producao com prisma/manual_2026-07_chat_ia.sql (Railway nao roda
+// `prisma db push`).
+// ---------------------------------------------------------------------------
+model Rag_Embeddings {
+  id            Int      @id @default(autoincrement())
+  id_condominio Int
+  source_type   String   @db.VarChar(20) // 'ata' | 'documento'
+  source_id     Int // Documentos.id
+  chunk_index   Int
+  chunk_text    String   @db.Text
+  embedding     Json // vetor float[768] (text-embedding-004)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamp(0)
+
+  @@index([id_condominio], map: "idx_rag_cond")
+  @@index([id_condominio, source_id], map: "idx_rag_source")
+}
+
+model Chat_Ia_Historico {
+  id            Int      @id @default(autoincrement())
+  id_condominio Int
+  id_user       Int
+  papel         String   @db.VarChar(12) // 'user' | 'assistant'
+  mensagem      String   @db.Text
+  created_at    DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([id_condominio, id_user], map: "idx_chatia_cond_user")
+}

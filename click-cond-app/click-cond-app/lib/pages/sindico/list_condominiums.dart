@@ -8,12 +8,10 @@ import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/financeiro/list_inadimplentes.dart';
 import 'package:click/pages/shared/funcionarios/edit_funcionario.dart';
-import 'package:click/pages/shared/morador/assinatura_morador.dart';
 import 'package:click/pages/shared/morador/edit_morador.dart';
 import 'package:click/pages/shared/my_condominium.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
-import 'package:click/pages/sindico/assinatura_sindico.dart';
 import 'package:click/pages/sindico/edit_sindico.dart';
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
 import 'package:click/pages/singleton.dart';
@@ -54,8 +52,11 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
       return;
     }
+    // Stale-while-revalidate: só mostra o skeleton no PRIMEIRO carregamento
+    // (sem dados em cache). Ao voltar para a tela, mantém o conteúdo atual
+    // visível e atualiza em segundo plano — nada de skeleton "piscando".
     setState(() {
-      _isLoading = true;
+      if (_list.isEmpty) _isLoading = true;
       _errorMessage = null;
     });
     try {
