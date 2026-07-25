@@ -2548,7 +2548,7 @@ export class MobileAuthService {
     const m = await this.resolveMoradorId(idUser, idCondominio);
     if (!m) throw new BadRequestException('Você não é morador deste condomínio.');
     try {
-      return await this.prisma.veiculos.create({
+      const criado = await this.prisma.veiculos.create({
         data: {
           id_morador: m.id,
           id_condominio: m.id_condominio,
@@ -2557,12 +2557,53 @@ export class MobileAuthService {
           marca_modelo: veiculo?.marca_modelo?.toString().trim() || null,
         },
       });
+      // Tag opcional: o morador digita o código impresso na tag física.
+      if (veiculo?.tag_codigo !== undefined) {
+        await this.vincularTagAoVeiculo(m.id_condominio, criado.id, veiculo.tag_codigo);
+      }
+      return criado;
     } catch (err: any) {
       if (err?.code === 'P2002') {
         throw new BadRequestException('Já existe um veículo com essa placa neste condomínio.');
       }
       throw err;
     }
+  }
+
+  /**
+   * Vincula (ou desvincula) uma tag RFID ao veículo pelo código digitado pelo
+   * morador. Código vazio desvincula. A tag é criada no condomínio se ainda não
+   * existir (upsert), e recusamos se ela já estiver em outro veículo ativo — sem
+   * isso um morador "roubaria" a tag de acesso de outro.
+   */
+  private async vincularTagAoVeiculo(idCondominio: number, idVeiculo: number, codigoRaw: any) {
+    const codigo = (codigoRaw ?? '').toString().trim();
+
+    if (!codigo) {
+      await this.prisma.veiculos.update({
+        where: { id: idVeiculo },
+        data: { id_tag: null },
+      });
+      return;
+    }
+
+    const tag = await this.prisma.tags.upsert({
+      where: { id_condominio_codigo: { id_condominio: idCondominio, codigo } },
+      create: { id_condominio: idCondominio, codigo, tipo: 'rfid' },
+      update: { ativo: 1 },
+    });
+
+    const emOutro = await this.prisma.veiculos.findFirst({
+      where: { id_tag: tag.id, ativo: 1, id: { not: idVeiculo } },
+    });
+    if (emOutro) {
+      throw new BadRequestException('Esta tag já está vinculada a outro veículo.');
+    }
+
+    await this.prisma.veiculos.update({
+      where: { id: idVeiculo },
+      data: { id_tag: tag.id },
+    });
   }
 
   async atualizarVeiculoMorador(idUser: number, idCondominio: number, veiculo: any) {
@@ -2583,6 +2624,10 @@ export class MobileAuthService {
         },
       });
       if (r.count === 0) throw new BadRequestException('Veículo não encontrado.');
+      // Só mexe na tag se o app enviou o campo (edições antigas não desvinculam).
+      if (veiculo?.tag_codigo !== undefined) {
+        await this.vincularTagAoVeiculo(m.id_condominio, Number(veiculo.id), veiculo.tag_codigo);
+      }
       return { ok: true };
     } catch (err: any) {
       if (err?.code === 'P2002') {

@@ -68,4 +68,42 @@ module.exports = {
     const query = `delete from Veiculos where id=? and id_morador=?`;
     await db.queryParam(query, [id, idMorador]);
   },
+
+  /**
+   * Vincula (ou desvincula, se codigo vazio) uma tag RFID ao veículo pelo código
+   * digitado pelo morador. Cria a tag no condomínio se ainda não existir e recusa
+   * se ela já estiver em outro veículo ativo (evita "roubar" a tag de acesso).
+   * Lança Error('TAG_EM_OUTRO_VEICULO') nesse caso.
+   */
+  vincularTag: async function (idVeiculo, idCondominio, codigoRaw) {
+    const codigo = (codigoRaw || '').toString().trim();
+
+    if (!codigo) {
+      await db.queryParam(`update Veiculos set id_tag=null where id=?`, [idVeiculo]);
+      return;
+    }
+
+    // upsert da tag pelo par (condominio, codigo)
+    await db.queryParam(
+      `insert into Tags (id_condominio, codigo, tipo, ativo)
+       values (?, ?, 'rfid', 1)
+       on duplicate key update ativo=1`,
+      [idCondominio, codigo]
+    );
+    const { results: tags } = await db.queryParam(
+      `select id from Tags where id_condominio=? and codigo=? limit 1`,
+      [idCondominio, codigo]
+    );
+    const idTag = tags[0].id;
+
+    const { results: emOutro } = await db.queryParam(
+      `select id from Veiculos where id_tag=? and ativo=1 and id<>? limit 1`,
+      [idTag, idVeiculo]
+    );
+    if (emOutro.length > 0) {
+      throw new Error('TAG_EM_OUTRO_VEICULO');
+    }
+
+    await db.queryParam(`update Veiculos set id_tag=? where id=?`, [idTag, idVeiculo]);
+  },
 };

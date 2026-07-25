@@ -34,10 +34,17 @@ module.exports = {
         return res.status(403).json({ message: 'Você não é morador deste condomínio.' });
       }
       const id = await db.insert({ ...veiculo, id_morador: idMorador, id_condominio });
+      // Tag opcional: o morador digita o código impresso na tag física.
+      if (veiculo.tag_codigo !== undefined) {
+        await db.vincularTag(id, id_condominio, veiculo.tag_codigo);
+      }
       return res.status(201).json({ id });
     } catch (err) {
       if (isDuplicatePlaca(err)) {
         return res.status(409).json({ message: 'Já existe um veículo com essa placa neste condomínio.' });
+      }
+      if (err.message === 'TAG_EM_OUTRO_VEICULO') {
+        return res.status(409).json({ message: 'Esta tag já está vinculada a outro veículo.' });
       }
       return res.status(500).json({ message: err.message });
     }
@@ -51,10 +58,16 @@ module.exports = {
       const idMorador = await db.getMoradorId(user.id, id_condominio);
       if (!idMorador) return res.status(403).json({ message: 'Acesso negado.' });
       await db.update(veiculo, idMorador);
+      if (veiculo.tag_codigo !== undefined) {
+        await db.vincularTag(veiculo.id, id_condominio, veiculo.tag_codigo);
+      }
       return res.json();
     } catch (err) {
       if (isDuplicatePlaca(err)) {
         return res.status(409).json({ message: 'Já existe um veículo com essa placa neste condomínio.' });
+      }
+      if (err.message === 'TAG_EM_OUTRO_VEICULO') {
+        return res.status(409).json({ message: 'Esta tag já está vinculada a outro veículo.' });
       }
       return res.status(500).json({ message: err.message });
     }

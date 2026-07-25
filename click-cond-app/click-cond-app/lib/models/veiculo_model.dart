@@ -26,13 +26,16 @@ class VeiculoModel {
     );
   }
 
-  /// Payload enviado ao backend (não inclui id_tag — vínculo é da portaria).
-  Map<String, dynamic> toJson() {
+  /// Payload enviado ao backend. `tag_codigo` só é incluído quando o campo foi
+  /// enviado pela tela — o backend só mexe no vínculo da tag se a chave existir,
+  /// então edições que não tocam a tag não a desvinculam.
+  Map<String, dynamic> toJson({bool incluirTag = false}) {
     return {
       if (id != null) 'id': id,
       'placa': placa,
       'cor': cor,
       'marca_modelo': marcaModelo,
+      if (incluirTag) 'tag_codigo': tagCodigo ?? '',
     };
   }
 }
