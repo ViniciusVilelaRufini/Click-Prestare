@@ -13,7 +13,7 @@ export interface DashboardSummary {
     tipo: string;
     descricao: string;
     quando: string;
-    direcao?: 'entrada' | 'saida';
+    direcao?: 'entrada' | 'saida' | 'negado' | 'bloqueado';
     detalhes: {
       id: number;
       nome?: string;
@@ -256,6 +256,7 @@ export class DashboardService {
     type AcessoFacialRow = typeof todosAcessosFaciaisDosVisitantes[number];
     const facialPorVisitante = new Map<number, AcessoFacialRow[]>();
     for (const a of todosAcessosFaciaisDosVisitantes) {
+      if (a.id_pessoa === null) continue;
       const list = facialPorVisitante.get(a.id_pessoa) ?? [];
       list.push(a);
       facialPorVisitante.set(a.id_pessoa, list);
@@ -517,20 +518,20 @@ export class DashboardService {
         let aptoStr = '';
         let documento: string | undefined;
 
-        if (a.tipo_pessoa === 'morador') {
+        if (a.tipo_pessoa === 'morador' && a.id_pessoa !== null) {
           const m = moradorById.get(a.id_pessoa);
           foto = m?.foto_pessoa ?? m?.user?.photo ?? undefined;
           if (m?.bloco || m?.apartamento) {
             aptoStr = `Apto ${m?.apartamento ?? ''}${m?.bloco ?? ''}`.trim();
           }
-        } else if (a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') {
+        } else if ((a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') && a.id_pessoa !== null) {
           const v = visitanteById.get(a.id_pessoa);
           foto = v?.foto_pessoa ?? undefined;
           documento = v?.doc_identificacao ?? undefined;
           if (v?.apartamento) {
             aptoStr = `Apto ${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim();
           }
-        } else if (a.tipo_pessoa === 'funcionario') {
+        } else if (a.tipo_pessoa === 'funcionario' && a.id_pessoa !== null) {
           const f = funcionarioById.get(a.id_pessoa);
           foto = f?.foto_pessoa ?? undefined;
           if (f?.apartamento) {
@@ -543,7 +544,7 @@ export class DashboardService {
         let historicoAcessos:
           | DashboardSummary['ultimosEventos'][number]['detalhes']['historicoAcessos']
           | undefined;
-        if (a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') {
+        if ((a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') && a.id_pessoa !== null) {
           const v = visitanteById.get(a.id_pessoa);
           if (v) {
             // Para usar buildHistoricoAcessos precisamos das datas do visitante;

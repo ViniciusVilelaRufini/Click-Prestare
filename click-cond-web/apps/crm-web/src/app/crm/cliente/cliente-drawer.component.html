@@ -437,30 +437,71 @@
               </div>
             </div>
 
-            <!-- Hardware Terminals status -->
-            <div class="card p-4 space-y-3">
+            <!-- Terminais faciais, um a um -->
+            <div class="card space-y-3 p-4 lg:col-span-2">
               <div class="flex items-center justify-between">
-                <p class="stat-label">Terminais Faciais (Hardware)</p>
-                @if (c.dispositivosOffline > 0) {
-                  <span class="px-2 py-0.5 rounded text-2xs font-bold bg-danger-soft text-danger border border-danger-border animate-pulse">
-                    {{ c.dispositivosOffline }} Offline
-                  </span>
-                } @else {
-                  <span class="px-2 py-0.5 rounded text-2xs font-bold bg-success-soft text-success border border-success-border">
-                    Terminais Online
-                  </span>
+                <p class="stat-label">Terminais faciais (hardware)</p>
+                @if (resumoTerminais(); as r) {
+                  <div class="flex items-center gap-1.5">
+                    @if (r.online > 0) {
+                      <span class="badge badge-success">{{ r.online }} online</span>
+                    }
+                    @if (r.offline > 0) {
+                      <span class="badge badge-danger">{{ r.offline }} offline</span>
+                    }
+                    @if (r.desativados > 0) {
+                      <span class="badge badge-neutral">{{ r.desativados }} desativado(s)</span>
+                    }
+                    @if (r.total === 0 && !terminaisLoading()) {
+                      <span class="badge badge-neutral">Sem terminais</span>
+                    }
+                  </div>
                 }
               </div>
-              <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
-                <div>
-                  <p class="text-2xs text-ink-soft">Total Instalados</p>
-                  <p class="font-mono font-semibold text-ink mt-0.5">{{ c.dispositivosFaciais }}</p>
+
+              @if (terminaisLoading()) {
+                <p class="py-3 text-sm text-ink-muted">Consultando terminais…</p>
+              } @else if (terminais().length) {
+                <div class="divide-y divide-line-subtle">
+                  @for (t of terminais(); track t.id) {
+                    <div class="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                      <div class="flex min-w-0 items-center gap-3">
+                        <span
+                          class="h-2.5 w-2.5 shrink-0 rounded-full"
+                          [class]="!t.ativo ? 'bg-ink-muted' : t.online ? 'bg-success status-dot-live' : 'bg-danger'"
+                        ></span>
+                        <div class="min-w-0">
+                          <p class="truncate text-sm font-semibold text-ink">{{ t.nome }}</p>
+                          <p class="truncate font-mono text-2xs text-ink-soft">
+                            {{ t.fabricante }}{{ t.modelo ? ' · ' + t.modelo : '' }} · {{ t.ip }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="shrink-0 text-right">
+                        @if (!t.ativo) {
+                          <span class="badge badge-neutral">Desativado</span>
+                        } @else if (t.online) {
+                          <span class="badge badge-success">Online</span>
+                        } @else {
+                          <span class="badge badge-danger">Offline</span>
+                        }
+                        <p class="mt-1 font-mono text-2xs text-ink-muted">
+                          @if (t.ultimaSincr) {
+                            Sinc. {{ t.ultimaSincr | date:'dd/MM HH:mm' }}
+                          } @else {
+                            Nunca sincronizou
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  }
                 </div>
-                <div>
-                  <p class="text-2xs text-ink-soft">Online</p>
-                  <p class="font-mono font-semibold text-success mt-0.5">{{ c.dispositivosFaciais - c.dispositivosOffline }}</p>
-                </div>
-              </div>
+              } @else {
+                <p class="py-3 text-sm text-ink-muted">
+                  Nenhum terminal facial cadastrado para este condomínio.
+                </p>
+              }
             </div>
 
             <!-- Biometry & Access metrics -->

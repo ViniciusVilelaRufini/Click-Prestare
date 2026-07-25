@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../shared/api.config';
+import type { Apartamento, Morador } from './crm.models';
 
 export type EstagioCrm = 'lead' | 'trial' | 'ativo' | 'em_atraso' | 'churn';
 export type StatusPagamento = 'em_dia' | 'vencendo' | 'atrasado' | 'sem_cobranca';
@@ -125,16 +126,23 @@ export class CrmApi {
     return `${this.base}/clientes/${id}/exportar`;
   }
 
-  getMoradores(idCondominio: number): Observable<any[]> {
-    return this.http.get<any[]>(`${API_BASE}/condominios/${idCondominio}/moradores`);
+  // Rotas do próprio CRM (CrmAdminGuard). As antigas /condominios/:id/*
+  // passam pelo TenantGuard e respondem 403 para o token da operadora.
+  getMoradores(idCondominio: number): Observable<Morador[]> {
+    return this.http.get<Morador[]>(`${this.base}/clientes/${idCondominio}/moradores`);
   }
 
-  createMorador(idCondominio: number, dto: any): Observable<any> {
-    return this.http.post<any>(`${API_BASE}/condominios/${idCondominio}/moradores`, dto);
+  createMorador(idCondominio: number, dto: unknown): Observable<Morador> {
+    return this.http.post<Morador>(`${this.base}/clientes/${idCondominio}/moradores`, dto);
   }
 
-  getApartamentos(idCondominio: number): Observable<any[]> {
-    return this.http.get<any[]>(`${API_BASE}/condominios/${idCondominio}/apartamentos`);
+  getApartamentos(idCondominio: number): Observable<Apartamento[]> {
+    return this.http.get<Apartamento[]>(`${this.base}/clientes/${idCondominio}/apartamentos`);
+  }
+
+  /** Terminais faciais do condomínio com online/offline por terminal. */
+  getTerminais(idCondominio: number): Observable<CrmTerminal[]> {
+    return this.http.get<CrmTerminal[]>(`${this.base}/clientes/${idCondominio}/terminais`);
   }
 
   getOcorrencias(): Observable<any[]> {
@@ -209,6 +217,20 @@ export interface CrmFatura {
   baixaPor: string | null;
   baixaMotivo: string | null;
   estimada: boolean;
+}
+
+/** Terminal facial como o CRM enxerga (status calculado no backend). */
+export interface CrmTerminal {
+  id: number;
+  nome: string;
+  fabricante: string;
+  modelo: string | null;
+  ip: string;
+  tipo: string;
+  ativo: boolean;
+  online: boolean;
+  ultimaSincr: string | null;
+  offlineHaMinutos: number | null;
 }
 
 export interface CrmDisparo {

@@ -1,9 +1,9 @@
-import { Component, HostListener, effect, inject, signal, untracked } from '@angular/core';
+import { Component, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
-import { CrmApi } from '../crm.service';
+import { CrmApi, CrmTerminal } from '../crm.service';
 import { CrmStore } from '../crm.store';
 import { ToastService } from '../../shared/toast.service';
 import { Apartamento, ClienteEdicao, Morador } from '../crm.models';
@@ -49,6 +49,21 @@ export class ClienteDrawerComponent {
   };
 
   // ── Gestão de moradores ──
+  readonly terminais = signal<CrmTerminal[]>([]);
+  readonly terminaisLoading = signal(false);
+
+  /** Resumo derivado da lista real de terminais (evita divergir do contador do card). */
+  readonly resumoTerminais = computed(() => {
+    const ts = this.terminais();
+    const ativos = ts.filter((t) => t.ativo);
+    return {
+      total: ts.length,
+      online: ativos.filter((t) => t.online).length,
+      offline: ativos.filter((t) => !t.online).length,
+      desativados: ts.length - ativos.length,
+    };
+  });
+
   readonly moradores = signal<Morador[]>([]);
   readonly apartamentos = signal<Apartamento[]>([]);
   readonly moradoresLoading = signal(false);
@@ -78,6 +93,7 @@ export class ClienteDrawerComponent {
       this.apartamentos.set([]);
       this.mostrandoFormMorador.set(false);
       this.buscaMorador.set('');
+      this.terminais.set([]);
 
       // Não apaga o ?cliente=ID da URL enquanto o cliente pedido não abriu.
       if (!c && this.idPendenteDaUrl) return;
@@ -119,10 +135,27 @@ export class ClienteDrawerComponent {
 
   selecionarAba(aba: SubAba): void {
     this.abaSelecionada.set(aba);
-    if (aba === 'moradores') {
-      const c = this.store.clienteSelecionado();
-      if (c) this.carregarMoradoresEApartamentos(c.id);
-    }
+    const c = this.store.clienteSelecionado();
+    if (!c) return;
+    if (aba === 'moradores') this.carregarMoradoresEApartamentos(c.id);
+    if (aba === 'portaria') this.carregarTerminais(c.id);
+  }
+
+  /** Terminais faciais do condomínio, um a um (online/offline real). */
+  carregarTerminais(idCondominio: number): void {
+    this.terminaisLoading.set(true);
+    this.api.getTerminais(idCondominio).subscribe({
+      next: (rows) => {
+        this.terminais.set(rows);
+        this.terminaisLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Erro ao carregar terminais faciais:', err);
+        this.terminais.set([]);
+        this.terminaisLoading.set(false);
+        this.toast.trigger('Não foi possível carregar os terminais deste condomínio.', 'error');
+      },
+    });
   }
 
   // ── Edição comercial ──

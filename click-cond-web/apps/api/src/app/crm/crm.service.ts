@@ -324,6 +324,54 @@ export class CrmService {
     return csvContent;
   }
 
+  /**
+   * Terminais faciais do condomínio com o estado real de cada um.
+   *
+   * O card do cliente traz só os contadores; aqui a operadora vê terminal a
+   * terminal — fabricante, IP, quando sincronizou pela última vez e há quanto
+   * tempo está fora. `ativo = 0` é um terminal desativado no cadastro, e não
+   * um terminal caído: os dois casos aparecem, distinguidos por `ativo`.
+   */
+  async terminaisFaciais(idCondominio: number): Promise<{
+    id: number;
+    nome: string;
+    fabricante: string;
+    modelo: string | null;
+    ip: string;
+    tipo: string;
+    ativo: boolean;
+    online: boolean;
+    ultimaSincr: string | null;
+    offlineHaMinutos: number | null;
+  }[]> {
+    if (!this.prisma.isConnected) return [];
+
+    const OFFLINE_MS = 10 * 60 * 1000;
+    const agora = Date.now();
+
+    const devices = await this.prisma.facial_Devices
+      .findMany({ where: { id_condominio: idCondominio }, orderBy: { nome: 'asc' } })
+      .catch(() => [] as any[]);
+
+    return devices.map((d) => {
+      const sincr = d.ultima_sincr ? new Date(d.ultima_sincr).getTime() : null;
+      const ativo = d.ativo === 1;
+      const online = ativo && sincr != null && agora - sincr <= OFFLINE_MS;
+      return {
+        id: d.id,
+        nome: d.nome,
+        fabricante: d.fabricante,
+        modelo: d.modelo ?? null,
+        ip: d.ip,
+        tipo: d.tipo,
+        ativo,
+        online,
+        ultimaSincr: sincr ? new Date(sincr).toISOString() : null,
+        offlineHaMinutos: online || !sincr ? null : Math.round((agora - sincr) / 60000),
+      };
+    });
+  }
+
   async healthCheck(): Promise<{
     connected: boolean;
     mode: 'live' | 'mock';

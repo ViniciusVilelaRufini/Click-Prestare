@@ -1,7 +1,9 @@
-import { Controller, Get, Post, Put, Body, Res, NotFoundException, Param, ParseIntPipe, UseGuards, SetMetadata } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Query, Res, NotFoundException, Param, ParseIntPipe, UseGuards, SetMetadata } from '@nestjs/common';
 import { CrmService } from './crm.service';
 import { CrmFaturasService } from './crm-faturas.service';
 import { CrmAdminGuard } from './crm-admin.guard';
+import { MoradoresService } from '../moradores/moradores.service';
+import { ApartamentosService } from '../apartamentos/apartamentos.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
@@ -19,6 +21,8 @@ export class CrmController {
   constructor(
     private readonly service: CrmService,
     private readonly faturas: CrmFaturasService,
+    private readonly moradores: MoradoresService,
+    private readonly apartamentos: ApartamentosService,
   ) {}
 
   private operador(payload?: JwtPayload): string {
@@ -70,6 +74,49 @@ export class CrmController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=crm-relatorio-condominio-${id}.csv`);
     return res.send(csv);
+  }
+
+  // ============== Operação do condomínio (visão da operadora) ==============
+  //
+  // O CRM não consome /condominios/:id/moradores nem /condominios/:id/apartamentos:
+  // aquelas rotas passam pelo TenantGuard, que exige um vínculo de tenant que o
+  // token do CRM não tem (crm_admin não pertence a nenhum condomínio) — e por isso
+  // respondiam 403, deixando a aba de moradores sempre vazia. Aqui a autorização é
+  // o CrmAdminGuard, coerente com o resto do CRM, sem afrouxar o guard dos tenants.
+
+  @UseGuards(CrmAdminGuard)
+  @Get('clientes/:id/moradores')
+  listarMoradores(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('search') search?: string,
+  ) {
+    return this.moradores.findAll(id, search);
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('clientes/:id/moradores')
+  criarMorador(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.moradores.create({ ...dto, id_condominio: id }, user);
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Get('clientes/:id/apartamentos')
+  listarApartamentos(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('search') search?: string,
+  ) {
+    return this.apartamentos.findAll(id, search);
+  }
+
+  /** Terminais faciais do condomínio, um a um, com online/offline real. */
+  @UseGuards(CrmAdminGuard)
+  @Get('clientes/:id/terminais')
+  listarTerminais(@Param('id', ParseIntPipe) id: number) {
+    return this.service.terminaisFaciais(id);
   }
 
   // ============== Faturamento real ==============

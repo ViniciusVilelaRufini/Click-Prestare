@@ -7,5 +7,6 @@ import { FacialModule } from '../facial/facial.module';
   imports: [FacialModule],
   controllers: [MoradoresController],
   providers: [MoradoresService],
+  exports: [MoradoresService],
 })
 export class MoradoresModule {}

@@ -8,6 +8,8 @@ import { CrmAuthService } from './crm-auth.service';
 import { CrmAdminGuard } from './crm-admin.guard';
 import { resolveJwtSecret } from '../auth/jwt-secret';
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
+import { MoradoresModule } from '../moradores/moradores.module';
+import { ApartamentosModule } from '../apartamentos/apartamentos.module';
 
 @Module({
   imports: [
@@ -18,6 +20,10 @@ import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
       signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '8h') as any },
     }),
     OcorrenciasModule,
+    // O CRM lê moradores/apartamentos por conta própria (rotas sob CrmAdminGuard),
+    // sem passar pelas rotas /condominios/:id/* que são exclusivas de cada tenant.
+    MoradoresModule,
+    ApartamentosModule,
   ],
   controllers: [CrmController, CrmAuthController],
   providers: [CrmService, CrmFaturasService, CrmAuthService, CrmAdminGuard],
