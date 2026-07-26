@@ -9,13 +9,29 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertSindico } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { GeminiClient } from './gemini.client';
+import type {
+  ChamadaFerramenta,
+  ConteudoGemini,
+} from './gemini.client';
+import {
+  declaracoesPara,
+  resolverFerramenta,
+  type ContextoFerramenta,
+  type PapelChat,
+} from './chat-ia.tools';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
 const CHUNK_OVERLAP = 200; // sobreposição p/ não cortar contexto no meio
 const TOP_K = 5; // trechos recuperados por pergunta
 const SCORE_MINIMO = 0.5; // abaixo disso o trecho é ruído
 const HISTORICO_TURNOS = 12;
-const MAX_VISITAS_CONTEXTO = 30;
+
+/**
+ * Teto de idas e voltas com ferramentas numa única pergunta. Cada rodada é
+ * uma chamada paga ao Gemini; sem teto, um modelo confuso pediria ferramenta
+ * indefinidamente.
+ */
+const MAX_RODADAS_FERRAMENTA = 5;
 
 /**
  * Assistente IA do condomínio (RAG híbrido).
@@ -55,55 +71,159 @@ export class ChatIaService {
     await this.tenant.assertCondominio(idCondominio, user);
 
     const idUser = Number(user?.user?.id ?? user?.sub);
-    const [contextoEstruturado, trechosDocs, historico] = await Promise.all([
+    const papel = this.papelDe(user);
+
+    const [ctxFerramenta, contextoEstruturado, trechosDocs, historico] = await Promise.all([
+      this.montarContextoFerramenta(idCondominio, idUser, papel),
       this.montarContextoEstruturado(idCondominio, user),
       this.buscarTrechos(idCondominio, texto),
       this.getHistoricoRecente(idCondominio, idUser),
     ]);
 
-    const prompt = this.montarPrompt({
+    const instrucao = this.montarInstrucaoSistema({
       contextoEstruturado,
       trechosDocs,
-      historico,
-      pergunta: texto,
-      papel: this.papelDe(user),
+      papel,
     });
 
-    // O erro do provedor NUNCA vai para a tela: o app exibe o `message` da
-    // resposta, e um 404 de modelo aposentado apareceu como se fosse a fala do
-    // assistente. Detalhe fica no log, usuário recebe algo acionável.
+    // Histórico + pergunta atual no formato de conversa do Gemini.
+    const contents: ConteudoGemini[] = [
+      ...historico.map((h) => ({
+        role: (h.papel === 'assistant' ? 'model' : 'user') as 'user' | 'model',
+        parts: [{ text: h.mensagem }],
+      })),
+      { role: 'user' as const, parts: [{ text: texto }] },
+    ];
+
     let resposta: string;
     try {
-      resposta = await this.gemini.gerarResposta(prompt);
+      resposta = await this.rodarLacoDeFerramentas(contents, instrucao, ctxFerramenta);
     } catch (e: any) {
+      // O erro do provedor NUNCA vai para a tela: o app exibe o `message` da
+      // resposta, e um 404 de modelo aposentado apareceu como se fosse a fala
+      // do assistente. Detalhe fica no log, usuário recebe algo acionável.
       this.logger.error(`falha ao gerar resposta: ${e?.message ?? e}`);
       throw new ServiceUnavailableException(
         'Não consegui responder agora. Tente novamente em instantes.',
       );
     }
 
-    // Persiste o turno sem bloquear a resposta se a escrita falhar.
-    void this.salvarTurno(idCondominio, idUser, 'user', texto);
-    void this.salvarTurno(idCondominio, idUser, 'assistant', resposta);
+    // Grava os dois turnos em ORDEM. Antes eram dois inserts disparados com
+    // `void` em paralelo: eles corriam entre si e o id saía trocado, deixando
+    // a resposta gravada antes da pergunta e embaralhando a memória da conversa.
+    void this.salvarTurnos(idCondominio, idUser, [
+      { papel: 'user', mensagem: texto },
+      { papel: 'assistant', mensagem: resposta },
+    ]);
 
     return { resposta };
+  }
+
+  /**
+   * Laço de function calling.
+   *
+   * O modelo pede ferramentas, executamos, devolvemos o resultado e ele
+   * continua — até produzir texto ou estourar o limite de rodadas (proteção
+   * contra laço infinito, que sairia caro em chamadas pagas).
+   */
+  private async rodarLacoDeFerramentas(
+    contents: ConteudoGemini[],
+    instrucao: string,
+    ctx: ContextoFerramenta,
+  ): Promise<string> {
+    const declaracoes = declaracoesPara(ctx.papel);
+
+    for (let rodada = 0; rodada < MAX_RODADAS_FERRAMENTA; rodada++) {
+      const r = await this.gemini.gerarComFerramentas(contents, declaracoes, instrucao);
+
+      if (r.chamadas.length === 0) {
+        return r.texto || 'Não consegui formular uma resposta para isso.';
+      }
+
+      // Registra a intenção do modelo no histórico da chamada...
+      contents.push({
+        role: 'model',
+        parts: r.chamadas.map((c) => ({ functionCall: { name: c.name, args: c.args } })),
+      });
+
+      // ...executa e devolve os resultados.
+      const partes = [];
+      for (const chamada of r.chamadas) {
+        const resultado = await this.executarFerramenta(chamada, ctx);
+        partes.push({
+          functionResponse: { name: chamada.name, response: { result: resultado } },
+        });
+      }
+      contents.push({ role: 'user', parts: partes });
+    }
+
+    this.logger.warn(`limite de ${MAX_RODADAS_FERRAMENTA} rodadas de ferramenta atingido`);
+    return 'Não consegui concluir essa consulta. Tente reformular a pergunta.';
+  }
+
+  /**
+   * Executa UMA ferramenta.
+   *
+   * `resolverFerramenta` filtra pelo papel: se o modelo pedir algo que aquele
+   * papel não pode usar, não executa — devolve erro para ele se corrigir. É a
+   * segunda camada de autorização (a primeira é o catálogo declarado).
+   */
+  private async executarFerramenta(chamada: ChamadaFerramenta, ctx: ContextoFerramenta) {
+    const ferramenta = resolverFerramenta(chamada.name, ctx.papel);
+    if (!ferramenta) {
+      this.logger.warn(
+        `ferramenta "${chamada.name}" negada para papel ${ctx.papel} (user#${ctx.idUser})`,
+      );
+      return { erro: 'Ferramenta indisponível para o seu perfil de acesso.' };
+    }
+    try {
+      const inicio = Date.now();
+      const saida = await ferramenta.executar(chamada.args ?? {}, ctx);
+      this.logger.log(
+        `ferramenta ${chamada.name} (${ctx.papel}, cond#${ctx.idCondominio}) em ${Date.now() - inicio}ms`,
+      );
+      return saida;
+    } catch (e: any) {
+      this.logger.error(`ferramenta ${chamada.name} falhou: ${e?.message ?? e}`);
+      return { erro: 'Não foi possível consultar esse dado agora.' };
+    }
+  }
+
+  /** Contexto que as ferramentas usam para escopar tudo. Sai do JWT. */
+  private async montarContextoFerramenta(
+    idCondominio: number,
+    idUser: number,
+    papel: PapelChat,
+  ): Promise<ContextoFerramenta> {
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: idUser, apartamento: { id_condominio: idCondominio } },
+      select: { id_apto: true },
+    });
+    return {
+      idCondominio,
+      idUser,
+      papel,
+      staff: papel === 'Sindico' || papel === 'Funcionario',
+      aptos: vinculos.map((v) => v.id_apto),
+      prisma: this.prisma,
+    };
   }
 
   // =========================================================================
   // Contexto estruturado (MySQL ao vivo, recortado por papel)
   // =========================================================================
 
-  private papelDe(user?: JwtPayload): string {
-    return String(user?.typeAccess ?? user?.user?.typeAccess ?? 'Morador');
-  }
-
-  private isStaff(user?: JwtPayload): boolean {
-    const papel = this.papelDe(user);
-    return papel === 'Sindico' || papel === 'Funcionario';
+  /**
+   * Papel de quem perguntou. É o que define o catálogo de ferramentas, então
+   * qualquer valor inesperado cai no menos privilegiado (Morador).
+   */
+  private papelDe(user?: JwtPayload): PapelChat {
+    const bruto = String(user?.typeAccess ?? user?.user?.typeAccess ?? '');
+    if (bruto === 'Sindico' || bruto === 'Funcionario') return bruto;
+    return 'Morador';
   }
 
   private async montarContextoEstruturado(idCondominio: number, user: JwtPayload) {
-    const staff = this.isStaff(user);
     const idUser = Number(user?.user?.id ?? user?.sub);
     const blocos: string[] = [];
 
@@ -149,90 +269,32 @@ export class ChatIaService {
       this.logger.warn(`contexto funcionários falhou: ${e?.message ?? e}`);
     }
 
-    // 3. Visitas — síndico/funcionário vê o condomínio todo; morador só os
-    //    apartamentos a que está vinculado.
+    // 3. Cadastro do próprio usuário — ajuda o modelo a saber "quem é você"
+    //    sem precisar gastar uma rodada de ferramenta.
     try {
-      const where: any = { id_condominio: idCondominio };
-      if (!staff) {
-        const aptos = await this.getAptosDoMorador(idUser, idCondominio);
-        // Sem apartamento vinculado o morador não vê visita nenhuma — melhor
-        // um contexto vazio do que vazar o do condomínio inteiro.
-        where.id_apartamento = { in: aptos.length ? aptos : [-1] };
-      }
-      const visitas = await this.prisma.visitantes.findMany({
-        where,
-        include: { apartamento: { select: { apto: true, bloco: true } } },
-        orderBy: { created_at: 'desc' },
-        take: MAX_VISITAS_CONTEXTO,
+      const meu = await this.prisma.moradores.findFirst({
+        where: { id_user: idUser, id_condominio: idCondominio },
+        select: { nome: true, telefone: true, email: true, bloco: true, apartamento: true, tipo: true },
       });
-      if (visitas.length) {
-        const titulo = staff
-          ? '### Visitas recentes (todo o condomínio)'
-          : '### Suas visitas recentes';
-        blocos.push(titulo + '\n' + visitas.map((v) => this.formatVisita(v)).join('\n'));
+      if (meu) {
+        blocos.push(
+          '### Cadastro do usuário que está perguntando\n' +
+            `- ${meu.nome}` +
+            (meu.apartamento ? ` (apto ${meu.bloco ? meu.bloco + '-' : ''}${meu.apartamento})` : '') +
+            (meu.tipo ? ` — ${meu.tipo}` : '') +
+            (meu.telefone ? `, tel ${meu.telefone}` : ''),
+        );
       }
     } catch (e: any) {
-      this.logger.warn(`contexto visitas falhou: ${e?.message ?? e}`);
+      this.logger.warn(`contexto cadastro falhou: ${e?.message ?? e}`);
     }
 
-    // 4. Moradores — síndico/funcionário vê todos; morador só o próprio cadastro.
-    try {
-      if (staff) {
-        const moradores = await this.prisma.moradores.findMany({
-          where: { id_condominio: idCondominio },
-          select: { nome: true, bloco: true, apartamento: true, tipo: true },
-          orderBy: { nome: 'asc' },
-        });
-        if (moradores.length) {
-          const linhas = moradores.map(
-            (m) =>
-              `- ${m.nome}` +
-              (m.apartamento ? ` (apto ${m.bloco ? m.bloco + '-' : ''}${m.apartamento})` : '') +
-              (m.tipo ? ` — ${m.tipo}` : ''),
-          );
-          blocos.push('### Moradores\n' + linhas.join('\n'));
-        }
-      } else {
-        const meu = await this.prisma.moradores.findFirst({
-          where: { id_user: idUser, id_condominio: idCondominio },
-          select: { nome: true, telefone: true, email: true, bloco: true, apartamento: true },
-        });
-        if (meu) {
-          blocos.push(
-            '### Seu cadastro\n' +
-              `- ${meu.nome}` +
-              (meu.apartamento ? ` (apto ${meu.bloco ? meu.bloco + '-' : ''}${meu.apartamento})` : '') +
-              (meu.telefone ? `, tel ${meu.telefone}` : '') +
-              (meu.email ? `, ${meu.email}` : ''),
-          );
-        }
-      }
-    } catch (e: any) {
-      this.logger.warn(`contexto moradores falhou: ${e?.message ?? e}`);
-    }
+    // As listas grandes (moradores, visitas) NÃO entram mais aqui: viraram
+    // ferramentas. No condomínio #7, só o bloco de moradores dava ~3.000
+    // tokens enviados em toda pergunta, inclusive nas que não tinham nada a
+    // ver com moradores. Agora o modelo busca quando precisa.
 
     return blocos.join('\n\n');
-  }
-
-  private async getAptosDoMorador(idUser: number, idCondominio: number): Promise<number[]> {
-    if (!idUser || Number.isNaN(idUser)) return [];
-    const vinculos = await this.prisma.apartamentos_Users.findMany({
-      where: { id_user: idUser, apartamento: { id_condominio: idCondominio } },
-      select: { id_apto: true },
-    });
-    return vinculos.map((v) => v.id_apto);
-  }
-
-  private formatVisita(v: any): string {
-    const bloco = v.apartamento?.bloco ? `${v.apartamento.bloco}-` : '';
-    const partes = [`${v.nome} (apto ${bloco}${v.apartamento?.apto ?? '?'})`];
-    if (v.is_prestador) partes.push('prestador');
-    if (v.data_hora_inicio) partes.push(`agendado ${this.fmtDataHora(v.data_hora_inicio)}`);
-    partes.push(
-      v.data_entrada ? `entrada ${this.fmtDataHora(v.data_entrada)}` : 'sem entrada registrada',
-    );
-    if (v.data_saida) partes.push(`saída ${this.fmtDataHora(v.data_saida)}`);
-    return '- ' + partes.filter(Boolean).join(', ');
   }
 
   // =========================================================================
@@ -312,66 +374,79 @@ export class ChatIaService {
     }
   }
 
-  private async salvarTurno(
+  /**
+   * Grava os turnos preservando a ORDEM.
+   *
+   * O createMany insere na ordem do array, então os ids saem crescentes e o
+   * getHistoricoRecente (que ordena por id) reconstrói a conversa certa.
+   * A versão anterior disparava dois inserts concorrentes e a resposta
+   * chegava a ficar gravada ANTES da pergunta.
+   */
+  private async salvarTurnos(
     idCondominio: number,
     idUser: number,
-    papel: 'user' | 'assistant',
-    mensagem: string,
+    turnos: { papel: 'user' | 'assistant'; mensagem: string }[],
   ) {
-    if (!idUser || Number.isNaN(idUser) || !mensagem) return;
+    if (!idUser || Number.isNaN(idUser)) return;
+    const validos = turnos.filter((t) => t.mensagem);
+    if (validos.length === 0) return;
     try {
-      await this.prisma.chat_Ia_Historico.create({
-        data: { id_condominio: idCondominio, id_user: idUser, papel, mensagem },
+      await this.prisma.chat_Ia_Historico.createMany({
+        data: validos.map((t) => ({
+          id_condominio: idCondominio,
+          id_user: idUser,
+          papel: t.papel,
+          mensagem: t.mensagem,
+        })),
       });
     } catch (e: any) {
-      this.logger.warn(`não gravou turno do histórico: ${e?.message ?? e}`);
+      this.logger.warn(`não gravou turnos do histórico: ${e?.message ?? e}`);
     }
   }
 
   // =========================================================================
-  // Prompt
+  // Instrução de sistema
   // =========================================================================
 
-  private montarPrompt(args: {
+  /**
+   * O histórico e a pergunta NÃO entram mais aqui: viram turnos de conversa
+   * em `contents`. Isso deixa o modelo distinguir o que é instrução do que é
+   * fala do usuário — antes tudo era um bloco de texto só.
+   */
+  private montarInstrucaoSistema(args: {
     contextoEstruturado: string;
     trechosDocs: string[];
-    historico: { papel: string; mensagem: string }[];
-    pergunta: string;
-    papel: string;
+    papel: PapelChat;
   }): string {
     const papelDesc =
       args.papel === 'Sindico'
-        ? 'síndico (tem acesso a todos os dados do condomínio)'
+        ? 'síndico (administra o condomínio)'
         : args.papel === 'Funcionario'
           ? 'funcionário/portaria'
-          : 'morador (só pode ver os próprios dados)';
-
-    const historicoTxt = (args.historico ?? [])
-      .map((h) => `${h.papel === 'assistant' ? 'Assistente' : 'Usuário'}: ${h.mensagem}`)
-      .join('\n');
+          : 'morador (só enxerga os próprios dados e os do seu apartamento)';
 
     const docsTxt = args.trechosDocs?.length
       ? args.trechosDocs.map((t, i) => `[Documento ${i + 1}]\n${t}`).join('\n\n')
-      : '(nenhum trecho de ata/documento relevante encontrado)';
+      : '(nenhum trecho de ata/documento relevante para esta pergunta)';
+
+    const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     return `Você é o assistente virtual do condomínio no app Click. Responda em português do Brasil, de forma clara, cordial e objetiva.
 
-REGRAS:
-- Use SOMENTE as informações fornecidas no CONTEXTO abaixo. Não invente dados.
-- Se a informação não estiver no contexto, diga que não encontrou esse dado e sugira quem procurar (síndico/portaria).
-- O usuário atual é ${papelDesc}. Nunca revele dados fora do que está no contexto.
-- Seja breve. Use listas quando ajudar na leitura.
+Hoje é ${hoje}. O usuário atual é ${papelDesc}.
 
-=== CONTEXTO: DADOS ATUAIS DO CONDOMÍNIO ===
+COMO TRABALHAR:
+- Você tem FERRAMENTAS para consultar os dados do condomínio. Sempre que a pergunta pedir algo que não está no contexto abaixo, CHAME a ferramenta apropriada em vez de dizer que não sabe.
+- Para perguntas de quantidade ("quantos moradores", "quantas unidades"), use as ferramentas de contagem. Não tente contar itens de uma lista.
+- Você só enxerga as ferramentas permitidas para este perfil. Se uma consulta não for possível, explique de forma simples e sugira procurar o síndico ou a portaria — nunca afirme que o dado não existe.
+- Não invente dados. Só afirme o que veio do contexto ou do resultado das ferramentas.
+- Seja breve. Se um resultado tiver muitos itens, resuma (total + os mais relevantes) em vez de listar tudo.
+
+=== CONTEXTO FIXO: DADOS DO CONDOMÍNIO ===
 ${args.contextoEstruturado || '(sem dados estruturados disponíveis)'}
 
 === CONTEXTO: TRECHOS DE ATAS E DOCUMENTOS ===
-${docsTxt}
-
-${historicoTxt ? `=== HISTÓRICO DA CONVERSA ===\n${historicoTxt}\n` : ''}=== PERGUNTA DO USUÁRIO ===
-${args.pergunta}
-
-Resposta:`;
+${docsTxt}`;
   }
 
   // =========================================================================
@@ -476,9 +551,4 @@ Resposta:`;
     return d ? new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '';
   }
 
-  private fmtDataHora(d: Date | null | undefined): string {
-    return d
-      ? new Date(d).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
-      : '';
-  }
 }

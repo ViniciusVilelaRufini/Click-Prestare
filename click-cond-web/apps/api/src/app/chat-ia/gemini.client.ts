@@ -29,6 +29,42 @@ const GEN_MODEL = process.env['GEMINI_GEN_MODEL'] || 'gemini-3.6-flash';
  */
 const EMBED_DIMS = 768;
 
+/**
+ * 1024 cortava resposta no meio: uma pergunta sobre visitas do apartamento
+ * terminou em "...saída 04/07/2026, 15:52:57  11. TESTE SINCRON". Com
+ * ferramentas o modelo ainda pode receber listas, então o teto subiu.
+ */
+const MAX_OUTPUT_TOKENS = 4096;
+
+/** Declaração de ferramenta no formato functionDeclarations do generateContent. */
+export interface DeclaracaoFerramenta {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+export interface ChamadaFerramenta {
+  name: string;
+  args: Record<string, any>;
+}
+
+/** Um turno da conversa no formato do generateContent. */
+export interface ConteudoGemini {
+  role: 'user' | 'model';
+  parts: any[];
+}
+
+export interface RespostaGemini {
+  /** Texto final. Vazio quando o modelo pediu ferramentas em vez de responder. */
+  texto: string;
+  /** Ferramentas que o modelo quer executar nesta rodada. */
+  chamadas: ChamadaFerramenta[];
+}
+
 @Injectable()
 export class GeminiClient {
   /** true quando a env está configurada — usado para degradar sem quebrar. */
@@ -86,12 +122,52 @@ export class GeminiClient {
   async gerarResposta(prompt: string): Promise<string> {
     const data = await this.call(`models/${GEN_MODEL}:generateContent`, {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+      generationConfig: { temperature: 0.3, maxOutputTokens: MAX_OUTPUT_TOKENS },
     });
+    return this.extrair(data).texto;
+  }
+
+  /**
+   * Uma rodada de conversa com ferramentas disponíveis.
+   *
+   * Devolve OU o texto final OU a lista de ferramentas que o modelo quer
+   * executar — quem roda o laço é o service, que é onde vive a autorização.
+   * O cliente aqui não decide nada sobre permissão.
+   */
+  async gerarComFerramentas(
+    contents: ConteudoGemini[],
+    ferramentas: DeclaracaoFerramenta[],
+    instrucaoSistema?: string,
+  ): Promise<RespostaGemini> {
+    const body: Record<string, unknown> = {
+      contents,
+      generationConfig: { temperature: 0.3, maxOutputTokens: MAX_OUTPUT_TOKENS },
+    };
+    if (instrucaoSistema) {
+      body['systemInstruction'] = { parts: [{ text: instrucaoSistema }] };
+    }
+    if (ferramentas.length > 0) {
+      body['tools'] = [{ functionDeclarations: ferramentas }];
+      body['toolConfig'] = { functionCallingConfig: { mode: 'AUTO' } };
+    }
+    return this.extrair(await this.call(`models/${GEN_MODEL}:generateContent`, body));
+  }
+
+  /** Separa as partes de texto das chamadas de ferramenta na resposta. */
+  private extrair(data: any): RespostaGemini {
     const parts = data?.candidates?.[0]?.content?.parts;
-    const texto = Array.isArray(parts)
-      ? parts.map((p: any) => p.text ?? '').join('')
-      : '';
-    return texto.trim();
+    if (!Array.isArray(parts)) return { texto: '', chamadas: [] };
+
+    const texto = parts
+      .map((p: any) => p?.text ?? '')
+      .join('')
+      .trim();
+    const chamadas = parts
+      .filter((p: any) => p?.functionCall?.name)
+      .map((p: any) => ({
+        name: String(p.functionCall.name),
+        args: p.functionCall.args ?? {},
+      }));
+    return { texto, chamadas };
   }
 }
