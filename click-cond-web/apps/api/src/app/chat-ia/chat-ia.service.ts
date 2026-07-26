@@ -88,10 +88,7 @@ export class ChatIaService {
 
     // Histórico + pergunta atual no formato de conversa do Gemini.
     const contents: ConteudoGemini[] = [
-      ...historico.map((h) => ({
-        role: (h.papel === 'assistant' ? 'model' : 'user') as 'user' | 'model',
-        parts: [{ text: h.mensagem }],
-      })),
+      ...this.normalizarHistorico(historico),
       { role: 'user' as const, parts: [{ text: texto }] },
     ];
 
@@ -117,6 +114,53 @@ export class ChatIaService {
     ]);
 
     return { resposta };
+  }
+
+  /**
+   * Converte o histórico em turnos de conversa VÁLIDOS para o generateContent.
+   *
+   * A API exige que os turnos alternem user/model e comecem em user. O
+   * histórico gravado no banco não garante isso:
+   *  - linhas antigas ficaram fora de ordem (dois `assistant` seguidos), do bug
+   *    de gravação concorrente que já foi corrigido — mas os registros ruins
+   *    continuam lá;
+   *  - uma pergunta cuja resposta nunca foi gravada deixa um `user` órfão no
+   *    fim, que somado à pergunta atual vira user -> user.
+   *
+   * Qualquer uma das duas faz o Gemini responder 400 e derruba a conversa
+   * inteira. Enquanto o histórico era concatenado num único bloco de texto
+   * isso não aparecia; ao virar turnos de verdade, virou falha fatal.
+   *
+   * Normalizar na LEITURA é o que protege dos dados legados — corrigir só a
+   * escrita não desfaz o que já está gravado.
+   */
+  private normalizarHistorico(
+    historico: { papel: string; mensagem: string }[],
+  ): ConteudoGemini[] {
+    const turnos: ConteudoGemini[] = [];
+
+    for (const h of historico) {
+      const role: 'user' | 'model' = h.papel === 'assistant' ? 'model' : 'user';
+      const texto = (h.mensagem ?? '').trim();
+      if (!texto) continue;
+
+      // Não pode começar por model.
+      if (turnos.length === 0 && role === 'model') continue;
+
+      const ultimo = turnos[turnos.length - 1];
+      if (ultimo?.role === role) {
+        // Dois turnos seguidos do mesmo lado: fica o mais recente.
+        turnos[turnos.length - 1] = { role, parts: [{ text: texto }] };
+        continue;
+      }
+      turnos.push({ role, parts: [{ text: texto }] });
+    }
+
+    // A pergunta atual entra como `user`; se o histórico já termina em `user`
+    // (pergunta que ficou sem resposta), remove para não mandar user -> user.
+    if (turnos[turnos.length - 1]?.role === 'user') turnos.pop();
+
+    return turnos;
   }
 
   /**
