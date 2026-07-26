@@ -24,7 +24,17 @@ class ChatIaPage extends StatefulWidget {
 class _ChatMessage {
   final String texto;
   final bool isUser;
-  _ChatMessage(this.texto, this.isUser);
+
+  /// Quando presente, a bolha vem acompanhada do card de confirmação.
+  /// Nada foi gravado ainda: só o toque em Confirmar executa.
+  final AcaoPendenteIa? acao;
+
+  /// Estado do card: null = aguardando, texto = resultado já resolvido.
+  String? resultado;
+  bool resolvidaComSucesso = false;
+  bool confirmando = false;
+
+  _ChatMessage(this.texto, this.isUser, {this.acao});
 }
 
 class _ChatIaPageState extends State<ChatIaPage> {
@@ -85,10 +95,44 @@ class _ChatIaPageState extends State<ChatIaPage> {
 
     if (!mounted) return;
     setState(() {
-      _mensagens.add(_ChatMessage(resposta, false));
+      _mensagens.add(_ChatMessage(resposta.texto, false, acao: resposta.acao));
       _isSending = false;
     });
     _scrollToBottom();
+  }
+
+  Future<void> _confirmarAcao(_ChatMessage msg) async {
+    final acao = msg.acao;
+    if (acao == null || msg.confirmando || msg.resultado != null) return;
+
+    setState(() => msg.confirmando = true);
+    try {
+      final mensagem = await apiConfirmarAcaoChatIa(acao.id);
+      if (!mounted) return;
+      setState(() {
+        msg.resultado = mensagem;
+        msg.resolvidaComSucesso = true;
+        msg.confirmando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        // Sem marcar como resolvida: o backend devolve a proposta ao estado
+        // pendente quando a execução falha, então dá para tentar de novo.
+        msg.confirmando = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+    }
+    _scrollToBottom();
+  }
+
+  void _cancelarAcao(_ChatMessage msg) {
+    setState(() {
+      msg.resultado = 'Cancelado.';
+      msg.resolvidaComSucesso = false;
+    });
   }
 
   @override
@@ -209,7 +253,9 @@ class _ChatIaPageState extends State<ChatIaPage> {
       child: Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.md),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
+          // Bolha com card de confirmação precisa de mais largura: são linhas
+          // rótulo/valor mais dois botões lado a lado.
+          maxWidth: MediaQuery.of(context).size.width * (msg.acao != null ? 0.92 : 0.78),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -236,16 +282,142 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       ? null
                       : Border.all(color: AppColors.border(context)),
                 ),
-                child: Text(
-                  msg.texto,
-                  style: AppTypography.body(context).copyWith(
-                    color: isMe ? Colors.white : AppColors.textPrimary(context),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      msg.texto,
+                      style: AppTypography.body(context).copyWith(
+                        color: isMe ? Colors.white : AppColors.textPrimary(context),
+                      ),
+                    ),
+                    if (msg.acao != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _buildCardAcao(context, msg),
+                    ],
+                  ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Card de confirmação: mostra os dados que o assistente resolveu e só
+  /// executa depois do toque. Enquanto ninguém confirma, nada foi gravado.
+  Widget _buildCardAcao(BuildContext context, _ChatMessage msg) {
+    final acao = msg.acao!;
+    final resolvido = msg.resultado != null;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.bg(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: resolvido
+              ? (msg.resolvidaComSucesso
+                  ? AppColors.success
+                  : AppColors.border(context))
+              : AppColors.primary.withOpacity(0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                resolvido
+                    ? (msg.resolvidaComSucesso
+                        ? PhosphorIcons.checkCircle
+                        : PhosphorIcons.xCircle)
+                    : PhosphorIcons.warningCircle,
+                size: 18,
+                color: resolvido
+                    ? (msg.resolvidaComSucesso
+                        ? AppColors.success
+                        : AppColors.textTertiary(context))
+                    : AppColors.primary,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  acao.titulo,
+                  style: AppTypography.captionMedium(context)
+                      .copyWith(color: AppColors.textPrimary(context)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ...acao.itens.map(
+            (i) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 92,
+                    child: Text('${i.rotulo}:',
+                        style: AppTypography.caption(context)),
+                  ),
+                  Expanded(
+                    child: Text(
+                      i.valor,
+                      style: AppTypography.captionMedium(context)
+                          .copyWith(color: AppColors.textPrimary(context)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (resolvido)
+            Text(
+              msg.resultado!,
+              style: AppTypography.caption(context).copyWith(
+                color: msg.resolvidaComSucesso
+                    ? AppColors.success
+                    : AppColors.textTertiary(context),
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed:
+                        msg.confirmando ? null : () => _cancelarAcao(msg),
+                    child: Text('Cancelar',
+                        style: AppTypography.caption(context)),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed:
+                        msg.confirmando ? null : () => _confirmarAcao(msg),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: msg.confirmando
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('Confirmar'),
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }

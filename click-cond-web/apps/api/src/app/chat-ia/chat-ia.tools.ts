@@ -68,6 +68,25 @@ function dataHoraBR(d: Date | null | undefined): string | null {
   return d ? new Date(d).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : null;
 }
 
+/**
+ * Normaliza o `tipo` do morador.
+ *
+ * A coluna tem valor legado sujo ('morador', 'Proprietário', 'dependente',
+ * null, ''), e o groupBy cru vazava isso para o usuário: a resposta saiu como
+ * "Moradores: 24, Proprietários: 10, Dependentes: 1", como se "Morador" fosse
+ * um tipo de vínculo. Mesmo mapeamento do normalizeTipo do MobileAuthService.
+ */
+function normalizarTipo(raw: string | null | undefined): string {
+  const t = String(raw ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+  if (t === 'inquilino') return 'inquilino';
+  if (t === 'membro' || t === 'dependente') return 'membro';
+  return 'proprietario';
+}
+
 /** Cadastro do morador logado neste condomínio (para achar bloco/apto). */
 async function meuCadastro(ctx: ContextoFerramenta) {
   return ctx.prisma.moradores.findFirst({
@@ -96,9 +115,15 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
           _count: { id: true },
         }),
       ]);
+      // Agrupa os valores legados nos três tipos reais antes de responder.
+      const consolidado = new Map<string, number>();
+      for (const t of porTipo) {
+        const chave = normalizarTipo(t.tipo);
+        consolidado.set(chave, (consolidado.get(chave) ?? 0) + t._count.id);
+      }
       return {
         total,
-        por_tipo: porTipo.map((t) => ({ tipo: t.tipo ?? 'nao_informado', total: t._count.id })),
+        por_tipo: [...consolidado].map(([tipo, qtd]) => ({ tipo, total: qtd })),
       };
     },
   },

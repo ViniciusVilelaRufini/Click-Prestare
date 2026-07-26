@@ -7,5 +7,7 @@ import { FacialModule } from '../facial/facial.module';
   imports: [FacialModule],
   controllers: [AreasSociaisController],
   providers: [AreasSociaisService],
+  // Exportado para o ChatIaModule executar reservas propostas pelo assistente.
+  exports: [AreasSociaisService],
 })
 export class AreasSociaisModule {}

@@ -19,6 +19,11 @@ import {
   type ContextoFerramenta,
   type PapelChat,
 } from './chat-ia.tools';
+import { acoesPara, resolverAcao } from './chat-ia.acoes';
+import { AcaoPendenteStore, type AcaoPendente } from './acao-pendente.store';
+import { AreasSociaisService } from '../areas-sociais/areas-sociais.service';
+import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
 const CHUNK_OVERLAP = 200; // sobreposição p/ não cortar contexto no meio
@@ -54,6 +59,10 @@ export class ChatIaService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantAccessService,
     private readonly gemini: GeminiClient,
+    private readonly acoes: AcaoPendenteStore,
+    private readonly areasSociais: AreasSociaisService,
+    private readonly ocorrencias: OcorrenciasService,
+    private readonly auditoria: AuditoriaService,
   ) {}
 
   // =========================================================================
@@ -92,9 +101,17 @@ export class ChatIaService {
       { role: 'user' as const, parts: [{ text: texto }] },
     ];
 
+    // O laço registra aqui a ação proposta durante o turno, se houver.
+    const propostas: AcaoPendente[] = [];
+
     let resposta: string;
     try {
-      resposta = await this.rodarLacoDeFerramentas(contents, instrucao, ctxFerramenta);
+      resposta = await this.rodarLacoDeFerramentas(
+        contents,
+        instrucao,
+        ctxFerramenta,
+        propostas,
+      );
     } catch (e: any) {
       // O erro do provedor NUNCA vai para a tela: o app exibe o `message` da
       // resposta, e um 404 de modelo aposentado apareceu como se fosse a fala
@@ -113,7 +130,20 @@ export class ChatIaService {
       { papel: 'assistant', mensagem: resposta },
     ]);
 
-    return { resposta };
+    // Só a última proposta do turno vira card — se o modelo propôs duas coisas,
+    // confirmar as duas de uma vez confundiria o usuário.
+    const pendente = propostas[propostas.length - 1];
+    return {
+      resposta,
+      ...(pendente && {
+        acao: {
+          id: pendente.id,
+          tipo: pendente.tipo,
+          titulo: pendente.titulo,
+          itens: pendente.itens,
+        },
+      }),
+    };
   }
 
   /**
@@ -174,8 +204,17 @@ export class ChatIaService {
     contents: ConteudoGemini[],
     instrucao: string,
     ctx: ContextoFerramenta,
+    propostas: AcaoPendente[],
   ): Promise<string> {
-    const declaracoes = declaracoesPara(ctx.papel);
+    // Catálogo = leitura + ação, ambos já filtrados pelo papel.
+    const declaracoes = [
+      ...declaracoesPara(ctx.papel),
+      ...acoesPara(ctx.papel).map((a) => ({
+        name: a.nome,
+        description: a.descricao,
+        ...(a.parametros && { parameters: a.parametros }),
+      })),
+    ];
 
     for (let rodada = 0; rodada < MAX_RODADAS_FERRAMENTA; rodada++) {
       const r = await this.gemini.gerarComFerramentas(contents, declaracoes, instrucao);
@@ -193,7 +232,7 @@ export class ChatIaService {
       // ...executa e devolve os resultados.
       const partes = [];
       for (const chamada of r.chamadas) {
-        const resultado = await this.executarFerramenta(chamada, ctx);
+        const resultado = await this.executarFerramenta(chamada, ctx, propostas);
         partes.push({
           functionResponse: { name: chamada.name, response: { result: resultado } },
         });
@@ -212,7 +251,35 @@ export class ChatIaService {
    * papel não pode usar, não executa — devolve erro para ele se corrigir. É a
    * segunda camada de autorização (a primeira é o catálogo declarado).
    */
-  private async executarFerramenta(chamada: ChamadaFerramenta, ctx: ContextoFerramenta) {
+  private async executarFerramenta(
+    chamada: ChamadaFerramenta,
+    ctx: ContextoFerramenta,
+    propostas: AcaoPendente[],
+  ) {
+    // Ferramenta de ação: valida e registra a proposta, NÃO escreve no banco.
+    const acao = resolverAcao(chamada.name, ctx.papel);
+    if (acao) {
+      try {
+        const { proposta, erro } = await acao.propor(chamada.args ?? {}, ctx);
+        if (erro || !proposta) return { erro: erro ?? 'Não foi possível preparar essa ação.' };
+        const registrada = this.acoes.criar(proposta);
+        propostas.push(registrada);
+        this.logger.log(
+          `proposta ${registrada.tipo} ${registrada.id} (user#${ctx.idUser}, cond#${ctx.idCondominio})`,
+        );
+        // O modelo precisa saber que AINDA não aconteceu, para narrar certo.
+        return {
+          status: 'aguardando_confirmacao',
+          resumo: registrada.itens,
+          instrucao_para_voce:
+            'A ação NÃO foi executada. O app vai mostrar um card de confirmação. Diga ao usuário o que você preparou e peça para ele confirmar no card.',
+        };
+      } catch (e: any) {
+        this.logger.error(`proposta ${chamada.name} falhou: ${e?.message ?? e}`);
+        return { erro: 'Não foi possível preparar essa ação agora.' };
+      }
+    }
+
     const ferramenta = resolverFerramenta(chamada.name, ctx.papel);
     if (!ferramenta) {
       this.logger.warn(
@@ -230,6 +297,92 @@ export class ChatIaService {
     } catch (e: any) {
       this.logger.error(`ferramenta ${chamada.name} falhou: ${e?.message ?? e}`);
       return { erro: 'Não foi possível consultar esse dado agora.' };
+    }
+  }
+
+  // =========================================================================
+  // Execução de ação confirmada
+  // =========================================================================
+
+  /**
+   * Executa uma ação que o usuário confirmou no app.
+   *
+   * Tudo é reconferido aqui, sem confiar em nada que o modelo produziu:
+   *  - tenant e posse da proposta saem do JWT (o store compara);
+   *  - a execução delega aos services de verdade, que reaplicam as próprias
+   *    regras (o insertAgendamento, por exemplo, recusa reserva para
+   *    apartamento que não é do morador);
+   *  - marca como consumida ANTES de executar, então dois toques no botão não
+   *    viram duas reservas.
+   */
+  async confirmarAcao(idCondominio: number, idAcao: string, user: JwtPayload) {
+    if (!idAcao) throw new BadRequestException('Ação não informada.');
+    await this.tenant.assertCondominio(idCondominio, user);
+
+    const idUser = Number(user?.user?.id ?? user?.sub);
+    const { acao, erro } = this.acoes.obterParaConfirmar(idAcao, idUser, idCondominio);
+    if (erro || !acao) throw new BadRequestException(erro ?? 'Solicitação não encontrada.');
+
+    this.acoes.marcarConsumida(acao.id);
+    try {
+      const mensagem = await this.executarAcao(acao, user);
+      await this.registrarAuditoria(acao, user);
+      return { ok: true, mensagem };
+    } catch (e: any) {
+      // Falhou de verdade: devolve ao estado pendente para o usuário tentar
+      // de novo sem precisar refazer a conversa com o assistente.
+      this.acoes.liberar(acao.id);
+      this.logger.error(`execução de ${acao.tipo} ${acao.id} falhou: ${e?.message ?? e}`);
+      if (e?.response && e?.status) throw e; // repassa BadRequest/Forbidden dos services
+      throw new BadRequestException('Não foi possível concluir essa ação.');
+    }
+  }
+
+  private async executarAcao(acao: AcaoPendente, user: JwtPayload): Promise<string> {
+    const idUser = Number(user?.user?.id ?? user?.sub);
+    const papel = this.papelDe(user);
+
+    if (acao.tipo === 'reserva_area') {
+      // typeAccess 'Morador' faz o service reaplicar o isolamento por
+      // apartamento; agendarPeloSindico fica de fora de propósito, senão a
+      // reserva se auto-aprovaria pulando a fila.
+      await this.areasSociais.insertAgendamento(
+        { ...acao.payload, user: idUser },
+        idUser,
+        papel,
+        user,
+      );
+      return 'Reserva solicitada! Você acompanha o status em Áreas Sociais.';
+    }
+
+    if (acao.tipo === 'ocorrencia') {
+      await this.ocorrencias.create({
+        descricao: acao.payload.descricao,
+        tipo: acao.payload.tipo ?? undefined,
+        id_condominio: acao.idCondominio,
+        user: idUser,
+      } as any);
+      return 'Ocorrência aberta! Você acompanha as respostas em Ocorrências.';
+    }
+
+    throw new BadRequestException('Tipo de ação desconhecido.');
+  }
+
+  private async registrarAuditoria(acao: AcaoPendente, user: JwtPayload) {
+    try {
+      await this.auditoria.registrar({
+        id_condominio: acao.idCondominio,
+        usuario_nome: user?.nome ?? 'Usuário do app',
+        acao: 'CREATE',
+        modulo: acao.tipo === 'reserva_area' ? 'areas-sociais' : 'ocorrencias',
+        entidade_id: 0,
+        descricao: `${acao.titulo} via assistente IA — ${acao.itens
+          .map((i) => `${i.rotulo}: ${i.valor}`)
+          .join('; ')}`,
+      });
+    } catch (e: any) {
+      // Auditoria é registro, não pode derrubar a ação já executada.
+      this.logger.warn(`auditoria da ação ${acao.id} falhou: ${e?.message ?? e}`);
     }
   }
 

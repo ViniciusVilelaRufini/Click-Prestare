@@ -245,11 +245,59 @@ apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
   }
 }
 
-/// Envia uma pergunta ao Assistente IA (RAG) e devolve a resposta em texto.
+/// Uma linha do card de confirmação (ex: "Área" / "Churrasqueira 1").
+class AcaoItem {
+  final String rotulo;
+  final String valor;
+  AcaoItem(this.rotulo, this.valor);
+}
+
+/// Ação que o assistente preparou e aguarda o toque do usuário para executar.
+/// Nada foi gravado no banco ainda — ver POST /chat-ia/confirmar.
+class AcaoPendenteIa {
+  final String id;
+  final String tipo;
+  final String titulo;
+  final List<AcaoItem> itens;
+  AcaoPendenteIa({
+    required this.id,
+    required this.tipo,
+    required this.titulo,
+    required this.itens,
+  });
+
+  static AcaoPendenteIa? deJson(dynamic j) {
+    if (j is! Map) return null;
+    final id = j['id']?.toString();
+    if (id == null || id.isEmpty) return null;
+    final itens = (j['itens'] as List? ?? [])
+        .whereType<Map>()
+        .map((i) => AcaoItem(
+              i['rotulo']?.toString() ?? '',
+              i['valor']?.toString() ?? '',
+            ))
+        .toList();
+    return AcaoPendenteIa(
+      id: id,
+      tipo: j['tipo']?.toString() ?? '',
+      titulo: j['titulo']?.toString() ?? 'Confirmar',
+      itens: itens,
+    );
+  }
+}
+
+/// Resposta do assistente: texto e, quando ele preparou uma ação, a proposta
+/// que vira card de confirmação na tela.
+class RespostaIa {
+  final String texto;
+  final AcaoPendenteIa? acao;
+  RespostaIa(this.texto, {this.acao});
+}
+
+/// Envia uma pergunta ao Assistente IA e devolve a resposta.
 /// O escopo dos dados (síndico vê tudo, morador só o próprio) é aplicado no
 /// backend a partir do JWT; o histórico da conversa também é mantido lá.
-/// Retorna a string da resposta, ou uma mensagem de erro amigável.
-Future<String> apiPerguntarChatIa(String pergunta) async {
+Future<RespostaIa> apiPerguntarChatIa(String pergunta) async {
   final url = _buildUri('/chat-ia/perguntar');
   final body = json.encode({
     "id_condominio": Singleton.instance.id_condominio.toString(),
@@ -263,17 +311,48 @@ Future<String> apiPerguntarChatIa(String pergunta) async {
     ).timeout(const Duration(seconds: 60));
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
-      return (parsed["resposta"] ?? "").toString();
+      return RespostaIa(
+        (parsed["resposta"] ?? "").toString(),
+        acao: AcaoPendenteIa.deJson(parsed["acao"]),
+      );
     }
     try {
       final parsed = jsonDecode(response.body);
-      return parsed["message"]?.toString() ??
-          "Não consegui responder agora. Tente novamente.";
+      return RespostaIa(parsed["message"]?.toString() ??
+          "Não consegui responder agora. Tente novamente.");
     } catch (_) {
-      return "Não consegui responder agora. Tente novamente.";
+      return RespostaIa("Não consegui responder agora. Tente novamente.");
     }
   } catch (e) {
     print('[apiPerguntarChatIa] Erro: $e');
-    return "Falha de comunicação com o servidor. Verifique sua conexão.";
+    return RespostaIa("Falha de comunicação com o servidor. Verifique sua conexão.");
+  }
+}
+
+/// Confirma uma ação proposta pelo assistente. Só aqui a escrita acontece.
+/// Devolve a mensagem de sucesso, ou lança a mensagem de erro do backend.
+Future<String> apiConfirmarAcaoChatIa(String idAcao) async {
+  final url = _buildUri('/chat-ia/confirmar');
+  final body = json.encode({
+    "id_condominio": Singleton.instance.id_condominio.toString(),
+    "id_acao": idAcao,
+  });
+  try {
+    final response = await ApiClient.post(
+      url,
+      headers: _authHeaders(withContentType: true),
+      body: body,
+    ).timeout(const Duration(seconds: 30));
+    final parsed = jsonDecode(response.body);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return (parsed["mensagem"] ?? "Pronto!").toString();
+    }
+    final msg = parsed["message"];
+    throw (msg is List ? msg.join(', ') : msg?.toString()) ??
+        "Não foi possível concluir.";
+  } catch (e) {
+    if (e is String) rethrow;
+    print('[apiConfirmarAcaoChatIa] Erro: $e');
+    throw "Falha de comunicação com o servidor.";
   }
 }

@@ -30,6 +30,26 @@ export class ChatIaController {
     );
   }
 
+  /**
+   * Executa a ação que o assistente propôs, depois do toque em Confirmar.
+   *
+   * A proposta carrega dono e condomínio; o service compara com o JWT antes
+   * de executar. O corpo só diz QUAL proposta — nunca o que fazer.
+   */
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post('confirmar')
+  @HttpCode(200)
+  confirmar(
+    @Body() body: { id_condominio?: string | number; id_acao?: string },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.confirmarAcao(
+      Number(body?.id_condominio),
+      String(body?.id_acao ?? ''),
+      payload,
+    );
+  }
+
   // Reprocessa atas/documentos para a busca semântica. Só síndico.
   @Throttle({ default: { limit: 2, ttl: 60_000 } })
   @Post('reindex')
