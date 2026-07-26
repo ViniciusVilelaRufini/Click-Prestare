@@ -24,6 +24,8 @@ import { AcaoPendenteStore, type AcaoPendente } from './acao-pendente.store';
 import { AreasSociaisService } from '../areas-sociais/areas-sociais.service';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { VisitantesService } from '../visitantes/visitantes.service';
+import type { CartaoAcao } from './acao-pendente.store';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
 const CHUNK_OVERLAP = 200; // sobreposição p/ não cortar contexto no meio
@@ -63,6 +65,7 @@ export class ChatIaService {
     private readonly areasSociais: AreasSociaisService,
     private readonly ocorrencias: OcorrenciasService,
     private readonly auditoria: AuditoriaService,
+    private readonly visitantes: VisitantesService,
   ) {}
 
   // =========================================================================
@@ -130,20 +133,22 @@ export class ChatIaService {
       { papel: 'assistant', mensagem: resposta },
     ]);
 
-    // Só a última proposta do turno vira card — se o modelo propôs duas coisas,
-    // confirmar as duas de uma vez confundiria o usuário.
+    // Um card por turno: dois cards de uma vez confundiriam o usuário.
+    // Proposta confirmável ganha da informativa — ela é que exige decisão.
     const pendente = propostas[propostas.length - 1];
-    return {
-      resposta,
-      ...(pendente && {
-        acao: {
+    const informativo = ctxFerramenta.cartoes[ctxFerramenta.cartoes.length - 1];
+
+    const acao: CartaoAcao | undefined = pendente
+      ? {
           id: pendente.id,
           tipo: pendente.tipo,
           titulo: pendente.titulo,
           itens: pendente.itens,
-        },
-      }),
-    };
+          confirmavel: true,
+        }
+      : informativo;
+
+    return { resposta, ...(acao && { acao }) };
   }
 
   /**
@@ -365,6 +370,17 @@ export class ChatIaService {
       return 'Ocorrência aberta! Você acompanha as respostas em Ocorrências.';
     }
 
+    if (acao.tipo === 'visitante') {
+      // assertUsuarioNoCondominio é a mesma checagem que a rota REST faz antes
+      // de criar — o vínculo é reconferido, não herdado da proposta.
+      await this.visitantes.assertUsuarioNoCondominio(acao.idCondominio, user);
+      await this.visitantes.create(
+        { ...acao.payload, id_condominio: acao.idCondominio } as any,
+        user,
+      );
+      return 'Visitante cadastrado! Ele já aparece em Visitantes com o código de acesso.';
+    }
+
     throw new BadRequestException('Tipo de ação desconhecido.');
   }
 
@@ -403,6 +419,7 @@ export class ChatIaService {
       staff: papel === 'Sindico' || papel === 'Funcionario',
       aptos: vinculos.map((v) => v.id_apto),
       prisma: this.prisma,
+      cartoes: [],
     };
   }
 

@@ -6,7 +6,11 @@ import 'package:click/utils/local_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'resposta_formatada.dart';
+import 'telas_app.dart';
 
 /// Assistente IA do condomínio (RAG). Faz perguntas em linguagem natural sobre
 /// atas, informações gerais, funcionários, visitantes e moradores. A resposta é
@@ -135,6 +139,57 @@ class _ChatIaPageState extends State<ChatIaPage> {
       msg.resultado = 'Cancelado.';
       msg.resolvidaComSucesso = false;
     });
+  }
+
+  /// Executa o efeito de um botão do card. Tudo aqui acontece só no app —
+  /// nenhum destes efeitos escreve no servidor.
+  Future<void> _acionarBotao(AcaoBotao botao) async {
+    switch (botao.efeito) {
+      case 'copiar':
+        await Clipboard.setData(ClipboardData(text: botao.valor));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${botao.rotulo.replaceFirst('Copiar ', '')} copiado!'),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        break;
+
+      case 'abrir_url':
+        final uri = Uri.tryParse(botao.valor);
+        if (uri == null) return;
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        break;
+
+      case 'abrir_tela':
+        final tela = telaPorChave(botao.valor);
+        if (tela == null) {
+          // Chave que este build do app não conhece (backend mais novo).
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Abra essa tela pelo menu do aplicativo.'),
+            ),
+          );
+          return;
+        }
+        if (!mounted) return;
+        Navigator.push(context, MaterialPageRoute(builder: (_) => tela));
+        break;
+    }
+  }
+
+  IconData _iconeBotao(String efeito) {
+    switch (efeito) {
+      case 'copiar':
+        return PhosphorIcons.copy;
+      case 'abrir_url':
+        return PhosphorIcons.arrowSquareOut;
+      default:
+        return PhosphorIcons.arrowRight;
+    }
   }
 
   @override
@@ -332,7 +387,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
               ? (msg.resolvidaComSucesso
                   ? AppColors.success
                   : AppColors.border(context))
-              : AppColors.primary.withOpacity(0.4),
+              : AppColors.primary.withOpacity(acao.confirmavel ? 0.4 : 0.25),
         ),
       ),
       child: Column(
@@ -345,7 +400,12 @@ class _ChatIaPageState extends State<ChatIaPage> {
                     ? (msg.resolvidaComSucesso
                         ? PhosphorIcons.checkCircle
                         : PhosphorIcons.xCircle)
-                    : PhosphorIcons.warningCircle,
+                    // Confirmável pede decisão; informativo é só atalho.
+                    : (acao.confirmavel
+                        ? PhosphorIcons.warningCircle
+                        : (acao.tipo == 'pagamento'
+                            ? PhosphorIcons.creditCard
+                            : PhosphorIcons.arrowRight)),
                 size: 18,
                 color: resolvido
                     ? (msg.resolvidaComSucesso
@@ -396,7 +456,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                     : AppColors.textTertiary(context),
               ),
             )
-          else
+          else if (acao.confirmavel)
             Row(
               children: [
                 Expanded(
@@ -427,6 +487,27 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   ),
                 ),
               ],
+            )
+          else
+            // Card informativo: atalhos que agem só no app (copiar, abrir
+            // link, abrir tela). Empilhados porque os rótulos são longos.
+            ...acao.botoes.map(
+              (b) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _acionarBotao(b),
+                    icon: Icon(_iconeBotao(b.efeito), size: 16),
+                    label: Text(b.rotulo, style: AppTypography.caption(context)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      alignment: Alignment.centerLeft,
+                    ),
+                  ),
+                ),
+              ),
             ),
         ],
       ),

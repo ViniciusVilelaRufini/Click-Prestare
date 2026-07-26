@@ -36,6 +36,7 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       staff: false,
       aptos: [10],
       prisma,
+      cartoes: [],
       ...over,
     } as ContextoFerramenta;
   }
@@ -181,6 +182,97 @@ describe('Ferramentas do Assistente IA — autorização', () => {
         c,
       );
       expect(r.erro).toBeDefined();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  describe('como_pagar_conta', () => {
+    function pegar(nome: string) {
+      const f = FERRAMENTAS_LEITURA.find((x) => x.nome === nome);
+      if (!f) throw new Error(`ferramenta ${nome} nao encontrada`);
+      return f;
+    }
+
+    const cobranca = {
+      id: 9, nome: 'Taxa Condominial', valor: 450, data_vencimento: new Date('2026-08-10'),
+      pago: 0, url_boleto: 'https://boleto/9', pix_copia_cola: 'PIX123', linha_digitavel: '3419...',
+    };
+
+    it('só encontra cobrança do próprio usuário e condomínio', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findFirst = jest.fn(async ({ where }: any) =>
+        where.id === 9 && where.id_usuario === 47 && where.id_condominio === 1 ? cobranca : null,
+      );
+      await pegar('como_pagar_conta').executar({ id_cobranca: 9, id_usuario: 999 }, c);
+      const arg = (c.prisma as any).financeiro.findFirst.mock.calls[0][0];
+      expect(arg.where.id_usuario).toBe(47);
+      expect(arg.where.id_condominio).toBe(1);
+    });
+
+    it('emite card com os meios de pagamento disponíveis', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findFirst = jest.fn(async () => cobranca);
+      await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
+      expect(c.cartoes).toHaveLength(1);
+      const card = c.cartoes[0];
+      expect(card.confirmavel).toBe(false);
+      expect(card.botoes?.map((b) => b.efeito)).toEqual(['copiar', 'copiar', 'abrir_url']);
+      expect(card.botoes?.[0].valor).toBe('PIX123');
+    });
+
+    it('sem meio de pagamento, oferece abrir a tela do Financeiro', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findFirst = jest.fn(async () => ({
+        ...cobranca, url_boleto: null, pix_copia_cola: null, linha_digitavel: null,
+      }));
+      await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
+      expect(c.cartoes[0].botoes).toEqual([
+        { rotulo: 'Abrir Financeiro', efeito: 'abrir_tela', valor: 'financeiro' },
+      ]);
+    });
+
+    it('não emite card para cobrança já paga', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findFirst = jest.fn(async () => ({ ...cobranca, pago: 1 }));
+      const r: any = await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
+      expect(r.ja_paga).toBe(true);
+      expect(c.cartoes).toHaveLength(0);
+    });
+
+    it('cobrança de outro usuário não é encontrada', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findFirst = jest.fn(async () => null);
+      const r: any = await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
+      expect(r.erro).toBeDefined();
+      expect(c.cartoes).toHaveLength(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  describe('abrir_tela_do_app', () => {
+    const f = () => FERRAMENTAS_LEITURA.find((x) => x.nome === 'abrir_tela_do_app')!;
+
+    it('emite card de navegação para tela conhecida', async () => {
+      const c = ctx();
+      await f().executar({ tela: 'visitantes', motivo: 'cadastrar o visitante' }, c);
+      expect(c.cartoes[0].tipo).toBe('navegacao');
+      expect(c.cartoes[0].confirmavel).toBe(false);
+      expect(c.cartoes[0].botoes?.[0]).toEqual({
+        rotulo: 'Abrir Visitantes', efeito: 'abrir_tela', valor: 'visitantes',
+      });
+    });
+
+    it('recusa tela desconhecida sem emitir card', async () => {
+      const c = ctx();
+      const r: any = await f().executar({ tela: 'painel_secreto' }, c);
+      expect(r.erro).toBeDefined();
+      expect(c.cartoes).toHaveLength(0);
+    });
+
+    it('aceita a chave em maiúsculas/com espaço', async () => {
+      const c = ctx();
+      await f().executar({ tela: '  Financeiro ' }, c);
+      expect(c.cartoes[0].botoes?.[0].valor).toBe('financeiro');
     });
   });
 

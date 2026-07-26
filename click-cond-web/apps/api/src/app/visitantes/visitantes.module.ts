@@ -8,5 +8,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
   imports: [FacialModule, AuditoriaModule],
   controllers: [VisitantesController, VisitantesGlobalController],
   providers: [VisitantesService],
+  // Exportado para o ChatIaModule cadastrar visitantes propostos pelo assistente.
+  exports: [VisitantesService],
 })
 export class VisitantesModule {}

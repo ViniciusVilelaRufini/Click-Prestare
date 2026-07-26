@@ -1,5 +1,6 @@
 import type { PrismaService } from '../prisma/prisma.service';
 import type { DeclaracaoFerramenta } from './gemini.client';
+import type { CartaoAcao } from './acao-pendente.store';
 
 /**
  * Ferramentas de LEITURA do Assistente IA.
@@ -33,7 +34,37 @@ export interface ContextoFerramenta {
   /** Apartamentos do usuário NESTE condomínio. Vazio = morador sem vínculo. */
   aptos: number[];
   prisma: PrismaService;
+  /**
+   * Cards emitidos durante o turno. Ferramentas de leitura empurram aqui
+   * quando o resultado tem uma ação associada (pagar, abrir tela) — o service
+   * anexa o último à resposta.
+   */
+  cartoes: CartaoAcao[];
 }
+
+/**
+ * Telas do app que o assistente pode abrir.
+ *
+ * É o que faz o sistema todo conversar entre si: quando não existe ferramenta
+ * para executar algo, o assistente ainda leva o morador ao lugar certo em vez
+ * de responder "não consigo". As chaves batem com o menu de my_condominium.
+ */
+export const TELAS_APP: Record<string, string> = {
+  areas_sociais: 'Áreas Sociais',
+  financeiro: 'Financeiro',
+  encomendas: 'Minhas Encomendas',
+  assembleias: 'Assembleias e Votações',
+  enquetes: 'Enquetes',
+  comunicados: 'Comunicados',
+  ocorrencias: 'Ocorrências',
+  manutencoes: 'Manutenções Programadas',
+  prestadores: 'Prestadores de Serviço',
+  mudancas: 'Agendar Mudança',
+  visitantes: 'Visitantes',
+  apartamento: 'Meu Apartamento',
+  veiculos: 'Veículos e Vagas',
+  documentos: 'Documentos',
+};
 
 export interface FerramentaLeitura {
   nome: string;
@@ -227,20 +258,145 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
         take: LIMITE_LISTA,
       });
       const hoje = new Date();
+      const cobrancas = lista.map((f) => ({
+        id: f.id,
+        descricao: f.nome,
+        valor: f.valor ? Number(f.valor) : null,
+        vencimento: dataBR(f.data_vencimento),
+        pago: f.pago === 1,
+        vencida:
+          f.pago !== 1 && !!f.data_vencimento && new Date(f.data_vencimento) < hoje,
+        status: f.status,
+        tem_boleto: !!f.url_boleto,
+        tem_pix: !!f.pix_copia_cola,
+      }));
+
+      // Sem esta dica o modelo apenas listava e dizia "me avise se quiser
+      // pagar", cobrando um segundo turno do morador. Quem pergunta por conta
+      // pendente quase sempre quer pagar — o meio de pagamento vem junto.
+      const emAberto = cobrancas.filter((c) => !c.pago);
+      const dica =
+        emAberto.length === 1
+          ? `Há uma cobrança em aberto. CHAME AGORA como_pagar_conta com id_cobranca=${emAberto[0].id} para já oferecer o pagamento, e depois responda em uma frase.`
+          : emAberto.length > 1
+            ? `Há ${emAberto.length} cobranças em aberto. Liste-as e CHAME como_pagar_conta para a mais vencida (id=${emAberto[0].id}), oferecendo pagar as outras em seguida.`
+            : undefined;
+
       return {
-        total: lista.length,
-        cobrancas: lista.map((f) => ({
-          id: f.id,
-          descricao: f.nome,
-          valor: f.valor ? Number(f.valor) : null,
-          vencimento: dataBR(f.data_vencimento),
-          pago: f.pago === 1,
-          vencida:
-            f.pago !== 1 && !!f.data_vencimento && new Date(f.data_vencimento) < hoje,
-          status: f.status,
-          tem_boleto: !!f.url_boleto,
-          tem_pix: !!f.pix_copia_cola,
-        })),
+        total: cobrancas.length,
+        cobrancas,
+        ...(dica && { instrucao_para_voce: dica }),
+      };
+    },
+  },
+
+  {
+    nome: 'como_pagar_conta',
+    descricao:
+      'Mostra ao morador COMO pagar uma cobrança específica: devolve um card com os atalhos de copiar o código PIX, copiar a linha digitável e abrir o boleto. Use sempre que ele quiser pagar, quitar ou pedir a segunda via. Pegue o id em meus_boletos antes.',
+    parametros: {
+      type: 'object',
+      properties: {
+        id_cobranca: { type: 'number', description: 'id da cobrança (vem de meus_boletos)' },
+      },
+      required: ['id_cobranca'],
+    },
+    papeis: TODOS,
+    async executar(args, ctx) {
+      const id = Number(args.id_cobranca);
+      if (!id || Number.isNaN(id)) return { erro: 'Informe qual cobrança.' };
+
+      // Escopo pelo JWT: a cobrança tem que ser do usuário e do condomínio.
+      const f = await ctx.prisma.financeiro.findFirst({
+        where: { id, id_condominio: ctx.idCondominio, id_usuario: ctx.idUser },
+        select: {
+          id: true, nome: true, valor: true, data_vencimento: true, pago: true,
+          url_boleto: true, pix_copia_cola: true, linha_digitavel: true,
+        },
+      });
+      if (!f) return { erro: 'Cobrança não encontrada.' };
+      if (f.pago === 1) {
+        return { ja_paga: true, descricao: f.nome, observacao: 'Essa cobrança já está paga.' };
+      }
+
+      const botoes = [];
+      if (f.pix_copia_cola) {
+        botoes.push({ rotulo: 'Copiar código PIX', efeito: 'copiar' as const, valor: f.pix_copia_cola });
+      }
+      if (f.linha_digitavel) {
+        botoes.push({ rotulo: 'Copiar linha digitável', efeito: 'copiar' as const, valor: f.linha_digitavel });
+      }
+      if (f.url_boleto) {
+        botoes.push({ rotulo: 'Abrir boleto', efeito: 'abrir_url' as const, valor: f.url_boleto });
+      }
+
+      // Sem meio de pagamento cadastrado, leva para a tela do financeiro em
+      // vez de deixar o morador sem saída.
+      if (botoes.length === 0) {
+        botoes.push({ rotulo: 'Abrir Financeiro', efeito: 'abrir_tela' as const, valor: 'financeiro' });
+      }
+
+      ctx.cartoes.push({
+        tipo: 'pagamento',
+        titulo: 'Pagar cobrança',
+        confirmavel: false,
+        itens: [
+          { rotulo: 'Cobrança', valor: f.nome ?? 'Cobrança' },
+          { rotulo: 'Valor', valor: f.valor ? `R$ ${Number(f.valor).toFixed(2).replace('.', ',')}` : '—' },
+          { rotulo: 'Vencimento', valor: dataBR(f.data_vencimento) ?? '—' },
+        ],
+        botoes,
+      });
+
+      return {
+        preparado: true,
+        meios_disponiveis: botoes.map((b) => b.rotulo),
+        instrucao_para_voce:
+          'O app já está mostrando um card com os botões de pagamento. Diga em uma frase curta o que o morador deve fazer, sem repetir valor e vencimento.',
+      };
+    },
+  },
+
+  {
+    nome: 'abrir_tela_do_app',
+    descricao:
+      `Oferece ao usuário um atalho para abrir uma tela do aplicativo. Use quando ele quiser fazer algo que você não consegue executar por ferramenta — assim ele chega ao lugar certo em vez de ouvir que não dá. Telas: ${Object.keys(TELAS_APP).join(', ')}.`,
+    parametros: {
+      type: 'object',
+      properties: {
+        tela: {
+          type: 'string',
+          description: `Chave da tela. Uma de: ${Object.keys(TELAS_APP).join(', ')}`,
+        },
+        motivo: {
+          type: 'string',
+          description: 'O que o usuário vai fazer lá, em poucas palavras (ex: "cadastrar o visitante")',
+        },
+      },
+      required: ['tela'],
+    },
+    papeis: TODOS,
+    async executar(args, ctx) {
+      const chave = String(args.tela ?? '').trim().toLowerCase();
+      const nome = TELAS_APP[chave];
+      if (!nome) {
+        return {
+          erro: `Tela desconhecida. Use uma de: ${Object.keys(TELAS_APP).join(', ')}.`,
+        };
+      }
+      const motivo = String(args.motivo ?? '').trim();
+      ctx.cartoes.push({
+        tipo: 'navegacao',
+        titulo: motivo ? `Abrir ${nome}` : nome,
+        confirmavel: false,
+        itens: motivo ? [{ rotulo: 'Para', valor: motivo }] : [],
+        botoes: [{ rotulo: `Abrir ${nome}`, efeito: 'abrir_tela', valor: chave }],
+      });
+      return {
+        preparado: true,
+        tela: nome,
+        instrucao_para_voce:
+          'O app já está mostrando o botão de atalho. Diga em uma frase que ele pode abrir a tela por ali.',
       };
     },
   },

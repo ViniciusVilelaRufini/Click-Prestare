@@ -214,6 +214,78 @@ export const FERRAMENTAS_ACAO: FerramentaAcao[] = [
   },
 ];
 
+// -----------------------------------------------------------------------
+FERRAMENTAS_ACAO.push({
+  nome: 'propor_visitante',
+  descricao:
+    'Prepara o cadastro de um visitante ou prestador para o apartamento do usuário, para ele confirmar. NÃO cadastra sozinha. Use quando ele disser que vai receber alguém. Se não souber a data, pergunte antes; se ele disser "hoje", converta para a data de hoje.',
+  parametros: {
+    type: 'object',
+    properties: {
+      nome: { type: 'string', description: 'Nome completo do visitante' },
+      documento: { type: 'string', description: 'CPF ou RG, se o usuário informar' },
+      data: { type: 'string', description: 'Data da visita, formato AAAA-MM-DD' },
+      hora: { type: 'string', description: 'Hora prevista, formato HH:MM' },
+      prestador: {
+        type: 'boolean',
+        description: 'true se for prestador de serviço (diarista, técnico), false se for visita comum',
+      },
+    },
+    required: ['nome', 'data'],
+  },
+  papeis: TODOS,
+  async propor(args, ctx) {
+    const nome = String(args.nome ?? '').trim();
+    if (nome.length < 3) return { erro: 'Pergunte o nome completo do visitante.' };
+
+    const data = lerData(args.data);
+    if (!data) return { erro: 'Data inválida. Pergunte a data e use o formato AAAA-MM-DD.' };
+
+    const agora = new Date();
+    const hojeUtc = Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate());
+    if (data.dia.getTime() < hojeUtc) {
+      return { erro: 'Essa data já passou. Confirme a data com o usuário.' };
+    }
+
+    if (ctx.aptos.length === 0) {
+      return { erro: 'O usuário não tem apartamento vinculado neste condomínio.' };
+    }
+
+    // Hora é opcional; sem ela vale o começo do dia.
+    const min = args.hora !== undefined ? lerHora(args.hora) : 0;
+    if (min === null) return { erro: 'Horário inválido. Use HH:MM.' };
+
+    const prestador = args.prestador === true;
+    const documento = String(args.documento ?? '').trim();
+
+    const itens: ItemResumo[] = [
+      { rotulo: prestador ? 'Prestador' : 'Visitante', valor: nome },
+      { rotulo: 'Data', valor: data.br },
+    ];
+    if (min > 0) itens.push({ rotulo: 'Hora', valor: hhmm(min) });
+    if (documento) itens.push({ rotulo: 'Documento', valor: documento });
+
+    return {
+      proposta: {
+        tipo: 'visitante' as TipoAcao,
+        idUser: ctx.idUser,
+        idCondominio: ctx.idCondominio,
+        titulo: prestador ? 'Confirmar prestador' : 'Confirmar visitante',
+        itens,
+        payload: {
+          nome,
+          doc_identificacao: documento || null,
+          // O service espera data-hora local; monta a partir do dia + hora.
+          data_hora_inicio: `${data.br.split('/').reverse().join('-')} ${hhmm(min)}:00`,
+          is_visitante: prestador ? 0 : 1,
+          is_prestador: prestador ? 1 : 0,
+          id_apartamento: ctx.aptos[0],
+        },
+      },
+    };
+  },
+});
+
 export function acoesPara(papel: PapelChat): FerramentaAcao[] {
   return FERRAMENTAS_ACAO.filter((f) => f.papeis.includes(papel));
 }

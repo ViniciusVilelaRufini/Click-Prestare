@@ -14,12 +14,45 @@ import { randomUUID } from 'crypto';
  * API rodar em várias instâncias, isso precisa virar tabela.
  */
 
-export type TipoAcao = 'reserva_area' | 'ocorrencia';
+export type TipoAcao = 'reserva_area' | 'ocorrencia' | 'visitante';
 
-/** Linha do card de confirmação. Genérico para o app renderizar sem saber o tipo. */
+/** Linha do card. Genérico para o app renderizar sem saber o tipo. */
 export interface ItemResumo {
   rotulo: string;
   valor: string;
+}
+
+/**
+ * O que o botão faz no app. Só estes três efeitos, de propósito: com eles o
+ * assistente alcança qualquer função do sistema sem precisar de um card novo
+ * a cada feature.
+ *
+ *  copiar     → copia `valor` para a área de transferência (PIX, código)
+ *  abrir_url  → abre `valor` no navegador (boleto, comprovante)
+ *  abrir_tela → navega para uma tela do app (`valor` = chave da tela)
+ */
+export type EfeitoBotao = 'copiar' | 'abrir_url' | 'abrir_tela';
+
+export interface BotaoCartao {
+  rotulo: string;
+  efeito: EfeitoBotao;
+  valor: string;
+}
+
+/**
+ * Card devolvido junto da resposta.
+ *
+ * `confirmavel` separa os dois mundos: true mostra Confirmar/Cancelar e exige
+ * `id` (proposta guardada no store, executada por /chat-ia/confirmar); false é
+ * um card informativo com atalhos, que não escreve nada.
+ */
+export interface CartaoAcao {
+  id?: string;
+  tipo: string;
+  titulo: string;
+  itens: ItemResumo[];
+  confirmavel: boolean;
+  botoes?: BotaoCartao[];
 }
 
 export interface AcaoPendente {

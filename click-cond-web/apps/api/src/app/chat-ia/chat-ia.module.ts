@@ -8,6 +8,7 @@ import { TenantAccessModule } from '../auth/tenant-access.module';
 import { AreasSociaisModule } from '../areas-sociais/areas-sociais.module';
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
+import { VisitantesModule } from '../visitantes/visitantes.module';
 
 @Module({
   // As ações confirmadas executam pelos services de verdade, não por queries
@@ -18,6 +19,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
     AreasSociaisModule,
     OcorrenciasModule,
     AuditoriaModule,
+    VisitantesModule,
   ],
   controllers: [ChatIaController],
   providers: [ChatIaService, GeminiClient, AcaoPendenteStore],

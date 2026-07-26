@@ -252,24 +252,46 @@ class AcaoItem {
   AcaoItem(this.rotulo, this.valor);
 }
 
-/// Ação que o assistente preparou e aguarda o toque do usuário para executar.
-/// Nada foi gravado no banco ainda — ver POST /chat-ia/confirmar.
+/// Botão do card. `efeito` diz o que fazer com `valor`:
+///   copiar     -> área de transferência (PIX, linha digitável)
+///   abrir_url  -> navegador (boleto, comprovante)
+///   abrir_tela -> tela do app (valor = chave em TELAS_APP no backend)
+class AcaoBotao {
+  final String rotulo;
+  final String efeito;
+  final String valor;
+  AcaoBotao(this.rotulo, this.efeito, this.valor);
+}
+
+/// Card que acompanha a resposta do assistente.
+///
+/// Dois formatos no mesmo widget: [confirmavel] = true mostra Confirmar/
+/// Cancelar e executa via /chat-ia/confirmar; false é informativo, com
+/// atalhos que agem só no app (copiar, abrir link, abrir tela).
 class AcaoPendenteIa {
-  final String id;
+  final String? id;
   final String tipo;
   final String titulo;
   final List<AcaoItem> itens;
+  final bool confirmavel;
+  final List<AcaoBotao> botoes;
+
   AcaoPendenteIa({
-    required this.id,
+    this.id,
     required this.tipo,
     required this.titulo,
     required this.itens,
+    required this.confirmavel,
+    required this.botoes,
   });
 
   static AcaoPendenteIa? deJson(dynamic j) {
     if (j is! Map) return null;
+    final confirmavel = j['confirmavel'] == true;
     final id = j['id']?.toString();
-    if (id == null || id.isEmpty) return null;
+    // Card confirmável sem id não tem como ser executado — descarta.
+    if (confirmavel && (id == null || id.isEmpty)) return null;
+
     final itens = (j['itens'] as List? ?? [])
         .whereType<Map>()
         .map((i) => AcaoItem(
@@ -277,11 +299,26 @@ class AcaoPendenteIa {
               i['valor']?.toString() ?? '',
             ))
         .toList();
+    final botoes = (j['botoes'] as List? ?? [])
+        .whereType<Map>()
+        .map((b) => AcaoBotao(
+              b['rotulo']?.toString() ?? '',
+              b['efeito']?.toString() ?? '',
+              b['valor']?.toString() ?? '',
+            ))
+        .where((b) => b.rotulo.isNotEmpty && b.valor.isNotEmpty)
+        .toList();
+
+    // Card sem nada acionável não vira UI.
+    if (!confirmavel && botoes.isEmpty) return null;
+
     return AcaoPendenteIa(
       id: id,
       tipo: j['tipo']?.toString() ?? '',
-      titulo: j['titulo']?.toString() ?? 'Confirmar',
+      titulo: j['titulo']?.toString() ?? 'Ação',
       itens: itens,
+      confirmavel: confirmavel,
+      botoes: botoes,
     );
   }
 }
