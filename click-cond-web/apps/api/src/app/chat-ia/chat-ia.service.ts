@@ -184,11 +184,11 @@ export class ChatIaService {
         return r.texto || 'Não consegui formular uma resposta para isso.';
       }
 
-      // Registra a intenção do modelo no histórico da chamada...
-      contents.push({
-        role: 'model',
-        parts: r.chamadas.map((c) => ({ functionCall: { name: c.name, args: c.args } })),
-      });
+      // Devolve o turno do modelo VERBATIM. Remontar as parts a partir de
+      // { name, args } descarta o thought_signature que o Gemini 3.x embute no
+      // functionCall, e a rodada seguinte morre com 400
+      // "Function call is missing a thought_signature in functionCall parts".
+      contents.push({ role: 'model', parts: r.partesModelo });
 
       // ...executa e devolve os resultados.
       const partes = [];

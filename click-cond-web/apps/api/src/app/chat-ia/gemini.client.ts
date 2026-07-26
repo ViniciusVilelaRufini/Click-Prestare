@@ -72,6 +72,15 @@ export interface RespostaGemini {
   texto: string;
   /** Ferramentas que o modelo quer executar nesta rodada. */
   chamadas: ChamadaFerramenta[];
+  /**
+   * As `parts` do turno do modelo, EXATAMENTE como vieram.
+   *
+   * Precisam ser devolvidas verbatim na próxima rodada. Os modelos Gemini 3.x
+   * embutem um `thought_signature` (e um `id`) dentro do functionCall; montar
+   * um `{ name, args }` novo perde esses campos e a API responde 400:
+   * "Function call is missing a thought_signature in functionCall parts".
+   */
+  partesModelo: any[];
 }
 
 @Injectable()
@@ -162,10 +171,16 @@ export class GeminiClient {
     return this.extrair(await this.call(`models/${GEN_MODEL}:generateContent`, body));
   }
 
-  /** Separa as partes de texto das chamadas de ferramenta na resposta. */
+  /**
+   * Separa texto e chamadas de ferramenta, PRESERVANDO as parts originais.
+   *
+   * `chamadas` serve só para o service saber o que executar; o que volta para
+   * a API na rodada seguinte é `partesModelo`, sem reconstrução — ver o
+   * comentário em RespostaGemini sobre o thought_signature.
+   */
   private extrair(data: any): RespostaGemini {
     const parts = data?.candidates?.[0]?.content?.parts;
-    if (!Array.isArray(parts)) return { texto: '', chamadas: [] };
+    if (!Array.isArray(parts)) return { texto: '', chamadas: [], partesModelo: [] };
 
     const texto = parts
       .map((p: any) => p?.text ?? '')
@@ -177,6 +192,6 @@ export class GeminiClient {
         name: String(p.functionCall.name),
         args: p.functionCall.args ?? {},
       }));
-    return { texto, chamadas };
+    return { texto, chamadas, partesModelo: parts };
   }
 }
