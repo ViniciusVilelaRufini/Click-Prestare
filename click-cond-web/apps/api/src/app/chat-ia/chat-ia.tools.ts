@@ -38,7 +38,15 @@ export interface ContextoFerramenta {
 export interface FerramentaLeitura {
   nome: string;
   descricao: string;
-  parametros: DeclaracaoFerramenta['parameters'];
+  /**
+   * OMITIR quando a ferramenta não recebe argumento.
+   *
+   * O Gemini valida que todo schema OBJECT tenha `properties` não-vazio e
+   * responde 400 com "function_declarations[N].parameters.properties: should
+   * be non-empty for OBJECT type". E a recusa derruba a REQUISIÇÃO INTEIRA,
+   * não só aquela ferramenta — foi o que quebrou o assistente inteiro.
+   */
+  parametros?: DeclaracaoFerramenta['parameters'];
   /** Papéis que enxergam esta ferramenta no catálogo. */
   papeis: PapelChat[];
   executar(args: Record<string, any>, ctx: ContextoFerramenta): Promise<unknown>;
@@ -46,8 +54,6 @@ export interface FerramentaLeitura {
 
 const TODOS: PapelChat[] = ['Sindico', 'Funcionario', 'Morador'];
 const STAFF: PapelChat[] = ['Sindico', 'Funcionario'];
-
-const SEM_PARAMETROS = { type: 'object' as const, properties: {} };
 
 /** Corta listas grandes para não estourar o contexto do modelo. */
 const LIMITE_LISTA = 25;
@@ -80,7 +86,6 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     nome: 'contar_moradores',
     descricao:
       'Retorna quantos moradores estão cadastrados no condomínio, com a quebra por tipo (proprietário, inquilino, membro). Use para perguntas de quantidade, nunca para listar nomes.',
-    parametros: SEM_PARAMETROS,
     papeis: TODOS,
     async executar(_args, ctx) {
       const [total, porTipo] = await Promise.all([
@@ -102,7 +107,6 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     nome: 'resumo_do_condominio',
     descricao:
       'Números gerais do condomínio: total de apartamentos, blocos, moradores, áreas sociais e encomendas aguardando retirada. Use para perguntas panorâmicas.',
-    parametros: SEM_PARAMETROS,
     papeis: TODOS,
     async executar(_args, ctx) {
       const where = { id_condominio: ctx.idCondominio };
@@ -223,7 +227,6 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     nome: 'encomendas_pendentes',
     descricao:
       'Encomendas aguardando retirada. Para morador traz apenas as do apartamento dele; para síndico e funcionário traz as do condomínio inteiro.',
-    parametros: SEM_PARAMETROS,
     papeis: TODOS,
     async executar(_args, ctx) {
       const where: any = { id_condominio: ctx.idCondominio, status: 'Aguardando' };
@@ -268,7 +271,6 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     nome: 'listar_areas_sociais',
     descricao:
       'Lista as áreas sociais do condomínio (churrasqueira, salão de festas, etc) com capacidade, horários e se exigem reserva, autorização ou pagamento.',
-    parametros: SEM_PARAMETROS,
     papeis: TODOS,
     async executar(_args, ctx) {
       const areas = await ctx.prisma.areas_Sociais.findMany({
@@ -350,7 +352,6 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     nome: 'minhas_reservas',
     descricao:
       'Reservas de área social feitas pelo usuário logado, com data, horário e status (pendente, aprovado, recusado).',
-    parametros: SEM_PARAMETROS,
     papeis: TODOS,
     async executar(_args, ctx) {
       const lista = await ctx.prisma.areas_Sociais_Agendamentos.findMany({
@@ -388,7 +389,6 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     nome: 'minhas_ocorrencias',
     descricao:
       'Ocorrências/chamados abertos pelo usuário logado, com status e resposta do síndico. Para síndico e funcionário traz as do condomínio inteiro.',
-    parametros: SEM_PARAMETROS,
     papeis: TODOS,
     async executar(_args, ctx) {
       const lista = await ctx.prisma.ocorrencias.findMany({
@@ -429,7 +429,6 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     nome: 'visitas_do_meu_apartamento',
     descricao:
       'Visitantes e prestadores vinculados ao apartamento do usuário logado, com data agendada, entrada e saída. Use para "quem veio me visitar", "minhas visitas agendadas".',
-    parametros: SEM_PARAMETROS,
     papeis: TODOS,
     async executar(_args, ctx) {
       if (ctx.aptos.length === 0) {
@@ -471,13 +470,24 @@ export function ferramentasPara(papel: PapelChat): FerramentaLeitura[] {
   return FERRAMENTAS_LEITURA.filter((f) => f.papeis.includes(papel));
 }
 
-/** Converte para o formato functionDeclarations do Gemini. */
+/**
+ * Converte para o formato functionDeclarations do Gemini.
+ *
+ * Só emite `parameters` quando há propriedade de verdade. Um OBJECT com
+ * `properties` vazio faz o Gemini recusar a requisição inteira com 400, então
+ * a checagem fica aqui — no único ponto por onde toda declaração passa —
+ * em vez de depender de cada ferramenta lembrar de omitir.
+ */
 export function declaracoesPara(papel: PapelChat): DeclaracaoFerramenta[] {
-  return ferramentasPara(papel).map((f) => ({
-    name: f.nome,
-    description: f.descricao,
-    parameters: f.parametros,
-  }));
+  return ferramentasPara(papel).map((f) => {
+    const temPropriedades =
+      !!f.parametros && Object.keys(f.parametros.properties ?? {}).length > 0;
+    return {
+      name: f.nome,
+      description: f.descricao,
+      ...(temPropriedades && { parameters: f.parametros }),
+    };
+  });
 }
 
 /**

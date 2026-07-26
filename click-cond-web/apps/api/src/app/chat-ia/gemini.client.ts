@@ -36,11 +36,20 @@ const EMBED_DIMS = 768;
  */
 const MAX_OUTPUT_TOKENS = 4096;
 
-/** Declaração de ferramenta no formato functionDeclarations do generateContent. */
+/**
+ * Declaração de ferramenta no formato functionDeclarations do generateContent.
+ *
+ * `parameters` é OPCIONAL e precisa ser OMITIDO quando a função não tem
+ * argumento. O Gemini valida que todo schema OBJECT tenha `properties`
+ * não-vazio e responde 400 com
+ * "function_declarations[N].parameters.properties: should be non-empty for
+ * OBJECT type" — mandar `{ type: 'object', properties: {} }` derruba a
+ * requisição inteira, não só aquela ferramenta.
+ */
 export interface DeclaracaoFerramenta {
   name: string;
   description: string;
-  parameters: {
+  parameters?: {
     type: 'object';
     properties: Record<string, unknown>;
     required?: string[];

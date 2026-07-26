@@ -62,10 +62,43 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       const decls = declaracoesPara('Morador').map((d) => d.name);
       expect(decls).not.toContain('buscar_morador');
       expect(decls).toContain('contar_moradores');
-      // Formato exigido pelo functionDeclarations.
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  describe('formato aceito pelo Gemini', () => {
+    /**
+     * Regressão real: com `parameters: { type: 'object', properties: {} }` o
+     * Gemini responde 400 "parameters.properties: should be non-empty for
+     * OBJECT type" e recusa a REQUISIÇÃO INTEIRA — o assistente parou de
+     * responder qualquer coisa, não só as ferramentas sem argumento.
+     */
+    it('nenhuma declaração vai com properties vazio', () => {
+      for (const papel of ['Sindico', 'Funcionario', 'Morador'] as const) {
+        for (const d of declaracoesPara(papel)) {
+          if (d.parameters !== undefined) {
+            expect(Object.keys(d.parameters.properties ?? {}).length).toBeGreaterThan(0);
+          }
+        }
+      }
+    });
+
+    it('ferramentas sem argumento omitem parameters por completo', () => {
+      const semArgs = declaracoesPara('Morador').find((d) => d.name === 'contar_moradores');
+      expect(semArgs).toBeDefined();
+      expect(semArgs).not.toHaveProperty('parameters');
+    });
+
+    it('ferramentas com argumento declaram o schema', () => {
+      const comArgs = declaracoesPara('Sindico').find((d) => d.name === 'buscar_morador');
+      expect(comArgs?.parameters?.type).toBe('object');
+      expect(Object.keys(comArgs?.parameters?.properties ?? {})).toContain('nome');
+    });
+
+    it('toda declaração tem nome e descrição preenchidos', () => {
       for (const d of declaracoesPara('Sindico')) {
-        expect(d.parameters.type).toBe('object');
-        expect(typeof d.description).toBe('string');
+        expect(d.name).toMatch(/^[a-z_]+$/);
+        expect(d.description.length).toBeGreaterThan(10);
       }
     });
   });
