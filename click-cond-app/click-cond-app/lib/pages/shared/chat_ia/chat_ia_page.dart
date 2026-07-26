@@ -6,6 +6,8 @@ import 'package:click/utils/local_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'resposta_formatada.dart';
+
 /// Assistente IA do condomínio (RAG). Faz perguntas em linguagem natural sobre
 /// atas, informações gerais, funcionários, visitantes e moradores. A resposta é
 /// gerada no backend (Gemini) já com o escopo de dados do papel do usuário.
@@ -285,12 +287,21 @@ class _ChatIaPageState extends State<ChatIaPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      msg.texto,
-                      style: AppTypography.body(context).copyWith(
-                        color: isMe ? Colors.white : AppColors.textPrimary(context),
-                      ),
-                    ),
+                    // A resposta vem em markdown; sem o renderizador os
+                    // asteriscos de **negrito** apareciam crus na tela.
+                    // A do usuário é texto puro e não precisa passar por isso.
+                    isMe
+                        ? Text(
+                            msg.texto,
+                            style: AppTypography.body(context)
+                                .copyWith(color: Colors.white),
+                          )
+                        : RespostaFormatada(
+                            texto: msg.texto,
+                            estilo: AppTypography.body(context).copyWith(
+                              color: AppColors.textPrimary(context),
+                            ),
+                          ),
                     if (msg.acao != null) ...[
                       const SizedBox(height: AppSpacing.md),
                       _buildCardAcao(context, msg),
