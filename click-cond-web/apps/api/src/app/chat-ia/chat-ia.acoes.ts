@@ -225,7 +225,12 @@ FERRAMENTAS_ACAO.push({
       nome: { type: 'string', description: 'Nome completo do visitante' },
       documento: { type: 'string', description: 'CPF ou RG, se o usuário informar' },
       data: { type: 'string', description: 'Data da visita, formato AAAA-MM-DD' },
-      hora: { type: 'string', description: 'Hora prevista, formato HH:MM' },
+      hora: { type: 'string', description: 'Hora prevista de chegada, formato HH:MM' },
+      hora_fim: {
+        type: 'string',
+        description:
+          'Hora limite da visita, formato HH:MM. Se o usuário não disser, omita: vale até o fim do dia.',
+      },
       prestador: {
         type: 'boolean',
         description: 'true se for prestador de serviço (diarista, técnico), false se for visita comum',
@@ -255,14 +260,29 @@ FERRAMENTAS_ACAO.push({
     const min = args.hora !== undefined ? lerHora(args.hora) : 0;
     if (min === null) return { erro: 'Horário inválido. Use HH:MM.' };
 
+    /**
+     * O término NÃO pode ficar nulo. O validarCodigo trata termino nulo como
+     * `now`, e como ele ainda soma 15 min de tolerância, a comparação
+     * `now > termino + 15min` nunca é verdadeira — o PIN passaria a valer para
+     * sempre. Todo visitante criado pela tela do app tem término porque o
+     * formulário exige; aqui o padrão é o fim do dia da visita.
+     */
+    const fim = args.hora_fim !== undefined ? lerHora(args.hora_fim) : 23 * 60 + 59;
+    if (fim === null) return { erro: 'Hora limite inválida. Use HH:MM.' };
+    if (fim <= min) {
+      return { erro: 'A hora limite precisa ser depois da hora de chegada.' };
+    }
+
     const prestador = args.prestador === true;
     const documento = String(args.documento ?? '').trim();
+    const iso = data.br.split('/').reverse().join('-');
 
     const itens: ItemResumo[] = [
       { rotulo: prestador ? 'Prestador' : 'Visitante', valor: nome },
       { rotulo: 'Data', valor: data.br },
+      // Mostra a janela no card: é o que define até quando o PIN funciona.
+      { rotulo: 'Válido', valor: `${hhmm(min)} às ${hhmm(fim)}` },
     ];
-    if (min > 0) itens.push({ rotulo: 'Hora', valor: hhmm(min) });
     if (documento) itens.push({ rotulo: 'Documento', valor: documento });
 
     return {
@@ -276,7 +296,8 @@ FERRAMENTAS_ACAO.push({
           nome,
           doc_identificacao: documento || null,
           // O service espera data-hora local; monta a partir do dia + hora.
-          data_hora_inicio: `${data.br.split('/').reverse().join('-')} ${hhmm(min)}:00`,
+          data_hora_inicio: `${iso} ${hhmm(min)}:00`,
+          data_hora_termino: `${iso} ${hhmm(fim)}:00`,
           is_visitante: prestador ? 0 : 1,
           is_prestador: prestador ? 1 : 0,
           id_apartamento: ctx.aptos[0],

@@ -109,11 +109,11 @@ class _ChatIaPageState extends State<ChatIaPage> {
 
   Future<void> _confirmarAcao(_ChatMessage msg) async {
     final acao = msg.acao;
-    if (acao == null || msg.confirmando || msg.resultado != null) return;
+    if (acao == null || acao.id == null || msg.confirmando || msg.resultado != null) return;
 
     setState(() => msg.confirmando = true);
     try {
-      final mensagem = await apiConfirmarAcaoChatIa(acao.id);
+      final mensagem = await apiConfirmarAcaoChatIa(acao.id!);
       if (!mounted) return;
       setState(() {
         msg.resultado = mensagem;

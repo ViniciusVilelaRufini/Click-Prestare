@@ -151,6 +151,66 @@ describe('Ações do Assistente IA', () => {
   });
 
   // -----------------------------------------------------------------------
+  describe('propor_visitante', () => {
+    const base = () => ({ nome: 'Alek Garcia', data: futuro(), hora: '13:00' });
+
+    /**
+     * Regressão: sem data_hora_termino o validarCodigo assume `now` e ainda
+     * soma 15min de tolerância, então `now > termino+15min` nunca acontece e
+     * o PIN do visitante passa a valer para sempre.
+     */
+    it('SEMPRE define data_hora_termino', async () => {
+      const r = await pegar('propor_visitante').propor(base(), ctx());
+      expect(r.proposta?.payload.data_hora_termino).toBeTruthy();
+    });
+
+    it('sem hora_fim, vale até o fim do dia da visita', async () => {
+      const r = await pegar('propor_visitante').propor(base(), ctx());
+      expect(r.proposta?.payload.data_hora_termino).toMatch(/ 23:59:00$/);
+      // Mesmo dia do início.
+      const dia = (s: string) => s.split(' ')[0];
+      expect(dia(r.proposta!.payload.data_hora_termino)).toBe(
+        dia(r.proposta!.payload.data_hora_inicio),
+      );
+    });
+
+    it('respeita hora_fim quando informada', async () => {
+      const r = await pegar('propor_visitante').propor(
+        { ...base(), hora_fim: '18:00' },
+        ctx(),
+      );
+      expect(r.proposta?.payload.data_hora_termino).toMatch(/ 18:00:00$/);
+    });
+
+    it('recusa hora limite antes da chegada', async () => {
+      const r = await pegar('propor_visitante').propor(
+        { ...base(), hora: '18:00', hora_fim: '13:00' },
+        ctx(),
+      );
+      expect(r.erro).toMatch(/hora limite/i);
+    });
+
+    it('mostra a janela de validade no card', async () => {
+      const r = await pegar('propor_visitante').propor(base(), ctx());
+      const valido = r.proposta!.itens.find((i) => i.rotulo === 'Válido');
+      expect(valido?.valor).toBe('13:00 às 23:59');
+    });
+
+    it('usa o apartamento do vínculo e recusa quem não tem', async () => {
+      const r1 = await pegar('propor_visitante').propor(base(), ctx());
+      expect(r1.proposta?.payload.id_apartamento).toBe(10);
+      const r2 = await pegar('propor_visitante').propor(base(), ctx({ aptos: [] }));
+      expect(r2.erro).toMatch(/apartamento/i);
+    });
+
+    it('recusa data no passado e nome curto', async () => {
+      const f = pegar('propor_visitante');
+      expect((await f.propor({ ...base(), data: '2020-01-01' }, ctx())).erro).toBeDefined();
+      expect((await f.propor({ ...base(), nome: 'Al' }, ctx())).erro).toBeDefined();
+    });
+  });
+
+  // -----------------------------------------------------------------------
   describe('catálogo por papel', () => {
     it('as ações aparecem para os três papéis', () => {
       for (const p of ['Sindico', 'Funcionario', 'Morador'] as const) {

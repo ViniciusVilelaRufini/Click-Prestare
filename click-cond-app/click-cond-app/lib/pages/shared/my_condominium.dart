@@ -762,7 +762,17 @@ class _MyCondominiumState extends State<MyCondominium> {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const ChatIaPage()),
-          );
+          ).then((_) {
+            // O Click IA cria visitante, reserva e ocorrência. As abas vivem
+            // num IndexedStack e só carregam no initState, então sem este
+            // refresh o que ele acabou de criar não aparece — o registro está
+            // no banco, mas a lista na tela é a de antes.
+            //
+            // Só visitantes tem lista em aba; reserva e ocorrência aparecem no
+            // resumo da home, que o _loadCond atualiza.
+            _visitantesKey.currentState?.loadList();
+            _loadCond();
+          });
         },
         customBorder: const CircleBorder(),
         child: Container(
