@@ -25,6 +25,7 @@ import { AreasSociaisService } from '../areas-sociais/areas-sociais.service';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { VisitantesService } from '../visitantes/visitantes.service';
+import { FinanceiroService } from '../financeiro/financeiro.service';
 import type { CartaoAcao } from './acao-pendente.store';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
@@ -39,6 +40,14 @@ const HISTORICO_TURNOS = 12;
  * indefinidamente.
  */
 const MAX_RODADAS_FERRAMENTA = 5;
+
+/** Módulo registrado na auditoria para cada tipo de ação confirmada. */
+const MODULO_POR_ACAO: Record<string, string> = {
+  reserva_area: 'areas-sociais',
+  ocorrencia: 'ocorrencias',
+  visitante: 'visitantes',
+  conta_morador: 'financeiro',
+};
 
 /**
  * Assistente IA do condomínio (RAG híbrido).
@@ -66,6 +75,7 @@ export class ChatIaService {
     private readonly ocorrencias: OcorrenciasService,
     private readonly auditoria: AuditoriaService,
     private readonly visitantes: VisitantesService,
+    private readonly financeiro: FinanceiroService,
   ) {}
 
   // =========================================================================
@@ -381,6 +391,15 @@ export class ChatIaService {
       return 'Visitante cadastrado! Ele já aparece em Visitantes com o código de acesso.';
     }
 
+    if (acao.tipo === 'conta_morador') {
+      // insertMoradorConta grava sempre em id_usuario = idUser: a conta é do
+      // próprio morador, nunca de outro.
+      await this.financeiro.insertMoradorConta(idUser, acao.idCondominio, acao.payload);
+      return acao.payload.pago === 1
+        ? 'Conta lançada como paga! Ela já aparece no seu Financeiro.'
+        : 'Conta lançada! Ela já aparece no seu Financeiro.';
+    }
+
     throw new BadRequestException('Tipo de ação desconhecido.');
   }
 
@@ -390,7 +409,7 @@ export class ChatIaService {
         id_condominio: acao.idCondominio,
         usuario_nome: user?.nome ?? 'Usuário do app',
         acao: 'CREATE',
-        modulo: acao.tipo === 'reserva_area' ? 'areas-sociais' : 'ocorrencias',
+        modulo: MODULO_POR_ACAO[acao.tipo] ?? acao.tipo,
         entidade_id: 0,
         descricao: `${acao.titulo} via assistente IA — ${acao.itens
           .map((i) => `${i.rotulo}: ${i.valor}`)

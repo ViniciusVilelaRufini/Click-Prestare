@@ -211,6 +211,84 @@ describe('Ações do Assistente IA', () => {
   });
 
   // -----------------------------------------------------------------------
+  describe('propor_conta_morador', () => {
+    const base = () => ({ categoria: 'Água', valor: 130 });
+
+    it('monta a proposta com a conta do próprio morador', async () => {
+      const r = await pegar('propor_conta_morador').propor(base(), ctx());
+      expect(r.erro).toBeUndefined();
+      expect(r.proposta?.tipo).toBe('conta_morador');
+      expect(r.proposta?.idUser).toBe(47);
+      expect(r.proposta?.payload.categoria).toBe('Água');
+      expect(r.proposta?.payload.valor).toBe(130);
+    });
+
+    /** A regra que o produto pediu: taxa de condomínio é do síndico. */
+    it('RECUSA categoria de condomínio', async () => {
+      const f = pegar('propor_conta_morador');
+      for (const cat of ['Condomínio', 'condominio', 'CONDOMINIO', 'Taxa Condominial']) {
+        const r = await f.propor({ ...base(), categoria: cat }, ctx());
+        expect(r.proposta).toBeUndefined();
+        expect(r.erro).toMatch(/síndico/i);
+      }
+    });
+
+    it('aceita as categorias pessoais, com ou sem acento', async () => {
+      const f = pegar('propor_conta_morador');
+      for (const [entrada, esperado] of [
+        ['agua', 'Água'], ['Luz', 'Luz'], ['internet', 'Internet'],
+        ['ALUGUEL', 'Aluguel'], ['outros', 'Outros'],
+      ]) {
+        const r = await f.propor({ ...base(), categoria: entrada }, ctx());
+        expect(r.proposta?.payload.categoria).toBe(esperado);
+      }
+    });
+
+    it('recusa categoria fora da lista', async () => {
+      const r = await pegar('propor_conta_morador').propor(
+        { ...base(), categoria: 'Cripto' },
+        ctx(),
+      );
+      expect(r.erro).toMatch(/inválida/i);
+    });
+
+    it('marca como paga quando o usuário disse que pagou', async () => {
+      const r = await pegar('propor_conta_morador').propor(
+        { ...base(), ja_paga: true },
+        ctx(),
+      );
+      expect(r.proposta?.payload.pago).toBe(1);
+      expect(r.proposta!.itens.find((i) => i.rotulo === 'Situação')?.valor).toBe('Já paga');
+    });
+
+    it('sem vencimento informado usa hoje, no formato BR', async () => {
+      const r = await pegar('propor_conta_morador').propor(base(), ctx());
+      expect(r.proposta?.payload.data_vencimento).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+    });
+
+    it('converte o vencimento informado para BR', async () => {
+      const r = await pegar('propor_conta_morador').propor(
+        { ...base(), data_vencimento: '2026-08-10' },
+        ctx(),
+      );
+      expect(r.proposta?.payload.data_vencimento).toBe('10/08/2026');
+    });
+
+    it('recusa valor ausente, zero, negativo ou acima do teto', async () => {
+      const f = pegar('propor_conta_morador');
+      for (const v of [undefined, 0, -5, 10000000]) {
+        const r = await f.propor({ categoria: 'Luz', valor: v }, ctx());
+        expect(r.erro).toBeDefined();
+      }
+    });
+
+    it('usa nome padrão quando o usuário não descreve', async () => {
+      const r = await pegar('propor_conta_morador').propor(base(), ctx());
+      expect(r.proposta?.payload.nome).toBe('Conta de Água');
+    });
+  });
+
+  // -----------------------------------------------------------------------
   describe('catálogo por papel', () => {
     it('as ações aparecem para os três papéis', () => {
       for (const p of ['Sindico', 'Funcionario', 'Morador'] as const) {

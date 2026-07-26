@@ -2274,6 +2274,21 @@ export class FinanceiroService implements OnModuleInit {
   async insertMoradorConta(idUser: number, idCondominio: number, data: any) {
     if (!this.prisma.isConnected) return { success: true };
 
+    // A taxa de condomínio é gerada pelo síndico. Este método é o "morador
+    // lança a própria despesa", então aceitar categoria de condomínio deixaria
+    // o morador forjar a própria cobrança — e agora há mais de um chamador
+    // (formulário do app e assistente), então a regra fica aqui, não na tela.
+    const catNormalizada = String(data.categoria ?? '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim();
+    if (catNormalizada === 'condominio' || catNormalizada === 'taxa condominial') {
+      throw new BadRequestException(
+        'A taxa de condomínio é lançada pelo síndico e não pode ser criada como conta pessoal.',
+      );
+    }
+
     const valor = this.parseValorMonetario(data.valor);
     if (valor <= 0 || valor > 9999999) {
       throw new BadRequestException('O valor da conta deve ser maior que zero e menor que R$ 10.000.000,00.');

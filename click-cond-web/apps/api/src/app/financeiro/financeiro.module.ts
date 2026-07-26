@@ -10,6 +10,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
   imports: [MailModule, NotificationsModule],
   controllers: [FinanceiroController],
   providers: [FinanceiroService, FechamentoService, OpenPixService],
-  exports: [FechamentoService, OpenPixService],
+  // FinanceiroService exportado para o ChatIaModule lançar as contas pessoais
+  // propostas pelo assistente.
+  exports: [FechamentoService, OpenPixService, FinanceiroService],
 })
 export class FinanceiroModule {}

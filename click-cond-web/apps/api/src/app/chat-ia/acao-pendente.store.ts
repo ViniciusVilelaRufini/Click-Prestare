@@ -14,7 +14,7 @@ import { randomUUID } from 'crypto';
  * API rodar em várias instâncias, isso precisa virar tabela.
  */
 
-export type TipoAcao = 'reserva_area' | 'ocorrencia' | 'visitante';
+export type TipoAcao = 'reserva_area' | 'ocorrencia' | 'visitante' | 'conta_morador';
 
 /** Linha do card. Genérico para o app renderizar sem saber o tipo. */
 export interface ItemResumo {

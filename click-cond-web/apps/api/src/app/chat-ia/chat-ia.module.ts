@@ -9,6 +9,7 @@ import { AreasSociaisModule } from '../areas-sociais/areas-sociais.module';
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { VisitantesModule } from '../visitantes/visitantes.module';
+import { FinanceiroModule } from '../financeiro/financeiro.module';
 
 @Module({
   // As ações confirmadas executam pelos services de verdade, não por queries
@@ -20,6 +21,7 @@ import { VisitantesModule } from '../visitantes/visitantes.module';
     OcorrenciasModule,
     AuditoriaModule,
     VisitantesModule,
+    FinanceiroModule,
   ],
   controllers: [ChatIaController],
   providers: [ChatIaService, GeminiClient, AcaoPendenteStore],

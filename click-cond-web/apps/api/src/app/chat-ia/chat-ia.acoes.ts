@@ -307,6 +307,127 @@ FERRAMENTAS_ACAO.push({
   },
 });
 
+// -----------------------------------------------------------------------
+/**
+ * Categorias que o morador pode lançar para si.
+ *
+ * Espelha o kCategoriasPessoais do app (utils/financeiro_constants.dart).
+ * "Condomínio"/"Taxa Condominial" ficam DE FORA: essas cobranças são geradas
+ * pelo síndico, e deixar o morador criá-las permitiria forjar a própria taxa.
+ */
+export const CATEGORIAS_CONTA_MORADOR = ['Aluguel', 'Água', 'Luz', 'Internet', 'Outros'];
+
+/** Normaliza para comparar sem acento/caixa. */
+function chaveCategoria(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+const CATEGORIAS_BLOQUEADAS = ['condominio', 'taxa condominial'];
+
+FERRAMENTAS_ACAO.push({
+  nome: 'propor_conta_morador',
+  descricao:
+    `Prepara o lançamento de uma conta pessoal do morador (água, luz, internet, aluguel e afins) para ele confirmar. NÃO lança sozinha. Categorias: ${CATEGORIAS_CONTA_MORADOR.join(', ')}. NÃO serve para a taxa de condomínio, que é lançada pelo síndico. Se o usuário disser que já pagou, marque ja_paga.`,
+  parametros: {
+    type: 'object',
+    properties: {
+      categoria: {
+        type: 'string',
+        description: `Uma de: ${CATEGORIAS_CONTA_MORADOR.join(', ')}`,
+      },
+      valor: { type: 'number', description: 'Valor em reais, ex: 130.50' },
+      nome: {
+        type: 'string',
+        description: 'Descrição da conta, ex: "Conta de Água - Julho". Se o usuário não der, omita.',
+      },
+      data_vencimento: {
+        type: 'string',
+        description:
+          'Vencimento no formato AAAA-MM-DD. Se o usuário não disser, omita: assume hoje.',
+      },
+      ja_paga: { type: 'boolean', description: 'true se a conta já foi paga' },
+    },
+    required: ['categoria', 'valor'],
+  },
+  papeis: TODOS,
+  async propor(args, ctx) {
+    const bruta = String(args.categoria ?? '').trim();
+    const chave = chaveCategoria(bruta);
+
+    if (CATEGORIAS_BLOQUEADAS.includes(chave)) {
+      return {
+        erro:
+          'A taxa de condomínio é lançada pelo síndico, o morador não pode criar. ' +
+          'Se ele quer registrar outra despesa, use uma das categorias pessoais.',
+      };
+    }
+
+    const categoria = CATEGORIAS_CONTA_MORADOR.find((c) => chaveCategoria(c) === chave);
+    if (!categoria) {
+      return {
+        erro: `Categoria inválida. Use uma de: ${CATEGORIAS_CONTA_MORADOR.join(', ')}.`,
+      };
+    }
+
+    const valor = Number(args.valor);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      return { erro: 'Pergunte o valor da conta.' };
+    }
+    // Mesmo teto do insertMoradorConta — recusar aqui dá mensagem melhor do
+    // que deixar estourar só na confirmação.
+    if (valor > 9999999) {
+      return { erro: 'Valor acima do limite permitido.' };
+    }
+
+    // Sem vencimento informado vale hoje: mantém a conta no mês corrente, que
+    // é onde a tela do financeiro a mostra.
+    let venc: { br: string };
+    if (args.data_vencimento !== undefined) {
+      const d = lerData(args.data_vencimento);
+      if (!d) return { erro: 'Data de vencimento inválida. Use AAAA-MM-DD.' };
+      venc = d;
+    } else {
+      const hoje = new Date();
+      venc = {
+        br: `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`,
+      };
+    }
+
+    const jaPaga = args.ja_paga === true;
+    const nome = String(args.nome ?? '').trim() || `Conta de ${categoria}`;
+    const valorBR = valor.toFixed(2).replace('.', ',');
+
+    const itens: ItemResumo[] = [
+      { rotulo: 'Conta', valor: nome },
+      { rotulo: 'Categoria', valor: categoria },
+      { rotulo: 'Valor', valor: `R$ ${valorBR}` },
+      { rotulo: 'Vencimento', valor: venc.br },
+      { rotulo: 'Situação', valor: jaPaga ? 'Já paga' : 'Em aberto' },
+    ];
+
+    return {
+      proposta: {
+        tipo: 'conta_morador' as TipoAcao,
+        idUser: ctx.idUser,
+        idCondominio: ctx.idCondominio,
+        titulo: 'Confirmar lançamento',
+        itens,
+        payload: {
+          nome,
+          categoria,
+          valor,
+          data_vencimento: venc.br, // insertMoradorConta espera DD/MM/AAAA
+          pago: jaPaga ? 1 : 0,
+        },
+      },
+    };
+  },
+});
+
 export function acoesPara(papel: PapelChat): FerramentaAcao[] {
   return FERRAMENTAS_ACAO.filter((f) => f.papeis.includes(papel));
 }
