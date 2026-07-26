@@ -454,12 +454,13 @@ class _MyCondominiumState extends State<MyCondominium> {
         ? MoradorFinanceiroView(key: _moradorFinanceiroKey, hideAppBar: true, showFab: false)
         : ListFinanceiro(key: _financeiroKey, hideAppBar: true, showFab: false);
 
+    // O Click IA saiu daqui: virou página empurrada pelo botão central, para
+    // não ficar com a ilha sobreposta ao campo de digitar.
     final tabs = [
       _buildHomeTab(context),
       ListEncomendas(key: _encomendasKey, hideAppBar: true, showFab: false),
       ListVisitantes(key: _visitantesKey, hideAppBar: true, showFab: false),
       financeiroPage,
-      const ChatIaPage(hideAppBar: true),
     ];
 
     // Altura ocupada pela navbar flutuante (container 68 + top 8 + bottom 12)
@@ -652,7 +653,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                     });
                   },
                 )),
-      // Botão circular central: acesso ao Assistente IA (RAG).
+      // Botão circular central: abre o Click IA.
       _buildAiNavButton(context),
       showFinanceActions
           ? _buildAnimatedNavItem(
@@ -748,18 +749,20 @@ class _MyCondominiumState extends State<MyCondominium> {
     ];
   }
 
-  /// Botão circular central da ilha de navegação — abre a aba do Assistente IA
-  /// (índice 4), mantendo a ilha visível.
+  /// Botão circular central da ilha — abre o Click IA como PÁGINA.
+  ///
+  /// Antes era a aba de índice 4 do IndexedStack, o que deixava a ilha por
+  /// cima do chat e sem caminho de volta. Como página empurrada, ela ganha a
+  /// AppBar com o voltar padrão e o campo de digitar fica livre da ilha.
   Widget _buildAiNavButton(BuildContext context) {
-    final isSelected = _currentTab == 4;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: InkWell(
         onTap: () {
-          setState(() {
-            _currentTab = 4;
-            _isNavBarVisible = true;
-          });
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChatIaPage()),
+          );
         },
         customBorder: const CircleBorder(),
         child: Container(
@@ -772,13 +775,10 @@ class _MyCondominiumState extends State<MyCondominium> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            border: isSelected
-                ? Border.all(color: Colors.white.withOpacity(0.85), width: 2)
-                : null,
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withOpacity(isSelected ? 0.6 : 0.45),
-                blurRadius: isSelected ? 16 : 12,
+                color: AppColors.primary.withOpacity(0.45),
+                blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],

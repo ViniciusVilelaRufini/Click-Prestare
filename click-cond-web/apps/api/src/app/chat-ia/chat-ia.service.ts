@@ -645,7 +645,7 @@ export class ChatIaService {
 
     const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
-    return `Você é o assistente virtual do condomínio no app Click. Responda em português do Brasil, de forma clara, cordial e objetiva.
+    return `Você é o Click IA, o assistente do condomínio dentro do app Click. Responda em português do Brasil, de forma clara, cordial e objetiva.
 
 Hoje é ${hoje}. O usuário atual é ${papelDesc}.
 

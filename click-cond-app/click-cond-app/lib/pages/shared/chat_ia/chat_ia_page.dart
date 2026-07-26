@@ -12,16 +12,16 @@ import 'package:url_launcher/url_launcher.dart';
 import 'resposta_formatada.dart';
 import 'telas_app.dart';
 
-/// Assistente IA do condomínio (RAG). Faz perguntas em linguagem natural sobre
-/// atas, informações gerais, funcionários, visitantes e moradores. A resposta é
-/// gerada no backend (Gemini) já com o escopo de dados do papel do usuário.
+/// Click IA — assistente do condomínio.
+///
+/// Consulta em linguagem natural (atas, funcionários, visitantes, cobranças) e
+/// executa ações com confirmação. O escopo dos dados é aplicado no backend pelo
+/// papel do usuário; aqui só se renderiza a conversa e os cards.
+///
+/// É uma página EMPURRADA, não aba: antes vivia dentro da ilha de navegação da
+/// home, que ficava sobre o campo de digitar e não deixava caminho de volta.
 class ChatIaPage extends StatefulWidget {
-  /// [hideAppBar] = true quando a página é usada como ABA (dentro da ilha de
-  /// navegação da home) — remove a AppBar/botão de voltar e usa um cabeçalho
-  /// enxuto no topo do corpo.
-  const ChatIaPage({Key? key, this.hideAppBar = false}) : super(key: key);
-
-  final bool hideAppBar;
+  const ChatIaPage({Key? key}) : super(key: key);
 
   @override
   State<ChatIaPage> createState() => _ChatIaPageState();
@@ -196,30 +196,29 @@ class _ChatIaPageState extends State<ChatIaPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      appBar: widget.hideAppBar
-          ? null
-          : AppBar(
-              automaticallyImplyLeading: false,
-              leading: Navigator.canPop(context)
-                  ? IconButton(
-                      icon: Icon(PhosphorIcons.caretLeft,
-                          color: AppColors.textPrimary(context)),
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  : null,
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(PhosphorIcons.sparkle, color: AppColors.primary, size: 22),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text('Assistente IA', style: AppTypography.headline(context)),
-                ],
-              ),
-            ),
+      // Mesmo padrão do AppScaffold do app: caretLeft na cor de texto
+      // primária, com o título ao lado.
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: Icon(PhosphorIcons.caretLeft,
+                    color: AppColors.textPrimary(context)),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(PhosphorIcons.sparkle, color: AppColors.primary, size: 22),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Click IA', style: AppTypography.headline(context)),
+          ],
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            if (widget.hideAppBar) _buildEmbeddedHeader(context),
             Expanded(
               child: _mensagens.isEmpty
                   ? _buildEmptyState(context)
@@ -242,21 +241,6 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
-  /// Cabeçalho compacto exibido quando a página é uma aba (sem AppBar).
-  Widget _buildEmbeddedHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
-      child: Row(
-        children: [
-          Icon(PhosphorIcons.sparkle, color: AppColors.primary, size: 22),
-          const SizedBox(width: AppSpacing.sm),
-          Text('Assistente IA', style: AppTypography.headline(context)),
-        ],
-      ),
-    );
-  }
-
   Widget _buildEmptyState(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.xl),
@@ -275,13 +259,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Olá! Sou o assistente do seu condomínio.',
+          'Olá! Sou o Click IA.',
           textAlign: TextAlign.center,
           style: AppTypography.headline(context),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Pergunte sobre atas, visitantes, funcionários e mais.',
+          'Pergunte sobre o condomínio ou peça para eu resolver: reservar '
+          'área, abrir ocorrência, pagar boleto.',
           textAlign: TextAlign.center,
           style: AppTypography.caption(context),
         ),
@@ -568,7 +553,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
               style: AppTypography.body(context),
               onSubmitted: (_) => _enviar(),
               decoration: InputDecoration(
-                hintText: 'Pergunte algo ao assistente...',
+                hintText: 'Pergunte algo ao Click IA...',
                 hintStyle: AppTypography.body(context)
                     .copyWith(color: AppColors.textTertiary(context)),
                 border: OutlineInputBorder(
