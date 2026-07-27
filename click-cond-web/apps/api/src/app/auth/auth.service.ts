@@ -120,7 +120,7 @@ export class AuthService {
 
       // Senha não bate com o funcionário — verifica se é o síndico do mesmo condomínio
       // que trocou a senha pelo app (auto-sincroniza a senha do porteiro nesse caso).
-      const sindLinks = await this.prisma.sindicosCondominios.findMany({
+      const sindLinks = await this.prisma.sindicos_Condominios.findMany({
         where: { id_condominio: funcionario.id_condominio },
         include: { user: true },
       });
@@ -216,6 +216,54 @@ export class AuthService {
       access_token: this.jwt.sign(sindicoPayload),
       id: user.id,
       nome: sindico.name,
+      turno: 'Síndico',
+      id_condominio: vinculo.id_condominio,
+      condominio_nome: vinculo.condominio?.nome || 'Click Condomínio',
+      // Síndico pode administrar mais de um condomínio. A web entrava sempre no
+      // primeiro vínculo; devolvendo a lista, ela pergunta em qual entrar.
+      condominios: user.sindicosCondominios.map((v) => ({
+        id: v.id_condominio,
+        nome: v.condominio?.nome || 'Condomínio',
+      })),
+    };
+  }
+
+  /**
+   * Troca o condomínio ativo do síndico na web, emitindo um token novo com o
+   * escopo escolhido. Usado na seleção pós-login e no seletor da barra lateral.
+   *
+   * Só aceita condomínio ao qual o síndico esteja realmente vinculado — o id vem
+   * do cliente, então sem essa checagem daria para escopar o token em condomínio
+   * alheio e ler os dados dele.
+   */
+  async selecionarCondominio(payload: JwtPayload, idCondominio: number) {
+    if (!this.prisma.isConnected) {
+      throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
+    }
+    if (payload.typeAccess !== 'Sindico') {
+      throw new UnauthorizedException('Apenas síndicos podem trocar de condomínio.');
+    }
+
+    const vinculo = await this.prisma.sindicos_Condominios.findFirst({
+      where: { id_user: payload.sub, id_condominio: Number(idCondominio) },
+      include: { condominio: { select: { nome: true } } },
+    });
+    if (!vinculo) {
+      throw new UnauthorizedException('Você não administra este condomínio.');
+    }
+
+    const novoPayload: JwtPayload = {
+      sub: payload.sub,
+      nome: payload.nome,
+      id_condominio: vinculo.id_condominio,
+      turno: 'Síndico',
+      typeAccess: 'Sindico',
+    };
+
+    return {
+      access_token: this.jwt.sign(novoPayload),
+      id: payload.sub,
+      nome: payload.nome,
       turno: 'Síndico',
       id_condominio: vinculo.id_condominio,
       condominio_nome: vinculo.condominio?.nome || 'Click Condomínio',

@@ -1,6 +1,6 @@
 import { Component, inject, computed, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { ThemeService } from '../shared/theme.service';
 
@@ -23,6 +23,7 @@ interface NavGroup {
 })
 export class SidebarComponent {
   readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private theme = inject(ThemeService);
   readonly isLight = this.theme.isLight;
   @Output() linkClicked = new EventEmitter<void>();
@@ -35,6 +36,12 @@ export class SidebarComponent {
 
   toggleTheme() {
     this.theme.toggleTheme();
+  }
+
+  /** Abre a escolha de condomínio (síndico com mais de um vínculo). */
+  trocarCondominio() {
+    this.linkClicked.emit();
+    this.router.navigate(['/selecionar-condominio']);
   }
 
 

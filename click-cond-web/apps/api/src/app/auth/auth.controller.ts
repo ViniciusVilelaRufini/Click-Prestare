@@ -25,6 +25,17 @@ export class AuthController {
     return this.authService.getCondominioNome(id);
   }
 
+  // Síndico com mais de um condomínio escolhe em qual entrar (ou troca depois).
+  // Autenticado: o vínculo é conferido contra o síndico do JWT.
+  @Post('selecionar-condominio')
+  @HttpCode(200)
+  selecionarCondominio(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id_condominio: number },
+  ) {
+    return this.authService.selecionarCondominio(payload, Number(body.id_condominio));
+  }
+
   @Post('change-password')
   @HttpCode(200)
   changePassword(

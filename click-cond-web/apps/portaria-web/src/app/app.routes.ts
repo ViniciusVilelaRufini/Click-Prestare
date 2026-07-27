@@ -8,6 +8,15 @@ export const appRoutes: Route[] = [
       import('./auth/login-page.component').then((m) => m.LoginPageComponent),
   },
   {
+    // Fora do shell: é uma tela cheia, mostrada antes de entrar no console.
+    path: 'selecionar-condominio',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./auth/selecionar-condominio.component').then(
+        (m) => m.SelecionarCondominioComponent,
+      ),
+  },
+  {
     path: 'politica-de-privacidade',
     loadComponent: () =>
       import('./legal/politica-privacidade.component').then((m) => m.PoliticaPrivacidadeComponent),

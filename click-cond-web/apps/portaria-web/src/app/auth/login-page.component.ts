@@ -481,7 +481,7 @@ export class LoginPageComponent implements OnDestroy {
     this.erro.set('');
 
     this.auth.login(this.loginValue, this.senhaValue).subscribe({
-      next: () => this.router.navigate(['/']),
+      next: () => this.router.navigate([this.destinoPosLogin()]),
       error: (err) => {
         this.carregando.set(false);
         this.erro.set(
@@ -491,6 +491,15 @@ export class LoginPageComponent implements OnDestroy {
         );
       },
     });
+  }
+
+  /**
+   * Síndico com mais de um condomínio precisa dizer em qual quer entrar — antes
+   * a web escolhia o primeiro vínculo sozinha. Porteiro e síndico de um só
+   * condomínio seguem direto para o console.
+   */
+  private destinoPosLogin(): string {
+    return this.auth.temMultiplosCondominios() ? '/selecionar-condominio' : '/';
   }
 
   toggleQrMode(active: boolean) {
