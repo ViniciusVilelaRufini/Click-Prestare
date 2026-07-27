@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -142,6 +143,48 @@ export class VisitantesService {
     // Porteiro/portaria-web e síndico: vínculo a nível de condomínio.
     await this.tenant.assertCondominio(v.id_condominio, payload);
     return v;
+  }
+
+  /**
+   * Valida que o usuário pode cadastrar/mover uma visita PARA este apartamento.
+   *
+   * O apto vem do corpo da requisição. Sem esta checagem, o morador cadastrava
+   * visitante no apartamento do vizinho: a visita gera PIN de acesso e enrola
+   * no terminal facial, então a autorização ficava registrada na unidade errada
+   * — acesso concedido em nome de quem não pediu.
+   *
+   * Staff/síndico segue podendo lançar para qualquer apto do condomínio deles;
+   * o que se exige é que o apartamento pertença a esse condomínio.
+   */
+  private async assertPodeUsarApartamento(
+    idApartamento: number | undefined,
+    payload?: JwtPayload,
+  ): Promise<void> {
+    if (!payload || !idApartamento) return;
+
+    const apto = await this.prisma.apartamentos.findUnique({
+      where: { id: Number(idApartamento) },
+      select: { id: true, id_condominio: true },
+    });
+    if (!apto) throw new BadRequestException('Apartamento não encontrado.');
+
+    // Cobre porteiro/portaria-web (id_condominio no JWT) e síndico (vínculo).
+    await this.tenant.assertCondominio(apto.id_condominio, payload);
+
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico';
+    if (!ehMoradorMobile) return;
+
+    const userId = Number(payload.user?.id ?? payload.sub);
+    if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: userId, id_apto: apto.id },
+      select: { id_apto: true },
+    });
+    if (!vinculo) {
+      throw new ForbiddenException('Acesso negado: este apartamento não pertence a você.');
+    }
   }
 
   /**
@@ -794,6 +837,9 @@ export class VisitantesService {
       };
     }
 
+    // O apto vem do corpo: confirma que o solicitante pode lançar visita nele.
+    await this.assertPodeUsarApartamento(dto.id_apartamento, operador);
+
     const blocked = await this.verificarSeBloqueado(dto.id_condominio, dto.nome, dto.doc_identificacao);
     if (blocked) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
@@ -929,18 +975,9 @@ export class VisitantesService {
       return updated;
     }
 
-    // Gerar PIN único e ativo
-    let pin = '';
-    let isUnique = false;
-    while (!isUnique) {
-      pin = Math.floor(100000 + Math.random() * 900000).toString();
-      const check = await this.prisma.visitantes.findFirst({
-        where: { codigo_acesso: pin, data_saida: null },
-      });
-      if (!check) {
-        isUnique = true;
-      }
-    }
+    // Mesma rotina do gerarPinUnico — antes era um laço duplicado aqui, e foi
+    // por isso que a troca do gerador precisou ser feita em dois lugares.
+    const pin = await this.gerarPinUnico();
 
     const visitante = await this.prisma.visitantes.create({
       data: {
@@ -1027,6 +1064,9 @@ export class VisitantesService {
 
     // Autorização de tenant antes de qualquer escrita.
     await this.assertPodeAcessarVisitante(dto.id, payload);
+    // O visitante é do solicitante, mas o apto de DESTINO também precisa ser:
+    // senão dava para mover a visita (e o acesso) para a unidade do vizinho.
+    await this.assertPodeUsarApartamento(dto.id_apartamento, payload);
 
     const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
@@ -1864,11 +1904,18 @@ export class VisitantesService {
     });
   }
 
+  /**
+   * PIN de 6 dígitos único entre as visitas em aberto.
+   *
+   * randomInt (CSPRNG) em vez de Math.random: o PIN é credencial de entrada no
+   * prédio, e o gerador do V8 tem estado recuperável a partir de saídas
+   * observadas — bastaria criar algumas visitas para prever os próximos.
+   */
   private async gerarPinUnico(): Promise<string> {
     let pin = '';
     let isUnique = false;
     while (!isUnique) {
-      pin = Math.floor(100000 + Math.random() * 900000).toString();
+      pin = randomInt(100000, 1000000).toString();
       const check = await this.prisma.visitantes.findFirst({
         where: { codigo_acesso: pin, data_saida: null },
       });

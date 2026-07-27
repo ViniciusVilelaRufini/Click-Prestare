@@ -30,6 +30,8 @@ describe('VisitantesService — autorização de tenant (IDOR)', () => {
         ),
         update: jest.fn(async () => ({ ...visitanteDoCond2 })),
         updateMany: jest.fn(async () => ({ count: 1 })),
+        create: jest.fn(async () => ({ ...visitanteDoCond2 })),
+        findFirst: jest.fn(async () => null),
       },
       sindicos_Condominios: {
         findFirst: jest.fn(async () => null),
@@ -138,6 +140,50 @@ describe('VisitantesService — autorização de tenant (IDOR)', () => {
       const sindico: JwtPayload = { sub: 9, nome: 'Síndico X', typeAccess: 'Sindico' };
       await svc.liberarAcesso(500, sindico);
       expect(prisma.visitantes.update).toHaveBeenCalled();
+    });
+  });
+
+  // A visita gera PIN de acesso e enrola no terminal facial. Se o morador
+  // pudesse escolher o apartamento livremente, concederia entrada em nome da
+  // unidade do vizinho.
+  describe('apartamento de destino (create/update)', () => {
+    const morador: JwtPayload = { sub: 7, nome: 'Morador Y', typeAccess: 'Morador' };
+
+    function buildComApto(vinculoDoUsuario: boolean) {
+      return buildService({
+        apartamentos: {
+          findUnique: jest.fn(async ({ where }: any) =>
+            where.id === 77 ? { id: 77, id_condominio: 2 } : null,
+          ),
+        },
+        apartamentos_Users: {
+          findMany: jest.fn(async () => []),
+          findFirst: jest.fn(async ({ where }: any) =>
+            vinculoDoUsuario && where.id_user === 7 && where.id_apto === 77
+              ? { id_apto: 77 }
+              : null,
+          ),
+        },
+      });
+    }
+
+    it('NEGA morador cadastrar visita em apartamento que não é dele', async () => {
+      const { svc, prisma } = buildComApto(false);
+      await expect(
+        svc.create(
+          { nome: 'Visita', id_apartamento: 77, id_condominio: 2 } as any,
+          morador,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.visitantes.create).not.toHaveBeenCalled();
+    });
+
+    it('NEGA morador mover a própria visita para o apartamento do vizinho', async () => {
+      const { svc, prisma } = buildComApto(false);
+      await expect(
+        svc.update({ id: 500, id_apartamento: 77 } as any, morador),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.visitantes.update).not.toHaveBeenCalled();
     });
   });
 });
