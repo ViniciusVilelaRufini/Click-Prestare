@@ -24,6 +24,7 @@ import {
   confiancaInsuficiente,
   RegraAcessoLike,
 } from './access-rules.util';
+import { normalizarPlaca, placaValida, variantesPlaca } from './placa.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 
 export interface CreateDeviceDto {
@@ -65,6 +66,13 @@ export interface WebhookEventDto {
   direction?: string;
   card_uid?: string;
   qrcode?: string;
+  /**
+   * Placa lida por câmera LPR. Câmeras que fazem push HTTP mandam aqui; as que
+   * só expõem log de eventos são lidas pelo Agente Local, que preenche este
+   * campo. Terminal com tipo 'lpr' também aceita a placa em external_id, que é
+   * o campo genérico usado pelos demais leitores.
+   */
+  placa?: string;
   /**
    * Evento REENVIADO pelo store-and-forward do agente (aconteceu enquanto a
    * internet estava fora). Processa normalmente (auditoria + estado de
@@ -2647,18 +2655,96 @@ export class FacialService {
     if (!device || device.id_condominio !== idCondominio) {
       throw new UnauthorizedException('Dispositivo inválido para este agente');
     }
-    // Só terminais faciais geram eventos por este canal; rejeita o resto para
-    // não virar vetor de injeção de acessos em leitores de outro tipo.
-    if (device.tipo !== 'facial') {
-      throw new BadRequestException('Endpoint de evento é só para terminal facial');
+    // Só terminal facial e câmera LPR geram eventos por este canal; rejeita o
+    // resto para não virar vetor de injeção de acessos em leitores de outro
+    // tipo. LPR entra aqui porque as câmeras Intelbras/Dahua/Hikvision não
+    // fazem push para URL arbitrária — quem lê o log delas é o Agente Local.
+    if (device.tipo !== 'facial' && device.tipo !== 'lpr') {
+      throw new BadRequestException(
+        'Endpoint de evento é só para terminal facial ou câmera LPR',
+      );
     }
     // Evento sem credencial reconhecida não vira acesso — descarta cedo (evita
     // poluir o histórico com "desconhecido" via chamadas forjadas/vazias).
-    const credencial = payload.external_id ?? payload.person_id;
+    const credencial =
+      payload.external_id ?? payload.person_id ?? payload.placa;
     if (!credencial) {
       throw new BadRequestException('Evento sem identificador de pessoa');
     }
     return this.runWebhook(device, payload);
+  }
+
+  /**
+   * Descobre de quem é a placa lida pela câmera LPR.
+   *
+   * Duas fontes, nesta ordem:
+   *  1. Veiculos  — carro do morador, cadastro permanente.
+   *  2. Vagas     — liberação temporária (visitante/inquilino), que só vale
+   *                 dentro da janela inicio/fim. Fora dela a placa não abre.
+   *
+   * A vaga sempre tem titular (coluna obrigatória), então há a quem atribuir o
+   * acesso mesmo quando ela não aponta visitante nem beneficiário — sem isso o
+   * acesso cairia em "não identificado" e seria negado.
+   */
+  private async resolverPlaca(
+    placaNormalizada: string,
+    idCondominio: number,
+    quando: Date,
+  ): Promise<{
+    tipoPessoa: 'morador' | 'visitante' | 'prestador' | 'funcionario';
+    idPessoa: number;
+    nomePessoa: string;
+  } | null> {
+    const variantes = variantesPlaca(placaNormalizada);
+    if (variantes.length === 0) return null;
+
+    const veiculo = await this.prisma.veiculos.findFirst({
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        placa: { in: variantes },
+      },
+      include: { morador: true },
+    });
+    if (veiculo?.morador) {
+      const m = veiculo.morador;
+      return {
+        tipoPessoa:
+          m.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador',
+        idPessoa: m.id,
+        nomePessoa: m.nome,
+      };
+    }
+
+    const vaga = await this.prisma.vagas.findFirst({
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        placa: { in: variantes },
+        AND: [
+          { OR: [{ inicio: null }, { inicio: { lte: quando } }] },
+          { OR: [{ fim: null }, { fim: { gte: quando } }] },
+        ],
+      },
+      include: { visitante: true, beneficiario: true, titular: true },
+    });
+    if (!vaga) return null;
+
+    if (vaga.visitante) {
+      return {
+        tipoPessoa: vaga.visitante.is_prestador === 1 ? 'prestador' : 'visitante',
+        idPessoa: vaga.visitante.id,
+        nomePessoa: vaga.visitante.nome,
+      };
+    }
+    const morador = vaga.beneficiario ?? vaga.titular;
+    if (!morador) return null;
+    return {
+      tipoPessoa:
+        morador.tipo?.toLowerCase() === 'funcionario' ? 'funcionario' : 'morador',
+      idPessoa: morador.id,
+      nomePessoa: morador.nome,
+    };
   }
 
   private async runWebhook(
@@ -2693,7 +2779,27 @@ export class FacialService {
     const tagRfidLida =
       payload.card_uid ??
       (device.tipo === 'tag_reader' ? payload.external_id : undefined);
+    // Placa só é considerada em terminal LPR — assim uma leitura de placa não
+    // pode ser injetada em leitor de outro tipo. Descarta leitura suja do OCR
+    // antes de virar consulta ou evento negado no histórico.
+    const placaCrua =
+      device.tipo === 'lpr'
+        ? (payload.placa ?? payload.external_id)
+        : undefined;
+    const placaNormalizada = normalizarPlaca(placaCrua);
+    const placaLida =
+      placaNormalizada && placaValida(placaNormalizada) ? placaNormalizada : '';
     const externalId = payload.external_id ?? payload.person_id ?? '';
+
+    // Câmera LPR lê o tempo todo, inclusive carro passando na rua e placa suja.
+    // Leitura que não forma uma placa válida é descartada em silêncio: virar
+    // "negado" encheria o histórico de ruído e dispararia alerta à toa.
+    if (device.tipo === 'lpr' && !placaLida) {
+      this.logger.debug(
+        `LPR: leitura ignorada no device ${device.id} (placa ilegível: "${placaCrua ?? ''}")`,
+      );
+      return { ok: true, ignored: 'placa_invalida' };
+    }
 
     // Evento reenviado pelo store-and-forward do agente: aconteceu no passado,
     // enquanto a nuvem estava inalcançável. Auditoria e estado entram normais
@@ -2704,7 +2810,9 @@ export class FacialService {
     // Cooldown: descarta eventos duplicados do mesmo leitor para a mesma
     // credencial dentro da janela (default 15s). Protege contra leitor com
     // defeito disparando em loop e contra usuário batendo o crachá duas vezes.
-    const credencial = qrCodeLido ?? tagRfidLida ?? externalId ?? '';
+    // Vale também para LPR: o carro fica parado no portão e a câmera relê a
+    // mesma placa várias vezes por segundo.
+    const credencial = qrCodeLido ?? tagRfidLida ?? (placaLida || externalId) ?? '';
     if (
       !isBacklog &&
       credencial &&
@@ -2766,6 +2874,18 @@ export class FacialService {
           nomePessoa = visitante.nome;
           faceIdSalvo = tagRfidLida;
         }
+      }
+    } else if (placaLida) {
+      const resolvido = await this.resolverPlaca(
+        placaLida,
+        device.id_condominio,
+        timestamp,
+      );
+      if (resolvido) {
+        tipoPessoa = resolvido.tipoPessoa;
+        idPessoa = resolvido.idPessoa;
+        nomePessoa = resolvido.nomePessoa;
+        faceIdSalvo = placaLida;
       }
     } else if (externalId) {
       const parsed = this.parseExternalId(externalId);
@@ -2843,8 +2963,10 @@ export class FacialService {
       // capturar um UID/QR justamente para este leitor. Se sim, desvia o
       // valor para a sessão e responde "captured" sem registrar como acesso.
       const isLeitor =
-        device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
-      const valorLido = qrCodeLido ?? tagRfidLida ?? externalId;
+        device.tipo === 'tag_reader' ||
+        device.tipo === 'qrcode_reader' ||
+        device.tipo === 'lpr';
+      const valorLido = qrCodeLido ?? tagRfidLida ?? (placaLida || externalId);
       if (isLeitor && valorLido) {
         const captured = this.enrollSessions.consumeForDevice(
           device.id,
@@ -2868,7 +2990,11 @@ export class FacialService {
           id_condominio: device.id_condominio,
           id_device: device.id,
           tipo_dispositivo: device.tipo,
-          face_id: qrCodeLido ?? tagRfidLida ?? externalId ?? 'desconhecido',
+          // A placa entra aqui: é o que a portaria precisa ver para decidir
+          // sobre um veículo não cadastrado. Sem isso o registro saía vazio,
+          // porque a placa não chega por external_id.
+          face_id:
+            qrCodeLido ?? tagRfidLida ?? (placaLida || externalId) ?? 'desconhecido',
           tipo_pessoa: 'desconhecido',
           id_pessoa: null,
           nome_pessoa: 'Não identificado ou expirado',
@@ -3574,8 +3700,13 @@ export class FacialService {
     // legado, útil pra condomínios simples com 1 entrada).
     //
     // Apenas eventos de ENTRADA disparam acionamento — saídas não precisam.
+    //
+    // A câmera LPR entra aqui pelo mesmo caminho: ela só LÊ a placa, quem abre
+    // o portão é a botoeira/catraca acionada por esta ponte.
     const isLeitor =
-      device.tipo === 'tag_reader' || device.tipo === 'qrcode_reader';
+      device.tipo === 'tag_reader' ||
+      device.tipo === 'qrcode_reader' ||
+      device.tipo === 'lpr';
     // Backlog NUNCA aciona abertura: o evento é antigo (a pessoa já passou
     // enquanto a nuvem estava fora) — abrir a porta agora seria um furo.
     if (isLeitor && evento === 'entrada' && !isBacklog) {

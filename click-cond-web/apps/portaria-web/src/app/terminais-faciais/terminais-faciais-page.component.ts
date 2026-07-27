@@ -185,6 +185,20 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       ],
       modeloPlaceholder: 'Ex: Leitor QR USB→IP',
     },
+    {
+      value: 'lpr',
+      label: 'Câmera LPR (leitor de placa)',
+      hint: 'Lê a placa do veículo e identifica pelo cadastro: carro do morador (Veículos) ou liberação temporária (Vagas). Placa não cadastrada fica registrada como negada para a portaria avaliar.',
+      requerAuth: true,
+      fabricantes: [
+        { value: 'intelbras', label: 'Intelbras' },
+        { value: 'hikvision', label: 'HikVision' },
+        { value: 'dahua', label: 'Dahua' },
+        { value: 'genérico', label: 'Genérico (webhook HTTP)' },
+        { value: 'outro', label: 'Outro' },
+      ],
+      modeloPlaceholder: 'Ex: Intelbras VIP 5450 LPR',
+    },
   ] as const;
 
   get tipoSelecionado() {

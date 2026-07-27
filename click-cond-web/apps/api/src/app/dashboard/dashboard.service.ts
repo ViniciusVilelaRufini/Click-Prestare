@@ -635,6 +635,7 @@ function labelDispositivo(tipo?: string | null): string {
     case 'botoeira': return 'botoeira';
     case 'tag_reader': return 'leitor de tag RFID';
     case 'qrcode_reader': return 'leitor de QR Code';
+    case 'lpr': return 'câmera LPR';
     case 'facial':
     default: return 'terminal facial';
   }
@@ -647,6 +648,7 @@ function labelMetodoDispositivo(tipo?: string | null): string {
     case 'botoeira': return 'Botoeira';
     case 'tag_reader': return 'Leitor de Tag RFID';
     case 'qrcode_reader': return 'Leitor de QR Code';
+    case 'lpr': return 'Câmera LPR';
     case 'facial':
     default: return 'Terminal Facial';
   }

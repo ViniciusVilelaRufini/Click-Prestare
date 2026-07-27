@@ -51,6 +51,12 @@ export class SimuladorDispositivosComponent implements OnInit {
   qrcodeValue = signal<string>('');
   qrcodeEvent = signal<'entrada' | 'saida'>('entrada');
 
+  // LPR: a placa é digitada à mão. Serve para validar o fluxo inteiro
+  // (casamento com Veículos/Vagas, regras e acionamento do portão) sem
+  // depender de ter a câmera instalada.
+  placaValor = signal<string>('');
+  lprEvent = signal<'entrada' | 'saida'>('entrada');
+
   // Catraca
   catracaCredencial = signal<string>('');
   catracaMetodo = signal<'rfid' | 'qrcode' | 'facial'>('rfid');
@@ -187,6 +193,19 @@ export class SimuladorDispositivosComponent implements OnInit {
       event: this.qrcodeEvent(),
       qrcode: this.qrcodeValue().trim(),
       timestamp: new Date().toISOString()
+    };
+
+    this.enviarWebhook(d.webhook_token, payload);
+  }
+
+  simularLPR() {
+    const d = this.selectedDevice();
+    if (!d) return;
+
+    const payload = {
+      event: this.lprEvent(),
+      placa: this.placaValor().trim().toUpperCase(),
+      timestamp: new Date().toISOString(),
     };
 
     this.enviarWebhook(d.webhook_token, payload);
