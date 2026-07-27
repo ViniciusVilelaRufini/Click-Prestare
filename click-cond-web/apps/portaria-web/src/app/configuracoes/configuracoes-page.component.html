@@ -37,6 +37,13 @@
     >
       Regras de Acesso
     </button>
+    <button
+      (click)="currentTab.set('caminho')"
+      [class]="'px-4 pb-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all duration-200 ' +
+        (currentTab() === 'caminho' ? 'border-accent text-accent' : 'border-transparent text-slate-400 hover:text-white')"
+    >
+      Caminho de Leitores
+    </button>
   </div>
 
   @if (currentTab() === 'conta') {
@@ -186,6 +193,8 @@
     <div class="p-6 rounded-2xl bg-graphite-200 border border-white/5 animate-fadeIn">
       <app-regras-acesso />
     </div>
+  } @else if (currentTab() === 'caminho') {
+    <app-caminho-leitores />
   }
 
 </div>

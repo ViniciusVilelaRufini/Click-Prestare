@@ -52,6 +52,9 @@ describe('FacialService — LPR (leitura de placa)', () => {
         findFirst: jest.fn(async () => null),
       },
       regras_Acesso: { findMany: jest.fn(async () => []) },
+      // Sem caminho configurado: o acionamento cai no roteamento por regras.
+      // O roteamento por etapa tem cobertura própria em caminho-leitores.spec.
+      caminhos_Etapas: { findFirst: jest.fn(async () => null) },
       moradores: {
         findFirst: jest.fn(async () => null),
         findUnique: jest.fn(async () => null),

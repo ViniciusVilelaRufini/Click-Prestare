@@ -168,6 +168,7 @@ model Condominios {
   facialDevices        Facial_Devices[]
   acessosFacial        Acessos_Facial[]
   regrasAcesso         Regras_Acesso[]
+  caminhosAcesso       Caminhos_Acesso[]
   veiculos             Veiculos[]
   tags                 Tags[]
 
@@ -1063,6 +1064,10 @@ model Facial_Devices {
   condominio    Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
   area_social   Areas_Sociais?        @relation(fields: [id_area_social], references: [id], onDelete: SetNull, map: "fk_facdev_area")
   regras        Regras_Dispositivos[]
+  // Caminho de leitores: o mesmo aparelho pode ser o LEITOR de uma etapa
+  // (identifica) ou a ABERTURA que ela aciona (portão/catraca).
+  etapasComoLeitor   Caminhos_Etapas[] @relation("EtapaLeitor")
+  etapasComoAbertura Caminhos_Etapas[] @relation("EtapaAbertura")
 
   @@index([id_condominio], map: "idx_facdev_cond")
   @@index([id_area_social], map: "idx_facdev_area")
@@ -1107,6 +1112,52 @@ model Regras_Acesso {
 
   @@index([id_condominio], map: "idx_regac_cond")
   @@map("regras_acesso")
+}
+
+/**
+ * Caminho de leitores — a sequência física que a pessoa percorre para entrar.
+ *
+ * Exemplo real: portão da rua abre por LPR; já dentro, um terminal facial
+ * libera o portão interno. São duas etapas, cada uma com o SEU leitor e a SUA
+ * abertura.
+ *
+ * Sem isso, o acionamento cai no comportamento legado: qualquer leitor que
+ * identifica dispara TODAS as aberturas do condomínio — no cenário acima, a
+ * leitura da placa abriria os dois portões de uma vez.
+ */
+model Caminhos_Acesso {
+  id            Int               @id @default(autoincrement())
+  id_condominio Int
+  nome          String            @db.VarChar(150)
+  descricao     String?           @db.VarChar(255)
+  ativo         Int               @default(1) @db.TinyInt
+  created_at    DateTime          @default(now()) @db.DateTime(0)
+  updated_at    DateTime          @default(now()) @updatedAt @db.DateTime(0)
+  condominio    Condominios       @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_camac_cond")
+  etapas        Caminhos_Etapas[]
+
+  @@index([id_condominio], map: "idx_camac_cond")
+  @@map("caminhos_acesso")
+}
+
+model Caminhos_Etapas {
+  id          Int             @id @default(autoincrement())
+  id_caminho  Int
+  /// 1 = primeira etapa percorrida, 2 = seguinte, e assim por diante.
+  ordem       Int
+  /// Aparelho que IDENTIFICA nesta etapa (LPR, facial, tag, QR).
+  id_leitor   Int
+  /// Aparelho que ABRE nesta etapa (botoeira/catraca). Nulo = etapa só
+  /// registra a passagem, sem acionar nada.
+  id_abertura Int?
+  caminho     Caminhos_Acesso @relation(fields: [id_caminho], references: [id], onDelete: Cascade, map: "fk_camet_cam")
+  leitor      Facial_Devices  @relation("EtapaLeitor", fields: [id_leitor], references: [id], onDelete: Cascade, map: "fk_camet_leitor")
+  abertura    Facial_Devices? @relation("EtapaAbertura", fields: [id_abertura], references: [id], onDelete: SetNull, map: "fk_camet_abertura")
+
+  @@unique([id_caminho, ordem], map: "un_camet_ordem")
+  @@index([id_leitor], map: "idx_camet_leitor")
+  @@index([id_abertura], map: "idx_camet_abertura")
+  @@map("caminhos_etapas")
 }
 
 model Regras_Dispositivos {

@@ -26,6 +26,7 @@ import { StorageModule } from './common/storage/storage.module';
 import { RelatoriosModule } from './relatorios/relatorios.module';
 import { FacialModule } from './facial/facial.module';
 import { RegrasAcessoModule } from './regras-acesso/regras-acesso.module';
+import { CaminhosAcessoModule } from './caminhos-acesso/caminhos-acesso.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CrmModule } from './crm/crm.module';
@@ -72,6 +73,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     RelatoriosModule,
     FacialModule,
     RegrasAcessoModule,
+    CaminhosAcessoModule,
     AuditoriaModule,
     CrmModule,
     IntegrationsModule,

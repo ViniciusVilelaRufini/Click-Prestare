@@ -1,0 +1,275 @@
+<div class="space-y-6 animate-fadeIn">
+
+  <!-- Explicação: o recurso é abstrato, então o exemplo vem antes da tela -->
+  <div class="p-5 rounded-2xl bg-graphite-200 border border-white/5 space-y-4">
+    <div class="flex items-start gap-3">
+      <div class="w-9 h-9 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+        </svg>
+      </div>
+      <div>
+        <h2 class="text-base font-semibold text-white">Caminho de Leitores</h2>
+        <p class="text-sm text-slate-400 mt-0.5">
+          Defina a ordem em que a pessoa passa pelos leitores e qual portão cada
+          um abre.
+        </p>
+      </div>
+    </div>
+
+    <div class="rounded-xl bg-slate-900/60 border border-white/5 p-4 space-y-3">
+      <p class="text-xs text-slate-400 leading-relaxed">
+        <span class="text-slate-200 font-semibold">Exemplo:</span>
+        o carro chega na rua, a câmera lê a placa e abre o portão externo. Já
+        dentro, o morador se identifica no terminal facial, que abre o portão
+        interno. São duas etapas, cada uma com o seu leitor e o seu portão.
+      </p>
+
+      <!-- Diagrama do exemplo -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <div class="px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/30">
+          <p class="text-[9px] font-bold text-blue-400 uppercase tracking-wider">Etapa 1</p>
+          <p class="text-[11px] text-slate-200 font-medium">Câmera LPR → Portão da rua</p>
+        </div>
+        <svg class="w-4 h-4 text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+        </svg>
+        <div class="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+          <p class="text-[9px] font-bold text-emerald-400 uppercase tracking-wider">Etapa 2</p>
+          <p class="text-[11px] text-slate-200 font-medium">Terminal Facial → Portão interno</p>
+        </div>
+      </div>
+
+      <p class="text-[11px] text-amber-400/90 leading-relaxed flex items-start gap-2">
+        <svg class="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.71-3.03l-6.93-11.7a2 2 0 00-3.42 0l-6.93 11.7A2 2 0 005.07 19z"/>
+        </svg>
+        <span>
+          Sem um caminho configurado, qualquer leitor que identifica alguém
+          aciona <strong>todos</strong> os portões do condomínio de uma vez.
+        </span>
+      </p>
+    </div>
+  </div>
+
+  @if (erro()) {
+    <div class="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+      {{ erro() }}
+    </div>
+  }
+
+  <!-- LISTA -->
+  @if (!editando()) {
+    <div class="flex items-center justify-between">
+      <p class="text-xs text-slate-400">
+        {{ caminhos().length }} caminho(s) configurado(s)
+      </p>
+      <button
+        (click)="novo()"
+        class="px-4 py-2 rounded-xl bg-accent hover:bg-accent/90 text-white text-xs font-semibold active:scale-95 transition flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Novo Caminho
+      </button>
+    </div>
+
+    @if (loading()) {
+      <p class="text-xs text-slate-500">Carregando…</p>
+    } @else if (caminhos().length === 0) {
+      <div class="p-8 rounded-2xl bg-graphite-200 border border-white/5 text-center space-y-2">
+        <p class="text-sm text-slate-300 font-medium">Nenhum caminho configurado</p>
+        <p class="text-xs text-slate-500 max-w-md mx-auto">
+          Enquanto não houver um caminho, o sistema segue abrindo todos os
+          portões quando um leitor identifica alguém.
+        </p>
+      </div>
+    } @else {
+      <div class="space-y-3">
+        @for (c of caminhos(); track c.id) {
+          <div class="p-5 rounded-2xl bg-graphite-200 border border-white/5 space-y-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-semibold text-white truncate">{{ c.nome }}</h3>
+                  @if (c.ativo === 1) {
+                    <span class="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 uppercase">Ativo</span>
+                  } @else {
+                    <span class="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-500/15 text-slate-400 uppercase">Inativo</span>
+                  }
+                </div>
+                @if (c.descricao) {
+                  <p class="text-xs text-slate-400 mt-0.5">{{ c.descricao }}</p>
+                }
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button (click)="editar(c)"
+                  class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold transition">
+                  Editar
+                </button>
+                <button (click)="remover(c)"
+                  class="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-semibold transition">
+                  Remover
+                </button>
+              </div>
+            </div>
+
+            <!-- Fluxo das etapas -->
+            <div class="flex items-center gap-2 flex-wrap">
+              @for (e of c.etapas; track e.ordem; let last = $last) {
+                <div class="px-3 py-2 rounded-lg bg-slate-900/60 border border-white/10 min-w-0">
+                  <p class="text-[9px] font-bold text-accent uppercase tracking-wider">Etapa {{ e.ordem }}</p>
+                  <p class="text-[11px] text-slate-200 font-medium truncate">
+                    {{ e.leitor?.nome || '—' }}
+                    <span class="text-slate-500">({{ rotuloTipo(e.leitor?.tipo || '') }})</span>
+                  </p>
+                  <p class="text-[10px] text-slate-400 truncate">
+                    @if (e.abertura) {
+                      abre {{ e.abertura.nome }}
+                    } @else {
+                      <span class="text-amber-400/80">só registra a passagem</span>
+                    }
+                  </p>
+                </div>
+                @if (!last) {
+                  <svg class="w-4 h-4 text-slate-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                  </svg>
+                }
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- EDITOR -->
+  @if (editando()) {
+    <div class="p-5 rounded-2xl bg-graphite-200 border border-white/5 space-y-5">
+      <h3 class="text-sm font-semibold text-white">
+        {{ editandoId() ? 'Editar caminho' : 'Novo caminho' }}
+      </h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="space-y-1.5">
+          <label class="text-[11px] font-semibold text-slate-400">Nome</label>
+          <input [(ngModel)]="nome" placeholder="Ex: Entrada de veículos"
+            class="w-full px-3 py-2.5 text-xs rounded-xl bg-slate-900 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-accent transition" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-[11px] font-semibold text-slate-400">Descrição (opcional)</label>
+          <input [(ngModel)]="descricao" placeholder="Ex: Portão da rua e portão interno"
+            class="w-full px-3 py-2.5 text-xs rounded-xl bg-slate-900 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-accent transition" />
+        </div>
+      </div>
+
+      <label class="flex items-center gap-2 cursor-pointer w-fit">
+        <input type="checkbox" [checked]="ativo === 1"
+          (change)="ativo = ativo === 1 ? 0 : 1"
+          class="w-4 h-4 rounded accent-accent" />
+        <span class="text-xs text-slate-300">Caminho ativo</span>
+      </label>
+
+      <!-- Etapas -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            Etapas, na ordem em que a pessoa passa
+          </p>
+          <button (click)="adicionarEtapa()"
+            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold transition">
+            + Etapa
+          </button>
+        </div>
+
+        @for (e of etapas(); track $index; let i = $index; let first = $first; let last = $last) {
+          <div class="p-4 rounded-xl bg-slate-900/60 border border-white/10 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold text-accent uppercase tracking-wider">
+                Etapa {{ i + 1 }}
+              </span>
+              <div class="flex items-center gap-1">
+                <button (click)="moverEtapa(i, -1)" [disabled]="first"
+                  class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 transition flex items-center justify-center"
+                  title="Subir">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                  </svg>
+                </button>
+                <button (click)="moverEtapa(i, 1)" [disabled]="last"
+                  class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 transition flex items-center justify-center"
+                  title="Descer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                  </svg>
+                </button>
+                <button (click)="removerEtapa(i)"
+                  class="w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition flex items-center justify-center"
+                  title="Remover etapa">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="space-y-1.5">
+                <label class="text-[10px] font-semibold text-slate-400">
+                  Quem identifica
+                </label>
+                <select [ngModel]="e.id_leitor" (ngModelChange)="setLeitor(i, $event)"
+                  class="w-full px-3 py-2.5 text-xs rounded-xl bg-slate-900 border border-white/10 text-white focus:outline-none focus:border-accent transition">
+                  <option [ngValue]="0">Selecione o leitor…</option>
+                  @for (d of leitores(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.nome }} — {{ rotuloTipo(d.tipo) }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="text-[10px] font-semibold text-slate-400">
+                  O que abre
+                </label>
+                <select [ngModel]="e.id_abertura ?? 0" (ngModelChange)="setAbertura(i, $event)"
+                  class="w-full px-3 py-2.5 text-xs rounded-xl bg-slate-900 border border-white/10 text-white focus:outline-none focus:border-accent transition">
+                  <option [ngValue]="0">Nada — só registra a passagem</option>
+                  @for (d of aberturas(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.nome }} — {{ rotuloTipo(d.tipo) }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+          </div>
+
+          @if (!last) {
+            <div class="flex justify-center">
+              <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+              </svg>
+            </div>
+          }
+        }
+
+        @if (leitores().length === 0) {
+          <p class="text-[11px] text-amber-400/90">
+            Nenhum leitor cadastrado ainda. Cadastre os dispositivos em
+            "Terminais de Dispositivos" antes de montar o caminho.
+          </p>
+        }
+      </div>
+
+      <div class="flex items-center gap-3 pt-2">
+        <button (click)="salvar()" [disabled]="salvando()"
+          class="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-50 text-white text-xs font-semibold active:scale-95 transition">
+          {{ salvando() ? 'Salvando…' : 'Salvar caminho' }}
+        </button>
+        <button (click)="cancelar()"
+          class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  }
+</div>

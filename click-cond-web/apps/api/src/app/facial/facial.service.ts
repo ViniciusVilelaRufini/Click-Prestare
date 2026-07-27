@@ -3710,51 +3710,82 @@ export class FacialService {
     // Backlog NUNCA aciona abertura: o evento é antigo (a pessoa já passou
     // enquanto a nuvem estava fora) — abrir a porta agora seria um furo.
     if (isLeitor && evento === 'entrada' && !isBacklog) {
-      // Busca aberturas vinculadas a esse leitor via regras ativas.
-      // Uma regra que tenha o leitor E aberturas define o roteamento.
-      const regrasDoLeitor = await this.prisma.regras_Acesso.findMany({
+      // 1º) Caminho de leitores: se este leitor é etapa de um caminho ativo,
+      // ele aciona SOMENTE a abertura daquela etapa.
+      //
+      // É o que separa portão da rua e portão interno: sem isso, o fallback
+      // abaixo abriria os dois de uma vez na primeira identificação, e a
+      // segunda etapa perderia o sentido.
+      const etapa = await this.prisma.caminhos_Etapas.findFirst({
         where: {
-          id_condominio: device.id_condominio,
-          ativo: 1,
-          dispositivos: { some: { id_dispositivo: device.id } },
+          id_leitor: device.id,
+          caminho: { id_condominio: device.id_condominio, ativo: 1 },
         },
-        include: {
-          dispositivos: {
-            include: { dispositivo: true },
-          },
-        },
+        include: { abertura: true, caminho: { select: { nome: true } } },
       });
 
-      const aberturasMapeadas = new Map<number, typeof device>();
-      for (const regra of regrasDoLeitor) {
-        for (const link of regra.dispositivos) {
-          const d = link.dispositivo;
-          if (
-            d &&
-            d.id !== device.id &&
-            d.ativo === 1 &&
-            (d.tipo === 'botoeira' || d.tipo === 'catraca')
-          ) {
-            aberturasMapeadas.set(d.id, d as any);
+      let aberturasParaAcionar: any[];
+
+      if (etapa) {
+        // Etapa sem abertura é intencional (só registra a passagem) ou está com
+        // o aparelho desativado/removido. Nos dois casos NÃO cai no fallback:
+        // abrir tudo aqui seria pior do que não abrir nada.
+        const alvo =
+          etapa.abertura && etapa.abertura.ativo === 1 ? [etapa.abertura] : [];
+        aberturasParaAcionar = alvo;
+        this.logger.log(
+          `Caminho "${etapa.caminho?.nome}" etapa ${etapa.ordem}: leitor ${device.id} → ${
+            alvo.length ? `abertura ${alvo[0].id}` : 'nenhuma abertura vinculada'
+          }`,
+        );
+      } else {
+        // 2º) Sem caminho: mantém o roteamento por regras já existente.
+        // Busca aberturas vinculadas a esse leitor via regras ativas.
+        // Uma regra que tenha o leitor E aberturas define o roteamento.
+        const regrasDoLeitor = await this.prisma.regras_Acesso.findMany({
+          where: {
+            id_condominio: device.id_condominio,
+            ativo: 1,
+            dispositivos: { some: { id_dispositivo: device.id } },
+          },
+          include: {
+            dispositivos: {
+              include: { dispositivo: true },
+            },
+          },
+        });
+
+        const aberturasMapeadas = new Map<number, typeof device>();
+        for (const regra of regrasDoLeitor) {
+          for (const link of regra.dispositivos) {
+            const d = link.dispositivo;
+            if (
+              d &&
+              d.id !== device.id &&
+              d.ativo === 1 &&
+              (d.tipo === 'botoeira' || d.tipo === 'catraca')
+            ) {
+              aberturasMapeadas.set(d.id, d as any);
+            }
           }
         }
-      }
 
-      const aberturasParaAcionar =
-        aberturasMapeadas.size > 0
-          ? Array.from(aberturasMapeadas.values())
-          : await this.prisma.facial_Devices.findMany({
-              where: {
-                id_condominio: device.id_condominio,
-                ativo: 1,
-                tipo: { in: ['botoeira', 'catraca'] },
-              },
-            });
+        aberturasParaAcionar =
+          aberturasMapeadas.size > 0
+            ? Array.from(aberturasMapeadas.values())
+            : await this.prisma.facial_Devices.findMany({
+                where: {
+                  id_condominio: device.id_condominio,
+                  ativo: 1,
+                  tipo: { in: ['botoeira', 'catraca'] },
+                },
+              });
 
-      if (aberturasMapeadas.size === 0) {
-        this.logger.warn(
-          `Ponte usando FALLBACK (sem mapeamento): leitor ${device.id} acionando todas as aberturas do condomínio`,
-        );
+        if (aberturasMapeadas.size === 0) {
+          this.logger.warn(
+            `Ponte usando FALLBACK (sem mapeamento): leitor ${device.id} acionando todas as aberturas do condomínio`,
+          );
+        }
       }
 
       for (const abertura of aberturasParaAcionar) {
