@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -216,15 +218,25 @@ class _ChatIaPageState extends State<ChatIaPage> {
           ],
         ),
       ),
+      // Stack (e não Column): o campo precisa FLUTUAR sobre a conversa para o
+      // desfoque ter o que desfocar. Empilhado abaixo da lista, o vidro ficaria
+      // por cima do fundo chapado do Scaffold e não apareceria.
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
+            Positioned.fill(
               child: _mensagens.isEmpty
                   ? _buildEmptyState(context)
                   : ListView.builder(
                       controller: _scrollController,
-                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      // Folga no rodapé: sem ela a última mensagem fica
+                      // permanentemente escondida atrás do campo flutuante.
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        104,
+                      ),
                       itemCount: _mensagens.length + (_isSending ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (_isSending && index == _mensagens.length) {
@@ -234,7 +246,12 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       },
                     ),
             ),
-            _buildInput(context),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildInput(context),
+            ),
           ],
         ),
       ),
@@ -529,60 +546,96 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
+  /// Campo flutuante em "liquid glass" — mesmo tratamento da ilha de navegação
+  /// do app: sombra por fora, cor e borda DENTRO do recorte, para que o
+  /// desfoque não vaze pelos cantos arredondados.
   Widget _buildInput(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: EdgeInsets.only(
-        left: AppSpacing.md,
-        right: AppSpacing.md,
-        top: AppSpacing.sm,
-        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.md,
+    const raio = 30.0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.lg,
       ),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        border: Border(top: BorderSide(color: AppColors.border(context), width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _msgController,
-              textCapitalization: TextCapitalization.sentences,
-              minLines: 1,
-              maxLines: 4,
-              style: AppTypography.body(context),
-              onSubmitted: (_) => _enviar(),
-              decoration: InputDecoration(
-                hintText: 'Pergunte algo ao Click IA...',
-                hintStyle: AppTypography.body(context)
-                    .copyWith(color: AppColors.textTertiary(context)),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                fillColor: isDark ? AppColors.bg(context) : Colors.grey.shade100,
-                filled: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(raio),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.30 : 0.06),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          GestureDetector(
-            onTap: _isSending ? null : () => _enviar(),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(raio),
+          clipBehavior: Clip.antiAlias,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
             child: Container(
-              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _isSending
-                    ? AppColors.primary.withOpacity(0.5)
-                    : AppColors.primary,
-                shape: BoxShape.circle,
+                color: isDark
+                    ? Colors.black.withOpacity(0.20)
+                    : Colors.white.withOpacity(0.35),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.12)
+                      : Colors.white.withOpacity(0.45),
+                  width: 1,
+                ),
               ),
-              child: const Icon(PhosphorIcons.paperPlaneRight,
-                  color: Colors.white, size: 20),
+              padding: const EdgeInsets.fromLTRB(AppSpacing.md, 6, 6, 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _msgController,
+                      textCapitalization: TextCapitalization.sentences,
+                      minLines: 1,
+                      maxLines: 4,
+                      style: AppTypography.body(context),
+                      onSubmitted: (_) => _enviar(),
+                      decoration: InputDecoration(
+                        hintText: 'Pergunte algo ao Click IA...',
+                        hintStyle: AppTypography.body(context)
+                            .copyWith(color: AppColors.textTertiary(context)),
+                        // Sem preenchimento nem borda: o fundo é o próprio
+                        // vidro; um fill aqui criaria uma caixa dentro da caixa.
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        filled: false,
+                        isDense: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  GestureDetector(
+                    onTap: _isSending ? null : () => _enviar(),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _isSending
+                            ? AppColors.primary.withOpacity(0.5)
+                            : AppColors.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(PhosphorIcons.paperPlaneRight,
+                          color: Colors.white, size: 20),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

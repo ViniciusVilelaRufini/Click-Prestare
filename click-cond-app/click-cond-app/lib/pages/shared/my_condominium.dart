@@ -1117,6 +1117,23 @@ class _MyCondominiumState extends State<MyCondominium> {
                     ],
                   ),
                 ),
+                // Documentos/atas para o morador. Não estão no menu, e o único
+                // acesso era o botão do síndico — o morador não tinha como
+                // chegar às atas da assembleia.
+                if (type == 'morador')
+                  Material(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      onTap: () => _navigate(ListDocs()),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Icon(PhosphorIcons.fileText,
+                            color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ),
               ],
             ),
             if (type == 'sindico') ...[

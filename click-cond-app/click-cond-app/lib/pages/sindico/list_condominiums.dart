@@ -470,7 +470,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 ),
               ),
               AppSpacing.gapSm,
-              _buildActionPill(context, iconSize),
+              _buildHeaderActions(context, iconSize),
             ],
           ),
           const SizedBox(height: AppSpacing.xxl),
@@ -488,119 +488,87 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
-  /// Ações do topo em uma "pílula" flutuante: cápsula clara com sombra suave
-  /// agrupando editar/notificações, e o sair destacado à parte — por ser a
-  /// única ação destrutiva, não convém ficar colado às outras.
-  Widget _buildActionPill(BuildContext context, double iconSize) {
-    final shadow = [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.07),
-        blurRadius: 16,
-        offset: const Offset(0, 4),
-      ),
-    ];
-
-    Widget pillButton({
+  /// Ações do topo no padrão do app: IconButton solto com ícone Phosphor na
+  /// cor secundária, como nas demais telas. Só o selo de não lidas usa cor —
+  /// ali é informação, não decoração.
+  Widget _buildHeaderActions(BuildContext context, double iconSize) {
+    Widget acao({
       required IconData icon,
       required VoidCallback onPressed,
       required String tooltip,
-      Color? color,
+      Widget? badge,
     }) {
-      return IconButton(
-        icon: Icon(icon,
-            color: color ?? AppColors.textSecondary(context), size: iconSize),
+      final botao = IconButton(
+        icon:
+            Icon(icon, color: AppColors.textSecondary(context), size: iconSize),
         onPressed: onPressed,
         tooltip: tooltip,
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(6),
         constraints: const BoxConstraints(),
-        splashRadius: iconSize + 6,
+        splashRadius: iconSize + 4,
       );
+      if (badge == null) return botao;
+      return Stack(clipBehavior: Clip.none, children: [botao, badge]);
     }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            borderRadius: BorderRadius.circular(AppRadius.full),
-            border: Border.all(color: AppColors.border(context)),
-            boxShadow: shadow,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              pillButton(
-                icon: PhosphorIcons.pencilSimple,
-                onPressed: _editProfile,
-                tooltip: getText('editar_infos'),
-              ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  pillButton(
-                    icon: PhosphorIcons.bell,
-                    tooltip: 'Notificações',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const NotificacoesPage()),
-                      ).then((_) {
-                        if (mounted) _carregarNaoLidas();
-                      });
-                    },
-                  ),
-                  if (_naoLidas > 0)
-                    Positioned(
-                      right: 2,
-                      top: 2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 1),
-                        constraints: const BoxConstraints(minWidth: 16),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(AppRadius.full),
-                          border: Border.all(
-                              color: AppColors.surface(context), width: 1.5),
-                        ),
-                        child: Text(
-                          _naoLidas > 9 ? '9+' : '$_naoLidas',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            height: 1.3,
-                          ),
-                        ),
+        acao(
+          icon: PhosphorIcons.pencilSimple,
+          onPressed: _editProfile,
+          tooltip: getText('editar_infos'),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        acao(
+          icon: PhosphorIcons.bell,
+          tooltip: 'Notificações',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificacoesPage()),
+            ).then((_) {
+              if (mounted) _carregarNaoLidas();
+            });
+          },
+          badge: _naoLidas == 0
+              ? null
+              : Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    constraints: const BoxConstraints(minWidth: 15),
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      // Contorno na cor do fundo: separa o selo do ícone sem
+                      // precisar de sombra.
+                      border:
+                          Border.all(color: AppColors.bg(context), width: 1.5),
+                    ),
+                    child: Text(
+                      _naoLidas > 9 ? '9+' : '$_naoLidas',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        height: 1.3,
                       ),
                     ),
-                ],
-              ),
-            ],
-          ),
+                  ),
+                ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border(context)),
-            boxShadow: shadow,
-          ),
-          padding: const EdgeInsets.all(2),
-          child: pillButton(
-            icon: PhosphorIcons.signOut,
-            tooltip: getText('lb_logout'),
-            color: AppColors.error,
-            onPressed: () {
-              storageLogout();
-              Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
-            },
-          ),
+        const SizedBox(width: AppSpacing.xs),
+        acao(
+          icon: PhosphorIcons.signOut,
+          tooltip: getText('lb_logout'),
+          onPressed: () {
+            storageLogout();
+            Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+          },
         ),
       ],
     );
