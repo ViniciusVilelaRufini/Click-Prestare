@@ -246,6 +246,20 @@ export class DashboardMobileController {
 }
 
 // ==========================================
+// NOTIFICAÇÕES (central do app — feed agregado)
+// ==========================================
+@Controller('notificacoes')
+export class NotificacoesMobileController {
+  constructor(private readonly service: MobileAuthService) {}
+
+  @Get('get-all')
+  getAll(@ReqUser() payload: JwtPayload, @Query('limit') limit?: string) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.getNotificacoes(Number(idUser), limit ? Number(limit) : 50);
+  }
+}
+
+// ==========================================
 // CONDOMÍNIO GERAL
 // ==========================================
 @Controller('condominio')

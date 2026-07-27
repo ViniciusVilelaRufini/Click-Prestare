@@ -1,5 +1,6 @@
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
+import 'package:click/pages/settings/notification_settings.dart';
 import 'package:click/pages/shared/configuracoes/modal_new_password.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
@@ -273,6 +274,19 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
                 trailingText: Singleton.instance.getCurrentMoeda(),
                 onTap: _changeMoeda,
               ),
+            AppSpacing.gapXl,
+            _SectionTitle('Notificações'),
+            _SettingsTile(
+              icon: PhosphorIcons.bell,
+              label: 'Avisos que quero receber',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const NotificationSettingsPage()),
+                );
+              },
+            ),
             AppSpacing.gapXl,
             _SectionTitle('Conta'),
             _SettingsTile(

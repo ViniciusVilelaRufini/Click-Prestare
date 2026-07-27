@@ -858,6 +858,197 @@ export class MobileAuthService {
     }));
   }
 
+  /**
+   * Central de notificações do app: junta num feed único tudo que interessa ao
+   * usuário — encomendas, comunicados, respostas de ocorrência, contas a pagar,
+   * reservas e entradas/saídas.
+   *
+   * É montado por agregação das tabelas de origem, sem tabela própria de
+   * notificações: evita migração e mantém o feed sempre coerente com o dado
+   * real (nada de aviso órfão de algo que foi apagado). O "lido" fica no app.
+   */
+  async getNotificacoes(idUser: number, limit = 50) {
+    if (!this.prisma.isConnected) return [];
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
+
+    const [user, moras] = await Promise.all([
+      this.prisma.users.findUnique({
+        where: { id: idUser },
+        select: {
+          notif_encomendas: true,
+          notif_comunicados: true,
+          notif_ocorrencias: true,
+          notif_visitantes: true,
+        },
+      }),
+      this.prisma.moradores.findMany({ where: { id_user: idUser } }),
+    ]);
+
+    const quer = (flag: number | undefined | null) => flag !== 0;
+    const condIds = [
+      ...new Set(moras.map((m) => m.id_condominio).filter((v): v is number => v != null)),
+    ];
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    type Item = {
+      id: string;
+      tipo: string;
+      titulo: string;
+      descricao: string;
+      timestamp: Date;
+    };
+    const itens: Item[] = [];
+
+    // --- Encomendas endereçadas ao apto/bloco do morador ---
+    if (quer(user?.notif_encomendas)) {
+      const wheres = moras
+        .filter((m) => m.id_condominio != null && m.apartamento != null)
+        .map((m) => {
+          const w: any = {
+            id_condominio: m.id_condominio,
+            destinatario_apto: m.apartamento,
+          };
+          if (!m.bloco || m.bloco.trim() === '') {
+            w.OR = [{ destinatario_bloco: null }, { destinatario_bloco: '' }];
+          } else {
+            w.destinatario_bloco = m.bloco;
+          }
+          return w;
+        });
+
+      if (wheres.length) {
+        const encomendas = await this.prisma.encomendas.findMany({
+          where: { OR: wheres, created_at: { gte: cutoff } },
+          orderBy: { created_at: 'desc' },
+          take: 20,
+        });
+        for (const e of encomendas) {
+          const retirada = (e.status || '').toLowerCase() === 'retirada';
+          itens.push({
+            id: `encomenda-${e.id}`,
+            tipo: 'encomenda',
+            titulo: retirada ? 'Encomenda retirada' : 'Encomenda recebida',
+            descricao: retirada
+              ? `${e.descricao} foi retirada.`
+              : `${e.descricao} chegou e está aguardando retirada.`,
+            timestamp: e.created_at,
+          });
+        }
+      }
+    }
+
+    // --- Comunicados do(s) condomínio(s) ---
+    if (quer(user?.notif_comunicados) && condIds.length) {
+      const comunicados = await this.prisma.comunicados.findMany({
+        where: { id_condominio: { in: condIds }, created_at: { gte: cutoff } },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+      });
+      for (const c of comunicados) {
+        itens.push({
+          id: `comunicado-${c.id}`,
+          tipo: 'comunicado',
+          titulo: c.titulo,
+          descricao: (c.descricao || '').replace(/<[^>]*>/g, '').trim(),
+          timestamp: c.created_at,
+        });
+      }
+    }
+
+    // --- Ocorrências do usuário que já foram respondidas ---
+    if (quer(user?.notif_ocorrencias)) {
+      const ocorrencias = await this.prisma.ocorrencias.findMany({
+        where: { user: idUser, resposta_at: { not: null, gte: cutoff } },
+        orderBy: { resposta_at: 'desc' },
+        take: 20,
+      });
+      for (const o of ocorrencias) {
+        itens.push({
+          id: `ocorrencia-${o.id}`,
+          tipo: 'ocorrencia',
+          titulo: 'Ocorrência respondida',
+          descricao: (o.resposta || '').trim(),
+          timestamp: o.resposta_at as Date,
+        });
+      }
+    }
+
+    // --- Contas em aberto: vencidas e a vencer nos próximos 7 dias ---
+    const limiteVencimento = new Date();
+    limiteVencimento.setDate(limiteVencimento.getDate() + 7);
+    const contas = await this.prisma.financeiro.findMany({
+      where: {
+        id_usuario: idUser,
+        pago: 0,
+        data_vencimento: { not: null, lte: limiteVencimento },
+      },
+      orderBy: { data_vencimento: 'asc' },
+      take: 20,
+    });
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    for (const f of contas) {
+      const venc = f.data_vencimento as Date;
+      const vencida = venc < hoje;
+      const valor = Number(f.valor ?? 0).toFixed(2).replace('.', ',');
+      itens.push({
+        id: `financeiro-${f.id}`,
+        tipo: 'financeiro',
+        titulo: vencida ? 'Conta vencida' : 'Conta a vencer',
+        descricao: `${f.nome ?? 'Cobrança'} — R$ ${valor}`,
+        timestamp: venc,
+      });
+    }
+
+    // --- Reservas de áreas comuns ---
+    const reservas = await this.prisma.areas_Sociais_Agendamentos.findMany({
+      where: { id_user: idUser, updated_at: { gte: cutoff } },
+      orderBy: { updated_at: 'desc' },
+      include: { area: { select: { nome: true } } },
+      take: 20,
+    });
+    for (const r of reservas) {
+      const st = (r.status || '').toLowerCase();
+      const rotulo =
+        st === 'aprovado' || st === 'aprovada'
+          ? 'Reserva aprovada'
+          : st === 'recusado' || st === 'recusada'
+            ? 'Reserva recusada'
+            : 'Reserva registrada';
+      const dia = r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '';
+      itens.push({
+        id: `reserva-${r.id}`,
+        tipo: 'reserva',
+        titulo: rotulo,
+        descricao: `${r.area?.nome ?? 'Área comum'}${dia ? ` — ${dia}` : ''}`,
+        timestamp: r.updated_at,
+      });
+    }
+
+    // --- Entradas e saídas (reaproveita o feed de acessos já existente) ---
+    if (quer(user?.notif_visitantes)) {
+      const eventos = await this.getMeusEventos(idUser, 20);
+      for (const e of eventos as any[]) {
+        const entrou = e.evento === 'entrada';
+        const souEu = e.categoria === 'voce';
+        itens.push({
+          id: `acesso-${e.id}`,
+          tipo: 'acesso',
+          titulo: entrou ? 'Entrada registrada' : 'Saída registrada',
+          descricao: souEu
+            ? `Você ${entrou ? 'entrou' : 'saiu'} no condomínio.`
+            : `${e.nome} ${entrou ? 'entrou' : 'saiu'}.`,
+          timestamp: e.timestamp,
+        });
+      }
+    }
+
+    itens.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return itens.slice(0, lim);
+  }
+
   // Exclusão de conta (LGPD / requisito Play Store): apaga o usuário logado e,
   // por cascata de FK no banco, seus dados vinculados (morador/síndico, veículos,
   // vagas, etc.). Escopo estrito por id do JWT — remove apenas a própria conta.

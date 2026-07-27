@@ -19,6 +19,7 @@ import {
   VeiculosMobileController,
   VagasMobileController,
   UsersMobileController,
+  NotificacoesMobileController,
 } from './mobile-auth.controller';
 
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
@@ -50,6 +51,7 @@ import { FacialModule } from '../facial/facial.module';
     VeiculosMobileController,
     VagasMobileController,
     UsersMobileController,
+  NotificacoesMobileController,
   ],
   providers: [AuthService, MobileAuthService, JwtStrategy, QrSessionStore],
   exports: [AuthService, QrSessionStore],

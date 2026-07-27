@@ -2,8 +2,9 @@ import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/controllers/controller_generic.dart';
-import 'package:click/pages/settings/notification_settings.dart';
+import 'package:click/controllers/controller_notificacoes.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
+import 'package:click/pages/shared/notificacoes/notificacoes_page.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/financeiro/list_inadimplentes.dart';
@@ -38,11 +39,19 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   List<dynamic> _eventos = [];
   bool _isLoading = false;
   String? _errorMessage;
+  int _naoLidas = 0;
 
   @override
   void initState() {
     super.initState();
     _loadList();
+    _carregarNaoLidas();
+  }
+
+  Future<void> _carregarNaoLidas() async {
+    final itens = await apiGetNotificacoes();
+    if (!mounted) return;
+    setState(() => _naoLidas = contarNaoLidas(itens));
   }
 
   Future<void> _loadList() async {
@@ -61,10 +70,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     });
     try {
       final type = getUserType();
-      final detailsRoute = type == 'sindico' 
-          ? 'sindico' 
+      final detailsRoute = type == 'sindico'
+          ? 'sindico'
           : (type == 'morador' ? 'moradores' : 'funcionarios');
-      
+
       final results = await Future.wait<dynamic>([
         type == "sindico"
             ? getCondominios()
@@ -81,7 +90,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         if (results.length > 2 && results[2] is Map) {
           final userDetails = results[2] as Map<String, dynamic>;
           final fetchedPhoto = userDetails['photo'];
-          if (fetchedPhoto != null && fetchedPhoto.toString().startsWith('http')) {
+          if (fetchedPhoto != null &&
+              fetchedPhoto.toString().startsWith('http')) {
             setUserPhoto(fetchedPhoto.toString());
           } else {
             setUserPhoto('');
@@ -90,14 +100,17 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         setState(() {
           _list = results[0] as List;
           _summary = results[1] as Map<String, dynamic>?;
-          _eventos = results.length > 3 && results[3] is List ? results[3] as List : [];
+          _eventos = results.length > 3 && results[3] is List
+              ? results[3] as List
+              : [];
         });
       } else {
         setState(() => _errorMessage = getText('alert_generic_error'));
       }
     } catch (e) {
       print('[ListCondomiums] Error: $e');
-      if (mounted) setState(() => _errorMessage = getText('alert_generic_error'));
+      if (mounted)
+        setState(() => _errorMessage = getText('alert_generic_error'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -109,13 +122,16 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     Singleton.instance.id_apartamento = item["apto_id"] ?? -1;
     Singleton.instance.bloco = item["apto_bloco"] ?? '';
     Singleton.instance.apto_tipo = item["apto_tipo"];
-    Singleton.instance.dias_restantes_morador = item["dias_restantes_morador"] ?? 10;
+    Singleton.instance.dias_restantes_morador =
+        item["dias_restantes_morador"] ?? 10;
     Singleton.instance.vencimento_morador = item["vencimento_morador"] ?? "";
     Singleton.instance.moeda = item["moeda"] ?? "";
 
     if (directPage != null) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => directPage))
-          .then((_) { if (mounted) _loadList(); });
+          .then((_) {
+        if (mounted) _loadList();
+      });
       return;
     }
 
@@ -123,9 +139,13 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   void _push(int id) {
-    Navigator.push(context, MaterialPageRoute(
-      builder: (_) => MyCondominium(id: id),
-    )).then((_) { if (mounted) _loadList(); });
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MyCondominium(id: id),
+        )).then((_) {
+      if (mounted) _loadList();
+    });
   }
 
   /// Converte um valor da API (que pode vir como num, String ou null) em double.
@@ -137,12 +157,14 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
   void _onDashboardTap(String module) {
     if (_list.isEmpty) return;
-    
+
     final type = getUserType();
-    
+
     Widget? page;
     if (module == 'debts') {
-      page = type == 'morador' ? const MoradorFinanceiroView() : const ListInadimplentes();
+      page = type == 'morador'
+          ? const MoradorFinanceiroView()
+          : const ListInadimplentes();
     } else if (module == 'occurrences') {
       page = const ListOcorrencias();
     } else if (module == 'visits') {
@@ -150,7 +172,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     } else if (module == 'packages') {
       page = const ListEncomendas();
     }
-    
+
     if (page == null) return;
 
     if (_list.length == 1) {
@@ -169,14 +191,15 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         final bg = AppColors.surfaceElevated(context);
         final textColor = AppColors.textPrimary(context);
         final textSecondary = AppColors.textSecondary(context);
-        
+
         return Container(
           decoration: BoxDecoration(
             color: bg,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             border: Border(top: BorderSide(color: AppColors.border(context))),
           ),
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.lg),
+          padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.md, horizontal: AppSpacing.lg),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,7 +248,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                           padding: const EdgeInsets.all(AppSpacing.md),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.border(context)),
+                            border:
+                                Border.all(color: AppColors.border(context)),
                             color: AppColors.surface(context),
                           ),
                           child: Row(
@@ -249,7 +273,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                                   children: [
                                     Text(
                                       cond['nome'] ?? '',
-                                      style: AppTypography.body(context).copyWith(
+                                      style:
+                                          AppTypography.body(context).copyWith(
                                         fontWeight: FontWeight.w600,
                                         color: textColor,
                                       ),
@@ -258,7 +283,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                                       const SizedBox(height: 2),
                                       Text(
                                         '${cond['apto_bloco'] != null ? "${cond['apto_bloco']} / " : ""}${cond['apto']}',
-                                        style: AppTypography.caption(context).copyWith(
+                                        style: AppTypography.caption(context)
+                                            .copyWith(
                                           color: textSecondary,
                                         ),
                                       ),
@@ -296,8 +322,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     } else {
       page = EditFuncionario();
     }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page))
-        .then((_) { if (mounted) setState(() {}); });
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page)).then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -314,10 +341,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               SliverToBoxAdapter(child: _buildHeader(context)),
               if (_isLoading)
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
                   sliver: SliverList.separated(
                     itemCount: 5,
-                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppSpacing.md),
                     itemBuilder: (_, __) => AppSkeleton.listTile(context),
                   ),
                 )
@@ -331,7 +360,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.lg),
                   sliver: SliverList.separated(
                     itemCount: _list.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppSpacing.md),
                     itemBuilder: (_, i) => _CondominioCard(
                       item: _list[i],
                       onTap: () => _goToNext(_list[i]),
@@ -353,16 +383,21 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       floatingActionButton: getUserType() == 'sindico'
           ? FloatingActionButton.extended(
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => SignupCondominuim1(),
-                )).then((_) { if (mounted) _loadList(); });
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SignupCondominuim1(),
+                    )).then((_) {
+                  if (mounted) _loadList();
+                });
               },
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               icon: Icon(PhosphorIcons.plus),
               label: Text(
                 'Novo',
-                style: AppTypography.button(context).copyWith(color: Colors.white),
+                style:
+                    AppTypography.button(context).copyWith(color: Colors.white),
               ),
             )
           : null,
@@ -391,7 +426,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                           getUserPhoto().trim(),
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
-                            print("[ListCondomiums] Error loading photo: $error");
+                            print(
+                                "[ListCondomiums] Error loading photo: $error");
                             return Icon(
                               PhosphorIcons.user,
                               color: AppColors.primary,
@@ -424,7 +460,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         getUsername(),
-                        style: AppTypography.headline(context),
+                        style: AppTypography.headline(context)
+                            .copyWith(fontWeight: FontWeight.w600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -432,40 +469,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(PhosphorIcons.pencilSimple,
-                    color: AppColors.textSecondary(context), size: iconSize),
-                onPressed: _editProfile,
-                tooltip: getText('editar_infos'),
-                padding: const EdgeInsets.all(6),
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: Icon(PhosphorIcons.bell,
-                    color: AppColors.textSecondary(context), size: iconSize),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const NotificationSettingsPage()),
-                  );
-                },
-                tooltip: 'Notificações',
-                padding: const EdgeInsets.all(6),
-                constraints: const BoxConstraints(),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: Icon(PhosphorIcons.signOut,
-                    color: AppColors.textSecondary(context), size: iconSize),
-                tooltip: getText('lb_logout'),
-                padding: const EdgeInsets.all(6),
-                constraints: const BoxConstraints(),
-                onPressed: () {
-                  storageLogout();
-                  Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
-                },
-              ),
+              AppSpacing.gapSm,
+              _buildActionPill(context, iconSize),
             ],
           ),
           const SizedBox(height: AppSpacing.xxl),
@@ -474,11 +479,130 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           Text(getText('meus_condominios'),
               style: AppTypography.title(context)),
           AppSpacing.gapXs,
-          Text('${_list.length} ${_list.length == 1 ? "condomínio" : "condomínios"}',
+          Text(
+              '${_list.length} ${_list.length == 1 ? "condomínio" : "condomínios"}',
               style: AppTypography.bodySecondary(context)),
           AppSpacing.gapXl,
         ],
       ),
+    );
+  }
+
+  /// Ações do topo em uma "pílula" flutuante: cápsula clara com sombra suave
+  /// agrupando editar/notificações, e o sair destacado à parte — por ser a
+  /// única ação destrutiva, não convém ficar colado às outras.
+  Widget _buildActionPill(BuildContext context, double iconSize) {
+    final shadow = [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.07),
+        blurRadius: 16,
+        offset: const Offset(0, 4),
+      ),
+    ];
+
+    Widget pillButton({
+      required IconData icon,
+      required VoidCallback onPressed,
+      required String tooltip,
+      Color? color,
+    }) {
+      return IconButton(
+        icon: Icon(icon,
+            color: color ?? AppColors.textSecondary(context), size: iconSize),
+        onPressed: onPressed,
+        tooltip: tooltip,
+        padding: const EdgeInsets.all(8),
+        constraints: const BoxConstraints(),
+        splashRadius: iconSize + 6,
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.circular(AppRadius.full),
+            border: Border.all(color: AppColors.border(context)),
+            boxShadow: shadow,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              pillButton(
+                icon: PhosphorIcons.pencilSimple,
+                onPressed: _editProfile,
+                tooltip: getText('editar_infos'),
+              ),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  pillButton(
+                    icon: PhosphorIcons.bell,
+                    tooltip: 'Notificações',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const NotificacoesPage()),
+                      ).then((_) {
+                        if (mounted) _carregarNaoLidas();
+                      });
+                    },
+                  ),
+                  if (_naoLidas > 0)
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 1),
+                        constraints: const BoxConstraints(minWidth: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(AppRadius.full),
+                          border: Border.all(
+                              color: AppColors.surface(context), width: 1.5),
+                        ),
+                        child: Text(
+                          _naoLidas > 9 ? '9+' : '$_naoLidas',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.border(context)),
+            boxShadow: shadow,
+          ),
+          padding: const EdgeInsets.all(2),
+          child: pillButton(
+            icon: PhosphorIcons.signOut,
+            tooltip: getText('lb_logout'),
+            color: AppColors.error,
+            onPressed: () {
+              storageLogout();
+              Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -489,7 +613,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Resumo Geral', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w600)),
+        Text('Resumo Geral',
+            style: AppTypography.bodyMedium(context)
+                .copyWith(fontWeight: FontWeight.w600)),
         const SizedBox(height: AppSpacing.md),
         Row(
           children: [
@@ -497,7 +623,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               Expanded(
                 child: _DashboardCard(
                   title: 'Inadimplência',
-                  value: 'R\$ ${_toDouble(_summary!['debts']['total']).toStringAsFixed(2)}',
+                  value:
+                      'R\$ ${_toDouble(_summary!['debts']['total']).toStringAsFixed(2)}',
                   subtitle: '${_summary!['debts']['count']} pendências',
                   icon: PhosphorIcons.money,
                   color: AppColors.error,
@@ -613,7 +740,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     final nome = (e['nome'] ?? '').toString();
 
     final Color cor = isEntrada ? AppColors.success : AppColors.primary;
-    final IconData icon = isEntrada ? PhosphorIcons.signIn : PhosphorIcons.signOut;
+    final IconData icon =
+        isEntrada ? PhosphorIcons.signIn : PhosphorIcons.signOut;
 
     final String tag = isVoce
         ? 'Você'
@@ -635,12 +763,15 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   children: [
                     Text(
                       isEntrada ? 'Entrou' : 'Saiu',
-                      style: AppTypography.captionMedium(context).copyWith(color: cor),
+                      style: AppTypography.captionMedium(context)
+                          .copyWith(color: cor),
                     ),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        nome.isNotEmpty ? nome : (isVoce ? 'Você' : 'Visitante'),
+                        nome.isNotEmpty
+                            ? nome
+                            : (isVoce ? 'Você' : 'Visitante'),
                         style: AppTypography.caption(context)
                             .copyWith(color: AppColors.textSecondary(context)),
                         maxLines: 1,
@@ -687,12 +818,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       padding: const EdgeInsets.all(AppSpacing.xxl),
       child: Column(
         children: [
-          Icon(PhosphorIcons.warningCircle,
-              size: 56, color: AppColors.error),
+          Icon(PhosphorIcons.warningCircle, size: 56, color: AppColors.error),
           AppSpacing.gapLg,
           Text(_errorMessage!,
-              style: AppTypography.body(context),
-              textAlign: TextAlign.center),
+              style: AppTypography.body(context), textAlign: TextAlign.center),
           AppSpacing.gapXl,
           AppButton(
             label: 'Tentar novamente',
@@ -723,8 +852,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 size: 48, color: AppColors.primary),
           ),
           AppSpacing.gapLg,
-          Text('Nenhum condomínio',
-              style: AppTypography.headline(context)),
+          Text('Nenhum condomínio', style: AppTypography.headline(context)),
           AppSpacing.gapSm,
           Text(
             isSindico
@@ -872,8 +1000,10 @@ class _CondominioCard extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(AppRadius.lg),
                 child: SizedBox(
-                  width: 64, height: 64,
-                  child: item['photo'] != null && item['photo'].toString().isNotEmpty
+                  width: 64,
+                  height: 64,
+                  child: item['photo'] != null &&
+                          item['photo'].toString().isNotEmpty
                       ? Image.network(
                           item['photo'],
                           fit: BoxFit.cover,
@@ -889,7 +1019,8 @@ class _CondominioCard extends StatelessWidget {
                   children: [
                     Text(item['nome'] ?? '',
                         style: AppTypography.bodyMedium(context),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
                     AppSpacing.gapXs,
                     subtitleWidget,
                   ],
@@ -907,8 +1038,8 @@ class _CondominioCard extends StatelessWidget {
   Widget _placeholder() {
     return Container(
       color: AppColors.primaryLight,
-      child: Icon(PhosphorIcons.buildingsFill,
-          color: AppColors.primary, size: 32),
+      child:
+          Icon(PhosphorIcons.buildingsFill, color: AppColors.primary, size: 32),
     );
   }
 }
