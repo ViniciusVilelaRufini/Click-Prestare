@@ -722,6 +722,30 @@ ${docsTxt}`;
     return { ok: true, documentos: processados, chunks: totalChunks, total_docs: docs.length };
   }
 
+  /**
+   * Indexa UM documento — chamado logo após o upload.
+   *
+   * Antes, indexar só acontecia pelo endpoint manual de reindexação, que
+   * nenhuma tela chamava: a ata subia e o assistente nunca via o conteúdo.
+   */
+  async indexarDocumentoPorId(idCondominio: number, idDoc: number) {
+    if (!this.prisma.isConnected) return { skipped: true, motivo: 'sem_banco' };
+    const doc = await this.prisma.documentos.findFirst({
+      where: { id: idDoc, id_condominio: idCondominio },
+      select: { id: true, nome: true, link_doc: true, is_ata: true },
+    });
+    if (!doc) return { skipped: true, motivo: 'nao_encontrado' };
+    return this.reindexDocumento(idCondominio, doc);
+  }
+
+  /** Descarta os trechos de um documento apagado, para não responder por ele. */
+  async removerIndiceDocumento(idCondominio: number, idDoc: number) {
+    if (!this.prisma.isConnected) return;
+    await this.prisma.rag_Embeddings.deleteMany({
+      where: { id_condominio: idCondominio, source_id: idDoc },
+    });
+  }
+
   private async reindexDocumento(
     idCondominio: number,
     doc: { id: number; nome: string; link_doc: string | null; is_ata: number },
@@ -767,11 +791,23 @@ ${docsTxt}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Falha ao baixar documento (${res.status})`);
     const buffer = Buffer.from(await res.arrayBuffer());
+
     // require adiado de propósito: importado no topo, o pdf-parse tenta ler um
     // PDF de teste do próprio pacote e quebra o boot.
-    const pdfParse = require('pdf-parse');
-    const data = await pdfParse(buffer);
-    return data?.text ?? '';
+    //
+    // API da v2: o módulo exporta a classe PDFParse. Na v1 o próprio require
+    // era a função — chamá-lo assim estourava "pdfParse is not a function" a
+    // cada documento, e o erro era engolido como "extracao_falhou".
+    const { PDFParse } = require('pdf-parse');
+    const parser = new PDFParse({ data: buffer });
+    try {
+      const data = await parser.getText();
+      return data?.text ?? '';
+    } finally {
+      // Libera o worker do pdf.js; sem isso o processo acumula handles a cada
+      // documento indexado.
+      await parser.destroy().catch(() => undefined);
+    }
   }
 
   private chunkText(texto: string): string[] {

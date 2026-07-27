@@ -1,16 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
+import { ChatIaService } from '../chat-ia/chat-ia.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 @Injectable()
 export class DocumentosService {
+  private readonly logger = new Logger(DocumentosService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly tenant: TenantAccessService,
+    private readonly chatIa: ChatIaService,
   ) {}
 
   async insert(idCondominio: number, documento: any, user?: JwtPayload) {
@@ -29,7 +33,7 @@ export class DocumentosService {
 
     const isAta = (documento.is_ata === true || documento.is_ata === '1' || documento.is_ata === 1) ? 1 : 0;
 
-    await this.prisma.documentos.create({
+    const criado = await this.prisma.documentos.create({
       data: {
         id_condominio: Number(idCondominio),
         is_ata: isAta,
@@ -37,6 +41,28 @@ export class DocumentosService {
         link_doc: linkDoc,
       },
     });
+
+    // Indexa para o assistente conseguir resumir o conteúdo ao morador.
+    // Em segundo plano de propósito: baixar o PDF e gerar os embeddings leva
+    // segundos, e o síndico não deve ficar esperando o upload "terminar".
+    void this.chatIa
+      .indexarDocumentoPorId(Number(idCondominio), criado.id)
+      .then((r: any) => {
+        if (r?.skipped) {
+          this.logger.warn(
+            `Documento ${criado.id} não indexado (${r.motivo}) — o assistente não vai saber responder sobre ele.`,
+          );
+        } else {
+          this.logger.log(
+            `Documento ${criado.id} indexado: ${r?.indexed ?? 0} trecho(s).`,
+          );
+        }
+      })
+      .catch((e) =>
+        this.logger.error(
+          `Falha ao indexar documento ${criado.id}: ${e?.message ?? e}`,
+        ),
+      );
 
     return { success: true };
   }
@@ -83,6 +109,15 @@ export class DocumentosService {
     if (!atual) throw new NotFoundException('Documento não encontrado.');
     await this.tenant.assertEntidade(atual.id_condominio, user, `documento #${id}`);
     await this.prisma.documentos.delete({ where: { id: Number(id) } });
+    // Sem isso o assistente continuaria respondendo com base num documento
+    // que já não existe.
+    await this.chatIa
+      .removerIndiceDocumento(atual.id_condominio, Number(id))
+      .catch((e) =>
+        this.logger.warn(
+          `Não removeu o índice do documento ${id}: ${e?.message ?? e}`,
+        ),
+      );
     return { success: true };
   }
 }

@@ -25,5 +25,7 @@ import { FinanceiroModule } from '../financeiro/financeiro.module';
   ],
   controllers: [ChatIaController],
   providers: [ChatIaService, GeminiClient, AcaoPendenteStore],
+  // Exportado para o módulo de documentos indexar no upload.
+  exports: [ChatIaService],
 })
 export class ChatIaModule {}
