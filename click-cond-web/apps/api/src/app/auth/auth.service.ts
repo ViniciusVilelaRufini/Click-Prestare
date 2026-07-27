@@ -58,6 +58,32 @@ export class AuthService {
     this.lockouts.delete(login);
   }
 
+  /**
+   * Condomínios administrados pelo síndico dono deste login (vazio se o login
+   * não for de síndico).
+   *
+   * O síndico costuma ter também um registro em Funcionarios_Portaria com o
+   * mesmo login, e é por ele que o login da web passa. Sem consultar por login,
+   * a lista de condomínios nunca chegaria a quem entra por esse caminho.
+   */
+  private async condominiosDoSindicoPorLogin(login: string) {
+    const user = await this.prisma.users.findFirst({
+      where: { login },
+      include: {
+        sindicos: { select: { id: true } },
+        sindicosCondominios: {
+          include: { condominio: { select: { nome: true } } },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+    if (!user || user.sindicos.length === 0) return [];
+    return user.sindicosCondominios.map((v) => ({
+      id: v.id_condominio,
+      nome: v.condominio?.nome || 'Condomínio',
+    }));
+  }
+
   async loginPortaria(login: string, senha: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
@@ -115,6 +141,7 @@ export class AuthService {
           turno: funcionario.turno,
           id_condominio: funcionario.id_condominio,
           condominio_nome: cond?.nome || 'Click Condomínio',
+          condominios: await this.condominiosDoSindicoPorLogin(login),
         };
       }
 
@@ -155,6 +182,7 @@ export class AuthService {
             turno: funcionario.turno,
             id_condominio: funcionario.id_condominio,
             condominio_nome: cond?.nome || 'Click Condomínio',
+            condominios: await this.condominiosDoSindicoPorLogin(login),
           };
         }
       }
@@ -240,31 +268,54 @@ export class AuthService {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
-    if (payload.typeAccess !== 'Sindico') {
+
+    // O síndico chega aqui por dois caminhos: token de síndico (sub = Users.id)
+    // ou token de funcionário, quando existe Funcionarios_Portaria com o mesmo
+    // login — o caso comum na web. Resolve o Users.id em ambos.
+    let idUserSindico: number | null = null;
+    if (payload.typeAccess === 'Sindico') {
+      idUserSindico = payload.sub;
+    } else {
+      const funcionario = await this.prisma.funcionarios_Portaria.findUnique({
+        where: { id: payload.sub },
+        select: { login: true },
+      });
+      if (funcionario?.login) {
+        const user = await this.prisma.users.findFirst({
+          where: { login: funcionario.login },
+          include: { sindicos: { select: { id: true } } },
+        });
+        if (user && user.sindicos.length > 0) idUserSindico = user.id;
+      }
+    }
+
+    if (!idUserSindico) {
       throw new UnauthorizedException('Apenas síndicos podem trocar de condomínio.');
     }
 
     const vinculo = await this.prisma.sindicos_Condominios.findFirst({
-      where: { id_user: payload.sub, id_condominio: Number(idCondominio) },
+      where: { id_user: idUserSindico, id_condominio: Number(idCondominio) },
       include: { condominio: { select: { nome: true } } },
     });
     if (!vinculo) {
       throw new UnauthorizedException('Você não administra este condomínio.');
     }
 
+    // Preserva a identidade do token (sub/turno/typeAccess) e troca só o escopo:
+    // mudar o sub aqui quebraria fluxos que resolvem o usuário por ele, como a
+    // troca de senha.
     const novoPayload: JwtPayload = {
-      sub: payload.sub,
-      nome: payload.nome,
+      ...payload,
       id_condominio: vinculo.id_condominio,
-      turno: 'Síndico',
-      typeAccess: 'Sindico',
     };
+    delete (novoPayload as any).iat;
+    delete (novoPayload as any).exp;
 
     return {
       access_token: this.jwt.sign(novoPayload),
       id: payload.sub,
       nome: payload.nome,
-      turno: 'Síndico',
+      turno: payload.turno ?? 'Síndico',
       id_condominio: vinculo.id_condominio,
       condominio_nome: vinculo.condominio?.nome || 'Click Condomínio',
     };
