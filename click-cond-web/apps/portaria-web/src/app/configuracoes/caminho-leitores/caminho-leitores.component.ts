@@ -74,7 +74,14 @@ export class CaminhoLeitoresComponent implements OnInit {
     });
     this.service.listDispositivos().subscribe({
       next: (ds) => this.dispositivos.set(ds ?? []),
-      error: () => this.dispositivos.set([]),
+      error: () => {
+        // Engolir a falha aqui deixava o seletor vazio sem explicação — o
+        // operador via "nenhum leitor cadastrado" mesmo tendo cadastrado.
+        this.dispositivos.set([]);
+        this.erro.set(
+          'Não foi possível carregar os dispositivos. Recarregue a página.',
+        );
+      },
     });
   }
 

@@ -65,8 +65,16 @@ export class CaminhoLeitoresService {
     return this.http.delete<{ success: boolean }>(`${this.base}/${id}`);
   }
 
-  /** Dispositivos do condomínio, para montar as etapas. */
+  /**
+   * Dispositivos do condomínio, para montar as etapas.
+   *
+   * `id_condominio` é obrigatório na rota (ParseIntPipe): sem ele a chamada
+   * volta 400 e a lista de leitores aparece vazia.
+   */
   listDispositivos(): Observable<DispositivoResumo[]> {
-    return this.http.get<DispositivoResumo[]>(`${API_BASE}/facial/devices`);
+    const idCondo = this.auth.porteiroInfo()?.id_condominio ?? 1;
+    return this.http.get<DispositivoResumo[]>(
+      `${API_BASE}/facial/devices?id_condominio=${idCondo}`,
+    );
   }
 }

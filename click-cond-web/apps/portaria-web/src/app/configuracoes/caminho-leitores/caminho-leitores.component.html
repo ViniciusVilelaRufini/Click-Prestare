@@ -17,7 +17,7 @@
       </div>
     </div>
 
-    <div class="rounded-xl bg-slate-900/60 border border-white/5 p-4 space-y-3">
+    <div class="rounded-xl bg-slate-900/50 border border-white/5 p-4 space-y-3">
       <p class="text-xs text-slate-400 leading-relaxed">
         <span class="text-slate-200 font-semibold">Exemplo:</span>
         o carro chega na rua, a câmera lê a placa e abre o portão externo. Já
@@ -104,7 +104,7 @@
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <button (click)="editar(c)"
-                  class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold transition">
+                  class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold transition">
                   Editar
                 </button>
                 <button (click)="remover(c)"
@@ -117,7 +117,7 @@
             <!-- Fluxo das etapas -->
             <div class="flex items-center gap-2 flex-wrap">
               @for (e of c.etapas; track e.ordem; let last = $last) {
-                <div class="px-3 py-2 rounded-lg bg-slate-900/60 border border-white/10 min-w-0">
+                <div class="px-3 py-2 rounded-lg bg-slate-900/50 border border-white/10 min-w-0">
                   <p class="text-[9px] font-bold text-accent uppercase tracking-wider">Etapa {{ e.ordem }}</p>
                   <p class="text-[11px] text-slate-200 font-medium truncate">
                     {{ e.leitor?.nome || '—' }}
@@ -178,27 +178,27 @@
             Etapas, na ordem em que a pessoa passa
           </p>
           <button (click)="adicionarEtapa()"
-            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold transition">
+            class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold transition">
             + Etapa
           </button>
         </div>
 
         @for (e of etapas(); track $index; let i = $index; let first = $first; let last = $last) {
-          <div class="p-4 rounded-xl bg-slate-900/60 border border-white/10 space-y-3">
+          <div class="p-4 rounded-xl bg-slate-900/50 border border-white/10 space-y-3">
             <div class="flex items-center justify-between">
               <span class="text-[10px] font-bold text-accent uppercase tracking-wider">
                 Etapa {{ i + 1 }}
               </span>
               <div class="flex items-center gap-1">
                 <button (click)="moverEtapa(i, -1)" [disabled]="first"
-                  class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 transition flex items-center justify-center"
+                  class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 transition flex items-center justify-center"
                   title="Subir">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
                   </svg>
                 </button>
                 <button (click)="moverEtapa(i, 1)" [disabled]="last"
-                  class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30 transition flex items-center justify-center"
+                  class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 transition flex items-center justify-center"
                   title="Descer">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -266,7 +266,7 @@
           {{ salvando() ? 'Salvando…' : 'Salvar caminho' }}
         </button>
         <button (click)="cancelar()"
-          class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition">
+          class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
           Cancelar
         </button>
       </div>
