@@ -864,7 +864,9 @@ export class FinanceiroService implements OnModuleInit {
         url_comprovante: item.url_comprovante ?? item.photo,
         linha_digitavel: item.linha_digitavel,
         pix_copia_cola: item.pix_copia_cola,
-        chave_pix: condChavePix,
+        // Mesma regra da visão do morador: a chave do condomínio é para
+        // RECEBER cobrança (tipo 'C'). Em despesa não faz sentido.
+        chave_pix: item.tipo === 'C' ? condChavePix : '',
       };
 
       if (!lancamentosMap[chave]) {
@@ -1601,7 +1603,11 @@ export class FinanceiroService implements OnModuleInit {
       pix_copia_cola: item.pix_copia_cola ?? '',
       id_usuario: item.id_usuario,
       categoria: item.categoria ?? 'Outros',
-      chave_pix: condChavePix,
+      // A chave Pix do condomínio só vale para o que o morador deve AO
+      // condomínio (tipo 'C'). Numa conta pessoal — água, luz, internet, que
+      // ele mesmo lançou — ela não tem relação nenhuma com o pagamento, e o
+      // app oferecia "Copiar Pix" com a chave do prédio.
+      chave_pix: item.tipo === 'C' ? condChavePix : '',
     }));
   }
 
