@@ -127,6 +127,45 @@ export class FinanceiroService implements OnModuleInit {
    * Agora: regex com word boundaries. "Apto 10 Bloco A" NÃO casa com
    * "Apto 100 Bloco A".
    */
+  /**
+   * Diz se uma cobrança de condomínio (sem id_usuario) é da unidade do morador,
+   * comparando o nome da fatura ("Apto X Bloco Y - Ref...") com os apartamentos
+   * dele. Mesma regra usada na leitura em `get`.
+   */
+  private async lancamentoEhDaUnidadeDoMorador(
+    nomeLancamento: string | null | undefined,
+    idUser: number,
+    idCondominio: number,
+  ): Promise<boolean> {
+    if (!nomeLancamento || !idUser) return false;
+
+    const [moradoresList, auList] = await Promise.all([
+      this.prisma.moradores.findMany({
+        where: { id_user: Number(idUser), id_condominio: Number(idCondominio) },
+        select: { apartamento: true, bloco: true },
+      }),
+      this.prisma.apartamentos_Users.findMany({
+        where: {
+          id_user: Number(idUser),
+          apartamento: { id_condominio: Number(idCondominio) },
+        },
+        include: { apartamento: true },
+      }),
+    ]);
+
+    const userUnits = [
+      ...moradoresList.map((m) => ({ bloco: m.bloco, apartamento: m.apartamento })),
+      ...auList.map((au) => ({
+        bloco: au.apartamento?.bloco,
+        apartamento: au.apartamento?.apto,
+      })),
+    ].filter((u) => u.apartamento != null && u.apartamento !== '');
+
+    return userUnits.some((u) =>
+      this.nomeFaturaDeApto(nomeLancamento, u.apartamento, u.bloco),
+    );
+  }
+
   private nomeFaturaDeApto(nome: string | null | undefined, apto: string | null | undefined, bloco: string | null | undefined): boolean {
     if (!nome || !apto) return false;
     // Escapa caracteres regex no apto/bloco (defensivo — apto pode ter
@@ -1480,7 +1519,12 @@ export class FinanceiroService implements OnModuleInit {
     };
   }
 
-  async getByUser(idUser: number, idCondominio: number) {
+  async getByUser(idUser: number, idCondominio: number, user?: JwtPayload) {
+    // Sem esta checagem o condomínio vinha só do query string: staff de um
+    // condomínio lia o financeiro de qualquer outro trocando id_condominio
+    // (o restante do módulo já valida; este método tinha ficado de fora).
+    await this.tenant.assertCondominio(idCondominio, user);
+
     if (!this.prisma.isConnected) {
       return [
         {
@@ -1570,9 +1614,23 @@ export class FinanceiroService implements OnModuleInit {
     // Morador só pode anexar comprovante a lançamento dele próprio (id_usuario).
     const isMorador = user?.typeAccess === 'Morador';
     if (isMorador) {
-      const userId = user?.sub;
-      if (lanc.id_usuario && lanc.id_usuario !== userId) {
-        throw new ForbiddenException('Você só pode anexar arquivo a um lançamento seu');
+      const userId = Number(user?.sub ?? user?.user?.id);
+      if (lanc.id_usuario) {
+        if (Number(lanc.id_usuario) !== userId) {
+          throw new ForbiddenException('Você só pode anexar arquivo a um lançamento seu');
+        }
+      } else {
+        // Cobrança de condomínio não tem id_usuario. Antes isso liberava anexar
+        // em qualquer fatura do condomínio — inclusive de outra unidade, dando
+        // para sobrescrever o comprovante do vizinho. Confere o apartamento.
+        const ehDaMinhaUnidade = await this.lancamentoEhDaUnidadeDoMorador(
+          lanc.nome,
+          userId,
+          lanc.id_condominio,
+        );
+        if (!ehDaMinhaUnidade) {
+          throw new ForbiddenException('Você só pode anexar arquivo a um lançamento seu');
+        }
       }
     }
 
@@ -2271,7 +2329,11 @@ export class FinanceiroService implements OnModuleInit {
   // ==========================================
   // MÉTODOS DE CONTAS INDIVIDUAIS DO MORADOR
   // ==========================================
-  async insertMoradorConta(idUser: number, idCondominio: number, data: any) {
+  async insertMoradorConta(idUser: number, idCondominio: number, data: any, user?: JwtPayload) {
+    // O condomínio vinha só do body: dava para criar conta pessoal dentro de
+    // condomínio alheio, poluindo o financeiro de outro tenant.
+    await this.tenant.assertCondominio(idCondominio, user);
+
     if (!this.prisma.isConnected) return { success: true };
 
     // A taxa de condomínio é gerada pelo síndico. Este método é o "morador

@@ -39,6 +39,7 @@ describe('FinanceiroService — isolamento de tenant (IDOR)', () => {
         ),
         update: jest.fn(async () => ({ ...lancamentoDoCond2 })),
         delete: jest.fn(async () => ({ ...lancamentoDoCond2 })),
+        create: jest.fn(async () => ({ ...lancamentoDoCond2 })),
       },
       sindicos_Condominios: { findFirst: jest.fn(async () => null) },
       apartamentos_Users: { findFirst: jest.fn(async () => null), findMany: jest.fn(async () => []) },
@@ -118,6 +119,56 @@ describe('FinanceiroService — isolamento de tenant (IDOR)', () => {
       const { svc } = buildService();
       const morador: JwtPayload = { sub: 7, nome: 'Morador Y', typeAccess: 'Morador' };
       await expect(svc.get(2, 500, morador)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('getByUser (GET /financeiro/get-by-user)', () => {
+    it('NEGA staff lendo o financeiro de condomínio que não é o dele', async () => {
+      const { svc } = buildService();
+      await expect(svc.getByUser(1, 2, porteiroCond1)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('PERMITE staff do próprio condomínio', async () => {
+      const { svc } = buildService({
+        financeiro: {
+          findMany: jest.fn(async () => []),
+          findUnique: jest.fn(async () => null),
+          findFirst: jest.fn(async () => null),
+        },
+        condominios: { findUnique: jest.fn(async () => ({ chave_pix: '' })) },
+      });
+      await expect(svc.getByUser(1, 2, porteiroCond2)).resolves.toEqual([]);
+    });
+  });
+
+  describe('uploadSharedFile', () => {
+    // Cobrança de condomínio não tem id_usuario; sem checar o apartamento,
+    // o morador sobrescrevia o comprovante da unidade do vizinho.
+    it('NEGA morador anexar em cobrança que não é da unidade dele', async () => {
+      const { svc, prisma } = buildService({
+        apartamentos_Users: {
+          findFirst: jest.fn(async () => ({ id_apto: 10 })),
+          findMany: jest.fn(async () => []),
+        },
+      });
+      const morador: JwtPayload = { sub: 7, nome: 'Morador Y', typeAccess: 'Morador' };
+      await expect(
+        svc.uploadSharedFile(500, 'data:image/png;base64,AAA', 'comprovante', morador),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.financeiro.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('insertMoradorConta', () => {
+    it('NEGA criar conta pessoal dentro de condomínio alheio', async () => {
+      const { svc, prisma } = buildService();
+      const morador: JwtPayload = { sub: 7, nome: 'Morador Y', typeAccess: 'Morador' };
+      await expect(
+        svc.insertMoradorConta(7, 2, { nome: 'Luz', valor: 100 }, morador),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.financeiro.create).not.toHaveBeenCalled();
     });
   });
 });

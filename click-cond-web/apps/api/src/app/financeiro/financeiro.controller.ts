@@ -177,7 +177,7 @@ export class FinanceiroController {
     // Morador SEMPRE recebe os próprios lançamentos, ignorando qualquer
     // id_user que ele tente passar (impede ler dados de outro morador).
     const targetUserId = isMorador ? Number(currentUserId) : Number(idUser);
-    return this.service.getByUser(targetUserId, Number(idCondominio));
+    return this.service.getByUser(targetUserId, Number(idCondominio), payload);
   }
 
   @Post('morador/insert')
@@ -187,7 +187,7 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number; data: any }
   ) {
     const userId = payload?.user?.id ?? payload?.sub;
-    return this.service.insertMoradorConta(Number(userId), Number(body.id_condominio), body.data);
+    return this.service.insertMoradorConta(Number(userId), Number(body.id_condominio), body.data, payload);
   }
 
   @Post('morador/update')

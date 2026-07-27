@@ -393,8 +393,9 @@ export class ChatIaService {
 
     if (acao.tipo === 'conta_morador') {
       // insertMoradorConta grava sempre em id_usuario = idUser: a conta é do
-      // próprio morador, nunca de outro.
-      await this.financeiro.insertMoradorConta(idUser, acao.idCondominio, acao.payload);
+      // próprio morador, nunca de outro. Passa o user para o vínculo com
+      // acao.idCondominio ser reconferido, e não herdado da proposta salva.
+      await this.financeiro.insertMoradorConta(idUser, acao.idCondominio, acao.payload, user);
       return acao.payload.pago === 1
         ? 'Conta lançada como paga! Ela já aparece no seu Financeiro.'
         : 'Conta lançada! Ela já aparece no seu Financeiro.';
