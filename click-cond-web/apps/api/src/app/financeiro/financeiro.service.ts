@@ -801,6 +801,12 @@ export class FinanceiroService implements OnModuleInit {
         { data: { gte: dataIni, lte: dataFim } },
         { data_vencimento: { gte: dataIni, lte: dataFim } },
       ],
+      // Conta pessoal do morador (água, luz, internet — criada por ele mesmo
+      // via insertMoradorConta, sempre tipo 'D' + id_usuario preenchido) não é
+      // dinheiro do condomínio. O filtro de categoria acima só cobre a taxa
+      // condominial; sem esta exclusão, a despesa pessoal aparecia inteira no
+      // livro-caixa geral que o síndico vê.
+      NOT: { AND: [{ tipo: 'D' }, { id_usuario: { not: null } }] },
     };
 
     if (!isSindico) {
