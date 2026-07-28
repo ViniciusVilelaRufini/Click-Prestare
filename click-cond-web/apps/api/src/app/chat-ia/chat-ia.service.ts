@@ -26,6 +26,7 @@ import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { VisitantesService } from '../visitantes/visitantes.service';
 import { FinanceiroService } from '../financeiro/financeiro.service';
+import { MudancasService } from '../mudancas/mudancas.service';
 import type { CartaoAcao } from './acao-pendente.store';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
@@ -76,6 +77,7 @@ export class ChatIaService {
     private readonly auditoria: AuditoriaService,
     private readonly visitantes: VisitantesService,
     private readonly financeiro: FinanceiroService,
+    private readonly mudancas: MudancasService,
   ) {}
 
   // =========================================================================
@@ -399,6 +401,24 @@ export class ChatIaService {
       return acao.payload.pago === 1
         ? 'Conta lançada como paga! Ela já aparece no seu Financeiro.'
         : 'Conta lançada! Ela já aparece no seu Financeiro.';
+    }
+
+    if (acao.tipo === 'mudanca') {
+      // create grava status 'pendente' — a mudança só vale depois que o
+      // síndico aprovar na tela de Mudanças. Passar o user faz o service
+      // reconferir o vínculo com acao.idCondominio, em vez de herdá-lo da
+      // proposta salva, como no ramo de visitante.
+      await this.mudancas.create(
+        {
+          data: acao.payload.data,
+          hora_inicio: acao.payload.hora_inicio,
+          id_apartamento: acao.payload.id_apartamento,
+          id_condominio: acao.idCondominio,
+          user: idUser,
+        },
+        user,
+      );
+      return 'Mudança solicitada! Ela fica pendente até o síndico aprovar — você acompanha o status em Mudanças.';
     }
 
     throw new BadRequestException('Tipo de ação desconhecido.');

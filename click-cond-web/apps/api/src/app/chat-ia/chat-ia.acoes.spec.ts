@@ -289,6 +289,65 @@ describe('Ações do Assistente IA', () => {
   });
 
   // -----------------------------------------------------------------------
+  describe('propor_mudanca', () => {
+    it('devolve proposta sem gravar nada', async () => {
+      const r = await pegar('propor_mudanca').propor(
+        { data: futuro(), hora: '12:00' },
+        ctx(),
+      );
+      expect(r.erro).toBeUndefined();
+      expect(r.proposta?.tipo).toBe('mudanca');
+      expect(r.proposta?.idUser).toBe(47);
+      expect(r.proposta?.idCondominio).toBe(1);
+      expect(r.proposta?.payload.hora_inicio).toBe('12:00');
+    });
+
+    // O apartamento vem do vínculo real do usuário, nunca de argumento do
+    // modelo — senão daria para agendar mudança no apartamento alheio.
+    it('usa o apartamento vinculado ao usuário', async () => {
+      const r = await pegar('propor_mudanca').propor({ data: futuro() }, ctx());
+      expect(r.proposta?.payload.id_apartamento).toBe(10);
+    });
+
+    it('sem apartamento vinculado, recusa', async () => {
+      const r = await pegar('propor_mudanca').propor(
+        { data: futuro() },
+        ctx({ aptos: [] }),
+      );
+      expect(r.proposta).toBeUndefined();
+      expect(r.erro).toBeDefined();
+    });
+
+    it('hora é opcional', async () => {
+      const r = await pegar('propor_mudanca').propor({ data: futuro() }, ctx());
+      expect(r.erro).toBeUndefined();
+      expect(r.proposta?.payload.hora_inicio).toBeNull();
+    });
+
+    it('recusa data no passado', async () => {
+      const r = await pegar('propor_mudanca').propor({ data: '2020-01-01' }, ctx());
+      expect(r.proposta).toBeUndefined();
+      expect(r.erro).toBeDefined();
+    });
+
+    it('recusa hora inválida', async () => {
+      const r = await pegar('propor_mudanca').propor(
+        { data: futuro(), hora: '99:99' },
+        ctx(),
+      );
+      expect(r.proposta).toBeUndefined();
+      expect(r.erro).toBeDefined();
+    });
+
+    // Quem confirma precisa saber que ainda depende do síndico.
+    it('o card avisa que aguarda aprovação do síndico', async () => {
+      const r = await pegar('propor_mudanca').propor({ data: futuro() }, ctx());
+      const situacao = r.proposta?.itens.find((i) => i.rotulo === 'Situação');
+      expect(situacao?.valor).toMatch(/aprova/i);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   describe('catálogo por papel', () => {
     it('as ações aparecem para os três papéis', () => {
       for (const p of ['Sindico', 'Funcionario', 'Morador'] as const) {

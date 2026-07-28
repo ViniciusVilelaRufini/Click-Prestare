@@ -428,6 +428,71 @@ FERRAMENTAS_ACAO.push({
   },
 });
 
+// -----------------------------------------------------------------------
+FERRAMENTAS_ACAO.push({
+  nome: 'propor_mudanca',
+  descricao:
+    'Prepara o agendamento de uma mudança (entrada ou saída de móveis) para o apartamento do usuário, para ele confirmar. NÃO agenda sozinha. O agendamento fica PENDENTE até o síndico aprovar — deixe isso claro na resposta. Se não souber a data, pergunte antes; se ele disser "amanhã", converta para a data real.',
+  parametros: {
+    type: 'object',
+    properties: {
+      data: { type: 'string', description: 'Data da mudança, formato AAAA-MM-DD' },
+      hora: {
+        type: 'string',
+        description:
+          'Hora prevista de início, formato HH:MM. Se o usuário não disser, omita.',
+      },
+    },
+    required: ['data'],
+  },
+  papeis: TODOS,
+  async propor(args, ctx) {
+    const data = lerData(args.data);
+    if (!data) return { erro: 'Data inválida. Pergunte a data e use o formato AAAA-MM-DD.' };
+
+    const agora = new Date();
+    const hojeUtc = Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate());
+    if (data.dia.getTime() < hojeUtc) {
+      return { erro: 'Essa data já passou. Confirme a data com o usuário.' };
+    }
+
+    if (ctx.aptos.length === 0) {
+      return { erro: 'O usuário não tem apartamento vinculado neste condomínio.' };
+    }
+
+    // Hora é opcional no formulário da tela, então também é aqui.
+    let hora: number | null = null;
+    if (args.hora !== undefined) {
+      hora = lerHora(args.hora);
+      if (hora === null) return { erro: 'Horário inválido. Use HH:MM.' };
+    }
+
+    const itens: ItemResumo[] = [
+      { rotulo: 'Data', valor: data.br },
+      { rotulo: 'Horário', valor: hora === null ? 'A combinar' : hhmm(hora) },
+      // A aprovação do síndico é parte do fluxo, não detalhe: quem confirma
+      // precisa saber que ainda não está garantido.
+      { rotulo: 'Situação', valor: 'Aguarda aprovação do síndico' },
+    ];
+
+    return {
+      proposta: {
+        tipo: 'mudanca' as TipoAcao,
+        idUser: ctx.idUser,
+        idCondominio: ctx.idCondominio,
+        titulo: 'Confirmar agendamento de mudança',
+        itens,
+        payload: {
+          // O service espera AAAA-MM-DD e HH:MM.
+          data: args.data,
+          hora_inicio: hora === null ? null : hhmm(hora),
+          id_apartamento: ctx.aptos[0],
+        },
+      },
+    };
+  },
+});
+
 export function acoesPara(papel: PapelChat): FerramentaAcao[] {
   return FERRAMENTAS_ACAO.filter((f) => f.papeis.includes(papel));
 }
