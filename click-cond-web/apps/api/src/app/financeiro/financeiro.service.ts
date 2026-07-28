@@ -1101,12 +1101,6 @@ export class FinanceiroService implements OnModuleInit {
   async getInadimplenciaDashboard(idCondominio: number, mesStr?: string, anoStr?: string, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
 
-    const cond = await this.prisma.condominios.findUnique({
-      where: { id: Number(idCondominio) },
-      select: { categoria_padrao: true, chave_pix: true },
-    });
-    const catTaxa = cond?.categoria_padrao || 'Taxa Condominial';
-
     const mesesDisponiveis = await this.getAllMeses(idCondominio);
     let mes = mesStr ? Number(mesStr) : new Date().getMonth() + 1;
     let ano = anoStr ? Number(anoStr) : new Date().getFullYear();
@@ -1119,12 +1113,24 @@ export class FinanceiroService implements OnModuleInit {
     const dataIni = new Date(ano, mes - 1, 1);
     const dataFim = new Date(ano, mes, 0);
 
-    // Cobranças de taxa do mês (por vencimento ou data). Valor 0 fica de
+    // Cobranças de apartamento no mês (por vencimento ou data). Valor 0 fica de
     // fora: não é arrecadação nem dívida — só poluiria os cards e o feed.
-    const cobrancas = await this.prisma.financeiro.findMany({
+    //
+    // A cobrança é identificada como no restante do módulo: tipo 'C' cujo nome
+    // aponta para um apartamento REAL do condomínio ("Apto X Bloco Y - ...").
+    // Antes o filtro era `categoria = categoria_padrao`, e bastava esse campo
+    // divergir da categoria gravada nas cobranças para os cards zerarem — a
+    // lista por bloco, logo abaixo, continuava mostrando as mesmas dívidas
+    // porque já usava este critério. Os dois passam a enxergar o mesmo dado.
+    const aptosDoCondominio = await this.prisma.apartamentos.findMany({
+      where: { id_condominio: Number(idCondominio) },
+      select: { apto: true, bloco: true },
+    });
+
+    const cobrancasDoMes = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
-        categoria: catTaxa,
+        tipo: 'C',
         valor: { gt: 0 },
         OR: [
           { data: { gte: dataIni, lte: dataFim } },
@@ -1133,6 +1139,10 @@ export class FinanceiroService implements OnModuleInit {
       },
       orderBy: [{ updated_at: 'desc' }],
     });
+
+    const cobrancas = cobrancasDoMes.filter((c) =>
+      aptosDoCondominio.some((a) => this.nomeFaturaDeApto(c.nome, a.apto, a.bloco)),
+    );
 
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
