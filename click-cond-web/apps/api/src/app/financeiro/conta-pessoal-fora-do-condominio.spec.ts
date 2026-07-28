@@ -54,11 +54,14 @@ describe('FinanceiroService — getAll não mostra conta pessoal do morador', ()
     return !bate;
   }
 
-  function build(lancamentos: any[]) {
+  function build(lancamentos: any[], categoriaPadrao = 'Taxa Condominial') {
     const prisma: any = {
       isConnected: true,
       condominios: {
-        findUnique: jest.fn(async () => ({ chave_pix: '', categoria_padrao: 'Taxa Condominial' })),
+        findUnique: jest.fn(async () => ({ chave_pix: '', categoria_padrao: categoriaPadrao })),
+      },
+      apartamentos: {
+        findMany: jest.fn(async () => [{ apto: '101', bloco: 'A' }]),
       },
       financeiro: {
         findMany: jest.fn(async ({ where }: any) =>
@@ -100,20 +103,63 @@ describe('FinanceiroService — getAll não mostra conta pessoal do morador', ()
     expect(itens.map((i) => i.nome)).toEqual(['Manutenção de Elevadores']);
   });
 
-  // Cobrança 'C' com id_usuario (ex.: taxa condominial por apto) não é o alvo
-  // deste filtro — ela já é excluída pela categoria — mas confirma que a regra
-  // olha o tipo, não só a presença de id_usuario.
-  it('não exclui por engano uma cobrança tipo C com id_usuario', async () => {
-    const cobrancaComUsuario = {
+  // Receita própria do condomínio que não é de apartamento (aluguel de salão,
+  // por exemplo) continua no livro-caixa, mesmo sendo tipo 'C'.
+  it('mantém receita tipo C que não aponta para apartamento', async () => {
+    const receitaDoCondominio = {
       ...despesaDoCondominio,
       id: 900,
+      nome: 'Aluguel do salão de festas',
       tipo: 'C',
       categoria: 'Arrecadação',
-      id_usuario: 47,
     };
-    const svc = build([cobrancaComUsuario]);
+    const svc = build([receitaDoCondominio]);
     const r = await svc.getAll(1, '7', '2026', true, sindico);
     const itens = Object.values(r.lancamentos).flat() as any[];
     expect(itens).toHaveLength(1);
+  });
+
+  /**
+   * Financeiro do Condomínio e Inadimplência são telas distintas: a taxa que o
+   * morador deve pertence à segunda e não pode aparecer na primeira.
+   */
+  describe('taxa de morador fica só na Inadimplência', () => {
+    const taxaDoApto = {
+      ...despesaDoCondominio,
+      id: 950,
+      nome: 'Apto 101 Bloco A - Taxa Condominial Ref. 07/2026',
+      tipo: 'C',
+      categoria: 'Taxa Condominial',
+      valor: 550,
+    };
+
+    it('não mostra a taxa do apartamento no livro-caixa do condomínio', async () => {
+      const svc = build([taxaDoApto]);
+      const r = await svc.getAll(1, '7', '2026', true, sindico);
+      expect(Object.values(r.lancamentos).flat()).toHaveLength(0);
+    });
+
+    // O caso que quebrou em produção: categoria_padrao valia "Elite" e as
+    // cobranças eram "Taxa Condominial", então a exclusão por categoria não
+    // pegava nada e as 61 taxas vazavam para o livro-caixa.
+    it('exclui a taxa mesmo com categoria_padrao divergente', async () => {
+      const svc = build([taxaDoApto, despesaDoCondominio], 'Elite');
+      const r = await svc.getAll(1, '7', '2026', true, sindico);
+      const itens = Object.values(r.lancamentos).flat() as any[];
+      expect(itens.map((i) => i.nome)).toEqual(['Manutenção de Elevadores']);
+    });
+
+    it('não exclui taxa de apartamento de outro condomínio (bloco diferente)', async () => {
+      const outroBloco = {
+        ...taxaDoApto,
+        id: 951,
+        nome: 'Apto 101 Bloco B - Taxa Condominial Ref. 07/2026',
+      };
+      const svc = build([outroBloco]);
+      const r = await svc.getAll(1, '7', '2026', true, sindico);
+      // Bloco B não existe na lista de apartamentos deste condomínio, então o
+      // lançamento não é reconhecido como taxa daqui e permanece visível.
+      expect(Object.values(r.lancamentos).flat()).toHaveLength(1);
+    });
   });
 });

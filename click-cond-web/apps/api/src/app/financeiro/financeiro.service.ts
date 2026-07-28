@@ -785,27 +785,27 @@ export class FinanceiroService implements OnModuleInit {
       select: { chave_pix: true, categoria_padrao: true },
     });
     const condChavePix = cond?.chave_pix ?? '';
-    // Categoria das cobranças de taxa dos moradores (apto a apto). Essas NÃO entram
-    // no Financeiro do condomínio — vão para a aba Inadimplência. Mostra só
-    // receitas/despesas do condomínio aqui.
-    const catTaxa = cond?.categoria_padrao || 'Taxa Condominial';
 
     // Montar intervalo
     const dataIni = new Date(ano, mes - 1, 1);
     const dataFim = new Date(ano, mes, 0); // último dia do mês
 
+    // Apartamentos do condomínio: usados para reconhecer, pelo nome, quais
+    // lançamentos são taxa de morador e portanto NÃO pertencem a esta tela.
+    const aptosDoCondominio = await this.prisma.apartamentos.findMany({
+      where: { id_condominio: Number(idCondominio) },
+      select: { apto: true, bloco: true },
+    });
+
     const whereClause: any = {
       id_condominio: Number(idCondominio),
-      categoria: { not: catTaxa },
       OR: [
         { data: { gte: dataIni, lte: dataFim } },
         { data_vencimento: { gte: dataIni, lte: dataFim } },
       ],
       // Conta pessoal do morador (água, luz, internet — criada por ele mesmo
       // via insertMoradorConta, sempre tipo 'D' + id_usuario preenchido) não é
-      // dinheiro do condomínio. O filtro de categoria acima só cobre a taxa
-      // condominial; sem esta exclusão, a despesa pessoal aparecia inteira no
-      // livro-caixa geral que o síndico vê.
+      // dinheiro do condomínio.
       NOT: { AND: [{ tipo: 'D' }, { id_usuario: { not: null } }] },
     };
 
@@ -813,10 +813,28 @@ export class FinanceiroService implements OnModuleInit {
       whereClause.pago = 1;
     }
 
-    const list = await this.prisma.financeiro.findMany({
+    const listBruta = await this.prisma.financeiro.findMany({
       where: whereClause,
       orderBy: [{ data: 'asc' }, { data_vencimento: 'asc' }],
     });
+
+    // Taxa de morador (cobrança apto a apto) pertence à aba Inadimplência, não
+    // ao livro-caixa do condomínio — são duas telas com finalidades distintas.
+    //
+    // A exclusão era por `categoria != categoria_padrao`, e bastava esse campo
+    // divergir da categoria gravada nas cobranças para TODAS as taxas vazarem
+    // para cá (em junho/2026 do Edifício Demo eram 61 de 62 lançamentos).
+    // Passa a reconhecer a cobrança do mesmo jeito que a Inadimplência: tipo
+    // 'C' cujo nome aponta para um apartamento real. Assim as duas telas usam
+    // o mesmo critério e o que entra numa sai da outra, sem depender de um
+    // campo de configuração que pode ser renomeado.
+    const list = listBruta.filter(
+      (l) =>
+        !(
+          l.tipo === 'C' &&
+          aptosDoCondominio.some((a) => this.nomeFaturaDeApto(l.nome, a.apto, a.bloco))
+        ),
+    );
 
     const lancamentosMap: Record<string, any[]> = {};
     let saldo = 0;
