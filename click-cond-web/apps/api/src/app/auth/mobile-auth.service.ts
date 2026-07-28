@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { StorageService } from '../common/storage/storage.service';
+import { somenteDigitos } from '../common/documento.util';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from './tenant-access.service';
 import { assertStaff, assertSindico } from './tenant.util';
@@ -1890,8 +1891,11 @@ export class MobileAuthService {
     const conflito = await this.prisma.funcionarios_Portaria.findUnique({ where: { login: loginFinal } });
     if (conflito) throw new BadRequestException('Já existe um funcionário com este e-mail.');
 
-    // Senha inicial = senha recebida, documento ou '123456'
-    const senhaInicial = func.senha || func.password || (func.documento && String(func.documento).trim()) || '123456';
+    // Senha inicial = senha recebida, documento (só dígitos) ou '123456'.
+    // A senha escolhida no formulário passa intacta — normalizar ali
+    // destruiria uma senha com letras ou símbolos.
+    const senhaInicial =
+      func.senha || func.password || somenteDigitos(func.documento) || '123456';
     const md5Pwd = createHash('md5').update(senhaInicial).digest('hex');
 
     const created = await this.prisma.funcionarios_Portaria.create({
@@ -2178,7 +2182,11 @@ export class MobileAuthService {
       let userId: number;
       let passwordWasSet = false;
       const cpf = mor.documento ? String(mor.documento).trim() : null;
-      const senhaInicial = cpf || '123456';
+      // Só os dígitos: a senha vai por e-mail para a pessoa digitar, e com a
+      // máscara ("453.466.488-53") ela erra o ponto ou o traço e não entra.
+      // O mesmo valor é enviado no e-mail mais abaixo, então os dois seguem
+      // iguais — mudar só a mensagem deixaria a senha exibida errada.
+      const senhaInicial = somenteDigitos(cpf) || '123456';
       const md5Pwd = createHash('md5').update(senhaInicial).digest('hex');
 
       // Procura usuário existente: por email ou por CPF (campos UNIQUE)

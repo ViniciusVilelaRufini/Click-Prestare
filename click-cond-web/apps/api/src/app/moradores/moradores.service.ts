@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../common/mail/mail.service';
 import { StorageService } from '../common/storage/storage.service';
+import { somenteDigitos } from '../common/documento.util';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -1070,7 +1071,9 @@ export class MoradoresService {
     if (!m.email) {
       throw new NotFoundException('Morador não possui e-mail cadastrado');
     }
-    const senhaInicial = m.documento || '123456';
+    // Só os dígitos: este fluxo REDEFINE a senha e manda por e-mail, então a
+    // máscara do documento viraria a senha real e a pessoa erraria ao digitar.
+    const senhaInicial = somenteDigitos(m.documento) || '123456';
     if (this.prisma.isConnected && m.id_user) {
       const md5Password = crypto.createHash('md5').update(senhaInicial).digest('hex');
       await this.prisma.users.update({
