@@ -500,8 +500,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => _acionarBotao(b),
-                    icon: Icon(_iconeBotao(b.efeito), size: 16),
-                    label: Text(b.rotulo, style: AppTypography.caption(context)),
+                    icon: Icon(_iconeBotao(b.efeito), size: 16, color: Colors.white),
+                    label: Text(b.rotulo,
+                        style: AppTypography.caption(context)
+                            .copyWith(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,

@@ -189,8 +189,8 @@ Future<bool> apiDeleteAccount() async {
   }
 }
 
-getMeusEventos() async {
-  final url = _buildUri('/dashboard/meus-eventos');
+getMeusEventos({int limit = 15}) async {
+  final url = _buildUri('/dashboard/meus-eventos', {'limit': limit.toString()});
   try {
     final response = await ApiClient.get(url, headers: _authHeaders()).timeout(_kTimeout);
     if (response.statusCode == 200) {

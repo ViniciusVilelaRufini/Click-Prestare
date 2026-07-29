@@ -1,8 +1,9 @@
 import 'package:click/controllers/controller_notificacoes.dart';
-import 'package:click/pages/shared/comunicados/list_comunicados.dart';
+import 'package:click/pages/shared/comunicados/detail_comunidado.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
-import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
+import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
+import 'package:click/pages/shared/ocorrencias/detail_ocorrencia.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -70,22 +71,38 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
     }
   }
 
-  /// Leva para a tela de origem do aviso. Acessos não têm tela própria — o
-  /// histórico já aparece na home —, então não navegam.
-  void _abrir(String tipo) {
+  /// Extrai o id numérico do item a partir do id composto que a API monta
+  /// (ex.: "encomenda-123" -> 123).
+  int? _idNumerico(dynamic n) {
+    final raw = n['id']?.toString() ?? '';
+    final partes = raw.split('-');
+    if (partes.length < 2) return null;
+    return int.tryParse(partes.last);
+  }
+
+  /// Leva direto para o item específico que gerou o aviso, não só para a
+  /// tela em geral.
+  void _abrir(dynamic n) {
+    final tipo = n['tipo']?.toString() ?? '';
+    final id = _idNumerico(n);
     Widget? destino;
     switch (tipo) {
       case 'encomenda':
-        destino = const ListEncomendas();
+        destino = ListEncomendas(destacarId: id);
         break;
       case 'comunicado':
-        destino = const ListComunicados();
+        if (id == null) return;
+        destino = DetailComunicado(id: id);
         break;
       case 'ocorrencia':
-        destino = const ListOcorrencias();
+        if (id == null) return;
+        destino = DetailOcorrencia(id: id);
         break;
       case 'financeiro':
         destino = const MoradorFinanceiroView();
+        break;
+      case 'acesso':
+        destino = HistoricoAcessosPage(destacarId: id);
         break;
     }
     if (destino == null) return;
@@ -169,11 +186,13 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
     final v = _visual(tipo);
     final nova = _isNova(n);
     final descricao = (n['descricao']?.toString() ?? '').trim();
-    final navegavel = tipo != 'acesso';
+    // Reservas ainda não têm uma tela de detalhe por id — a única navegável
+    // por enquanto que fica de fora.
+    final navegavel = tipo != 'reserva';
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: navegavel ? () => _abrir(tipo) : null,
+      onTap: navegavel ? () => _abrir(n) : null,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(

@@ -20,11 +20,13 @@ class ListEncomendas extends StatefulWidget {
   final bool allCondos;
   final bool hideAppBar;
   final bool showFab;
+  final int? destacarId;
   const ListEncomendas({
-    Key? key, 
-    this.allCondos = false, 
+    Key? key,
+    this.allCondos = false,
     this.hideAppBar = false,
     this.showFab = true,
+    this.destacarId,
   }) : super(key: key);
 
   @override
@@ -34,6 +36,7 @@ class ListEncomendas extends StatefulWidget {
 class ListEncomendasState extends State<ListEncomendas> {
   bool _isLoading = false;
   List<EncomendaModel> _encomendas = [];
+  bool _jaAbriuDestaque = false;
 
   @override
   void initState() {
@@ -50,6 +53,7 @@ class ListEncomendasState extends State<ListEncomendas> {
         setState(() {
           _encomendas = result.map((e) => EncomendaModel.fromJson(e)).toList();
         });
+        _abrirDestaqueSeNecessario();
       }
     } catch (e) {
       if (mounted) {
@@ -58,6 +62,18 @@ class ListEncomendasState extends State<ListEncomendas> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Veio de uma notificação apontando para uma encomenda específica: abre
+  /// direto o detalhe dela, uma única vez, assim que a lista carrega.
+  void _abrirDestaqueSeNecessario() {
+    if (widget.destacarId == null || _jaAbriuDestaque) return;
+    final match = _encomendas.where((e) => e.id == widget.destacarId).toList();
+    if (match.isEmpty) return;
+    _jaAbriuDestaque = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _EncomendaCard.abrir(context, match.first, onRetirada: _loadList);
+    });
   }
   @override
   Widget build(BuildContext context) {
@@ -367,6 +383,38 @@ class _EncomendaCard extends StatelessWidget {
   final VoidCallback? onRetirada;
 
   const _EncomendaCard({required this.encomenda, this.onRetirada});
+
+  /// Abre o modal de detalhes sem depender do card estar na árvore de widgets
+  /// — usado quando se chega direto a uma encomenda vinda de notificação.
+  static void abrir(BuildContext context, EncomendaModel encomenda, {VoidCallback? onRetirada}) {
+    final statusLower = encomenda.status?.toLowerCase() ?? '';
+    final isRetirado = statusLower == 'retirado' || statusLower == 'retirada' || statusLower == 'entregue';
+    Color statusColor;
+    if (isRetirado) {
+      statusColor = Colors.green;
+    } else if (statusLower == 'cancelado' || statusLower == 'recusado') {
+      statusColor = Colors.red;
+    } else if (statusLower == 'esperando') {
+      statusColor = Colors.blue;
+    } else {
+      statusColor = Colors.orange;
+    }
+
+    String dataFormatada = '';
+    if (encomenda.recebidoEm != null) {
+      try {
+        final dt = DateTime.parse(encomenda.recebidoEm!);
+        dataFormatada = DateFormat('dd/MM/yyyy HH:mm').format(dt);
+      } catch (_) {
+        dataFormatada = encomenda.recebidoEm!;
+      }
+    } else if (statusLower == 'esperando') {
+      dataFormatada = 'Aguardando chegada';
+    }
+
+    _EncomendaCard(encomenda: encomenda, onRetirada: onRetirada)
+        ._showEncomendaDetails(context, dataFormatada, statusColor);
+  }
 
   bool get _jaRetirada {
     final s = (encomenda.status ?? '').toLowerCase();
