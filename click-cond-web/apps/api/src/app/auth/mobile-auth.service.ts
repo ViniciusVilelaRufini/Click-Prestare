@@ -1185,7 +1185,11 @@ export class MobileAuthService {
   // ==========================================
   // CONDOMÍNIO DETALHES GERAL
   // ==========================================
-  async getCondominioById(id: number) {
+  async getCondominioById(id: number, user?: JwtPayload) {
+    // FORA do try: o catch abaixo devolve mockCond em qualquer erro, e engoliria
+    // o 403 — o chamador receberia 200 com dados fictícios em vez do bloqueio.
+    await this.tenant.assertCondominio(Number(id), user);
+
     const mockCond = {
       id: id || 1,
       nome: 'Condomínio Demo - Click Prestare',
@@ -1221,7 +1225,9 @@ export class MobileAuthService {
       // inclusive taxa de morador e conta pessoal, então o card exibia um
       // numero que nao existia em tela nenhuma. Sem mês, getAll assume o
       // último com movimento, que é o mesmo padrão da tela.
-      const financeiro = await this.financeiro.getAll(Number(id));
+      // Repassa o user: o getAll revalida o vínculo por conta própria, então o
+      // saldo nunca sai daqui sem ter passado por uma checagem de tenant.
+      const financeiro = await this.financeiro.getAll(Number(id), undefined, undefined, true, user);
       const saldoStr = (financeiro?.saldo ?? '')
         .toString()
         // getAll ja devolve formatado ("R$ 1.234,56"); o app remonta com a

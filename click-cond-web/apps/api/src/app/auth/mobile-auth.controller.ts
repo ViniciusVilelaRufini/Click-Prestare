@@ -266,9 +266,12 @@ export class NotificacoesMobileController {
 export class CondominioMobileController {
   constructor(private readonly service: MobileAuthService) {}
 
+  // O payload é OBRIGATÓRIO aqui: sem ele o assertCondominio do service passa
+  // direto (`if (!payload) return`) e qualquer usuário logado lia nome, CNPJ,
+  // endereço e SALDO de qualquer condomínio só trocando o id na query.
   @Get('get-condominio')
-  getCondominio(@Query('id_condominio') idCond: string) {
-    return this.service.getCondominioById(Number(idCond));
+  getCondominio(@Query('id_condominio') idCond: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getCondominioById(Number(idCond), payload);
   }
 
   @Post('register')

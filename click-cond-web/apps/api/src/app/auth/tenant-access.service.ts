@@ -12,6 +12,7 @@ import { JwtPayload } from './jwt-payload.interface';
  *
  *  - Porteiro / portaria-web: id_condominio fixo no JWT → compara direto.
  *  - Síndico mobile: valida via Sindicos_Condominios.
+ *  - Funcionário mobile: valida via Funcionarios (é da equipe do condomínio).
  *  - Morador mobile: valida via Apartamentos_Users (tem apto no condomínio).
  *
  * Use `assertCondominio` quando o condomínio-alvo já é conhecido (veio da URL
@@ -61,6 +62,22 @@ export class TenantAccessService {
       });
       if (!vinc) {
         throw new ForbiddenException('Acesso negado: você não administra este condomínio.');
+      }
+      return;
+    }
+
+    // Funcionário mobile: o vínculo dele é ser da EQUIPE do condomínio, não
+    // morar nele. Sem este ramo ele caía na regra do morador abaixo e levava
+    // 403 em tudo que passa por aqui — inclusive o módulo financeiro inteiro.
+    // Em produção, 4 dos 6 funcionários não têm apartamento (só passavam os
+    // que por acaso também eram morador ou síndico).
+    if (tipo === 'funcionario') {
+      const vincFunc = await this.prisma.funcionarios.findFirst({
+        where: { id_user: userId, id_condominio: condId },
+        select: { id: true },
+      });
+      if (!vincFunc) {
+        throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
       }
       return;
     }

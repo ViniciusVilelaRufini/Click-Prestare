@@ -5,7 +5,7 @@ import { FechamentoService } from './fechamento.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { Public } from '../auth/public.decorator';
-import { assertStaff } from '../auth/tenant.util';
+import { assertStaff, assertOperador } from '../auth/tenant.util';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('financeiro')
@@ -63,6 +63,15 @@ export class FinanceiroController {
     return this.service.get(Number(idCondominio), Number(id), payload);
   }
 
+  // As rotas de inadimplência abaixo são da administração (app do síndico e
+  // aba Inadimplência da portaria-web). Elas expõem a situação financeira de
+  // TODOS os apartamentos — valor devido, PIX, comprovante — e o apto/bloco
+  // vem por parâmetro, sem relação com quem pediu.
+  //
+  // Só o assertCondominio do service não basta aqui: ele confirma que a pessoa
+  // pertence ao condomínio, e morador pertence. Sem o assertOperador, qualquer
+  // morador autenticado lia a dívida dos vizinhos e disparava cobrança para
+  // qualquer apartamento.
   @Get('moradores/get-all')
   getAllMoradores(
     @Query('id_condominio') idCondominio: string,
@@ -70,11 +79,13 @@ export class FinanceiroController {
     @Query('ano') ano: string,
     @ReqUser() payload: JwtPayload,
   ) {
+    assertOperador(payload, 'consultar as taxas dos moradores');
     return this.service.getAllMoradores(Number(idCondominio), mes, ano, payload);
   }
 
   @Get('inadimplentes/get-all')
   getAllInadimplentes(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
+    assertOperador(payload, 'consultar a lista de inadimplentes');
     return this.service.getAllInadimplentes(Number(idCondominio), payload);
   }
 
@@ -85,6 +96,7 @@ export class FinanceiroController {
     @Query('ano') ano: string,
     @ReqUser() payload: JwtPayload,
   ) {
+    assertOperador(payload, 'abrir o dashboard de inadimplência');
     return this.service.getInadimplenciaDashboard(Number(idCondominio), mes, ano, payload);
   }
 
@@ -95,6 +107,7 @@ export class FinanceiroController {
     @Query('bloco') bloco: string,
     @ReqUser() payload: JwtPayload,
   ) {
+    assertOperador(payload, 'consultar a dívida de um apartamento');
     return this.service.getInadimplenteDetail(Number(idCondominio), apto, bloco, payload);
   }
 
@@ -105,6 +118,7 @@ export class FinanceiroController {
     @Body('bloco') bloco: string,
     @ReqUser() payload: JwtPayload,
   ) {
+    assertOperador(payload, 'notificar inadimplente');
     return this.service.notifyInadimplente(Number(idCondominio), apto, bloco, payload);
   }
 

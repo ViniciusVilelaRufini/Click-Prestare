@@ -82,6 +82,29 @@ export function assertStaff(user: JwtPayload | undefined, contexto = 'ação'): 
 }
 
 /**
+ * Como assertStaff, mas também aceita o operador logado na portaria-web.
+ *
+ * O login da portaria emite um token `{ sub, nome, id_condominio, turno }`,
+ * SEM typeAccess — então assertStaff barraria justamente quem opera o console.
+ * Aqui a presença de `id_condominio` no token identifica esse operador (o
+ * TenantGuard/assertCondominio já garante que é o condomínio dele).
+ *
+ * Use nas telas que existem nos dois front-ends (app do síndico e
+ * portaria-web) e que morador não pode ver — como a área de inadimplência.
+ * Quando a ação só existe no app, prefira assertStaff.
+ */
+export function assertOperador(user: JwtPayload | undefined, contexto = 'ação'): void {
+  const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? '').toString().toLowerCase();
+  const ehConsole = !!user?.id_condominio;
+  const ehStaffApp = tipo === 'sindico' || tipo === 'funcionario';
+  if (!ehConsole && !ehStaffApp) {
+    throw new ForbiddenException(
+      `Acesso negado: ${contexto} exige operador da portaria ou síndico.`,
+    );
+  }
+}
+
+/**
  * Versão mais restrita de assertStaff: exige Síndico, exclui Funcionário.
  *
  * Use em ações de maior confiança que um porteiro/funcionário não deveria

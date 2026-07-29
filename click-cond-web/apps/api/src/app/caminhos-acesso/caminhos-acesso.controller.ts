@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -15,28 +14,7 @@ import {
 } from './caminhos-acesso.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-
-/**
- * Quem pode montar o caminho: operador do console (porteiro/síndico logado na
- * portaria-web, cujo token carrega id_condominio) ou staff vindo do app.
- * Morador não — o caminho define o que abre cada portão.
- *
- * Não dá para usar o assertStaff daqui: o token emitido pelo login da
- * portaria-web não carrega typeAccess, e ele barraria justamente quem usa
- * esta tela.
- */
-function assertOperador(user: JwtPayload | undefined, contexto: string) {
-  const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? '')
-    .toString()
-    .toLowerCase();
-  const ehConsole = !!user?.id_condominio;
-  const ehStaffApp = tipo === 'sindico' || tipo === 'funcionario';
-  if (!ehConsole && !ehStaffApp) {
-    throw new ForbiddenException(
-      `Acesso negado: ${contexto} exige operador da portaria ou síndico.`,
-    );
-  }
-}
+import { assertOperador } from '../auth/tenant.util';
 
 /**
  * Caminho de leitores: a sequência de etapas que a pessoa percorre para entrar.
