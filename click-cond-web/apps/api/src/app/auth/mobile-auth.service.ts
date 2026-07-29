@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtPayload } from './jwt-payload.interface';
 import { StorageService } from '../common/storage/storage.service';
 import { somenteDigitos } from '../common/documento.util';
+import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from './tenant-access.service';
 import { assertStaff, assertSindico } from './tenant.util';
@@ -20,6 +21,7 @@ export class MobileAuthService {
     private readonly storage: StorageService,
     private readonly facial: FacialService,
     private readonly tenant: TenantAccessService,
+    private readonly financeiro: FinanceiroService,
   ) {}
 
   /**
@@ -1205,7 +1207,6 @@ export class MobileAuthService {
       const c = await this.prisma.condominios.findUnique({
         where: { id: Number(id) },
         include: {
-          financeiro: { where: { pago: 1 } },
           apartamentos: true,
           enderecoRel: true,
         },
@@ -1213,8 +1214,20 @@ export class MobileAuthService {
 
       if (!c) return mockCond;
 
-      const saldoNum = c.financeiro?.reduce((acc, f) => acc + (Number(f.valor) || 0), 0) ?? 0;
-      const saldoStr = saldoNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      // O saldo do card do dashboard é o MESMO que a tela de Financeiro do
+      // condomínio mostra — por isso vem de getAll, e não de uma soma própria.
+      //
+      // A soma anterior pegava todo lançamento pago de todos os tempos,
+      // inclusive taxa de morador e conta pessoal, então o card exibia um
+      // numero que nao existia em tela nenhuma. Sem mês, getAll assume o
+      // último com movimento, que é o mesmo padrão da tela.
+      const financeiro = await this.financeiro.getAll(Number(id));
+      const saldoStr = (financeiro?.saldo ?? '')
+        .toString()
+        // getAll ja devolve formatado ("R$ 1.234,56"); o app remonta com a
+        // moeda do condomínio, entao aqui vai so o numero.
+        .replace(/[^\d.,-]/g, '')
+        .trim();
 
       return {
         id: c.id,

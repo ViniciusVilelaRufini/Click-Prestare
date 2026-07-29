@@ -54,7 +54,6 @@ class _MyCondominiumState extends State<MyCondominium> {
   Map<String, dynamic>? _cond;
   late List<_MenuItem> _menu;
   String _saldo = '';
-  String _inadimplencia = '';
   int _ocorrenciasAbertas = 0;
   Map<String, dynamic>? _summary;
   int _currentTab = 0;
@@ -181,12 +180,10 @@ class _MyCondominiumState extends State<MyCondominium> {
       if (results[0] is Map<String, dynamic>) {
         final cond = results[0] as Map<String, dynamic>;
         final raw = (cond['saldo'] ?? '').toString();
-        final rawInadimplencia = (cond['inadimplencia'] ?? '').toString();
         final ocorrList = results[2];
         setState(() {
           _cond = cond;
           _saldo = _formatMoeda(raw);
-          _inadimplencia = _formatMoeda(rawInadimplencia);
           _ocorrenciasAbertas = ocorrList is List ? ocorrList.length : 0;
           _summary = results[1] as Map<String, dynamic>?;
         });
@@ -1146,14 +1143,22 @@ class _MyCondominiumState extends State<MyCondominium> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Inadimplência'.toUpperCase(),
+                        Text('Saldo atual'.toUpperCase(),
                             style: AppTypography.tiny(context).copyWith(
                                 color: Colors.white.withOpacity(0.7),
                                 letterSpacing: 1)),
                         AppSpacing.gapXs,
-                        Text(_inadimplencia.isEmpty ? '${Singleton.instance.getCurrentMoeda()} 0,00' : _inadimplencia,
+                        // Mesmo saldo da tela de Financeiro do condomínio (o
+                        // backend usa o mesmo cálculo). Negativo em vermelho,
+                        // positivo em branco — sobre o azul, verde não lê bem.
+                        Text(
+                            _saldo.isEmpty
+                                ? '${Singleton.instance.getCurrentMoeda()} 0,00'
+                                : _saldo,
                             style: AppTypography.title(context).copyWith(
-                                color: const Color(0xFFFFB4BC))),
+                                color: _saldo.contains('-')
+                                    ? const Color(0xFFFFB4BC)
+                                    : Colors.white)),
                       ],
                     ),
                   ),

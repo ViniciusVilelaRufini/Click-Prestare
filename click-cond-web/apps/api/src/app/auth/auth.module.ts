@@ -24,6 +24,7 @@ import {
 
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 import { FacialModule } from '../facial/facial.module';
+import { FinanceiroModule } from '../financeiro/financeiro.module';
 
 @Module({
   imports: [
@@ -37,6 +38,8 @@ import { FacialModule } from '../facial/facial.module';
     }),
     OcorrenciasModule,
     FacialModule,
+    // O saldo do card do dashboard vem do mesmo cálculo da tela de Financeiro.
+    FinanceiroModule,
   ],
   controllers: [
     AuthController,
