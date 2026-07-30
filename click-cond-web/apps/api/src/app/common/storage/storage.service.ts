@@ -51,7 +51,14 @@ export class StorageService {
    *   data:image/jpeg;base64,/9j/4AAQ...
    *   data:application/pdf;base64,JVBERi0...
    */
-  isDataUrl(value: unknown): value is string {
+  /**
+   * Era declarado como `value is string` — um type predicate. Mas o que ele
+   * testa é CONTEÚDO (se a string é um data URL), não tipo. Quando o valor já
+   * é `string`, o TypeScript narrowava o ramo negativo para `never`, e
+   * qualquer uso depois do `if` virava erro ("Property 'length' does not
+   * exist on type 'never'"). Como `boolean`, diz a verdade sobre o que faz.
+   */
+  isDataUrl(value: unknown): boolean {
     return typeof value === 'string' && value.startsWith('data:') && value.includes('base64,');
   }
 

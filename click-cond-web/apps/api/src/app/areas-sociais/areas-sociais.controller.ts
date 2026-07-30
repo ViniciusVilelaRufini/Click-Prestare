@@ -1,7 +1,7 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { AreasSociaisService } from './areas-sociais.service';
 import { ReqUser } from '../auth/req-user.decorator';
-import { JwtPayload } from '../auth/jwt-payload.interface';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 @Controller(['areasSociais', 'areas-sociais'])
 export class AreasSociaisController {
@@ -74,7 +74,14 @@ export class AreasSociaisController {
     @Query('id_apto') idApto?: string,
     @ReqUser() payload?: JwtPayload,
   ) {
-    const idUser = payload?.user?.id ?? payload?.sub ?? 1;
+    // Sem `?? 1`: o fallback fazia a rota devolver as reservas do usuário 1
+    // caso o payload viesse sem id. Não acontece hoje (o JwtAuthGuard é
+    // global), mas é um default que falha ABERTO — entrega dado de outra
+    // pessoa em vez de recusar.
+    const idUser = payload?.user?.id ?? payload?.sub;
+    if (!idUser) {
+      throw new ForbiddenException('Sessão sem usuário válido.');
+    }
     const aptoIdNum = idApto && idApto !== 'null' && idApto !== 'undefined' ? Number(idApto) : undefined;
     return this.service.getAllMeusAgendamentos(Number(idCondominio), Number(idUser), aptoIdNum, payload);
   }
