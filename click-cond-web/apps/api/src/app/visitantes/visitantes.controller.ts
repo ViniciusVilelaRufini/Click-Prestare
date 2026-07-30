@@ -9,7 +9,24 @@ import { Throttle } from '@nestjs/throttler';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
+import { assertOperador } from '../auth/tenant.util';
 
+/**
+ * Superfície do CONSOLE (portaria-web). Enxerga o condomínio inteiro: todas
+ * as visitas de todos os apartamentos, com nome, documento e foto.
+ *
+ * O TenantGuard protege pelo :idCondominio da rota — mas morador também
+ * pertence ao condomínio, então ele sozinho não basta aqui. Sem o
+ * assertOperador, qualquer morador autenticado listava os visitantes do
+ * prédio inteiro e, pior, editava a identidade ou apagava as visitas de
+ * qualquer pessoa cadastrada.
+ *
+ * O contraste estava explícito no próprio código: `findAllMobile`, que serve
+ * o app, restringe TODO usuário (inclusive síndico) aos apartamentos a que
+ * ele está vinculado, e o comentário lá diz que "ver todos" é exclusivo do
+ * console web. Só que nada impunha esse "exclusivo" — a regra existia na
+ * documentação e não no código.
+ */
 @Controller('condominios/:idCondominio/visitantes')
 export class VisitantesController {
   constructor(private readonly service: VisitantesService) {}
@@ -41,8 +58,10 @@ export class VisitantesController {
   @Get()
   async list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() payload: JwtPayload,
     @Query('search') search?: string,
   ) {
+    assertOperador(payload, 'listar os visitantes do condomínio');
     const list = await this.service.findAll(idCondominio, search);
     return list.map((v) => this.flatten(v));
   }
@@ -55,8 +74,10 @@ export class VisitantesController {
   @Get('pessoas')
   pessoas(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() payload: JwtPayload,
     @Query('search') search?: string,
   ) {
+    assertOperador(payload, 'listar as pessoas cadastradas no condomínio');
     return this.service.listarPessoas(idCondominio, search);
   }
 
@@ -65,15 +86,21 @@ export class VisitantesController {
     @Param('id', ParseIntPipe) id: number,
     @ReqUser() payload: JwtPayload,
   ) {
+    // O service já confere o vínculo com o visitante; aqui é a camada de
+    // papel — detalhes traz histórico completo, documento e fotos.
+    assertOperador(payload, 'abrir os detalhes de um visitante');
     return this.service.detalhes(id, payload);
   }
 
   @Get('buscar/pessoa')
   buscarPessoa(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() payload: JwtPayload,
     @Query('doc') doc?: string,
     @Query('nome') nome?: string,
   ) {
+    // Busca por documento/nome em todo o condomínio: é consulta de portaria.
+    assertOperador(payload, 'buscar pessoas no condomínio');
     return this.service.buscarPessoa(idCondominio, doc, nome);
   }
 
@@ -92,6 +119,11 @@ export class VisitantesController {
     },
     @ReqUser() payload: JwtPayload,
   ) {
+    // Copia identidade (nome, doc, foto, face_id) de um cadastro qualquer do
+    // condomínio para uma visita nova. O create validado adiante já impede
+    // apontar para apartamento alheio, mas escolher DE QUEM copiar é ação de
+    // portaria.
+    assertOperador(payload, 'criar nova visita a partir de um cadastro');
     return this.service.novaVisitaParaPessoa(idRef, body, payload);
   }
 
@@ -116,7 +148,12 @@ export class VisitantesController {
       dias_semana?: string;
       categorias?: string;
     },
+    @ReqUser() payload: JwtPayload,
   ) {
+    // Reescreve nome, documento, fotos e credencial RFID de uma pessoa em
+    // TODAS as visitas dela. Sem checagem de papel, um morador reescrevia o
+    // cadastro de qualquer visitante do prédio — incluindo a tag de acesso.
+    assertOperador(payload, 'editar o cadastro de uma pessoa');
     return this.service.atualizarPessoa(idCondominio, idRef, body);
   }
 
@@ -129,7 +166,11 @@ export class VisitantesController {
   removerPessoa(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Param('idRef', ParseIntPipe) idRef: number,
+    @ReqUser() payload: JwtPayload,
   ) {
+    // Apaga o cadastro e TODAS as visitas da pessoa. Era a rota mais exposta
+    // do módulo: destrutiva, em massa, e alcançável por qualquer morador.
+    assertOperador(payload, 'remover o cadastro de uma pessoa');
     return this.service.removerPessoa(idCondominio, idRef);
   }
 
@@ -189,6 +230,11 @@ export class VisitantesGlobalController {
     // Só pode validar PIN do próprio condomínio — senão dá pra varrer PINs
     // de qualquer prédio passando o id_condominio na query.
     await this.service.assertUsuarioNoCondominio(idCondominio, payload);
+    // E só a portaria valida PIN: é o botão "Validar PIN" do console, que o
+    // app nunca chama. Um acerto devolve o cadastro inteiro do visitante
+    // (nome, documento, foto, apartamento de destino), então deixar morador
+    // consultar entregava dado do vizinho a quem tivesse o código na mão.
+    assertOperador(payload, 'validar PIN de acesso');
     return this.service.validarCodigo(idCondominio, codigo);
   }
 
@@ -330,6 +376,23 @@ export class VisitantesGlobalController {
     }, payload);
 
     return saved;
+  }
+
+  /**
+   * Excluir uma visita — o par do /prestadores/remove.
+   *
+   * O app chama esta rota desde sempre (`apiDeleteObject('visitantes', id)`),
+   * mas ela não existia no controller: respondia 404 e o botão de excluir
+   * visitante falhava em silêncio, porque o helper do app só olha o status.
+   * Prestador tinha a rota; visitante, não.
+   */
+  @SkipAudit()
+  @Post('remove')
+  async remove(
+    @Body('id', ParseIntPipe) id: number,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.remove(id, payload);
   }
 
   @SkipAudit()

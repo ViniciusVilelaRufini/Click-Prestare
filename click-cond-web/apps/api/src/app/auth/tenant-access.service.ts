@@ -93,6 +93,52 @@ export class TenantAccessService {
   }
 
   /**
+   * Exige que o FUNCIONÁRIO tenha a permissão do módulo ligada.
+   *
+   * A tabela `Funcionarios` tem um flag por área (`cadastrar_visitante`,
+   * `prestadores_servico`, `ocorrencias`, `areas_sociais`…). O app respeita
+   * esses flags — `getUserPermission('prestadores_servico') == 1` decide se o
+   * botão aparece — mas o servidor nunca os consultava: eles eram enviados no
+   * login e checados só na tela. Ou seja, autorização de cliente, que não é
+   * autorização: bastava chamar a rota direto para contornar.
+   *
+   * Em produção isso não era teórico — há funcionário com os dois flags em 0,
+   * deliberadamente restringido pelo síndico, que mesmo assim conseguia
+   * cadastrar visitante e mexer em prestador pela API.
+   *
+   * Só se aplica a token de funcionário do APP. Morador e síndico têm regras
+   * próprias, e o operador do console (Funcionarios_Portaria) é outra
+   * entidade — a portaria existe para fazer exatamente isso.
+   */
+  async assertPermissaoFuncionario(
+    idCondominio: number,
+    permissao: 'cadastrar_visitante' | 'prestadores_servico',
+    payload?: JwtPayload,
+  ): Promise<void> {
+    if (!payload) return;
+
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    if (tipo !== 'funcionario') return;
+    if (!this.prisma.isConnected) return;
+
+    const userId = Number(payload.user?.id ?? payload.sub);
+    if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+
+    const func = await this.prisma.funcionarios.findFirst({
+      where: { id_user: userId, id_condominio: Number(idCondominio) },
+      select: { cadastrar_visitante: true, prestadores_servico: true },
+    });
+    if (!func) {
+      throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
+    }
+    if (Number(func[permissao] ?? 0) !== 1) {
+      throw new ForbiddenException(
+        'Acesso negado: seu perfil não tem permissão para esta área. Fale com o síndico.',
+      );
+    }
+  }
+
+  /**
    * Atalho semântico para validar a posse de uma entidade já carregada:
    * passe o `id_condominio` da entidade (morador, encomenda, etc.).
    */

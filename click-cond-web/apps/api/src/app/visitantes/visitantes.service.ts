@@ -123,9 +123,14 @@ export class VisitantesService {
     // Para morador mobile, "pertencer ao condomínio" não basta: o visitante
     // tem que ser de um APTO vinculado a ele. Porteiro/portaria-web e síndico
     // são cobertos pelo helper central (id_condominio do JWT / vínculo de
-    // síndico). Detectamos morador como token sem id_condominio e não-síndico.
+    // síndico).
+    //
+    // Funcionário NÃO entra aqui: ele é equipe do condomínio, não morador — a
+    // maioria sequer tem apartamento, então esta regra os bloqueava em tudo.
+    // O que limita funcionário é o flag `cadastrar_visitante` da ficha dele,
+    // conferido nas ações de escrita (mesmo critério dos prestadores).
     const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
-    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico';
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
 
     if (ehMoradorMobile) {
       const userId = Number(payload.user?.id ?? payload.sub);
@@ -171,8 +176,11 @@ export class VisitantesService {
     // Cobre porteiro/portaria-web (id_condominio no JWT) e síndico (vínculo).
     await this.tenant.assertCondominio(apto.id_condominio, payload);
 
+    // Mesma definição do assertPodeAcessarVisitante: funcionário é equipe, não
+    // morador. Sem isso as duas regras divergiam e um funcionário podia agir
+    // sobre a visita mas não escolher o apartamento dela.
     const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
-    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico';
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
     if (!ehMoradorMobile) return;
 
     const userId = Number(payload.user?.id ?? payload.sub);
@@ -701,10 +709,18 @@ export class VisitantesService {
    * da lista. Sem ela, o ramo "sem documento" varria quem tem documento.
    */
   private async registrosDaPessoa(ref: { id_condominio: number | null; doc_identificacao?: string | null; nome?: string | null }) {
+    // Sem condomínio não dá para delimitar o conjunto — buscar sem ele varreria
+    // o sistema inteiro. Os chamadores já validaram a pessoa antes de chegar
+    // aqui, então isto é uma trava de segurança, não um caminho esperado.
+    if (ref.id_condominio == null) {
+      throw new BadRequestException('Registro sem condomínio definido.');
+    }
+    const idCondominio = Number(ref.id_condominio);
+
     const doc = ref.doc_identificacao?.trim();
     const whereAmplo = doc
-      ? { id_condominio: ref.id_condominio, doc_identificacao: doc }
-      : { id_condominio: ref.id_condominio, nome: ref.nome };
+      ? { id_condominio: idCondominio, doc_identificacao: doc }
+      : { id_condominio: idCondominio, nome: ref.nome ?? undefined };
 
     const candidatos = await this.prisma.visitantes.findMany({
       where: whereAmplo,
@@ -892,6 +908,13 @@ export class VisitantesService {
 
     // O apto vem do corpo: confirma que o solicitante pode lançar visita nele.
     await this.assertPodeUsarApartamento(dto.id_apartamento, operador);
+    // E, para funcionário, o flag `cadastrar_visitante` da ficha dele. O app
+    // já escondia o botão de quem não tem; o servidor agora recusa a chamada.
+    await this.tenant.assertPermissaoFuncionario(
+      dto.id_condominio,
+      'cadastrar_visitante',
+      operador,
+    );
 
     const blocked = await this.verificarSeBloqueado(dto.id_condominio, dto.nome, dto.doc_identificacao);
     if (blocked) {
@@ -1171,8 +1194,22 @@ export class VisitantesService {
     }
   }
 
-  async remove(id: number) {
+  /**
+   * Remove UMA visita. Serve o botão de excluir do app (POST
+   * /visitantes/remove), que é o par do /prestadores/remove.
+   *
+   * O `payload` não é opcional por acaso: sem ele o método apagava qualquer
+   * visita por id, sem conferir nada. Ficou assim porque a rota que o
+   * chamava tinha sido removida do controller e ninguém mais passava por
+   * aqui — mas o app continuava chamando a rota, que respondia 404, e o
+   * botão de excluir falhava em silêncio.
+   */
+  async remove(id: number, payload?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
+    // Morador só apaga visita de apartamento dele; porteiro/síndico, do
+    // condomínio deles. Mesma regra de todas as outras ações da visita.
+    await this.assertPodeAcessarVisitante(id, payload);
+
     const v = await this.prisma.visitantes.findUnique({
       where: { id: Number(id) },
       select: { face_id: true, id_condominio: true, nome: true, is_prestador: true },
@@ -1732,9 +1769,18 @@ export class VisitantesService {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
     // Porteiro pode redirecionar o pedido para outro apartamento/bloco (visitante
-    // que vai a outra unidade). Valida que o apto é do MESMO condomínio.
+    // que vai a outra unidade).
+    //
+    // A checagem aqui era só "o apto é do mesmo condomínio", mais fraca que a
+    // do create/update — que usam `assertPodeUsarApartamento` e exigem que
+    // morador só aponte para apartamento DELE. Pelo caminho de baixo, um
+    // morador redirecionava a própria visita para a unidade do vizinho: o
+    // registro migrava de apartamento e o vizinho recebia um push pedindo
+    // para autorizar um desconhecido. Passa a usar o mesmo helper, então
+    // redirecionar para outra unidade continua sendo coisa de portaria.
     let redirecionarApto: number | undefined;
     if (idApartamento && Number(idApartamento) !== ref.id_apartamento) {
+      await this.assertPodeUsarApartamento(Number(idApartamento), payload);
       const apto = await this.prisma.apartamentos.findUnique({ where: { id: Number(idApartamento) } });
       if (!apto || apto.id_condominio !== ref.id_condominio) {
         throw new BadRequestException('Apartamento de destino inválido.');

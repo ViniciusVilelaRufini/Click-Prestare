@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
@@ -50,6 +50,105 @@ export class PrestadoresService {
     return value;
   }
 
+  /**
+   * Recorte de LEITURA da lista para morador: diretório do prédio
+   * (`id_apartamento` nulo) + os prestadores dos apartamentos dele.
+   *
+   * Para portaria/síndico devolve `{}` — enxergam tudo, como hoje.
+   */
+  private async escopoDeLeitura(idCondominio: number, payload?: JwtPayload) {
+    if (!payload) return {};
+
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
+    if (!ehMoradorMobile) return {};
+
+    const userId = Number(payload.user?.id ?? payload.sub);
+    if (!userId) return { id_apartamento: null };
+
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: userId, apartamento: { id_condominio: Number(idCondominio) } },
+      select: { id_apto: true },
+    });
+    const meusAptos = [...new Set(vinculos.map((v) => v.id_apto))];
+    if (meusAptos.length === 0) return { id_apartamento: null };
+
+    return { OR: [{ id_apartamento: null }, { id_apartamento: { in: meusAptos } }] };
+  }
+
+  /** Versão por id do `escopoDeLeitura` — usada no findOne. */
+  private async assertPodeLerPrestador(
+    prestador: { id_apartamento: number | null },
+    payload?: JwtPayload,
+  ) {
+    if (!payload) return;
+
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
+    if (!ehMoradorMobile) return;
+
+    // Prestador do prédio é do diretório: todo mundo vê.
+    if (!prestador.id_apartamento) return;
+
+    const userId = Number(payload.user?.id ?? payload.sub);
+    if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: userId, id_apto: prestador.id_apartamento },
+      select: { id_apto: true },
+    });
+    if (!vinculo) {
+      throw new ForbiddenException(
+        'Acesso negado: este prestador não pertence a um apartamento seu.',
+      );
+    }
+  }
+
+  /**
+   * Quem pode ALTERAR este prestador.
+   *
+   * O tenant sozinho não separa nada aqui: morador pertence ao condomínio, e
+   * as rotas do app (`/prestadores/update` e `/prestadores/remove`) só
+   * conferiam isso. Na prática, qualquer morador editava ou apagava o
+   * prestador cadastrado pelo vizinho — e também o eletricista do prédio,
+   * que é cadastro da administração.
+   *
+   * A regra espelha a de visitantes (`assertPodeAcessarVisitante`): morador
+   * mobile só mexe no que está vinculado a um apartamento dele. Prestador do
+   * condomínio (`id_apartamento` nulo) é da portaria/síndico.
+   */
+  private async assertPodeGerenciarPrestador(
+    prestador: { id: number; id_apartamento: number | null },
+    payload?: JwtPayload,
+  ) {
+    if (!payload) return;
+
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    // Porteiro/console tem id_condominio no token; síndico é reconhecido pelo
+    // typeAccess. Os dois já passaram pelo assertEntidade de tenant.
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
+    if (!ehMoradorMobile) return;
+
+    if (!prestador.id_apartamento) {
+      throw new ForbiddenException(
+        'Acesso negado: este prestador é do condomínio e só a administração pode alterá-lo.',
+      );
+    }
+
+    const userId = Number(payload.user?.id ?? payload.sub);
+    if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: userId, id_apto: prestador.id_apartamento },
+      select: { id_apto: true },
+    });
+    if (!vinculo) {
+      throw new ForbiddenException(
+        'Acesso negado: este prestador não pertence a um apartamento seu.',
+      );
+    }
+  }
+
   async findAll(idCondominio: number, search?: string, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
@@ -66,18 +165,36 @@ export class PrestadoresService {
       return mocks;
     }
 
+    // Morador enxerga o DIRETÓRIO do prédio (prestador sem apartamento — o
+    // eletricista, o jardineiro) mais os prestadores dos apartamentos dele.
+    // Não os dos vizinhos: quando um morador cadastra o próprio prestador, o
+    // app grava o apartamento dele no registro, e a lista devolvia isso para o
+    // condomínio inteiro — nome, telefone, foto e a unidade a que atende.
+    // Mesmo recorte que já vale para editar/apagar, e o mesmo princípio do
+    // findAllMobile de visitantes.
+    const escopoMorador = await this.escopoDeLeitura(Number(idCondominio), user);
+
+    // Escopo e busca vão dentro de AND: os dois usam `OR`, e espalhados no
+    // mesmo objeto um sobrescreveria o outro — a busca apagaria o recorte de
+    // privacidade e devolveria os prestadores dos vizinhos de novo.
+    const filtros: any[] = [];
+    // `{}` (staff, sem recorte) é truthy — sem olhar as chaves, entraria um
+    // filtro vazio no AND.
+    if (Object.keys(escopoMorador).length > 0) filtros.push(escopoMorador);
+    if (search) {
+      filtros.push({
+        OR: [
+          { nome: { contains: search } },
+          { telefone: { contains: search } },
+          { categorias: { contains: search } },
+        ],
+      });
+    }
+
     const prestadores = await this.prisma.prestadores_servico.findMany({
       where: {
         id_condominio: Number(idCondominio),
-        ...(search
-          ? {
-              OR: [
-                { nome: { contains: search } },
-                { telefone: { contains: search } },
-                { categorias: { contains: search } },
-              ],
-            }
-          : {}),
+        ...(filtros.length ? { AND: filtros } : {}),
       },
       include: { apartamento: { select: { bloco: true, apto: true } } },
       orderBy: { nome: 'asc' },
@@ -109,6 +226,10 @@ export class PrestadoresService {
     // JWT) quanto o mobile (token sem id_condominio, resolve via banco) —
     // sem isso, o app conseguia ler/editar/apagar prestador de outro condomínio.
     await this.tenant.assertEntidade(p.id_condominio, user, `prestador #${id}`);
+    // E o mesmo recorte da lista, por id: sem isto, tirar o prestador do
+    // vizinho da listagem não adiantaria nada — bastaria pedir pelo id.
+    // Prestador do prédio (sem apartamento) segue visível para todos.
+    await this.assertPodeLerPrestador(p, user);
 
     const hasPortariaAccess = p.email
       ? await this.prisma.funcionarios_Portaria.findFirst({
@@ -122,6 +243,7 @@ export class PrestadoresService {
 
   async create(dto: CreatePrestadorDto, user?: JwtPayload) {
     await this.tenant.assertCondominio(dto.id_condominio, user);
+    await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'prestadores_servico', user);
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),
@@ -217,10 +339,12 @@ export class PrestadoresService {
     // Carrega e valida tenant antes de qualquer escrita (IDOR).
     const atual = await this.prisma.prestadores_servico.findUnique({
       where: { id: Number(id) },
-      select: { id_condominio: true, email: true, nome: true, telefone: true },
+      select: { id: true, id_condominio: true, id_apartamento: true, email: true, nome: true, telefone: true },
     });
     if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
+    await this.assertPodeGerenciarPrestador(atual, user);
+    await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'prestadores_servico', user);
 
     if (dto.email && dto.hasPortariaAccess) {
       const conflito = await this.prisma.funcionarios_Portaria.findFirst({
@@ -310,10 +434,12 @@ export class PrestadoresService {
     if (!this.prisma.isConnected) return { success: true };
     const atual = await this.prisma.prestadores_servico.findUnique({
       where: { id: Number(id) },
-      select: { id_condominio: true },
+      select: { id: true, id_condominio: true, id_apartamento: true },
     });
     if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
+    await this.assertPodeGerenciarPrestador(atual, user);
+    await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'prestadores_servico', user);
     return this.prisma.prestadores_servico.update({
       where: { id: Number(id) },
       data: campo === 'pessoa' ? { foto_pessoa: null } : { foto_documento: null },
@@ -327,10 +453,12 @@ export class PrestadoresService {
     // Valida tenant antes de deletar (IDOR).
     const atual = await this.prisma.prestadores_servico.findUnique({
       where: { id: Number(id) },
-      select: { id_condominio: true, face_id: true, email: true },
+      select: { id: true, id_condominio: true, id_apartamento: true, face_id: true, email: true },
     });
     if (!atual) throw new NotFoundException(`Prestador ${id} não encontrado`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `prestador #${id}`);
+    await this.assertPodeGerenciarPrestador(atual, user);
+    await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'prestadores_servico', user);
 
     // Remove o rosto dos terminais faciais antes de apagar o cadastro, senão
     // ficaria um rosto órfão abrindo a porta sem dono no banco.

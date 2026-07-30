@@ -79,6 +79,13 @@
         "options": {
           "passWithNoTests": true
         }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsc -p tsconfig.app.json --noEmit",
+          "cwd": "apps/api"
+        }
       }
     }
   },
