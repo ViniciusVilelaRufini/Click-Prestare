@@ -1,7 +1,19 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { AssembleiasService } from './assembleias.service';
 import { ReqUser } from '../auth/req-user.decorator';
-import { JwtPayload } from '../auth/jwt-payload.interface';
+import type { JwtPayload } from '../auth/jwt-payload.interface';
+
+/**
+ * O id do usuário vinha com `?? 1` como fallback em cinco rotas. Sem id no
+ * payload, a ação era atribuída ao usuário 1 — e uma delas é o registro de
+ * VOTO: o voto entraria como sendo de outra pessoa. Não dispara hoje (o
+ * JwtAuthGuard é global), mas é um default que falha ABERTO.
+ */
+function exigirUsuario(payload?: JwtPayload): number {
+  const id = Number(payload?.user?.id ?? payload?.sub);
+  if (!id) throw new ForbiddenException('Sessão sem usuário válido.');
+  return id;
+}
 
 @Controller('assembleias')
 export class AssembleiasController {
@@ -16,7 +28,7 @@ export class AssembleiasController {
     @Body() body: { id_condominio: string | number; assembleia: any },
     @ReqUser() payload: JwtPayload,
   ) {
-    const userId = payload?.user?.id ?? payload?.sub ?? 1;
+    const userId = exigirUsuario(payload);
     return this.service.insert(Number(body.id_condominio), body.assembleia, Number(userId), payload);
   }
 
@@ -26,7 +38,7 @@ export class AssembleiasController {
     @Body() body: { id_condominio: string | number; assembleia: any },
     @ReqUser() payload: JwtPayload,
   ) {
-    const userId = payload?.user?.id ?? payload?.sub ?? 1;
+    const userId = exigirUsuario(payload);
     return this.service.update(Number(body.id_condominio), body.assembleia, Number(userId), payload);
   }
 
@@ -47,7 +59,7 @@ export class AssembleiasController {
     @Query('id') id: string,
     @ReqUser() payload: JwtPayload,
   ) {
-    const userId = payload?.user?.id ?? payload?.sub ?? 1;
+    const userId = exigirUsuario(payload);
     return this.service.get(Number(idCondominio), Number(id), Number(userId), payload);
   }
 
@@ -84,7 +96,7 @@ export class AssembleiasController {
     @Body() body: { voto?: { votacao_id?: string | number; opcao_id?: string | number } },
     @ReqUser() payload: JwtPayload,
   ) {
-    const userId = payload?.user?.id ?? payload?.sub ?? 1;
+    const userId = exigirUsuario(payload);
     const voto = body?.voto;
     if (!voto || voto.votacao_id == null || voto.opcao_id == null) {
       throw new BadRequestException('Payload inválido: { voto: { votacao_id, opcao_id } } é obrigatório.');
@@ -104,7 +116,7 @@ export class AssembleiasController {
 
   @Get('votacoes/enquetes/get')
   enqueteGetDetails(@Query('id') id: string, @ReqUser() payload: JwtPayload) {
-    const userId = payload?.user?.id ?? payload?.sub ?? 1;
+    const userId = exigirUsuario(payload);
     return this.service.enqueteGetDetails(Number(id), Number(userId), payload);
   }
 }
