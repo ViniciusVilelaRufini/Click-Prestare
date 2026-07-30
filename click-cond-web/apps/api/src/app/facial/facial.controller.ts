@@ -15,9 +15,9 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
-import {
+import { FacialService } from './facial.service';
+import type {
   CreateDeviceDto,
-  FacialService,
   UpdateDeviceDto,
   WebhookEventDto,
 } from './facial.service';

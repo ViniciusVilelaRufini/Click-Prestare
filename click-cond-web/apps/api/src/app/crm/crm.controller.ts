@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Query, Res, NotFoundException, Param, ParseIntPipe, UseGuards, SetMetadata } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Query, Res, NotFoundException, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { CrmService } from './crm.service';
 import { CrmFaturasService } from './crm-faturas.service';
 import { CrmAdminGuard } from './crm-admin.guard';

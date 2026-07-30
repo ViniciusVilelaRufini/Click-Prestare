@@ -1,7 +1,8 @@
 import {
   Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put,
 } from '@nestjs/common';
-import { VeiculoDto, VeiculosService } from './veiculos.service';
+import { VeiculosService } from './veiculos.service';
+import type { VeiculoDto } from './veiculos.service';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 // Rotas protegidas pelo TenantGuard global (valida acesso ao :idCondominio).

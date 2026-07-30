@@ -97,7 +97,9 @@ export class OcorrenciasService {
   }
 
   /** Resolve nome (Users.name) para uma lista de ids de responsável. */
-  private async responsavelNomes(ids: number[]): Promise<Map<number, string>> {
+  // Aceita null: os chamadores passam `id_responsavel`, que e opcional. O
+  // filtro logo abaixo ja descartava os nulos — so o tipo estava estreito.
+  private async responsavelNomes(ids: (number | null)[]): Promise<Map<number, string>> {
     const uniq = [...new Set(ids.filter((v): v is number => v != null))];
     if (uniq.length === 0) return new Map();
     const users = await this.prisma.users.findMany({
@@ -320,7 +322,7 @@ export class OcorrenciasService {
             { id: id.toString(), type: 'ocorrencia_atribuida' },
           );
         }
-      } catch (e) {
+      } catch (e: any) {
         this.logger.error(`[ocorrencias.atribuir] push falhou: ${e?.message ?? e}`);
       }
     }

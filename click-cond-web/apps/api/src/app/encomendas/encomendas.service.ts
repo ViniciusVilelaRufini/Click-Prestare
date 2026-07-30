@@ -221,7 +221,7 @@ export class EncomendasService implements OnModuleInit {
     }
 
     let fotoUrl: string | null = dto.foto_volume ?? null;
-    if (this.storage.isDataUrl(fotoUrl)) {
+    if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
       fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? null;
     }
 
@@ -301,7 +301,7 @@ export class EncomendasService implements OnModuleInit {
           );
         }
         if (morador.phone) {
-          const transportadora = dto.transportadora ? `de ${dto.transportadora}` : 'entregador';
+          const transportadora = dto.recebido_de ? `de ${dto.recebido_de}` : 'entregador';
           const waMessage = `Olá, ${morador.name}! Uma nova encomenda (${dto.descricao}) ${transportadora} chegou na portaria para o seu apartamento. Retire quando puder!`;
           await this.notifications.sendWhatsApp(morador.phone, waMessage);
         }

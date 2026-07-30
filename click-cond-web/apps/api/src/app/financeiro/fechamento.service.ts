@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
@@ -18,7 +18,6 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
  */
 @Injectable()
 export class FechamentoService {
-  private readonly logger = new Logger(FechamentoService.name);
 
   constructor(
     private readonly prisma: PrismaService,

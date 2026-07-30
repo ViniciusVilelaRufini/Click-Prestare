@@ -626,66 +626,6 @@ export class FacialDeviceClientService {
     return res.data ?? {};
   }
 
-  private async dahuaLogin(device: FacialDeviceConfig): Promise<string> {
-    const base = this.baseUrl(device);
-    const user = device.api_user ?? 'admin';
-    const pass = device.api_password ?? 'admin';
-    const httpsAgent = base.startsWith('https')
-      ? new https.Agent({ rejectUnauthorized: false })
-      : undefined;
-    const post = (data: unknown, cookie?: string) =>
-      axios.request({
-        url: base + '/RPC2_Login',
-        method: 'POST',
-        data,
-        headers: cookie ? { Cookie: cookie } : {},
-        timeout: this.timeoutMs,
-        httpsAgent,
-        validateStatus: () => true,
-      });
-
-    const s1 = await post({
-      method: 'global.login',
-      params: {
-        userName: user,
-        password: '',
-        clientType: 'Web3.0',
-        loginType: 'Direct',
-      },
-      id: 1,
-    });
-    const d1 = this.rpcData(s1);
-    const p = d1.params ?? {};
-    const session = d1.session;
-    if (!p.realm || !p.random || !session) {
-      throw new Error('Intelbras/Dahua: aparelho não respondeu o desafio (RPC2)');
-    }
-    const ha = this.md5(`${user}:${p.realm}:${pass}`).toUpperCase();
-    const loginHash = this.md5(`${user}:${p.random}:${ha}`).toUpperCase();
-    const s2 = await post(
-      {
-        method: 'global.login',
-        params: {
-          userName: user,
-          password: loginHash,
-          clientType: 'Web3.0',
-          loginType: 'Direct',
-          authorityType: 'Default',
-          passwordType: 'Default',
-        },
-        id: 2,
-        session,
-      },
-      `DWebClientSessionID=${session}`,
-    );
-    const d2 = this.rpcData(s2);
-    if (!d2.result) {
-      const msg = d2.error?.message ?? 'login negado';
-      throw new Error(`Intelbras/Dahua: ${msg} (confira usuário/senha)`);
-    }
-    return String(session);
-  }
-
   /** Cria (ou atualiza) o usuário de acesso. ValidFrom em 2000 — ver agent/. */
   private async dahuaUpsertUser(
     device: FacialDeviceConfig,

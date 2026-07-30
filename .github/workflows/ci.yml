@@ -1,0 +1,83 @@
+name: CI
+
+# Roda no push para as branches de deploy e em qualquer PR. O objetivo é
+# simples: nada quebrado chega ao Railway (master) ou à Vercel (main) sem
+# alguém ver antes.
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+# Um push novo cancela a execução anterior da mesma branch — não adianta
+# terminar de checar um commit que já foi substituído.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API (typecheck, testes, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: click-cond-web
+    steps:
+      - uses: actions/checkout@v4
+
+      # 24.x é o que o package.json declara em `engines` e o que roda no
+      # ambiente de desenvolvimento — o CI não pode divergir disso.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: click-cond-web/package-lock.json
+
+      # `npm ci` roda o postinstall, que faz o `prisma generate` — sem o
+      # client gerado, o typecheck acusa erro em todo acesso ao banco.
+      - run: npm ci
+
+      # Primeiro o typecheck: o build usa webpack e NÃO faz checagem estrita.
+      # Foi ele que pegou o relatório de encomendas lendo campo inexistente e
+      # a auditoria gravando ação inválida — dois bugs que o build aceitou.
+      - name: Typecheck da API
+        run: npx nx typecheck api
+
+      - name: Testes da API
+        run: npx nx test api
+
+      - name: Build da API
+        run: npx nx build api
+
+      - name: Build da portaria-web
+        run: npx nx build portaria-web
+
+  app:
+    name: App Flutter (analyze e testes)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: click-cond-app/click-cond-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # O gate é ERRO. Hoje o app tem 0 erros e 39 warnings pré-existentes
+      # (import não usado, campo não lido) mais centenas de infos de
+      # deprecação — nada disso é regressão, e fazer o CI nascer vermelho só
+      # ensina a ignorá-lo.
+      #
+      # Quando os 39 warnings forem limpos, tirar `--no-fatal-warnings` para
+      # apertar o gate. O mesmo caminho foi feito no typecheck da API: os 59
+      # erros foram zerados antes de torná-lo bloqueante.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Testes
+        run: flutter test

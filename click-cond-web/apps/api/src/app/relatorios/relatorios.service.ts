@@ -677,10 +677,15 @@ export class RelatoriosService {
         where: {
           id_condominio: idCondominio,
           ...(dateFilter ? { recebido_em: dateFilter } : {}),
+          // `destinatario_nome` NAO EXISTE no modelo Encomendas — o Prisma
+          // rejeita campo desconhecido, entao buscar no relatorio de eventos
+          // estourava em runtime. O destinatario e identificado por apto/bloco,
+          // e quem entregou fica em `recebido_de`.
           ...(search ? {
             OR: [
               { descricao: { contains: search } },
-              { destinatario_nome: { contains: search } }
+              { destinatario_apto: { contains: search } },
+              { recebido_de: { contains: search } },
             ]
           } : {})
         },
@@ -817,9 +822,13 @@ export class RelatoriosService {
         quando: e.recebido_em.toISOString(),
         detalhes: {
           id: e.id,
-          nome: e.destinatario_nome,
+          // Nao ha nome de destinatario no modelo: a encomenda e endereçada a
+          // uma UNIDADE. `e.destinatario_nome` e `e.entregador_nome` nao
+          // existem — vinham como undefined, deixando as colunas vazias no
+          // relatorio e "Courier" fixo em todas as linhas.
+          nome: aptoStr,
           blocoApto: aptoStr,
-          recebidoDe: e.entregador_nome || 'Courier',
+          recebidoDe: e.recebido_de || 'Courier',
           dataEntrada: e.recebido_em.toISOString(),
           status: e.status,
           recebidoPor: e.recebidoPor?.name || 'Sistema',
@@ -939,21 +948,24 @@ export class RelatoriosService {
         let aptoStr = '';
         let documento: string | undefined;
 
+        // `id_pessoa` e opcional no registro de acesso; sem ele nao ha quem
+        // procurar nos mapas.
+        const idPessoa = a.id_pessoa ?? -1;
         if (a.tipo_pessoa === 'morador') {
-          const m = moradorById.get(a.id_pessoa);
+          const m = moradorById.get(idPessoa);
           foto = m?.foto_pessoa ?? m?.user?.photo ?? undefined;
           if (m?.bloco || m?.apartamento) {
             aptoStr = `Apto ${m?.apartamento ?? ''}${m?.bloco ?? ''}`.trim();
           }
         } else if (a.tipo_pessoa === 'visitante' || a.tipo_pessoa === 'prestador') {
-          const v = visitanteById.get(a.id_pessoa);
+          const v = visitanteById.get(idPessoa);
           foto = v?.foto_pessoa ?? undefined;
           documento = v?.doc_identificacao ?? undefined;
           if (v?.apartamento) {
             aptoStr = `Apto ${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim();
           }
         } else if (a.tipo_pessoa === 'funcionario') {
-          const f = funcionarioById.get(a.id_pessoa);
+          const f = funcionarioById.get(idPessoa);
           foto = f?.foto_pessoa ?? undefined;
           if (f?.apartamento) {
             aptoStr = `Apto ${f.apartamento.apto ?? ''}${f.apartamento.bloco ?? ''}`.trim();
