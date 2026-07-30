@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -14,7 +15,7 @@ import {
 } from './facial-device-client.service';
 import { EnrollSessionService } from './enroll-session.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertSameTenant } from '../auth/tenant.util';
+import { TenantAccessService } from '../auth/tenant-access.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AccessStateService } from './access-state.service';
 import { AgentBridgeService } from './agent-bridge.service';
@@ -109,6 +110,7 @@ export class FacialService {
     private readonly auditoria: AuditoriaService,
     private readonly accessState: AccessStateService,
     private readonly agent: AgentBridgeService,
+    private readonly tenant: TenantAccessService,
   ) {
     // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
@@ -203,28 +205,69 @@ export class FacialService {
       where: { id: idDevice },
       select: { id_condominio: true },
     });
-    assertSameTenant(device?.id_condominio, user, `sessão de enrollment`);
+    await this.tenant.assertEntidade(device?.id_condominio, user, `sessão de enrollment`);
   }
 
-  /** Garante que o morador pertence ao condomínio do usuário. */
+  /**
+   * Este módulo usava `assertSameTenant` (tenant.util), que se AUTO-DESLIGA
+   * quando o JWT não tem `id_condominio` — e nenhum token do app tem. Para
+   * morador, síndico e funcionário do app a checagem era um no-op: dava para
+   * ler o histórico de entradas e saídas de qualquer pessoa, de qualquer
+   * condomínio, só trocando o id na URL.
+   *
+   * O `TenantAccessService` resolve o vínculo de verdade no banco — é
+   * exatamente o caso que ele foi escrito para cobrir.
+   */
   async assertMoradorSameTenant(idMorador: number, user?: JwtPayload) {
     const m = await this.prisma.moradores.findUnique({
       where: { id: idMorador },
-      select: { id_condominio: true },
+      select: { id_condominio: true, id_user: true },
     });
     if (!m) throw new NotFoundException(`Morador ${idMorador} não encontrado`);
-    assertSameTenant(m.id_condominio, user, `morador #${idMorador}`);
+    await this.tenant.assertEntidade(m.id_condominio, user, `morador #${idMorador}`);
+
+    // Histórico de acesso é o registro de ir e vir de uma pessoa. Estar no
+    // mesmo prédio não dá direito a ele: morador vê só o próprio.
+    if (this.ehMoradorMobile(user)) {
+      const idUser = Number(user?.user?.id ?? user?.sub);
+      if (!idUser || Number(m.id_user) !== idUser) {
+        throw new ForbiddenException('Acesso negado: este histórico não é seu.');
+      }
+    }
   }
 
-  /** Garante que o visitante pertence ao condomínio do usuário. */
+  /** Idem para visitante: morador só alcança visita de apartamento dele. */
   async assertVisitanteSameTenant(idVisitante: number, user?: JwtPayload) {
     const v = await this.prisma.visitantes.findUnique({
       where: { id: idVisitante },
-      select: { id_condominio: true },
+      select: { id_condominio: true, id_apartamento: true },
     });
     if (!v)
       throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
-    assertSameTenant(v.id_condominio, user, `visitante #${idVisitante}`);
+    await this.tenant.assertEntidade(v.id_condominio, user, `visitante #${idVisitante}`);
+
+    if (this.ehMoradorMobile(user)) {
+      const idUser = Number(user?.user?.id ?? user?.sub);
+      const vinculo = idUser
+        ? await this.prisma.apartamentos_Users.findFirst({
+            where: { id_user: idUser, id_apto: v.id_apartamento },
+            select: { id_apto: true },
+          })
+        : null;
+      if (!vinculo) {
+        throw new ForbiddenException('Acesso negado: esta visita não é do seu apartamento.');
+      }
+    }
+  }
+
+  /**
+   * Morador do app. Funcionário é equipe (a maioria não tem apartamento) e
+   * síndico administra — mesma definição usada nos demais módulos.
+   */
+  private ehMoradorMobile(user?: JwtPayload): boolean {
+    if (!user) return false;
+    const tipo = (user.typeAccess ?? user.user?.typeAccess ?? '').toString().toLowerCase();
+    return !user.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
   }
 
   // ---------- Devices CRUD ----------

@@ -18,6 +18,12 @@ import { Injectable } from '@nestjs/common';
 export class MockRelayService {
   private readonly events = new Map<string, MockRelayEvent[]>();
   private readonly maxPerSlug = 50;
+  /**
+   * Teto de slugs distintos. Os eventos já eram limitados por slug, mas o Map
+   * em si crescia sem fim: chamadas com slugs aleatórios inflavam a memória do
+   * processo indefinidamente. O slug vem da URL, então é entrada de fora.
+   */
+  private readonly maxSlugs = 50;
 
   record(slug: string, payload: unknown): MockRelayEvent {
     const event: MockRelayEvent = {
@@ -30,6 +36,15 @@ export class MockRelayService {
     list.unshift(event);
     if (list.length > this.maxPerSlug) list.length = this.maxPerSlug;
     this.events.set(slug, list);
+
+    // Descarta o slug mais antigo quando estoura o teto (Map preserva ordem de
+    // inserção, então o primeiro é o menos recente).
+    while (this.events.size > this.maxSlugs) {
+      const maisAntigo = this.events.keys().next().value;
+      if (maisAntigo === undefined) break;
+      this.events.delete(maisAntigo);
+    }
+
     return event;
   }
 

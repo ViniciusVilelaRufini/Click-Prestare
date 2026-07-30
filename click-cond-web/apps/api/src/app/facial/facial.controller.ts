@@ -26,6 +26,30 @@ import { CategoriaPessoa } from './access-rules.util';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertTenantStrict, requireTenant } from '../auth/tenant.util';
+import { timingSafeEqual } from 'crypto';
+
+/**
+ * Confere o token compartilhado das rotas server-to-server (`internal/*`).
+ *
+ * Estava copiado em quatro rotas, com `!==` — comparação que sai no primeiro
+ * byte diferente e, em tese, vaza o segredo por tempo de resposta. Agora é uma
+ * função só, com comparação de tempo constante.
+ *
+ * Continua falhando fechado quando a env não está definida: sem
+ * INTERNAL_SYNC_TOKEN configurado, ninguém entra.
+ */
+function assertTokenInterno(token: string | undefined): void {
+  const esperado = process.env['INTERNAL_SYNC_TOKEN'];
+  if (!esperado || !token) {
+    throw new UnauthorizedException('Token interno inválido.');
+  }
+  const a = Buffer.from(token);
+  const b = Buffer.from(esperado);
+  // timingSafeEqual exige mesmo tamanho; o length em si não é segredo.
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new UnauthorizedException('Token interno inválido.');
+  }
+}
 
 @Controller('facial')
 export class FacialController {
@@ -311,10 +335,7 @@ export class FacialController {
     @Param('id', ParseIntPipe) id: number,
     @Headers('x-internal-token') token: string | undefined,
   ) {
-    const expected = process.env['INTERNAL_SYNC_TOKEN'];
-    if (!expected || !token || token !== expected) {
-      throw new UnauthorizedException('Token interno inválido.');
-    }
+    assertTokenInterno(token);
     return this.service.syncVisitante(id);
   }
 
@@ -328,10 +349,7 @@ export class FacialController {
     @Param('id', ParseIntPipe) id: number,
     @Headers('x-internal-token') token: string | undefined,
   ) {
-    const expected = process.env['INTERNAL_SYNC_TOKEN'];
-    if (!expected || !token || token !== expected) {
-      throw new UnauthorizedException('Token interno inválido.');
-    }
+    assertTokenInterno(token);
     return this.service.syncReservaArea(id);
   }
 
@@ -342,10 +360,7 @@ export class FacialController {
     @Param('id', ParseIntPipe) id: number,
     @Headers('x-internal-token') token: string | undefined,
   ) {
-    const expected = process.env['INTERNAL_SYNC_TOKEN'];
-    if (!expected || !token || token !== expected) {
-      throw new UnauthorizedException('Token interno inválido.');
-    }
+    assertTokenInterno(token);
     await this.service.reconcileAreaGating(id);
     return { ok: true };
   }
@@ -357,10 +372,7 @@ export class FacialController {
     @Param('id', ParseIntPipe) id: number,
     @Headers('x-internal-token') token: string | undefined,
   ) {
-    const expected = process.env['INTERNAL_SYNC_TOKEN'];
-    if (!expected || !token || token !== expected) {
-      throw new UnauthorizedException('Token interno inválido.');
-    }
+    assertTokenInterno(token);
     return this.service.syncAllForCondominio(id);
   }
 
