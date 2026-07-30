@@ -142,14 +142,26 @@ async function dahuaSyncClock(device, force = false) {
     return;
   lastClockSyncAt.set(device.id, agora);
   try {
-    const t = formatDahuaTime(new Date());
+    // Hora da NUVEM, não a desta máquina. O PC da portaria roda com o relógio
+    // livre no CMOS e erra por minutos; gravar essa hora no terminal fazia os
+    // acessos serem carimbados no futuro e aparecerem fora de ordem no
+    // histórico. Ver `agoraDaNuvem`.
+    const t = formatDahuaTime(agoraDaNuvem());
     const res = await lanRequest(
       device,
       'GET',
       `/cgi-bin/global.cgi?action=setCurrentTime&time=${encodeURIComponent(t)}`,
     );
     if (res.status >= 200 && res.status < 300) {
-      console.log(`[agente] ${device.nome}: relógio do aparelho acertado (${t})`);
+      const skew = Math.round(cloudClockSkewMs / 1000);
+      console.log(
+        `[agente] ${device.nome}: relógio do aparelho acertado (${t})` +
+          (Math.abs(skew) >= 5
+            ? ` — ATENÇÃO: o relógio DESTA máquina está ${Math.abs(skew)}s ${
+                skew > 0 ? 'adiantado' : 'atrasado'
+              } em relação ao servidor. Ative a sincronização de horário do Windows.`
+            : ''),
+      );
     } else {
       console.log(
         `[agente] ${device.nome}: falha ao acertar relógio (HTTP ${res.status}): ${String(res.raw || '').slice(0, 80)}`,
@@ -1454,9 +1466,11 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     lastAccessForwardedAt.set(key, agora);
   }
 
+  // Sem timestamp do aparelho, carimba com a hora da NUVEM — não a desta
+  // máquina, que pode estar minutos fora (ver `agoraDaNuvem`).
   const eventTimestamp = data.timestamp
     ? new Date(data.timestamp).toISOString()
-    : new Date().toISOString();
+    : agoraDaNuvem().toISOString();
 
   const body = {
     deviceId: device.id,
@@ -1476,22 +1490,37 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     const ok = res.status >= 200 && res.status < 300;
     console.log(
       `[agente] ${device.nome} ◂ acesso ${userId} (${data.Similarity ?? '?'}%) [${eventTimestamp}] → ${
-        ok ? 'OK' : `nuvem recusou HTTP ${res.status}`
+        ok
+          ? 'OK'
+          : // Sem o CORPO da resposta, "HTTP 400" não diz qual validação falhou e
+            // o diagnóstico vira adivinhação. Alguém passou pela porta: se a
+            // nuvem recusou, o motivo precisa estar no log.
+            `nuvem recusou HTTP ${res.status}: ${String(res.raw || '').slice(0, 200)}`
       }`,
     );
-    // 5xx = nuvem com problema transitório — guarda para reenvio. 4xx é
-    // rejeição definitiva (regra/validação), já tratada/auditada na nuvem.
-    if (res.status >= 500) enqueueOfflineEvent(body, device.nome);
+    // 5xx = nuvem fora do ar. 401/404 = token piscando (device reativando no
+    // portal). 408/429 = timeout e throttle. Todos transitórios: guarda para
+    // reenvio. Só o 4xx de validação (400/403/422) é definitivo — reenviar daria
+    // o mesmo erro para sempre, e o log acima já registra o motivo.
+    const valeReenviar =
+      res.status >= 500 || [401, 404, 408, 429].includes(res.status);
+    if (valeReenviar) enqueueOfflineEvent(body, device.nome);
     // Evento AO VIVO (não backlog): avança a marca d'água para incluir o RecNo
     // deste acesso ANTES de um eventual offline. Assim a recuperação reenviará
     // só os eventos realmente perdidos, sem sobrepor os que a stream já pegou.
-    if (!opts.backlog) advanceBaselineWhileOnline(device, true).catch(() => {});
+    //
+    // Só avança se a nuvem ACEITOU. Avançar após uma recusa apagava o evento
+    // duas vezes: ele não entrou na nuvem e a marca d'água passava por cima
+    // dele, então o replay do próximo reconnect também não o veria.
+    if (!opts.backlog && ok) advanceBaselineWhileOnline(device, true).catch(() => {});
+    return ok;
   } catch (err) {
     console.error(
       `[agente] ${device.nome}: falha ao enviar acesso ${userId}: ${err.message || err}`,
     );
     // Sem internet: guarda em disco e reenvia quando a nuvem voltar.
     enqueueOfflineEvent(body, device.nome);
+    return false;
   }
 }
 
@@ -1623,12 +1652,50 @@ function buildMultipart(parts) {
 
 // ---------- HTTP helpers ----------
 
-function cloudRequest(method, pathname, jsonBody) {
-  return request(API_URL + pathname, {
+// Defasagem entre o relógio DESTA máquina e o da nuvem, em ms (positivo = a
+// máquina local está adiantada). Toda resposta HTTP traz o header `Date` do
+// servidor, então dá para medir isso de graça, sem NTP.
+//
+// Por que isso existe: o PC da portaria costuma rodar com o relógio livre no
+// CMOS, sem sincronizar com ninguém. Encontrado em produção com 91,5s de
+// adiantamento (`w32tm`: "Fonte: Local CMOS Clock"). O agente gravava essa hora
+// errada no terminal, o terminal carimbava os acessos 91s no futuro, e no
+// histórico a passagem aparecia DEPOIS da queda de rede que veio antes dela.
+let cloudClockSkewMs = 0;
+let cloudClockSkewConhecido = false;
+
+function registrarSkewDaNuvem(res, enviadoEm) {
+  const dateHeader = res?.headers?.date;
+  if (!dateHeader) return;
+  const servidorMs = Date.parse(dateHeader);
+  if (!Number.isFinite(servidorMs)) return;
+  // O header tem resolução de 1s e a resposta leva um RTT para chegar; usar o
+  // meio do intervalo tira o viés da latência. Precisão de ~1s é de sobra:
+  // o que importa é não errar por minutos.
+  const localMs = (enviadoEm + Date.now()) / 2;
+  const novo = localMs - servidorMs;
+  // Suaviza para uma amostra ruim (pico de latência) não sacudir o relógio.
+  cloudClockSkewMs = cloudClockSkewConhecido
+    ? cloudClockSkewMs * 0.7 + novo * 0.3
+    : novo;
+  cloudClockSkewConhecido = true;
+}
+
+/** Hora atual corrigida pela da nuvem — use no lugar de `new Date()` para
+ *  qualquer coisa que vire timestamp de evento ou vá para o aparelho. */
+function agoraDaNuvem() {
+  return new Date(Date.now() - cloudClockSkewMs);
+}
+
+async function cloudRequest(method, pathname, jsonBody) {
+  const enviadoEm = Date.now();
+  const res = await request(API_URL + pathname, {
     method,
     json: jsonBody,
     timeout: 15000,
   });
+  registrarSkewDaNuvem(res, enviadoEm);
+  return res;
 }
 
 function lanRequest(device, method, pathname, opts = {}) {
@@ -1732,7 +1799,7 @@ function request(urlStr, opts = {}) {
           }
         }
         // buffer = bytes crus (necessário p/ binário, ex.: snapshot JPEG).
-        resolve({ status: res.statusCode, data, raw, buffer });
+        resolve({ status: res.statusCode, data, raw, buffer, headers: res.headers });
       });
     });
 
@@ -1937,21 +2004,49 @@ async function syncDeviceOfflineLogs(token, device) {
       }
 
       let enviados = 0;
+      let falhas = 0;
+      // Até onde é seguro avançar a marca d'água. Começa no maior RecNo pulado
+      // por filtro (sem UserID / negado no aparelho) que ainda seja menor que o
+      // primeiro que falhar — esses não voltam mesmo, não adianta represá-los.
+      let ultimoConfirmado = baseline;
       for (const rec of novos) {
+        const recNo = parseInt(rec.RecNo, 10);
         console.log(
           `[agente] ${device.nome}: replay RecNo ${rec.RecNo} UserID ${rec.UserID} CreateTime ${rec.CreateTime}`,
         );
-        await forwardAccessEvent(token, device, {
+        const ok = await forwardAccessEvent(token, device, {
           UserID: rec.UserID,
           CardNo: rec.CardNo,
           Similarity: 100,
           timestamp: dahuaEpochToISO(rec.CreateTime),
         }, { backlog: true });
-        enviados++;
+        if (ok) {
+          enviados++;
+          if (falhas === 0) ultimoConfirmado = recNo;
+        } else {
+          falhas++;
+        }
       }
-      // Avança a marca para o maior RecNo (mesmo que alguns não tivessem UserID).
-      setBaseline(device.id, maxRecNo);
-      console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (RecNo ${baseline}→${maxRecNo}).`);
+
+      // A marca d'água só avança até o último acesso que a nuvem CONFIRMOU.
+      // Antes ela ia direto para `maxRecNo` mesmo com envios falhando — o
+      // reconnect seguinte via "sem novidade" e as passagens recusadas sumiam
+      // do histórico para sempre. Represar o watermark faz o próximo ciclo
+      // tentar de novo; o `backlog: true` e a deduplicação na nuvem cuidam de
+      // reenvio repetido.
+      if (falhas > 0) {
+        setBaseline(device.id, ultimoConfirmado);
+        console.error(
+          `[agente] ${device.nome}: recuperados ${enviados} acesso(s), ${falhas} FALHARAM. ` +
+          `Baseline represada em RecNo ${ultimoConfirmado} (não avançou até ${maxRecNo}) — ` +
+          `nova tentativa no próximo ciclo.`,
+        );
+      } else {
+        // Sem falhas: avança até o maior RecNo lido, incluindo os que foram
+        // pulados por filtro (sem UserID / negados) e nunca virariam evento.
+        setBaseline(device.id, maxRecNo);
+        console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (RecNo ${baseline}→${maxRecNo}).`);
+      }
     } catch (err) {
       console.error(`[agente] ${device.nome}: falha ao ler log de acesso do Intelbras:`, err.message || err);
     } finally {

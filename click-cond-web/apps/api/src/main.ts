@@ -84,14 +84,22 @@ async function bootstrap() {
       return callback(null, { origin: true, credentials: false });
     }
 
+    // O header `Date` (hora do servidor) não é um "simple response header", então
+    // sem isto o navegador o esconde do JavaScript em requisição cross-origin.
+    // O console usa esse header para descobrir o quanto o relógio da MÁQUINA do
+    // usuário está errado e mostrar a hora certa mesmo assim — o PC da portaria
+    // costuma rodar sem sincronização de horário (visto em produção: 91s
+    // adiantado). Ver ServerClockService.
+    const base = { origin: true, credentials: true, exposedHeaders: ['Date'] };
+
     // Demais rotas: whitelist (mantém credentials para o cookie/JWT do console).
-    if (!origin) return callback(null, { origin: true, credentials: true });
+    if (!origin) return callback(null, base);
     if (allowedOrigins.includes(origin)) {
-      return callback(null, { origin: true, credentials: true });
+      return callback(null, base);
     }
     // Permite qualquer localhost (Flutter web usa porta dinâmica)
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-      return callback(null, { origin: true, credentials: true });
+      return callback(null, base);
     }
     return callback(new Error(`Origem não permitida por CORS: ${origin}`));
   });

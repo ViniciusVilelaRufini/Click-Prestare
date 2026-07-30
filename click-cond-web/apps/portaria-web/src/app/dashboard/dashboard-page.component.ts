@@ -6,6 +6,7 @@ import { DashboardApi, DashboardSummary } from './dashboard.service';
 import { AuthService } from '../auth/auth.service';
 import { VisitantesService, Pessoa } from '../visitantes/visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
+import { ServerClockService } from '../core/server-clock.service';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -21,6 +22,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
   private visitantesService = inject(VisitantesService);
   private aptosService = inject(ApartamentosApi);
+  private relogio = inject(ServerClockService);
 
   readonly data = signal<DashboardSummary | null>(null);
   readonly loading = signal(true);
@@ -406,7 +408,14 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.load();
-    this.clockInterval = setInterval(() => this.agora.set(new Date()), 1000);
+    // Hora do SERVIDOR, não a da máquina. O PC da portaria costuma rodar sem
+    // sincronização de horário e mostrava aqui um horário que não batia com o
+    // dos eventos gravados pela API. Ver ServerClockService.
+    this.agora.set(this.relogio.agora());
+    this.clockInterval = setInterval(
+      () => this.agora.set(this.relogio.agora()),
+      1000,
+    );
     // Atualiza eventos do dashboard a cada 4s para refletir acessos faciais
     // e outros eventos em near-real-time
     this.refreshInterval = setInterval(() => this.load(), 4_000);
