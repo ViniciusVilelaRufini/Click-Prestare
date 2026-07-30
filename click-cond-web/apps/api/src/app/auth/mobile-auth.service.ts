@@ -687,8 +687,26 @@ export class MobileAuthService {
         const ids = rels.map(r => r.id_condominio);
         if (ids.length === 0) return { debts: { count: 0, total: 0.0 }, occurrences: 0 };
 
+        // O card na home do síndico se chama "Inadimplência" e abre a lista de
+        // inadimplentes — então precisa contar a mesma coisa que ela: cobrança
+        // de apartamento em aberto.
+        //
+        // Sem estes filtros, a soma era de TODO lançamento não pago do
+        // condomínio, e o número não queria dizer nada: as despesas do prédio
+        // a pagar entram negativas no banco e SUBTRAÍAM do total, enquanto as
+        // contas pessoais dos moradores (água, luz, internet que eles mesmos
+        // lançam) entram positivas e inflavam — além de ser dado privado deles
+        // aparecendo agregado na tela do síndico. Dívida já renegociada em
+        // acordo também contava, junto com as parcelas que a substituíram.
         const fins = await this.prisma.financeiro.findMany({
-          where: { id_condominio: { in: ids }, pago: 0 },
+          where: {
+            id_condominio: { in: ids },
+            pago: 0,
+            tipo: 'C',
+            valor: { gt: 0 },
+            status: { not: '3' },
+          },
+          select: { valor: true },
         });
         const debtsTotal = fins.reduce((acc, f) => acc + (Number(f.valor) || 0), 0);
 
@@ -2768,38 +2786,12 @@ export class MobileAuthService {
     return this.mapOcorrencia(o, respNome);
   }
 
-  // ==========================================
-  // FINANCEIRO (MOBILE)
-  // ==========================================
-
-  async listFinanceiroByUser(idUser: number) {
-    try {
-      if (this.prisma.isConnected) {
-        const moras = await this.prisma.moradores.findMany({
-          where: { id_user: idUser },
-          select: { id_condominio: true }
-        });
-        const ids = moras.map(m => m.id_condominio);
-
-        return await this.prisma.financeiro.findMany({
-          where: {
-            id_condominio: { in: ids.filter((v): v is number => v !== null) },
-            pago: 0,
-          },
-          orderBy: { data_vencimento: 'asc' },
-          select: {
-            id: true,
-            nome: true,
-            valor: true,
-            data_vencimento: true,
-            status: true,
-            url_boleto: true,
-          }
-        });
-      }
-    } catch (e) {}
-    return [];
-  }
+  // O financeiro do app é servido pelo FinanceiroController
+  // (/financeiro/get-by-user), que filtra pela unidade do morador. Aqui
+  // existia um `listFinanceiroByUser` sem rota — e que devolvia TODAS as
+  // cobranças em aberto do condomínio, de todos os apartamentos, para
+  // qualquer morador. Removido: era um vazamento esperando alguém plugar
+  // um @Get nele.
 
   // ==========================================
   // ENCOMENDAS (MOBILE)

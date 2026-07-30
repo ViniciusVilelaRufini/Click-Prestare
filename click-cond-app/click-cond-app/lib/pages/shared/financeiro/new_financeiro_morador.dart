@@ -99,7 +99,7 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
       txtReferencia.text = "${widget.apto['mes']}/${widget.apto['ano']}";
       txtVencimento.text = widget.apto['data_vencimento'] ?? '';
       txtPagamento.text = _isPago ? widget.apto['data'] ?? '' : '';
-      txtValor.text = widget.apto['valor'].toString();
+      txtValor.text = valorParaInput(widget.apto['valor']);
       txtDescricao.text = widget.apto['descricao'] ?? '';
       txtConta.text = widget.apto['conta'] ?? '';
       txtLinhaDigitavel.text = widget.apto['linha_digitavel'] ?? '';
@@ -182,7 +182,7 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
       txtReferencia.text = refVal;
       txtVencimento.text = obj['data_vencimento'] ?? '';
       txtPagamento.text = _isPago ? obj['data'] ?? '' : '';
-      txtValor.text = obj['valor'].toString();
+      txtValor.text = valorParaInput(obj['valor']);
       txtDescricao.text = obj['descricao']?.toString() ?? '';
       txtConta.text = obj['conta']?.toString() ?? '';
       txtLinhaDigitavel.text = obj['linha_digitavel']?.toString() ?? '';
@@ -208,9 +208,7 @@ class _NewFinanceiroMoradorPageState extends State<NewFinanceiroMorador> {
       displayMessage(context, getText('alert'), 'Selecione o apartamento.');
       return;
     }
-    final valorParsed = txtValor.text.isNotEmpty
-        ? (double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0.0)
-        : 0.0;
+    final valorParsed = parseValorMoeda(txtValor.text);
     if (valorParsed <= 0) {
       displayMessage(context, getText('alert'), 'Informe um valor maior que zero.');
       return;

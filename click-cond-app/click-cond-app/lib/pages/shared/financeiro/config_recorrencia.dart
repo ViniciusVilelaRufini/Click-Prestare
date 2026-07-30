@@ -2,6 +2,7 @@ import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_button.dart';
@@ -55,9 +56,7 @@ class ConfigRecorrenciaState extends State<ConfigRecorrencia> {
     super.dispose();
   }
 
-  double get _valorAtual => txtValor.text.isNotEmpty
-      ? (double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0.0)
-      : 0.0;
+  double get _valorAtual => parseValorMoeda(txtValor.text);
 
   Future<void> _load() async {
     try {
@@ -68,9 +67,7 @@ class ConfigRecorrenciaState extends State<ConfigRecorrencia> {
         _recorrenciaAtiva = cfg['recorrencia_ativa'] == true;
         _cobrancaAutoWhats = cfg['cobranca_auto_whats'] == true;
         final valor = double.tryParse((cfg['valor_condominio'] ?? '0').toString()) ?? 0.0;
-        if (valor > 0) {
-          txtValor.text = valor.toStringAsFixed(2).replaceAll('.', ',');
-        }
+        txtValor.text = valorParaInput(valor);
         txtDiaGeracao.text = (cfg['dia_geracao'] ?? 1).toString();
         txtDiaVencimento.text = (cfg['dia_vencimento'] ?? 10).toString();
         txtCategoria.text = (cfg['categoria_padrao'] ?? 'Taxa Condominial').toString();

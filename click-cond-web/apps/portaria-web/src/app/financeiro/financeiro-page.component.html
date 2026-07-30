@@ -122,6 +122,13 @@
     </div>
   }
 
+  @if (erro()) {
+    <div class="p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-sm text-red-300 flex items-center justify-between gap-3">
+      <span>{{ erro() }}</span>
+      <button (click)="erro.set(null)" class="text-red-300 hover:text-white">✕</button>
+    </div>
+  }
+
   <!-- Banner: competência fechada -->
   @if (mesSelecionadoFechado() && fechamentoDoMes(); as fch) {
     <div class="p-3 rounded-xl bg-amber-500/5 border border-amber-500/30 flex items-start gap-3">
@@ -683,14 +690,20 @@
           </div>
         </div>
 
+        @if (lancamentoErro()) {
+          <div class="mx-4 mb-2 p-3 rounded-xl bg-red-400/10 border border-red-400/20 text-xs text-red-300">
+            {{ lancamentoErro() }}
+          </div>
+        }
+
         <div class="p-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-end gap-3">
           <button (click)="modalLancamento.set(false)" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">Cancelar</button>
           <button
             (click)="salvarLancamento()"
-            [disabled]="!novoLancamento.nome || !novoLancamento.valor || novoLancamento.valor <= 0 || novoLancamento.valor > 9999999 || !novoLancamento.data || !novoLancamento.data_vencimento"
+            [disabled]="salvandoLancamento() || !novoLancamento.nome || !novoLancamento.valor || novoLancamento.valor <= 0 || novoLancamento.valor > 9999999 || !novoLancamento.data || !novoLancamento.data_vencimento"
             class="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 text-xs font-semibold hover:bg-emerald-400 transition disabled:opacity-50"
           >
-            Registrar no Caixa
+            {{ salvandoLancamento() ? 'Salvando...' : 'Registrar no Caixa' }}
           </button>
         </div>
       </div>

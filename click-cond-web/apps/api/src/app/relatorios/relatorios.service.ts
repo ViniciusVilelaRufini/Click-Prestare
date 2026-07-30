@@ -282,7 +282,13 @@ export class RelatoriosService {
     }
 
     // Financeiro
-    const where: any = { id_condominio: idCondominio };
+    // Fora do relatório: conta pessoal do morador (tipo 'D' com id_usuario —
+    // água, luz, internet que ele lança para si no app). É dado privado dele,
+    // não movimento do condomínio, e saía no XLSX/PDF do síndico.
+    const where: any = {
+      id_condominio: idCondominio,
+      NOT: { AND: [{ tipo: 'D' }, { id_usuario: { not: null } }] },
+    };
     if (dateFilter) {
       where.OR = [
         { created_at: dateFilter },

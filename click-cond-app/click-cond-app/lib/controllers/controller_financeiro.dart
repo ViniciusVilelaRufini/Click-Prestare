@@ -230,27 +230,6 @@ apiUpdateMoradorFinanceiro(Map<String, dynamic> data) async {
   }
 }
 
-/// Anexa o código escaneado (linha digitável e/ou PIX copia-e-cola) à conta do
-/// próprio morador, para facilitar o pagamento depois.
-Future<bool> apiAnexarCodigoBoleto(int id, {String? linhaDigitavel, String? pixCopiaCola}) async {
-  var url = ApiConfig.buildUri('/financeiro/morador/anexar-codigo');
-  try {
-    var response = await ApiClient.post(
-      url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
-      body: jsonEncode({
-        "id_condominio": Singleton.instance.id_condominio.toString(),
-        "id": id,
-        "linha_digitavel": linhaDigitavel,
-        "pix_copia_cola": pixCopiaCola,
-      }),
-    );
-    return response.statusCode == 200;
-  } catch (e) {
-    return false;
-  }
-}
-
 // ===== Recorrência / Rateio / Acordo / Fechamento (paridade com portaria-web) =====
 
 Map<String, String> _jsonHeaders() =>

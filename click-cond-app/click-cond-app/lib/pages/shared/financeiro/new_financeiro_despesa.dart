@@ -7,6 +7,7 @@ import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_categoria_financeiro.dart';
@@ -70,7 +71,8 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
       txtFornecedor.text = obj['cliente'] ?? '';
       txtCategoria.text = obj['categoria'] ?? '';
       txtPagamento.text = obj['data'] ?? '';
-      txtValor.text = (obj['valor'] ?? '').toString().replaceAll("-", "").replaceAll(" ", "");
+      // valorParaInput já devolve o módulo — despesa vem negativa do backend.
+      txtValor.text = valorParaInput(obj['valor']);
       txtFormaPagamento.text = obj['forma_pagamento'] ?? '';
       txtParcelas.text = obj['parcelas'] != null ? obj['parcelas'].toString() : '';
       txtConta.text = obj['conta'] ?? '';
@@ -88,9 +90,7 @@ class _NewFinanceiroDespesaPageState extends State<NewFinanceiroDespesa> {
   }
 
   Future<void> save() async {
-    final valorParsed = txtValor.text.isNotEmpty
-        ? (double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0.0)
-        : 0.0;
+    final valorParsed = parseValorMoeda(txtValor.text);
     if (valorParsed <= 0) {
       displayMessage(context, getText('alert'), 'Informe um valor maior que zero.');
       return;

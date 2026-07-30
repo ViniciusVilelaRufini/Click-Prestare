@@ -391,8 +391,19 @@ export class AuthService {
    * Sindicos_Condominios. Demais (porteiro/app): via Funcionarios ou
    * Funcionarios_Portaria do condomínio.
    */
-  private async assertVinculoCondominio(userId: number, typeAccess: string, idCondominio: number) {
-    if (!this.prisma.isConnected) return;
+  /**
+   * Confirma o vínculo com o condomínio e devolve o papel REAL, resolvido no
+   * banco (não o que veio no token). Quem chama usa isso para carimbar o
+   * typeAccess do token de portaria — daí a diferença entre 'Funcionario'
+   * (equipe do condomínio, tem alçada administrativa) e o porteiro do console,
+   * que continua sem typeAccess e portanto sem alçada no financeiro.
+   */
+  private async assertVinculoCondominio(
+    userId: number,
+    typeAccess: string,
+    idCondominio: number,
+  ): Promise<'Sindico' | 'Funcionario' | null> {
+    if (!this.prisma.isConnected) return null;
 
     const tipo = (typeAccess ?? '').toLowerCase();
 
@@ -404,7 +415,7 @@ export class AuthService {
       if (!vinculo) {
         throw new UnauthorizedException('Você não tem vínculo com este condomínio.');
       }
-      return;
+      return 'Sindico';
     }
 
     // Funcionário/porteiro: vínculo via Funcionarios (id_user) ou, para o
@@ -413,13 +424,13 @@ export class AuthService {
       where: { id_user: userId, id_condominio: idCondominio },
       select: { id: true },
     });
-    if (func) return;
+    if (func) return 'Funcionario';
 
     const funcPortaria = await this.prisma.funcionarios_Portaria.findFirst({
       where: { id: userId, id_condominio: idCondominio },
       select: { id: true },
     });
-    if (funcPortaria) return;
+    if (funcPortaria) return null;
 
     throw new UnauthorizedException('Você não tem vínculo com este condomínio.');
   }
@@ -475,7 +486,7 @@ export class AuthService {
     // Verifica que o usuário autenticado realmente tem vínculo com o condomínio
     // solicitado. Sem isso, um síndico de um condomínio mintava um token de
     // portaria para QUALQUER condomínio só passando o id_condominio no body.
-    await this.assertVinculoCondominio(userId, typeAccess, idCondominio);
+    const papelReal = await this.assertVinculoCondominio(userId, typeAccess, idCondominio);
     const nomeUsuario = payload.nome;
 
     const portariaPayload: JwtPayload = {
@@ -483,6 +494,14 @@ export class AuthService {
       nome: nomeUsuario,
       id_condominio: idCondominio,
       turno: typeAccess === 'Sindico' ? 'Síndico' : 'Porteiro (App)',
+      // typeAccess precisa entrar no token: o módulo financeiro usa assertStaff
+      // (exige Sindico/Funcionario) para lançar, editar, dar baixa e fechar
+      // competência, e o get-all decide pelo typeAccess se mostra os
+      // lançamentos em aberto. Sem ele, quem entrava na portaria-web pelo QR
+      // Code via um livro caixa só com o que já estava pago e tomava 403 em
+      // qualquer alteração — o login por senha funcionava, o por QR não.
+      // Vem do vínculo conferido no banco, não do token de origem.
+      ...(papelReal ? { typeAccess: papelReal } : {}),
     };
 
     const accessToken = this.jwt.sign(portariaPayload);

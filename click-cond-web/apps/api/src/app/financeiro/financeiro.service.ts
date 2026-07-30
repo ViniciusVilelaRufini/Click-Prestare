@@ -192,6 +192,18 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   /**
+   * `status = '3'` marca a cobrança RENEGOCIADA num acordo: ela foi
+   * substituída pelas parcelas do acordo e não é mais dívida viva.
+   *
+   * O acordo já gravava esse status, mas nenhuma consulta o lia — a dívida
+   * original continuava contando na inadimplência ao lado das parcelas novas,
+   * e o apartamento aparecia devendo duas vezes o mesmo valor (nos cards, no
+   * percentual de inadimplência e na tela do morador). Este filtro é o par que
+   * faltava; use em toda leitura de dívida em aberto.
+   */
+  private static readonly NAO_RENEGOCIADO = { status: { not: '3' } } as const;
+
+  /**
    * Unidade "fantasma" = registro de Apartamentos que não representa uma
    * unidade real (ex.: "Apto 000 Bloco Condominio" criado por engano).
    * Essas unidades não podem receber cobrança nem contar na inadimplência.
@@ -597,6 +609,36 @@ export class FinanceiroService implements OnModuleInit {
       );
     }
 
+    // Pix dinâmico é gerado com o valor da época. Se o síndico corrige o valor
+    // de uma cobrança em aberto, o código antigo continua cobrando o valor
+    // velho — o morador paga, o webhook vê "pagamento parcial" e a fatura fica
+    // em aberto mesmo tendo sido paga. Regenera a cobrança com o valor novo.
+    const valorMudou =
+      antes?.valor != null && Math.abs(Math.abs(Number(antes.valor)) - Math.abs(valor)) > 0.001;
+    const pixVeioDoCliente = financeiro.pix_copia_cola !== undefined;
+    if (valorMudou && isPago === 0 && !pixVeioDoCliente && antes?.pix_copia_cola) {
+      try {
+        const pixData = await this.openPix.generateCharge(
+          `financeiro_${financeiro.id}_v${Date.now()}`,
+          Math.abs(valor),
+          financeiro.nome ?? antes.nome ?? 'Cobrança',
+          dVenc ?? antes.data_vencimento,
+        );
+        await this.prisma.financeiro.update({
+          where: { id: Number(financeiro.id) },
+          // Sem Pix novo, melhor ficar sem código do que manter um que cobra
+          // valor errado — o morador ainda paga pela chave Pix do condomínio.
+          data: { pix_copia_cola: pixData?.brCode ?? null },
+        });
+      } catch (err: any) {
+        this.logger.error(`[financeiro.update] Falha ao regerar Pix de ${financeiro.id}: ${err?.message ?? err}`);
+        await this.prisma.financeiro.update({
+          where: { id: Number(financeiro.id) },
+          data: { pix_copia_cola: null },
+        });
+      }
+    }
+
     // Diff dos campos sensíveis. Valor e pago são os mais críticos: mudar
     // valor é mudar quanto entra/sai; mudar pago é declarar pagamento.
     const depois = await this.prisma.financeiro.findUnique({ where: { id: Number(financeiro.id) } });
@@ -930,6 +972,13 @@ export class FinanceiroService implements OnModuleInit {
     const financeiroRecords = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
+        // Esta tela é a arrecadação: só cobrança de apartamento. Sem o
+        // `tipo: 'C'`, a query varria despesa do condomínio e conta pessoal
+        // do morador para depois descartar tudo no filtro por nome — e a
+        // dívida já renegociada em acordo continuava aparecendo como
+        // pendente, do lado das parcelas que a substituíram.
+        tipo: 'C',
+        ...FinanceiroService.NAO_RENEGOCIADO,
         OR: [
           {
             nome: {
@@ -966,7 +1015,7 @@ export class FinanceiroService implements OnModuleInit {
     const fmtDate = (d?: Date | null) => d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
     for (const a of aptos) {
-      const fin = financeiroRecords.find((f) => {
+      const doApto = financeiroRecords.filter((f) => {
         if (!this.nomeFaturaDeApto(f.nome, a.apto, a.bloco)) return false;
 
         // Match by date
@@ -989,7 +1038,23 @@ export class FinanceiroService implements OnModuleInit {
         const matchName3 = `Apto ${a.apto} Bloco ${a.bloco} - Ref. ${parseInt(mesStr)}`;
         const normNome = f.nome?.trim();
         return normNome === matchName1 || normNome === matchName2 || normNome === matchName3;
-      }) ?? null;
+      });
+
+      // A tela mostra UMA linha por apartamento, mas o mês pode ter mais de
+      // uma cobrança para a mesma unidade (taxa + rateio, taxa + parcela de
+      // acordo). Sem ordenação, qual delas aparecia dependia da ordem que o
+      // MySQL devolvesse — a mesma tela, recarregada, trocava de linha.
+      //
+      // Critério: primeiro a que está em aberto (a tela existe para cobrar),
+      // depois a de vencimento mais antigo, e o id como desempate final.
+      doApto.sort((x, y) => {
+        if ((x.pago ?? 0) !== (y.pago ?? 0)) return (x.pago ?? 0) - (y.pago ?? 0);
+        const vx = x.data_vencimento?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const vy = y.data_vencimento?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        if (vx !== vy) return vx - vy;
+        return x.id - y.id;
+      });
+      const fin = doApto[0] ?? null;
 
       const val = fin?.valor ? Number(fin.valor) : 0;
       const fmt = val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1014,6 +1079,11 @@ export class FinanceiroService implements OnModuleInit {
         url_comprovante: fin?.url_comprovante ?? fin?.photo ?? '',
         mes: mesStr,
         ano: anoStr,
+        // Quantas cobranças a unidade tem no mês. `valor` acima continua sendo
+        // só o da cobrança exibida — somar aqui faria o formulário de edição
+        // gravar o total numa cobrança só. Serve para a tela avisar que há
+        // mais de uma e mandar o síndico para a Inadimplência.
+        qtd_cobrancas: doApto.length,
       };
 
       const blocoKey = a.bloco || 'Sem Bloco';
@@ -1060,6 +1130,7 @@ export class FinanceiroService implements OnModuleInit {
         pago: 0,
         tipo: 'C', // Apenas Receitas (cobranças) pendentes
         valor: { gt: 0 }, // Cobrança de R$ 0,00 não é dívida
+        ...FinanceiroService.NAO_RENEGOCIADO,
       },
       select: { nome: true, data_vencimento: true },
     });
@@ -1150,6 +1221,7 @@ export class FinanceiroService implements OnModuleInit {
         id_condominio: Number(idCondominio),
         tipo: 'C',
         valor: { gt: 0 },
+        ...FinanceiroService.NAO_RENEGOCIADO,
         OR: [
           { data: { gte: dataIni, lte: dataFim } },
           { data_vencimento: { gte: dataIni, lte: dataFim } },
@@ -1324,6 +1396,7 @@ export class FinanceiroService implements OnModuleInit {
         pago: 0,
         tipo: 'C', // Apenas Receitas (cobranças) pendentes
         valor: { gt: 0 }, // Cobrança de R$ 0,00 não é dívida
+        ...FinanceiroService.NAO_RENEGOCIADO,
       },
     });
 
@@ -1486,6 +1559,11 @@ export class FinanceiroService implements OnModuleInit {
           { data: { gte: dataIni, lte: dataFim } },
           { data_vencimento: { gte: dataIni, lte: dataFim } },
         ],
+        // Mesmo recorte do getAll: sem isso, as contas pessoais dos moradores
+        // entravam no gráfico do síndico e criavam categorias de despesa
+        // ("Água", "Luz", "Internet") que não são do condomínio — o gráfico
+        // não fechava com o livro caixa da mesma tela.
+        NOT: { AND: [{ tipo: 'D' }, { id_usuario: { not: null } }] },
       },
       orderBy: { categoria: 'asc' },
     });
@@ -1579,14 +1657,19 @@ export class FinanceiroService implements OnModuleInit {
     });
     const condChavePix = cond?.chave_pix ?? '';
 
-    // Busca os vínculos de apartamento do morador via moradores
+    // Vínculos de apartamento do morador NESTE condomínio. O filtro por
+    // condomínio é obrigatório: quem mora em dois prédios costuma ter a mesma
+    // numeração ("Apto 101 Bloco A") nos dois, e sem ele a unidade do prédio B
+    // casava com a cobrança do prédio A — que é de outra família.
     const moradoresList = await this.prisma.moradores.findMany({
-      where: { id_user: Number(idUser) },
+      where: { id_user: Number(idUser), id_condominio: Number(idCondominio) },
     });
 
-    // Busca os vínculos de apartamento do morador via Apartamentos_Users
     const auList = await this.prisma.apartamentos_Users.findMany({
-      where: { id_user: Number(idUser) },
+      where: {
+        id_user: Number(idUser),
+        apartamento: { id_condominio: Number(idCondominio) },
+      },
       include: { apartamento: true },
     });
 
@@ -1598,6 +1681,9 @@ export class FinanceiroService implements OnModuleInit {
     const list = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
+        // Dívida renegociada em acordo foi substituída pelas parcelas: mostrar
+        // as duas fazia o morador ver o dobro do que realmente deve.
+        ...FinanceiroService.NAO_RENEGOCIADO,
         OR: [
           { id_usuario: Number(idUser) },
           { tipo: 'C' }
@@ -2006,7 +2092,10 @@ export class FinanceiroService implements OnModuleInit {
       return { success: true, skipped: true };
     }
 
-    const financeiroId = Number(correlationID.replace('financeiro_', ''));
+    // Aceita `financeiro_<id>` e `financeiro_<id>_v<timestamp>` — a segunda
+    // forma é usada quando o valor da cobrança é corrigido e o Pix precisa ser
+    // reemitido (a OpenPix recusa reaproveitar um correlationID).
+    const financeiroId = Number(/^financeiro_(\d+)/.exec(correlationID)?.[1] ?? 0);
     if (!financeiroId) {
       this.logger.warn(`Webhook OpenPix: ID inválido extraído de ${correlationID}`);
       return { success: true, skipped: true };
@@ -2076,24 +2165,52 @@ export class FinanceiroService implements OnModuleInit {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
-    const aptos = await this.prisma.apartamentos.findMany({
+    const valorTotal = this.parseValorMonetario(rateioData.valorTotal);
+    if (!(valorTotal > 0) || valorTotal > 9999999) {
+      throw new BadRequestException('O valor total do rateio deve ser maior que zero e menor que R$ 10.000.000,00.');
+    }
+
+    const todosAptos = await this.prisma.apartamentos.findMany({
       where: { id_condominio: Number(idCondominio) },
     });
 
+    // Unidade fantasma ("Apto 000 Bloco Condominio") não recebe cobrança — a
+    // recorrência já pulava, o rateio não. Além de gerar uma dívida que nunca
+    // será paga, ela entrava no divisor e diluía o valor de todo mundo, então
+    // a soma das cobranças não fechava com o total do rateio.
+    const aptos = todosAptos.filter((a) => !this.isUnidadeFantasma(a.apto, a.bloco));
+
     if (aptos.length === 0) return { success: false, message: 'Nenhum apartamento cadastrado.' };
 
-    const valorPorApto = Number(rateioData.valorTotal) / aptos.length;
     const dVenc = this.parseDataBR(rateioData.data_vencimento);
+
+    // Rateio é lançamento novo: respeita competência fechada como o insert.
+    await this.fechamento.assertPodeAlterar(
+      Number(idCondominio),
+      dVenc,
+      'insert',
+      `Rateio: ${rateioData.nome}`,
+    );
+
+    // Divisão em centavos: R$ 10.000 entre 62 aptos dá 161,290322… e o
+    // DECIMAL(10,2) arredonda cada parcela. A soma ficava alguns centavos
+    // abaixo do total e o síndico não fechava a prestação de contas do
+    // rateio. Os centavos que sobram vão para a primeira unidade.
+    const centavosTotais = Math.round(valorTotal * 100);
+    const centavosBase = Math.floor(centavosTotais / aptos.length);
+    const centavosSobra = centavosTotais - centavosBase * aptos.length;
+    const valorDoApto = (indice: number) =>
+      (centavosBase + (indice < centavosSobra ? 1 : 0)) / 100;
 
     // Transação: rateio é all-or-nothing. Se cair na metade, alguns aptos
     // ficavam com cobrança e outros não, sem operador saber.
     const createdCharges = await this.prisma.$transaction(
-      aptos.map((apto) =>
+      aptos.map((apto, i) =>
         this.prisma.financeiro.create({
           data: {
             nome: `Apto ${apto.apto} Bloco ${apto.bloco} - Rateio: ${rateioData.nome}`,
             tipo: 'C',
-            valor: valorPorApto,
+            valor: valorDoApto(i),
             data_vencimento: dVenc,
             categoria: rateioData.categoria ?? 'Geral',
             descricao: `Rateio extraordinário referente a: ${rateioData.nome}`,
@@ -2107,8 +2224,8 @@ export class FinanceiroService implements OnModuleInit {
     );
 
     // Generate OpenPix charges for rateio items in background
-    for (const charge of createdCharges) {
-      this.openPix.generateCharge(`financeiro_${charge.id}`, valorPorApto, charge.nome ?? 'Rateio', dVenc)
+    createdCharges.forEach((charge, i) => {
+      this.openPix.generateCharge(`financeiro_${charge.id}`, valorDoApto(i), charge.nome ?? 'Rateio', dVenc)
         .then(async (pixData) => {
           if (pixData?.brCode) {
             await this.prisma.financeiro.update({
@@ -2118,7 +2235,10 @@ export class FinanceiroService implements OnModuleInit {
           }
         })
         .catch((e) => this.logger.error(`Failed to generate OpenPix for rateio charge ${charge.id}: ${e}`));
-    }
+    });
+
+    const valorPorApto = valorDoApto(aptos.length - 1); // sem o centavo de sobra
+    const unidadesIgnoradas = todosAptos.length - aptos.length;
 
     const formatReal = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     await this.auditoria.registrar({
@@ -2127,17 +2247,21 @@ export class FinanceiroService implements OnModuleInit {
       acao: 'CREATE',
       modulo: 'financeiro',
       entidade_id: undefined,
-      descricao: `Criou rateio "${rateioData.nome}" — ${formatReal(rateioData.valorTotal)} dividido em ${aptos.length} aptos (${formatReal(valorPorApto)} cada)`,
+      descricao: `Criou rateio "${rateioData.nome}" — ${formatReal(valorTotal)} dividido em ${aptos.length} aptos (${formatReal(valorPorApto)} cada)`,
       detalhes: {
         rateio: {
           nome: rateioData.nome,
           categoria: rateioData.categoria,
-          valorTotal: rateioData.valorTotal,
-          valorTotalFormatado: formatReal(rateioData.valorTotal),
+          valorTotal,
+          valorTotalFormatado: formatReal(valorTotal),
           valorPorApto,
           valorPorAptoFormatado: formatReal(valorPorApto),
+          // Quando não divide exato, a primeira unidade absorve os centavos
+          // que sobram — fica registrado para o síndico conferir.
+          centavosDeSobra: centavosSobra,
           dataVencimento: rateioData.data_vencimento,
           quantidadeAptos: aptos.length,
+          unidadesInvalidasIgnoradas: unidadesIgnoradas,
           aptos: aptos.slice(0, 20).map((a) => `${a.bloco}-${a.apto}`),
         },
       },
@@ -2150,6 +2274,19 @@ export class FinanceiroService implements OnModuleInit {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
 
+    // Sem estas guardas, `valorTotal / parcelas` produzia Infinity (parcelas
+    // 0), NaN (parcelas ausente) ou parcela negativa — e o Prisma gravava
+    // cobranças impagáveis no lugar da dívida real, que já tinha sido marcada
+    // como renegociada na mesma transação.
+    const parcelas = Math.trunc(Number(acordoData.parcelas));
+    if (!Number.isFinite(parcelas) || parcelas < 1 || parcelas > 60) {
+      throw new BadRequestException('Informe o número de parcelas do acordo (de 1 a 60).');
+    }
+    const valorTotal = this.parseValorMonetario(acordoData.valorTotal);
+    if (!(valorTotal > 0) || valorTotal > 9999999) {
+      throw new BadRequestException('O valor total do acordo deve ser maior que zero e menor que R$ 10.000.000,00.');
+    }
+
     // Busca débitos com filtro amplo (contains) mas FILTRA na aplicação
     // com match exato. Sem isso, "Apto 10 Bloco A" pegava TAMBÉM débitos de
     // "Apto 100/101/1010 Bloco A" e renegociava em lote — apaga dívidas
@@ -2158,6 +2295,10 @@ export class FinanceiroService implements OnModuleInit {
       where: {
         id_condominio: Number(idCondominio),
         pago: 0,
+        // Débito já renegociado não entra num segundo acordo: senão as
+        // parcelas do acordo anterior viravam base do novo, inflando a dívida
+        // a cada renegociação.
+        ...FinanceiroService.NAO_RENEGOCIADO,
         nome: {
           contains: `Apto ${acordoData.apto} Bloco ${acordoData.bloco}`,
         },
@@ -2170,23 +2311,30 @@ export class FinanceiroService implements OnModuleInit {
 
     if (debitos.length === 0) return { success: false, message: 'Nenhum débito em aberto encontrado.' };
 
-    const valorParcela = Number(acordoData.valorTotal) / Number(acordoData.parcelas);
     const hoje = new Date();
+
+    // Parcelamento em centavos: 1.000,00 em 3x dá 333,333… e o DECIMAL(10,2)
+    // arredondava cada parcela — o acordo fechava em 999,99 e sobrava um
+    // centavo de dívida. A sobra vai para a primeira parcela.
+    const centavosTotais = Math.round(valorTotal * 100);
+    const centavosBase = Math.floor(centavosTotais / parcelas);
+    const centavosSobra = centavosTotais - centavosBase * parcelas;
+    const valorDaParcela = (i: number) => (centavosBase + (i <= centavosSobra ? 1 : 0)) / 100;
 
     // Transação: renegociar débitos e criar parcelas é all-or-nothing.
     // Sem isso, fica débito como "renegociado" sem as parcelas correspondentes.
     const parcelasOperations = [];
-    for (let i = 1; i <= acordoData.parcelas; i++) {
+    for (let i = 1; i <= parcelas; i++) {
       const vencimento = new Date(hoje.getFullYear(), hoje.getMonth() + i, 10);
       parcelasOperations.push(
         this.prisma.financeiro.create({
           data: {
-            nome: `Apto ${acordoData.apto} Bloco ${acordoData.bloco} - Acordo Parc. ${i}/${acordoData.parcelas}`,
+            nome: `Apto ${acordoData.apto} Bloco ${acordoData.bloco} - Acordo Parc. ${i}/${parcelas}`,
             tipo: 'C',
-            valor: valorParcela,
+            valor: valorDaParcela(i),
             data_vencimento: vencimento,
             categoria: 'Acordo',
-            descricao: `Acordo de débitos anteriores parcelado pelo síndico. Parcela ${i} de ${acordoData.parcelas}`,
+            descricao: `Acordo de débitos anteriores parcelado pelo síndico. Parcela ${i} de ${parcelas}`,
             nome_operador: operatorName,
             id_condominio: Number(idCondominio),
             pago: 0,
@@ -2196,7 +2344,7 @@ export class FinanceiroService implements OnModuleInit {
       );
     }
 
-    await this.prisma.$transaction([
+    const resultados = await this.prisma.$transaction([
       ...debitos.map((deb) =>
         this.prisma.financeiro.update({
           where: { id: deb.id },
@@ -2209,6 +2357,32 @@ export class FinanceiroService implements OnModuleInit {
       ...parcelasOperations,
     ]);
 
+    // Pix das parcelas, em background — rateio e recorrência já geravam, o
+    // acordo não: o morador que renegociava ficava com parcelas sem nenhuma
+    // forma de pagar pelo app, justamente quem mais precisa quitar.
+    const parcelasCriadas = resultados.slice(debitos.length);
+    parcelasCriadas.forEach((parcela: any, idx) => {
+      this.openPix
+        .generateCharge(
+          `financeiro_${parcela.id}`,
+          valorDaParcela(idx + 1),
+          parcela.nome ?? 'Parcela de acordo',
+          parcela.data_vencimento,
+        )
+        .then(async (pixData) => {
+          if (pixData?.brCode) {
+            await this.prisma.financeiro.update({
+              where: { id: parcela.id },
+              data: { pix_copia_cola: pixData.brCode },
+            });
+          }
+        })
+        .catch((e) =>
+          this.logger.error(`Failed to generate OpenPix for acordo parcela ${parcela.id}: ${e}`),
+        );
+    });
+
+    const valorParcela = valorDaParcela(parcelas); // sem o centavo de sobra
     const formatReal = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     await this.auditoria.registrar({
       id_condominio: Number(idCondominio),
@@ -2216,23 +2390,24 @@ export class FinanceiroService implements OnModuleInit {
       acao: 'CREATE',
       modulo: 'financeiro',
       entidade_id: undefined,
-      descricao: `Acordo de inadimplência: Apto ${acordoData.apto} Bloco ${acordoData.bloco} — ${formatReal(acordoData.valorTotal)} em ${acordoData.parcelas}x de ${formatReal(valorParcela)}`,
+      descricao: `Acordo de inadimplência: Apto ${acordoData.apto} Bloco ${acordoData.bloco} — ${formatReal(valorTotal)} em ${parcelas}x de ${formatReal(valorParcela)}`,
       detalhes: {
         acordo: {
           apto: acordoData.apto,
           bloco: acordoData.bloco,
-          valorTotal: acordoData.valorTotal,
-          valorTotalFormatado: formatReal(acordoData.valorTotal),
-          parcelas: acordoData.parcelas,
+          valorTotal,
+          valorTotalFormatado: formatReal(valorTotal),
+          parcelas,
           valorParcela,
           valorParcelaFormatado: formatReal(valorParcela),
+          centavosDeSobra: centavosSobra,
           debitosOriginaisRenegociados: debitos.length,
           debitosOriginais: debitos.map((d) => ({ id: d.id, nome: d.nome, valor: Number(d.valor) })),
         },
       },
     });
 
-    return { success: true, message: `Acordo firmado com sucesso em ${acordoData.parcelas} parcelas de ${valorParcela.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` };
+    return { success: true, message: `Acordo firmado com sucesso em ${parcelas} parcelas de ${formatReal(valorParcela)}.` };
   }
 
   async runBillingRemindersJob() {
@@ -2255,6 +2430,8 @@ export class FinanceiroService implements OnModuleInit {
       where: {
         pago: 0,
         data_vencimento: { gte: dataMin, lte: dataMax, not: null },
+        // Idem: dívida renegociada não gera lembrete de vencimento.
+        ...FinanceiroService.NAO_RENEGOCIADO,
       },
       select: {
         id: true,
@@ -2430,14 +2607,30 @@ export class FinanceiroService implements OnModuleInit {
     return { success: true, id: criado.id };
   }
 
+  /**
+   * Filtro que define "conta pessoal do morador": lançamento tipo 'D' criado
+   * por ele mesmo (água, luz, internet), amarrado ao id_usuario.
+   *
+   * A cobrança do condomínio TAMBÉM ganha id_usuario — o `insert` do síndico
+   * resolve o morador pelo "Apto X Bloco Y" do nome. Sem o `tipo: 'D'` aqui,
+   * as rotas /financeiro/morador/* deixavam o morador editar o valor, marcar
+   * como paga ou APAGAR a própria taxa condominial pela API (a UI não mostra
+   * os botões, mas a rota aceitava o id, que ele lê em /get-by-user).
+   */
+  private contaPessoalDoMorador(idUser: number, id: number, idCondominio?: number) {
+    return {
+      id: Number(id),
+      id_usuario: Number(idUser),
+      tipo: 'D',
+      ...(idCondominio ? { id_condominio: Number(idCondominio) } : {}),
+    };
+  }
+
   async updateMoradorConta(idUser: number, idCondominio: number, data: any) {
     if (!this.prisma.isConnected) return { success: true };
 
     const record = await this.prisma.financeiro.findFirst({
-      where: {
-        id: Number(data.id),
-        id_usuario: Number(idUser),
-      },
+      where: this.contaPessoalDoMorador(idUser, Number(data.id), idCondominio),
     });
 
     if (!record) throw new NotFoundException('Conta não encontrada ou sem permissão.');
@@ -2481,10 +2674,7 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return { success: true };
 
     const record = await this.prisma.financeiro.findFirst({
-      where: {
-        id: Number(id),
-        id_usuario: Number(idUser),
-      },
+      where: this.contaPessoalDoMorador(idUser, id),
     });
 
     if (!record) throw new NotFoundException('Conta não encontrada ou sem permissão.');
@@ -2493,34 +2683,6 @@ export class FinanceiroService implements OnModuleInit {
       where: { id: Number(id) },
     });
 
-    return { success: true };
-  }
-
-  /**
-   * Anexa o código escaneado (linha digitável / PIX copia-e-cola) a uma conta do
-   * próprio morador (escopo por id_usuario). Só grava os campos enviados.
-   */
-  async anexarCodigoMorador(
-    idUser: number,
-    id: number,
-    dto: { linha_digitavel?: string; pix_copia_cola?: string },
-  ) {
-    if (!this.prisma.isConnected) return { success: true };
-
-    const record = await this.prisma.financeiro.findFirst({
-      where: { id: Number(id), id_usuario: Number(idUser) },
-      select: { id: true },
-    });
-    if (!record) throw new NotFoundException('Conta não encontrada ou sem permissão.');
-
-    const data: { linha_digitavel?: string; pix_copia_cola?: string } = {};
-    if (dto.linha_digitavel) data.linha_digitavel = dto.linha_digitavel;
-    if (dto.pix_copia_cola) data.pix_copia_cola = dto.pix_copia_cola;
-    if (Object.keys(data).length === 0) {
-      throw new BadRequestException('Nenhum código informado.');
-    }
-
-    await this.prisma.financeiro.update({ where: { id: Number(id) }, data });
     return { success: true };
   }
 
@@ -2558,8 +2720,22 @@ export class FinanceiroService implements OnModuleInit {
       where: {
         id_condominio: Number(idCondominio),
         pago: 0,
+        // A conciliação bancária é do extrato do CONDOMÍNIO. As contas pessoais
+        // do morador (tipo 'D' + id_usuario) apareciam na lista de sugestões —
+        // o operador via a conta de luz da casa dele e podia dar baixa nela.
+        NOT: { AND: [{ tipo: 'D' }, { id_usuario: { not: null } }] },
       },
     });
+
+    // Um lançamento só pode ser sugerido para UMA transação do extrato.
+    //
+    // Sem isso, o caso normal do condomínio quebrava: 40 moradores pagando a
+    // mesma taxa de R$ 650 geram 40 linhas idênticas no OFX, e todas casavam
+    // com a MESMA primeira cobrança em aberto. A tela mostrava 40 sugestões
+    // apontando para o Apto 101, o síndico confirmava, e o resultado era uma
+    // cobrança baixada 40 vezes enquanto 39 pagamentos reais ficavam em
+    // aberto — exatamente o trabalho que a conciliação deveria eliminar.
+    const jaSugeridos = new Set<number>();
 
     const results = transactions.map(tx => {
       const txType = tx.amount < 0 ? 'D' : 'C';
@@ -2568,31 +2744,34 @@ export class FinanceiroService implements OnModuleInit {
       let bestMatch: any = null;
       let matchType: 'exact' | 'partial' | 'none' = 'none';
 
-      const exactMatches = unpaid.filter(db => {
+      const mesmoValor = unpaid.filter(db => {
+        if (jaSugeridos.has(db.id)) return false;
         const dbType = db.tipo || 'C';
         const dbAmt = Math.abs(Number(db.valor || 0));
-        if (dbType !== txType || Math.abs(dbAmt - absAmount) > 0.01) return false;
-
-        const dbDate = db.data_vencimento || db.data || new Date();
-        const diffDays = Math.abs(dbDate.getTime() - tx.date.getTime()) / (1000 * 60 * 60 * 24);
-        return diffDays <= 5;
+        return dbType === txType && Math.abs(dbAmt - absAmount) <= 0.01;
       });
+
+      const distanciaEmDias = (db: any) => {
+        const dbDate = db.data_vencimento || db.data;
+        if (!dbDate) return Number.MAX_SAFE_INTEGER;
+        return Math.abs(dbDate.getTime() - tx.date.getTime()) / (1000 * 60 * 60 * 24);
+      };
+
+      // Entre os candidatos de mesmo valor, o de vencimento mais próximo da
+      // data do extrato — antes era o primeiro que o banco devolvesse.
+      const exactMatches = mesmoValor
+        .filter(db => distanciaEmDias(db) <= 5)
+        .sort((a, b) => distanciaEmDias(a) - distanciaEmDias(b));
 
       if (exactMatches.length > 0) {
         bestMatch = exactMatches[0];
         matchType = 'exact';
-      } else {
-        const partialMatches = unpaid.filter(db => {
-          const dbType = db.tipo || 'C';
-          const dbAmt = Math.abs(Number(db.valor || 0));
-          return dbType === txType && Math.abs(dbAmt - absAmount) <= 0.01;
-        });
-
-        if (partialMatches.length > 0) {
-          bestMatch = partialMatches[0];
-          matchType = 'partial';
-        }
+      } else if (mesmoValor.length > 0) {
+        bestMatch = [...mesmoValor].sort((a, b) => distanciaEmDias(a) - distanciaEmDias(b))[0];
+        matchType = 'partial';
       }
+
+      if (bestMatch) jaSugeridos.add(bestMatch.id);
 
       return {
         ofxTx: {
@@ -2625,8 +2804,19 @@ export class FinanceiroService implements OnModuleInit {
     };
   }
 
-  async confirmarConciliacao(idCondominio: number, reconciliations: { databaseId: number; dataPagamento: string }[], user?: JwtPayload) {
+  async confirmarConciliacao(idCondominio: number, reconciliationsBrutas: { databaseId: number; dataPagamento: string }[], user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
+
+    // Deduplica por lançamento: se a tela mandar o mesmo id em duas linhas do
+    // extrato, o relatório final diria "2 lançamentos confirmados" tendo
+    // baixado um só, e o síndico acharia que dois moradores pagaram.
+    const vistos = new Set<number>();
+    const reconciliations = (reconciliationsBrutas ?? []).filter((r) => {
+      const id = Number(r?.databaseId);
+      if (!id || vistos.has(id)) return false;
+      vistos.add(id);
+      return true;
+    });
     // Cada databaseId precisa pertencer ao condomínio — sem isso, atacante
     // marca como pago lançamentos de outros condomínios em massa. Também
     // bloqueia conciliar lançamento de competência fechada, igual updateStatus
@@ -2737,6 +2927,11 @@ export class FinanceiroService implements OnModuleInit {
           { data: { gte: dataIni, lte: dataFim } },
           { data_vencimento: { gte: dataIni, lte: dataFim } },
         ],
+        // Conta pessoal do morador (água, luz, internet que ele mesmo lançou:
+        // tipo 'D' + id_usuario) não é dinheiro do condomínio e não pode sair
+        // no livro caixa — o síndico exportava o CSV e lia as contas de casa
+        // de cada morador. Mesmo critério do getAll.
+        NOT: { AND: [{ tipo: 'D' }, { id_usuario: { not: null } }] },
       },
       orderBy: [{ data: 'asc' }, { data_vencimento: 'asc' }],
     });
@@ -3019,6 +3214,29 @@ export class FinanceiroService implements OnModuleInit {
     };
   }
 
+  /**
+   * Por quantos dias após o `dia_geracao` o job ainda tenta emitir as faturas
+   * do mês, caso o tick do dia certo tenha sido perdido.
+   */
+  private static readonly JANELA_RECUPERACAO_DIAS = 5;
+
+  /** Último dia do mês (mes é 1-12). */
+  private static ultimoDiaDoMes(mes: number, ano: number): number {
+    return new Date(ano, mes, 0).getDate();
+  }
+
+  /**
+   * Dia configurado, encolhido para caber no mês.
+   *
+   * `dia_geracao`/`dia_vencimento` = 31 não existe em abril, e 29/30 não
+   * existem em fevereiro. Sem o clamp, o dia 31 simplesmente nunca chegava e
+   * o `new Date(ano, mes-1, 31)` transbordava para o mês seguinte.
+   */
+  private static diaValidoNoMes(dia: number, mes: number, ano: number): number {
+    const ultimo = FinanceiroService.ultimoDiaDoMes(mes, ano);
+    return Math.min(Math.max(Number(dia) || 1, 1), ultimo);
+  }
+
   async runRecurringBillingJob() {
     if (!this.prisma.isConnected) return;
     this.logger.log('Iniciando Job de Faturamento Recorrente...');
@@ -3038,7 +3256,29 @@ export class FinanceiroService implements OnModuleInit {
     });
 
     for (const cond of condominios) {
-      if (cond.dia_geracao === diaAtual) {
+      // `dia_geracao === diaAtual` era um fio de navalha: o job só tenta uma
+      // vez por dia, na hora-gatilho. Se o tick daquela hora não acontecesse
+      // — deploy no Railway reiniciando o processo, banco lento, qualquer
+      // exceção antes daqui — o mês inteiro ficava SEM faturamento, em
+      // silêncio, e só se descobria quando ninguém pagava. Com dia_geracao 31
+      // então, o job nunca rodava em abril, junho, setembro e novembro.
+      //
+      // Agora há uma janela de recuperação: o job insiste por alguns dias
+      // após o dia de geração. A criação é idempotente (pula fatura cujo nome
+      // já existe), então as tentativas seguintes não fazem nada.
+      //
+      // A janela é fechada de propósito, em vez de ir até o fim do mês: se o
+      // síndico apagar uma fatura recorrente (valor errado, unidade vendida),
+      // ela não deve ressuscitar sozinha semanas depois.
+      const diaGeracao = FinanceiroService.diaValidoNoMes(cond.dia_geracao, mesAtual, anoAtual);
+      const atraso = diaAtual - diaGeracao;
+      if (atraso >= 0 && atraso <= FinanceiroService.JANELA_RECUPERACAO_DIAS) {
+        if (atraso > 0) {
+          this.logger.warn(
+            `[runRecurringBillingJob] Condomínio ${cond.id}: rodando ${atraso} dia(s) após o dia de geração ` +
+            `(${diaGeracao}). Se gerar faturas agora, o tick do dia certo foi perdido.`,
+          );
+        }
         await this.gerarFaturasRecorrentesParaMes(cond.id, mesAtual, anoAtual, false);
       }
     }
@@ -3096,7 +3336,12 @@ export class FinanceiroService implements OnModuleInit {
         vencYear += 1;
       }
     }
-    const dataVencimento = new Date(vencYear, vencMonth - 1, cond.dia_vencimento, 12, 0, 0, 0);
+    // Dia encolhido para o mês: com dia_vencimento 31, `new Date(2026, 8, 31)`
+    // virava 1º de outubro — a fatura de setembro nascia vencendo em outubro,
+    // e por isso aparecia na competência errada na tela de taxas dos moradores
+    // (que casa pela data). Mesmo problema com 30 em fevereiro.
+    const diaVenc = FinanceiroService.diaValidoNoMes(cond.dia_vencimento, vencMonth, vencYear);
+    const dataVencimento = new Date(vencYear, vencMonth - 1, diaVenc, 12, 0, 0, 0);
     const hoje = new Date();
 
     // Busca todos os apartamentos do condomínio que NÃO ignoram a recorrência
@@ -3248,6 +3493,10 @@ export class FinanceiroService implements OnModuleInit {
           pago: 0,
           tipo: 'C',
           data_vencimento: { lt: hoje, not: null },
+          // Não cobrar por WhatsApp uma dívida que o próprio síndico já
+          // renegociou — o morador recebia a régua de cobrança do débito
+          // antigo no mesmo dia em que assinava o acordo.
+          ...FinanceiroService.NAO_RENEGOCIADO,
         },
         select: {
           id: true,

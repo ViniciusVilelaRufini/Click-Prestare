@@ -206,8 +206,17 @@ export class FechamentoService {
 
     // Exceção: marcar como pago cobrança de morador é OK mesmo em mês
     // fechado (morador paga atrasado).
+    //
+    // O nome da cobrança varia conforme a origem, e a regra antiga só aceitava
+    // o formato do app ("- Ref. MM/AAAA"). Ficavam de fora justamente as duas
+    // origens mais comuns — a recorrência ("- Condomínio Ref. 07/2026") e o
+    // modal da portaria-web ("- Taxa Condominial Ref. 07/2026") — além de
+    // rateio e acordo. Resultado: depois de fechar a competência, o síndico não
+    // conseguia dar baixa em nenhum pagamento atrasado das faturas geradas
+    // automaticamente, que são a maioria.
     if (operacao === 'updateStatus' && nomeLancamento) {
-      const ehCobrancaMorador = /^Apto\s+\S+\s+Bloco\s+\S+\s+-\s+Ref\./i.test(nomeLancamento);
+      const ehCobrancaMorador =
+        /^Apto\s+\S+\s+Bloco\s+\S+\s+-\s+.*\b(Ref\.|Rateio:|Acordo\s+Parc\.)/i.test(nomeLancamento);
       if (ehCobrancaMorador) return;
     }
 

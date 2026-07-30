@@ -224,19 +224,9 @@ export class FinanceiroController {
     return this.service.removeMoradorConta(Number(userId), Number(body.id));
   }
 
-  // Morador anexa o código escaneado (linha digitável / PIX) à própria conta.
-  @Post('morador/anexar-codigo')
-  @HttpCode(200)
-  anexarCodigoMorador(
-    @ReqUser() payload: JwtPayload,
-    @Body() body: { id: string | number; linha_digitavel?: string; pix_copia_cola?: string },
-  ) {
-    const userId = payload?.user?.id ?? payload?.sub;
-    return this.service.anexarCodigoMorador(Number(userId), Number(body.id), {
-      linha_digitavel: body.linha_digitavel,
-      pix_copia_cola: body.pix_copia_cola,
-    });
-  }
+  // Não existe rota "anexar código a uma conta já criada": o app escaneia o
+  // boleto (ScanBoletoPage) dentro do próprio formulário da conta, e a linha
+  // digitável / Pix vai junto no morador/insert ou morador/update.
 
   @Post('upload-shared-file')
   @HttpCode(200)

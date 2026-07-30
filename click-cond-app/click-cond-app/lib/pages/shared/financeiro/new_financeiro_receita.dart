@@ -4,6 +4,7 @@ import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_conta.dart';
@@ -54,7 +55,7 @@ class _NewFinanceiroReceitaPageState extends State<NewFinanceiroReceita> {
       txtTipo.text = obj['nome'] ?? '';
       txtCliente.text = obj['cliente'] ?? '';
       txtRecebimento.text = obj['data'] ?? '';
-      txtValor.text = obj['valor'].toString();
+      txtValor.text = valorParaInput(obj['valor']);
       txtDescricao.text = obj['descricao'] ?? '';
       txtConta.text = obj['conta'] ?? '';
       if (mounted) setState(() {});
@@ -66,9 +67,7 @@ class _NewFinanceiroReceitaPageState extends State<NewFinanceiroReceita> {
   }
 
   Future<void> save() async {
-    final valorParsed = txtValor.text.isNotEmpty
-        ? (double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0.0)
-        : 0.0;
+    final valorParsed = parseValorMoeda(txtValor.text);
     if (valorParsed <= 0) {
       displayMessage(context, getText('alert'), 'Informe um valor maior que zero.');
       return;

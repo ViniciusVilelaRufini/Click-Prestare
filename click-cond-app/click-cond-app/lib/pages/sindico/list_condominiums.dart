@@ -8,6 +8,7 @@ import 'package:click/pages/shared/notificacoes/notificacoes_page.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/financeiro/list_inadimplentes.dart';
+import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/pages/shared/funcionarios/edit_funcionario.dart';
 import 'package:click/pages/shared/morador/edit_morador.dart';
 import 'package:click/pages/shared/my_condominium.dart';
@@ -591,8 +592,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               Expanded(
                 child: _DashboardCard(
                   title: 'Inadimplência',
-                  value:
-                      'R\$ ${_toDouble(_summary!['debts']['total']).toStringAsFixed(2)}',
+                  // toStringAsFixed devolve o formato americano: o card
+                  // mostrava "R$ 1250.75" em vez de "R$ 1.250,75".
+                  value: 'R\$ ${formatMoeda(_summary!['debts']['total'])}',
                   subtitle: '${_summary!['debts']['count']} pendências',
                   icon: PhosphorIcons.money,
                   color: AppColors.error,

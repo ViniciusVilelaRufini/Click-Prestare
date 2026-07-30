@@ -29,7 +29,9 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
     try {
       setState(() => _isLoading = true);
       final list = await apiGetAll("financeiro/inadimplentes");
-      blocos = list['blocos'];
+      // Resposta inesperada (ou sem blocos) virava atribuição de null numa
+      // List não-nulável — TypeError caindo no catch como "erro genérico".
+      blocos = (list is Map && list['blocos'] is List) ? list['blocos'] as List : [];
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     } finally {
@@ -155,8 +157,13 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                                     ),
                                                     child: FittedBox(
                                                       fit: BoxFit.scaleDown,
+                                                      // `qtd` conta COBRANÇAS,
+                                                      // não meses: taxa +
+                                                      // rateio no mesmo mês
+                                                      // saía como "2 meses em
+                                                      // aberto".
                                                       child: Text(
-                                                        '${apto['qtd']} ${apto['qtd'] == 1 ? 'mês em aberto' : 'meses em aberto'}',
+                                                        '${apto['qtd']} ${apto['qtd'] == 1 ? 'cobrança em aberto' : 'cobranças em aberto'}',
                                                         style: AppTypography.tiny(context).copyWith(
                                                           color: AppColors.error,
                                                           fontWeight: FontWeight.bold,

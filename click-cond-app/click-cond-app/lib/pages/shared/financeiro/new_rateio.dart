@@ -2,6 +2,7 @@ import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
@@ -38,9 +39,7 @@ class NewRateioState extends State<NewRateio> {
   }
 
   Future<void> _save() async {
-    final valor = txtValorTotal.text.isNotEmpty
-        ? (double.tryParse(txtValorTotal.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0.0)
-        : 0.0;
+    final valor = parseValorMoeda(txtValorTotal.text);
     if (txtNome.text.trim().isEmpty) {
       displayMessage(context, getText('alert'), 'Informe a descrição do rateio (ex.: Reforma do telhado).');
       return;

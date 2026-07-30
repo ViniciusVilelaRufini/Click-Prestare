@@ -21,7 +21,12 @@ describe('Ferramentas do Assistente IA — autorização', () => {
         findMany: jest.fn(async () => []),
         findFirst: jest.fn(async () => ({ nome: 'Fulano', bloco: 'A', apartamento: '101' })),
       },
-      apartamentos: { count: jest.fn(async () => 62), groupBy: jest.fn(async () => []) },
+      apartamentos: {
+        count: jest.fn(async () => 62),
+        groupBy: jest.fn(async () => []),
+        // Unidade do morador do contexto (ctx.aptos = [10]).
+        findMany: jest.fn(async () => [{ apto: '101', bloco: 'A' }]),
+      },
       areas_Sociais: { count: jest.fn(async () => 7), findMany: jest.fn(async () => []), findFirst: jest.fn(async () => null) },
       areas_Sociais_Agendamentos: { findMany: jest.fn(async () => []) },
       encomendas: { count: jest.fn(async () => 3), findMany: jest.fn(async () => []) },
@@ -127,12 +132,40 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       return f;
     }
 
-    it('meus_boletos filtra pelo id_usuario do JWT mesmo se os args pedirem outro', async () => {
+    it('meus_boletos escopa pelo JWT mesmo se os args pedirem outro usuário/condomínio', async () => {
       const c = ctx();
       await pegar('meus_boletos').executar({ id_usuario: 999, id_condominio: 888 }, c);
       const arg = (c.prisma as any).financeiro.findMany.mock.calls[0][0];
-      expect(arg.where.id_usuario).toBe(47);
       expect(arg.where.id_condominio).toBe(1);
+      // O OR aceita conta pessoal do próprio usuário OU cobrança tipo 'C' —
+      // esta última é peneirada pela unidade dele logo depois da query.
+      expect(arg.where.OR).toEqual([{ id_usuario: 47 }, { tipo: 'C' }]);
+    });
+
+    /**
+     * A taxa gerada pela recorrência automática nasce SEM id_usuario (o job
+     * cria pelo nome "Apto X Bloco Y"), e é a maioria das cobranças. Com o
+     * filtro antigo, só por id_usuario, o assistente respondia "você não tem
+     * cobranças" enquanto a tela de Finanças mostrava a fatura do mês.
+     */
+    it('meus_boletos enxerga a fatura da unidade sem id_usuario e ignora a do vizinho', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findMany = jest.fn(async () => [
+        { id: 1, nome: 'Apto 101 Bloco A - Condomínio Ref. 07/2026', tipo: 'C', valor: 650, pago: 0, id_usuario: null, data_vencimento: new Date('2026-07-10'), status: '0' },
+        { id: 2, nome: 'Apto 102 Bloco A - Condomínio Ref. 07/2026', tipo: 'C', valor: 650, pago: 0, id_usuario: null, data_vencimento: new Date('2026-07-10'), status: '0' },
+        { id: 3, nome: 'Luz', tipo: 'D', valor: 180, pago: 0, id_usuario: 47, data_vencimento: new Date('2026-07-20'), status: '0' },
+      ]);
+      const r: any = await pegar('meus_boletos').executar({}, c);
+      expect(r.cobrancas.map((x: any) => x.id).sort()).toEqual([1, 3]);
+    });
+
+    it('meus_boletos não confunde Apto 101 com Apto 1010', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findMany = jest.fn(async () => [
+        { id: 4, nome: 'Apto 1010 Bloco A - Ref. 07/2026', tipo: 'C', valor: 650, pago: 0, id_usuario: null, data_vencimento: null, status: '0' },
+      ]);
+      const r: any = await pegar('meus_boletos').executar({}, c);
+      expect(r.total).toBe(0);
     });
 
     it('minhas_ocorrencias limita ao próprio usuário quando não é staff', async () => {
@@ -193,25 +226,30 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       return f;
     }
 
+    // Conta pessoal do próprio morador (id_usuario = 47).
     const cobranca = {
-      id: 9, nome: 'Taxa Condominial', valor: 450, data_vencimento: new Date('2026-08-10'),
+      id: 9, nome: 'Internet', tipo: 'D', valor: 450, data_vencimento: new Date('2026-08-10'),
       pago: 0, url_boleto: 'https://boleto/9', pix_copia_cola: 'PIX123', linha_digitavel: '3419...',
+      id_usuario: 47,
     };
 
-    it('só encontra cobrança do próprio usuário e condomínio', async () => {
+    /** O que a query devolve; a peneira por unidade acontece no código. */
+    function comFinanceiro(c: ContextoFerramenta, registros: any[]) {
+      (c.prisma as any).financeiro.findMany = jest.fn(async () => registros);
+    }
+
+    it('ignora o id_usuario dos args — o escopo vem do JWT', async () => {
       const c = ctx();
-      (c.prisma as any).financeiro.findFirst = jest.fn(async ({ where }: any) =>
-        where.id === 9 && where.id_usuario === 47 && where.id_condominio === 1 ? cobranca : null,
-      );
+      comFinanceiro(c, [cobranca]);
       await pegar('como_pagar_conta').executar({ id_cobranca: 9, id_usuario: 999 }, c);
-      const arg = (c.prisma as any).financeiro.findFirst.mock.calls[0][0];
-      expect(arg.where.id_usuario).toBe(47);
+      const arg = (c.prisma as any).financeiro.findMany.mock.calls[0][0];
       expect(arg.where.id_condominio).toBe(1);
+      expect(arg.where.OR).toEqual([{ id_usuario: 47 }, { tipo: 'C' }]);
     });
 
     it('emite card com os meios de pagamento disponíveis', async () => {
       const c = ctx();
-      (c.prisma as any).financeiro.findFirst = jest.fn(async () => cobranca);
+      comFinanceiro(c, [cobranca]);
       await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
       expect(c.cartoes).toHaveLength(1);
       const card = c.cartoes[0];
@@ -220,11 +258,18 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       expect(card.botoes?.[0].valor).toBe('PIX123');
     });
 
+    it('atende a taxa condominial da unidade, que não tem id_usuario', async () => {
+      const c = ctx();
+      comFinanceiro(c, [
+        { ...cobranca, id: 11, nome: 'Apto 101 Bloco A - Condomínio Ref. 07/2026', tipo: 'C', id_usuario: null },
+      ]);
+      await pegar('como_pagar_conta').executar({ id_cobranca: 11 }, c);
+      expect(c.cartoes).toHaveLength(1);
+    });
+
     it('sem meio de pagamento, oferece abrir a tela do Financeiro', async () => {
       const c = ctx();
-      (c.prisma as any).financeiro.findFirst = jest.fn(async () => ({
-        ...cobranca, url_boleto: null, pix_copia_cola: null, linha_digitavel: null,
-      }));
+      comFinanceiro(c, [{ ...cobranca, url_boleto: null, pix_copia_cola: null, linha_digitavel: null }]);
       await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
       expect(c.cartoes[0].botoes).toEqual([
         { rotulo: 'Abrir Financeiro', efeito: 'abrir_tela', valor: 'financeiro' },
@@ -233,7 +278,7 @@ describe('Ferramentas do Assistente IA — autorização', () => {
 
     it('não emite card para cobrança já paga', async () => {
       const c = ctx();
-      (c.prisma as any).financeiro.findFirst = jest.fn(async () => ({ ...cobranca, pago: 1 }));
+      comFinanceiro(c, [{ ...cobranca, pago: 1 }]);
       const r: any = await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
       expect(r.ja_paga).toBe(true);
       expect(c.cartoes).toHaveLength(0);
@@ -241,8 +286,18 @@ describe('Ferramentas do Assistente IA — autorização', () => {
 
     it('cobrança de outro usuário não é encontrada', async () => {
       const c = ctx();
-      (c.prisma as any).financeiro.findFirst = jest.fn(async () => null);
+      comFinanceiro(c, [{ ...cobranca, id_usuario: 99 }]);
       const r: any = await pegar('como_pagar_conta').executar({ id_cobranca: 9 }, c);
+      expect(r.erro).toBeDefined();
+      expect(c.cartoes).toHaveLength(0);
+    });
+
+    it('não entrega o Pix da dívida do vizinho quando o modelo chuta o id', async () => {
+      const c = ctx();
+      comFinanceiro(c, [
+        { ...cobranca, id: 12, nome: 'Apto 102 Bloco A - Ref. 07/2026', tipo: 'C', id_usuario: null },
+      ]);
+      const r: any = await pegar('como_pagar_conta').executar({ id_cobranca: 12 }, c);
       expect(r.erro).toBeDefined();
       expect(c.cartoes).toHaveLength(0);
     });

@@ -38,6 +38,8 @@ export class FinanceiroPageComponent implements OnInit {
 
   // Modais
   readonly modalLancamento = signal(false);
+  readonly salvandoLancamento = signal(false);
+  readonly lancamentoErro = signal<string | null>(null);
   novoLancamento: any = { nome: '', tipo: 'C', valor: null, data: '', data_vencimento: '', categoria: 'Taxa Condominial' };
 
   readonly modalCobrarMorador = signal(false);
@@ -72,6 +74,27 @@ export class FinanceiroPageComponent implements OnInit {
   // Upload de boleto/comprovante por lançamento
   readonly uploadingId = signal<number | null>(null);
   readonly uploadError = signal<string | null>(null);
+
+  /**
+   * Erro das ações que não têm modal próprio para exibi-lo (salvar
+   * lançamento, dar baixa, carregar a tela).
+   *
+   * Esses `subscribe` não tinham callback de erro: quando o backend recusava
+   * — competência fechada, valor zerado, 403 de permissão — o botão
+   * simplesmente não fazia nada e a mensagem em português que a API manda
+   * era descartada. O operador clicava de novo achando que tinha errado o
+   * clique.
+   */
+  readonly erro = signal<string | null>(null);
+
+  /** Mensagem do NestJS, com fallback quando o servidor não respondeu. */
+  private msgErro(e: any, acaoFalhou: string): string {
+    const msg = e?.error?.message;
+    if (Array.isArray(msg)) return msg.join(', ');
+    if (msg) return String(msg);
+    if (e?.status === 0) return `${acaoFalhou}: sem conexão com o servidor.`;
+    return `${acaoFalhou}. Tente novamente.`;
+  }
 
   // Export CSV
   readonly exportandoCsv = signal(false);
@@ -434,31 +457,48 @@ export class FinanceiroPageComponent implements OnInit {
 
   carregarDados() {
     this.loading.set(true);
+    this.erro.set(null);
     const [m, a] = this.selectedMesAno.split('|');
 
-    this.api.listLancamentos(m, a).subscribe(res => {
-      this.lancamentosMap.set(res?.lancamentos || {});
-      this.sumario.set({
-        totalReceita: res?.totalReceita || 'R$ 0,00',
-        totalDespesa: res?.totalDespesa || 'R$ 0,00',
-        saldo: res?.saldo || 'R$ 0,00',
-      });
+    this.api.listLancamentos(m, a).subscribe({
+      next: (res) => {
+        this.lancamentosMap.set(res?.lancamentos || {});
+        this.sumario.set({
+          totalReceita: res?.totalReceita || 'R$ 0,00',
+          totalDespesa: res?.totalDespesa || 'R$ 0,00',
+          saldo: res?.saldo || 'R$ 0,00',
+        });
 
-      if (res?.meses && Array.isArray(res.meses)) {
-        this.mesesDisponiveis.set(res.meses);
-      }
+        if (res?.meses && Array.isArray(res.meses)) {
+          this.mesesDisponiveis.set(res.meses);
+        }
 
-      // Aproveita e carrega o gráfico associado a este mês
-      this.api.getGrafico(m, a).subscribe(graf => {
-        this.dadosGrafico.set(graf);
+        // Aproveita e carrega o gráfico associado a este mês
+        this.api.getGrafico(m, a).subscribe({
+          next: (graf) => {
+            this.dadosGrafico.set(graf);
+            this.loading.set(false);
+          },
+          // O gráfico é acessório: se falhar, a tela continua utilizável com
+          // o livro caixa que já chegou.
+          error: () => this.loading.set(false),
+        });
+      },
+      error: (e) => {
+        // `loading` era desligado só dentro do subscribe aninhado do gráfico.
+        // Falhando aqui, ele nunca voltava a false e a tela ficava em
+        // spinner infinito, sem dizer o que houve.
         this.loading.set(false);
-      });
+        this.lancamentosMap.set({});
+        this.erro.set(this.msgErro(e, 'Falha ao carregar o financeiro'));
+      },
     });
   }
 
   carregarInadimplencia() {
-    this.api.listInadimplentes().subscribe(res => {
-      this.inadimplentesBlocos.set(res?.blocos || []);
+    this.api.listInadimplentes().subscribe({
+      next: (res) => this.inadimplentesBlocos.set(res?.blocos || []),
+      error: (e) => this.erro.set(this.msgErro(e, 'Falha ao carregar a inadimplência')),
     });
   }
 
@@ -478,8 +518,11 @@ export class FinanceiroPageComponent implements OnInit {
         window.URL.revokeObjectURL(url);
         this.exportandoCsv.set(false);
       },
-      error: () => {
+      error: (e) => {
         this.exportandoCsv.set(false);
+        // Sem isto, clicar em "Exportar CSV" e não baixar nada era
+        // indistinguível de um clique que não registrou.
+        this.erro.set(this.msgErro(e, 'Falha ao exportar o livro caixa'));
       },
     });
   }
@@ -512,13 +555,19 @@ export class FinanceiroPageComponent implements OnInit {
       this.abrirModalConfirmarPagamento(item);
       return;
     }
-    this.api.updateStatus(item.id, novoStatus).subscribe(() => {
-      this.carregarDados();
-      this.carregarInadimplencia();
-      const apto = this.selectedApto();
-      if (apto) {
-        this.abrirDetalhesApto(apto);
-      }
+    this.erro.set(null);
+    this.api.updateStatus(item.id, novoStatus).subscribe({
+      next: () => {
+        this.carregarDados();
+        this.carregarInadimplencia();
+        const apto = this.selectedApto();
+        if (apto) {
+          this.abrirDetalhesApto(apto);
+        }
+      },
+      // Recusa mais comum aqui: competência fechada. Sem isto o botão de
+      // baixa parecia travado.
+      error: (e) => this.erro.set(this.msgErro(e, 'Falha ao alterar o status do pagamento')),
     });
   }
 
@@ -571,8 +620,10 @@ export class FinanceiroPageComponent implements OnInit {
       this.abrirModalConfirmarPagamento(item);
       return;
     }
-    this.api.updateStatus(id, 1).subscribe(() => {
-      this.carregarDados();
+    this.erro.set(null);
+    this.api.updateStatus(id, 1).subscribe({
+      next: () => this.carregarDados(),
+      error: (e) => this.erro.set(this.msgErro(e, 'Falha ao aprovar o pagamento')),
     });
   }
 
@@ -644,13 +695,37 @@ export class FinanceiroPageComponent implements OnInit {
     const hoje = new Date();
     const dFmt = hoje.toLocaleDateString('pt-BR');
     this.novoLancamento = { nome: '', tipo: 'C', valor: null, data: dFmt, data_vencimento: dFmt, categoria: 'Taxa Condominial' };
+    this.lancamentoErro.set(null);
     this.modalLancamento.set(true);
   }
 
   salvarLancamento() {
-    this.api.insertLancamento(this.novoLancamento).subscribe(() => {
-      this.modalLancamento.set(false);
-      this.carregarDados();
+    // Validação no cliente para dar resposta imediata; o backend valida de
+    // novo (é ele quem manda). Antes não havia nenhuma das duas coisas na
+    // tela: salvar sem descrição ou com valor zerado ia para a API e voltava
+    // 400, que ninguém exibia.
+    const nome = (this.novoLancamento.nome ?? '').trim();
+    if (!nome) {
+      this.lancamentoErro.set('Informe a descrição do lançamento.');
+      return;
+    }
+    if (!(Number(this.novoLancamento.valor) > 0)) {
+      this.lancamentoErro.set('Informe um valor maior que zero.');
+      return;
+    }
+
+    this.salvandoLancamento.set(true);
+    this.lancamentoErro.set(null);
+    this.api.insertLancamento({ ...this.novoLancamento, nome }).subscribe({
+      next: () => {
+        this.salvandoLancamento.set(false);
+        this.modalLancamento.set(false);
+        this.carregarDados();
+      },
+      error: (e) => {
+        this.salvandoLancamento.set(false);
+        this.lancamentoErro.set(this.msgErro(e, 'Falha ao salvar o lançamento'));
+      },
     });
   }
 
@@ -683,7 +758,11 @@ export class FinanceiroPageComponent implements OnInit {
       this.api.getApartamentosConfig().subscribe({
         next: (aptos) => {
           this.apartamentosConfig.set(aptos || []);
-        }
+        },
+        // Falhando aqui, o seletor de unidade fica vazio e a cobrança não tem
+        // como ser criada — o operador precisa saber que foi a lista que não
+        // carregou, e não que o condomínio está sem apartamentos.
+        error: (e) => this.cobrancaErro.set(this.msgErro(e, 'Falha ao carregar as unidades')),
       });
     }
 

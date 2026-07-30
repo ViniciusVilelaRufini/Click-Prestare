@@ -133,13 +133,16 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       } else {
         _allLancamentos = {};
       }
-      _applyFilter();
     } catch (e) {
       if (mounted) {
         displayMessage(context, getText('alert_error'),
             e.toString().replaceFirst('Exception: ', ''));
       }
     } finally {
+      // No finally, não no try: a tela lê a lista já filtrada, e se a segunda
+      // chamada de API falhasse os lançamentos pessoais que já tinham chegado
+      // ficariam invisíveis — erro parcial virava tela vazia.
+      _applyFilter();
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -206,7 +209,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
     final personalCategories = kCategoriasPessoais;
-    final activeItems = _personalLancamentos.where((item) {
+    // Parte da lista já filtrada pela busca: `_applyFilter` calculava
+    // `_filteredPersonalLancamentos` e ninguém lia — digitar na busca não
+    // mexia em nada na aba MEU FINANCEIRO, só na do condomínio.
+    final activeItems = _filteredPersonalLancamentos.where((item) {
       final info = _getMesAno(item);
       return info['mes'] == mes && info['ano'] == ano;
     }).toList();
@@ -497,13 +503,6 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     );
   }
 
-  /// Converte um valor da API (num, String ou null) em double de forma segura.
-  double _parseValor(dynamic value) {
-    if (value == null) return 0;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0;
-  }
-
   /// Interpreta o campo "pago", que pode vir como int (0/1) ou String ("0"/"1").
   bool _isPago(dynamic value) {
     if (value is num) return value == 1;
@@ -514,7 +513,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     double totalPendente = 0;
     for (var item in activeItems) {
       if (!_isPago(item['pago'])) {
-        totalPendente += _parseValor(item['valor']);
+        totalPendente += parseValorMoeda(item['valor']);
       }
     }
 
@@ -531,7 +530,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         children: [
           Text("Total Pendente", style: AppTypography.caption(context).copyWith(color: Colors.white70)),
           const SizedBox(height: 8),
-          Text("${Singleton.instance.getCurrentMoeda()} ${totalPendente.toStringAsFixed(2)}", style: AppTypography.display(context).copyWith(color: Colors.white)),
+          Text("${Singleton.instance.getCurrentMoeda()} ${formatMoeda(totalPendente)}", style: AppTypography.display(context).copyWith(color: Colors.white)),
         ],
       ),
     );
@@ -1229,7 +1228,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     final ctx = customContext ?? context;
     final isEditing = item != null;
     final txtNome = TextEditingController(text: isEditing ? item['nome'] : '');
-    final txtValor = TextEditingController(text: isEditing ? _parseValor(item['valor']).toStringAsFixed(2) : '');
+    final txtValor = TextEditingController(text: isEditing ? valorParaInput(item['valor']) : '');
     final txtVencimento = TextEditingController(text: isEditing ? item['data_vencimento'] : '');
     final allowedCategories = kCategoriasPessoais;
     
@@ -1727,7 +1726,10 @@ class _LancamentoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCredito = item['tipo'] == 'C';
     final isPago = item['pago'] is num ? item['pago'] == 1 : item['pago']?.toString() == '1';
-    final isVerifying = item['status'] == 2;
+    // status vem como String do backend (coluna varchar): comparar com o int 2
+    // dava sempre falso e o selo "em verificação" nunca aparecia depois que o
+    // morador mandava o comprovante.
+    final isVerifying = item['status']?.toString() == '2';
     final color = isCredito ? const Color(0xFF22C55E) : AppColors.error;
     final statusColor = isPago ? Colors.green : (isVerifying ? Colors.blue : Colors.orange);
 

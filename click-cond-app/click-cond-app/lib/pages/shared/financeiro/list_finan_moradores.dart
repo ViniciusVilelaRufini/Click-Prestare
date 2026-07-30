@@ -406,6 +406,7 @@ class _AptoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPaid = apto['pago'] == 1;
     final valor = apto['valorReal'].toString().replaceAll('R\$', Singleton.instance.getCurrentMoeda());
+    final qtdCobrancas = int.tryParse('${apto['qtd_cobrancas'] ?? 1}') ?? 1;
 
     return InkWell(
       onTap: onTap,
@@ -429,9 +430,35 @@ class _AptoRow extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child: Text(
-                '${getText('lb_apartamento')} ${apto['apto']}',
-                style: AppTypography.bodyMedium(context),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      '${getText('lb_apartamento')} ${apto['apto']}',
+                      style: AppTypography.bodyMedium(context),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // A linha mostra UMA cobrança por unidade. Quando o mês tem
+                  // mais de uma (taxa + rateio, taxa + parcela de acordo), o
+                  // valor ao lado é só o desta — sem o selo, o síndico lia
+                  // como se fosse tudo que a unidade deve no mês.
+                  if (qtdCobrancas > 1) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '+${qtdCobrancas - 1}',
+                        style: AppTypography.tiny(context)
+                            .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             Text(valor, style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context))),

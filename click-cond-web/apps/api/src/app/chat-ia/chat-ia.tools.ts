@@ -126,6 +126,97 @@ async function meuCadastro(ctx: ContextoFerramenta) {
   });
 }
 
+/**
+ * Unidades do usuário neste condomínio, nas duas fontes (Apartamentos_Users
+ * relacional e Moradores legado). Mesmo par apto/bloco que a tela de Finanças
+ * usa em getByUser.
+ */
+async function minhasUnidades(
+  ctx: ContextoFerramenta,
+): Promise<{ apto: string | null; bloco: string | null }[]> {
+  const [relacional, legado] = await Promise.all([
+    ctx.aptos.length
+      ? ctx.prisma.apartamentos.findMany({
+          where: { id: { in: ctx.aptos } },
+          select: { apto: true, bloco: true },
+        })
+      : Promise.resolve([]),
+    ctx.prisma.moradores.findMany({
+      where: { id_user: ctx.idUser, id_condominio: ctx.idCondominio },
+      select: { apartamento: true, bloco: true },
+    }),
+  ]);
+  return [
+    ...relacional.map((a) => ({ apto: a.apto, bloco: a.bloco })),
+    ...legado.map((m) => ({ apto: m.apartamento, bloco: m.bloco })),
+  ].filter((u) => !!u.apto);
+}
+
+/**
+ * A fatura "Apto X Bloco Y - ..." é da unidade informada?
+ *
+ * Match exato com fronteira de palavra: `nome.includes('Apto 10')` casaria
+ * também com 100, 101 e 1010 — vazamento de dado financeiro entre vizinhos.
+ * Mesma regra do FinanceiroService.nomeFaturaDeApto.
+ */
+function faturaEhDaUnidade(
+  nome: string | null | undefined,
+  apto: string | null | undefined,
+  bloco: string | null | undefined,
+): boolean {
+  if (!nome || !apto) return false;
+  const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!new RegExp(`\\bApto\\s+${escapar(apto.trim())}\\b`, 'i').test(nome)) return false;
+  const b = bloco?.trim() ?? '';
+  if (b) return new RegExp(`\\bBloco\\s+${escapar(b)}\\b`, 'i').test(nome);
+  return !/\bBloco\s+\S/i.test(nome);
+}
+
+/**
+ * Cobranças do usuário logado: as contas pessoais (amarradas por id_usuario) e
+ * as faturas da unidade dele.
+ *
+ * O filtro só por `id_usuario` deixava de fora justamente a taxa condominial
+ * gerada pela recorrência automática — que nasce sem id_usuario, e é a maioria
+ * das cobranças. O assistente respondia "você não tem cobranças em aberto"
+ * enquanto a tela de Finanças mostrava a fatura do mês.
+ */
+async function minhasCobrancas(ctx: ContextoFerramenta, apenasAberto: boolean) {
+  const unidades = await minhasUnidades(ctx);
+  const candidatas = await ctx.prisma.financeiro.findMany({
+    where: {
+      id_condominio: ctx.idCondominio,
+      ...(apenasAberto && { pago: 0 }),
+      OR: [
+        { id_usuario: ctx.idUser }, // sempre do JWT, nunca dos args
+        { tipo: 'C' }, // filtrada abaixo pela unidade do usuário
+      ],
+    },
+    select: {
+      id: true,
+      nome: true,
+      tipo: true,
+      valor: true,
+      data_vencimento: true,
+      pago: true,
+      status: true,
+      url_boleto: true,
+      pix_copia_cola: true,
+      linha_digitavel: true,
+      id_usuario: true,
+    },
+    orderBy: { data_vencimento: 'asc' },
+  });
+
+  return candidatas
+    .filter((f) => {
+      if (f.id_usuario != null && Number(f.id_usuario) === Number(ctx.idUser)) return true;
+      if (f.tipo !== 'C') return false;
+      return unidades.some((u) => faturaEhDaUnidade(f.nome, u.apto, u.bloco));
+    })
+    .slice(0, LIMITE_LISTA);
+}
+
 export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
   // -----------------------------------------------------------------------
   // Agregados — número não identifica ninguém, então liberado para todos.
@@ -237,26 +328,7 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
     papeis: TODOS,
     async executar(args, ctx) {
       const apenasAberto = args.apenas_em_aberto !== false;
-      const lista = await ctx.prisma.financeiro.findMany({
-        where: {
-          id_condominio: ctx.idCondominio,
-          id_usuario: ctx.idUser, // sempre do JWT, nunca dos args
-          ...(apenasAberto && { pago: 0 }),
-        },
-        select: {
-          id: true,
-          nome: true,
-          valor: true,
-          data_vencimento: true,
-          pago: true,
-          status: true,
-          url_boleto: true,
-          pix_copia_cola: true,
-          linha_digitavel: true,
-        },
-        orderBy: { data_vencimento: 'asc' },
-        take: LIMITE_LISTA,
-      });
+      const lista = await minhasCobrancas(ctx, apenasAberto);
       const hoje = new Date();
       const cobrancas = lista.map((f) => ({
         id: f.id,
@@ -306,14 +378,11 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
       const id = Number(args.id_cobranca);
       if (!id || Number.isNaN(id)) return { erro: 'Informe qual cobrança.' };
 
-      // Escopo pelo JWT: a cobrança tem que ser do usuário e do condomínio.
-      const f = await ctx.prisma.financeiro.findFirst({
-        where: { id, id_condominio: ctx.idCondominio, id_usuario: ctx.idUser },
-        select: {
-          id: true, nome: true, valor: true, data_vencimento: true, pago: true,
-          url_boleto: true, pix_copia_cola: true, linha_digitavel: true,
-        },
-      });
+      // Escopo pelo JWT: conta pessoal dele OU fatura da unidade dele. Mesma
+      // regra do meus_boletos — nunca o id solto que veio nos args, senão o
+      // modelo chuta um número e devolve o Pix da dívida do vizinho.
+      const minhas = await minhasCobrancas(ctx, false);
+      const f = minhas.find((c) => c.id === id);
       if (!f) return { erro: 'Cobrança não encontrada.' };
       if (f.pago === 1) {
         return { ja_paga: true, descricao: f.nome, observacao: 'Essa cobrança já está paga.' };

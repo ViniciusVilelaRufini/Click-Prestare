@@ -8,7 +8,6 @@ import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/pages/shared/financeiro/scan_boleto_page.dart';
 import 'package:click/utils/boleto_utils.dart';
 import 'package:click/pages/singleton.dart';
-import 'package:click/utils/api_config.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/utils/localizable/localizable.dart';
@@ -310,13 +309,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
-  /// Converte um valor da API (num, String ou null) em double de forma segura.
-  double _parseValorMorador(dynamic value) {
-    if (value == null) return 0;
-    if (value is num) return value.toDouble();
-    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0;
-  }
-
   Widget _buildSummaryCard(List<dynamic> activeItems) {
     double totalPendente = 0;
     for(var item in activeItems) {
@@ -344,55 +336,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         children: [
           Text("Total Pendente", style: AppTypography.caption(context).copyWith(color: Colors.white70)),
           const SizedBox(height: 8),
-          Text("${Singleton.instance.getCurrentMoeda()} ${totalPendente.toStringAsFixed(2)}", style: AppTypography.display(context).copyWith(color: Colors.white)),
+          Text("${Singleton.instance.getCurrentMoeda()} ${formatMoeda(totalPendente)}", style: AppTypography.display(context).copyWith(color: Colors.white)),
         ],
       ),
-    );
-  }
-
-  Widget _buildCondoChargesSection(List<dynamic> activeItems, List<String> personalCategories) {
-    // Mostra cobranças do síndico: tipo 'C' e cuja categoria não é uma das categorias pessoais conhecidas,
-    // ou categoria explícita "Condomínio" ou "Taxa Condominial".
-    var condoCharges = activeItems.where((i) {
-      final cat = (i['categoria'] ?? '').toString();
-      final tipo = (i['tipo'] ?? '').toString();
-      // É cobrança do condomínio se: tipo C, OU categoria Condomínio/Taxa Condominial,
-      // E a categoria não é uma categoria pessoal do morador
-      return (tipo == 'C' || cat == 'Condomínio' || cat == 'Taxa Condominial') &&
-          !personalCategories.contains(cat);
-    }).toList();
-
-    // União sem duplicatas
-    final allIds = <dynamic>{};
-    final merged = <dynamic>[];
-    for (var item in condoCharges) {
-      if (allIds.add(item['id'])) merged.add(item);
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            children: [
-              Icon(PhosphorIcons.buildings, color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
-              Text('Condomínio', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        if (merged.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
-            child: Text('Nenhuma cobrança pendente', style: AppTypography.caption(context)),
-          )
-        else
-          ...merged.map((item) => _buildFinanceiroCard(item)).toList(),
-        const SizedBox(height: 16),
-      ],
     );
   }
 
@@ -552,36 +498,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSection(String title, IconData icon, List<dynamic> activeItems) {
-    var sectionItems = activeItems.where((i) => i['categoria'] == title).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            children: [
-              Icon(icon, color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(title, style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        if (sectionItems.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(12)),
-            child: Text("Nenhuma conta pendente", style: AppTypography.caption(context)),
-          )
-        else
-          ...sectionItems.map((item) => _buildFinanceiroCard(item)).toList(),
-        const SizedBox(height: 16),
-      ],
     );
   }
 
@@ -1060,7 +976,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     final ctx = customContext ?? context;
     final isEditing = item != null;
     final txtNome = TextEditingController(text: isEditing ? item['nome'] : '');
-    final txtValor = TextEditingController(text: isEditing ? _parseValorMorador(item['valor']).toStringAsFixed(2) : '');
+    final txtValor = TextEditingController(text: isEditing ? valorParaInput(item['valor']) : '');
     final txtVencimento = TextEditingController(text: isEditing ? item['data_vencimento'] : '');
     final allowedCategories = kCategoriasPessoais;
     
@@ -1835,7 +1751,7 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${Singleton.instance.getCurrentMoeda()} ${totalPendente.toStringAsFixed(2)}",
+                          "${Singleton.instance.getCurrentMoeda()} ${formatMoeda(totalPendente)}",
                           style: AppTypography.display(context).copyWith(color: Colors.white, fontSize: 24),
                         ),
                       ],

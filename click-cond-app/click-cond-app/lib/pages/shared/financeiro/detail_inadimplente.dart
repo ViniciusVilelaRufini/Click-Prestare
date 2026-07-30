@@ -2,6 +2,7 @@ import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -49,7 +50,7 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
   double get _totalDivida {
     double total = 0;
     for (var item in list) {
-      total += double.tryParse((item['valor'] ?? '0').toString()) ?? 0;
+      total += parseValorMoeda(item['valor']);
     }
     return total;
   }
@@ -57,8 +58,7 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
   /// Acordo de parcelamento: o backend marca os débitos atuais como
   /// renegociados (status 3) e cria as parcelas novas com Pix.
   Future<void> _abrirAcordo() async {
-    final txtValor = TextEditingController(
-        text: _totalDivida.toStringAsFixed(2).replaceAll('.', ','));
+    final txtValor = TextEditingController(text: valorParaInput(_totalDivida));
     final txtParcelas = TextEditingController(text: '3');
 
     final confirmou = await showDialog<bool>(
@@ -101,7 +101,7 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
     );
     if (confirmou != true || !mounted) return;
 
-    final valor = double.tryParse(txtValor.text.replaceAll('.', '').replaceAll(',', '.')) ?? 0;
+    final valor = parseValorMoeda(txtValor.text);
     final parcelas = int.tryParse(txtParcelas.text) ?? 0;
     if (valor <= 0 || parcelas <= 0) {
       displayMessage(context, getText('alert'), 'Informe valor e número de parcelas válidos.');
@@ -205,15 +205,8 @@ class _MonthCard extends StatelessWidget {
     required this.onRefresh,
   });
 
-  String _formatValor(dynamic valor) {
-    if (valor == null) return '0,00';
-    try {
-      double val = double.parse(valor.toString());
-      return val.toStringAsFixed(2).replaceAll('.', ',');
-    } catch (_) {
-      return valor.toString();
-    }
-  }
+  // Sem o separador de milhar, uma dívida acumulada saía como "1250,75".
+  String _formatValor(dynamic valor) => formatMoeda(valor);
 
   @override
   Widget build(BuildContext context) {
