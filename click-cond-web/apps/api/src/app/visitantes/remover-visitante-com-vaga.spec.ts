@@ -21,7 +21,7 @@ describe('VisitantesService — remover visitante que ocupa vaga', () => {
     is_prestador: 0,
   };
 
-  function build() {
+  function build(candidatos?: any[]) {
     const chamadas: any[] = [];
     const prisma: any = {
       isConnected: true,
@@ -29,7 +29,10 @@ describe('VisitantesService — remover visitante que ocupa vaga', () => {
         findUnique: jest.fn(async ({ where }: any) =>
           where.id === VISITANTE.id ? { ...VISITANTE } : null,
         ),
-        findMany: jest.fn(async () => [{ id: 10, face_id: null, id_condominio: 1 }, { id: 11, face_id: null, id_condominio: 1 }]),
+        findMany: jest.fn(async () => candidatos ?? [
+          { id: 10, face_id: null, id_condominio: 1, doc_identificacao: VISITANTE.doc_identificacao, nome: VISITANTE.nome },
+          { id: 11, face_id: null, id_condominio: 1, doc_identificacao: VISITANTE.doc_identificacao, nome: VISITANTE.nome },
+        ]),
         deleteMany: jest.fn((args: any) => {
           chamadas.push({ op: 'deleteMany', args });
           return Promise.resolve({ count: 2 });
@@ -71,6 +74,40 @@ describe('VisitantesService — remover visitante que ocupa vaga', () => {
 
       // A vaga é histórico: solta, nunca apagada.
       expect(chamadas.some((c) => c.op === 'vagas.deleteMany')).toBe(false);
+    });
+
+    /**
+     * A lista separa "Lucas Silva" (sem documento) de "lucas silva" (com CPF)
+     * em DUAS linhas, mas a exclusao casava por `nome` direto no banco — e o
+     * MySQL compara texto sem diferenciar maiusculas. Clicar em Remover numa
+     * linha apagava a outra junto. Duas visitantes homonimas, uma identificada
+     * por documento e outra nao, viravam a mesma pessoa.
+     */
+    it('nao alcanca homonimo que TEM documento quando a pessoa nao tem', async () => {
+      const semDoc = { id: 20, id_condominio: 1, nome: 'Lucas Silva', doc_identificacao: null, face_id: null, is_prestador: 0 };
+      const { svc, prisma, chamadas } = build([
+        { id: 20, face_id: null, id_condominio: 1, doc_identificacao: null, nome: 'Lucas Silva' },
+        // Mesmo nome em caixa diferente, mas COM documento: outra pessoa.
+        { id: 21, face_id: null, id_condominio: 1, doc_identificacao: '232.323.232-33', nome: 'lucas silva' },
+      ]);
+      prisma.visitantes.findUnique = jest.fn(async () => semDoc);
+
+      await svc.removerPessoa(1, 20);
+
+      const del = chamadas.find((c) => c.op === 'deleteMany');
+      expect(del.args.where.id.in).toEqual([20]);
+      expect(del.args.where.id.in).not.toContain(21);
+    });
+
+    it('agrupa as visitas de quem TEM documento, ignorando caixa', async () => {
+      const { svc, chamadas } = build([
+        { id: 30, face_id: null, id_condominio: 1, doc_identificacao: '232.323.232-33', nome: 'Lucas Silva' },
+        { id: 31, face_id: null, id_condominio: 1, doc_identificacao: '232.323.232-33', nome: 'lucas silva' },
+      ]);
+      await svc.removerPessoa(1, 10);
+
+      const del = chamadas.find((c) => c.op === 'deleteMany');
+      expect(del.args.where.id.in).toEqual([30, 31]);
     });
   });
 

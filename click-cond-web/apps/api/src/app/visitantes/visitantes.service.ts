@@ -460,8 +460,7 @@ export class VisitantesService {
     type Reg = typeof todas[number];
     const grupos = new Map<string, Reg[]>();
     for (const v of todas) {
-      const doc = (v.doc_identificacao ?? '').trim().toLowerCase();
-      const key = doc || `nome:${(v.nome ?? '').trim().toLowerCase()}`;
+      const key = VisitantesService.chavePessoa(v);
       const arr = grupos.get(key) ?? [];
       arr.push(v);
       grupos.set(key, arr);
@@ -677,6 +676,52 @@ export class VisitantesService {
   }
 
   /**
+   * Identidade de uma pessoa na lista: o documento quando existe, senão o
+   * nome. É o que decide o que é "a mesma pessoa" em TODA a tela de
+   * visitantes — a lista agrupa por ela, e editar/remover têm que operar
+   * exatamente sobre o mesmo conjunto.
+   *
+   * Antes cada lugar montava a sua própria regra e elas divergiam: a lista
+   * separava "Lucas Silva" (sem documento) de "lucas silva" (com CPF) em duas
+   * linhas, mas remover/editar casavam por `nome` direto no banco — e o MySQL
+   * compara texto sem diferenciar maiúsculas, então a ação disparada numa
+   * linha atingia a outra. Duas visitantes homônimas, uma identificada por
+   * documento e outra não, eram tratadas como a mesma pessoa.
+   */
+  private static chavePessoa(v: { doc_identificacao?: string | null; nome?: string | null }): string {
+    const doc = (v.doc_identificacao ?? '').trim().toLowerCase();
+    return doc || `nome:${(v.nome ?? '').trim().toLowerCase()}`;
+  }
+
+  /**
+   * Todos os registros que pertencem à MESMA pessoa que `ref`.
+   *
+   * Consulta ampla no banco e peneira em memória pela chave — a peneira é o
+   * que garante que o resultado bate, registro a registro, com o agrupamento
+   * da lista. Sem ela, o ramo "sem documento" varria quem tem documento.
+   */
+  private async registrosDaPessoa(ref: { id_condominio: number | null; doc_identificacao?: string | null; nome?: string | null }) {
+    const doc = ref.doc_identificacao?.trim();
+    const whereAmplo = doc
+      ? { id_condominio: ref.id_condominio, doc_identificacao: doc }
+      : { id_condominio: ref.id_condominio, nome: ref.nome };
+
+    const candidatos = await this.prisma.visitantes.findMany({
+      where: whereAmplo,
+      select: {
+        id: true,
+        face_id: true,
+        id_condominio: true,
+        doc_identificacao: true,
+        nome: true,
+      },
+    });
+
+    const chaveRef = VisitantesService.chavePessoa(ref);
+    return candidatos.filter((c) => VisitantesService.chavePessoa(c) === chaveRef);
+  }
+
+  /**
    * Remove TODAS as visitas de uma pessoa (mesmo documento ou mesmo nome
    * quando não há documento), e também desinscreve do terminal facial.
    * Usado pelo botão "Remover" da lista de pessoas.
@@ -696,29 +741,24 @@ export class VisitantesService {
       throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
     }
 
-    const doc = ref.doc_identificacao?.trim();
-    const where = doc
-      ? { id_condominio: ref.id_condominio, doc_identificacao: doc }
-      : { id_condominio: ref.id_condominio, nome: ref.nome };
-
-    const registros = await this.prisma.visitantes.findMany({
-      where,
-      select: { id: true, face_id: true, id_condominio: true },
-    });
+    const registros = await this.registrosDaPessoa(ref);
+    const ids = registros.map((r) => r.id);
 
     // Coleta face_ids únicos pra desinscrever do terminal
     const faceIds = new Set(
       registros.map((r) => r.face_id).filter((f): f is string => !!f),
     );
 
-    // Solta as vagas e apaga na mesma transação: se a exclusão falhar por
-    // outro motivo, a vaga não fica liberada à toa.
+    // Apaga pelos ids já peneirados, não pelo `where` amplo: é o que impede a
+    // exclusão de alcançar um homônimo que a lista mostra como outra pessoa.
+    // Solta as vagas na mesma transação — se a exclusão falhar por outro
+    // motivo, a vaga não fica liberada à toa.
     const [, result] = await this.prisma.$transaction([
       this.prisma.vagas.updateMany({
-        where: { id_visitante: { in: registros.map((r) => r.id) } },
+        where: { id_visitante: { in: ids } },
         data: { id_visitante: null, ativo: 0 },
       }),
-      this.prisma.visitantes.deleteMany({ where }),
+      this.prisma.visitantes.deleteMany({ where: { id: { in: ids } } }),
     ]);
 
     await this.auditoria.registrar({
@@ -770,15 +810,10 @@ export class VisitantesService {
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
     const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
 
-    const docRef = ref.doc_identificacao?.trim();
-    const where = docRef
-      ? { id_condominio: ref.id_condominio, doc_identificacao: docRef }
-      : { id_condominio: ref.id_condominio, nome: ref.nome };
-
-    const records = await this.prisma.visitantes.findMany({
-      where,
-      select: { id: true, face_id: true },
-    });
+    // Mesma regra da lista e da exclusão: sem a peneira por chave, editar a
+    // pessoa sem documento reescrevia o nome/foto de um homônimo que tem
+    // documento — e sem nenhum aviso, porque a edição não falha.
+    const records = await this.registrosDaPessoa(ref);
 
     const data: any = {};
     if (dto.nome !== undefined) data.nome = dto.nome;
@@ -797,13 +832,16 @@ export class VisitantesService {
       }
     }
     // Tag RFID (credencial): string vazia limpa a tag (null). É dado da pessoa,
-    // então propaga para todas as visitas dela (mesmo `where`).
+    // então propaga para todas as visitas dela.
     if (dto.tag_rfid !== undefined) {
       const t = (dto.tag_rfid ?? '').toString().trim();
       data.tag_rfid = t.length > 0 ? t : null;
     }
 
-    const result = await this.prisma.visitantes.updateMany({ where, data });
+    const result = await this.prisma.visitantes.updateMany({
+      where: { id: { in: records.map((r) => r.id) } },
+      data,
+    });
 
     await this.auditoria.registrar({
       id_condominio: ref.id_condominio,
