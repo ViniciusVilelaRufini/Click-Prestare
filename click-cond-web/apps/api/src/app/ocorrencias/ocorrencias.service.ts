@@ -132,11 +132,27 @@ export class OcorrenciasService {
       .filter((f) => f.id_user != null);
   }
 
-  async findAll(idCondominio: number, status?: string) {
+  /**
+   * A regra de visibilidade já existia — `assertPodeVer`, usada no `findOne`:
+   * staff vê tudo, morador vê as públicas e as que ele mesmo abriu. Só que a
+   * LISTAGEM não aplicava nada e devolvia todas as ocorrências do condomínio,
+   * inclusive as privadas, com a descrição e o nome de quem abriu.
+   *
+   * Num condomínio, ocorrência costuma ser reclamação — muitas vezes sobre o
+   * vizinho. O mesmo recorte do `findOne` agora vale aqui, direto no `where`.
+   */
+  async findAll(idCondominio: number, status?: string, requester?: JwtPayload) {
+    const typeAccess = requester?.typeAccess ?? requester?.user?.typeAccess;
+    const isStaff = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
+    const callerId = Number(requester?.user?.id ?? requester?.sub) || -1;
+    // Operador do console (token com id_condominio) também administra.
+    const podeVerTudo = isStaff || !!requester?.id_condominio || !requester;
+
     const list = await this.prisma.ocorrencias.findMany({
       where: {
         id_condominio: idCondominio,
         ...(status ? { status } : {}),
+        ...(podeVerTudo ? {} : { OR: [{ publica: true }, { user: callerId }] }),
       },
       include: {
         categoria: { select: { nome: true, sla_horas: true } },

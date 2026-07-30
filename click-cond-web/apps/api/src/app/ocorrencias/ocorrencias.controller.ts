@@ -50,9 +50,10 @@ export class OcorrenciasController {
   @Get()
   list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() payload: JwtPayload,
     @Query('status') status?: string,
   ) {
-    return this.service.findAll(idCondominio, status);
+    return this.service.findAll(idCondominio, status, payload);
   }
 
   @Get(':id')
