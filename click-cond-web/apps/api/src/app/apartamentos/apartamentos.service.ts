@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
@@ -14,9 +15,12 @@ export interface CreateApartamentoDto {
 
 @Injectable()
 export class ApartamentosService {
+  private readonly logger = new Logger(ApartamentosService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenant: TenantAccessService,
+    private readonly auditoria: AuditoriaService,
   ) {}
 
   /**
@@ -118,15 +122,33 @@ export class ApartamentosService {
       };
     }
 
-    return this.prisma.apartamentos.create({
-      data: {
-        bloco: dto.bloco ?? null,
-        apto: dto.apto,
-        fracao: dto.fracao ?? null,
-        qtd_vagas: Number(dto.qtd_vagas) || 0,
-        id_condominio: dto.id_condominio,
-      },
-    });
+    try {
+      return await this.prisma.apartamentos.create({
+        data: {
+          bloco: dto.bloco ?? null,
+          apto: dto.apto,
+          fracao: dto.fracao ?? null,
+          qtd_vagas: Number(dto.qtd_vagas) || 0,
+          id_condominio: dto.id_condominio,
+        },
+      });
+    } catch (err: any) {
+      // Existe `@@unique([id_condominio, bloco, apto])`, então duplicata é
+      // barrada no banco — mas o erro cru do Prisma subia como 500 e a tela
+      // mostrava um texto técnico. O operador precisa saber que a unidade já
+      // existe, não que houve falha no servidor.
+      if (err?.code === 'P2002') {
+        const label = dto.bloco ? `Apto ${dto.apto} Bloco ${dto.bloco}` : `Apto ${dto.apto}`;
+        throw new BadRequestException(`${label} já está cadastrado neste condomínio.`);
+      }
+      this.logger.error(
+        `[apartamentos.create] Falha: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Não foi possível cadastrar o apartamento. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
   }
 
   async update(id: number, dto: Partial<CreateApartamentoDto>, user?: JwtPayload) {
@@ -158,23 +180,85 @@ export class ApartamentosService {
           ...(dto.qtd_vagas !== undefined && { qtd_vagas: Number(dto.qtd_vagas) || 0 }),
         },
       });
-    } catch {
-      throw new NotFoundException(`Apartamento ${id} não encontrado`);
+    } catch (err: any) {
+      // Renomear para uma unidade que já existe cai no unique e caía aqui
+      // como "não encontrado" — mensagem que manda o operador procurar o
+      // problema no lugar errado. A existência já foi conferida acima.
+      if (err?.code === 'P2002') {
+        const apto = dto.apto ?? atual.apto;
+        const bloco = dto.bloco ?? atual.bloco;
+        const label = bloco ? `Apto ${apto} Bloco ${bloco}` : `Apto ${apto}`;
+        throw new BadRequestException(`${label} já está cadastrado neste condomínio.`);
+      }
+      this.logger.error(
+        `[apartamentos.update] Falha ao atualizar ${id}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Não foi possível salvar o apartamento. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
     }
   }
 
+  /**
+   * Remove a unidade. TODAS as chaves estrangeiras que apontam para
+   * Apartamentos são `onDelete: Cascade` — vínculos de morador, visitantes,
+   * vagas, agendamentos de área e mudanças somem junto, em silêncio.
+   *
+   * Como não dá para desfazer, a exclusão passa a contar o que vai levar
+   * embora e devolver isso na resposta, além de registrar na auditoria. Sem
+   * esse rastro, "sumiram as visitas do 101" era impossível de explicar
+   * depois — o módulo inteiro não tinha auditoria nenhuma, sendo o único com
+   * uma operação em cascata desse tamanho.
+   */
   async remove(id: number, user?: JwtPayload) {
     assertStaff(user, 'remover apartamento');
     if (!this.prisma.isConnected) return { success: true };
-    const atual = await this.prisma.apartamentos.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
+    const atual = await this.prisma.apartamentos.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true, apto: true, bloco: true },
+    });
     if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+
+    const [moradores, visitantes, vagas, agendamentos, mudancas] = await Promise.all([
+      this.prisma.apartamentos_Users.count({ where: { id_apto: Number(id) } }),
+      this.prisma.visitantes.count({ where: { id_apartamento: Number(id) } }),
+      this.prisma.vagas.count({ where: { id_apartamento: Number(id) } }),
+      this.prisma.areas_Sociais_Agendamentos.count({ where: { id_apartamento: Number(id) } }),
+      this.prisma.mudancas.count({ where: { id_apartamento: Number(id) } }),
+    ]);
+    const arrastados = { moradores, visitantes, vagas, agendamentos, mudancas };
+
     try {
       await this.prisma.apartamentos.delete({ where: { id: Number(id) } });
-      return { success: true };
-    } catch {
-      throw new NotFoundException(`Apartamento ${id} não encontrado`);
+    } catch (err: any) {
+      // O catch respondia sempre "não encontrado", mascarando a causa real —
+      // mesmo padrão que escondia a violação de chave estrangeira em
+      // visitantes. A existência já foi conferida acima.
+      this.logger.error(
+        `[apartamentos.remove] Falha ao excluir ${id}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Não foi possível remover o apartamento. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
     }
+
+    const label = atual.bloco ? `Apto ${atual.apto} Bloco ${atual.bloco}` : `Apto ${atual.apto}`;
+    await this.auditoria.registrar({
+      id_condominio: atual.id_condominio,
+      usuario_nome: user?.nome ?? 'Sistema',
+      acao: 'DELETE',
+      modulo: 'apartamentos',
+      entidade_id: Number(id),
+      descricao:
+        `Removeu ${label} e, em cascata, ${moradores} vínculo(s) de morador, ` +
+        `${visitantes} visita(s), ${vagas} vaga(s), ${agendamentos} reserva(s) e ${mudancas} mudança(s)`,
+      detalhes: { apartamento: { id: Number(id), apto: atual.apto, bloco: atual.bloco }, arrastados },
+    });
+
+    return { success: true, arrastados };
   }
 
   async importBulk(idCondominio: number, linhas: any[], user?: JwtPayload) {

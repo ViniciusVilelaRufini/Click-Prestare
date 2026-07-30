@@ -4,6 +4,7 @@ import {
 import { ApartamentosService, CreateApartamentoDto } from './apartamentos.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertOperador } from '../auth/tenant.util';
 
 @Controller('condominios/:idCondominio/apartamentos')
 export class ApartamentosController {
@@ -12,8 +13,13 @@ export class ApartamentosController {
   @Get()
   list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() payload: JwtPayload,
     @Query('search') search?: string,
   ) {
+    // Console da portaria: lista as unidades do condomínio com a contagem de
+    // moradores. O TenantGuard confere o condomínio, mas morador pertence a
+    // ele — faltava a camada de papel, como no resto do console.
+    assertOperador(payload, 'listar os apartamentos do condomínio');
     return this.service.findAll(idCondominio, search);
   }
 
@@ -41,9 +47,13 @@ export class ApartamentosController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
-    this.service.remove(id, payload);
-    return { ok: true };
+  async remove(@Param('id', ParseIntPipe) id: number, @ReqUser() payload: JwtPayload) {
+    // O `await` faltava: respondia { ok: true } antes de saber se apagou.
+    // Numa exclusão que arrasta o histórico inteiro da unidade em cascata,
+    // isso é o pior lugar possível para mentir — 403, falha de banco ou
+    // apartamento inexistente viravam sucesso na tela, e a exceção virava
+    // unhandled rejection no processo.
+    return this.service.remove(id, payload);
   }
 
   @Post('import-bulk')

@@ -97,7 +97,19 @@ class _NewAptoPageState extends State<NewApto> {
   }
 
   Future<void> delete() async {
-    var choice = await showConfirmDialog(context);
+    // Apagar a unidade é a operação mais destrutiva do sistema: no banco,
+    // todas as chaves estrangeiras para Apartamentos são ON DELETE CASCADE,
+    // então somem junto os vínculos dos moradores, o histórico de visitantes,
+    // as vagas, as reservas de área e as mudanças. Um "tem certeza?" genérico
+    // não deixa isso claro para quem clica.
+    var choice = await showConfirmDialog(
+      context,
+      text: 'Excluir o apartamento ${txtBloco.text.isNotEmpty ? '${txtBloco.text} ' : ''}'
+          '${txtApto.text}?\n\n'
+          'Isso remove também os moradores vinculados, o histórico de visitantes, '
+          'as vagas, as reservas de áreas e as mudanças desta unidade. '
+          'Não é possível desfazer.',
+    );
     if (choice != null && choice) {
       setState(() => _isSaving = true);
       var res = await apiDeleteObject('apartamentos', idObj);

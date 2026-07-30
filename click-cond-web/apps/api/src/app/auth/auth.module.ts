@@ -25,6 +25,7 @@ import {
 import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 import { FacialModule } from '../facial/facial.module';
 import { FinanceiroModule } from '../financeiro/financeiro.module';
+import { ApartamentosModule } from '../apartamentos/apartamentos.module';
 
 @Module({
   imports: [
@@ -40,6 +41,8 @@ import { FinanceiroModule } from '../financeiro/financeiro.module';
     FacialModule,
     // O saldo do card do dashboard vem do mesmo cálculo da tela de Financeiro.
     FinanceiroModule,
+    // removeApto delega a exclusao (e a auditoria da cascata) para ca.
+    ApartamentosModule,
   ],
   controllers: [
     AuthController,

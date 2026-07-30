@@ -10,7 +10,8 @@ import { somenteDigitos } from '../common/documento.util';
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from './tenant-access.service';
-import { assertStaff, assertSindico } from './tenant.util';
+import { assertStaff, assertSindico, assertOperador } from './tenant.util';
+import { ApartamentosService } from '../apartamentos/apartamentos.service';
 
 @Injectable()
 export class MobileAuthService {
@@ -22,6 +23,7 @@ export class MobileAuthService {
     private readonly facial: FacialService,
     private readonly tenant: TenantAccessService,
     private readonly financeiro: FinanceiroService,
+    private readonly apartamentos: ApartamentosService,
   ) {}
 
   /**
@@ -1605,8 +1607,11 @@ export class MobileAuthService {
     const func = await this.prisma.funcionarios_Portaria.findFirst({ where: { login: email } });
     if (!func) throw new NotFoundException('E-mail não encontrado');
     const novaSenha = this.gerarNovaSenha();
-    const md5Hash = createHash('md5').update(novaSenha).digest('hex');
-    await this.prisma.funcionarios_Portaria.update({ where: { id: func.id }, data: { password: md5Hash } });
+    // bcrypt, nao MD5: o login ja aceita os dois (migra sozinho quando o hash
+    // antigo bate), mas gravar MD5 aqui recriava o problema a cada
+    // recuperacao de senha.
+    const senhaHash = await bcrypt.hash(novaSenha, 10);
+    await this.prisma.funcionarios_Portaria.update({ where: { id: func.id }, data: { password: senhaHash } });
     await this.mail.sendForgotPassword(email, novaSenha, 'Funcionário');
     return { success: true };
   }
@@ -1819,14 +1824,16 @@ export class MobileAuthService {
     const sincronizarUsuarioMobile = async (fp: any, senhaPlana?: string, uploadedPhotoUrl?: string | null) => {
       try {
         let user = await this.prisma.users.findFirst({ where: { login: fp.login } });
-        const md5Pwd = senhaPlana ? createHash('md5').update(senhaPlana).digest('hex') : fp.password;
+        // Se veio senha em texto, grava em bcrypt. Sem senha nova, reaproveita
+        // o hash ja armazenado (que pode ser legado — o login migra no acesso).
+        const senhaHash = senhaPlana ? await bcrypt.hash(senhaPlana, 10) : fp.password;
 
         if (!user) {
           user = await this.prisma.users.create({
             data: {
               login: fp.login,
               email: fp.email || fp.login,
-              password: md5Pwd,
+              password: senhaHash,
               name: fp.nome,
               phone: fp.telefone,
               is_funcionario: 1,
@@ -1849,7 +1856,7 @@ export class MobileAuthService {
             ...(uploadedPhotoUrl !== undefined && { photo: uploadedPhotoUrl, profile_image: uploadedPhotoUrl }),
           };
           // Só atualiza a senha se o usuário ainda não tem uma definida
-          if (!user.password) patch.password = md5Pwd;
+          if (!user.password) patch.password = senhaHash;
           await this.prisma.users.update({ where: { id: user.id }, data: patch });
         }
 
@@ -1933,13 +1940,16 @@ export class MobileAuthService {
     // destruiria uma senha com letras ou símbolos.
     const senhaInicial =
       func.senha || func.password || somenteDigitos(func.documento) || '123456';
-    const md5Pwd = createHash('md5').update(senhaInicial).digest('hex');
+    // Senha inicial em bcrypt. Gravar MD5 aqui era o pior caso: como o valor
+    // padrao sao os digitos do documento, um hash sem sal de um numero de 11
+    // digitos e reversivel em segundos por forca bruta.
+    const senhaHash = await bcrypt.hash(senhaInicial, 10);
 
     const created = await this.prisma.funcionarios_Portaria.create({
       data: {
         nome: func.nome,
         login: loginFinal,
-        password: md5Pwd,
+        password: senhaHash,
         email: func.email ?? null,
         telefone: func.telefone ?? null,
         turno: func.ch ?? func.turno ?? null,
@@ -1962,24 +1972,73 @@ export class MobileAuthService {
     if (!fp) throw new NotFoundException('Funcionário não encontrado.');
     await this.tenant.assertEntidade(fp.id_condominio, requester, `funcionário #${id}`);
     try {
-      const user = await this.prisma.users.findFirst({ where: { login: fp.login } });
-      if (user) {
-        await this.prisma.funcionarios.deleteMany({ where: { id_user: user.id } });
-        // Só deleta o Users se ele não for síndico nem morador — evita destruir
-        // vínculos de condomínio de contas que compartilham o mesmo e-mail.
-        if (!user.is_sindico && !user.is_morador) {
-          await this.prisma.users.delete({ where: { id: user.id } });
+      await this.prisma.$transaction(async (tx) => {
+        const user = await tx.users.findFirst({ where: { login: fp.login } });
+        if (user) {
+          // Escopo por condomínio: sem ele, tirar a pessoa da equipe de um
+          // prédio apagava o vínculo dela em TODOS os outros onde trabalha.
+          // O remove de moradores já fazia esse recorte; aqui faltava.
+          await tx.funcionarios.deleteMany({
+            where: { id_user: user.id, id_condominio: fp.id_condominio },
+          });
+
+          // Só deleta o Users se ele não for síndico nem morador — evita destruir
+          // vínculos de condomínio de contas que compartilham o mesmo e-mail.
+          // E só quando não sobrou vínculo de equipe em nenhum outro prédio.
+          const aindaEhFuncionario = await tx.funcionarios.count({ where: { id_user: user.id } });
+          if (!user.is_sindico && !user.is_morador && aindaEhFuncionario === 0) {
+            await tx.users.delete({ where: { id: user.id } });
+          }
         }
-      }
-      await this.prisma.funcionarios_Portaria.delete({ where: { id: Number(id) } });
-    } catch {
-      throw new NotFoundException('Funcionário não encontrado.');
+        await tx.funcionarios_Portaria.delete({ where: { id: Number(id) } });
+      });
+    } catch (err: any) {
+      // Quinta ocorrência do padrão: o catch respondia sempre "não
+      // encontrado" e escondia a causa real. A existência já foi conferida.
+      console.error(
+        `[removeFuncionario] Falha ao excluir ${id}: ${err?.message ?? err}`,
+      );
+      throw new BadRequestException(
+        `Não foi possível remover o funcionário. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
     }
     return true;
   }
 
+  /**
+   * Morador mobile só alcança apartamento a que está vinculado. Porteiro
+   * (id_condominio no token), síndico e funcionário seguem alcançando
+   * qualquer unidade do condomínio deles — o tenant já foi conferido antes.
+   *
+   * Mesma definição usada nos módulos de visitante e prestador: funcionário é
+   * equipe, não morador, e a maioria não tem apartamento.
+   */
+  private async assertAptoDoMorador(idApto: number, payload?: JwtPayload) {
+    if (!payload) return;
+
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
+    if (!ehMoradorMobile) return;
+
+    const userId = Number(payload.user?.id ?? payload.sub);
+    if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+
+    const vinculo = await this.prisma.apartamentos_Users.findFirst({
+      where: { id_user: userId, id_apto: Number(idApto) },
+      select: { id_apto: true },
+    });
+    if (!vinculo) {
+      throw new ForbiddenException('Acesso negado: este apartamento não pertence a você.');
+    }
+  }
+
   async getAllMoradores(idCond: number, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCond, user);
+    // Devolve o cadastro do predio inteiro — nome, CPF, e-mail, telefone,
+    // nascimento e unidade. A tela que consome (Moradores) so aparece para o
+    // sindico, mas a restricao vivia so no app: qualquer morador chamava a
+    // rota e levava a lista completa com os documentos.
+    assertOperador(user, 'listar os moradores do condominio');
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
@@ -2224,7 +2283,9 @@ export class MobileAuthService {
       // O mesmo valor é enviado no e-mail mais abaixo, então os dois seguem
       // iguais — mudar só a mensagem deixaria a senha exibida errada.
       const senhaInicial = somenteDigitos(cpf) || '123456';
-      const md5Pwd = createHash('md5').update(senhaInicial).digest('hex');
+      // bcrypt: a senha inicial sao os digitos do CPF, que nao e segredo. Em
+      // MD5 sem sal, qualquer vazamento do banco entrega a senha na hora.
+      const senhaHash = await bcrypt.hash(senhaInicial, 10);
 
       // Procura usuário existente: por email ou por CPF (campos UNIQUE)
       const existing = await this.prisma.users.findFirst({
@@ -2259,7 +2320,7 @@ export class MobileAuthService {
         const patch: any = {};
         if (!existing.login && mor.email) patch.login = mor.email;
         if (!existing.password) {
-          patch.password = md5Pwd;
+          patch.password = senhaHash;
           passwordWasSet = true;
         }
         if (!existing.email && mor.email) patch.email = mor.email;
@@ -2279,7 +2340,7 @@ export class MobileAuthService {
             name: mor.nome,
             email: mor.email,
             login: mor.email,
-            password: md5Pwd,
+            password: senhaHash,
             phone: mor.telefone,
             cpf,
             is_morador: 1,
@@ -2429,6 +2490,12 @@ export class MobileAuthService {
 
   async getAllApartamentos(idCond: number, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCond, user);
+    // Devolve, junto de cada unidade, o campo `moradores` com os NOMES de quem
+    // mora nela — na prática um diretório de "quem mora onde" do prédio
+    // inteiro. É seletor de apartamento das telas de staff: no app, todo
+    // chamador faz `if (morador) usa o próprio apto; else carrega a lista`.
+    // A restrição existia em cinco telas do Flutter e em nenhum lugar aqui.
+    assertOperador(user, 'listar os apartamentos do condomínio');
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
@@ -2476,6 +2543,11 @@ export class MobileAuthService {
     });
     if (!apto) throw new NotFoundException('Apartamento não encontrado.');
     await this.tenant.assertEntidade(apto.id_condominio, user, `apartamento #${idApto}`);
+    // O tenant sozinho aceitava QUALQUER id_apto do condominio: bastava
+    // enumerar os ids para listar os moradores de todo apartamento do predio.
+    // A tela que usa isto e a "meu apartamento" — morador ve so a unidade
+    // dele; portaria e sindico seguem vendo qualquer uma.
+    await this.assertAptoDoMorador(Number(idApto), user);
     // Filtro de tipo opcional, comparado de forma robusta (normalizado x normalizado),
     // pois o banco tem valores legados/sujos ('Proprietário'/'morador'/null/'dependente').
     const tipoFiltro = tipo ? this.normalizeTipo(tipo) : undefined;
@@ -2572,20 +2644,21 @@ export class MobileAuthService {
     }
   }
 
+  /**
+   * Excluir apartamento pelo app.
+   *
+   * Delega para o ApartamentosService em vez de repetir a exclusão aqui. Eram
+   * duas implementações da MESMA operação destrutiva, e elas já tinham
+   * divergido: a do console conta o que a cascata leva junto (vínculos de
+   * morador, visitantes, vagas, reservas, mudanças), registra na auditoria e
+   * devolve o erro real; esta apagava calada e respondia "não encontrado"
+   * para qualquer falha. Uma cópia só — quem corrigir uma, corrige as duas.
+   */
   async removeApto(id: number, user?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco indisponível.');
     }
-    assertStaff(user, 'remover apartamento');
-    const atual = await this.prisma.apartamentos.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
-    if (!atual) throw new NotFoundException('Apartamento não encontrado.');
-    await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
-    try {
-      await this.prisma.apartamentos.delete({ where: { id: Number(id) } });
-    } catch {
-      throw new NotFoundException('Apartamento não encontrado.');
-    }
-    return true;
+    return this.apartamentos.remove(Number(id), user);
   }
 
   // ==========================================

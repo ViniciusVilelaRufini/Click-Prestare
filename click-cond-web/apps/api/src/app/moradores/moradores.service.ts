@@ -6,7 +6,8 @@ import { somenteDigitos } from '../common/documento.util';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import * as crypto from 'crypto';
+import { assertOperador } from '../auth/tenant.util';
+import * as bcrypt from 'bcrypt';
 
 export interface CreateMoradorDto {
   nome: string;
@@ -225,7 +226,16 @@ export class MoradoresService {
   async linkExistingUser(
     idCondominio: number,
     body: { id_user: number; id_apartamento: number; tipo?: string },
+    operador?: JwtPayload,
   ) {
+    // Defesa em profundidade: o controller já exige operador, mas este método
+    // escreve em Apartamentos_Users, que é a tabela pela qual TODO o
+    // isolamento do sistema decide de quem é cada apartamento. Uma chamada
+    // futura que esqueça a checagem não pode virar escalada de privilégio.
+    // (O condomínio já é coberto pelo TenantGuard na rota e pela validação do
+    // apartamento logo abaixo.)
+    assertOperador(operador, 'vincular usuário a apartamento');
+
     if (!this.prisma.isConnected) {
       throw new BadRequestException('Banco indisponível. Tente novamente em instantes.');
     }
@@ -708,7 +718,10 @@ export class MoradoresService {
     const fotoPessoaUrl = await this.resolveFoto(dto.foto_pessoa);
     const fotoDocumentoUrl = await this.resolveFoto(dto.foto_documento);
 
-    const md5Password = crypto.createHash('md5').update(dto.documento || '123456').digest('hex');
+    // bcrypt: a senha inicial e o documento da pessoa, que nao e segredo. Em
+    // MD5 sem sal, um vazamento do banco entrega a senha de todo mundo de uma
+    // vez. O login ja aceita os dois formatos e migra o legado no acesso.
+    const senhaHash = await bcrypt.hash(dto.documento || '123456', 10);
     let passwordWasSet = false;
 
     // Cria/encontra Users por email se fornecido
@@ -723,7 +736,7 @@ export class MoradoresService {
         const userUpdates: any = {};
         if (!existing.login || !existing.password) {
           userUpdates.login = dto.email;
-          userUpdates.password = md5Password;
+          userUpdates.password = senhaHash;
           passwordWasSet = true;
         }
         if (fotoPessoaUrl) {
@@ -742,7 +755,7 @@ export class MoradoresService {
             name: dto.nome,
             email: dto.email,
             login: dto.email,
-            password: md5Password,
+            password: senhaHash,
             phone: dto.telefone,
             cpf: dto.documento,
             is_morador: 1,
@@ -1045,8 +1058,18 @@ export class MoradoresService {
         }
         await tx.moradores.delete({ where: { id } });
       });
-    } catch {
-      throw new NotFoundException(`Morador ${id} não encontrado`);
+    } catch (err: any) {
+      // Quarta ocorrência do mesmo padrão (visitantes, apartamentos e o
+      // remove de visita foram as outras): o catch respondia sempre "não
+      // encontrado" e escondia a causa real — restrição de chave estrangeira,
+      // transação abortada, banco fora. A existência já foi conferida acima.
+      this.logger.error(
+        `[moradores.remove] Falha ao excluir ${id}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Não foi possível remover o morador. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
     }
     if (morador) {
       await this.auditoria.registrar({
@@ -1075,12 +1098,17 @@ export class MoradoresService {
     // máscara do documento viraria a senha real e a pessoa erraria ao digitar.
     const senhaInicial = somenteDigitos(m.documento) || '123456';
     if (this.prisma.isConnected && m.id_user) {
-      const md5Password = crypto.createHash('md5').update(senhaInicial).digest('hex');
+      // bcrypt, não MD5. O login já aceita os dois e migra o hash legado no
+      // primeiro acesso — mas este fluxo REDEFINE a senha, então gravar MD5
+      // aqui recriava o problema toda vez que o síndico reenviava credenciais.
+      // Pior: a senha são os dígitos do documento, e MD5 sem sal de um número
+      // de 11 dígitos se quebra por força bruta em segundos.
+      const senhaHash = await bcrypt.hash(senhaInicial, 10);
       await this.prisma.users.update({
         where: { id: m.id_user },
         data: {
           login: m.email,
-          password: md5Password,
+          password: senhaHash,
         },
       });
     }

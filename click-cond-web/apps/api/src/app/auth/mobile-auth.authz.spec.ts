@@ -31,11 +31,19 @@ describe('MobileAuthService — gestão de funcionários (takeover crítico)', (
       funcionarios: {
         findFirst: jest.fn(async () => null),
         create: jest.fn(async () => ({})),
+        deleteMany: jest.fn(async () => ({ count: 0 })),
+        count: jest.fn(async () => 0),
       },
       sindicos_Condominios: { findFirst: jest.fn(async () => null) },
       apartamentos_Users: { findFirst: jest.fn(async () => null) },
       ...overrides,
     };
+    // removeFuncionario passou a ser transacional: apagar o vínculo de equipe
+    // e a conta tem que ser tudo-ou-nada, senão sobra usuário sem porteiro (ou
+    // o contrário). O mock executa o callback com o próprio prisma.
+    prisma.$transaction = jest.fn(async (fn: any) =>
+      typeof fn === 'function' ? fn(prisma) : Promise.all(fn),
+    );
     const jwt: any = { sign: jest.fn(() => 'token') };
     const mail: any = { sendForgotPassword: jest.fn(), sendWelcomeMorador: jest.fn() };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
