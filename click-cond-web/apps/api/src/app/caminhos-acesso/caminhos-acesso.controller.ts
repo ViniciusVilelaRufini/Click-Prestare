@@ -8,10 +8,10 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import {
-  CaminhosAcessoService,
-  CreateCaminhoDto,
-} from './caminhos-acesso.service';
+import { CaminhosAcessoService } from './caminhos-acesso.service';
+// `import type`: o DTO so aparece como tipo em assinatura decorada, e com
+// isolatedModules + emitDecoratorMetadata o TS exige a forma explicita.
+import type { CreateCaminhoDto } from './caminhos-acesso.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
@@ -26,8 +26,16 @@ import { assertOperador } from '../auth/tenant.util';
 export class CaminhosAcessoController {
   constructor(private readonly service: CaminhosAcessoService) {}
 
+  // As mutações já exigiam operador; as leituras, não. Um caminho de leitores
+  // descreve a topologia de acesso do prédio — qual leitor aciona qual
+  // abertura, em que ordem. É o mapa que alguém consultaria para descobrir
+  // por onde entrar, e estava aberto a qualquer morador.
   @Get()
-  list(@Param('idCondominio', ParseIntPipe) idCondominio: number) {
+  list(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'consultar os caminhos de leitores');
     return this.service.findAll(idCondominio);
   }
 
@@ -35,7 +43,9 @@ export class CaminhosAcessoController {
   get(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Param('id', ParseIntPipe) id: number,
+    @ReqUser() user: JwtPayload,
   ) {
+    assertOperador(user, 'consultar um caminho de leitores');
     return this.service.findOne(id, idCondominio);
   }
 

@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,7 +29,6 @@ const TIPOS_ABERTURA = ['botoeira', 'catraca'];
 
 @Injectable()
 export class CaminhosAcessoService {
-  private readonly logger = new Logger(CaminhosAcessoService.name);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -203,7 +201,10 @@ export class CaminhosAcessoService {
     await this.auditoria.registrar({
       id_condominio: idCondominio,
       usuario_nome: user?.nome ?? 'Sistema',
-      acao: 'CRIACAO',
+      // CREATE/UPDATE/DELETE sao as acoes do tipo AuditoriaAcao. Este modulo
+      // gravava 'CRIACAO'/'EDICAO'/'EXCLUSAO', que nenhum outro usa — os
+      // registros ficavam invisiveis a qualquer filtro por acao na auditoria.
+      acao: 'CREATE',
       modulo: 'caminhos-acesso',
       entidade_id: caminho.id,
       descricao: `Criou o caminho "${nome}" com ${dto.etapas.length} etapa(s)`,
@@ -258,7 +259,7 @@ export class CaminhosAcessoService {
     await this.auditoria.registrar({
       id_condominio: idCondominio,
       usuario_nome: user?.nome ?? 'Sistema',
-      acao: 'EDICAO',
+      acao: 'UPDATE',
       modulo: 'caminhos-acesso',
       entidade_id: id,
       descricao: `Editou o caminho "${dto.nome ?? atual.nome}"`,
@@ -275,7 +276,7 @@ export class CaminhosAcessoService {
     await this.auditoria.registrar({
       id_condominio: idCondominio,
       usuario_nome: user?.nome ?? 'Sistema',
-      acao: 'EXCLUSAO',
+      acao: 'DELETE',
       modulo: 'caminhos-acesso',
       entidade_id: id,
       descricao: `Removeu o caminho "${caminho.nome}"`,
