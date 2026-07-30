@@ -680,6 +680,13 @@ export class VisitantesService {
    * Remove TODAS as visitas de uma pessoa (mesmo documento ou mesmo nome
    * quando não há documento), e também desinscreve do terminal facial.
    * Usado pelo botão "Remover" da lista de pessoas.
+   *
+   * `Vagas.id_visitante` aponta para `Visitantes` SEM regra de exclusão, então
+   * o MySQL assume RESTRICT: apagar quem já ocupou uma vaga falhava com
+   * "Foreign key constraint violated on the fields: (id_visitante)" e o
+   * cadastro duplicado não saía de jeito nenhum. A vaga é solta junto (a
+   * convenção do módulo é `ativo: 0`, preservando o histórico) e o ponteiro
+   * para o visitante é limpo, já que o referente deixa de existir.
    */
   async removerPessoa(idCondominio: number, idPessoaRef: number) {
     const ref = await this.prisma.visitantes.findUnique({
@@ -704,7 +711,15 @@ export class VisitantesService {
       registros.map((r) => r.face_id).filter((f): f is string => !!f),
     );
 
-    const result = await this.prisma.visitantes.deleteMany({ where });
+    // Solta as vagas e apaga na mesma transação: se a exclusão falhar por
+    // outro motivo, a vaga não fica liberada à toa.
+    const [, result] = await this.prisma.$transaction([
+      this.prisma.vagas.updateMany({
+        where: { id_visitante: { in: registros.map((r) => r.id) } },
+        data: { id_visitante: null, ativo: 0 },
+      }),
+      this.prisma.visitantes.deleteMany({ where }),
+    ]);
 
     await this.auditoria.registrar({
       id_condominio: ref.id_condominio,
@@ -1124,21 +1139,40 @@ export class VisitantesService {
       where: { id: Number(id) },
       select: { face_id: true, id_condominio: true, nome: true, is_prestador: true },
     });
+    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+
     try {
-      await this.prisma.visitantes.delete({ where: { id: Number(id) } });
-      if (v) {
-        const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
-        await this.auditoria.registrar({
-          id_condominio: v.id_condominio,
-          usuario_nome: 'Sistema / Portaria',
-          acao: 'DELETE',
-          modulo: 'visitantes',
-          entidade_id: Number(id),
-          descricao: `Visita agendada de ${label} "${v.nome}" removida com sucesso.`,
-        });
-      }
-    } catch {
-      throw new NotFoundException(`Visitante ${id} não encontrado`);
+      // Mesma trava do removerPessoa: a vaga referencia o visitante e o MySQL
+      // recusa a exclusão. Solta a vaga junto, na mesma transação.
+      await this.prisma.$transaction([
+        this.prisma.vagas.updateMany({
+          where: { id_visitante: Number(id) },
+          data: { id_visitante: null, ativo: 0 },
+        }),
+        this.prisma.visitantes.delete({ where: { id: Number(id) } }),
+      ]);
+
+      const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+      await this.auditoria.registrar({
+        id_condominio: v.id_condominio,
+        usuario_nome: 'Sistema / Portaria',
+        acao: 'DELETE',
+        modulo: 'visitantes',
+        entidade_id: Number(id),
+        descricao: `Visita agendada de ${label} "${v.nome}" removida com sucesso.`,
+      });
+    } catch (err: any) {
+      // O catch engolia QUALQUER erro e respondia "não encontrado" — foi assim
+      // que a violação de chave estrangeira chegou na portaria disfarçada de
+      // cadastro inexistente, mandando o operador procurar o problema no lugar
+      // errado. A existência já foi conferida acima.
+      this.logger.error(
+        `[visitantes.remove] Falha ao excluir ${id}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Não foi possível remover a visita. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
     }
     if (v?.face_id) {
       this.facial
