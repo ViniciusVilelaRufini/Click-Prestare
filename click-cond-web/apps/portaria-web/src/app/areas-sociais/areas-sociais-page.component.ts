@@ -19,6 +19,7 @@ export class AreasSociaisPageComponent implements OnInit {
   readonly areas = signal<AreaSocial[]>([]);
   readonly agendamentos = signal<AgendamentoArea[]>([]);
   readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
   readonly tab = signal<'areas' | 'reservas'>('areas');
 
   // Controle do Modal
@@ -78,12 +79,25 @@ export class AreasSociaisPageComponent implements OnInit {
 
   carregarDados() {
     this.loading.set(true);
-    this.api.listAreas().subscribe(areas => {
-      this.areas.set(areas);
-      this.api.listAgendamentos().subscribe(ag => {
-        this.agendamentos.set(ag);
+    this.error.set(null);
+    this.api.listAreas().subscribe({
+      next: (areas) => {
+        this.areas.set(areas);
+        this.api.listAgendamentos().subscribe({
+          next: (ag) => {
+            this.agendamentos.set(ag);
+            this.loading.set(false);
+          },
+          error: (e) => {
+            this.loading.set(false);
+            this.error.set('Falha ao carregar as reservas: ' + (e?.error?.message ?? e?.message ?? e));
+          },
+        });
+      },
+      error: (e) => {
         this.loading.set(false);
-      });
+        this.error.set('Falha ao carregar as áreas sociais: ' + (e?.error?.message ?? e?.message ?? e));
+      },
     });
   }
 

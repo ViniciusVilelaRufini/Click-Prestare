@@ -93,10 +93,20 @@
   </div>
 
   <!-- CONTEÚDO DAS ABAS -->
+  @if (error()) {
+    <div class="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-sm text-red-300 flex items-center justify-between gap-4">
+      <span>{{ error() }}</span>
+      <button (click)="carregarDados()" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 hover:bg-red-500/20 transition">
+        Tentar novamente
+      </button>
+    </div>
+  }
   @if (loading()) {
     <div class="p-12 text-center rounded-2xl bg-graphite-200 border border-white/10">
       <div class="inline-block w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
     </div>
+  } @else if (error()) {
+    <!-- Erro já mostrado acima; evita renderizar a grade vazia junto do aviso -->
   } @else if (tab() === 'areas') {
     <!-- Grade de Espaços -->
     @if (areas().length === 0) {

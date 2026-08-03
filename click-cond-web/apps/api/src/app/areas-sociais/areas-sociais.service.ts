@@ -4,7 +4,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
-import { assertStaff } from '../auth/tenant.util';
+import { assertOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
@@ -58,7 +58,7 @@ export class AreasSociaisService {
   // GESTÃO DE ÁREAS SOCIAIS
   // ==========================================
   async insert(idCondominio: number, areaSocial: any, user?: JwtPayload) {
-    assertStaff(user, 'criar área social');
+    assertOperador(user, 'criar área social');
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return { success: true };
@@ -88,7 +88,7 @@ export class AreasSociaisService {
   }
 
   async update(idCondominio: number, areaSocial: any, user?: JwtPayload) {
-    assertStaff(user, 'editar área social');
+    assertOperador(user, 'editar área social');
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return { success: true };
@@ -120,7 +120,7 @@ export class AreasSociaisService {
   }
 
   async remove(id: number, user?: JwtPayload) {
-    assertStaff(user, 'remover área social');
+    assertOperador(user, 'remover área social');
     if (!this.prisma.isConnected) return { success: true };
     const area = await this.prisma.areas_Sociais.findUnique({ where: { id: Number(id) } });
     if (!area) throw new NotFoundException('Área social não encontrada');
@@ -364,7 +364,7 @@ export class AreasSociaisService {
     const peloSindico = !!agendamento.agendarPeloSindico;
     // Sem essa checagem, qualquer morador mandava agendarPeloSindico:true e
     // auto-aprovava a própria reserva pulando a fila de autorização.
-    if (peloSindico) assertStaff(user, 'agendar em nome de outro morador (auto-aprovação)');
+    if (peloSindico) assertOperador(user, 'agendar em nome de outro morador (auto-aprovação)');
     let donoReservaId = Number(userId);
 
     if (peloSindico) {
@@ -496,7 +496,7 @@ export class AreasSociaisService {
   async getAllAgendamentos(idCondominio: number, user?: JwtPayload) {
     // Lista global de reservas do condomínio (fila de aprovação) — é
     // ferramenta de gestão, não deveria ser lida por um morador qualquer.
-    assertStaff(user, 'ver todas as reservas do condomínio');
+    assertOperador(user, 'ver todas as reservas do condomínio');
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return [
@@ -591,7 +591,7 @@ export class AreasSociaisService {
   async updateStatusAgendamento(id: number, statusRaw: string | boolean, motivo?: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
 
-    assertStaff(user, 'aprovar ou recusar reserva');
+    assertOperador(user, 'aprovar ou recusar reserva');
     const agAlvo = await this.prisma.areas_Sociais_Agendamentos.findUnique({
       where: { id: Number(id) },
       include: { area: { select: { id_condominio: true } } },
@@ -663,7 +663,7 @@ export class AreasSociaisService {
   // MANUTENÇÕES
   // ==========================================
   async insertManutencao(manutencao: any, user?: JwtPayload) {
-    assertStaff(user, 'agendar manutenção');
+    assertOperador(user, 'agendar manutenção');
     if (!this.prisma.isConnected) return { success: true };
 
     const area = await this.prisma.areas_Sociais.findUnique({
@@ -697,7 +697,7 @@ export class AreasSociaisService {
   }
 
   async updateManutencao(manutencao: any, user?: JwtPayload) {
-    assertStaff(user, 'editar manutenção');
+    assertOperador(user, 'editar manutenção');
     if (!this.prisma.isConnected) return { success: true };
 
     const atual = await this.prisma.areas_Sociais_Manutencoes.findUnique({
@@ -731,7 +731,7 @@ export class AreasSociaisService {
   }
 
   async removeManutencao(id: number, user?: JwtPayload) {
-    assertStaff(user, 'remover manutenção');
+    assertOperador(user, 'remover manutenção');
     if (!this.prisma.isConnected) return { success: true };
     const atual = await this.prisma.areas_Sociais_Manutencoes.findUnique({
       where: { id: Number(id) },
