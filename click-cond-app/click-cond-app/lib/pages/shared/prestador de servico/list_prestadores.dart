@@ -509,7 +509,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
 
     // Filtrar quem está no condomínio atualmente OU possui liberação ativa para hoje
     final now = DateTime.now();
-    final listInside = prestadoresOnlyList.where((e) {
+    final listInsideRaw = prestadoresOnlyList.where((e) {
       // 1. Está no local fisicamente
       final isInside = e['data_entrada'] != null && e['data_saida'] == null;
       if (isInside) return true;
@@ -526,6 +526,30 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
       }
       return false;
     }).toList();
+
+    // A mesma pessoa pode ter mais de uma liberação sobreposta (ex: liberada de
+    // novo antes de fechar a anterior) — cada uma é um registro separado no
+    // banco, então sem isso o mesmo prestador aparece duplicado na lista. Mantém
+    // só um card por pessoa, priorizando quem está fisicamente dentro sobre
+    // quem só está autorizado/agendado.
+    final Map<String, dynamic> listInsideByPerson = {};
+    for (var item in listInsideRaw) {
+      final String key = (item['doc_identificacao'] != null && item['doc_identificacao'].toString().trim().isNotEmpty)
+          ? item['doc_identificacao'].toString().trim()
+          : item['nome'].toString().trim();
+      if (key.isEmpty) continue;
+      final existing = listInsideByPerson[key];
+      if (existing == null) {
+        listInsideByPerson[key] = item;
+        continue;
+      }
+      final isInsideNow = item['data_entrada'] != null && item['data_saida'] == null;
+      final existingIsInside = existing['data_entrada'] != null && existing['data_saida'] == null;
+      if (isInsideNow && !existingIsInside) {
+        listInsideByPerson[key] = item;
+      }
+    }
+    final listInside = listInsideByPerson.values.toList();
 
     // Filtrar prestadores cadastrados únicos para histórico e liberação rápida
     final Map<String, Map<String, dynamic>> uniquePrestadores = {};
