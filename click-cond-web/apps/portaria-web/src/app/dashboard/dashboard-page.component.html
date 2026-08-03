@@ -483,10 +483,10 @@
       </div>
 
       <!-- Painel direito -->
-      <div class="space-y-6">
+      <div class="flex flex-col space-y-6">
 
         <!-- Totais do condomínio -->
-        <div class="rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm">
+        <div class="shrink-0 rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm">
           <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.3] dark:bg-white/[0.01]">
             <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Informações Gerais</h2>
           </div>
@@ -495,7 +495,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="w-[38px] h-[38px] rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-550 dark:text-indigo-400 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-5.5 h-5.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z" />
                   </svg>
                 </div>
@@ -510,7 +510,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="w-[38px] h-[38px] rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-5.5 h-5.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                   </svg>
                 </div>
@@ -525,7 +525,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="w-[38px] h-[38px] rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-600 dark:text-amber-500 shrink-0 shadow-sm transition-transform duration-200 hover:scale-105">
-                  <svg class="w-5.5 h-5.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <svg class="w-[22px] h-[22px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.68.34-1.44.52-2.22.52H5a1 1 0 01-1-1v-4a1 1 0 011-1h3.12c.78 0 1.54.18 2.22.52l5.77-2.88A1 1 0 0118 8.87v6.26a1 1 0 01-1.89.47l-5.77-2.88zM18 9.5a3.5 3.5 0 010 5M21 8a6 6 0 010 8" />
                   </svg>
                 </div>
@@ -545,13 +545,13 @@
         </div>
 
         <!-- Acesso rápido -->
-        <div class="rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm">
-          <div class="px-5 py-4 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.3] dark:bg-white/[0.01]">
+        <div class="flex-1 flex flex-col rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 overflow-hidden shadow-sm">
+          <div class="shrink-0 px-5 py-4 border-b border-slate-200/60 dark:border-white/5 bg-slate-50/[0.3] dark:bg-white/[0.01]">
             <h2 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Acesso Rápido</h2>
           </div>
-          <div class="p-4 grid grid-cols-2 gap-3.5">
+          <div class="flex-1 p-4 grid grid-cols-2 gap-3.5 content-center">
             <button (click)="abrirModalLiberar()"
-               class="flex flex-col items-center gap-3 py-5 px-3 rounded-xl
+               class="flex flex-col items-center justify-center gap-3 py-6 px-3 rounded-xl h-full
                       bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10 
                       border border-slate-200/60 hover:border-accent/30 dark:border-transparent dark:hover:border-accent/20 
                       transition-all text-center group active:scale-95 duration-150"
@@ -564,7 +564,7 @@
             </button>
             
             <button (click)="abrirValidador()"
-               class="flex flex-col items-center gap-3 py-5 px-3 rounded-xl
+               class="flex flex-col items-center justify-center gap-3 py-6 px-3 rounded-xl h-full
                       bg-slate-50 hover:bg-emerald-500/5 dark:bg-white/5 dark:hover:bg-emerald-500/10
                       border border-slate-200/60 hover:border-emerald-500/30 dark:border-transparent dark:hover:border-emerald-500/20
                       transition-all text-center group active:scale-95 duration-150"
@@ -577,7 +577,7 @@
             </button>
 
             <a routerLink="/visitantes" [queryParams]="{novo: 'true'}"
-               class="flex flex-col items-center gap-3 py-5 px-3 rounded-xl
+               class="flex flex-col items-center justify-center gap-3 py-6 px-3 rounded-xl h-full
                       bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10
                       border border-slate-200/60 hover:border-accent/30 dark:border-transparent dark:hover:border-accent/20
                       transition-all text-center group active:scale-95 duration-150"
@@ -590,7 +590,7 @@
             </a>
 
             <button (click)="abrirModalBaixa()"
-               class="flex flex-col items-center gap-3 py-5 px-3 rounded-xl
+               class="flex flex-col items-center justify-center gap-3 py-6 px-3 rounded-xl h-full
                       bg-slate-50 hover:bg-rose-500/5 dark:bg-white/5 dark:hover:bg-rose-500/10
                       border border-slate-200/60 hover:border-rose-500/30 dark:border-transparent dark:hover:border-rose-500/20
                       transition-all text-center group active:scale-95 duration-150"
@@ -641,7 +641,7 @@
               <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Detalhes do Evento</h3>
             </div>
             <button (click)="fecharDetalhes()" class="p-1.5 rounded-lg text-slate-450 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
-              <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
             </button>
