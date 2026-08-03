@@ -845,6 +845,11 @@ export class VisitantesService {
       if (data.bloqueado === 1) {
         data.liberado = 0;
         data.codigo_acesso = null;
+      } else {
+        // Desbloqueio: restaura a mesma regra usada na criação/checkOut —
+        // sem isso, `liberado` fica travado em 0 para sempre e todo evento
+        // futuro é negado como "Bloqueado" mesmo com o checkbox desmarcado.
+        data.liberado = ref.is_prestador === 1 ? 1 : 0;
       }
     }
     // Tag RFID (credencial): string vazia limpa a tag (null). É dado da pessoa,
