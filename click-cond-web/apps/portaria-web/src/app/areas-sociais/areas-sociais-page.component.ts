@@ -64,6 +64,14 @@ export class AreasSociaisPageComponent implements OnInit {
     this.agendamentos().filter(a => a.status === 'aprovado').length
   );
 
+  readonly ocupacaoTotal = computed(() =>
+    this.areas().reduce((acc, a) => acc + (a.tem_monitoramento ? (a.ocupacao ?? 0) : 0), 0)
+  );
+
+  readonly areasMonitoradas = computed(() =>
+    this.areas().filter(a => a.tem_monitoramento).length
+  );
+
   ngOnInit() {
     this.carregarDados();
   }

@@ -294,6 +294,72 @@ export class FacialService {
     }));
   }
 
+  /**
+   * Resumo de saúde do facial pro condomínio: terminais offline, status do
+   * agente local (com last-seen) e o resultado da última varredura de
+   * biometria órfã (tickFantasmas). Agrega dados que já existiam espalhados
+   * (listDevices, AgentBridgeService, AuditLog) — não introduz fonte nova.
+   */
+  async getHealthSummary(idCondominio: number) {
+    const devices = await this.listDevices(idCondominio);
+
+    const ativos = devices.filter((d) => d.ativo === 1);
+    const offline = ativos.filter((d) => d.device_online === false);
+    const semReporte = ativos.filter((d) => d.device_online === null);
+    const agentOnline = ativos.some((d) => d.agent_online);
+    const lastSeenTimestamps = ativos
+      .map((d) => this.agent.lastSeenAt(d.id))
+      .filter((t): t is number => t != null);
+    const agentLastSeenAt = lastSeenTimestamps.length
+      ? new Date(Math.max(...lastSeenTimestamps))
+      : null;
+
+    const inicioDoDia = new Date();
+    inicioDoDia.setHours(0, 0, 0, 0);
+    const eventosFantasmas = this.prisma.isConnected
+      ? await this.prisma.auditLog.findMany({
+        where: {
+          id_condominio: idCondominio,
+          modulo: 'facial-health',
+          acao: 'FANTASMAS_REMOVIDOS',
+          created_at: { gte: inicioDoDia },
+        },
+        orderBy: { created_at: 'desc' },
+        select: { created_at: true, descricao: true, detalhes: true },
+      })
+      : [];
+    const removidosHoje = eventosFantasmas.reduce((acc, ev) => {
+      try {
+        const d = ev.detalhes ? JSON.parse(ev.detalhes as string) : null;
+        return acc + (Number(d?.count) || 0);
+      } catch {
+        return acc;
+      }
+    }, 0);
+
+    return {
+      terminais: {
+        total: ativos.length,
+        offline: offline.map((d) => ({ id: d.id, nome: d.nome })),
+        semReporteRecente: semReporte.map((d) => ({ id: d.id, nome: d.nome })),
+      },
+      agente: {
+        online: agentOnline,
+        lastSeenAt: agentLastSeenAt,
+      },
+      fantasmas: {
+        // Varredura roda de hora em hora para TODOS os condomínios — este
+        // timestamp é global do processo, não por condomínio.
+        ultimaVarreduraEm: this.lastFantasmasRunAt,
+        removidosHoje,
+        eventosHoje: eventosFantasmas.map((ev) => ({
+          em: ev.created_at,
+          descricao: ev.descricao,
+        })),
+      },
+    };
+  }
+
   /** Mapa id_area → controle_acesso_facial p/ um conjunto de devices. */
   private async flagsControleAcessoPorArea(
     devices: { id_area_social: number | null }[],
@@ -2440,8 +2506,12 @@ export class FacialService {
    * o re-sync normal nunca mais o alcança). Roda de hora em hora (não só às 3h)
    * para fechar a janela de ~24h em que o fantasma continuava abrindo.
    */
+  /** Timestamp da última execução do tick (efêmero — mesmo padrão do AgentBridgeService, zera ao reiniciar). */
+  private lastFantasmasRunAt: Date | null = null;
+
   private async tickFantasmas() {
     if (!this.prisma.isConnected) return;
+    this.lastFantasmasRunAt = new Date();
 
     try {
       // Intelbras e Dahua falam o mesmo protocolo RPC2 (list/removeMulti);
@@ -2502,6 +2572,18 @@ export class FacialService {
           this.logger.log(
             `tickFantasmas device ${device.id}: ${fantasmas.length} fantasma(s) removido(s) — ${fantasmas.join(', ')}`,
           );
+          // Persiste o resultado — sem isso, "quantos fantasmas foram removidos
+          // na última varredura" só existia nos logs do processo, invisível
+          // pra qualquer painel. Mesmo padrão de reportDeviceStatuses (AuditLog).
+          await this.auditoria.registrar({
+            id_condominio: device.id_condominio,
+            usuario_nome: 'Sistema (varredura horária)',
+            acao: 'FANTASMAS_REMOVIDOS',
+            modulo: 'facial-health',
+            entidade_id: device.id,
+            descricao: `${fantasmas.length} biometria(s) órfã(s) removida(s) do terminal "${device.nome}".`,
+            detalhes: { count: fantasmas.length, deviceNome: device.nome },
+          });
         } catch (e: any) {
           this.logger.warn(
             `tickFantasmas device ${device.id}: ${e?.message ?? e}`,

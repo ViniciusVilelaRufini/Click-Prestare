@@ -68,6 +68,19 @@ export class FacialController {
     return this.service.listDevices(idCondominio);
   }
 
+  @Get('health')
+  health(
+    @Query('id_condominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertTenantStrict(
+      idCondominio,
+      user,
+      `saúde do facial do condomínio ${idCondominio}`,
+    );
+    return this.service.getHealthSummary(idCondominio);
+  }
+
   @Get('devices/:id')
   async get(
     @Param('id', ParseIntPipe) id: number,

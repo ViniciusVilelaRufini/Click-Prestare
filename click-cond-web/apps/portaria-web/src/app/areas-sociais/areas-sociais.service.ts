@@ -13,6 +13,8 @@ export interface AreaSocial {
   precisa_pagamento?: number;
   capacidade?: number;
   horarios?: any[];
+  tem_monitoramento?: boolean;
+  ocupacao?: number;
 }
 
 export interface AgendamentoArea {

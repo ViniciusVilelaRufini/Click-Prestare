@@ -7,6 +7,7 @@ import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 
 export interface CreateVisitanteDto {
   nome: string;
@@ -68,6 +69,7 @@ export class VisitantesService {
     private readonly facial: FacialService,
     private readonly auditoria: AuditoriaService,
     private readonly tenant: TenantAccessService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   private fireFacialSync(idVisitante: number) {
@@ -1815,6 +1817,7 @@ export class VisitantesService {
       descricao: `Autorização solicitada ao morador: "${v.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
+    this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizacao_solicitada', { id: v.id });
     return { ok: true };
   }
 
@@ -1847,6 +1850,7 @@ export class VisitantesService {
       descricao: `Visitante autorizado pelo morador: "${v.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
+    this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizado', { id: v.id });
     return { ok: true };
   }
 
@@ -1876,6 +1880,7 @@ export class VisitantesService {
       descricao: `Visitante negado pelo morador: "${v.nome}" no ${aptoLabel}`,
       detalhes: ctx ?? undefined,
     });
+    this.realtime.emitToCondominio(v.id_condominio, 'visitante.negado', { id: v.id });
     return { ok: true };
   }
 

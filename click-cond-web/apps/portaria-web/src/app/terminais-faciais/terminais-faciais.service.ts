@@ -77,6 +77,23 @@ export interface FacialSyncStatus {
   running: boolean;
 }
 
+export interface FacialHealth {
+  terminais: {
+    total: number;
+    offline: { id: number; nome: string }[];
+    semReporteRecente: { id: number; nome: string }[];
+  };
+  agente: {
+    online: boolean;
+    lastSeenAt: string | null;
+  };
+  fantasmas: {
+    ultimaVarreduraEm: string | null;
+    removidosHoje: number;
+    eventosHoje: { em: string; descricao: string }[];
+  };
+}
+
 export interface SyncPessoa {
   tipo: 'morador' | 'visitante';
   categoria: string; // morador | funcionario | visitante | prestador
@@ -103,6 +120,12 @@ export class TerminaisFaciaisApi {
   list(): Observable<TerminalFacial[]> {
     const params = new HttpParams().set('id_condominio', this.idCondominio);
     return this.http.get<TerminalFacial[]>(`${this.base}/devices`, { params });
+  }
+
+  /** Resumo de saúde: terminais offline, status do agente, última varredura de rostos órfãos. */
+  health(): Observable<FacialHealth> {
+    const params = new HttpParams().set('id_condominio', this.idCondominio);
+    return this.http.get<FacialHealth>(`${this.base}/health`, { params });
   }
 
   create(dto: CreateTerminalFacial): Observable<TerminalFacial> {

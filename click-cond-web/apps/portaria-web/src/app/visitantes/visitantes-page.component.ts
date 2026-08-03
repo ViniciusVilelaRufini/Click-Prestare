@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal, effect, untracked } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, inject, signal, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -10,6 +10,7 @@ import { ConfirmService } from '../shared/confirm.service';
 import { InputMaskDirective } from '../shared/input-mask.directive';
 import { FacialCaptureComponent } from '../shared/facial-capture.component';
 import { compressImage } from '../shared/image-compress.util';
+import { RealtimeService } from '../shared/realtime.service';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -18,12 +19,13 @@ import { compressImage } from '../shared/image-compress.util';
   templateUrl: './visitantes-page.component.html',
   styleUrl: './visitantes-page.component.css',
 })
-export class VisitantesPageComponent implements OnInit {
+export class VisitantesPageComponent implements OnInit, OnDestroy {
   private service = inject(VisitantesService);
   private aptApi = inject(ApartamentosApi);
   private confirm = inject(ConfirmService);
   private route = inject(ActivatedRoute);
   private sanitizer = inject(DomSanitizer);
+  private realtime = inject(RealtimeService);
 
   constructor() {
     effect(() => {
@@ -416,6 +418,7 @@ export class VisitantesPageComponent implements OnInit {
 
   ngOnDestroy() {
     this.stopAuthPolling();
+    this.realtime.disconnect();
   }
 
   ngOnInit() {
@@ -425,6 +428,7 @@ export class VisitantesPageComponent implements OnInit {
     });
     this.carregar();
     this.startAuthPolling();
+    this.conectarRealtime();
     this.aptApi.list().subscribe({
       next: (data) => {
         data.sort((a, b) => {
@@ -473,6 +477,19 @@ export class VisitantesPageComponent implements OnInit {
       const modalAberto = this.authModalPessoaId() != null;
       if (temPendente || modalAberto) this.carregar(true);
     }, 3000);
+  }
+
+  /**
+   * Além do polling de 3s (mantido como rede de segurança — ver RealtimeService),
+   * escuta o WebSocket para atualizar na hora quando ele conseguir conectar.
+   */
+  private conectarRealtime() {
+    const socket = this.realtime.connect();
+    if (!socket) return;
+    const recarregar = () => this.carregar(true);
+    socket.on('visitante.autorizacao_solicitada', recarregar);
+    socket.on('visitante.autorizado', recarregar);
+    socket.on('visitante.negado', recarregar);
   }
 
   fecharAuthModal() {

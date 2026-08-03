@@ -36,8 +36,9 @@ export class FinanceiroApi {
     return this.auth.porteiroInfo()?.id_condominio ?? 1;
   }
 
-  listLancamentos(mes: string, ano: string): Observable<any> {
-    const url = `${API_BASE}/financeiro/get-all?id_condominio=${this.cid}&mes=${mes}&ano=${ano}`;
+  listLancamentos(mes: string, ano: string, incluirTaxasCondominiais = false): Observable<any> {
+    let url = `${API_BASE}/financeiro/get-all?id_condominio=${this.cid}&mes=${mes}&ano=${ano}`;
+    if (incluirTaxasCondominiais) url += '&incluirTaxasCondominiais=true';
     return this.http.get<any>(url);
   }
 
@@ -90,8 +91,9 @@ export class FinanceiroApi {
     return this.http.post<any>(url, { id_condominio: this.cid, reconciliations });
   }
 
-  exportCsv(mes: string, ano: string): Observable<Blob> {
-    const url = `${API_BASE}/financeiro/export-csv?id_condominio=${this.cid}&mes=${mes}&ano=${ano}`;
+  exportCsv(mes: string, ano: string, incluirTaxasCondominiais = false): Observable<Blob> {
+    let url = `${API_BASE}/financeiro/export-csv?id_condominio=${this.cid}&mes=${mes}&ano=${ano}`;
+    if (incluirTaxasCondominiais) url += '&incluirTaxasCondominiais=true';
     return this.http.get(url, { responseType: 'blob' });
   }
 

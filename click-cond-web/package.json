@@ -83,7 +83,9 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/platform-socket.io": "^11.1.28",
     "@nestjs/throttler": "^6.5.0",
+    "@nestjs/websockets": "^11.1.28",
     "@prisma/client": "^6.19.3",
     "@types/nodemailer": "^8.0.0",
     "axios": "^1.6.0",
@@ -99,6 +101,8 @@
     "reflect-metadata": "^0.1.13",
     "resend": "^6.12.3",
     "rxjs": "^7.8.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
     "xlsx": "^0.18.5"
   }
 }

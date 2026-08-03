@@ -1,0 +1,371 @@
+<div class="min-h-screen p-6 lg:p-8 space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div class="flex items-start gap-4">
+      <div class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+        <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M5 13l1.5-4.5A2 2 0 018.4 7h7.2a2 2 0 011.9 1.5L19 13m-14 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-5m-14 0h14M7 16h.01M17 16h.01"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold text-white tracking-tight">Veículos e Tags</h1>
+        <p class="text-sm text-slate-400 mt-0.5">Cadastro de veículos dos moradores e tags RFID de acesso</p>
+      </div>
+    </div>
+
+    @if (tab() === 'veiculos') {
+      <button
+        (click)="abrirNovoVeiculo()"
+        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-slate-950 font-medium text-sm
+               hover:bg-accent/90 shadow-lg shadow-accent/10 transition active:scale-95"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Novo Veículo
+      </button>
+    } @else {
+      <button
+        (click)="abrirNovaTag()"
+        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-slate-950 font-medium text-sm
+               hover:bg-accent/90 shadow-lg shadow-accent/10 transition active:scale-95"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Nova Tag
+      </button>
+    }
+  </div>
+
+  <!-- Navegação por Abas -->
+  <div class="flex items-center gap-2 border-b border-white/10 pb-px">
+    <button
+      (click)="tab.set('veiculos')"
+      [class.text-white]="tab() === 'veiculos'"
+      [class.border-accent]="tab() === 'veiculos'"
+      [class.text-slate-400]="tab() !== 'veiculos'"
+      [class.border-transparent]="tab() !== 'veiculos'"
+      class="px-4 py-2 text-sm font-medium border-b-2 transition hover:text-slate-200 flex items-center gap-2"
+    >
+      Veículos
+      <span class="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{{ veiculos().length }}</span>
+    </button>
+
+    <button
+      (click)="tab.set('tags')"
+      [class.text-white]="tab() === 'tags'"
+      [class.border-accent]="tab() === 'tags'"
+      [class.text-slate-400]="tab() !== 'tags'"
+      [class.border-transparent]="tab() !== 'tags'"
+      class="px-4 py-2 text-sm font-medium border-b-2 transition hover:text-slate-200 flex items-center gap-2"
+    >
+      Tags RFID
+      <span class="text-xs px-2 py-0.5 rounded-full bg-white/5 text-slate-400">{{ tags().length }}</span>
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="p-12 text-center rounded-2xl bg-graphite-200 border border-white/10">
+      <div class="inline-block w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
+    </div>
+  } @else if (tab() === 'veiculos') {
+
+    <!-- Busca -->
+    <div class="flex items-center gap-2 bg-graphite-200 border border-white/10 rounded-xl px-3.5 py-2.5 max-w-md">
+      <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <input
+        [ngModel]="busca()"
+        (ngModelChange)="busca.set($event)"
+        type="text"
+        placeholder="Buscar por placa, modelo, morador ou apartamento..."
+        class="bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none w-full"
+      />
+    </div>
+
+    @if (veiculosFiltrados().length === 0) {
+      <div class="p-12 text-center rounded-2xl bg-graphite-200 border border-white/10">
+        <p class="text-sm text-slate-300 font-medium">Nenhum veículo encontrado</p>
+        <p class="text-xs text-slate-500 mt-1">Utilize o botão acima para cadastrar o veículo de um morador</p>
+      </div>
+    } @else {
+      <div class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-[11px] text-slate-400 uppercase tracking-wider border-b border-white/10">
+              <th class="px-4 py-3 font-medium">Placa</th>
+              <th class="px-4 py-3 font-medium">Modelo / Cor</th>
+              <th class="px-4 py-3 font-medium">Morador</th>
+              <th class="px-4 py-3 font-medium">Tag</th>
+              <th class="px-4 py-3 font-medium text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (v of veiculosFiltrados(); track v.id) {
+              <tr class="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition">
+                <td class="px-4 py-3 font-mono font-semibold text-white tracking-wider">{{ v.placa }}</td>
+                <td class="px-4 py-3 text-slate-300">
+                  {{ v.marca_modelo || '—' }}
+                  @if (v.cor) { <span class="text-slate-500"> · {{ v.cor }}</span> }
+                </td>
+                <td class="px-4 py-3 text-slate-300">
+                  {{ v.morador?.nome || '—' }}
+                  @if (v.morador?.apartamento) {
+                    <span class="text-slate-500 text-xs"> · Apto {{ v.morador?.apartamento }}{{ v.morador?.bloco ? ' ' + v.morador?.bloco : '' }}</span>
+                  }
+                </td>
+                <td class="px-4 py-3">
+                  @if (v.id_tag) {
+                    <span class="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md bg-accent/10 text-accent border border-accent/20 font-mono">
+                      {{ tagLabel(v.id_tag) }}
+                    </span>
+                  } @else {
+                    <span class="text-slate-500 text-xs">Sem tag</span>
+                  }
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    <button
+                      (click)="abrirEditarVeiculo(v)"
+                      class="p-2 rounded-lg bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                      title="Editar veículo"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                      </svg>
+                    </button>
+                    <button
+                      (click)="removerVeiculo(v)"
+                      class="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
+                      title="Remover veículo"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+  } @else {
+
+    <!-- Tags -->
+    @if (tags().length === 0) {
+      <div class="p-12 text-center rounded-2xl bg-graphite-200 border border-white/10">
+        <p class="text-sm text-slate-300 font-medium">Nenhuma tag cadastrada</p>
+        <p class="text-xs text-slate-500 mt-1">Cadastre uma tag RFID para vincular a um veículo</p>
+      </div>
+    } @else {
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        @for (t of tags(); track t.id) {
+          <div class="p-4 rounded-2xl bg-graphite-200 border border-white/10 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="font-mono font-semibold text-white tracking-wider truncate">{{ t.codigo }}</p>
+              <p class="text-xs text-slate-500 mt-0.5">{{ t.tipo }}{{ t.descricao ? ' · ' + t.descricao : '' }}</p>
+            </div>
+            <span class="text-[10px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+              Ativa
+            </span>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- MODAL DE VEÍCULO -->
+  @if (modalVeiculo()) {
+    <div class="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50 animate-fadeIn">
+      <div class="w-full max-w-lg rounded-3xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="p-5 border-b border-white/10 flex items-center justify-between">
+          <h3 class="text-base font-semibold text-white">{{ editandoVeiculo() ? 'Editar Veículo' : 'Novo Veículo' }}</h3>
+          <button (click)="fecharModalVeiculo()" class="text-slate-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto space-y-4 flex-1">
+          @if (!editandoVeiculo()) {
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">Morador titular</label>
+              @if (moradorSelecionado()) {
+                <div class="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-accent/30 text-sm">
+                  <span class="text-white">{{ moradorSelecionado()?.nome }} <span class="text-slate-500">· Apto {{ moradorSelecionado()?.apartamento }}{{ moradorSelecionado()?.bloco ? ' ' + moradorSelecionado()?.bloco : '' }}</span></span>
+                  <button type="button" (click)="moradorSelecionado.set(null); buscaMorador.set('')" class="text-slate-400 hover:text-white text-xs">Trocar</button>
+                </div>
+              } @else {
+                <input
+                  [ngModel]="buscaMorador()"
+                  (ngModelChange)="buscaMorador.set($event); onBuscarMorador()"
+                  type="text"
+                  placeholder="Buscar morador por nome..."
+                  class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                         focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+                />
+                @if (buscandoMoradores()) {
+                  <p class="text-xs text-slate-500 mt-1.5">Buscando...</p>
+                } @else if (moradoresEncontrados().length > 0) {
+                  <div class="mt-1.5 max-h-40 overflow-y-auto rounded-xl border border-white/10 bg-slate-900/50">
+                    @for (m of moradoresEncontrados(); track m.id) {
+                      <button
+                        type="button"
+                        (click)="selecionarMorador(m)"
+                        class="w-full text-left px-3.5 py-2.5 text-xs border-b border-white/5 last:border-0 hover:bg-white/5 transition text-slate-300"
+                      >
+                        <span class="font-semibold text-white">{{ m.nome }}</span>
+                        <span class="text-slate-500"> · Apto {{ m.apartamento }}{{ m.bloco ? ' ' + m.bloco : '' }}</span>
+                      </button>
+                    }
+                  </div>
+                }
+              }
+            </div>
+          }
+
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Placa</label>
+            <input
+              [(ngModel)]="novoVeiculo.placa"
+              type="text"
+              placeholder="ABC1D23"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono uppercase tracking-wider
+                     focus:outline-none focus:border-accent transition placeholder:text-slate-600 placeholder:normal-case placeholder:tracking-normal placeholder:font-sans"
+            />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">Marca / Modelo</label>
+              <input
+                [(ngModel)]="novoVeiculo.marca_modelo"
+                type="text"
+                placeholder="Ex: Honda Civic"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                       focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">Cor</label>
+              <input
+                [(ngModel)]="novoVeiculo.cor"
+                type="text"
+                placeholder="Ex: Prata"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                       focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Tag RFID vinculada</label>
+            <select
+              [(ngModel)]="novoVeiculo.id_tag"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                     focus:outline-none focus:border-accent transition"
+            >
+              <option [ngValue]="null">Sem tag</option>
+              @for (t of tags(); track t.id) {
+                <option [ngValue]="t.id">{{ t.codigo }}{{ t.descricao ? ' — ' + t.descricao : '' }}</option>
+              }
+            </select>
+          </div>
+
+          @if (erroVeiculo()) {
+            <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300">{{ erroVeiculo() }}</div>
+          }
+        </div>
+
+        <div class="p-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-end gap-3">
+          <button (click)="fecharModalVeiculo()" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">
+            Cancelar
+          </button>
+          <button
+            (click)="salvarVeiculo()"
+            [disabled]="salvandoVeiculo()"
+            class="px-4 py-2 rounded-xl bg-accent text-slate-950 text-xs font-medium
+                   hover:bg-accent/90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            @if (salvandoVeiculo()) {
+              <span class="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+              <span>Salvando...</span>
+            } @else {
+              <span>{{ editandoVeiculo() ? 'Salvar Alterações' : 'Confirmar Cadastro' }}</span>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- MODAL DE TAG -->
+  @if (modalTag()) {
+    <div class="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50 animate-fadeIn">
+      <div class="w-full max-w-md rounded-3xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="p-5 border-b border-white/10 flex items-center justify-between">
+          <h3 class="text-base font-semibold text-white">Nova Tag RFID</h3>
+          <button (click)="fecharModalTag()" class="text-slate-400 hover:text-white transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto space-y-4 flex-1">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Código da tag</label>
+            <input
+              [(ngModel)]="novaTag.codigo"
+              type="text"
+              placeholder="Passe a tag no leitor ou digite o código"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono
+                     focus:outline-none focus:border-accent transition placeholder:text-slate-600 placeholder:font-sans"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Descrição (opcional)</label>
+            <input
+              [(ngModel)]="novaTag.descricao"
+              type="text"
+              placeholder="Ex: Tag reserva do Bloco A"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                     focus:outline-none focus:border-accent transition placeholder:text-slate-600"
+            />
+          </div>
+
+          @if (erroTag()) {
+            <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300">{{ erroTag() }}</div>
+          }
+        </div>
+
+        <div class="p-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-end gap-3">
+          <button (click)="fecharModalTag()" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">
+            Cancelar
+          </button>
+          <button
+            (click)="salvarTag()"
+            [disabled]="salvandoTag()"
+            class="px-4 py-2 rounded-xl bg-accent text-slate-950 text-xs font-medium
+                   hover:bg-accent/90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            @if (salvandoTag()) {
+              <span class="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+              <span>Salvando...</span>
+            } @else {
+              <span>Cadastrar Tag</span>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

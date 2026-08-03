@@ -29,7 +29,7 @@
   </div>
 
   <!-- Stats Ricos -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="p-4 rounded-2xl bg-graphite-200 border border-white/10 relative overflow-hidden group">
       <div class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition">
         <svg class="w-24 h-24 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -49,6 +49,16 @@
       <p class="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Reservas Aprovadas</p>
       <p class="text-3xl font-bold text-emerald-400 tabular-nums mt-1">{{ aprovadasCount() }}</p>
     </div>
+
+    @if (areasMonitoradas() > 0) {
+      <div class="p-4 rounded-2xl bg-graphite-200 border border-white/10 relative overflow-hidden">
+        <p class="text-[11px] text-slate-400 uppercase tracking-wider font-medium flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+          Pessoas nas Áreas Agora
+        </p>
+        <p class="text-3xl font-bold text-teal-400 tabular-nums mt-1">{{ ocupacaoTotal() }}</p>
+      </div>
+    }
   </div>
 
   <!-- Navegação por Abas (Tabs) -->
@@ -105,6 +115,20 @@
                 alt="Espaço"
               />
               <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
+              @if (area.tem_monitoramento) {
+                <span class="absolute top-3 left-3 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md
+                             bg-slate-950/80 border shrink-0"
+                      [class.text-teal-300]="(area.ocupacao ?? 0) > 0"
+                      [class.border-teal-500/30]="(area.ocupacao ?? 0) > 0"
+                      [class.text-slate-400]="(area.ocupacao ?? 0) === 0"
+                      [class.border-white/10]="(area.ocupacao ?? 0) === 0">
+                  <span class="w-1.5 h-1.5 rounded-full"
+                        [class.bg-teal-400]="(area.ocupacao ?? 0) > 0"
+                        [class.animate-pulse]="(area.ocupacao ?? 0) > 0"
+                        [class.bg-slate-500]="(area.ocupacao ?? 0) === 0"></span>
+                  {{ (area.ocupacao ?? 0) > 0 ? (area.ocupacao) + ' agora' : 'Vazio' }}
+                </span>
+              }
               <div class="absolute bottom-3 left-3 right-3 flex items-end justify-between">
                 <h3 class="text-lg font-semibold text-white keep-white truncate drop-shadow">{{ area.nome }}</h3>
                 @if (area.capacidade) {

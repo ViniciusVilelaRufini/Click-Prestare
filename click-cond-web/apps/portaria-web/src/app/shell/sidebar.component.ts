@@ -66,6 +66,7 @@ export class SidebarComponent {
       items: [
         { label: 'Moradores', path: '/moradores', icon: '✪' },
         { label: 'Apartamentos', path: '/apartamentos', icon: '▣' },
+        { label: 'Veículos', path: '/veiculos', icon: '🚗' },
         { label: 'Funcionários', path: '/prestadores/cadastro', icon: '✦' }
       ]
     },

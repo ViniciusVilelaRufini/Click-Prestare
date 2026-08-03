@@ -30,6 +30,19 @@
         </select>
       </div>
 
+      <label
+        class="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 bg-slate-900 cursor-pointer select-none"
+        title="Por padrão as taxas condominiais ficam só na aba Inadimplência. Ligue para incluí-las aqui e no CSV exportado."
+      >
+        <input
+          type="checkbox"
+          [ngModel]="incluirTaxasCondominiais()"
+          (ngModelChange)="toggleIncluirTaxasCondominiais()"
+          class="rounded border-white/10 text-accent focus:ring-0 w-3.5 h-3.5 bg-slate-950"
+        />
+        <span class="text-xs text-slate-300 font-medium">Incluir taxas condominiais</span>
+      </label>
+
       <button
         (click)="exportarCsv()"
         [disabled]="exportandoCsv() || loading()"

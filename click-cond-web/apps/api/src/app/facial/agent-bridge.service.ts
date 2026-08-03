@@ -78,6 +78,11 @@ export class AgentBridgeService {
     return t !== undefined && Date.now() - t < this.onlineTtlMs;
   }
 
+  /** Timestamp (ms) do último poll do agente para este device, ou null se nunca visto (desde o último boot). */
+  lastSeenAt(deviceId: number): number | null {
+    return this.lastSeen.get(deviceId) ?? null;
+  }
+
   /** Agente reportou o status do aparelho (alcançável ou não) na LAN. */
   reportDeviceStatus(deviceId: number, online: boolean): { 
     changed: boolean; 

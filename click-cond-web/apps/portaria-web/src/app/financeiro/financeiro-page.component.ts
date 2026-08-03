@@ -31,6 +31,10 @@ export class FinanceiroPageComponent implements OnInit {
   readonly searchCaixa = signal('');
   readonly naturezaFilter = signal<'todos' | 'C' | 'D'>('todos');
   readonly categoriaFilter = signal<string>('todos');
+  // Por padrão o livro caixa exclui as taxas condominiais (vivem só na aba
+  // Inadimplência) — ligar isto mostra a arrecadação junto com as despesas,
+  // útil pra prestação de contas em assembleia.
+  readonly incluirTaxasCondominiais = signal(false);
 
   readonly searchInadimplencia = signal('');
   readonly sortInadimplencia = signal<'apto' | 'qtd'>('apto');
@@ -460,7 +464,7 @@ export class FinanceiroPageComponent implements OnInit {
     this.erro.set(null);
     const [m, a] = this.selectedMesAno.split('|');
 
-    this.api.listLancamentos(m, a).subscribe({
+    this.api.listLancamentos(m, a, this.incluirTaxasCondominiais()).subscribe({
       next: (res) => {
         this.lancamentosMap.set(res?.lancamentos || {});
         this.sumario.set({
@@ -506,7 +510,7 @@ export class FinanceiroPageComponent implements OnInit {
     if (this.exportandoCsv()) return;
     const [m, a] = this.selectedMesAno.split('|');
     this.exportandoCsv.set(true);
-    this.api.exportCsv(m, a).subscribe({
+    this.api.exportCsv(m, a, this.incluirTaxasCondominiais()).subscribe({
       next: (blob) => {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -528,6 +532,11 @@ export class FinanceiroPageComponent implements OnInit {
   }
 
   onPeriodoChange() {
+    this.carregarDados();
+  }
+
+  toggleIncluirTaxasCondominiais() {
+    this.incluirTaxasCondominiais.update((v) => !v);
     this.carregarDados();
   }
 

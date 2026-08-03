@@ -19,7 +19,8 @@ export type AuditoriaAcao =
   | 'RULE_CHANGE'       // CRUD em regras de acesso
   | 'DEVICE_CHANGE'     // CRUD em dispositivos (criar/desativar/trocar IP)
   | 'ONLINE'            // dispositivo voltou a responder na LAN (heartbeat do agente)
-  | 'OFFLINE';          // dispositivo parou de responder na LAN
+  | 'OFFLINE'           // dispositivo parou de responder na LAN
+  | 'FANTASMAS_REMOVIDOS'; // tickFantasmas removeu biometria órfã de um terminal
 
 export interface RegistrarAuditoriaDto {
   id_condominio: number;

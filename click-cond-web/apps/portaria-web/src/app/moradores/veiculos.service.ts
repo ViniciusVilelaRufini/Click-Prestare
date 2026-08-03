@@ -23,6 +23,10 @@ export interface Veiculo {
   tag?: Tag | null;
 }
 
+export interface VeiculoComMorador extends Veiculo {
+  morador?: { id: number; nome: string; bloco: string | null; apartamento: string | null } | null;
+}
+
 export interface CreateVeiculo {
   placa: string;
   cor?: string | null;
@@ -44,6 +48,11 @@ export class VeiculosApi {
 
   listByMorador(idMorador: number): Observable<Veiculo[]> {
     return this.http.get<Veiculo[]>(`${this.base}/moradores/${idMorador}/veiculos`);
+  }
+
+  /** Todos os veículos ativos do condomínio, com o morador titular — tela da portaria. */
+  listAll(): Observable<VeiculoComMorador[]> {
+    return this.http.get<VeiculoComMorador[]>(`${this.base}/veiculos`);
   }
 
   create(idMorador: number, dto: CreateVeiculo): Observable<Veiculo> {

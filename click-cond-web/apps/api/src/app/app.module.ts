@@ -32,6 +32,8 @@ import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CrmModule } from './crm/crm.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { VeiculosModule } from './veiculos/veiculos.module';
+import { VagasModule } from './vagas/vagas.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { ChatIaModule } from './chat-ia/chat-ia.module';
 
@@ -78,6 +80,8 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     CrmModule,
     IntegrationsModule,
     VeiculosModule,
+    VagasModule,
+    RealtimeModule,
     AgendaModule,
     ChatIaModule,
   ],

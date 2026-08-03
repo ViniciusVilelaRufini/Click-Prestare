@@ -9,6 +9,7 @@ import { HttpClient } from '@angular/common/http';
 import { API_BASE } from '../shared/api.config';
 import { AuthService } from '../auth/auth.service';
 import { MoradoresApi } from '../moradores/moradores.service';
+import { VagasApi, VagasResumo, VagaBeneficiarios } from './vagas.service';
 
 declare var require: any;
 
@@ -24,6 +25,7 @@ export class ApartamentosPageComponent implements OnInit {
   private http = inject(HttpClient);
   private auth = inject(AuthService);
   private moradoresApi = inject(MoradoresApi);
+  private vagasApi = inject(VagasApi);
 
   // Painel de moradores
   showMoradoresPanel = false;
@@ -364,5 +366,134 @@ export class ApartamentosPageComponent implements OnInit {
     this.bulkLinhas.set([]);
     this.bulkStatus.set('idle');
     this.bulkResult.set({});
+  }
+
+  // ==========================================
+  // VAGAS DE VISITANTE (por apartamento)
+  // ==========================================
+  readonly showVagasPanel = signal(false);
+  readonly vagasApto = signal<Apartamento | null>(null);
+  readonly vagasResumo = signal<VagasResumo | null>(null);
+  readonly loadingVagas = signal(false);
+  readonly erroVagas = signal<string | null>(null);
+
+  readonly vagasLivres = computed(() => {
+    const r = this.vagasResumo();
+    if (!r) return 0;
+    return Math.max(0, r.qtd_vagas - r.ocupadas);
+  });
+
+  abrirVagas(a: Apartamento) {
+    this.vagasApto.set(a);
+    this.vagasResumo.set(null);
+    this.erroVagas.set(null);
+    this.showVagasPanel.set(true);
+    this.carregarVagas();
+  }
+
+  fecharVagas() {
+    this.showVagasPanel.set(false);
+    this.vagasApto.set(null);
+    this.vagasResumo.set(null);
+  }
+
+  carregarVagas() {
+    const apto = this.vagasApto();
+    if (!apto) return;
+    this.loadingVagas.set(true);
+    this.vagasApi.list(apto.id).subscribe({
+      next: (data) => { this.vagasResumo.set(data); this.loadingVagas.set(false); },
+      error: (e) => {
+        this.erroVagas.set(e?.error?.message ?? e?.message ?? 'Falha ao carregar vagas.');
+        this.loadingVagas.set(false);
+      },
+    });
+  }
+
+  // ---- Modal de liberar vaga ----
+  readonly modalVaga = signal(false);
+  readonly beneficiariosVaga = signal<VagaBeneficiarios | null>(null);
+  readonly carregandoBeneficiarios = signal(false);
+  readonly salvandoVaga = signal(false);
+  readonly erroVaga = signal<string | null>(null);
+  novaVaga: {
+    id_morador_titular: number | null;
+    tipo: 'visitante' | 'inquilino';
+    id_visitante: number | null;
+    id_morador_beneficiario: number | null;
+    placa: string;
+  } = { id_morador_titular: null, tipo: 'visitante', id_visitante: null, id_morador_beneficiario: null, placa: '' };
+
+  abrirModalVaga() {
+    const apto = this.vagasApto();
+    if (!apto) return;
+    this.novaVaga = {
+      id_morador_titular: this.vagasResumo()?.moradores?.[0]?.id ?? null,
+      tipo: 'visitante',
+      id_visitante: null,
+      id_morador_beneficiario: null,
+      placa: '',
+    };
+    this.erroVaga.set(null);
+    this.modalVaga.set(true);
+    this.carregandoBeneficiarios.set(true);
+    this.vagasApi.beneficiarios(apto.id).subscribe({
+      next: (data) => { this.beneficiariosVaga.set(data); this.carregandoBeneficiarios.set(false); },
+      error: () => this.carregandoBeneficiarios.set(false),
+    });
+  }
+
+  fecharModalVaga() {
+    this.modalVaga.set(false);
+  }
+
+  salvarVaga() {
+    const apto = this.vagasApto();
+    if (!apto) return;
+    if (!this.novaVaga.id_morador_titular) {
+      this.erroVaga.set('Selecione o morador titular da vaga.');
+      return;
+    }
+    if (this.novaVaga.tipo === 'visitante' && !this.novaVaga.id_visitante) {
+      this.erroVaga.set('Selecione um visitante cadastrado neste apartamento.');
+      return;
+    }
+    if (this.novaVaga.tipo === 'inquilino' && !this.novaVaga.id_morador_beneficiario) {
+      this.erroVaga.set('Selecione um inquilino deste apartamento.');
+      return;
+    }
+
+    this.salvandoVaga.set(true);
+    this.erroVaga.set(null);
+    this.vagasApi.liberar(apto.id, {
+      id_morador_titular: this.novaVaga.id_morador_titular,
+      tipo: this.novaVaga.tipo,
+      id_visitante: this.novaVaga.id_visitante ?? undefined,
+      id_morador_beneficiario: this.novaVaga.id_morador_beneficiario ?? undefined,
+      placa: this.novaVaga.placa.trim() || undefined,
+    }).subscribe({
+      next: () => {
+        this.salvandoVaga.set(false);
+        this.fecharModalVaga();
+        this.carregarVagas();
+      },
+      error: (e) => {
+        this.salvandoVaga.set(false);
+        this.erroVaga.set(e?.error?.message ?? e?.message ?? 'Falha ao liberar vaga.');
+      },
+    });
+  }
+
+  async revogarVaga(v: { id: number | null; ocupante_nome: string | null }) {
+    const apto = this.vagasApto();
+    if (!apto || !v.id) return;
+    const ok = await this.confirm.ask({
+      title: 'Revogar vaga',
+      message: `A vaga de ${v.ocupante_nome ?? 'ocupante'} será revogada.`,
+      confirmLabel: 'Revogar',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    this.vagasApi.revogar(apto.id, v.id).subscribe({ next: () => this.carregarVagas() });
   }
 }

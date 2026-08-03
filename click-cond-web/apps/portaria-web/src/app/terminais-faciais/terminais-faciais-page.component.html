@@ -81,6 +81,52 @@
     </div>
   }
 
+  <!-- Painel de Saúde do Facial -->
+  @if (health(); as h) {
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="p-4 rounded-2xl bg-graphite-200 border border-white/10">
+        <p class="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Terminais</p>
+        @if (h.terminais.offline.length === 0 && h.terminais.semReporteRecente.length === 0) {
+          <p class="text-sm font-semibold text-emerald-400 mt-1.5 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            Todos online ({{ h.terminais.total }})
+          </p>
+        } @else {
+          <div class="mt-1.5 space-y-1">
+            @if (h.terminais.offline.length > 0) {
+              <p class="text-sm font-semibold text-red-400 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                {{ h.terminais.offline.length }} offline
+              </p>
+              <p class="text-[11px] text-slate-500 truncate">{{ h.terminais.offline.map(t => t.nome).join(', ') }}</p>
+            }
+            @if (h.terminais.semReporteRecente.length > 0) {
+              <p class="text-[11px] text-amber-400">{{ h.terminais.semReporteRecente.length }} sem status recente</p>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="p-4 rounded-2xl bg-graphite-200 border border-white/10">
+        <p class="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Agente Local</p>
+        <p class="text-sm font-semibold mt-1.5 flex items-center gap-1.5"
+           [class.text-emerald-400]="h.agente.online" [class.text-slate-400]="!h.agente.online">
+          <span class="w-1.5 h-1.5 rounded-full" [class.bg-emerald-400]="h.agente.online" [class.bg-slate-500]="!h.agente.online"></span>
+          {{ h.agente.online ? 'Online' : 'Sem conexão' }}
+        </p>
+        <p class="text-[11px] text-slate-500 mt-1">Último contato: {{ tempoRelativo(h.agente.lastSeenAt) }}</p>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-graphite-200 border border-white/10">
+        <p class="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Limpeza de Biometria Órfã</p>
+        <p class="text-sm font-semibold text-white mt-1.5">
+          {{ h.fantasmas.removidosHoje > 0 ? h.fantasmas.removidosHoje + ' removida(s) hoje' : 'Nenhuma hoje' }}
+        </p>
+        <p class="text-[11px] text-slate-500 mt-1">Última varredura: {{ tempoRelativo(h.fantasmas.ultimaVarreduraEm) }} · roda a cada hora</p>
+      </div>
+    </div>
+  }
+
   <!-- Feedback -->
   @if (successMessage()) {
     <div

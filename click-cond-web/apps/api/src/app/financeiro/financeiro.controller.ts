@@ -53,9 +53,13 @@ export class FinanceiroController {
     @Query('mes') mes: string,
     @Query('ano') ano: string,
     @ReqUser() payload: JwtPayload,
+    @Query('incluirTaxasCondominiais') incluirTaxasCondominiais?: string,
   ) {
     const isSindico = (payload?.typeAccess ?? payload?.user?.typeAccess) === 'Sindico';
-    return this.service.getAll(Number(idCondominio), mes, ano, isSindico, payload);
+    return this.service.getAll(
+      Number(idCondominio), mes, ano, isSindico, payload,
+      incluirTaxasCondominiais === 'true',
+    );
   }
 
   @Get('get')
@@ -129,12 +133,14 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
     @Query('mes') mes?: string,
     @Query('ano') ano?: string,
+    @Query('incluirTaxasCondominiais') incluirTaxasCondominiais?: string,
   ) {
     const { buffer, filename } = await this.service.exportLivroCaixaCsv(
       Number(idCondominio),
       mes,
       ano,
       payload,
+      incluirTaxasCondominiais === 'true',
     );
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

@@ -76,6 +76,13 @@ export const appRoutes: Route[] = [
           ),
       },
       {
+        path: 'veiculos',
+        loadComponent: () =>
+          import('./veiculos/veiculos-page.component').then(
+            (m) => m.VeiculosPageComponent,
+          ),
+      },
+      {
         path: 'ocorrencias',
         loadComponent: () =>
           import('./ocorrencias/ocorrencias-page.component').then(

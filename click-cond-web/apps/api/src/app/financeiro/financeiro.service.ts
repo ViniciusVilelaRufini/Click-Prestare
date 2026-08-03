@@ -792,7 +792,7 @@ export class FinanceiroService implements OnModuleInit {
   // ==========================================
   // LISTAGEM E AGRUPAMENTO GERAL
   // ==========================================
-  async getAll(idCondominio: number, mesStr?: string, anoStr?: string, isSindico: boolean = true, user?: JwtPayload) {
+  async getAll(idCondominio: number, mesStr?: string, anoStr?: string, isSindico: boolean = true, user?: JwtPayload, incluirTaxasCondominiais = false) {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return {
@@ -870,13 +870,19 @@ export class FinanceiroService implements OnModuleInit {
     // 'C' cujo nome aponta para um apartamento real. Assim as duas telas usam
     // o mesmo critério e o que entra numa sai da outra, sem depender de um
     // campo de configuração que pode ser renomeado.
-    const list = listBruta.filter(
-      (l) =>
-        !(
-          l.tipo === 'C' &&
-          aptosDoCondominio.some((a) => this.nomeFaturaDeApto(l.nome, a.apto, a.bloco))
-        ),
-    );
+    //
+    // `incluirTaxasCondominiais` reverte esse filtro — usado quando o síndico
+    // quer o livro caixa completo (com arrecadação) para prestar contas numa
+    // assembleia, já que sem as taxas o saldo sai artificialmente negativo.
+    const list = incluirTaxasCondominiais
+      ? listBruta
+      : listBruta.filter(
+        (l) =>
+          !(
+            l.tipo === 'C' &&
+            aptosDoCondominio.some((a) => this.nomeFaturaDeApto(l.nome, a.apto, a.bloco))
+          ),
+      );
 
     const lancamentosMap: Record<string, any[]> = {};
     let saldo = 0;
@@ -2897,6 +2903,7 @@ export class FinanceiroService implements OnModuleInit {
     mesStr?: string,
     anoStr?: string,
     user?: JwtPayload,
+    incluirTaxasCondominiais = false,
   ): Promise<{ buffer: Buffer; filename: string }> {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
@@ -2920,7 +2927,7 @@ export class FinanceiroService implements OnModuleInit {
     const dataIni = new Date(ano, mes - 1, 1);
     const dataFim = new Date(ano, mes, 0);
 
-    const list = await this.prisma.financeiro.findMany({
+    const listBruta = await this.prisma.financeiro.findMany({
       where: {
         id_condominio: Number(idCondominio),
         OR: [
@@ -2935,6 +2942,25 @@ export class FinanceiroService implements OnModuleInit {
       },
       orderBy: [{ data: 'asc' }, { data_vencimento: 'asc' }],
     });
+
+    // Mesmo critério de exclusão de taxa condominial usado no getAll (tela) —
+    // por padrão o CSV fica consistente com o que o síndico vê na tela;
+    // `incluirTaxasCondominiais` reinclui pra fechar o livro caixa completo.
+    const aptosDoCondominio = incluirTaxasCondominiais
+      ? []
+      : await this.prisma.apartamentos.findMany({
+        where: { id_condominio: Number(idCondominio) },
+        select: { apto: true, bloco: true },
+      });
+    const list = incluirTaxasCondominiais
+      ? listBruta
+      : listBruta.filter(
+        (l) =>
+          !(
+            l.tipo === 'C' &&
+            aptosDoCondominio.some((a) => this.nomeFaturaDeApto(l.nome, a.apto, a.bloco))
+          ),
+      );
 
     // Calcula saldo corrente igual o getAll faz na tela — operador espera
     // ver o mesmo número que aparece no painel.

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   CreateTerminalFacial,
+  FacialHealth,
   FacialSyncStatus,
   SyncPessoa,
   TerminaisFaciaisApi,
@@ -102,6 +103,28 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   get isAgentOnline(): boolean {
     return this.terminais().some((t) => t.agent_online);
+  }
+
+  // Painel de saúde: terminais offline, status do agente, varredura de rostos órfãos.
+  readonly health = signal<FacialHealth | null>(null);
+
+  loadHealth() {
+    this.api.health().subscribe({
+      next: (h) => this.health.set(h),
+      error: () => {},
+    });
+  }
+
+  /** "há 3 min" / "há 2h" — para last-seen do agente e da varredura de fantasmas. */
+  tempoRelativo(iso: string | null): string {
+    if (!iso) return 'sem registro';
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diffMs / 60_000);
+    if (min < 1) return 'agora mesmo';
+    if (min < 60) return `há ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `há ${h}h`;
+    return `há ${Math.floor(h / 24)}d`;
   }
 
   // Modal
@@ -234,9 +257,10 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.loadAreasSociais();
     this.loadSyncStatus();
     this.loadAgentInfo();
+    this.loadHealth();
     // Atualiza o status online/offline dos aparelhos a cada 15s (silencioso),
     // refletindo o heartbeat do agente sem o operador clicar "Testar Conexão".
-    this.statusInterval = setInterval(() => this.load(true), 15_000);
+    this.statusInterval = setInterval(() => { this.load(true); this.loadHealth(); }, 15_000);
   }
 
   ngOnDestroy(): void {

@@ -29,6 +29,18 @@ export class VeiculosService {
     });
   }
 
+  /** Todos os veículos ativos do condomínio, com dados do morador titular — para a tela da portaria. */
+  async findAll(idCondominio: number) {
+    return this.prisma.veiculos.findMany({
+      where: { id_condominio: idCondominio, ativo: 1 },
+      include: {
+        tag: true,
+        morador: { select: { id: true, nome: true, bloco: true, apartamento: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
   async create(idCondominio: number, idMorador: number, dto: VeiculoDto) {
     const data = this.normalizar(dto);
     if (!data.placa) throw new BadRequestException('Placa é obrigatória.');
