@@ -3098,16 +3098,37 @@ export class FacialService {
     // terminal permite saída para esta categoria (ex.: visitante/prestador num
     // leitor compartilhado com regra "Apenas Entrada"), trata como 'entrada'.
     if (this.isAmbiguousAuto(device.sentido, payload)) {
-      const ultimo = await this.prisma.acessos_Facial.findFirst({
-        where: {
-          id_condominio: device.id_condominio,
-          id_pessoa: idPessoa,
-          tipo_pessoa: tipoPessoa,
-          evento: { in: ['entrada', 'saida'] },
-        },
-        orderBy: { timestamp: 'desc' },
-      });
-      const eventoAlternado = ultimo?.evento === 'entrada' ? 'saida' : 'entrada';
+      // Para visitante/prestador a fonte de verdade é o estado REAL da pessoa
+      // (Visitantes.data_entrada/data_saida), não o histórico de Acessos_Facial.
+      // data_saida pode ser setada por outro caminho (checkOut manual da
+      // portaria, expiração automática) sem gerar um evento 'saida' aqui — se
+      // a alternância continuasse olhando só o último evento bem-sucedido, ela
+      // ficaria travada perpetuamente pedindo 'saida' para quem já saiu (e
+      // sendo negada por "não possui entrada ativa"), num loop sem saída.
+      let dentroAgora: boolean | null = null;
+      if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
+        const vAtual = await this.prisma.visitantes.findUnique({
+          where: { id: idPessoa ?? undefined },
+          select: { data_entrada: true, data_saida: true },
+        });
+        if (vAtual) dentroAgora = !!vAtual.data_entrada && !vAtual.data_saida;
+      }
+
+      let eventoAlternado: string;
+      if (dentroAgora !== null) {
+        eventoAlternado = dentroAgora ? 'saida' : 'entrada';
+      } else {
+        const ultimo = await this.prisma.acessos_Facial.findFirst({
+          where: {
+            id_condominio: device.id_condominio,
+            id_pessoa: idPessoa,
+            tipo_pessoa: tipoPessoa,
+            evento: { in: ['entrada', 'saida'] },
+          },
+          orderBy: { timestamp: 'desc' },
+        });
+        eventoAlternado = ultimo?.evento === 'entrada' ? 'saida' : 'entrada';
+      }
       if (
         eventoAlternado === 'saida' &&
         tipoPessoa &&
