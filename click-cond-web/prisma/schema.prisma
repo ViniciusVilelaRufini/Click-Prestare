@@ -152,6 +152,7 @@ model Condominios {
   comunicados          Comunicados[]
   enderecoRel          Endereco?                 @relation(fields: [endereco], references: [id], map: "fk_cond_endereco")
   documentos           Documentos[]
+  contatosUteis        Contatos_Uteis[]
   encomendas           Encomendas[]
   financeiro           Financeiro[]
   funcionarios         Funcionarios[]
@@ -552,6 +553,30 @@ model Documentos {
   condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_doc_cond")
 
   @@index([id_condominio], map: "fk_doc_cond")
+}
+
+/// Agenda de contatos úteis do condomínio (eletricista, encanador, chaveiro...).
+///
+/// Fica ao lado de Documentos na mesma tela do app: o síndico cadastra a mão de
+/// obra de confiança e o morador só consulta/liga, do mesmo jeito que consulta
+/// as atas. Não é o mesmo que Prestadores_servico — aquele é controle de ACESSO
+/// físico (quem entra no prédio, com facial/portaria); aqui é uma lista
+/// telefônica, sem vínculo com portaria nem terminal.
+model Contatos_Uteis {
+  id            Int         @id @default(autoincrement())
+  id_condominio Int
+  nome          String      @db.VarChar(255)
+  /// Especialidade livre ("Eletricista", "Encanador"...) — o app oferece
+  /// sugestões prontas mas não restringe, porque cada condomínio tem os seus.
+  categoria     String      @db.VarChar(100)
+  telefone      String      @db.VarChar(50)
+  observacao    String?     @db.Text
+  ativo         Int         @default(1) @db.TinyInt
+  created_at    DateTime    @default(now()) @db.DateTime(0)
+  updated_at    DateTime    @default(now()) @updatedAt @db.DateTime(0)
+  condominio    Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_contato_cond")
+
+  @@index([id_condominio], map: "fk_contato_cond")
 }
 
 model Manutencoes {

@@ -347,6 +347,8 @@ class Localizable_Al {
     LocalizableModel(key: 'docs_nav_new', text: 'Neues Dokument'), 
     LocalizableModel(key: 'docs_title', text: 'Dokumenttitel'), 
     LocalizableModel(key: 'docs_upload', text: 'Fügen Sie hier Ihr Dokument ein'), 
+    LocalizableModel(key: 'contatos_nav', text: 'Nützliche Kontakte'), 
+    LocalizableModel(key: 'contatos_nav_new', text: 'Neuer Kontakt'), 
 
     //FINANCEIRO
     LocalizableModel(key: 'financeiro_inadimplente', text: 'Säumiger'), 

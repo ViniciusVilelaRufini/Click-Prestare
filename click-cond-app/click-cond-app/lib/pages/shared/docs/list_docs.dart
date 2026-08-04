@@ -1,5 +1,6 @@
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/docs/list_atas.dart';
+import 'package:click/pages/shared/docs/list_contatos.dart';
 import 'package:click/pages/shared/docs/new_document.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -215,7 +216,9 @@ class _ListDocsPageState extends State<ListDocs> {
                               onDelete: isSindico ? () => delete(item['id']) : null,
                             ),
                           ),
-                        if (_selectedMonth == null)
+                        // Atalhos fixos: só fazem sentido sem filtro de mês,
+                        // porque não são documentos daquele mês.
+                        if (_selectedMonth == null) ...[
                           Padding(
                             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                             child: _DocCard(
@@ -224,6 +227,16 @@ class _ListDocsPageState extends State<ListDocs> {
                               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ListAtas())),
                             ),
                           ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: _DocCard(
+                              item: {'nome': getText('contatos_nav').toUpperCase()},
+                              icon: PhosphorIcons.wrench,
+                              showArrow: true,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListContatos())),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -240,7 +253,9 @@ class _DocCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
   final bool showArrow;
-  const _DocCard({required this.item, this.onTap, this.onDelete, this.showArrow = false});
+  /// Atalhos (Atas/Contatos) usam ícone próprio; documento comum fica no PDF.
+  final IconData? icon;
+  const _DocCard({required this.item, this.onTap, this.onDelete, this.showArrow = false, this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +269,7 @@ class _DocCard extends StatelessWidget {
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(PhosphorIcons.filePdf, color: AppColors.primary, size: 22),
+              child: Icon(icon ?? PhosphorIcons.filePdf, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

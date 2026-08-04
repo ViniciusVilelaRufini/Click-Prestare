@@ -347,6 +347,8 @@ class Localizable_EnUs {
           LocalizableModel(key: 'docs_nav_new', text: 'New Document'), 
           LocalizableModel(key: 'docs_title', text: 'Document title'), 
           LocalizableModel(key: 'docs_upload', text: 'Insert your document here'), 
+          LocalizableModel(key: 'contatos_nav', text: 'Useful Contacts'), 
+          LocalizableModel(key: 'contatos_nav_new', text: 'New Contact'), 
       
           //FINANCEIRO
           LocalizableModel(key: 'financeiro_inadimplente', text: 'Defaulter'), 

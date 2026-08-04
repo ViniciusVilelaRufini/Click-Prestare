@@ -347,6 +347,8 @@ class Localizable_PtBr {
     LocalizableModel(key: 'docs_nav_new', text: 'Novo Documento'), 
     LocalizableModel(key: 'docs_title', text: 'Título do documento'), 
     LocalizableModel(key: 'docs_upload', text: 'Insira seu documento aqui'), 
+    LocalizableModel(key: 'contatos_nav', text: 'Contatos Úteis'), 
+    LocalizableModel(key: 'contatos_nav_new', text: 'Novo Contato'), 
 
     //FINANCEIRO
     LocalizableModel(key: 'financeiro_inadimplente', text: 'Inadimplente'), 
