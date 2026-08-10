@@ -2,4 +2,4 @@
 # versionados. O que é segredo (chave .p8, senha do match) vem por variável de
 # ambiente, dos Secrets do GitHub.
 app_identifier("br.com.clickprestare.app")
-team_id("8B2F8N375Z")
+team_id(ENV["APPLE_TEAM_ID"].to_s.empty? ? "9FD7V97G5V" : ENV["APPLE_TEAM_ID"])

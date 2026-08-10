@@ -18,7 +18,13 @@
 default_platform(:ios)
 
 APP_ID = "br.com.clickprestare.app"
-TEAM_ID = "8B2F8N375Z"
+
+# O time é o da conta dona da chave da App Store Connect. Fixar um ID aqui já
+# quebrou o build uma vez: o match emitiu o perfil no time da chave e o
+# xcodebuild procurou por outro, falhando com "No profile for team ... found".
+# Por isso o valor certo é sempre o que vem do perfil recém-instalado; a
+# constante existe só como fallback e pode ser sobrescrita por ambiente.
+TEAM_ID = ENV["APPLE_TEAM_ID"].to_s.empty? ? "9FD7V97G5V" : ENV["APPLE_TEAM_ID"]
 
 platform :ios do
   # A chave da App Store Connect chega em base64 porque um .p8 tem quebras de
@@ -103,10 +109,11 @@ platform :ios do
       lock_after_timeout: false,
     )
 
+    # Sem `team_id`: quem manda é a conta da chave da API. Passar um ID à mão
+    # só cria a chance de ele divergir do time que realmente emite o perfil.
     match(
       type: "appstore",
       app_identifier: APP_ID,
-      team_id: TEAM_ID,
       api_key: api_key,
       # readonly: false porque na primeira execução não existe nada para ler —
       # é esta rodada que cria o certificado e o perfil.
@@ -124,17 +131,26 @@ platform :ios do
       install_provisioning_profile(path: profile_path)
     end
 
-    profile_name
+    # O match publica o time do perfil nesta variável. É a única fonte que não
+    # pode divergir do que foi de fato instalado no runner.
+    team_id = ENV["sigh_#{APP_ID}_appstore_team-id"].to_s
+    team_id = TEAM_ID if team_id.empty?
+    UI.message("Assinando com o time #{team_id} e o perfil '#{profile_name}'")
+
+    { name: profile_name, team_id: team_id }
   end
 
-  def arquivar(profile_name)
+  def arquivar(profile)
+    profile_name = profile[:name]
+    team_id = profile[:team_id]
+
     # O projeto vem configurado para assinatura automática (é como o Flutter
     # gera). Reescrever para manual ANTES de arquivar é obrigatório: o gym
     # respeita o que está no pbxproj, não o que o match acabou de instalar.
     update_code_signing_settings(
       use_automatic_signing: false,
       path: "Runner.xcodeproj",
-      team_id: TEAM_ID,
+      team_id: team_id,
       bundle_identifier: APP_ID,
       code_sign_identity: "Apple Distribution",
       profile_name: profile_name,
@@ -155,7 +171,7 @@ platform :ios do
       export_options: {
         provisioningProfiles: { APP_ID => profile_name },
         signingStyle: "manual",
-        teamID: TEAM_ID,
+        teamID: team_id,
       },
     )
   end
