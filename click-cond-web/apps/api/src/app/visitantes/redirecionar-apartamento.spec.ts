@@ -60,7 +60,8 @@ describe('VisitantesService — redirecionar visita para outro apartamento', () 
       assertCondominio: jest.fn(async () => undefined),
       assertEntidade: jest.fn(async () => undefined),
     };
-    const svc = new VisitantesService(prisma, notif, storage, facial, auditoria, tenant);
+    const realtime: any = { emitToCondominio: jest.fn() };
+    const svc = new VisitantesService(prisma, notif, storage, facial, auditoria, tenant, realtime);
     jest.spyOn(svc as any, 'notificarMoradoresAutorizacao').mockResolvedValue(undefined);
     jest.spyOn(svc as any, 'carregarContextoVisitante').mockResolvedValue(null);
     return { svc, prisma };

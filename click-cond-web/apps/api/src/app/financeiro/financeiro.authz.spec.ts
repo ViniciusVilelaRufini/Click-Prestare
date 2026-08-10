@@ -98,13 +98,26 @@ describe('FinanceiroController.getAll — reconhece síndico independente do for
     const { controller, service } = buildController();
     const payload: JwtPayload = { sub: 1, nome: 'Síndico', typeAccess: 'Sindico' };
     controller.getAll('2', '7', '2026', payload);
-    expect(service.getAll).toHaveBeenCalledWith(2, '7', '2026', true, payload);
+    expect(service.getAll).toHaveBeenCalledWith(2, '7', '2026', true, payload, false);
   });
 
   it('isSindico=false para morador', () => {
     const { controller, service } = buildController();
     const payload: JwtPayload = { sub: 1, nome: 'Morador', typeAccess: 'Morador' };
     controller.getAll('2', '7', '2026', payload);
-    expect(service.getAll).toHaveBeenCalledWith(2, '7', '2026', false, payload);
+    expect(service.getAll).toHaveBeenCalledWith(2, '7', '2026', false, payload, false);
+  });
+
+  // O livro caixa não soma as taxas condominiais por padrão; quem quer o
+  // total com elas pede explicitamente. Como o valor chega pela query string,
+  // só a string 'true' liga — qualquer outra coisa mantém o padrão.
+  it('incluirTaxasCondominiais só liga com a string "true"', () => {
+    const { controller, service } = buildController();
+    const payload: JwtPayload = { sub: 1, nome: 'Síndico', typeAccess: 'Sindico' };
+    controller.getAll('2', '7', '2026', payload, 'true');
+    expect(service.getAll).toHaveBeenCalledWith(2, '7', '2026', true, payload, true);
+
+    controller.getAll('2', '7', '2026', payload, '1');
+    expect(service.getAll).toHaveBeenLastCalledWith(2, '7', '2026', true, payload, false);
   });
 });

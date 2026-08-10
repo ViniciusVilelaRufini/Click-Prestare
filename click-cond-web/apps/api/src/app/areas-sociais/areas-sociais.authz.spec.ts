@@ -25,7 +25,20 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
         create: jest.fn(async () => ({ id: 500, status: 'pendente' })),
         findUnique: jest.fn(async () => null),
       },
-      apartamentos_Users: { findFirst: jest.fn(async () => null), findMany: jest.fn(async () => []) },
+      // Dois usos, distinguidos pelo `where`:
+      //  - `id_user`  → TenantAccessService resolvendo o vínculo do morador
+      //                 mobile (que não carrega id_condominio no token);
+      //  - `id_apto`  → insertAgendamento procurando o dono da reserva feita
+      //                 pelo operador em nome do apartamento.
+      apartamentos_Users: {
+        findFirst: jest.fn(async ({ where }: any) => {
+          if (where?.id_user !== undefined) {
+            return Number(where.id_user) === 5 ? { id_apto: 100 } : null;
+          }
+          return { id_user: 5 };
+        }),
+        findMany: jest.fn(async () => []),
+      },
       sindicos_Condominios: { findFirst: jest.fn(async () => null) },
       ...overrides,
     };
@@ -37,9 +50,14 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
     return { svc, prisma };
   }
 
-  const moradorCond2: JwtPayload = { sub: 5, nome: 'Morador X', id_condominio: 2 };
+  // Token de morador é o que o login mobile emite: `typeAccess` no topo e
+  // SEM id_condominio — quem carrega id_condominio no token é o operador do
+  // console, e é exatamente por essa presença que o assertOperador o
+  // reconhece. Modelar morador com id_condominio faria ele passar por
+  // operador no teste, coisa que nenhum login de verdade produz.
+  const moradorCond2: JwtPayload = { sub: 5, nome: 'Morador X', typeAccess: 'Morador' };
   const funcionarioCond2: JwtPayload = { sub: 6, nome: 'Porteiro Y', id_condominio: 2, typeAccess: 'Funcionario' };
-  const moradorCond1: JwtPayload = { sub: 7, nome: 'Morador de outro condo', id_condominio: 1 };
+  const moradorCond1: JwtPayload = { sub: 7, nome: 'Morador de outro condo', typeAccess: 'Morador' };
 
   describe('insertAgendamento — agendarPeloSindico', () => {
     const agendamento = {

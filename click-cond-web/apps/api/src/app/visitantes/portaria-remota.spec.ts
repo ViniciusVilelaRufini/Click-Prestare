@@ -59,6 +59,10 @@ describe('VisitantesService — portaria remota', () => {
       },
     };
 
+    // O gateway de tempo real avisa a portaria-web da solicitação; no teste
+    // só precisa existir para o service poder chamá-lo.
+    const realtime: any = { emitToCondominio: jest.fn() };
+
     const svc = new VisitantesService(
       prisma,
       notifications as any,
@@ -66,8 +70,9 @@ describe('VisitantesService — portaria remota', () => {
       facial as any,
       auditoria as any,
       tenant as any,
+      realtime as any,
     );
-    return { svc, prisma, notifications, facial, auditoria };
+    return { svc, prisma, notifications, facial, auditoria, realtime };
   }
 
   const porteiro = { id_condominio: 1, nome: 'Porteiro', sub: 99 } as any;
