@@ -114,7 +114,17 @@ platform :ios do
       keychain_name: "click_ci",
       keychain_password: kc_password,
     )
-    lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][APP_ID]
+
+    profile_name = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][APP_ID]
+    profile_path = ENV["sigh_profile_path"] || lane_context[SharedValues::SIGH_PROFILE_PATH]
+
+    # Copia o perfil para o diretório onde o xcodebuild procura — sem isto
+    # o Xcode não encontra o perfil e falha com "No profile for team matching".
+    if profile_path && File.exist?(profile_path)
+      install_provisioning_profile(path: profile_path)
+    end
+
+    profile_name
   end
 
   def arquivar(profile_name)
@@ -138,6 +148,8 @@ platform :ios do
       export_method: "app-store",
       output_directory: "build",
       output_name: "Click.ipa",
+      # Aponta o xcodebuild para o chaveiro do CI, onde o certificado está.
+      xcargs: "OTHER_CODE_SIGN_FLAGS='--keychain ~/Library/Keychains/click_ci'",
       # Silencia o aviso de bitcode (aposentado pela Apple) e garante que o
       # export use exatamente o perfil do match.
       export_options: {
