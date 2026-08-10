@@ -52,7 +52,9 @@ jobs:
       # primeira execução resolve a árvore do zero. `pod install --repo-update`
       # evita falhar por índice velho do CocoaPods na imagem do runner.
       - name: CocoaPods
-        run: bundle exec pod install --repo-update
+        run: |
+          bundle exec pod install --repo-update
+          find Pods -name "*.sh" -exec chmod +x {} +
 
       # Compila o Dart e monta o app SEM assinar — quem assina é o gym, logo
       # depois, com o perfil que o match instalou. Tentar assinar aqui daria
