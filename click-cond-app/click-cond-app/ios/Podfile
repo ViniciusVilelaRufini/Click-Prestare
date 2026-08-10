@@ -1,5 +1,8 @@
-# Uncomment this line to define a global platform for your project
- platform :ios, '12.0'
+# iOS 15 é o piso do Firebase Apple SDK usado pelo firebase_core 4.x. O
+# Podfile.lock versionado ainda é de antes do Firebase entrar no pubspec (não
+# tem nenhum pod dele), então o primeiro `pod install` no CI é que vai resolver
+# a árvore de verdade — se algum pod pedir mais que 15, o erro aponta o número.
+platform :ios, '16.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -38,7 +41,7 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
     end
   end
 end
