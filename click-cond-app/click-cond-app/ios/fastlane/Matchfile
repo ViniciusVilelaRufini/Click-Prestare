@@ -1,0 +1,10 @@
+# Onde ficam guardados certificado e perfil de distribuição.
+#
+# É um repositório PRIVADO separado, só com esses arquivos — o conteúdo é
+# cifrado com a MATCH_PASSWORD antes de ser commitado. Não pode ser o repo do
+# projeto: quem tem acesso ao código não deveria, por isso só, poder assinar
+# publicações em nome da conta de desenvolvedor.
+git_url(ENV.fetch("MATCH_GIT_URL"))
+storage_mode("git")
+type("appstore")
+app_identifier(["br.com.clickprestare.app"])

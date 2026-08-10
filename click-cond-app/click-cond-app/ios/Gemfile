@@ -1,0 +1,7 @@
+source "https://rubygems.org"
+
+# O runner macOS do GitHub já traz uma versão do fastlane, mas ela muda sem
+# aviso quando a imagem é atualizada. Fixar aqui é o que faz o build de hoje
+# rodar igual daqui a três meses.
+gem "fastlane", "~> 2.228"
+gem "cocoapods", "~> 1.16"

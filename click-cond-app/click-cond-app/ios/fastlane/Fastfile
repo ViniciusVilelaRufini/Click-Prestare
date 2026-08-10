@@ -1,0 +1,136 @@
+# Publicação do app iOS sem Mac.
+#
+# Todo o build acontece no runner macOS do GitHub Actions; esta máquina de
+# desenvolvimento é Windows e nunca vê um Xcode. Consequências que moldam o
+# arquivo inteiro:
+#
+#  - Assinatura é MANUAL. Assinatura automática depende do Xcode conversando
+#    com uma conta logada na UI, coisa que não existe em CI. Quem cria e
+#    entrega certificado e perfil é o `match`.
+#  - Nada de senha de Apple ID. A autenticação é por chave da App Store
+#    Connect API, que não tem 2FA para atrapalhar um job sem interação.
+#
+# Lanes:
+#   beta    → build + TestFlight (é o que roda no dia a dia)
+#   release → envia para revisão da App Store
+#   certs   → só sincroniza assinatura, para depurar sem gastar um build
+
+default_platform(:ios)
+
+APP_ID = "br.com.clickprestare.app"
+TEAM_ID = "8B2F8N375Z"
+
+platform :ios do
+  # A chave da App Store Connect chega em base64 porque um .p8 tem quebras de
+  # linha e Secret do GitHub com múltiplas linhas é fonte de erro silencioso.
+  def asc_key
+    app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_P8_BASE64"),
+      is_key_content_base64: true,
+      in_house: false,
+    )
+  end
+
+  desc "Sincroniza certificado e perfil de distribuição (match)"
+  lane :certs do
+    preparar_assinatura(asc_key)
+  end
+
+  desc "Build assinado e envio para o TestFlight"
+  lane :beta do
+    api_key = asc_key
+    profile = preparar_assinatura(api_key)
+    arquivar(profile)
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: APP_ID,
+      # O IPA já vem pronto do passo anterior; sem isto o pilot tentaria
+      # compilar de novo.
+      skip_waiting_for_build_processing: true,
+      # Grupos e changelog ficam para o painel: preencher aqui exigiria que o
+      # texto de cada versão passasse por commit.
+      distribute_external: false,
+    )
+  end
+
+  desc "Build assinado e envio para revisão da App Store"
+  lane :release do
+    api_key = asc_key
+    profile = preparar_assinatura(api_key)
+    arquivar(profile)
+
+    upload_to_app_store(
+      api_key: api_key,
+      app_identifier: APP_ID,
+      # Textos da ficha, capturas e preço são editados no App Store Connect —
+      # o CI só entrega o binário. `skip_metadata`/`skip_screenshots` evitam
+      # que uma pasta vazia do fastlane apague o que está publicado lá.
+      skip_metadata: true,
+      skip_screenshots: true,
+      # Não envia para revisão sozinho: a submissão é uma decisão sua, tomada
+      # no painel depois de conferir o build.
+      submit_for_review: false,
+      precheck_include_in_app_purchases: false,
+      force: true,
+    )
+  end
+
+  # ---------------------------------------------------------------------------
+
+  # Cria (ou recupera) certificado de distribuição e perfil, guardados
+  # criptografados no repositório de certificados. É o que substitui o
+  # "abrir o Xcode e clicar em Manage Certificates" que exigiria um Mac.
+  #
+  # Devolve o NOME do perfil, porque é isso que o Xcode precisa receber para
+  # assinar manualmente.
+  def preparar_assinatura(api_key)
+    match(
+      type: "appstore",
+      app_identifier: APP_ID,
+      team_id: TEAM_ID,
+      api_key: api_key,
+      # readonly: false porque na primeira execução não existe nada para ler —
+      # é esta rodada que cria o certificado e o perfil.
+      readonly: false,
+      # O runner é descartado ao fim do job; um chaveiro temporário evita
+      # depender do chaveiro de login, que em CI vem trancado.
+      keychain_name: "click_ci",
+      keychain_password: ENV.fetch("KEYCHAIN_PASSWORD", "click_ci_temp"),
+    )
+    lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][APP_ID]
+  end
+
+  def arquivar(profile_name)
+    # O projeto vem configurado para assinatura automática (é como o Flutter
+    # gera). Reescrever para manual ANTES de arquivar é obrigatório: o gym
+    # respeita o que está no pbxproj, não o que o match acabou de instalar.
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: TEAM_ID,
+      bundle_identifier: APP_ID,
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name,
+      targets: ["Runner"],
+    )
+
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build",
+      output_name: "Click.ipa",
+      # Silencia o aviso de bitcode (aposentado pela Apple) e garante que o
+      # export use exatamente o perfil do match.
+      export_options: {
+        provisioningProfiles: { APP_ID => profile_name },
+        signingStyle: "manual",
+        teamID: TEAM_ID,
+      },
+    )
+  end
+end

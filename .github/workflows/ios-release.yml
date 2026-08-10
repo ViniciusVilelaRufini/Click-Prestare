@@ -1,0 +1,93 @@
+name: iOS — TestFlight
+
+# Disparo MANUAL, não automático no push. Cada execução consome minutos de
+# runner macOS (que contam 10x no plano do GitHub) e gera um build number novo
+# no TestFlight — publicar a cada commit queimaria os dois à toa.
+on:
+  workflow_dispatch:
+    inputs:
+      destino:
+        description: "Para onde enviar o build"
+        required: true
+        default: testflight
+        type: choice
+        options:
+          - testflight
+          - app-store
+
+jobs:
+  build:
+    name: Build e envio
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: click-cond-app/click-cond-app/ios
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mesma versão do CI (ci.yml). Divergir aqui significaria publicar um
+      # binário compilado por um Flutter que nunca passou pelo analyze.
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+
+      - name: Instalar dependências do Flutter
+        working-directory: click-cond-app/click-cond-app
+        run: flutter pub get
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: click-cond-app/click-cond-app/ios
+
+      # O Podfile.lock versionado é anterior à entrada do Firebase, então a
+      # primeira execução resolve a árvore do zero. `pod install --repo-update`
+      # evita falhar por índice velho do CocoaPods na imagem do runner.
+      - name: CocoaPods
+        run: bundle exec pod install --repo-update
+
+      # Compila o Dart e monta o app SEM assinar — quem assina é o gym, logo
+      # depois, com o perfil que o match instalou. Tentar assinar aqui daria
+      # o erro clássico de "no signing certificate found" no runner.
+      #
+      # O build number vem do número da execução do workflow: é estritamente
+      # crescente e não depende de consultar o TestFlight, que falharia no
+      # primeiro envio (quando ainda não existe build nenhum lá).
+      - name: Build do Flutter (sem assinatura)
+        working-directory: click-cond-app/click-cond-app
+        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+
+      - name: Assinar e enviar
+        run: bundle exec fastlane ${{ inputs.destino == 'app-store' && 'release' || 'beta' }}
+        env:
+          # Chave da App Store Connect API — substitui o login com Apple ID e
+          # não esbarra em 2FA.
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          # Repositório privado dos certificados + senha que cifra o conteúdo.
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+          # Sem TTY o fastlane trava esperando confirmação em vez de falhar.
+          FASTLANE_SKIP_UPDATE_CHECK: "true"
+          FASTLANE_HIDE_CHANGELOG: "true"
+
+      # Guarda o .ipa e os logs do Xcode: quando o envio falha, o motivo real
+      # costuma estar no log do gym, não na mensagem final do fastlane.
+      - name: Guardar artefatos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-${{ github.run_number }}
+          path: |
+            click-cond-app/click-cond-app/ios/build/*.ipa
+            ~/Library/Logs/gym
+          retention-days: 7
+          if-no-files-found: ignore
