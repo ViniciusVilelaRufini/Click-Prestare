@@ -27,6 +27,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A Apple recusa no upload (409 "SDK version issue") qualquer binário
+      # compilado com SDK anterior ao do iOS 26. A imagem macos-15 traz vários
+      # Xcode 26.x, mas o PADRÃO dela ainda é o 16.4 — que gera SDK 18.5 e
+      # passa por todo o build para só morrer no altool, depois de ~5 min de
+      # runner macOS gastos.
+      #
+      # Escolhe o 26 mais novo disponível em vez de fixar uma versão: a
+      # imagem troca de Xcode com frequência e um caminho fixo quebraria no
+      # dia em que aquela versão saísse. Se nenhum 26+ existir, falha aqui
+      # com a lista do que há — não adianta seguir.
+      - name: Selecionar Xcode 26+
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::Nenhum Xcode 26+ nesta imagem; o App Store Connect exige SDK do iOS 26."
+            ls -d /Applications/Xcode*.app || true
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+          echo "SDK do iOS: $(xcrun --sdk iphoneos --show-sdk-version)"
+
       # Mesma versão do CI (ci.yml). Divergir aqui significaria publicar um
       # binário compilado por um Flutter que nunca passou pelo analyze.
       - uses: subosito/flutter-action@v2
