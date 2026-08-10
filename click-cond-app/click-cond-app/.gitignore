@@ -1,2 +1,4 @@
 build/
 .dart_tool/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh

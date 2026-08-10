@@ -37,7 +37,10 @@ jobs:
 
       - name: Instalar dependências do Flutter
         working-directory: click-cond-app/click-cond-app
-        run: flutter pub get
+        run: |
+          rm -f ios/Flutter/Generated.xcconfig
+          rm -f ios/Flutter/flutter_export_environment.sh
+          flutter pub get
 
       - uses: ruby/setup-ruby@v1
         with:
