@@ -87,6 +87,22 @@ platform :ios do
   # Devolve o NOME do perfil, porque é isso que o Xcode precisa receber para
   # assinar manualmente.
   def preparar_assinatura(api_key)
+    kc_password = ENV.fetch("KEYCHAIN_PASSWORD", "click_ci_temp")
+
+    # Cria um chaveiro temporário para o CI. O runner é descartável, então
+    # não tem problema criar e descartar ao fim do job. Sem isto o match
+    # tenta usar um chaveiro que não existe e falha com "Could not locate
+    # the provided keychain".
+    create_keychain(
+      name: "click_ci",
+      password: kc_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false,
+      lock_after_timeout: false,
+    )
+
     match(
       type: "appstore",
       app_identifier: APP_ID,
@@ -95,10 +111,8 @@ platform :ios do
       # readonly: false porque na primeira execução não existe nada para ler —
       # é esta rodada que cria o certificado e o perfil.
       readonly: false,
-      # O runner é descartado ao fim do job; um chaveiro temporário evita
-      # depender do chaveiro de login, que em CI vem trancado.
       keychain_name: "click_ci",
-      keychain_password: ENV.fetch("KEYCHAIN_PASSWORD", "click_ci_temp"),
+      keychain_password: kc_password,
     )
     lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][APP_ID]
   end
