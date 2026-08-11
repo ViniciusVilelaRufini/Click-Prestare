@@ -46,7 +46,7 @@ class _ListAtasPageState extends State<ListAtas> {
     return list.where((item) {
       if (item['created_at'] == null) return false;
       try {
-        final date = DateTime.parse(item['created_at'].toString());
+        final date = DateTime.parse(item['created_at'].toString()).toLocal();
         return date.month == _selectedMonth!.month && date.year == _selectedMonth!.year;
       } catch (_) {
         return false;

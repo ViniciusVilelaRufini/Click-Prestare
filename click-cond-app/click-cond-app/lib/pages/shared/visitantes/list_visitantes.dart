@@ -13,6 +13,7 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
+import 'package:click/utils/datas.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -709,8 +710,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
 
   String _formatPeriod(dynamic start, dynamic end) {
     if (start == null) return 'Qualquer data';
-    final s = DateTime.tryParse(start.toString());
-    final e = end != null ? DateTime.tryParse(end.toString()) : null;
+    final s = parseDataApi(start);
+    final e = parseDataApi(end);
     
     if (s == null) return 'Qualquer data';
     

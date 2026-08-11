@@ -1,4 +1,5 @@
 import 'package:click/controllers/controller_condominio.dart';
+import 'package:click/utils/datas.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -50,12 +51,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
         duration: const Duration(milliseconds: 400), alignment: 0.3);
   }
 
-  String _formatDataHora(dynamic ts) {
-    final d = DateTime.tryParse(ts?.toString() ?? '');
-    if (d == null) return '';
-    final pad = (int n) => n.toString().padLeft(2, '0');
-    return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
-  }
+  String _formatDataHora(dynamic ts) => formatarDataHora(ts);
 
   @override
   Widget build(BuildContext context) {

@@ -2,6 +2,7 @@ import 'package:click/controllers/controller_facial.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/datas.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -44,7 +45,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
 
   String _formatTs(dynamic ts) {
     if (ts == null) return '';
-    final d = DateTime.tryParse(ts.toString());
+    final d = parseDataApi(ts);
     if (d == null) return ts.toString();
     final pad = (int n) => n.toString().padLeft(2, '0');
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';

@@ -403,7 +403,7 @@ class _EncomendaCard extends StatelessWidget {
     String dataFormatada = '';
     if (encomenda.recebidoEm != null) {
       try {
-        final dt = DateTime.parse(encomenda.recebidoEm!);
+        final dt = DateTime.parse(encomenda.recebidoEm!).toLocal();
         dataFormatada = DateFormat('dd/MM/yyyy HH:mm').format(dt);
       } catch (_) {
         dataFormatada = encomenda.recebidoEm!;
@@ -664,7 +664,7 @@ class _EncomendaCard extends StatelessWidget {
     String dataFormatada = '';
     if (encomenda.recebidoEm != null) {
       try {
-        DateTime dt = DateTime.parse(encomenda.recebidoEm!);
+        DateTime dt = DateTime.parse(encomenda.recebidoEm!).toLocal();
         dataFormatada = DateFormat('dd/MM/yyyy HH:mm').format(dt);
       } catch (_) {
         dataFormatada = encomenda.recebidoEm!;
@@ -993,7 +993,7 @@ class _EncomendaCard extends StatelessWidget {
                           label: 'Data de Retirada',
                           value: () {
                             try {
-                              DateTime dt = DateTime.parse(encomenda.retiradoEm!);
+                              DateTime dt = DateTime.parse(encomenda.retiradoEm!).toLocal();
                               return DateFormat('dd/MM/yyyy HH:mm').format(dt);
                             } catch (_) {
                               return encomenda.retiradoEm!;
