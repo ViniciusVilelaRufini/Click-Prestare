@@ -7,10 +7,21 @@ class FirebaseService {
   static final FirebaseService instance = FirebaseService._();
   FirebaseService._();
 
+  /// Nunca lança: quem chama não espera o resultado, e uma falha aqui não
+  /// pode derrubar nem travar o app — no máximo o aparelho fica sem push.
   Future<void> init() async {
     if (kIsWeb) return;
+    try {
+      await _init();
+    } catch (e) {
+      // Sem push, mas com app funcionando.
+      if (kDebugMode) print('Firebase indisponível, seguindo sem push: $e');
+    }
+  }
+
+  Future<void> _init() async {
     await Firebase.initializeApp();
-    
+
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
     // Request permissions (iOS)
@@ -26,8 +37,14 @@ class FirebaseService {
       }
     }
 
-    // Get Token
-    String? token = await messaging.getToken();
+    // No iOS o getToken espera o registro no APNs, que pode não responder
+    // nunca (sem rede, perfil sem push, simulador). O timeout evita que os
+    // listeners abaixo — que são o que realmente entrega a notificação —
+    // fiquem para trás por causa dele.
+    String? token = await messaging.getToken().timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => null,
+    );
     if (kDebugMode) {
       print('FCM Token: $token');
     }

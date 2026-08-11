@@ -13,12 +13,25 @@ import 'package:click/services/firebase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FirebaseService.instance.init();
-  
-  SystemChrome.setPreferredOrientations([
+
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
-  ]).then((_) => runApp(const MyApp()));
+  ]);
+
+  // A tela sobe ANTES do Firebase, e o init roda sem ser esperado.
+  //
+  // Antes isto era `await FirebaseService.instance.init()` na frente do
+  // runApp: qualquer falha ali — plist de configuração fora do bundle,
+  // APNs demorando para responder, aparelho sem rede — impedia o primeiro
+  // frame e o app ficava na splash nativa para sempre, sem mensagem. Foi
+  // exatamente o que aconteceu no primeiro build de TestFlight no iPhone.
+  //
+  // Push é recurso acessório: se ele falhar, o morador ainda precisa
+  // conseguir abrir o app e usar portaria, reservas e financeiro.
+  runApp(const MyApp());
+
+  FirebaseService.instance.init();
 }
 
 class MyApp extends StatefulWidget {
