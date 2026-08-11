@@ -120,6 +120,36 @@ export class MobileAuthService {
     return { token: this.jwt.sign(payload), user: userObj };
   }
 
+  /**
+   * Converte a foto recebida do app em algo que caiba na coluna.
+   *
+   * `Users.photo` é VarChar(500) e guarda URL — o app manda a imagem como
+   * data URL base64, que tem dezenas de milhares de caracteres. Gravar direto
+   * estourava o banco e a tela "Editar Dados" mostrava o erro cru do Prisma
+   * ("value too long for the column's type. Column: photo"), sem salvar nada.
+   *
+   * Devolve `undefined` quando não há nada a alterar, para o chamador manter a
+   * foto atual em vez de apagá-la.
+   */
+  private async normalizarFoto(
+    photo: string | undefined,
+    prefix: string,
+  ): Promise<string | undefined> {
+    if (photo === undefined) return undefined;
+    if (photo === null || photo === '') return '';
+    if (!this.storage.isDataUrl(photo)) return photo; // já é URL
+
+    const url = await this.storage.uploadDataUrl(photo, prefix, 'profile');
+
+    // Storage desligado devolve o próprio data URL. Preferimos manter a foto
+    // anterior a derrubar o salvamento inteiro do perfil por causa da imagem.
+    if (!url || this.storage.isDataUrl(url)) {
+      console.warn('[perfil] foto não enviada ao storage; mantendo a anterior.');
+      return undefined;
+    }
+    return url;
+  }
+
   async signupSindico(body: {
     nome: string;
     email: string;
@@ -176,6 +206,8 @@ export class MobileAuthService {
       } catch (e) {}
     }
 
+    const fotoUrl = await this.normalizarFoto(body.photo, 'sindicos');
+
     // 1. Criar Usuário
     const user = await this.prisma.users.create({
       data: {
@@ -185,7 +217,7 @@ export class MobileAuthService {
         is_sindico: 1,
         name: body.nome,
         phone: phone,
-        photo: body.photo || null,
+        photo: fotoUrl || null,
         cpf: docId,
       }
     });
@@ -291,6 +323,10 @@ export class MobileAuthService {
     const docId = body.doc_identification?.trim() || null;
     const phone = body.phone?.trim() || null;
 
+    // Fora da transação: o upload é rede, e segurá-lo dentro prenderia a
+    // transação do banco pelo tempo da subida da imagem.
+    const fotoUrl = await this.normalizarFoto(body.photo, 'sindicos');
+
     await this.prisma.$transaction(async (tx) => {
       // 1. Atualizar tabela users
       await tx.users.update({
@@ -301,7 +337,7 @@ export class MobileAuthService {
           login: emailNormalized || user.login,
           phone: phone,
           cpf: docId,
-          photo: body.photo !== undefined ? body.photo : user.photo,
+          photo: fotoUrl !== undefined ? fotoUrl : user.photo,
         }
       });
 
