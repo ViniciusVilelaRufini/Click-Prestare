@@ -22,8 +22,16 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<!--
+	  FLUTTER_BUILD_NUMBER, e não CURRENT_PROJECT_VERSION: este é o valor que
+	  o `flutter build ios` alimenta com a opção de build number. Com
+	  CURRENT_PROJECT_VERSION (que estava fixo em 15 no projeto Xcode) TODO
+	  build saía carimbado 15, a opção era ignorada em silêncio e o upload
+	  era recusado pela Apple com "bundle version must be higher than the
+	  previously uploaded version: '15'".
+	-->
 	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>MinimumOSVersion</key>
@@ -45,14 +53,27 @@
 			</dict>
 		</dict>
 	</dict>
+	<!--
+	  Declara que o app não usa criptografia além da que a Apple isenta (HTTPS
+	  do sistema). Sem esta chave, o App Store Connect pergunta sobre
+	  conformidade de exportação a CADA envio e a build fica parada esperando
+	  resposta manual — o que trava um pipeline automatizado.
+	-->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!--
+	  Os textos abaixo aparecem no alerta de permissão e são lidos pela revisão
+	  da Apple. Precisam dizer PARA QUE o dado serve, em concreto: motivo
+	  genérico ("para capturar uma foto") é causa recorrente de rejeição pela
+	  diretriz 5.1.1. O microfone foi removido daqui — nenhuma tela do app grava
+	  áudio, e permissão declarada sem uso levanta pergunta na revisão.
+	-->
 	<key>NSCameraUsageDescription</key>
-	<string>Precisamos de acesso a camera para que você possa capturar uma foto</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Precisamos de acesso o microfone para gravar o áudio da sua demanda</string>
+	<string>O Click usa a câmera para fotografar moradores, visitantes, prestadores e funcionários no cadastro — essa foto é o que identifica a pessoa no reconhecimento facial da portaria — e para registrar encomendas e comprovantes de despesa.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Precisamos de acesso a galeria para que você possa selecionar uma foto</string>
+	<string>Permite salvar na sua galeria as fotos e comprovantes gerados no aplicativo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Precisamos de acesso a sua galeria para que você possa selecionar uma foto</string>
+	<string>Permite escolher na sua galeria a foto de cadastro de moradores, visitantes, prestadores e funcionários, além de comprovantes de encomendas e despesas do condomínio.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
