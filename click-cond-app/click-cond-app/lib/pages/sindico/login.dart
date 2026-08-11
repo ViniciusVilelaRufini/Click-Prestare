@@ -13,13 +13,9 @@ import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:click/services/firebase_service.dart';
 import '../../controllers/controller_funcionario.dart';
 import '../../controllers/controller_moradores.dart';
-import '../../utils/api_config.dart';
-import 'package:http/http.dart' as http;
-import 'package:click/utils/api_client.dart';
-import 'dart:convert';
 
 class LoginSindico extends StatefulWidget {
   const LoginSindico({Key? key, required this.loginType}) : super(key: key);
@@ -93,23 +89,11 @@ class _LoginSindicoPageState extends State<LoginSindico> {
     }
   }
 
-  Future<void> _updateFcmToken() async {
-    try {
-      String? token = await FirebaseMessaging.instance.getToken();
-      if (token != null) {
-        await ApiClient.post(
-          ApiConfig.buildUri('/users/update-fcm-token'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': getToken(),
-          },
-          body: jsonEncode({'fcm_token': token}),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error updating FCM token: $e');
-    }
-  }
+  // Um único caminho de registro, no FirebaseService — que também registra na
+  // abertura do app e quando o FCM troca o token. Aqui continua sendo
+  // necessário porque no primeiro login ainda não havia JWT quando o serviço
+  // subiu.
+  Future<void> _updateFcmToken() => FirebaseService.instance.registrarNoServidor();
 
   String _typeLabel() {
     switch (widget.loginType) {
