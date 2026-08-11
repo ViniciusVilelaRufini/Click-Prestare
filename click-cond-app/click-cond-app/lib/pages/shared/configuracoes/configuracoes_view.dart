@@ -1,5 +1,7 @@
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_generic.dart';
+import 'package:click/controllers/controller_notificacoes.dart';
+import 'package:click/services/firebase_service.dart';
 import 'package:click/pages/settings/notification_settings.dart';
 import 'package:click/pages/shared/configuracoes/modal_new_password.dart';
 import 'package:click/pages/singleton.dart';
@@ -311,6 +313,19 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
                 },
               ),
 
+            // Diagnóstico de push na mão de quem tem o aparelho.
+            //
+            // Quando alguém diz "não chega notificação", as causas possíveis
+            // (aparelho sem token registrado, permissão negada no sistema,
+            // token expirado, chave APNs ausente) são todas silenciosas. Este
+            // botão pede ao servidor um envio de teste e mostra o que o FCM
+            // respondeu, em vez de deixar todo mundo no escuro.
+            _SettingsTile(
+              icon: PhosphorIcons.bellRinging,
+              label: 'Testar notificação',
+              onTap: () => _testarNotificacao(context),
+            ),
+
             AppSpacing.gapXl,
             _SectionTitle('Sobre'),
             _SettingsTile(
@@ -412,6 +427,46 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
         child: Icon(PhosphorIcons.buildingsFill,
             color: AppColors.primary, size: 28),
       );
+
+  /// Pede ao servidor um push de teste para este usuário e mostra o resultado.
+  ///
+  /// Antes de pedir o envio, registra o token de novo: se o aparelho nunca se
+  /// registrou (permissão negada na primeira vez, por exemplo), o teste diria
+  /// apenas "nenhum aparelho" sem chance de se corrigir sozinho.
+  Future<void> _testarNotificacao(BuildContext context) async {
+    await FirebaseService.instance.registrarNoServidor();
+
+    final resultado = await apiTestarPush();
+    if (!context.mounted) return;
+
+    final aparelhos = (resultado['aparelhos'] ?? 0) as int;
+    final erroGeral = resultado['erro'] ?? resultado['aviso'];
+
+    String mensagem;
+    if (erroGeral != null) {
+      mensagem = erroGeral.toString();
+    } else if (aparelhos == 0) {
+      mensagem = 'Nenhum aparelho registrado para receber notificações.\n\n'
+          'Verifique se as notificações estão permitidas nos ajustes do celular.';
+    } else {
+      final linhas = <String>['Aparelhos registrados: $aparelhos', ''];
+      for (final r in (resultado['resultados'] as List? ?? [])) {
+        final plataforma = r['plataforma'] ?? 'desconhecida';
+        linhas.add(r['ok'] == true
+            ? '✓ $plataforma — enviado'
+            : '✗ $plataforma — ${r['codigo'] ?? ''} ${r['erro'] ?? ''}');
+      }
+      mensagem = linhas.join('\n');
+    }
+
+    if (!context.mounted) return;
+    showAppDialog(
+      context,
+      title: 'Teste de notificação',
+      message: mensagem,
+      icon: PhosphorIcons.bellRinging,
+    );
+  }
 }
 
 class _SectionTitle extends StatelessWidget {

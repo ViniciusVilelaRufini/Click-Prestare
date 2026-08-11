@@ -42,6 +42,32 @@ void marcarNotificacoesComoVistas() {
   _storage.setItem(_kUltimaVisita, DateTime.now().toIso8601String());
 }
 
+/// Pede ao servidor um push de teste para o próprio usuário logado.
+///
+/// Devolve o que o FCM respondeu por aparelho. Serve para separar "o aparelho
+/// nunca se registrou" de "registrou, mas a entrega falha" — as duas coisas
+/// parecem iguais de fora: nada chega.
+Future<Map<String, dynamic>> apiTestarPush() async {
+  final url = ApiConfig.buildUri('/users/push-teste');
+  try {
+    final response = await ApiClient.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': getToken(),
+      },
+    ).timeout(ApiConfig.timeout);
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic> ? decoded : {};
+    }
+    return {'erro': 'O servidor respondeu ${response.statusCode}.'};
+  } catch (e) {
+    return {'erro': 'Não foi possível falar com o servidor: $e'};
+  }
+}
+
 /// Quantas notificações chegaram depois da última visita à central.
 int contarNaoLidas(List<dynamic> itens) {
   final ultima = getUltimaVisitaNotificacoes();
