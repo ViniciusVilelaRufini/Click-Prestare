@@ -619,6 +619,19 @@ export class UsersMobileController {
     );
   }
 
+  // Diagnóstico de push: envia para os aparelhos do próprio usuário logado e
+  // devolve a resposta do FCM, inclusive o erro. Existe porque "não chega
+  // notificação" tem várias causas mudas (credencial, token morto, APNs sem
+  // chave, app errado no Firebase) e nenhuma delas aparece de fora.
+  //
+  // Só afeta quem chama: não há como pedir push para outro usuário.
+  @Post('push-teste')
+  @HttpCode(200)
+  pushTeste(@ReqUser() payload: JwtPayload) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.diagnosticarPush(Number(idUser));
+  }
+
   // Preferências de notificação (tela NotificationSettingsPage do app).
   @Get('settings')
   getSettings(@ReqUser() payload: JwtPayload) {

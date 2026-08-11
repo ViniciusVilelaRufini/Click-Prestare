@@ -10,6 +10,7 @@ import { somenteDigitos } from '../common/documento.util';
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from './tenant-access.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { assertStaff, assertSindico, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
 
@@ -24,6 +25,7 @@ export class MobileAuthService {
     private readonly tenant: TenantAccessService,
     private readonly financeiro: FinanceiroService,
     private readonly apartamentos: ApartamentosService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -1181,6 +1183,49 @@ export class MobileAuthService {
       data: { fcm_token: token },
     });
     return { success: true };
+  }
+
+  /**
+   * Testa o push do usuário logado e devolve o que o FCM respondeu por
+   * aparelho, sem esconder erro. Usado para separar "não registrou o token"
+   * de "registrou mas a entrega falha".
+   */
+  async diagnosticarPush(idUser: number) {
+    if (!this.prisma.isConnected) return { erro: 'Banco indisponível' };
+
+    const user = await this.prisma.users.findUnique({
+      where: { id: idUser },
+      select: { id: true, login: true, fcm_token: true },
+    });
+    const devices = await this.prisma.users_Devices.findMany({
+      where: { id_user: idUser },
+      select: { fcm_token: true, plataforma: true, updated_at: true },
+    });
+
+    // Une o token da coluna antiga com os da tabela: um aparelho que registrou
+    // antes do deploy novo só existe na coluna.
+    const tokens = new Map<string, string | null>();
+    for (const d of devices) tokens.set(d.fcm_token, d.plataforma);
+    if (user?.fcm_token) if (!tokens.has(user.fcm_token)) tokens.set(user.fcm_token, '(coluna Users)');
+
+    if (tokens.size === 0) {
+      return {
+        usuario: user?.login,
+        aparelhos: 0,
+        aviso: 'Nenhum token registrado: o app não chegou a se registrar neste usuário.',
+      };
+    }
+
+    const resultados = [];
+    for (const [token, plataforma] of tokens) {
+      const r = await this.notifications.enviarDiagnostico(
+        token,
+        'Teste do Click',
+        'Se você está vendo isto, o push chegou.',
+      );
+      resultados.push({ plataforma, token: `...${token.slice(-12)}`, ...r });
+    }
+    return { usuario: user?.login, aparelhos: tokens.size, resultados };
   }
 
   /**

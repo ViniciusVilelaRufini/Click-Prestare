@@ -81,6 +81,39 @@ export class NotificationsService implements OnModuleInit {
     return resultados.find((r) => r !== null) ?? null;
   }
 
+  /**
+   * Envia um push e devolve o ERRO do FCM em vez de engoli-lo.
+   *
+   * O caminho normal registra a falha no log e segue — o que é certo para o
+   * uso real, e péssimo para diagnóstico: "não chegou a notificação" pode ser
+   * credencial, token morto, APNs não configurado ou app errado no Firebase, e
+   * todos são silenciosos do lado de fora. Aqui a resposta volta ao chamador.
+   */
+  async enviarDiagnostico(token: string, title: string, body: string) {
+    if (!this.enabled) {
+      return { ok: false, etapa: 'firebase', erro: 'Firebase Admin desativado (credencial ausente ou inválida)' };
+    }
+    try {
+      const id = await admin.messaging().send({
+        notification: { title, body },
+        token,
+        apns: {
+          headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
+          payload: { aps: { sound: 'default' } },
+        },
+        android: { priority: 'high', notification: { sound: 'default' } },
+      });
+      return { ok: true, messageId: id };
+    } catch (error: any) {
+      return {
+        ok: false,
+        etapa: 'envio',
+        codigo: error?.errorInfo?.code ?? error?.code ?? null,
+        erro: error?.message ?? String(error),
+      };
+    }
+  }
+
   private async tokensDoMesmoDono(token: string): Promise<string[]> {
     if (!this.prisma?.isConnected) return [token];
     try {
