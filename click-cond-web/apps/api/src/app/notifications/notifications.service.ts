@@ -114,6 +114,18 @@ export class NotificationsService implements OnModuleInit {
         notification: { title, body },
         token,
         data: data || {},
+        // Sem estes blocos o FCM manda o padrão: no iOS, alerta sem som e
+        // sujeito a ser adiado pelo sistema; no Android, prioridade normal,
+        // que o Doze segura enquanto a tela está apagada. Um aviso de visita
+        // na portaria não pode chegar meia hora depois.
+        apns: {
+          headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
+          payload: { aps: { sound: 'default' } },
+        },
+        android: {
+          priority: 'high',
+          notification: { sound: 'default' },
+        },
       });
     } catch (error) {
       const code = (error as any)?.errorInfo?.code ?? '';
