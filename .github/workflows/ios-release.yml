@@ -82,12 +82,22 @@ jobs:
       # depois, com o perfil que o match instalou. Tentar assinar aqui daria
       # o erro clássico de "no signing certificate found" no runner.
       #
-      # O build number vem do número da execução do workflow: é estritamente
-      # crescente e não depende de consultar o TestFlight, que falharia no
-      # primeiro envio (quando ainda não existe build nenhum lá).
+      # O build number é a data/hora UTC (AAMMDDhhmm). A Apple exige que ele
+      # seja MAIOR que o de qualquer envio anterior da mesma versão, e o
+      # `github.run_number` que havia aqui não garantia isso: ele só conhece
+      # as execuções deste workflow, então builds enviados por fora (Xcode
+      # Cloud, envio manual) o deixavam para trás — foi o que aconteceu quando
+      # o TestFlight já estava no 15 e o workflow ainda ia no 13, recusado no
+      # upload depois de compilar tudo.
+      #
+      # O relógio nunca anda para trás entre dois builds, não depende de rede
+      # e não precisa perguntar à Apple o que já existe lá.
       - name: Build do Flutter (sem assinatura)
         working-directory: click-cond-app/click-cond-app
-        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+        run: |
+          BUILD_NUMBER=$(date -u +%y%m%d%H%M)
+          echo "Build number: $BUILD_NUMBER"
+          flutter build ios --release --no-codesign --build-number="$BUILD_NUMBER"
 
       - name: Assinar e enviar
         run: bundle exec fastlane ${{ inputs.destino == 'app-store' && 'release' || 'beta' }}
