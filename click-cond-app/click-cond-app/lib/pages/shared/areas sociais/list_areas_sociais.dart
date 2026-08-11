@@ -88,12 +88,41 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
         body: Column(
           children: [
             Container(
-              color: AppColors.surface(context),
+              margin: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.surface(context),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border(context)),
+              ),
               child: TabBar(
-                indicatorColor: AppColors.primary,
-                labelColor: AppColors.primary,
+                dividerColor: Colors.transparent,
+                dividerHeight: 0,
+                indicator: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelColor: Colors.white,
                 unselectedLabelColor: AppColors.textSecondary(context),
-                labelStyle: AppTypography.captionMedium(context),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
                 onTap: (i) => setState(() => _currentTab = i),
                 tabs: tabs,
               ),

@@ -123,10 +123,39 @@ class _MudancaCard extends StatelessWidget {
   Color _statusColor(String? s) {
     switch (s?.toLowerCase()) {
       case 'aprovada':
-      case 'aceito': return const Color(0xFF22C55E);
+      case 'aceito':
+        return const Color(0xFF10B981); // Emerald
       case 'rejeitada':
-      case 'recusado': return const Color(0xFFEF4444);
-      default: return const Color(0xFFF59E0B);
+      case 'recusado':
+        return const Color(0xFFEF4444); // Red
+      default:
+        return const Color(0xFFF59E0B); // Amber
+    }
+  }
+
+  IconData _statusIcon(String? s) {
+    switch (s?.toLowerCase()) {
+      case 'aprovada':
+      case 'aceito':
+        return PhosphorIcons.checkCircle;
+      case 'rejeitada':
+      case 'recusado':
+        return PhosphorIcons.xCircle;
+      default:
+        return PhosphorIcons.clock;
+    }
+  }
+
+  String _statusLabel(String? s) {
+    switch (s?.toLowerCase()) {
+      case 'aprovada':
+      case 'aceito':
+        return 'ACEITO';
+      case 'rejeitada':
+      case 'recusado':
+        return 'RECUSADO';
+      default:
+        return 'PENDENTE';
     }
   }
 
@@ -136,7 +165,9 @@ class _MudancaCard extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface(ctx),
-        title: Text('Recusar mudança', style: AppTypography.bodyMedium(ctx).copyWith(fontWeight: FontWeight.bold)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Recusar Mudança',
+            style: AppTypography.bodyMedium(ctx).copyWith(fontWeight: FontWeight.bold)),
         content: TextField(
           controller: ctrl,
           maxLines: 3,
@@ -144,13 +175,20 @@ class _MudancaCard extends StatelessWidget {
           decoration: InputDecoration(
             hintText: 'Motivo da recusa (opcional)',
             hintStyle: AppTypography.caption(ctx),
-            border: const OutlineInputBorder(),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary(ctx)))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Recusar'),
           ),
@@ -162,76 +200,216 @@ class _MudancaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = item['status']?.toString() ?? 'pendente';
+    final rawStatus = item['status']?.toString() ?? 'pendente';
+    final color = _statusColor(rawStatus);
+    final icon = _statusIcon(rawStatus);
+    final label = _statusLabel(rawStatus);
+
+    final String apto = item['apto']?.toString() ?? '';
+    final String blocoRaw = item['bloco']?.toString() ?? '';
+    String blocoText = '';
+    if (blocoRaw.isNotEmpty) {
+      final bLower = blocoRaw.toLowerCase();
+      if (bLower.contains('bloco') || bLower.contains('bloque') || bLower.contains('block')) {
+        blocoText = blocoRaw;
+      } else {
+        blocoText = 'Bloco $blocoRaw';
+      }
+    }
+    final String aptoBloco = apto.isNotEmpty
+        ? 'Apto $apto ${blocoText.isNotEmpty ? "- $blocoText" : ""}'
+        : (blocoText.isNotEmpty ? blocoText : 'Mudança');
+
+    final data = item['data']?.toString() ?? '';
+    final hora = item['hora_inicio']?.toString() ?? '';
+
     // Síndico/funcionário podem aprovar/recusar mudanças pendentes.
     final isManager = getUserType() != 'morador';
-    final canDecide = isManager && status.toLowerCase() == 'pendente';
+    final canDecide = isManager && rawStatus.toLowerCase() == 'pendente';
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(color: _statusColor(status).withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-                  child: Icon(PhosphorIcons.truck, color: _statusColor(status), size: 22),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border(context)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Borda lateral com cor do status
+              Container(
+                width: 4,
+                color: color,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Apto ${item['apto'] ?? ''} - Bloco ${item['bloco'] ?? ''}', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      if (item['data'] != null)
-                        Text('${item['data']}${item['hora_inicio'] != null ? ' às ${item['hora_inicio']}' : ''}',
-                            style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context))),
-                      Text(status.toUpperCase(), style: AppTypography.tiny(context).copyWith(color: _statusColor(status))),
+                      // Top Row: Ícone de Caminhão + Unidade e Badge de Status
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(PhosphorIcons.truck, color: color, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: onTap,
+                              child: Text(
+                                aptoBloco,
+                                style: TextStyle(
+                                  color: AppColors.textPrimary(context),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Status Pill Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: color.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(icon, size: 12, color: color),
+                                const SizedBox(width: 4),
+                                Text(
+                                  label,
+                                  style: TextStyle(
+                                    color: color,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      // Data e Hora Box
+                      if (data.isNotEmpty || hora.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.bg(context),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              if (data.isNotEmpty) ...[
+                                Icon(PhosphorIcons.calendarBlank, size: 15, color: AppColors.primary),
+                                const SizedBox(width: 6),
+                                Text(
+                                  data,
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary(context),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                              if (data.isNotEmpty && hora.isNotEmpty)
+                                const SizedBox(width: 14),
+                              if (hora.isNotEmpty) ...[
+                                Icon(PhosphorIcons.clock, size: 15, color: AppColors.primary),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'às $hora',
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary(context),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      // Action buttons se o usuário puder aceitar/recusar
+                      if (canDecide) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _recusar(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFEF4444),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  side: const BorderSide(color: Color(0x44EF4444)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                icon: const Icon(PhosphorIcons.x, size: 16),
+                                label: const Text('Recusar', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => onStatusChange(item['id'], true, ''),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                icon: const Icon(PhosphorIcons.check, size: 16),
+                                label: const Text('Aceitar', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (onTap != null) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Ver detalhes',
+                              style: TextStyle(
+                                color: AppColors.textTertiary(context),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(PhosphorIcons.caretRight, size: 14, color: AppColors.textTertiary(context)),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
-                if (onTap != null && !canDecide)
-                  Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
-              ],
-            ),
-            if (canDecide) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _recusar(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFEF4444),
-                        side: const BorderSide(color: Color(0x33EF4444)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      icon: const Icon(PhosphorIcons.x, size: 16),
-                      label: const Text('Recusar'),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => onStatusChange(item['id'], true, ''),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF22C55E),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      icon: const Icon(PhosphorIcons.check, size: 16),
-                      label: const Text('Aceitar'),
-                    ),
-                  ),
-                ],
               ),
             ],
-          ],
+          ),
         ),
       ),
     );

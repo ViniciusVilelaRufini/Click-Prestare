@@ -195,12 +195,14 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
                       backgroundColor: Colors.black.withOpacity(0.8),
                       child: IconButton(
                         icon: ValueListenableBuilder(
-                          valueListenable: _scannerController.torchState,
+                          valueListenable: _scannerController,
                           builder: (context, state, child) {
-                            switch (state as TorchState) {
+                            switch (state.torchState) {
                               case TorchState.off:
+                              case TorchState.unavailable:
                                 return const Icon(PhosphorIcons.flashlight, color: Colors.white);
                               case TorchState.on:
+                              case TorchState.auto:
                                 return const Icon(PhosphorIcons.flashlightFill, color: AppColors.warning);
                             }
                           },

@@ -2,7 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!--
+	  production, e não development: com assinatura automática o Xcode troca
+	  este valor sozinho ao arquivar, mas o build do CI assina MANUALMENTE
+	  (fastlane match) e o valor do arquivo vai literal para o IPA. Com
+	  `development` aqui, o app sobe para o TestFlight com push quebrado —
+	  o token do APNs é emitido no ambiente errado e a entrega falha calada.
+	-->
 	<key>aps-environment</key>
-	<string>development</string>
+	<string>production</string>
 </dict>
 </plist>

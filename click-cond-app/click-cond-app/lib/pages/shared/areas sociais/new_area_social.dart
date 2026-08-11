@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
@@ -62,19 +63,25 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
   Future<void> load() async {
     setState(() => _isLoading = true);
     daysOfWeek.clear();
-    for (var horario in widget.obj['horarios']) {
-      List<HorarioModel> list = [];
-      for (var d in horario['horarios']) {
-        list.add(HorarioModel(horarioDe: d['horarioDe'], horarioAte: d['horarioAte']));
+    if (widget.obj != null && widget.obj['horarios'] != null) {
+      for (var horario in widget.obj['horarios']) {
+        List<HorarioModel> list = [];
+        if (horario['horarios'] != null) {
+          for (var d in horario['horarios']) {
+            list.add(HorarioModel(horarioDe: d['horarioDe'], horarioAte: d['horarioAte']));
+          }
+        }
+        daysOfWeek.add(DiasDaSemanaAreaSocialModel(nome: horario['nome'], horarios: list));
       }
-      daysOfWeek.add(DiasDaSemanaAreaSocialModel(nome: horario['nome'], horarios: list));
     }
-    txtNome.text = widget.obj['nome'];
-    txtCapacidade.text = widget.obj['capacidade'].toString();
-    autorizacao = widget.obj['precisa_autorizacao'].toString();
-    pagamento = widget.obj['precisa_pagamento'].toString();
-    agendamento = widget.obj['precisa_agendar'].toString();
-    imageFile = await fileFromImageUrl(widget.obj['imagem']);
+    if (widget.obj != null) {
+      txtNome.text = widget.obj['nome']?.toString() ?? '';
+      txtCapacidade.text = widget.obj['capacidade']?.toString() ?? '';
+      autorizacao = widget.obj['precisa_autorizacao']?.toString() ?? '0';
+      pagamento = widget.obj['precisa_pagamento']?.toString() ?? '0';
+      agendamento = widget.obj['precisa_agendar']?.toString() ?? '0';
+      imageFile = widget.obj['imagem'];
+    }
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -83,8 +90,11 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
       setState(() => _isSaving = true);
       String? base64;
       if (imageFile != null) {
-        List<int> imageBytes = [];
-        base64 = 'data:image/png;base64,' + base64Encode(imageBytes);
+        if (imageFile is String && imageFile.toString().startsWith('http')) {
+          base64 = imageFile;
+        } else {
+          base64 = convertToBase64(imageFile, 'image/png');
+        }
       }
       var obj = AreaSocialModel(
         id: widget.myId ?? -1,
@@ -134,6 +144,59 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
     }
   }
 
+  Widget _buildImagePreview() {
+    if (imageFile == null) {
+      return Container(
+        width: double.infinity,
+        height: 180,
+        color: AppColors.primary.withOpacity(0.08),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(PhosphorIcons.imageSquare, size: 48, color: AppColors.primary),
+            const SizedBox(height: AppSpacing.sm),
+            Text(getText('area_social_nav_new'),
+                style: AppTypography.body(context).copyWith(color: AppColors.primary)),
+          ],
+        ),
+      );
+    }
+
+    if (imageFile is String && (imageFile as String).startsWith('http')) {
+      return Image.network(
+        imageFile as String,
+        width: double.infinity,
+        height: 180,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: double.infinity,
+          height: 180,
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+        ),
+      );
+    }
+
+    final String path = imageFile is String ? imageFile : (imageFile.path ?? '');
+    if (path.isEmpty) return const SizedBox.shrink();
+
+    if (kIsWeb) {
+      return Image.network(
+        path,
+        width: double.infinity,
+        height: 180,
+        fit: BoxFit.cover,
+      );
+    } else {
+      return Image.file(
+        File(path),
+        width: double.infinity,
+        height: 180,
+        fit: BoxFit.cover,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
@@ -149,22 +212,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     onTap: _selectPhoto,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: imageFile == null
-                          ? Container(
-                              width: double.infinity, height: 180,
-                              color: AppColors.primary.withOpacity(0.08),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(PhosphorIcons.imageSquare, size: 48, color: AppColors.primary),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  Text(getText('area_social_nav_new'),
-                                      style: AppTypography.body(context).copyWith(color: AppColors.primary)),
-                                ],
-                              ),
-                            )
-                          : Image.network(imageFile.path,
-                              width: double.infinity, height: 180, fit: BoxFit.cover),
+                      child: _buildImagePreview(),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xl),

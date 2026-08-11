@@ -405,74 +405,158 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
+  String _getFormattedHeaderDate() {
+    final now = DateTime.now();
+    const meses = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const diasSemana = [
+      'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
+    ];
+    final diaSemana = diasSemana[now.weekday - 1];
+    final mes = meses[now.month - 1];
+    return '$diaSemana, ${now.day} de $mes';
+  }
+
   Widget _buildHeader(BuildContext context) {
     final sw = MediaQuery.of(context).size.width;
-    final avatarRadius = sw < 360 ? 22.0 : 28.0;
-    final iconSize = sw < 360 ? 20.0 : 24.0;
+    final avatarRadius = sw < 360 ? 22.0 : 26.0;
+    final iconSize = sw < 360 ? 18.0 : 20.0;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(avatarRadius),
-                child: Container(
-                  width: avatarRadius * 2,
-                  height: avatarRadius * 2,
-                  color: AppColors.primaryLight,
-                  child: getUserPhoto().isNotEmpty
-                      ? Image.network(
-                          getUserPhoto().trim(),
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            print(
-                                "[ListCondomiums] Error loading photo: $error");
-                            return Icon(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  AppColors.primaryGradientStart,
+                  AppColors.primaryGradientEnd,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.4),
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(avatarRadius),
+                    child: Container(
+                      width: avatarRadius * 2,
+                      height: avatarRadius * 2,
+                      color: Colors.white.withOpacity(0.2),
+                      child: getUserPhoto().isNotEmpty
+                          ? Image.network(
+                              getUserPhoto().trim(),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                print(
+                                    "[ListCondomiums] Error loading photo: $error");
+                                return Icon(
+                                  PhosphorIcons.user,
+                                  color: Colors.white,
+                                  size: avatarRadius,
+                                );
+                              },
+                            )
+                          : Icon(
                               PhosphorIcons.user,
-                              color: AppColors.primary,
+                              color: Colors.white,
                               size: avatarRadius,
-                            );
-                          },
-                        )
-                      : Icon(
-                          PhosphorIcons.user,
-                          color: AppColors.primary,
-                          size: avatarRadius,
+                            ),
+                    ),
+                  ),
+                ),
+                AppSpacing.gapMd,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          getText('ola'),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                ),
-              ),
-              AppSpacing.gapMd,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(getText('ola'),
-                          style: AppTypography.bodySecondary(context)),
-                    ),
-                    const SizedBox(height: 2),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        getUsername(),
-                        style: AppTypography.headline(context)
-                            .copyWith(fontWeight: FontWeight.w600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 1),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          getUsername(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              PhosphorIcons.calendarBlank,
+                              size: 11,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _getFormattedHeaderDate(),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.95),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              AppSpacing.gapSm,
-              _buildHeaderActions(context, iconSize),
-            ],
+                AppSpacing.gapSm,
+                _buildHeaderActions(context, iconSize),
+              ],
+            ),
           ),
           const SizedBox(height: AppSpacing.xxl),
           _buildDashboard(context),
@@ -489,9 +573,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
-  /// Ações do topo no padrão do app: IconButton solto com ícone Phosphor na
-  /// cor secundária, como nas demais telas. Só o selo de não lidas usa cor —
-  /// ali é informação, não decoração.
+  /// Ações do topo estilizadas para o card azul do perfil.
   Widget _buildHeaderActions(BuildContext context, double iconSize) {
     Widget acao({
       required IconData icon,
@@ -499,14 +581,23 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       required String tooltip,
       Widget? badge,
     }) {
-      final botao = IconButton(
-        icon:
-            Icon(icon, color: AppColors.textSecondary(context), size: iconSize),
-        onPressed: onPressed,
-        tooltip: tooltip,
-        padding: const EdgeInsets.all(6),
-        constraints: const BoxConstraints(),
-        splashRadius: iconSize + 4,
+      final botao = Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.full),
+          onTap: onPressed,
+          child: Tooltip(
+            message: tooltip,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: iconSize),
+            ),
+          ),
+        ),
       );
       if (badge == null) return botao;
       return Stack(clipBehavior: Clip.none, children: [botao, badge]);
@@ -535,19 +626,17 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           badge: _naoLidas == 0
               ? null
               : Positioned(
-                  right: 0,
-                  top: 0,
+                  right: -2,
+                  top: -2,
                   child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    constraints: const BoxConstraints(minWidth: 15),
+                    constraints: const BoxConstraints(minWidth: 16),
                     decoration: BoxDecoration(
                       color: AppColors.error,
                       borderRadius: BorderRadius.circular(AppRadius.full),
-                      // Contorno na cor do fundo: separa o selo do ícone sem
-                      // precisar de sombra.
                       border:
-                          Border.all(color: AppColors.bg(context), width: 1.5),
+                          Border.all(color: AppColors.primary, width: 1.5),
                     ),
                     child: Text(
                       _naoLidas > 9 ? '9+' : '$_naoLidas',
