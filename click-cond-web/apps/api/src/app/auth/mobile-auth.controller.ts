@@ -599,17 +599,24 @@ export class UsersMobileController {
     return this.service.deleteAccount(Number(idUser));
   }
 
-  // Registro do token de push. O app chama logo após o login — é o que
-  // popula Users.fcm_token, lido por visitantes/ocorrências/áreas/financeiro
-  // para disparar notificação.
+  // Registro do aparelho para push. O app chama na abertura e após o login.
+  // Grava em Users_Devices (um usuário pode ter vários aparelhos) e mantém
+  // Users.fcm_token com o mais recente, que é o lido por
+  // visitantes/ocorrências/áreas/financeiro para disparar notificação.
+  //
+  // `plataforma` é opcional: versões antigas do app não enviam.
   @Post('update-fcm-token')
   @HttpCode(200)
   updateFcmToken(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { fcm_token?: string },
+    @Body() body: { fcm_token?: string; plataforma?: string },
   ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.updateFcmToken(Number(idUser), body?.fcm_token ?? '');
+    return this.service.updateFcmToken(
+      Number(idUser),
+      body?.fcm_token ?? '',
+      body?.plataforma,
+    );
   }
 
   // Preferências de notificação (tela NotificationSettingsPage do app).

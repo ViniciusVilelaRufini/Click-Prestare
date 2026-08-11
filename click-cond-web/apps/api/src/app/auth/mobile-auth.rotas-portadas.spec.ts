@@ -35,6 +35,7 @@ describe('MobileAuthService — rotas portadas do Express', () => {
         create: jest.fn(async () => ({})),
       },
       sindicos_Condominios: { findFirst: jest.fn(async () => null) },
+      users_Devices: { upsert: jest.fn(async () => ({})) },
       $transaction: jest.fn(async (fn: any) => fn(prisma)),
       ...overrides,
     };
@@ -175,6 +176,29 @@ describe('MobileAuthService — rotas portadas do Express', () => {
         where: { id: 5 },
         data: { fcm_token: 'fcm-abc' },
       });
+    });
+
+    // O aparelho vai para Users_Devices, que é o que permite ao mesmo usuário
+    // ter celular e tablet (ou Android e iPhone) recebendo os dois. Com apenas
+    // Users.fcm_token, o último a abrir o app silenciava o outro.
+    it('registra o aparelho em Users_Devices', async () => {
+      const { svc, prisma } = build();
+      await svc.updateFcmToken(5, 'fcm-abc', 'iOS');
+      expect(prisma.users_Devices.upsert).toHaveBeenCalledWith({
+        where: { fcm_token: 'fcm-abc' },
+        create: { id_user: 5, fcm_token: 'fcm-abc', plataforma: 'iOS' },
+        update: { id_user: 5, plataforma: 'iOS' },
+      });
+    });
+
+    // Token é único por aparelho: se o celular troca de dono, o registro migra
+    // em vez de duplicar — senão o push do novo dono cairia na conta antiga.
+    it('migra o aparelho de dono em vez de duplicar', async () => {
+      const { svc, prisma } = build();
+      await svc.updateFcmToken(9, 'fcm-abc');
+      const args = prisma.users_Devices.upsert.mock.calls[0][0];
+      expect(args.where).toEqual({ fcm_token: 'fcm-abc' });
+      expect(args.update.id_user).toBe(9);
     });
 
     it('recusa token vazio', async () => {

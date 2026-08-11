@@ -120,8 +120,29 @@ model Users {
   visitantes          Visitantes[]                 @relation("VisitanteUser")
   votacoesUsuarios    Votacoes_Usuarios[]
   financeiros         Financeiro[]
+  devices             Users_Devices[]
 
   @@index([address], map: "fk_users_address")
+}
+
+/// Aparelhos do usuário, para push.
+///
+/// `Users.fcm_token` guarda um token só e continua sendo escrito com o mais
+/// recente (é o que os pontos de envio já leem). Esta tabela é o que permite
+/// entregar nos DEMAIS aparelhos: sem ela, quem tem dois celulares na mesma
+/// conta só recebia no último que abriu o app.
+model Users_Devices {
+  id         Int      @id @default(autoincrement())
+  id_user    Int
+  /// Único: um token é um aparelho. Se o celular troca de dono, o registro
+  /// migra para o novo usuário em vez de duplicar.
+  fcm_token  String   @unique(map: "uni_users_devices_token") @db.VarChar(500)
+  plataforma String?  @db.VarChar(20)
+  created_at DateTime @default(now()) @db.DateTime(0)
+  updated_at DateTime @default(now()) @updatedAt @db.DateTime(0)
+  user       Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_users_devices_user")
+
+  @@index([id_user], map: "idx_users_devices_user")
 }
 
 model Condominios {

@@ -123,7 +123,13 @@ class FirebaseService {
       await ApiClient.post(
         ApiConfig.buildUri('/users/update-fcm-token'),
         headers: {'Content-Type': 'application/json', 'Authorization': jwt},
-        body: jsonEncode({'fcm_token': tokenFcm}),
+        body: jsonEncode({
+          'fcm_token': tokenFcm,
+          // Serve para diagnóstico no servidor: um usuário pode ter vários
+          // aparelhos registrados, e saber qual é qual ajuda quando alguém
+          // relata que "não chega no iPhone".
+          'plataforma': defaultTargetPlatform.name,
+        }),
       );
     } catch (e) {
       // Push é acessório: falhar aqui não pode atrapalhar o uso do app.

@@ -2,11 +2,14 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
   private enabled = false;
+
+  constructor(private readonly prisma: PrismaService) {}
 
   onModuleInit() {
     try {
@@ -47,6 +50,19 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
+  /**
+   * Envia para TODOS os aparelhos do dono deste token, não só para ele.
+   *
+   * Os pontos de envio espalhados pelo sistema passam o `Users.fcm_token`, que
+   * guarda um token só — quem tinha dois celulares na mesma conta recebia
+   * apenas no último que abriu o app. Em vez de mudar os ~20 chamadores, o
+   * fan-out acontece aqui: o token recebido identifica o usuário em
+   * `Users_Devices` e a notificação sai para todos os aparelhos dele.
+   *
+   * Se o token não estiver na tabela (aparelho que ainda não reabriu o app
+   * desde a migração), envia só para ele — nunca menos do que o comportamento
+   * anterior.
+   */
   async sendPushNotification(
     token: string,
     title: string,
@@ -54,16 +70,78 @@ export class NotificationsService implements OnModuleInit {
     data?: any,
   ) {
     if (!this.enabled) return null;
+    if (!token) return null;
+
+    const destinos = await this.tokensDoMesmoDono(token);
+    const resultados = await Promise.all(
+      destinos.map((t) => this.enviarParaToken(t, title, body, data)),
+    );
+    // Devolve o primeiro envio bem-sucedido: o contrato antigo era "string do
+    // message id ou null", e há chamadores que só checam se deu certo.
+    return resultados.find((r) => r !== null) ?? null;
+  }
+
+  private async tokensDoMesmoDono(token: string): Promise<string[]> {
+    if (!this.prisma?.isConnected) return [token];
     try {
-      const response = await admin.messaging().send({
+      const device = await this.prisma.users_Devices.findUnique({
+        where: { fcm_token: token },
+        select: { id_user: true },
+      });
+      if (!device) return [token];
+
+      const todos = await this.prisma.users_Devices.findMany({
+        where: { id_user: device.id_user },
+        select: { fcm_token: true },
+      });
+      const lista = todos.map((d) => d.fcm_token).filter(Boolean);
+      return lista.length > 0 ? lista : [token];
+    } catch (e) {
+      // Falha ao consultar não pode custar a notificação.
+      this.logger.warn(`Não foi possível listar aparelhos: ${(e as any)?.message ?? e}`);
+      return [token];
+    }
+  }
+
+  private async enviarParaToken(
+    token: string,
+    title: string,
+    body: string,
+    data?: any,
+  ): Promise<string | null> {
+    try {
+      return await admin.messaging().send({
         notification: { title, body },
         token,
         data: data || {},
       });
-      return response;
     } catch (error) {
+      const code = (error as any)?.errorInfo?.code ?? '';
+      // Token que o FCM já não reconhece (app desinstalado, token expirado):
+      // sai da tabela, senão fica sujando toda tentativa futura de envio.
+      if (
+        code === 'messaging/registration-token-not-registered' ||
+        code === 'messaging/invalid-registration-token'
+      ) {
+        await this.esquecerToken(token);
+        return null;
+      }
       this.logger.warn(`Falha ao enviar push: ${(error as any)?.message ?? error}`);
       return null;
+    }
+  }
+
+  private async esquecerToken(token: string) {
+    if (!this.prisma?.isConnected) return;
+    try {
+      await this.prisma.users_Devices.deleteMany({ where: { fcm_token: token } });
+      await this.prisma.users.updateMany({
+        where: { fcm_token: token },
+        data: { fcm_token: null },
+      });
+      this.logger.log('Token de push inválido removido.');
+    } catch (e) {
+      this.logger.warn(`Não foi possível remover token inválido: ${(e as any)?.message ?? e}`);
     }
   }
 

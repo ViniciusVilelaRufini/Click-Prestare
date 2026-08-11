@@ -1137,18 +1137,22 @@ export class MobileAuthService {
   // ==========================================
 
   /**
-   * Registra o token FCM do aparelho para o usuário logado.
+   * Registra o aparelho do usuário logado para receber push.
    *
-   * Chamado pelo app logo após qualquer login (síndico/morador/funcionário).
-   * Sem isso `Users.fcm_token` fica nulo e TODO push vira no-op — inclusive a
-   * autorização de portaria remota, que depende da notificação chegar no
-   * morador para ele liberar ou negar a entrada.
+   * Chamado pelo app na abertura e após qualquer login. Sem isso o usuário
+   * não recebe nada — inclusive a autorização de portaria remota, que depende
+   * da notificação chegar no morador para ele liberar ou negar a entrada.
    *
-   * O mesmo aparelho pode trocar de dono (o porteiro sai, o morador entra):
-   * antes de gravar, solta o token de qualquer outro usuário, senão a
-   * notificação do usuário novo continuaria caindo na conta antiga.
+   * Um usuário pode ter VÁRIOS aparelhos (`Users_Devices`), e é isso que faz
+   * celular e tablet — ou Android e iPhone — receberem os dois. Antes havia só
+   * `Users.fcm_token`, um por usuário, e o último aparelho a abrir o app
+   * silenciava o outro.
+   *
+   * Um token, porém, pertence a um aparelho só: se o celular troca de dono
+   * (o porteiro sai, o morador entra), o registro MIGRA para o novo usuário,
+   * senão a notificação do novo continuaria caindo na conta antiga.
    */
-  async updateFcmToken(idUser: number, fcmToken: string) {
+  async updateFcmToken(idUser: number, fcmToken: string, plataforma?: string) {
     if (!this.prisma.isConnected) return { success: true };
     if (!idUser || Number.isNaN(idUser)) {
       throw new BadRequestException('Usuário inválido');
@@ -1158,6 +1162,16 @@ export class MobileAuthService {
       throw new BadRequestException('FCM Token é obrigatório');
     }
 
+    // O token é único na tabela: o upsert é o que migra o aparelho de dono.
+    await this.prisma.users_Devices.upsert({
+      where: { fcm_token: token },
+      create: { id_user: idUser, fcm_token: token, plataforma: plataforma ?? null },
+      update: { id_user: idUser, plataforma: plataforma ?? undefined },
+    });
+
+    // `Users.fcm_token` continua recebendo o token mais recente porque é o que
+    // os pontos de envio leem; o alcance aos demais aparelhos vem do fan-out
+    // no NotificationsService, a partir de Users_Devices.
     await this.prisma.users.updateMany({
       where: { fcm_token: token, id: { not: idUser } },
       data: { fcm_token: null },
