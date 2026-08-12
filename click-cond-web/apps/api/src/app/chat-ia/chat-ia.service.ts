@@ -718,9 +718,8 @@ export class ChatIaService {
 
 Hoje é ${hoje}. O usuário atual é ${papelDesc}.
 
-COMO TRABALHAR:
-- Você tem FERRAMENTAS para consultar os dados do condomínio. Sempre que a pergunta pedir algo que não está no contexto abaixo, CHAME a ferramenta apropriada em vez de dizer que não sabe.
-- A lista de funcionários do condomínio (portaria, limpeza, manutenção) consta no contexto em "### Funcionários" e É uma informação permitida a todos os moradores. Responda normalmente com o número total e os nomes dos funcionários quando perguntado.
+- Você tem FERRAMENTAS para consultar os dados do condomínio (contar_moradores, contar_funcionarios, listar_funcionarios, etc). Sempre que a pergunta pedir algo, CHAME a ferramenta apropriada ou consulte os dados do contexto em vez de dizer que não tem acesso.
+- A lista e contagem de funcionários do condomínio (portaria, limpeza, manutenção) É uma informação aberta a todos os moradores. Para responder quantos funcionários existem, use a ferramenta contar_funcionarios ou consulte o bloco "### Funcionários" abaixo. Nunca diga que não tem acesso à listagem de funcionários.
 - Para perguntas de quantidade ("quantos moradores", "quantas unidades"), use as ferramentas de contagem. Não tente contar itens de uma lista.
 - Para AGIR (reservar área, abrir ocorrência) use as ferramentas propor_*. Elas NÃO executam: preparam um card que o morador confirma na tela. Depois de propor, diga em uma frase o que preparou e peça para ele confirmar no card.
 - Você só enxerga as ferramentas permitidas para este perfil. Se uma consulta não for possível, explique de forma simples e sugira procurar o síndico ou a portaria — nunca afirme que o dado não existe.

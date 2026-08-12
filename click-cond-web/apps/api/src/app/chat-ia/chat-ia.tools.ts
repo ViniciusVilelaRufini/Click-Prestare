@@ -251,23 +251,97 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
   },
 
   {
+    nome: 'contar_funcionarios',
+    descricao:
+      'Retorna a quantidade total de funcionários cadastrados no condomínio (equipe geral + portaria). Use para responder quantos funcionários existem.',
+    papeis: TODOS,
+    async executar(_args, ctx) {
+      const [gerais, portaria] = await Promise.all([
+        ctx.prisma.funcionarios.count({ where: { id_condominio: ctx.idCondominio } }),
+        ctx.prisma.funcionarios_Portaria.count({
+          where: { id_condominio: ctx.idCondominio, ativo: 1 },
+        }),
+      ]);
+      return {
+        total: gerais + portaria,
+        funcionarios_gerais: gerais,
+        funcionarios_portaria: portaria,
+      };
+    },
+  },
+
+  {
+    nome: 'listar_funcionarios',
+    descricao:
+      'Lista todos os funcionários do condomínio com nome e cargo/função (portaria, limpeza, manutenção). Use para responder quem são os funcionários.',
+    papeis: TODOS,
+    async executar(_args, ctx) {
+      const [funcsGerais, funcsPortaria] = await Promise.all([
+        ctx.prisma.funcionarios.findMany({
+          where: { id_condominio: ctx.idCondominio },
+          select: { id: true, nome: true, funcao: true, cargo: true },
+          orderBy: { nome: 'asc' },
+        }),
+        ctx.prisma.funcionarios_Portaria.findMany({
+          where: { id_condominio: ctx.idCondominio, ativo: 1 },
+          select: { id: true, nome: true, turno: true },
+          orderBy: { nome: 'asc' },
+        }),
+      ]);
+
+      const map = new Map<string, string>();
+      for (const f of funcsGerais) {
+        if (f.nome && f.nome.trim()) {
+          map.set(f.nome.trim().toLowerCase(), f.funcao || f.cargo || 'Funcionário');
+        }
+      }
+      for (const f of funcsPortaria) {
+        if (f.nome && f.nome.trim()) {
+          const key = f.nome.trim().toLowerCase();
+          if (!map.has(key)) {
+            map.set(key, f.turno ? `Porteiro (${f.turno})` : 'Porteiro');
+          }
+        }
+      }
+
+      const lista = Array.from(map.entries()).map(([nomeKey, funcao]) => {
+        const originalGeral = funcsGerais.find((f) => f.nome?.trim().toLowerCase() === nomeKey);
+        const originalPortaria = funcsPortaria.find(
+          (f) => f.nome?.trim().toLowerCase() === nomeKey,
+        );
+        const nome = originalGeral?.nome || originalPortaria?.nome || nomeKey;
+        return { nome, funcao };
+      });
+
+      return {
+        total: lista.length,
+        funcionarios: lista,
+      };
+    },
+  },
+
+  {
     nome: 'resumo_do_condominio',
     descricao:
-      'Números gerais do condomínio: total de apartamentos, blocos, moradores, áreas sociais e encomendas aguardando retirada. Use para perguntas panorâmicas.',
+      'Números gerais do condomínio: total de apartamentos, blocos, moradores, funcionários, áreas sociais e encomendas aguardando retirada. Use para perguntas panorâmicas.',
     papeis: TODOS,
     async executar(_args, ctx) {
       const where = { id_condominio: ctx.idCondominio };
-      const [aptos, moradores, areas, encomendas, blocos] = await Promise.all([
-        ctx.prisma.apartamentos.count({ where }),
-        ctx.prisma.moradores.count({ where }),
-        ctx.prisma.areas_Sociais.count({ where }),
-        ctx.prisma.encomendas.count({ where: { ...where, status: 'Aguardando' } }),
-        ctx.prisma.apartamentos.groupBy({ by: ['bloco'], where, _count: { id: true } }),
-      ]);
+      const [aptos, moradores, funcsGerais, funcsPortaria, areas, encomendas, blocos] =
+        await Promise.all([
+          ctx.prisma.apartamentos.count({ where }),
+          ctx.prisma.moradores.count({ where }),
+          ctx.prisma.funcionarios.count({ where }),
+          ctx.prisma.funcionarios_Portaria.count({ where: { ...where, ativo: 1 } }),
+          ctx.prisma.areas_Sociais.count({ where }),
+          ctx.prisma.encomendas.count({ where: { ...where, status: 'Aguardando' } }),
+          ctx.prisma.apartamentos.groupBy({ by: ['bloco'], where, _count: { id: true } }),
+        ]);
       return {
         apartamentos: aptos,
         blocos: blocos.filter((b) => b.bloco).length,
         moradores,
+        funcionarios: funcsGerais + funcsPortaria,
         areas_sociais: areas,
         encomendas_aguardando_retirada: encomendas,
       };
