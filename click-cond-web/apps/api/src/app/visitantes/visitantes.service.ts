@@ -567,10 +567,11 @@ export class VisitantesService {
         is_visitante: principal.is_visitante,
         is_prestador: principal.is_prestador,
         liberado: arr.some((r) => {
+          if (vagaPorVisitante.has(r.id)) return true;
           if (r.is_prestador === 1) {
             return r.liberado === 1;
           }
-          return r.liberado === 1 && !r.data_entrada && !r.data_saida;
+          return r.liberado === 1 && !r.data_saida;
         }) ? 1 : 0,
 
         // Facial

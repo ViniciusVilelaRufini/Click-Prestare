@@ -746,23 +746,20 @@ class ListVisitantesPageState extends State<ListVisitantes> {
       final isInside = e['data_entrada'] != null && e['data_saida'] == null;
       if (isInside) return true;
 
-      // 2. Liberação ativa/agendada para hoje ou período atual e sem registro de saída
+      // 2. Liberação ativa (ex: vaga liberada ou liberado = 1) sem saída registrada
+      final isLiberado = e['liberado'] == 1 || e['liberado'] == '1' || e['vaga'] != null;
+      if (isLiberado && e['data_saida'] == null) return true;
+
+      // 3. Liberação ativa/agendada para hoje ou período atual
       final startStr = e['data_hora_inicio'];
       if (startStr != null && e['data_saida'] == null) {
         final start = DateTime.tryParse(startStr);
         if (start != null) {
-          // Se a visita é hoje
-          final isToday = start.year == now.year && start.month == now.month && start.day == now.day;
-          if (isToday) return true;
-
-          // Ou se o momento atual está no período da liberação
           final endStr = e['data_hora_termino'];
-          if (endStr != null) {
-            final end = DateTime.tryParse(endStr);
-            if (end != null) {
-              return now.isAfter(start) && now.isBefore(end);
-            }
-          }
+          final end = endStr != null ? DateTime.tryParse(endStr) : null;
+          final isToday = start.year == now.year && start.month == now.month && start.day == now.day;
+          if (isToday && (end == null || now.isBefore(end))) return true;
+          if (end != null && now.isAfter(start) && now.isBefore(end)) return true;
         }
       }
       return false;

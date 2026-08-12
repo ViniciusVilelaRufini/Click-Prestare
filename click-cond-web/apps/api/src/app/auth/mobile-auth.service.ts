@@ -3465,11 +3465,18 @@ export class MobileAuthService {
         where: { id: idVisitante, id_apartamento: ctx.apto.id },
       });
       if (!vis) throw new BadRequestException('Visitante não encontrado neste apartamento.');
-      // Libera o acesso do visitante na janela informada.
+      // Libera o acesso do visitante na janela informada e limpa saída/entrada anteriores.
+      let pin = vis.codigo_acesso;
+      if (!pin) {
+        pin = Math.floor(100000 + Math.random() * 900000).toString();
+      }
       await this.prisma.visitantes.update({
         where: { id: idVisitante },
         data: {
           liberado: 1,
+          data_entrada: null,
+          data_saida: null,
+          codigo_acesso: pin,
           ...(inicio ? { data_hora_inicio: inicio } : {}),
           ...(fim ? { data_hora_termino: fim } : {}),
         },
