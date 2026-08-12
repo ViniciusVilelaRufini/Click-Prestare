@@ -44,7 +44,18 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
     setState(() => _isLoading = true);
     try {
       final data = await apiGetBeneficiarios();
-      _visitantes = data['visitantes'] ?? [];
+      final rawVisitantes = data['visitantes'] ?? <BeneficiarioItem>[];
+      final seen = <String>{};
+      final uniqueVisitantes = <BeneficiarioItem>[];
+      for (final item in rawVisitantes) {
+        final doc = item.documento.trim();
+        final nome = item.nome.trim().toLowerCase();
+        final key = doc.isNotEmpty ? 'doc:$doc' : 'nome:$nome';
+        if (seen.add(key)) {
+          uniqueVisitantes.add(item);
+        }
+      }
+      _visitantes = uniqueVisitantes;
       _inquilinos = data['inquilinos'] ?? [];
     } finally {
       if (mounted) setState(() => _isLoading = false);

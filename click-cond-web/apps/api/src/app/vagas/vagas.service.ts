@@ -99,17 +99,39 @@ export class VagasService {
   /** Beneficiários possíveis: visitantes do apto + moradores tipo Inquilino. */
   async beneficiarios(idCondominio: number, idApartamento: number) {
     const apto = await this.resolveApartamento(idCondominio, idApartamento);
-    const [visitantes, moradores] = await Promise.all([
+    const [visitantesRaw, moradores] = await Promise.all([
       this.prisma.visitantes.findMany({
         where: { id_apartamento: apto.id, is_visitante: 1 },
-        select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true },
-        orderBy: { nome: 'asc' },
+        select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true, created_at: true },
+        orderBy: { created_at: 'desc' },
       }),
       this.moradoresDoApto(apto),
     ]);
+
+    const mapUnicos = new Map<string, typeof visitantesRaw[0]>();
+    for (const v of visitantesRaw) {
+      const doc = (v.doc_identificacao ?? '').trim();
+      const nome = (v.nome ?? '').trim().toLowerCase();
+      const key = doc ? `doc:${doc}` : `nome:${nome}`;
+      if (!mapUnicos.has(key)) {
+        mapUnicos.set(key, v);
+      } else {
+        const existente = mapUnicos.get(key)!;
+        const existenteTemFoto = !!(existente.foto_pessoa && existente.foto_pessoa.trim() !== '');
+        const novoTemFoto = !!(v.foto_pessoa && v.foto_pessoa.trim() !== '');
+        if (!existenteTemFoto && novoTemFoto) {
+          mapUnicos.set(key, v);
+        }
+      }
+    }
+
+    const visitantesUnicos = Array.from(mapUnicos.values()).sort((a, b) =>
+      (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'),
+    );
+
     const inquilinos = moradores.filter((m) => (m.tipo ?? '').toLowerCase().includes('inquilino'));
     return {
-      visitantes: visitantes.map((v) => ({
+      visitantes: visitantesUnicos.map((v) => ({
         id: v.id,
         nome: v.nome,
         doc_identificacao: v.doc_identificacao,

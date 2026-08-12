@@ -3391,16 +3391,38 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) return { visitantes: [], inquilinos: [] };
     const ctx = await this.resolveMoradorApto(idUser, idCondominio);
     if (!ctx) return { visitantes: [], inquilinos: [] };
-    const visitantes = await this.prisma.visitantes.findMany({
+    const visitantesRaw = await this.prisma.visitantes.findMany({
       where: { id_apartamento: ctx.apto.id, is_visitante: 1 },
-      select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true },
-      orderBy: { nome: 'asc' },
+      select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true, created_at: true },
+      orderBy: { created_at: 'desc' },
     });
+
+    const mapUnicos = new Map<string, typeof visitantesRaw[0]>();
+    for (const v of visitantesRaw) {
+      const doc = (v.doc_identificacao ?? '').trim();
+      const nome = (v.nome ?? '').trim().toLowerCase();
+      const key = doc ? `doc:${doc}` : `nome:${nome}`;
+      if (!mapUnicos.has(key)) {
+        mapUnicos.set(key, v);
+      } else {
+        const existente = mapUnicos.get(key)!;
+        const existenteTemFoto = !!(existente.foto_pessoa && existente.foto_pessoa.trim() !== '');
+        const novoTemFoto = !!(v.foto_pessoa && v.foto_pessoa.trim() !== '');
+        if (!existenteTemFoto && novoTemFoto) {
+          mapUnicos.set(key, v);
+        }
+      }
+    }
+
+    const visitantesUnicos = Array.from(mapUnicos.values()).sort((a, b) =>
+      (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'),
+    );
+
     const inquilinos = await this.getMoradoresApto(ctx.apto.id, 'Inquilino');
     return {
       // tem_foto indica se o visitante pode ser liberado no facial/portão: sem
       // foto, o app avisa que o reconhecimento não abre (só PIN/código).
-      visitantes: visitantes.map((v) => ({
+      visitantes: visitantesUnicos.map((v) => ({
         id: v.id,
         nome: v.nome,
         doc_identificacao: v.doc_identificacao,
