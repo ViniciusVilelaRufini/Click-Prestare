@@ -418,7 +418,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             ),
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, 120),
+              padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, 88),
               sliver: _isLoading
                   ? SliverList.separated(
                       itemCount: 6,
@@ -460,12 +460,6 @@ class _MyCondominiumState extends State<MyCondominium> {
       financeiroPage,
     ];
 
-    // Altura ocupada pela navbar flutuante (container 68 + top 8 + bottom 12)
-    // somada ao safe area inferior. As páginas recebem esse espaço via
-    // MediaQuery para que listas/FABs não fiquem escondidos atrás da ilha.
-    final navBarSpace = 68.0 + 8.0 + 12.0;
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       body: NotificationListener<ScrollNotification>(
@@ -488,31 +482,19 @@ class _MyCondominiumState extends State<MyCondominium> {
         },
         child: Stack(
           children: [
-            MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                padding: MediaQuery.of(context).padding.copyWith(
-                      bottom: navBarSpace + bottomInset,
-                    ),
-              ),
-              child: IndexedStack(
-                index: _currentTab,
-                children: tabs,
-              ),
+            IndexedStack(
+              index: _currentTab,
+              children: tabs,
             ),
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
               child: AnimatedScale(
-                scale: _isNavBarVisible ? 1.0 : 0.92,
-                duration: const Duration(milliseconds: 300),
+                scale: _isNavBarVisible ? 1.0 : 0.94,
+                duration: const Duration(milliseconds: 250),
                 curve: Curves.easeInOutCubic,
-                child: AnimatedOpacity(
-                  opacity: _isNavBarVisible ? 1.0 : 0.90,
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOut,
-                  child: _buildBottomNavigationBar(context),
-                ),
+                child: _buildBottomNavigationBar(context),
               ),
             ),
           ],
@@ -527,7 +509,7 @@ class _MyCondominiumState extends State<MyCondominium> {
     return SafeArea(
       top: false,
       child: AnimatedPadding(
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOutCubic,
         padding: EdgeInsets.only(
           left: _isNavBarVisible ? 18.0 : 36.0,
@@ -536,17 +518,14 @@ class _MyCondominiumState extends State<MyCondominium> {
           top: 8.0,
         ),
         child: DecoratedBox(
-          // Sombra fica no nivel externo; cor/borda vao DENTRO do ClipRRect
-          // para que nada (nem o blur, nem a pilula azul do item ativo) vaze
-          // pelos cantos arredondados da ilha.
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.30 : 0.06),
-                blurRadius: 22,
+                color: Colors.black.withOpacity(isDark ? 0.30 : 0.07),
+                blurRadius: 20,
                 spreadRadius: 0,
-                offset: const Offset(0, 8),
+                offset: const Offset(0, 6),
               ),
             ],
           ),
@@ -556,17 +535,17 @@ class _MyCondominiumState extends State<MyCondominium> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 250),
                 curve: Curves.easeInOutCubic,
                 height: _isNavBarVisible ? 68.0 : 52.0,
                 decoration: BoxDecoration(
                   color: isDark
-                      ? Colors.black.withOpacity(0.20)
-                      : Colors.white.withOpacity(0.35),
+                      ? Colors.black.withOpacity(0.35)
+                      : Colors.white.withOpacity(0.65),
                   border: Border.all(
                     color: isDark
-                        ? Colors.white.withOpacity(0.12)
-                        : Colors.white.withOpacity(0.45),
+                        ? Colors.white.withOpacity(0.15)
+                        : Colors.white.withOpacity(0.65),
                     width: 1,
                   ),
                 ),

@@ -506,18 +506,47 @@ export class ChatIaService {
       this.logger.warn(`contexto info geral falhou: ${e?.message ?? e}`);
     }
 
-    // 2. Funcionários — todos os papéis, só nome + função.
+    // 2. Funcionários — todos os papéis (Geral + Portaria), só nome + função.
     try {
-      const funcs = await this.prisma.funcionarios.findMany({
-        where: { id_condominio: idCondominio },
-        select: { nome: true, funcao: true },
-        orderBy: { nome: 'asc' },
+      const [funcsGerais, funcsPortaria] = await Promise.all([
+        this.prisma.funcionarios.findMany({
+          where: { id_condominio: idCondominio },
+          select: { id: true, nome: true, funcao: true, cargo: true },
+          orderBy: { nome: 'asc' },
+        }),
+        this.prisma.funcionarios_Portaria.findMany({
+          where: { id_condominio: idCondominio, ativo: 1 },
+          select: { id: true, nome: true, turno: true },
+          orderBy: { nome: 'asc' },
+        }),
+      ]);
+
+      const map = new Map<string, string>();
+
+      for (const f of funcsGerais) {
+        if (f.nome && f.nome.trim()) {
+          map.set(f.nome.trim().toLowerCase(), f.funcao || f.cargo || 'Funcionário');
+        }
+      }
+
+      for (const f of funcsPortaria) {
+        if (f.nome && f.nome.trim()) {
+          const key = f.nome.trim().toLowerCase();
+          if (!map.has(key)) {
+            map.set(key, f.turno ? `Porteiro (${f.turno})` : 'Porteiro');
+          }
+        }
+      }
+
+      const lista = Array.from(map.entries()).map(([nomeKey, funcao]) => {
+        const originalGeral = funcsGerais.find((f) => f.nome?.trim().toLowerCase() === nomeKey);
+        const originalPortaria = funcsPortaria.find((f) => f.nome?.trim().toLowerCase() === nomeKey);
+        const nome = originalGeral?.nome || originalPortaria?.nome || nomeKey;
+        return `- ${nome}${funcao ? ` — ${funcao}` : ''}`;
       });
-      if (funcs.length) {
-        blocos.push(
-          '### Funcionários\n' +
-            funcs.map((f) => `- ${f.nome}${f.funcao ? ` — ${f.funcao}` : ''}`).join('\n'),
-        );
+
+      if (lista.length) {
+        blocos.push('### Funcionários\n' + lista.join('\n'));
       }
     } catch (e: any) {
       this.logger.warn(`contexto funcionários falhou: ${e?.message ?? e}`);

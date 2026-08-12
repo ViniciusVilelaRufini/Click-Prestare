@@ -1,8 +1,10 @@
+import 'dart:ui';
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_moradores.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/controllers/controller_notificacoes.dart';
+import 'package:click/pages/shared/chat_ia/chat_ia_page.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/notificacoes/notificacoes_page.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
@@ -330,78 +332,275 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
   @override
   Widget build(BuildContext context) {
+    final navBarSpace = 68.0 + 8.0 + 12.0;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.primary,
-          onRefresh: _loadList,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(child: _buildHeader(context)),
-              if (_isLoading)
-                SliverPadding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                  sliver: SliverList.separated(
-                    itemCount: 5,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: AppSpacing.md),
-                    itemBuilder: (_, __) => AppSkeleton.listTile(context),
-                  ),
-                )
-              else if (_errorMessage != null)
-                SliverToBoxAdapter(child: _buildError())
-              else if (_list.isEmpty)
-                SliverToBoxAdapter(child: _buildEmpty())
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.lg),
-                  sliver: SliverList.separated(
-                    itemCount: _list.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: AppSpacing.md),
-                    itemBuilder: (_, i) => _CondominioCard(
-                      item: _list[i],
-                      onTap: () => _goToNext(_list[i]),
+      body: Stack(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: RefreshIndicator(
+              color: AppColors.primary,
+              onRefresh: _loadList,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: _buildHeader(context)),
+                  if (_isLoading)
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                      sliver: SliverList.separated(
+                        itemCount: 5,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.md),
+                        itemBuilder: (_, __) => AppSkeleton.listTile(context),
+                      ),
+                    )
+                  else if (_errorMessage != null)
+                    SliverToBoxAdapter(child: _buildError())
+                  else if (_list.isEmpty)
+                    SliverToBoxAdapter(child: _buildEmpty())
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.lg),
+                      sliver: SliverList.separated(
+                        itemCount: _list.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.md),
+                        itemBuilder: (_, i) => _CondominioCard(
+                          item: _list[i],
+                          onTap: () => _goToNext(_list[i]),
+                        ),
+                      ),
                     ),
+                  if (!_isLoading && _errorMessage == null && _eventos.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.lg),
+                        child: _buildMeusEventos(context),
+                      ),
+                    ),
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: navBarSpace + bottomInset + 16.0),
                   ),
-                ),
-              if (!_isLoading && _errorMessage == null && _eventos.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xxxl),
-                    child: _buildMeusEventos(context),
-                  ),
-                ),
-            ],
+                ],
+              ),
+            ),
           ),
-        ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildFixedBottomNavigationBar(context),
+          ),
+        ],
       ),
       floatingActionButton: getUserType() == 'sindico'
-          ? FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SignupCondominuim1(),
-                    )).then((_) {
-                  if (mounted) _loadList();
-                });
-              },
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              icon: Icon(PhosphorIcons.plus),
-              label: Text(
-                'Novo',
-                style:
-                    AppTypography.button(context).copyWith(color: Colors.white),
+          ? Container(
+              margin: EdgeInsets.only(bottom: navBarSpace + 12.0),
+              child: FloatingActionButton.extended(
+                onPressed: () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SignupCondominuim1(),
+                      )).then((_) {
+                    if (mounted) _loadList();
+                  });
+                },
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                icon: Icon(PhosphorIcons.plus),
+                label: Text(
+                  'Novo',
+                  style: AppTypography.button(context).copyWith(color: Colors.white),
+                ),
               ),
             )
           : null,
+    );
+  }
+
+  /// Ilha Flutuante FIXA (Travada) - Translúcida com efeito Vidro Fosco (Glassmorphism)
+  Widget _buildFixedBottomNavigationBar(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.only(
+          left: 18.0,
+          right: 18.0,
+          bottom: 12.0,
+          top: 8.0,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.30 : 0.07),
+                blurRadius: 20,
+                spreadRadius: 0,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            clipBehavior: Clip.antiAlias,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                height: 68.0,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.black.withOpacity(0.35)
+                      : Colors.white.withOpacity(0.65),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.15)
+                        : Colors.white.withOpacity(0.65),
+                    width: 1,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildFixedNavItem(
+                      key: const ValueKey('nav_home_fixed'),
+                      isSelected: true,
+                      icon: PhosphorIcons.house,
+                      activeIcon: PhosphorIcons.houseFill,
+                      label: 'Início',
+                      onTap: () => _loadList(),
+                    ),
+                    _buildFixedNavItem(
+                      key: const ValueKey('nav_encomendas_fixed'),
+                      isSelected: false,
+                      icon: PhosphorIcons.package,
+                      activeIcon: PhosphorIcons.packageFill,
+                      label: 'Encomendas',
+                      onTap: () => _onDashboardTap('packages'),
+                    ),
+                    _buildAiNavButton(context),
+                    _buildFixedNavItem(
+                      key: const ValueKey('nav_visitantes_fixed'),
+                      isSelected: false,
+                      icon: PhosphorIcons.userList,
+                      activeIcon: PhosphorIcons.userListFill,
+                      label: 'Visitantes',
+                      onTap: () => _onDashboardTap('visits'),
+                    ),
+                    _buildFixedNavItem(
+                      key: const ValueKey('nav_financeiro_fixed'),
+                      isSelected: false,
+                      icon: PhosphorIcons.wallet,
+                      activeIcon: PhosphorIcons.walletFill,
+                      label: 'Financeiro',
+                      onTap: () => _onDashboardTap('debts'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiNavButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChatIaPage()),
+          ).then((_) => _loadList());
+        },
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [AppColors.primary, AppColors.primaryDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withOpacity(0.45),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(PhosphorIcons.buildingsFill, color: Colors.white, size: 24),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFixedNavItem({
+    required Key key,
+    required bool isSelected,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final activeColor = AppColors.primary;
+    final inactiveColor = AppColors.textSecondary(context);
+
+    return Expanded(
+      child: InkWell(
+        key: key,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primary.withOpacity(0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                isSelected ? activeIcon : icon,
+                color: isSelected ? activeColor : inactiveColor,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? activeColor : inactiveColor,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -429,7 +628,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [
@@ -487,7 +686,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                     ),
                   ),
                 ),
-                AppSpacing.gapMd,
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,7 +712,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                           getUsername(),
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 19,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.3,
                           ),
@@ -524,7 +723,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       const SizedBox(height: 5),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.18),
                           borderRadius: BorderRadius.circular(8),
@@ -538,13 +737,20 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                               color: Colors.white.withOpacity(0.9),
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              _getFormattedHeaderDate(),
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.95),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.2,
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _getFormattedHeaderDate(),
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.95),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.2,
+                                  ),
+                                  maxLines: 1,
+                                ),
                               ),
                             ),
                           ],
@@ -553,7 +759,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                     ],
                   ),
                 ),
-                AppSpacing.gapSm,
+                const SizedBox(width: 6),
                 _buildHeaderActions(context, iconSize),
               ],
             ),
