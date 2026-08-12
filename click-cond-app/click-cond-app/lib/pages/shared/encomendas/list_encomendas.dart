@@ -222,54 +222,42 @@ class ListEncomendasState extends State<ListEncomendas> {
                         validator: (value) => value == null || value.isEmpty ? 'Campo obrigatório' : null,
                       ),
                       const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('Transportadora', style: AppTypography.caption(context)),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: ['iFood', 'Correios', 'Mercado Livre', 'Amazon', 'Loggi', 'Outro']
+                      DropdownButtonFormField<String>(
+                        value: selectedCarrier,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Transportadora',
+                          labelStyle: AppTypography.caption(context),
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                        dropdownColor: AppColors.surface(context),
+                        icon: const Icon(PhosphorIcons.caretDown, size: 18),
+                        items: ['Correios', 'iFood', 'Mercado Livre', 'Amazon', 'Loggi', 'Outro']
                             .map((c) {
-                          final selected = selectedCarrier == c;
                           final vis = _carrierVisual(c);
-                          return GestureDetector(
-                            onTap: () => setState(() => selectedCarrier = c),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? AppColors.primary.withOpacity(0.12)
-                                    : AppColors.bg(context),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: selected ? AppColors.primary : AppColors.border(context),
-                                  width: selected ? 1.5 : 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(vis.icon,
-                                      size: 16,
-                                      color: selected ? AppColors.primary : vis.color),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    c,
-                                    style: AppTypography.bodySecondary(context).copyWith(
-                                      color: selected
-                                          ? AppColors.primary
-                                          : AppColors.textSecondary(context),
-                                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                                    ),
+                          return DropdownMenuItem<String>(
+                            value: c,
+                            child: Row(
+                              children: [
+                                Icon(vis.icon, size: 18, color: vis.color),
+                                const SizedBox(width: 10),
+                                Text(
+                                  c,
+                                  style: AppTypography.bodySecondary(context).copyWith(
+                                    color: AppColors.textPrimary(context),
+                                    fontWeight: FontWeight.w500,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           );
                         }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => selectedCarrier = val);
+                          }
+                        },
                       ),
                       const SizedBox(height: 12),
                       if (_isDeliveryCarrier(selectedCarrier))
