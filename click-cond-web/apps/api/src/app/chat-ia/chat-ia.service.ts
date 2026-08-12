@@ -511,7 +511,7 @@ export class ChatIaService {
       const [funcsGerais, funcsPortaria] = await Promise.all([
         this.prisma.funcionarios.findMany({
           where: { id_condominio: idCondominio },
-          select: { id: true, nome: true, funcao: true, cargo: true },
+          select: { id: true, nome: true, funcao: true },
           orderBy: { nome: 'asc' },
         }),
         this.prisma.funcionarios_Portaria.findMany({
@@ -525,7 +525,7 @@ export class ChatIaService {
 
       for (const f of funcsGerais) {
         if (f.nome && f.nome.trim()) {
-          map.set(f.nome.trim().toLowerCase(), f.funcao || f.cargo || 'Funcionário');
+          map.set(f.nome.trim().toLowerCase(), f.funcao || 'Funcionário');
         }
       }
 

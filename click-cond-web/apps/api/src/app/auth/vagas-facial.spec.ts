@@ -103,10 +103,31 @@ describe('MobileAuthService — vagas dispara facial', () => {
 
     const res = await svc.listBeneficiariosVaga(1, 1);
 
+    // A lista sai ordenada por nome (pt-BR), não na ordem que veio do banco:
+    // "Com Foto" < "Foto Vazia" < "Sem Foto".
     expect(res.visitantes).toEqual([
       { id: 1, nome: 'Com Foto', doc_identificacao: '111', tem_foto: true },
-      { id: 2, nome: 'Sem Foto', doc_identificacao: '222', tem_foto: false },
       { id: 3, nome: 'Foto Vazia', doc_identificacao: '333', tem_foto: false },
+      { id: 2, nome: 'Sem Foto', doc_identificacao: '222', tem_foto: false },
+    ]);
+  });
+
+  // Um mesmo visitante costuma ter vários cadastros (uma visita por entrada).
+  // A lista mostra um por documento, preferindo o cadastro QUE TEM FOTO —
+  // sem isso, o morador via o nome repetido e podia escolher justamente a
+  // cópia sem foto, que não libera o facial.
+  it('visitante repetido aparece uma vez, com a versão que tem foto', async () => {
+    const { svc, prisma } = build();
+    prisma.visitantes.findMany.mockResolvedValueOnce([
+      { id: 10, nome: 'Maria', doc_identificacao: '999', foto_pessoa: null },
+      { id: 11, nome: 'Maria', doc_identificacao: '999', foto_pessoa: 'https://s3/maria.jpg' },
+    ]);
+    jest.spyOn(svc as any, 'getMoradoresApto').mockResolvedValue([]);
+
+    const res = await svc.listBeneficiariosVaga(1, 1);
+
+    expect(res.visitantes).toEqual([
+      { id: 11, nome: 'Maria', doc_identificacao: '999', tem_foto: true },
     ]);
   });
 

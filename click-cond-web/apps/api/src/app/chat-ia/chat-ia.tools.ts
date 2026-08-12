@@ -279,7 +279,7 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
       const [funcsGerais, funcsPortaria] = await Promise.all([
         ctx.prisma.funcionarios.findMany({
           where: { id_condominio: ctx.idCondominio },
-          select: { id: true, nome: true, funcao: true, cargo: true },
+          select: { id: true, nome: true, funcao: true },
           orderBy: { nome: 'asc' },
         }),
         ctx.prisma.funcionarios_Portaria.findMany({
@@ -292,7 +292,7 @@ export const FERRAMENTAS_LEITURA: FerramentaLeitura[] = [
       const map = new Map<string, string>();
       for (const f of funcsGerais) {
         if (f.nome && f.nome.trim()) {
-          map.set(f.nome.trim().toLowerCase(), f.funcao || f.cargo || 'Funcionário');
+          map.set(f.nome.trim().toLowerCase(), f.funcao || 'Funcionário');
         }
       }
       for (const f of funcsPortaria) {
