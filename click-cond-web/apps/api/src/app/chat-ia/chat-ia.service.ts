@@ -706,7 +706,7 @@ export class ChatIaService {
         ? 'síndico (administra o condomínio)'
         : args.papel === 'Funcionario'
           ? 'funcionário/portaria'
-          : 'morador (só enxerga os próprios dados e os do seu apartamento)';
+          : 'morador (pode consultar informações gerais do condomínio, regras, comunicados, áreas sociais e funcionários do condomínio)';
 
     const docsTxt = args.trechosDocs?.length
       ? args.trechosDocs.map((t, i) => `[Documento ${i + 1}]\n${t}`).join('\n\n')
@@ -720,6 +720,7 @@ Hoje é ${hoje}. O usuário atual é ${papelDesc}.
 
 COMO TRABALHAR:
 - Você tem FERRAMENTAS para consultar os dados do condomínio. Sempre que a pergunta pedir algo que não está no contexto abaixo, CHAME a ferramenta apropriada em vez de dizer que não sabe.
+- A lista de funcionários do condomínio (portaria, limpeza, manutenção) consta no contexto em "### Funcionários" e É uma informação permitida a todos os moradores. Responda normalmente com o número total e os nomes dos funcionários quando perguntado.
 - Para perguntas de quantidade ("quantos moradores", "quantas unidades"), use as ferramentas de contagem. Não tente contar itens de uma lista.
 - Para AGIR (reservar área, abrir ocorrência) use as ferramentas propor_*. Elas NÃO executam: preparam um card que o morador confirma na tela. Depois de propor, diga em uma frase o que preparou e peça para ele confirmar no card.
 - Você só enxerga as ferramentas permitidas para este perfil. Se uma consulta não for possível, explique de forma simples e sugira procurar o síndico ou a portaria — nunca afirme que o dado não existe.
