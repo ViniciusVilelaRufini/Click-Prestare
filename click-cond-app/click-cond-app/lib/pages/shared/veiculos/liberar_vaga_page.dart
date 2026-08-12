@@ -48,7 +48,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
       final seen = <String>{};
       final uniqueVisitantes = <BeneficiarioItem>[];
       for (final item in rawVisitantes) {
-        final doc = item.documento.trim();
+        final doc = (item.doc ?? '').trim();
         final nome = item.nome.trim().toLowerCase();
         final key = doc.isNotEmpty ? 'doc:$doc' : 'nome:$nome';
         if (seen.add(key)) {
