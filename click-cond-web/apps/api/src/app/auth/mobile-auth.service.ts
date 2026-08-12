@@ -910,6 +910,7 @@ export class MobileAuthService {
 
     return merged.slice(0, lim).map(({ e, categoria }) => ({
       id: e.id,
+      id_pessoa: e.id_pessoa,
       nome: (e.nome_pessoa || '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
       evento: e.evento,
       tipo_pessoa: e.tipo_pessoa,

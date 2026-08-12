@@ -1,4 +1,5 @@
 import 'package:click/controllers/controller_condominio.dart';
+import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/utils/datas.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -49,6 +50,18 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
     if (ctx == null) return;
     Scrollable.ensureVisible(ctx,
         duration: const Duration(milliseconds: 400), alignment: 0.3);
+  }
+
+  void _abrirCadastroVisitante(int idPessoa) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NewVisitante(
+          isEdit: true,
+          myId: idPessoa,
+        ),
+      ),
+    ).then((_) => _carregar());
   }
 
   String _formatDataHora(dynamic ts) => formatarDataHora(ts);
@@ -117,6 +130,8 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
     final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
     final nome = (e['nome'] ?? '').toString();
     final condominio = (e['condominio'] ?? '').toString();
+    final idPessoa = int.tryParse((e['id_pessoa'] ?? e['id'])?.toString() ?? '');
+    final canOpen = !isVoce && idPessoa != null && idPessoa > 0;
 
     final Color cor = isEntrada ? AppColors.success : AppColors.primary;
     final IconData icon = isEntrada ? PhosphorIcons.signIn : PhosphorIcons.signOut;
@@ -124,7 +139,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
         isVoce ? 'Você' : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante');
     final Color tagColor = isVoce ? AppColors.primary : Colors.orange;
 
-    return Container(
+    final cardChild = Container(
       key: key,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -135,7 +150,7 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
             : Border.all(color: Colors.transparent),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
@@ -199,7 +214,23 @@ class _HistoricoAcessosPageState extends State<HistoricoAcessosPage> {
               ],
             ),
           ),
+          if (canOpen) ...[
+            const SizedBox(width: 4),
+            Icon(PhosphorIcons.caretRight,
+                size: 18, color: AppColors.textTertiary(context)),
+          ],
         ],
+      ),
+    );
+
+    if (!canOpen) return cardChild;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _abrirCadastroVisitante(idPessoa!),
+        child: cardChild,
       ),
     );
   }
