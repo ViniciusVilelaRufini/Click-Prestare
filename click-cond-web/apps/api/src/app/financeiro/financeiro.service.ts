@@ -3430,11 +3430,28 @@ export class FinanceiroService implements OnModuleInit {
 
       const faturaNome = `Apto ${apto.apto} Bloco ${apto.bloco} - ${cond.categoria_padrao} Ref. ${refStr}`;
 
-      // Evita gerar faturas duplicadas
+      // Evita gerar faturas duplicadas.
+      //
+      // A checagem era por nome EXATO — e o nome carrega `categoria_padrao`.
+      // Como salvar a tela de cobrança automática dispara uma geração forçada,
+      // mudar a categoria (de "Taxa Condominial" para "Condomínio", por
+      // exemplo) e salvar fazia o nome não bater com o das faturas já geradas:
+      // o mês inteiro era emitido DE NOVO, e todo apartamento passava a dever
+      // duas taxas do mesmo mês. A janela de recuperação do job repetia o
+      // mesmo estrago nos dias seguintes.
+      //
+      // A identidade de uma fatura recorrente é "esta unidade, esta
+      // competência" — a categoria é rótulo, não chave. Casa por prefixo da
+      // unidade + sufixo da referência, então renomear a categoria não
+      // ressuscita a cobrança. Rateio e acordo têm outro formato de nome
+      // ("- Rateio:", "- Acordo Parc.") e não são afetados.
       const existe = await this.prisma.financeiro.findFirst({
         where: {
           id_condominio: cond.id,
-          nome: faturaNome,
+          nome: {
+            startsWith: `Apto ${apto.apto} Bloco ${apto.bloco} - `,
+            endsWith: `Ref. ${refStr}`,
+          },
         },
       });
 

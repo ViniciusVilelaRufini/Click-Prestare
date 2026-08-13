@@ -26,9 +26,16 @@ describe('FinanceiroService — calendário do faturamento recorrente', () => {
       users: { findMany: jest.fn(async () => []) },
       financeiro: {
         // Dedup por nome: devolve o que já foi criado nesta execução.
-        findFirst: jest.fn(async ({ where }: any) =>
-          criados.find((c) => c.nome === where.nome) ?? null,
-        ),
+        // Emula o filtro do Prisma (string exata ou startsWith/endsWith).
+        findFirst: jest.fn(async ({ where }: any) => {
+          const f = where.nome;
+          const casa = (nome: string) =>
+            typeof f === 'string'
+              ? nome === f
+              : (!f.startsWith || nome.startsWith(f.startsWith)) &&
+                (!f.endsWith || nome.endsWith(f.endsWith));
+          return criados.find((c) => casa(c.nome)) ?? null;
+        }),
         create: jest.fn(async ({ data }: any) => {
           const row = { id: 100 + criados.length, ...data };
           criados.push(row);
@@ -108,6 +115,37 @@ describe('FinanceiroService — calendário do faturamento recorrente', () => {
       comHoje('2026-08-02T12:00:00');
       await svc.runRecurringBillingJob();
       expect(criados).toHaveLength(1);
+    });
+
+    /**
+     * A identidade da fatura recorrente é "esta unidade, esta competência".
+     * A categoria entra no NOME, e salvar a tela de cobrança automática
+     * dispara uma geração forçada — então trocar a categoria e salvar fazia o
+     * dedup por nome exato não encontrar as faturas do mês e emitir tudo de
+     * novo: o prédio inteiro devendo duas taxas da mesma competência.
+     */
+    it('trocar a categoria padrão NÃO reemite as faturas do mês', async () => {
+      comHoje('2026-08-01T12:00:00');
+      const cond = { ...condBase };
+      const { svc, criados } = build(cond);
+      await svc.runRecurringBillingJob();
+      expect(criados).toHaveLength(1);
+
+      // Síndico renomeia a categoria e salva; o job roda de novo na janela.
+      cond.categoria_padrao = 'Taxa Condominial';
+      comHoje('2026-08-02T12:00:00');
+      await svc.runRecurringBillingJob();
+
+      expect(criados).toHaveLength(1);
+    });
+
+    it('a competência seguinte continua sendo gerada normalmente', async () => {
+      comHoje('2026-08-01T12:00:00');
+      const { svc, criados } = build(condBase);
+      await svc.runRecurringBillingJob();
+      comHoje('2026-09-01T12:00:00');
+      await svc.runRecurringBillingJob();
+      expect(criados).toHaveLength(2);
     });
   });
 
