@@ -1035,6 +1035,8 @@ class _MyCondominiumState extends State<MyCondominium> {
         ),
       ),
     );
+  }
+
   Widget _buildPendentesBanner(BuildContext context) {
     return Material(
       color: Colors.transparent,
