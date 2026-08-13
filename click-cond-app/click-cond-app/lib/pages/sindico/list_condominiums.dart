@@ -956,10 +956,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   Widget _buildPendentesBanner(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: () {
           Navigator.push(
             context,
@@ -969,30 +971,61 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           });
         },
         child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFFBEB),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFF59E0B), width: 1.5),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [
+                      const Color(0xFF261909),
+                      const Color(0xFF1A1104),
+                    ]
+                  : [
+                      const Color(0xFFFFF7ED),
+                      const Color(0xFFFFEDD5),
+                    ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFFF97316).withOpacity(0.35),
+              width: 1.2,
+            ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFF59E0B).withOpacity(0.12),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                color: const Color(0xFFEA580C).withOpacity(0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF59E0B),
-                  shape: BoxShape.circle,
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFEA580C).withOpacity(0.32),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-                child: const Icon(PhosphorIcons.bellRinging, color: Colors.white, size: 22),
+                child: const Icon(
+                  PhosphorIcons.bellRingingFill,
+                  color: Colors.white,
+                  size: 23,
+                ),
               ),
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1001,44 +1034,77 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       children: [
                         Expanded(
                           child: Text(
-                            '$_pendentesCount ${_pendentesCount == 1 ? "Solicitação na Portaria" : "Solicitações na Portaria"}',
-                            style: const TextStyle(
-                              color: Color(0xFF92400E),
+                            '$_pendentesCount ${_pendentesCount == 1 ? "Visita na Portaria" : "Visitas na Portaria"}',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : const Color(0xFF7C2D12),
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
+                              letterSpacing: -0.2,
                             ),
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFDC2626),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Text(
-                            'AGUARDANDO',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                            color: const Color(0xFFDC2626).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFDC2626).withOpacity(0.3),
+                              width: 1,
                             ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 5.5,
+                                height: 5.5,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFDC2626),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 4.5),
+                              const Text(
+                                'Aguardando',
+                                style: TextStyle(
+                                  color: Color(0xFFB91C1C),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 3),
-                    const Text(
-                      'Toque para aprovar ou negar a entrada do visitante',
+                    Text(
+                      'Toque para aprovar ou negar a entrada',
                       style: TextStyle(
-                        color: Color(0xFFB45309),
-                        fontSize: 12,
+                        color: isDark ? Colors.white70 : const Color(0xFF9A3412),
+                        fontSize: 12.5,
+                        height: 1.2,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 4),
-              const Icon(PhosphorIcons.caretRight, color: Color(0xFFD97706), size: 20),
+              const SizedBox(width: 10),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEA580C).withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  PhosphorIcons.caretRightBold,
+                  color: Color(0xFFEA580C),
+                  size: 15,
+                ),
+              ),
             ],
           ),
         ),
