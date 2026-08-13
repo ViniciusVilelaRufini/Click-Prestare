@@ -84,6 +84,86 @@ export class AuthService {
     }));
   }
 
+  /**
+   * Síndico dono deste login, se ele administra ESTE condomínio.
+   *
+   * O síndico quase sempre tem também um registro em Funcionarios_Portaria com
+   * o mesmo login, e é por ele que o login da web passa. Síndico de outro
+   * prédio que por acaso é funcionário deste continua entrando como
+   * funcionário — daí o filtro por id_condominio.
+   */
+  private async sindicoDoLoginNoCondominio(login: string, idCondominio: number) {
+    const user = await this.prisma.users.findFirst({
+      where: { login },
+      include: {
+        sindicos: { select: { name: true } },
+        sindicosCondominios: {
+          where: { id_condominio: idCondominio },
+          select: { id: true },
+        },
+      },
+    });
+    if (!user || user.sindicos.length === 0) return null;
+    if (user.sindicosCondominios.length === 0) return null;
+    return { id: user.id, nome: user.sindicos[0].name };
+  }
+
+  /**
+   * Monta a sessão de portaria a partir do registro de Funcionarios_Portaria
+   * que autenticou, carimbando o papel REAL resolvido no banco.
+   *
+   * O token deste caminho não carregava `typeAccess`. Como o console decide o
+   * menu pelo `turno` (que no registro do síndico já vinha 'Síndico'), o
+   * síndico entrava, via Financeiro/Relatórios e tomava 403 em toda escrita —
+   * `assertStaff` exige Sindico/Funcionario. Toda leitura funcionava
+   * (assertOperador aceita qualquer token com id_condominio), então a tela
+   * carregava e só a ação falhava.
+   *
+   * Para o síndico o `sub` passa a ser o Users.id, não o Funcionarios_Portaria.id:
+   * `selecionarCondominio` e `changePassword` resolvem o usuário por ele quando
+   * typeAccess é 'Sindico', e `Visitantes.user` é FK para Users. É o mesmo
+   * formato de token que o login por QR Code já emite.
+   *
+   * Porteiro segue sem typeAccess e portanto sem alçada no financeiro — isso é
+   * intencional, não um efeito colateral.
+   */
+  private async montarSessaoPortaria(
+    funcionario: { id: number; nome: string; turno: string | null; id_condominio: number },
+    login: string,
+  ) {
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: funcionario.id_condominio },
+      select: { nome: true },
+    });
+
+    const sindico = await this.sindicoDoLoginNoCondominio(login, funcionario.id_condominio);
+
+    const payload: JwtPayload = sindico
+      ? {
+          sub: sindico.id,
+          nome: sindico.nome,
+          id_condominio: funcionario.id_condominio,
+          turno: 'Síndico',
+          typeAccess: 'Sindico',
+        }
+      : {
+          sub: funcionario.id,
+          nome: funcionario.nome,
+          id_condominio: funcionario.id_condominio,
+          turno: funcionario.turno,
+        };
+
+    return {
+      access_token: this.jwt.sign(payload),
+      id: sindico ? sindico.id : funcionario.id,
+      nome: sindico ? sindico.nome : funcionario.nome,
+      turno: sindico ? 'Síndico' : funcionario.turno,
+      id_condominio: funcionario.id_condominio,
+      condominio_nome: cond?.nome || 'Click Condomínio',
+      condominios: await this.condominiosDoSindicoPorLogin(login),
+    };
+  }
+
   async loginPortaria(login: string, senha: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
@@ -121,28 +201,7 @@ export class AuthService {
 
       if (isMatch) {
         this.limparFalhas(login);
-
-        const cond = await this.prisma.condominios.findUnique({
-          where: { id: funcionario.id_condominio },
-          select: { nome: true },
-        });
-
-        const payload: JwtPayload = {
-          sub: funcionario.id,
-          nome: funcionario.nome,
-          id_condominio: funcionario.id_condominio,
-          turno: funcionario.turno,
-        };
-
-        return {
-          access_token: this.jwt.sign(payload),
-          id: funcionario.id,
-          nome: funcionario.nome,
-          turno: funcionario.turno,
-          id_condominio: funcionario.id_condominio,
-          condominio_nome: cond?.nome || 'Click Condomínio',
-          condominios: await this.condominiosDoSindicoPorLogin(login),
-        };
+        return this.montarSessaoPortaria(funcionario, login);
       }
 
       // Senha não bate com o funcionário — verifica se é o síndico do mesmo condomínio
@@ -165,25 +224,7 @@ export class AuthService {
             data: { password: synced },
           });
           this.limparFalhas(login);
-          const cond = await this.prisma.condominios.findUnique({
-            where: { id: funcionario.id_condominio },
-            select: { nome: true },
-          });
-          const payload: JwtPayload = {
-            sub: funcionario.id,
-            nome: funcionario.nome,
-            id_condominio: funcionario.id_condominio,
-            turno: funcionario.turno,
-          };
-          return {
-            access_token: this.jwt.sign(payload),
-            id: funcionario.id,
-            nome: funcionario.nome,
-            turno: funcionario.turno,
-            id_condominio: funcionario.id_condominio,
-            condominio_nome: cond?.nome || 'Click Condomínio',
-            condominios: await this.condominiosDoSindicoPorLogin(login),
-          };
+          return this.montarSessaoPortaria(funcionario, login);
         }
       }
       // Nenhum síndico do condomínio bateu — tenta autenticar como síndico abaixo.
