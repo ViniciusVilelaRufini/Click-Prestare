@@ -17,6 +17,7 @@ import 'package:click/pages/shared/morador/edit_morador.dart';
 import 'package:click/pages/shared/my_condominium.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
+import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/sindico/edit_sindico.dart';
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
@@ -1179,6 +1180,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     final isVoce = (e['categoria'] ?? '').toString() == 'voce';
     final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
     final nome = (e['nome'] ?? '').toString();
+    final idPessoa = int.tryParse((e['id_pessoa'] ?? e['id'])?.toString() ?? '');
+    final canOpen = !isVoce && idPessoa != null && idPessoa > 0;
 
     final Color cor = isEntrada ? AppColors.success : AppColors.primary;
     final IconData icon =
@@ -1189,7 +1192,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante');
     final Color tagColor = isVoce ? AppColors.primary : Colors.orange;
 
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       child: Row(
@@ -1241,7 +1244,32 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 style: AppTypography.tiny(context)
                     .copyWith(color: tagColor, fontWeight: FontWeight.bold)),
           ),
+          if (canOpen) ...[
+            const SizedBox(width: 4),
+            Icon(PhosphorIcons.caretRight,
+                size: 14, color: AppColors.textTertiary(context)),
+          ],
         ],
+      ),
+    );
+
+    if (!canOpen) return row;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => NewVisitante(
+                isEdit: true,
+                myId: idPessoa,
+              ),
+            ),
+          ).then((_) => _loadList());
+        },
+        child: row,
       ),
     );
   }
