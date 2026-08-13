@@ -1,8 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FinanceiroApi, Fechamento, Lancamento } from './financeiro.service';
 import { AuthService } from '../auth/auth.service';
+import { ToastService } from '../shared/toast.service';
+import { ConfirmService } from '../shared/confirm.service';
 
 @Component({
   selector: 'app-financeiro-page',
@@ -13,6 +15,12 @@ import { AuthService } from '../auth/auth.service';
 export class FinanceiroPageComponent implements OnInit {
   private api = inject(FinanceiroApi);
   private auth = inject(AuthService);
+  // O console tem host global de toast e de confirmação (montados no
+  // AppComponent). Esta tela ainda usava `alert()`/`confirm()` nativos: além
+  // de destoarem do resto, o alert do navegador aparece FORA do modal aberto e
+  // o confirm trava a aba inteira.
+  private toast = inject(ToastService);
+  private confirm = inject(ConfirmService);
 
   readonly loading = signal(true);
   readonly tab = signal<'lancamentos' | 'graficos' | 'inadimplencia'>('lancamentos');
@@ -233,9 +241,20 @@ export class FinanceiroPageComponent implements OnInit {
     return list.sort();
   }
 
-  _filteredLancamentosMap: Record<string, Lancamento[]> = {};
-
-  getFilteredDiasChaves(): string[] {
+  /**
+   * Livro caixa já filtrado, agrupado por dia.
+   *
+   * Isto era um método chamado pelo template que gravava o resultado num campo
+   * (`_filteredLancamentosMap`) para o método seguinte ler. Ou seja: escrita
+   * durante a renderização, e correto só enquanto o template chamasse os dois
+   * na ordem certa — quem invertesse os blocos no HTML lia o filtro do ciclo
+   * anterior. Além disso refiltrava a lista inteira a cada ciclo de detecção
+   * de mudanças, mesmo sem nada ter mudado.
+   *
+   * Como `computed`, o resultado é derivado dos signals de origem e só
+   * recalcula quando um deles muda.
+   */
+  private readonly filteredLancamentosMap = computed<Record<string, Lancamento[]>>(() => {
     const query = this.searchCaixa().toLowerCase().trim();
     const nat = this.naturezaFilter();
     const cat = this.categoriaFilter();
@@ -261,12 +280,15 @@ export class FinanceiroPageComponent implements OnInit {
       }
     }
 
-    this._filteredLancamentosMap = filteredMap;
-    return Object.keys(filteredMap);
+    return filteredMap;
+  });
+
+  getFilteredDiasChaves(): string[] {
+    return Object.keys(this.filteredLancamentosMap());
   }
 
   getFilteredLancamentos(diaChave: string): Lancamento[] {
-    return this._filteredLancamentosMap[diaChave] || [];
+    return this.filteredLancamentosMap()[diaChave] || [];
   }
 
   // Categorias do Formulário de Lançamento
@@ -359,7 +381,7 @@ export class FinanceiroPageComponent implements OnInit {
         this.apartamentosConfig.set(list);
       },
       error: (err) => {
-        alert(err?.error?.message ?? 'Falha ao alterar configuração do apartamento.');
+        this.toast.error(err?.error?.message ?? 'Falha ao alterar configuração do apartamento.');
       }
     });
   }
@@ -607,15 +629,22 @@ export class FinanceiroPageComponent implements OnInit {
         this.alternarPago(lanc);
       },
       error: (err) => {
-        alert(err?.error?.message ?? 'Falha ao buscar detalhes do lançamento.');
+        this.toast.error(err?.error?.message ?? 'Falha ao buscar detalhes do lançamento.');
       }
     });
   }
 
-  removerFatura(fat: any) {
-    if (!confirm(`Deseja realmente remover a cobrança "${fat.nome}" no valor de ${fat.valorString}? Esta ação não pode ser desfeita e será registrada na auditoria.`)) {
-      return;
-    }
+  async removerFatura(fat: any) {
+    const ok = await this.confirm.ask({
+      title: 'Remover cobrança',
+      message:
+        `Remover "${fat.nome}" no valor de ${fat.valorString}? ` +
+        'Esta ação não pode ser desfeita e será registrada na auditoria.',
+      confirmLabel: 'Remover',
+      variant: 'danger',
+    });
+    if (!ok) return;
+
     this.api.remove(fat.id).subscribe({
       next: () => {
         this.carregarDados();
@@ -626,7 +655,7 @@ export class FinanceiroPageComponent implements OnInit {
         }
       },
       error: (err) => {
-        alert(err?.error?.message ?? 'Falha ao remover cobrança.');
+        this.toast.error(err?.error?.message ?? 'Falha ao remover cobrança.');
       }
     });
   }
@@ -1091,7 +1120,7 @@ export class FinanceiroPageComponent implements OnInit {
       }));
 
     if (payload.length === 0) {
-      alert('Nenhuma conciliação selecionada.');
+      this.toast.info('Nenhuma conciliação selecionada.');
       return;
     }
 
@@ -1102,7 +1131,7 @@ export class FinanceiroPageComponent implements OnInit {
         this.carregarDados();
       },
       error: (e) => {
-        alert(`Erro ao salvar conciliação: ${e?.error?.message ?? e?.message}`);
+        this.toast.error(`Erro ao salvar conciliação: ${e?.error?.message ?? e?.message}`);
         this.conciliando.set(false);
       }
     });
