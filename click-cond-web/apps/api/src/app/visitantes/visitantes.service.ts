@@ -1741,8 +1741,9 @@ export class VisitantesService {
         where: {
           apartamentosUsers: { some: { id_apto: v.id_apartamento } },
           notif_visitantes: 1,
+          fcm_token: { not: null },
         },
-        select: { fcm_token: true, name: true, phone: true },
+        select: { id: true, fcm_token: true, name: true, phone: true },
       });
       const tipo = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
       const photoUrl =
@@ -1750,9 +1751,9 @@ export class VisitantesService {
           ? v.foto_pessoa
           : '';
       for (const m of moradores) {
-        if (m.fcm_token) {
+        if (m.fcm_token && m.fcm_token.trim().length > 10) {
           await this.notifications.sendPushNotification(
-            m.fcm_token,
+            m.fcm_token.trim(),
             `${tipo} na portaria`,
             `${v.nome} quer entrar no seu apartamento. Autorizar?`,
             {

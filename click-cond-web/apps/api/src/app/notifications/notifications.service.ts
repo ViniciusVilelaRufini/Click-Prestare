@@ -123,14 +123,30 @@ export class NotificationsService implements OnModuleInit {
       });
       if (!device) return [token];
 
+      // Só envia se o usuário estiver logado (Users.fcm_token != null)
+      const user = await this.prisma.users.findUnique({
+        where: { id: device.id_user },
+        select: { fcm_token: true },
+      });
+      if (!user || !user.fcm_token) {
+        // Usuário deslogado: remove da tabela de dispositivos para não vazar push
+        await this.prisma.users_Devices.deleteMany({
+          where: { id_user: device.id_user },
+        }).catch(() => {});
+        return [];
+      }
+
+      // Retorna apenas o token ativo do usuário e dispositivos registrados
       const todos = await this.prisma.users_Devices.findMany({
         where: { id_user: device.id_user },
         select: { fcm_token: true },
       });
       const lista = todos.map((d) => d.fcm_token).filter(Boolean);
-      return lista.length > 0 ? lista : [token];
+      if (user.fcm_token && !lista.includes(user.fcm_token)) {
+        lista.push(user.fcm_token);
+      }
+      return lista.length > 0 ? lista : (user.fcm_token ? [user.fcm_token] : []);
     } catch (e) {
-      // Falha ao consultar não pode custar a notificação.
       this.logger.warn(`Não foi possível listar aparelhos: ${(e as any)?.message ?? e}`);
       return [token];
     }
