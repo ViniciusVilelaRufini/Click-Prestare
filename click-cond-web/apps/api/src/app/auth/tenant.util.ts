@@ -109,9 +109,21 @@ export function assertOperador(user: JwtPayload | undefined, contexto = 'ação'
  * que o síndico (o livro caixa do app).
  */
 export function isOperador(user: JwtPayload | undefined): boolean {
-  const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? '').toString().toLowerCase();
-  const ehConsole = !!user?.id_condominio;
-  const ehStaffApp = tipo === 'sindico' || tipo === 'funcionario';
+  if (!user) return false;
+  const tipo = (user.typeAccess ?? user.user?.typeAccess ?? (user as any).role ?? '').toString().toLowerCase();
+  const ehConsole = !!user.id_condominio;
+  const ehStaffApp =
+    tipo === 'sindico' ||
+    tipo === 'funcionario' ||
+    tipo === 'admin' ||
+    tipo === 'superadmin' ||
+    tipo === 'administrador' ||
+    tipo === 'porteiro' ||
+    tipo === 'operador' ||
+    (user as any).is_sindico === 1 ||
+    (user as any).is_funcionario === 1 ||
+    user.user?.is_sindico === 1 ||
+    user.user?.is_funcionario === 1;
   return ehConsole || ehStaffApp;
 }
 

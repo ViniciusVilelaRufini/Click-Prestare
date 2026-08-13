@@ -53,17 +53,32 @@ export class TenantAccessService {
       throw new ForbiddenException('Acesso negado: não foi possível validar o vínculo.');
     }
 
-    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? (payload as any).role ?? '').toString().toLowerCase();
 
-    if (tipo === 'sindico') {
+    if (
+      tipo === 'admin' ||
+      tipo === 'superadmin' ||
+      tipo === 'administrador' ||
+      (payload as any).role === 'admin' ||
+      (payload.user as any)?.role === 'admin'
+    ) {
+      return;
+    }
+
+    if (tipo === 'sindico' || (payload as any).is_sindico === 1 || payload.user?.is_sindico === 1) {
       const vinc = await this.prisma.sindicos_Condominios.findFirst({
         where: { id_user: userId, id_condominio: condId },
         select: { id: true },
       });
-      if (!vinc) {
-        throw new ForbiddenException('Acesso negado: você não administra este condomínio.');
-      }
-      return;
+      if (vinc) return;
+
+      const vincSindico = await this.prisma.sindicos.findFirst({
+        where: { id_user: userId, id_condominio: condId },
+        select: { id: true },
+      });
+      if (vincSindico) return;
+
+      throw new ForbiddenException('Acesso negado: você não administra este condomínio.');
     }
 
     // Funcionário mobile: o vínculo dele é ser da EQUIPE do condomínio, não
