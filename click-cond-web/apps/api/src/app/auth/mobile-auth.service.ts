@@ -1208,6 +1208,36 @@ export class MobileAuthService {
   }
 
   /**
+   * Remove o registro do aparelho (logout / encerramento de sessão).
+   * Impede que notificações continuem chegando após o logout.
+   */
+  async removeFcmToken(idUser: number, fcmToken?: string) {
+    if (!this.prisma.isConnected) return { success: true };
+    const token = (fcmToken ?? '').trim();
+    if (token) {
+      await this.prisma.users_Devices.deleteMany({
+        where: { fcm_token: token },
+      });
+      await this.prisma.users.updateMany({
+        where: { fcm_token: token },
+        data: { fcm_token: null },
+      });
+    }
+    if (idUser && !Number.isNaN(idUser)) {
+      if (!token) {
+        await this.prisma.users_Devices.deleteMany({
+          where: { id_user: idUser },
+        });
+      }
+      await this.prisma.users.update({
+        where: { id: idUser },
+        data: { fcm_token: null },
+      });
+    }
+    return { success: true };
+  }
+
+  /**
    * Testa o push do usuário logado e devolve o que o FCM respondeu por
    * aparelho, sem esconder erro. Usado para separar "não registrou o token"
    * de "registrou mas a entrega falha".

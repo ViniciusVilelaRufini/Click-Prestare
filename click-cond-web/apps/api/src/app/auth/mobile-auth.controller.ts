@@ -619,6 +619,32 @@ export class UsersMobileController {
     );
   }
 
+  @Post('remove-fcm-token')
+  @HttpCode(200)
+  removeFcmToken(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { fcm_token?: string },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.removeFcmToken(
+      Number(idUser),
+      body?.fcm_token,
+    );
+  }
+
+  @Post('logout')
+  @HttpCode(200)
+  logout(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { fcm_token?: string },
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    return this.service.removeFcmToken(
+      Number(idUser),
+      body?.fcm_token,
+    );
+  }
+
   // Diagnóstico de push: envia para os aparelhos do próprio usuário logado e
   // devolve a resposta do FCM, inclusive o erro. Existe porque "não chega
   // notificação" tem várias causas mudas (credencial, token morto, APNs sem

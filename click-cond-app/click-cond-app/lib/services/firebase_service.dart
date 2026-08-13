@@ -203,6 +203,36 @@ class FirebaseService {
       if (kDebugMode) print('Falha ao registrar token de push: $e');
     }
   }
+
+  /// Remove o token do servidor e invalida o token local no Firebase (logout).
+  /// Garante que nenhuma notificação seja recebida enquanto o app estiver deslogado.
+  Future<void> desregistrarNoServidor() async {
+    final jwt = getToken();
+    String? token;
+    try {
+      token = await FirebaseMessaging.instance.getToken();
+    } catch (_) {}
+
+    if (jwt.isNotEmpty) {
+      try {
+        await ApiClient.post(
+          ApiConfig.buildUri('/users/remove-fcm-token'),
+          headers: {'Content-Type': 'application/json', 'Authorization': jwt},
+          body: jsonEncode({
+            if (token != null && token.isNotEmpty) 'fcm_token': token,
+          }),
+        );
+      } catch (e) {
+        if (kDebugMode) print('Erro ao desregistrar FCM token no backend: $e');
+      }
+    }
+
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (e) {
+      if (kDebugMode) print('Erro ao deletar FCM token local: $e');
+    }
+  }
 }
 
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {

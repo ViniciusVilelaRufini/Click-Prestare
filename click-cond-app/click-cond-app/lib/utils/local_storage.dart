@@ -1,3 +1,4 @@
+import 'package:click/services/firebase_service.dart';
 import 'package:localstorage/localstorage.dart';
 
 // Instância única — inicializada via ensureReady() no main antes de usar
@@ -41,7 +42,10 @@ storageFuncionario(Map<String, dynamic> parsed) {
   _storage.setItem('apartamentos', parsed["user"]["apartamentos"] ?? 0);
 }
 
-storageLogout() {
+Future<void> storageLogout() async {
+  try {
+    await FirebaseService.instance.desregistrarNoServidor();
+  } catch (_) {}
   _storage.clear();
 }
 

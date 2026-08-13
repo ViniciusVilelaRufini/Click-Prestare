@@ -877,9 +877,11 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         acao(
           icon: PhosphorIcons.signOut,
           tooltip: getText('lb_logout'),
-          onPressed: () {
-            storageLogout();
-            Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+          onPressed: () async {
+            await storageLogout();
+            if (context.mounted) {
+              Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+            }
           },
         ),
       ],
