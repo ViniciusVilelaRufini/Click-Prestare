@@ -25,6 +25,7 @@ import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/datas.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
@@ -1276,13 +1277,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
-  /// Formata o timestamp como "15/07/2026 às 18:24".
-  String _formatDataHora(dynamic ts) {
-    final d = DateTime.tryParse(ts?.toString() ?? '');
-    if (d == null) return '';
-    final pad = (int n) => n.toString().padLeft(2, '0');
-    return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
-  }
+  /// Formata o timestamp como "15/07/2026 às 18:24" no fuso local do aparelho.
+  String _formatDataHora(dynamic ts) => formatarDataHora(ts);
 
   Widget _buildError() {
     return Padding(

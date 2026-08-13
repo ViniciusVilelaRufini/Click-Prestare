@@ -778,7 +778,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
 
   String _formatDateTimeString(dynamic val) {
     if (val == null) return '';
-    final d = DateTime.tryParse(val.toString());
+    final d = parseDataApi(val);
     if (d == null) return val.toString();
     final pad = (int n) => n.toString().padLeft(2, '0');
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';

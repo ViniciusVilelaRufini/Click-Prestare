@@ -8,6 +8,7 @@ import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/datas.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
@@ -189,7 +190,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
   }
 
   String _tempoRelativo(String? iso) {
-    final ts = DateTime.tryParse(iso ?? '');
+    final ts = parseDataApi(iso);
     if (ts == null) return '';
     final diff = DateTime.now().difference(ts);
 
