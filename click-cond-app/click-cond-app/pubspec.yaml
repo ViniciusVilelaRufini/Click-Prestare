@@ -3,7 +3,7 @@ description: Click - Gestão inteligente de condomínios. Controle de acesso, vi
 
 publish_to: 'none'
 
-version: 1.0.0+46
+version: 1.0.0+47
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
