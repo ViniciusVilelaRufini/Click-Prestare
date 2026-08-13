@@ -1734,6 +1734,7 @@ export class VisitantesService {
     nome: string;
     id_apartamento: number;
     is_prestador: number;
+    foto_pessoa?: string | null;
   }) {
     try {
       const moradores = await this.prisma.users.findMany({
@@ -1744,13 +1745,22 @@ export class VisitantesService {
         select: { fcm_token: true, name: true, phone: true },
       });
       const tipo = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+      const photoUrl =
+        v.foto_pessoa && !v.foto_pessoa.startsWith('data:') && v.foto_pessoa.length < 500
+          ? v.foto_pessoa
+          : '';
       for (const m of moradores) {
         if (m.fcm_token) {
           await this.notifications.sendPushNotification(
             m.fcm_token,
             `${tipo} na portaria`,
             `${v.nome} quer entrar no seu apartamento. Autorizar?`,
-            { type: 'autorizacao_visitante', id: v.id.toString(), nome: v.nome },
+            {
+              type: 'autorizacao_visitante',
+              id: v.id.toString(),
+              nome: v.nome,
+              ...(photoUrl ? { photo: photoUrl } : {}),
+            },
           );
         }
         if (m.phone) {

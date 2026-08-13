@@ -82,6 +82,7 @@ class FirebaseService {
           mostrarDialogoAutorizacaoVisitante(
             id: id,
             nome: message.data['nome']?.toString(),
+            photo: message.data['photo']?.toString() ?? message.data['foto_pessoa']?.toString(),
           );
         }
       }

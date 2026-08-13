@@ -1,13 +1,128 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/api_config.dart';
 import 'package:click/utils/navigation_service.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+/// Helper para converter string de foto (URL, caminho relativo ou Base64) em ImageProvider.
+ImageProvider? _getVisitorImageProvider(String? photo) {
+  if (photo == null || photo.trim().isEmpty || photo == 'null' || photo == 'undefined') {
+    return null;
+  }
+  final clean = photo.trim();
+  if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    return NetworkImage(clean);
+  }
+  if (clean.startsWith('data:image')) {
+    try {
+      final commaIndex = clean.indexOf(',');
+      final base64Str = commaIndex != -1 ? clean.substring(commaIndex + 1) : clean;
+      return MemoryImage(base64Decode(base64Str.replaceAll(RegExp(r'\s+'), '')));
+    } catch (_) {
+      return null;
+    }
+  }
+  if (clean.length > 100 && !clean.contains('/') && !clean.contains('.')) {
+    try {
+      return MemoryImage(base64Decode(clean.replaceAll(RegExp(r'\s+'), '')));
+    } catch (_) {
+      return null;
+    }
+  }
+  final host = ApiConfig.host;
+  final scheme = ApiConfig.useHttps ? 'https' : 'http';
+  final relative = clean.startsWith('/') ? clean : '/$clean';
+  return NetworkImage('$scheme://$host$relative');
+}
+
+/// Constrói o avatar do visitante com foto real ou ícone estilizado.
+Widget _buildVisitorAvatar({
+  String? photo,
+  required bool isPrestador,
+  double size = 48,
+  double radius = 14,
+}) {
+  final imageProvider = _getVisitorImageProvider(photo);
+
+  if (imageProvider != null) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFEA580C).withOpacity(0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(
+          color: const Color(0xFFF97316).withOpacity(0.45),
+          width: 1.5,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius - 1.5),
+        child: Image(
+          image: imageProvider,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildFallbackAvatar(
+            isPrestador: isPrestador,
+            size: size,
+            radius: radius,
+          ),
+        ),
+      ),
+    );
+  }
+
+  return _buildFallbackAvatar(
+    isPrestador: isPrestador,
+    size: size,
+    radius: radius,
+  );
+}
+
+Widget _buildFallbackAvatar({
+  required bool isPrestador,
+  double size = 48,
+  double radius = 14,
+}) {
+  return Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
+      ),
+      borderRadius: BorderRadius.circular(radius),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFEA580C).withOpacity(0.32),
+          blurRadius: 8,
+          offset: const Offset(0, 3),
+        ),
+      ],
+    ),
+    child: Icon(
+      isPrestador ? PhosphorIcons.wrenchFill : PhosphorIcons.userFill,
+      color: Colors.white,
+      size: size * 0.5,
+    ),
+  );
+}
 
 /// Portaria remota — tela "Solicitações pendentes" (inbox do morador).
 /// Lista visitantes aguardando autorização e permite Autorizar/Negar.
@@ -28,7 +143,6 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
   void initState() {
     super.initState();
     _load();
-    // Atualiza a lista periodicamente (a portaria pode enviar novos pedidos).
     _poll = Timer.periodic(const Duration(seconds: 10), (_) => _load(silent: true));
   }
 
@@ -130,6 +244,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
     final apto = (item['apto'] ?? '').toString();
     final bloco = (item['apto_bloco'] ?? '').toString();
     final isPrestador = item['is_prestador'] == 1 || item['is_prestador'] == true;
+    final photo = (item['photo'] ?? item['foto_pessoa'])?.toString();
     final aptoLabel = bloco.isNotEmpty ? 'Bloco $bloco, Apto $apto' : 'Apto $apto';
     final respondendo = _respondendoId == item['id'];
 
@@ -156,29 +271,11 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFEA580C).withOpacity(0.32),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  isPrestador ? PhosphorIcons.wrenchFill : PhosphorIcons.userFill,
-                  color: Colors.white,
-                  size: 24,
-                ),
+              _buildVisitorAvatar(
+                photo: photo,
+                isPrestador: isPrestador,
+                size: 52,
+                radius: 16,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -363,11 +460,25 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
 Future<void> mostrarDialogoAutorizacaoVisitante({
   required int id,
   String? nome,
+  String? photo,
 }) async {
   final ctx = NavigationService.navigatorKey.currentContext;
   if (ctx == null) return;
   final isDark = Theme.of(ctx).brightness == Brightness.dark;
   final nomeLabel = (nome != null && nome.isNotEmpty) ? nome : 'Um visitante';
+
+  String? fotoFinal = photo;
+  if (fotoFinal == null || fotoFinal.isEmpty) {
+    try {
+      final pendentes = await apiGetPendentes();
+      if (pendentes is List) {
+        final match = pendentes.firstWhere((e) => e['id'] == id, orElse: () => null);
+        if (match != null) {
+          fotoFinal = (match['photo'] ?? match['foto_pessoa'])?.toString();
+        }
+      }
+    } catch (_) {}
+  }
 
   final autorizar = await showDialog<bool?>(
     context: ctx,
@@ -385,29 +496,11 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
           children: [
             Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFEA580C).withOpacity(0.35),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    PhosphorIcons.bellRingingFill,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                _buildVisitorAvatar(
+                  photo: fotoFinal,
+                  isPrestador: false,
+                  size: 52,
+                  radius: 16,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
