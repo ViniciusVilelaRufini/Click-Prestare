@@ -94,14 +94,25 @@ export function assertStaff(user: JwtPayload | undefined, contexto = 'ação'): 
  * Quando a ação só existe no app, prefira assertStaff.
  */
 export function assertOperador(user: JwtPayload | undefined, contexto = 'ação'): void {
-  const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? '').toString().toLowerCase();
-  const ehConsole = !!user?.id_condominio;
-  const ehStaffApp = tipo === 'sindico' || tipo === 'funcionario';
-  if (!ehConsole && !ehStaffApp) {
+  if (!isOperador(user)) {
     throw new ForbiddenException(
       `Acesso negado: ${contexto} exige operador da portaria ou síndico.`,
     );
   }
+}
+
+/**
+ * Versão booleana do assertOperador, para quando o papel não decide "pode ou
+ * não pode" e sim QUANTO devolver — recortar a resposta em vez de recusá-la.
+ *
+ * Caso de uso: rotas que morador consome legitimamente, mas com menos dados
+ * que o síndico (o livro caixa do app).
+ */
+export function isOperador(user: JwtPayload | undefined): boolean {
+  const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? '').toString().toLowerCase();
+  const ehConsole = !!user?.id_condominio;
+  const ehStaffApp = tipo === 'sindico' || tipo === 'funcionario';
+  return ehConsole || ehStaffApp;
 }
 
 /**

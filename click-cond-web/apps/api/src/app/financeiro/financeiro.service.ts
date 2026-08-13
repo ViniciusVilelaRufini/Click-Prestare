@@ -5,6 +5,7 @@ import { MailService } from '../common/mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
+import { isOperador } from '../auth/tenant.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FechamentoService } from './fechamento.service';
 import { OpenPixService } from './openpix.service';
@@ -803,6 +804,15 @@ export class FinanceiroService implements OnModuleInit {
   // ==========================================
   async getAll(idCondominio: number, mesStr?: string, anoStr?: string, isSindico: boolean = true, user?: JwtPayload, incluirTaxasCondominiais = false) {
     await this.tenant.assertCondominio(idCondominio, user);
+
+    // Esta rota é a única do módulo que morador consome de verdade (o
+    // MoradorFinanceiroView do app): ele vê o livro caixa do prédio com o
+    // recorte `pago = 1`. Mas `incluirTaxasCondominiais` chegava pela query
+    // string, e ligá-la reinclui as cobranças apto a apto — ou seja, o morador
+    // pedia e recebia quanto cada vizinho pagou e quando. Quem decide o
+    // recorte é o servidor, pelo papel; a query só pode restringir, nunca
+    // ampliar.
+    if (!isOperador(user)) incluirTaxasCondominiais = false;
     if (!this.prisma.isConnected) {
       return {
         lancamentos: {

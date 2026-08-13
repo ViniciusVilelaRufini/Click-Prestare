@@ -126,6 +126,17 @@ export class FinanceiroController {
     return this.service.notifyInadimplente(Number(idCondominio), apto, bloco, payload);
   }
 
+  // As leituras administrativas abaixo não tinham checagem de papel nenhuma.
+  // Como `assertCondominio` (no service) só confirma VÍNCULO com o condomínio
+  // — e morador tem vínculo —, na prática qualquer morador autenticado do
+  // prédio alcançava todas elas. As mutações do módulo já exigiam staff desde
+  // a auditoria de julho; as leituras ficaram de fora.
+  //
+  // Nenhuma delas é consumida por tela de morador: no app,
+  // `getUserType() == 'morador'` manda para o MoradorFinanceiroView, que só
+  // chama `get-all`. As demais telas (livro caixa, relatório, recorrência,
+  // fechamento, CSV) são do síndico/funcionário, e na portaria-web a rota
+  // /financeiro já é exclusiva do síndico.
   @Get('export-csv')
   async exportCsv(
     @Query('id_condominio') idCondominio: string,
@@ -135,6 +146,9 @@ export class FinanceiroController {
     @Query('ano') ano?: string,
     @Query('incluirTaxasCondominiais') incluirTaxasCondominiais?: string,
   ) {
+    // O mais sensível do grupo: leva o livro caixa inteiro embora num arquivo,
+    // pagos e em aberto, com o nome da fatura identificando apto e bloco.
+    assertStaff(payload, 'exportar o livro caixa');
     const { buffer, filename } = await this.service.exportLivroCaixaCsv(
       Number(idCondominio),
       mes,
@@ -155,11 +169,14 @@ export class FinanceiroController {
     @Query('ano') ano: string,
     @ReqUser() payload: JwtPayload,
   ) {
+    assertStaff(payload, 'abrir o relatório gráfico do condomínio');
     return this.service.getGrafico(Number(idCondominio), mes, ano, payload);
   }
 
   @Get('config-auto')
   getConfigAuto(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
+    // Devolve chave_pix, valor da taxa e a régua de cobrança inteira.
+    assertStaff(payload, 'consultar a configuração de cobrança');
     return this.service.getConfigAuto(Number(idCondominio), payload);
   }
 
@@ -176,6 +193,8 @@ export class FinanceiroController {
 
   @Get('apartamentos-config')
   getApartamentosConfig(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
+    // Revela quais unidades estão isentas da recorrência.
+    assertStaff(payload, 'consultar a configuração dos apartamentos');
     return this.service.getApartamentosConfig(Number(idCondominio), payload);
   }
 
@@ -392,6 +411,8 @@ export class FinanceiroController {
     @Query('id_condominio') idCondominio: string,
     @ReqUser() payload: JwtPayload,
   ) {
+    // Quem fechou, quando, observação e motivo de reabertura.
+    assertStaff(payload, 'consultar as competências fechadas');
     return this.fechamento.listar(Number(idCondominio), payload);
   }
 
