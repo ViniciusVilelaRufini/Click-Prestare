@@ -90,6 +90,22 @@ describe('FinanceiroService — conciliação OFX', () => {
     expect(r.results[0].suggestion).toBeNull();
   });
 
+  /**
+   * Dívida renegociada (status '3') foi substituída pelas parcelas do acordo e
+   * não é mais cobrável. Todas as outras leituras de dívida em aberto já
+   * filtravam; a conciliação era a última que não filtrava — o depósito casava
+   * com o débito ORIGINAL, o síndico confirmava, e o pagamento era creditado
+   * numa dívida que não existe mais enquanto a parcela viva seguia em aberto.
+   */
+  it('não sugere dívida já renegociada em acordo', async () => {
+    const { svc, prisma } = build([taxa(1, '101')]);
+    await svc.parseOfxContent(1, transacao(650, '20260710', 'A'), sindico);
+
+    const where = prisma.financeiro.findMany.mock.calls[0][0].where;
+    expect(where.status).toEqual({ not: '3' });
+    expect(where.pago).toBe(0);
+  });
+
   describe('confirmarConciliacao', () => {
     it('deduplica o mesmo lançamento enviado duas vezes', async () => {
       const { svc, prisma } = build([taxa(1, '101')]);

@@ -2759,6 +2759,14 @@ export class FinanceiroService implements OnModuleInit {
         // do morador (tipo 'D' + id_usuario) apareciam na lista de sugestões —
         // o operador via a conta de luz da casa dele e podia dar baixa nela.
         NOT: { AND: [{ tipo: 'D' }, { id_usuario: { not: null } }] },
+        // Dívida renegociada em acordo foi substituída pelas parcelas e não é
+        // mais cobrável. Ela continuava aparecendo aqui como sugestão: o
+        // depósito do morador casava com o débito ORIGINAL, o síndico
+        // confirmava, e o pagamento era creditado numa dívida que não existe
+        // mais — enquanto a parcela do acordo, essa sim viva, seguia em aberto.
+        // Todas as outras leituras de dívida em aberto já filtravam; a
+        // conciliação era a que faltava.
+        ...FinanceiroService.NAO_RENEGOCIADO,
       },
     });
 
