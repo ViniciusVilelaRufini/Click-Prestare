@@ -963,6 +963,27 @@ export class MobileAuthService {
     };
     const itens: Item[] = [];
 
+    // --- Solicitações de autorização pendentes (Portaria Remota) ---
+    const aptoIds = moras.map((m) => m.id_apartamento).filter((id): id is number => id != null);
+    if (aptoIds.length) {
+      const pendentes = await this.prisma.visitantes.findMany({
+        where: {
+          id_apartamento: { in: aptoIds },
+          auth_status: 'pendente',
+        },
+        take: 10,
+      });
+      for (const p of pendentes) {
+        itens.push({
+          id: `solicitacao-${p.id}`,
+          tipo: 'solicitacao',
+          titulo: 'Solicitação de Entrada na Portaria',
+          descricao: `${p.nome} aguarda sua autorização na portaria para entrar.`,
+          timestamp: p.auth_solicitado_em || p.data_visita || new Date(),
+        });
+      }
+    }
+
     // --- Encomendas endereçadas ao apto/bloco do morador ---
     if (quer(user?.notif_encomendas)) {
       const wheres = moras

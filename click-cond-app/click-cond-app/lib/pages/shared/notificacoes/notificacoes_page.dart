@@ -4,6 +4,7 @@ import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/shared/ocorrencias/detail_ocorrencia.dart';
+import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -87,6 +88,13 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
           cor: const Color(0xFF8B5CF6),
           tag: 'Reserva'
         );
+      case 'solicitacao':
+      case 'autorizacao_visitante':
+        return (
+          icon: PhosphorIcons.bellRinging,
+          cor: const Color(0xFFF59E0B),
+          tag: 'Solicitação'
+        );
       case 'acesso':
         final isSaida = titulo.contains('saída') || desc.contains('saiu');
         if (isSaida) {
@@ -167,6 +175,10 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
         break;
       case 'financeiro':
         destino = const MoradorFinanceiroView();
+        break;
+      case 'solicitacao':
+      case 'autorizacao_visitante':
+        destino = const PendentesVisitantePage();
         break;
       case 'acesso':
         destino = HistoricoAcessosPage(destacarId: id);

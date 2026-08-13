@@ -12,10 +12,12 @@ import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/financeiro/list_inadimplentes.dart';
 import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/pages/shared/funcionarios/edit_funcionario.dart';
+import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/morador/edit_morador.dart';
 import 'package:click/pages/shared/my_condominium.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
+import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/sindico/edit_sindico.dart';
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
 import 'package:click/pages/singleton.dart';
@@ -43,18 +45,31 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   bool _isLoading = false;
   String? _errorMessage;
   int _naoLidas = 0;
+  int _pendentesCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadList();
     _carregarNaoLidas();
+    _carregarPendentes();
   }
 
   Future<void> _carregarNaoLidas() async {
     final itens = await apiGetNotificacoes();
     if (!mounted) return;
     setState(() => _naoLidas = contarNaoLidas(itens));
+  }
+
+  Future<void> _carregarPendentes() async {
+    if (getUserType() != 'morador') return;
+    try {
+      final res = await apiGetPendentes();
+      if (!mounted) return;
+      if (res is List) {
+        setState(() => _pendentesCount = res.length);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadList() async {
@@ -871,12 +886,16 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   Widget _buildDashboard(BuildContext context) {
-    if (_summary == null) return const SizedBox.shrink();
+    if (_summary == null && _pendentesCount == 0) return const SizedBox.shrink();
     final type = getUserType();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_pendentesCount > 0) ...[
+          _buildPendentesBanner(context),
+          const SizedBox(height: AppSpacing.md),
+        ],
         Text('Resumo Geral',
             style: AppTypography.bodyMedium(context)
                 .copyWith(fontWeight: FontWeight.w600)),
@@ -933,6 +952,97 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildPendentesBanner(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PendentesVisitantePage()),
+          ).then((_) {
+            if (mounted) _carregarPendentes();
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFF59E0B), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF59E0B).withOpacity(0.12),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF59E0B),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(PhosphorIcons.bellRinging, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$_pendentesCount ${_pendentesCount == 1 ? "Solicitação na Portaria" : "Solicitações na Portaria"}',
+                            style: const TextStyle(
+                              color: Color(0xFF92400E),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDC2626),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text(
+                            'AGUARDANDO',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Toque para aprovar ou negar a entrada do visitante',
+                      style: TextStyle(
+                        color: Color(0xFFB45309),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(PhosphorIcons.caretRight, color: Color(0xFFD97706), size: 20),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

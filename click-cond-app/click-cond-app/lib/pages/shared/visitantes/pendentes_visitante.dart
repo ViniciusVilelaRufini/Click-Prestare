@@ -186,7 +186,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
   }
 }
 
-/// Diálogo acionável disparado por um push de autorização (portaria remota).
+/// Diálogo acionável disparado por um push de autorização (portaria remota em primeiro plano).
 /// Usa o navigatorKey global — pode ser chamado do handler FCM sem context.
 Future<void> mostrarDialogoAutorizacaoVisitante({
   required int id,
@@ -195,20 +195,65 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
   final ctx = NavigationService.navigatorKey.currentContext;
   if (ctx == null) return;
   final nomeLabel = (nome != null && nome.isNotEmpty) ? nome : 'Um visitante';
-  final autorizar = await showDialog<bool>(
+  final autorizar = await showDialog<bool?>(
     context: ctx,
+    barrierDismissible: true,
     builder: (c) => AlertDialog(
-      title: const Text('Visitante na portaria'),
-      content: Text('$nomeLabel está na portaria pedindo autorização para entrar.'),
+      backgroundColor: AppColors.surface(c),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(PhosphorIcons.bellRinging, color: AppColors.warning, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Visitante na Portaria',
+              style: AppTypography.title(c).copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+      content: Text(
+        '$nomeLabel está na portaria aguardando sua autorização para entrar no condomínio.',
+        style: AppTypography.body(c),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(c, false),
-          child: Text('Negar', style: TextStyle(color: AppColors.error)),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-          onPressed: () => Navigator.pop(c, true),
-          child: const Text('Autorizar', style: TextStyle(color: Colors.white)),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppColors.error),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () => Navigator.pop(c, false),
+                icon: Icon(PhosphorIcons.x, size: 18, color: AppColors.error),
+                label: Text('Negar', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () => Navigator.pop(c, true),
+                icon: const Icon(PhosphorIcons.check, size: 18, color: Colors.white),
+                label: const Text('Autorizar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
         ),
       ],
     ),
@@ -219,7 +264,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
   if (ctx2 == null) return;
   if (res is Map) {
     displayMessage(ctx2, autorizar ? 'Autorizado' : 'Negado',
-        autorizar ? '$nomeLabel foi autorizado.' : '$nomeLabel foi negado.');
+        autorizar ? '$nomeLabel foi autorizado a entrar.' : '$nomeLabel foi negado.');
   } else {
     displayMessage(ctx2, 'Erro', res.toString());
   }
