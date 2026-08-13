@@ -1730,6 +1730,18 @@ export class FinanceiroService implements OnModuleInit {
       // id_usuario pode ser number do Prisma vs number JS — usa Number() para garantir
       if (item.id_usuario != null && Number(item.id_usuario) === Number(idUser)) return true;
       if (item.tipo === 'C') {
+        // "Cobrança de R$ 0,00 não é dívida" — regra que a inadimplência do
+        // síndico aplica em três consultas e esta não aplicava. O job de
+        // recorrência gerou cobranças zeradas antes da validação de valor
+        // existir, e elas ficaram visíveis SÓ para o morador: ele abria o app
+        // e via uma pendência de R$ 0,00 que o síndico não enxergava em lugar
+        // nenhum, então não tinha como explicar nem dar baixa.
+        //
+        // Vale só para cobrança do condomínio: conta pessoal do morador
+        // (id_usuario, tratada acima) continua aparecendo mesmo zerada — é
+        // dele, e ele precisa poder ver para corrigir ou apagar.
+        if (!(Number(item.valor) > 0)) return false;
+
         const match = userUnits.some(m =>
           this.nomeFaturaDeApto(item.nome, m.apartamento, m.bloco)
         );
