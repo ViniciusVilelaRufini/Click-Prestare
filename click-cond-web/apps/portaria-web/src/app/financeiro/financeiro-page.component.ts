@@ -21,6 +21,8 @@ export class FinanceiroPageComponent implements OnInit {
   readonly sumario = signal<{ totalReceita: string; totalDespesa: string; saldo: string }>({ totalReceita: 'R$ 0,00', totalDespesa: 'R$ 0,00', saldo: 'R$ 0,00' });
   readonly lancamentosMap = signal<Record<string, Lancamento[]>>({});
   readonly mesesDisponiveis = signal<any[]>([]);
+  /** Cobranças de taxa que ficaram fora dos totais (ver aviso no card de receitas). */
+  readonly taxasOcultas = signal(0);
   readonly inadimplentesBlocos = signal<any[]>([]);
   readonly dadosGrafico = signal<any>(null);
 
@@ -467,6 +469,7 @@ export class FinanceiroPageComponent implements OnInit {
     this.api.listLancamentos(m, a, this.incluirTaxasCondominiais()).subscribe({
       next: (res) => {
         this.lancamentosMap.set(res?.lancamentos || {});
+        this.taxasOcultas.set(Number(res?.taxasCondominiaisOcultas ?? 0));
         this.sumario.set({
           totalReceita: res?.totalReceita || 'R$ 0,00',
           totalDespesa: res?.totalDespesa || 'R$ 0,00',

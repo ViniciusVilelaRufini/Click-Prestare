@@ -975,6 +975,15 @@ export class FinanceiroService implements OnModuleInit {
       totalDespesa: formatRealGeral(-totalDespesa),
       dia: ultimoDiaFmt,
       meses: mesesDisponiveis,
+      // Quantas cobranças de taxa ficaram FORA destes totais.
+      //
+      // O livro caixa esconde as taxas condominiais por padrão (elas vivem na
+      // aba Inadimplência), e o resultado na tela é "Total de receitas
+      // R$ 0,00" num prédio com dezenas de faturas em aberto — número correto
+      // que parece defeito. A única explicação existia num `title` do
+      // checkbox, invisível sem passar o mouse. Com a contagem, a tela pode
+      // dizer o que está escondendo.
+      taxasCondominiaisOcultas: listBruta.length - list.length,
     };
   }
 
