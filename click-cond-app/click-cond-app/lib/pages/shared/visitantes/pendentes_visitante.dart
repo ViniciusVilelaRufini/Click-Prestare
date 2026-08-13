@@ -94,17 +94,38 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
     return ListView(
       children: [
         const SizedBox(height: 120),
-        Icon(PhosphorIcons.bellSlash, size: 48, color: AppColors.textTertiary(context)),
-        const SizedBox(height: AppSpacing.md),
         Center(
-          child: Text('Nenhuma solicitação pendente',
-              style: AppTypography.bodyMedium(context)),
+          child: Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(PhosphorIcons.bellSlash, size: 36, color: AppColors.primary),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Center(
+          child: Text(
+            'Nenhuma solicitação pendente',
+            style: AppTypography.title(context).copyWith(fontSize: 17),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Center(
+          child: Text(
+            'Quando um visitante chegar na portaria, o pedido aparecerá aqui.',
+            textAlign: TextAlign.center,
+            style: AppTypography.caption(context),
+          ),
         ),
       ],
     );
   }
 
   Widget _card(BuildContext context, dynamic item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final nome = (item['nome'] ?? 'Visitante').toString();
     final apto = (item['apto'] ?? '').toString();
     final bloco = (item['apto_bloco'] ?? '').toString();
@@ -113,68 +134,219 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
     final respondendo = _respondendoId == item['id'];
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFF97316).withOpacity(0.35),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFEA580C).withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(isPrestador ? PhosphorIcons.wrench : PhosphorIcons.userCircle,
-                  color: AppColors.warning, size: 28),
-              const SizedBox(width: AppSpacing.sm),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFEA580C).withOpacity(0.32),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  isPrestador ? PhosphorIcons.wrenchFill : PhosphorIcons.userFill,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(nome,
-                        style: AppTypography.bodyMedium(context)
-                            .copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 2),
-                    Text('${isPrestador ? "Prestador" : "Visitante"} na portaria • $aptoLabel',
-                        style: AppTypography.caption(context)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            nome,
+                            style: AppTypography.title(context).copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16.5,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDC2626).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFDC2626).withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 5.5,
+                                height: 5.5,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFDC2626),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 4.5),
+                              const Text(
+                                'Aguardando',
+                                style: TextStyle(
+                                  color: Color(0xFFB91C1C),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          PhosphorIcons.mapPin,
+                          size: 14,
+                          color: AppColors.textSecondary(context),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '${isPrestador ? "Prestador de serviço" : "Visitante na portaria"} • $aptoLabel',
+                            style: AppTypography.caption(context).copyWith(
+                              color: AppColors.textSecondary(context),
+                              fontSize: 12.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: 18),
           if (respondendo)
             const Center(
-                child: Padding(
-              padding: EdgeInsets.all(8),
-              child: SizedBox(
-                  width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
-            ))
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              ),
+            )
           else
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _responder(item, false),
-                    icon: Icon(PhosphorIcons.x, size: 18, color: AppColors.error),
-                    label: Text('Negar', style: TextStyle(color: AppColors.error)),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: AppColors.error),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => _responder(item, false),
+                      child: Container(
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFFECACA), width: 1.2),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(PhosphorIcons.xBold, size: 17, color: Color(0xFFDC2626)),
+                            SizedBox(width: 6),
+                            Text(
+                              'Negar',
+                              style: TextStyle(
+                                color: Color(0xFFDC2626),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _responder(item, true),
-                    icon: const Icon(PhosphorIcons.check, size: 18, color: Colors.white),
-                    label: const Text('Autorizar', style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => _responder(item, true),
+                      child: Container(
+                        height: 46,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF10B981), Color(0xFF059669)],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withOpacity(0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(PhosphorIcons.checkBold, size: 17, color: Colors.white),
+                            SizedBox(width: 6),
+                            Text(
+                              'Autorizar',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -194,71 +366,202 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
 }) async {
   final ctx = NavigationService.navigatorKey.currentContext;
   if (ctx == null) return;
+  final isDark = Theme.of(ctx).brightness == Brightness.dark;
   final nomeLabel = (nome != null && nome.isNotEmpty) ? nome : 'Um visitante';
+
   final autorizar = await showDialog<bool?>(
     context: ctx,
     barrierDismissible: true,
-    builder: (c) => AlertDialog(
-      backgroundColor: AppColors.surface(c),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withOpacity(0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(PhosphorIcons.bellRinging, color: AppColors.warning, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Visitante na Portaria',
-              style: AppTypography.title(c).copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-      content: Text(
-        '$nomeLabel está na portaria aguardando sua autorização para entrar no condomínio.',
-        style: AppTypography.body(c),
-      ),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      actions: [
-        Row(
+    builder: (c) => Dialog(
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 16,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.error),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEA580C).withOpacity(0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    PhosphorIcons.bellRingingFill,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
-                onPressed: () => Navigator.pop(c, false),
-                icon: Icon(PhosphorIcons.x, size: 18, color: AppColors.error),
-                label: Text('Negar', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Visitante na Portaria',
+                        style: AppTypography.title(c).copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Aguardando sua liberação',
+                          style: TextStyle(
+                            color: Color(0xFFB91C1C),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                ),
+              ),
+              child: RichText(
+                text: TextSpan(
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    color: isDark ? Colors.white70 : const Color(0xFF334155),
+                    height: 1.4,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: nomeLabel,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const TextSpan(
+                      text: ' está na portaria aguardando autorização para entrar no condomínio.',
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => Navigator.pop(c, false),
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFFECACA), width: 1.2),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(PhosphorIcons.xBold, size: 18, color: Color(0xFFDC2626)),
+                            SizedBox(width: 6),
+                            Text(
+                              'Negar',
+                              style: TextStyle(
+                                color: Color(0xFFDC2626),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                onPressed: () => Navigator.pop(c, true),
-                icon: const Icon(PhosphorIcons.check, size: 18, color: Colors.white),
-                label: const Text('Autorizar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => Navigator.pop(c, true),
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF10B981), Color(0xFF059669)],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withOpacity(0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(PhosphorIcons.checkBold, size: 18, color: Colors.white),
+                            SizedBox(width: 6),
+                            Text(
+                              'Autorizar',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-      ],
+      ),
     ),
   );
-  if (autorizar == null) return; // fechou sem escolher
+  if (autorizar == null) return;
   final res = await apiResponderAutorizacao(id, autorizar);
   final ctx2 = NavigationService.navigatorKey.currentContext;
   if (ctx2 == null) return;
