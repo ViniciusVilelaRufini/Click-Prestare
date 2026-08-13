@@ -53,6 +53,31 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
     }
   }
 
+  Future<void> _registrarSaida(dynamic item) async {
+    final id = item['id'];
+    if (id == null) return;
+    final result = await apiCheckOutVisitante(id as int);
+    if (!mounted) return;
+    if (result is Map) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Baixa na visita de ${item['nome'] ?? 'prestador'} realizada com sucesso!'),
+          backgroundColor: AppColors.primary,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      loadList();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro: ${result ?? 'Não foi possível dar baixa na visita.'}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   void _showPrestadorDetails(BuildContext context, dynamic item) {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
     final canAdd = (getUserType() != 'funcionario') || getUserPermission('prestadores_servico') == 1;
@@ -391,6 +416,33 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
 
               
               const SizedBox(height: AppSpacing.xl),
+              if (canAdd && item['data_saida'] == null) ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await _registrarSaida(item);
+                    },
+                    icon: const Icon(PhosphorIcons.signOut, size: 20, color: Colors.white),
+                    label: const Text(
+                      'Dar Baixa na Visita',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               Row(
                 children: [
                   Expanded(

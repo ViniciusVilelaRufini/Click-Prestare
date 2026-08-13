@@ -144,3 +144,29 @@ apiCheckInVisitante(int idVisitante) async {
     return "Falha de comunicação com o servidor.";
   }
 }
+
+/// Registra a saída manual / dá baixa na visita (check-out pelo morador ou porteiro).
+/// Chama POST /visitantes/check-out com o id do visitante.
+apiCheckOutVisitante(int idVisitante) async {
+  final url = ApiConfig.buildUri('/visitantes/check-out');
+  final headers = {
+    "Authorization": getToken(),
+    "Content-Type": "application/json; charset=utf-8"
+  };
+  final body = json.encode({'id': idVisitante});
+  try {
+    final response = await ApiClient.post(
+      url,
+      headers: headers,
+      body: body,
+      encoding: utf8,
+    ).timeout(ApiConfig.timeout);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return {};
+    }
+    final parsed = jsonDecode(response.body);
+    return parsed['message'] ?? "Erro ao dar baixa na visita";
+  } catch (e) {
+    return "Falha de comunicação com o servidor.";
+  }
+}

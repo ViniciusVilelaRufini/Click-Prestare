@@ -95,6 +95,31 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     }
   }
 
+  Future<void> _registrarSaida(dynamic item) async {
+    final id = item['id'];
+    if (id == null) return;
+    final result = await apiCheckOutVisitante(id as int);
+    if (!mounted) return;
+    if (result is Map) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Baixa na visita de ${item['nome'] ?? 'visitante'} realizada com sucesso!'),
+          backgroundColor: AppColors.primary,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      loadList();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro: ${result ?? 'Não foi possível dar baixa na visita.'}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Future<void> loadList() async {
     try {
       // Stale-while-revalidate: skeleton só sem cache; ao voltar, mantém a lista.
@@ -583,7 +608,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Botão REGISTRAR ENTRADA: em destaque e tela cheia para fácil clique
+                  // Botão REGISTRAR ENTRADA: quando ainda não entrou e não expirou
                   if (canAdd && item['data_entrada'] == null && item['data_saida'] == null && !isExpired) ...[
                     SizedBox(
                       width: double.infinity,
@@ -604,6 +629,33 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.success,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ] else if (canAdd && item['data_saida'] == null) ...[
+                    // Botão DAR BAIXA NA VISITA (REGISTRAR SAÍDA): quando o visitante já entrou ou a visita está em andamento
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await _registrarSaida(item);
+                        },
+                        icon: const Icon(PhosphorIcons.signOut, size: 20, color: Colors.white),
+                        label: const Text(
+                          'Dar Baixa na Visita',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           elevation: 0,
                         ),
