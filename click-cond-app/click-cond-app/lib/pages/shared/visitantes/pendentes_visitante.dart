@@ -47,7 +47,7 @@ Widget _buildVisitorAvatar({
   String? photo,
   required bool isPrestador,
   double size = 48,
-  double radius = 14,
+  double radius = 12,
 }) {
   final imageProvider = _getVisitorImageProvider(photo);
 
@@ -56,21 +56,15 @@ Widget _buildVisitorAvatar({
       width: size,
       height: size,
       decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFEA580C).withOpacity(0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
         border: Border.all(
-          color: const Color(0xFFF97316).withOpacity(0.45),
-          width: 1.5,
+          color: const Color(0xFFE2E8F0),
+          width: 1,
         ),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius - 1.5),
+        borderRadius: BorderRadius.circular(radius - 1),
         child: Image(
           image: imageProvider,
           width: size,
@@ -96,29 +90,19 @@ Widget _buildVisitorAvatar({
 Widget _buildFallbackAvatar({
   required bool isPrestador,
   double size = 48,
-  double radius = 14,
+  double radius = 12,
 }) {
   return Container(
     width: size,
     height: size,
     decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
-      ),
+      color: const Color(0xFFEFF6FF),
       borderRadius: BorderRadius.circular(radius),
-      boxShadow: [
-        BoxShadow(
-          color: const Color(0xFFEA580C).withOpacity(0.32),
-          blurRadius: 8,
-          offset: const Offset(0, 3),
-        ),
-      ],
+      border: Border.all(color: const Color(0xFFDBEAFE), width: 1),
     ),
     child: Icon(
-      isPrestador ? PhosphorIcons.wrenchFill : PhosphorIcons.userFill,
-      color: Colors.white,
+      isPrestador ? PhosphorIcons.wrench : PhosphorIcons.user,
+      color: AppColors.primary,
       size: size * 0.5,
     ),
   );
@@ -251,20 +235,20 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFF97316).withOpacity(0.35),
-          width: 1.2,
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFEA580C).withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -274,10 +258,10 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
               _buildVisitorAvatar(
                 photo: photo,
                 isPrestador: isPrestador,
-                size: 52,
-                radius: 16,
+                size: 48,
+                radius: 12,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,40 +273,29 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
                             nome,
                             style: AppTypography.title(context).copyWith(
                               fontWeight: FontWeight.bold,
-                              fontSize: 16.5,
-                              letterSpacing: -0.2,
+                              fontSize: 16,
                             ),
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFDC2626).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(20),
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: const Color(0xFFDC2626).withOpacity(0.3),
+                              color: const Color(0xFFFECACA),
                               width: 1,
                             ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 5.5,
-                                height: 5.5,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFDC2626),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 4.5),
-                              const Text(
+                            children: const [
+                              Text(
                                 'Aguardando',
                                 style: TextStyle(
-                                  color: Color(0xFFB91C1C),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.2,
+                                  color: Color(0xFFDC2626),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
@@ -357,15 +330,15 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           if (respondendo)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(12),
                 child: SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
             )
@@ -374,28 +347,31 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
               children: [
                 Expanded(
                   child: Material(
-                    color: Colors.transparent,
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                       onTap: () => _responder(item, false),
                       child: Container(
-                        height: 46,
+                        height: 44,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFFECACA), width: 1.2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                            width: 1,
+                          ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Icon(PhosphorIcons.xBold, size: 17, color: Color(0xFFDC2626)),
+                            Icon(PhosphorIcons.x, size: 16, color: Color(0xFFDC2626)),
                             SizedBox(width: 6),
                             Text(
                               'Negar',
                               style: TextStyle(
                                 color: Color(0xFFDC2626),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14.5,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -404,41 +380,30 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Material(
-                    color: Colors.transparent,
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(10),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                       onTap: () => _responder(item, true),
                       child: Container(
-                        height: 46,
+                        height: 44,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF10B981), Color(0xFF059669)],
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF10B981).withOpacity(0.35),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Icon(PhosphorIcons.checkBold, size: 17, color: Colors.white),
+                            Icon(PhosphorIcons.check, size: 16, color: Colors.white),
                             SizedBox(width: 6),
                             Text(
                               'Autorizar',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14.5,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -485,11 +450,11 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
     barrierDismissible: true,
     builder: (c) => Dialog(
       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      elevation: 16,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      elevation: 8,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Padding(
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,10 +464,10 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 _buildVisitorAvatar(
                   photo: fotoFinal,
                   isPrestador: false,
-                  size: 52,
-                  radius: 16,
+                  size: 48,
+                  radius: 12,
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -511,23 +476,23 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                         'Visitante na Portaria',
                         style: AppTypography.title(c).copyWith(
                           fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          letterSpacing: -0.3,
+                          fontSize: 17,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFDC2626).withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(20),
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFFECACA), width: 1),
                         ),
                         child: const Text(
-                          'Aguardando sua liberação',
+                          'Aguardando liberação',
                           style: TextStyle(
-                            color: Color(0xFFB91C1C),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -536,13 +501,13 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 ),
               ],
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                 ),
@@ -550,7 +515,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
               child: RichText(
                 text: TextSpan(
                   style: TextStyle(
-                    fontSize: 14.5,
+                    fontSize: 14,
                     color: isDark ? Colors.white70 : const Color(0xFF334155),
                     height: 1.4,
                   ),
@@ -569,33 +534,36 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 ),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
                   child: Material(
-                    color: Colors.transparent,
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                       onTap: () => Navigator.pop(c, false),
                       child: Container(
-                        height: 48,
+                        height: 44,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFFECACA), width: 1.2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                            width: 1,
+                          ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Icon(PhosphorIcons.xBold, size: 18, color: Color(0xFFDC2626)),
+                            Icon(PhosphorIcons.x, size: 16, color: Color(0xFFDC2626)),
                             SizedBox(width: 6),
                             Text(
                               'Negar',
                               style: TextStyle(
                                 color: Color(0xFFDC2626),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -604,41 +572,30 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Material(
-                    color: Colors.transparent,
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(10),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                       onTap: () => Navigator.pop(c, true),
                       child: Container(
-                        height: 48,
+                        height: 44,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF10B981), Color(0xFF059669)],
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF10B981).withOpacity(0.35),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: const [
-                            Icon(PhosphorIcons.checkBold, size: 18, color: Colors.white),
+                            Icon(PhosphorIcons.check, size: 16, color: Colors.white),
                             SizedBox(width: 6),
                             Text(
                               'Autorizar',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
                               ),
                             ),
                           ],
