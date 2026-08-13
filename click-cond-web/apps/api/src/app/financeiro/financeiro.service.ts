@@ -764,12 +764,21 @@ export class FinanceiroService implements OnModuleInit {
     }
 
     const fmt = (d?: Date | null) => d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+    const valorNum = result.valor ? Number(result.valor) : 0;
 
     return {
       id: result.id,
       nome: result.nome,
       tipo: result.tipo,
-      valor: result.valor ? Number(result.valor) : 0,
+      valor: valorNum,
+      // `nome_operador` e `valorString` existem no get-all e faltavam aqui.
+      // A tela de inadimplência dá baixa pelo `get` (só tem o id da fatura em
+      // mãos) e usa o nome do operador para decidir se precisa pedir
+      // justificativa antes de enviar — sem o campo ela achava que NUNCA era
+      // auto-aprovação, mandava sem motivo e o servidor recusava com um texto
+      // pedindo o motivo que a tela nunca chegou a perguntar.
+      nome_operador: result.nome_operador,
+      valorString: valorNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
       data_vencimento: fmt(result.data_vencimento),
       data: fmt(result.data),
       categoria: result.categoria,
@@ -1869,16 +1878,26 @@ export class FinanceiroService implements OnModuleInit {
       user.nome.trim().toLowerCase() === lancCompleto.nome_operador.trim().toLowerCase();
 
     if (isAutoAprovacao) {
+      // O `code` deixa a recusa legível por máquina: quem chama abre o modal de
+      // justificativa em vez de só pintar a mensagem na tela. O cliente adivinha
+      // a auto-aprovação para abrir o modal antes de enviar, mas quem decide é
+      // este bloco — o front pode errar o palpite (nome do operador ausente na
+      // resposta, lançamento criado sob outro nome) e o fluxo tem que se
+      // recuperar em vez de virar um beco sem saída.
       const motivo = extras?.motivo?.trim();
       if (!motivo || motivo.length < 5) {
-        throw new BadRequestException(
-          'Para marcar como pago um lançamento que você mesmo criou, informe o motivo (ex: "Pago em dinheiro pelo morador", "PIX recebido na conta do síndico"). Mínimo 5 caracteres.',
-        );
+        throw new BadRequestException({
+          code: 'AUTO_APROVACAO_EXIGE_JUSTIFICATIVA',
+          message:
+            'Para marcar como pago um lançamento que você mesmo criou, informe o motivo (ex: "Pago em dinheiro pelo morador", "PIX recebido na conta do síndico"). Mínimo 5 caracteres.',
+        });
       }
       if (!extras?.formaPagamento) {
-        throw new BadRequestException(
-          'Informe a forma de pagamento (PIX, dinheiro, transferência, etc.) ao marcar como pago um lançamento que você mesmo criou.',
-        );
+        throw new BadRequestException({
+          code: 'AUTO_APROVACAO_EXIGE_JUSTIFICATIVA',
+          message:
+            'Informe a forma de pagamento (PIX, dinheiro, transferência, etc.) ao marcar como pago um lançamento que você mesmo criou.',
+        });
       }
     }
 

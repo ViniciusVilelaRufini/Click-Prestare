@@ -546,12 +546,21 @@ export class FinanceiroPageComponent implements OnInit {
 
   /**
    * Verifica se o operador logado é o mesmo que criou o lançamento.
-   * Usado para decidir se mostra o modal de confirmação (segregação soft).
+   *
+   * Isto é só um PALPITE para abrir o modal antes de gastar uma ida ao
+   * servidor — quem decide é o backend, que compara com o nome_operador
+   * gravado no banco. Quando o palpite erra, `pedeJustificativa()` recupera o
+   * fluxo abrindo o modal com a recusa em mãos.
    */
   private isAutoAprovacao(item: Lancamento): boolean {
     const nomeOperador = this.auth.porteiroInfo()?.nome?.trim().toLowerCase();
     const nomeAutor = item.nome_operador?.trim().toLowerCase();
     return !!nomeOperador && !!nomeAutor && nomeOperador === nomeAutor;
+  }
+
+  /** True quando o servidor recusou a baixa por falta de justificativa. */
+  private pedeJustificativa(e: any): boolean {
+    return e?.error?.code === 'AUTO_APROVACAO_EXIGE_JUSTIFICATIVA';
   }
 
   // Ações Operacionais
@@ -574,9 +583,18 @@ export class FinanceiroPageComponent implements OnInit {
           this.abrirDetalhesApto(apto);
         }
       },
-      // Recusa mais comum aqui: competência fechada. Sem isto o botão de
-      // baixa parecia travado.
-      error: (e) => this.erro.set(this.msgErro(e, 'Falha ao alterar o status do pagamento')),
+      error: (e) => {
+        // O servidor viu auto-aprovação que a tela não previu: abre o modal de
+        // justificativa em vez de deixar o operador lendo uma mensagem que pede
+        // um motivo sem nenhum campo para informá-lo.
+        if (this.pedeJustificativa(e)) {
+          this.abrirModalConfirmarPagamento(item);
+          return;
+        }
+        // Recusa mais comum aqui: competência fechada. Sem isto o botão de
+        // baixa parecia travado.
+        this.erro.set(this.msgErro(e, 'Falha ao alterar o status do pagamento'));
+      },
     });
   }
 
@@ -632,7 +650,22 @@ export class FinanceiroPageComponent implements OnInit {
     this.erro.set(null);
     this.api.updateStatus(id, 1).subscribe({
       next: () => this.carregarDados(),
-      error: (e) => this.erro.set(this.msgErro(e, 'Falha ao aprovar o pagamento')),
+      error: (e) => {
+        if (this.pedeJustificativa(e)) {
+          // Sem o item em mãos (veio de fora da lista carregada), busca o
+          // lançamento só para preencher o cabeçalho do modal.
+          if (item) {
+            this.abrirModalConfirmarPagamento(item);
+          } else {
+            this.api.getLancamento(id).subscribe({
+              next: (lanc) => this.abrirModalConfirmarPagamento(lanc),
+              error: () => this.erro.set(this.msgErro(e, 'Falha ao aprovar o pagamento')),
+            });
+          }
+          return;
+        }
+        this.erro.set(this.msgErro(e, 'Falha ao aprovar o pagamento'));
+      },
     });
   }
 
