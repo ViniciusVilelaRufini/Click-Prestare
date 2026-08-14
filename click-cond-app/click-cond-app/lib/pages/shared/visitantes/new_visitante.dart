@@ -152,6 +152,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
     try {
       var visitante = VisitanteModel(
         id: widget.myId ?? -1,
+        id_anterior: widget.reUseData?['id'] is int ? widget.reUseData!['id'] : int.tryParse(widget.reUseData?['id']?.toString() ?? ''),
+        nome_anterior: widget.reUseData?['nome']?.toString(),
         nome: txtNome.text,
         doc_identificacao: txtDocumento.text,
         data_inicio: convertStringToDateTime(txtDataInicio.text),
@@ -705,16 +707,18 @@ class _Chip extends StatelessWidget {
 
 class VisitanteModel {
   int? id;
-  String? nome, doc_identificacao, data_inicio, data_termino, observacoes, photo, dias_semana;
+  int? id_anterior;
+  String? nome, nome_anterior, doc_identificacao, data_inicio, data_termino, observacoes, photo, dias_semana;
   int? id_apartamento;
   bool? avisar, is_visitante, is_prestador;
 
-  VisitanteModel({this.id, this.nome, this.doc_identificacao, this.data_inicio,
+  VisitanteModel({this.id, this.id_anterior, this.nome, this.nome_anterior, this.doc_identificacao, this.data_inicio,
       this.data_termino, this.avisar, this.id_apartamento, this.is_visitante,
       this.is_prestador, this.observacoes, this.photo, this.dias_semana});
 
   Map toJson() => {
-        'id': id, 'nome': nome, 'doc_identificacao': doc_identificacao,
+        'id': id, 'id_anterior': id_anterior, 'nome': nome, 'nome_anterior': nome_anterior,
+        'doc_identificacao': doc_identificacao,
         'data_inicio': data_inicio, 'data_termino': data_termino,
         'observacoes': observacoes, 'id_apartamento': id_apartamento,
         'avisar': avisar, 'is_visitante': is_visitante, 'is_prestador': is_prestador,

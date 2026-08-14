@@ -48,7 +48,7 @@ describe('VisitantesService — portaria remota', () => {
         findMany: jest.fn(async () => []),
       },
       users: {
-        findMany: jest.fn(async () => [{ fcm_token: 'tok-1', name: 'Maria', phone: null }]),
+        findMany: jest.fn(async () => [{ fcm_token: 'token-valido-fcm-1', name: 'Maria', phone: null }]),
         findUnique: jest.fn(async () => null),
       },
       apartamentos_Users: {
@@ -92,7 +92,7 @@ describe('VisitantesService — portaria remota', () => {
     );
     expect(notifications.sendPushNotification).toHaveBeenCalledTimes(1);
     expect(notifications.sendPushNotification).toHaveBeenCalledWith(
-      'tok-1',
+      'token-valido-fcm-1',
       expect.any(String),
       expect.stringContaining('João'),
       expect.objectContaining({ type: 'autorizacao_visitante', id: '5' }),

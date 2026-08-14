@@ -22,6 +22,8 @@ export interface CreateVisitanteDto {
   foto_pessoa?: string;
   dias_semana?: string;
   categorias?: string;
+  id_anterior?: number;
+  nome_anterior?: string;
 }
 
 export interface UpdateVisitanteDto extends Partial<CreateVisitanteDto> {
@@ -932,14 +934,38 @@ export class VisitantesService {
     let fotoDoc = await this.resolveFoto(dto.foto_documento);
     let fotoPes = await this.resolveFoto(dto.foto_pessoa);
 
+    // Se o usuário está liberando nova visita para um visitante existente e corrigiu o nome/dados,
+    // atualiza o histórico anterior desse visitante para evitar duplicidade de "Vinicius dd" e "Vinicius Vilela".
+    if (dto.nome_anterior && dto.nome && dto.nome_anterior.trim().toLowerCase() !== dto.nome.trim().toLowerCase()) {
+      await this.prisma.visitantes.updateMany({
+        where: {
+          id_condominio: Number(dto.id_condominio),
+          OR: [
+            { nome: dto.nome_anterior.trim() },
+            ...(dto.id_anterior ? [{ id: Number(dto.id_anterior) }] : []),
+          ],
+        },
+        data: {
+          nome: dto.nome.trim(),
+          ...(fotoPes ? { foto_pessoa: fotoPes } : {}),
+          ...(fotoDoc ? { foto_documento: fotoDoc } : {}),
+          ...(dto.doc_identificacao ? { doc_identificacao: dto.doc_identificacao } : {}),
+        },
+      }).catch(() => {});
+    }
+
     // Reutilização: se o operador NÃO enviou foto, tenta puxar de um
-    // cadastro anterior da mesma pessoa no condomínio (mesmo documento).
+    // cadastro anterior da mesma pessoa no condomínio (mesmo documento ou mesmo nome/id anterior).
     // Também herda face_id pra evitar duplicar no terminal facial.
     let faceIdHerdado: string | null = null;
     let faceSyncHerdado: string | null = null;
     let faceEnrolledHerdado: Date | null = null;
-    if (!fotoPes && dto.doc_identificacao?.trim()) {
-      const anterior = await this.buscarPessoa(dto.id_condominio, dto.doc_identificacao, dto.nome);
+    if (!fotoPes) {
+      const anterior = await this.buscarPessoa(
+        dto.id_condominio,
+        dto.doc_identificacao,
+        dto.nome_anterior || dto.nome,
+      );
       if (anterior) {
         if (!fotoPes && anterior.foto_pessoa) fotoPes = anterior.foto_pessoa;
         if (!fotoDoc && anterior.foto_documento) fotoDoc = anterior.foto_documento;
@@ -948,9 +974,6 @@ export class VisitantesService {
           faceSyncHerdado = anterior.face_sync_status;
           faceEnrolledHerdado = anterior.face_enrolled_at ? new Date(anterior.face_enrolled_at) : null;
         }
-        this.logger.log(
-          `Visitante ${dto.nome} (doc=${dto.doc_identificacao}) tem ${anterior.totalVisitasAnteriores} cadastro(s) anterior(es); reutilizando foto/face_id.`,
-        );
       }
     }
 

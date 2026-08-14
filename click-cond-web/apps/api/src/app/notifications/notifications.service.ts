@@ -136,12 +136,12 @@ export class NotificationsService implements OnModuleInit {
         return [];
       }
 
-      // Limpa qualquer token antigo ou deslogado de Users_Devices desse usuário
-      await this.prisma.users_Devices.deleteMany({
-        where: { id_user: device.id_user, fcm_token: { not: user.fcm_token } },
-      }).catch(() => {});
-
-      return [user.fcm_token];
+      const devices = await this.prisma.users_Devices.findMany({
+        where: { id_user: device.id_user },
+        select: { fcm_token: true },
+      });
+      const tokens = devices.map((d) => d.fcm_token).filter(Boolean);
+      return tokens.length > 0 ? tokens : [user.fcm_token];
     } catch (e) {
       this.logger.warn(`Não foi possível listar aparelhos: ${(e as any)?.message ?? e}`);
       return [token];

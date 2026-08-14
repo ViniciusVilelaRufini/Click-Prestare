@@ -818,17 +818,48 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     }).toList();
 
     // Filtrar visitantes cadastrados únicos para histórico e liberação rápida
-    final Map<String, Map<String, dynamic>> uniqueVisitors = {};
-    for (var item in visitorsOnlyList) {
-      final String key = (item['doc_identificacao'] != null && item['doc_identificacao'].toString().trim().isNotEmpty)
-          ? item['doc_identificacao'].toString().trim()
-          : item['nome'].toString().trim();
-      
-      if (key.isNotEmpty && !uniqueVisitors.containsKey(key)) {
-        uniqueVisitors[key] = Map<String, dynamic>.from(item);
+    final List<Map<String, dynamic>> listCadastrados = [];
+
+    for (var rawItem in visitorsOnlyList) {
+      final item = Map<String, dynamic>.from(rawItem);
+      final docDigits = (item['doc_identificacao'] ?? '').toString().replaceAll(RegExp(r'\D'), '').trim();
+      final nomeNorm = (item['nome'] ?? '').toString().trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+      final photoUrl = (item['foto_pessoa'] ?? item['photo'])?.toString().trim() ?? '';
+      final hasValidPhoto = photoUrl.isNotEmpty && photoUrl != 'null' && photoUrl != 'undefined';
+
+      int matchIndex = -1;
+      for (int i = 0; i < listCadastrados.length; i++) {
+        final existing = listCadastrados[i];
+        final existingDoc = (existing['doc_identificacao'] ?? '').toString().replaceAll(RegExp(r'\D'), '').trim();
+        final existingNome = (existing['nome'] ?? '').toString().trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+        final existingPhoto = (existing['foto_pessoa'] ?? existing['photo'])?.toString().trim() ?? '';
+        final existingHasPhoto = existingPhoto.isNotEmpty && existingPhoto != 'null' && existingPhoto != 'undefined';
+
+        final matchDoc = docDigits.length >= 4 && existingDoc == docDigits;
+        final matchNome = nomeNorm.isNotEmpty && existingNome == nomeNorm;
+        final matchPhoto = hasValidPhoto && existingHasPhoto && photoUrl.startsWith('http') && existingPhoto == photoUrl;
+
+        if (matchDoc || matchNome || matchPhoto) {
+          matchIndex = i;
+          break;
+        }
+      }
+
+      if (matchIndex == -1) {
+        listCadastrados.add(item);
+      } else {
+        final existing = listCadastrados[matchIndex];
+        final existingPhoto = (existing['foto_pessoa'] ?? existing['photo'])?.toString().trim() ?? '';
+        if ((existingPhoto.isEmpty || existingPhoto == 'null') && hasValidPhoto) {
+          existing['foto_pessoa'] = photoUrl;
+          existing['photo'] = photoUrl;
+        }
+        final existingDoc = (existing['doc_identificacao'] ?? '').toString().trim();
+        if (existingDoc.isEmpty && docDigits.isNotEmpty) {
+          existing['doc_identificacao'] = item['doc_identificacao'];
+        }
       }
     }
-    final listCadastrados = uniqueVisitors.values.toList();
     return DefaultTabController(
       length: 2,
       child: AppScaffold(

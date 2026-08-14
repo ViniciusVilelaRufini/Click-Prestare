@@ -373,6 +373,8 @@ export class VisitantesGlobalController {
       foto_documento: vis.foto_documento,
       foto_pessoa: vis.foto_pessoa || vis.photo,
       dias_semana: vis.dias_semana,
+      id_anterior: vis.id_anterior ? Number(vis.id_anterior) : undefined,
+      nome_anterior: vis.nome_anterior ? String(vis.nome_anterior) : undefined,
     }, payload);
 
     return saved;

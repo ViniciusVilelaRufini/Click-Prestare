@@ -1206,9 +1206,11 @@ export class MobileAuthService {
     });
 
     // Remove tokens antigos/desconectados deste usuário
-    await this.prisma.users_Devices.deleteMany({
-      where: { id_user: idUser, fcm_token: { not: token } },
-    }).catch(() => {});
+    if (this.prisma.users_Devices?.deleteMany) {
+      await this.prisma.users_Devices.deleteMany({
+        where: { id_user: idUser, fcm_token: { not: token } },
+      }).catch(() => {});
+    }
 
     // `Users.fcm_token` continua recebendo o token mais recente porque é o que
     // os pontos de envio leem; o alcance aos demais aparelhos vem do fan-out

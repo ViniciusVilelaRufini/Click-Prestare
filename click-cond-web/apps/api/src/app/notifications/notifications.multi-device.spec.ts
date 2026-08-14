@@ -37,7 +37,12 @@ describe('NotificationsService — envio para todos os aparelhos do usuário', (
         ),
         deleteMany: jest.fn(async () => ({ count: 1 })),
       },
-      users: { updateMany: jest.fn(async () => ({ count: 1 })) },
+      users: {
+        findUnique: jest.fn(async ({ where }: any) => ({
+          fcm_token: devices.find((d) => d.id_user === where.id)?.fcm_token ?? null,
+        })),
+        updateMany: jest.fn(async () => ({ count: 1 })),
+      },
     };
     const svc = new NotificationsService(prisma);
     (svc as any).enabled = true;
