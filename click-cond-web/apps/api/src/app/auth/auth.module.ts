@@ -32,10 +32,9 @@ import { ApartamentosModule } from '../apartamentos/apartamentos.module';
     PassportModule,
     JwtModule.register({
       secret: resolveJwtSecret(),
-      // Default reduzido de 7d para 8h: porteiro fica logado durante o turno,
-      // mas crachá expira no dia seguinte. Reduz janela de exposição se
-      // o token vazar. Override via JWT_EXPIRES_IN para casos especiais.
-      signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '8h') as any },
+      // Sessão estendida para 90 dias: mantém moradores e síndicos logados no app móvel
+      // sem deslogar diariamente. Override via JWT_EXPIRES_IN se necessário.
+      signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '90d') as any },
     }),
     OcorrenciasModule,
     FacialModule,

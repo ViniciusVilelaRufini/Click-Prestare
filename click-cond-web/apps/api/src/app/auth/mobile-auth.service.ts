@@ -964,7 +964,17 @@ export class MobileAuthService {
     const itens: Item[] = [];
 
     // --- Solicitações de autorização pendentes (Portaria Remota) ---
-    const aptoIds = moras.map((m) => m.id_apartamento).filter((id): id is number => id != null);
+    //
+    // O id do apartamento vem de Apartamentos_Users, não de Moradores: lá o
+    // campo `apartamento` é texto ("101"), não a chave. É por Apartamentos_Users
+    // que o resto do sistema resolve esse vínculo.
+    const vinculosApto = await this.prisma.apartamentos_Users.findMany({
+      where: { id_user: idUser },
+      select: { id_apto: true },
+    });
+    const aptoIds = [
+      ...new Set(vinculosApto.map((v) => v.id_apto).filter((id): id is number => id != null)),
+    ];
     if (aptoIds.length) {
       const pendentes = await this.prisma.visitantes.findMany({
         where: {
@@ -979,7 +989,9 @@ export class MobileAuthService {
           tipo: 'solicitacao',
           titulo: 'Solicitação de Entrada na Portaria',
           descricao: `${p.nome} aguarda sua autorização na portaria para entrar.`,
-          timestamp: p.auth_solicitado_em || p.data_visita || new Date(),
+          // `data_visita` não existe em Visitantes; a janela da visita começa
+          // em data_hora_inicio.
+          timestamp: p.auth_solicitado_em || p.data_hora_inicio || new Date(),
         });
       }
     }

@@ -72,12 +72,11 @@ export class TenantAccessService {
       });
       if (vinc) return;
 
-      const vincSindico = await this.prisma.sindicos.findFirst({
-        where: { id_user: userId, id_condominio: condId },
-        select: { id: true },
-      });
-      if (vincSindico) return;
-
+      // Não há fallback pela tabela Sindicos: ela guarda os dados pessoais do
+      // síndico (nome, CPF, telefone) e NÃO tem id_condominio — quem liga
+      // síndico a condomínio é só Sindicos_Condominios. A consulta que existia
+      // aqui era impossível por construção e o Prisma a rejeitaria em runtime,
+      // devolvendo 500 no lugar do 403 desta linha.
       throw new ForbiddenException('Acesso negado: você não administra este condomínio.');
     }
 

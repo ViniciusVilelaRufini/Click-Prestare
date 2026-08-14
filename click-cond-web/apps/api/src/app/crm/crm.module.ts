@@ -18,7 +18,7 @@ import { FacialModule } from '../facial/facial.module';
     // sejam validados pela JwtStrategy global.
     JwtModule.register({
       secret: resolveJwtSecret(),
-      signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '8h') as any },
+      signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '90d') as any },
     }),
     OcorrenciasModule,
     // O CRM lê moradores/apartamentos por conta própria (rotas sob CrmAdminGuard),
