@@ -109,12 +109,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       if (results[0] is List) {
         if (results.length > 2 && results[2] is Map) {
           final userDetails = results[2] as Map<String, dynamic>;
-          final fetchedPhoto = userDetails['photo'];
+          final fetchedPhoto = userDetails['photo']?.toString().trim();
           if (fetchedPhoto != null &&
-              fetchedPhoto.toString().startsWith('http')) {
-            setUserPhoto(fetchedPhoto.toString());
-          } else {
-            setUserPhoto('');
+              fetchedPhoto.isNotEmpty &&
+              fetchedPhoto != 'null' &&
+              fetchedPhoto != 'undefined') {
+            setUserPhoto(fetchedPhoto);
           }
         }
         setState(() {
