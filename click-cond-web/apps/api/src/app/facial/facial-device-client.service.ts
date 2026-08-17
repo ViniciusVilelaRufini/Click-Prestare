@@ -757,13 +757,63 @@ export class FacialDeviceClientService {
     }
   }
 
-  async listDahuaUserIds(device: FacialDeviceConfig): Promise<string[]> {
+  /**
+   * Lista os identificadores de pessoa gravados no aparelho — base da varredura
+   * de fantasmas biométricos. O id devolvido é sempre o mesmo que gravamos em
+   * `face_id` no enrollment: UserID (Intelbras), employeeNo (Hikvision) ou o id
+   * interno do usuário (Control iD).
+   */
+  async listUserIds(device: FacialDeviceConfig): Promise<string[]> {
     if (this.agent.isOnline(device.id)) {
       const r = await this.agent.enqueue(device.id, { type: 'list_users' });
       if (!r.ok) {
         throw new Error(r.error ?? 'Falha ao listar pessoas via agente');
       }
       return (r as any).userIds || [];
+    }
+
+    if (device.fabricante === 'hikvision') {
+      const ids: string[] = [];
+      const PAGE = 50;
+      let pos = 0;
+      for (;;) {
+        const resp = await this.send(
+          device,
+          'POST',
+          '/ISAPI/AccessControl/UserInfo/Search?format=json',
+          {
+            UserInfoSearchCond: {
+              searchID: 'click-list-users',
+              searchResultPosition: pos,
+              maxResults: PAGE,
+            },
+          },
+          'application/json',
+        );
+        if (!(resp.status >= 200 && resp.status < 300)) {
+          throw new Error(`Hikvision: falha ao listar usuários (HTTP ${resp.status})`);
+        }
+        const search = (resp.data as any)?.UserInfoSearch ?? {};
+        const list = search.UserInfo ?? [];
+        for (const u of list) {
+          if (u.employeeNo) ids.push(String(u.employeeNo));
+        }
+        pos += list.length;
+        if (list.length === 0 || search.responseStatusStrg !== 'MORE') break;
+      }
+      return ids;
+    }
+
+    if (device.fabricante === 'control_id') {
+      const session = await this.controlIdLogin(device);
+      const resp = await this.http(device).post(
+        `/load_objects.fcgi?session=${session}`,
+        { object: 'users' },
+      );
+      const users = (resp.data as any)?.users ?? [];
+      return users
+        .filter((u: any) => u.id != null)
+        .map((u: any) => String(u.id));
     }
 
     const countResp = await this.send(
@@ -805,7 +855,8 @@ export class FacialDeviceClientService {
     return ids;
   }
 
-  async dahuaRemoveUsers(
+  /** Remove em lote os identificadores listados por {@link listUserIds}. */
+  async removeUsers(
     device: FacialDeviceConfig,
     userIds: string[],
   ): Promise<void> {
@@ -817,6 +868,26 @@ export class FacialDeviceClientService {
       });
       if (!r.ok) {
         throw new Error(r.error ?? 'Falha ao remover pessoas via agente');
+      }
+      return;
+    }
+
+    // Sem remoção em lote nessas marcas: cai para o caminho individual já
+    // validado. Falha isolada não aborta o lote — a varredura roda de hora em
+    // hora e reprocessa o que sobrou.
+    if (device.fabricante === 'hikvision' || device.fabricante === 'control_id') {
+      const falhas: string[] = [];
+      for (const faceId of userIds) {
+        try {
+          await this.removePerson(device, faceId);
+        } catch {
+          falhas.push(faceId);
+        }
+      }
+      if (falhas.length > 0) {
+        throw new Error(
+          `Falha ao remover ${falhas.length}/${userIds.length} usuário(s): ${falhas.slice(0, 10).join(', ')}`,
+        );
       }
       return;
     }

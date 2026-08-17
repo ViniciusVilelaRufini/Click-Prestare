@@ -144,11 +144,15 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       label: 'Terminal Facial',
       hint: 'Reconhece pessoas por biometria e dispara o acesso quando identifica um rosto cadastrado.',
       requerAuth: true,
+      // Só marcas com cadastro de rosto implementado de ponta a ponta (enroll,
+      // remoção e eventos). ZKTeco saiu daqui: fala protocolo binário na porta
+      // 4370, não HTTP — o terminal era aceito no cadastro e nunca recebia
+      // nenhuma biometria, sem erro visível para o síndico.
       fabricantes: [
-        { value: 'control_id', label: 'Control iD' },
         { value: 'intelbras', label: 'Intelbras' },
-        { value: 'zkteco', label: 'ZKTeco' },
-        { value: 'outro', label: 'Outro' },
+        { value: 'hikvision', label: 'HikVision' },
+        { value: 'control_id', label: 'Control iD' },
+        { value: 'dahua', label: 'Dahua' },
       ],
       modeloPlaceholder: 'Ex: iDFace 373',
     },
@@ -561,7 +565,10 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
       tipo: 'facial',
       sentido: 'auto',
       confianca_minima: 0,
-      fabricante: 'control_id',
+      // Default = primeira opção do tipo 'facial', a marca com mais campo
+      // rodado. `control_id` como default deixava o select fora de ordem com a
+      // lista de fabricantes exibida.
+      fabricante: 'intelbras',
       modelo: '',
       ip: '',
       porta: 80,

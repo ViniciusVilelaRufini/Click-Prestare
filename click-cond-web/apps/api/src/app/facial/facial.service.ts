@@ -28,6 +28,35 @@ import {
 import { normalizarPlaca, placaValida, variantesPlaca } from './placa.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 
+/**
+ * Capacidades por fabricante — um só lugar para responder "esta marca sabe
+ * fazer X?", em vez de espalhar `fabricante === 'intelbras'` pelo módulo.
+ * Ao adicionar uma marca nova, inclua-a aqui e implemente o comando
+ * correspondente nos DOIS clientes (facial-device-client.service.ts e agent/).
+ */
+
+/** Marcas que sabem listar/remover pessoas gravadas no aparelho (varredura de fantasmas). */
+export const FABRICANTES_COM_LISTAGEM = [
+  'intelbras',
+  'dahua',
+  'hikvision',
+  'control_id',
+] as const;
+
+/** Marcas cuja câmera devolve um quadro JPEG para usar como foto de cadastro. */
+export const FABRICANTES_COM_CAMERA = ['intelbras', 'dahua', 'hikvision'] as const;
+
+/**
+ * A Intelbras é OEM da Dahua: mesmo firmware, mesmo protocolo (RPC2 + cgi).
+ * Só a varredura de fantasmas reconhecia `dahua`; todo o resto comparava com
+ * `'intelbras'`, então um device gravado como `dahua` caía no caminho HTTP
+ * genérico `/persons` e o cadastro nunca chegava ao aparelho. Normalizar na
+ * borda mantém UM caminho de código para as duas grafias.
+ */
+export function normalizarFabricante(fabricante: string): string {
+  return fabricante === 'dahua' ? 'intelbras' : fabricante;
+}
+
 export interface CreateDeviceDto {
   id_condominio: number;
   nome: string;
@@ -945,13 +974,13 @@ export class FacialService {
         id_condominio: idCondominio,
         ativo: 1,
         tipo: 'facial',
-        fabricante: 'intelbras',
+        fabricante: { in: [...FABRICANTES_COM_CAMERA] },
       },
     });
     const device = devices.find((d) => this.agent.isOnline(d.id)) ?? devices[0];
     if (!device) {
       throw new BadRequestException(
-        'Nenhum terminal facial Intelbras disponível para captura.',
+        'Nenhum terminal facial com câmera disponível para captura.',
       );
     }
     const imageBase64 = await this.client.captureSnapshot(this.toConfig(device));
@@ -2514,21 +2543,22 @@ export class FacialService {
     this.lastFantasmasRunAt = new Date();
 
     try {
-      // Intelbras e Dahua falam o mesmo protocolo RPC2 (list/removeMulti);
-      // ambos precisam da varredura. Fabricantes sem esse protocolo não são
-      // varridos (listDahuaUserIds não se aplica).
+      // Toda marca capaz de LISTAR pessoas no aparelho entra na varredura —
+      // não só a linha RPC2 (Intelbras/Dahua). Sem Hikvision e Control iD aqui,
+      // um rosto excluído com o agente offline continuava abrindo a porta
+      // nessas marcas para sempre: a varredura é a única rede de segurança.
       const devices = await this.prisma.facial_Devices.findMany({
         where: {
           ativo: 1,
           tipo: 'facial',
-          fabricante: { in: ['intelbras', 'dahua'] },
+          fabricante: { in: [...FABRICANTES_COM_LISTAGEM] },
         },
       });
 
       for (const device of devices) {
         try {
           const config = this.toConfig(device);
-          const idsNoAparelho = await this.client.listDahuaUserIds(config);
+          const idsNoAparelho = await this.client.listUserIds(config);
           if (idsNoAparelho.length === 0) continue;
 
           const [visitantesNoBanco, moradoresNoBanco, prestadoresNoBanco] =
@@ -2568,7 +2598,7 @@ export class FacialService {
           const fantasmas = idsNoAparelho.filter((id) => !idsNoBanco.has(id));
           if (fantasmas.length === 0) continue;
 
-          await this.client.dahuaRemoveUsers(config, fantasmas);
+          await this.client.removeUsers(config, fantasmas);
           this.logger.log(
             `tickFantasmas device ${device.id}: ${fantasmas.length} fantasma(s) removido(s) — ${fantasmas.join(', ')}`,
           );
@@ -4142,7 +4172,7 @@ export class FacialService {
       api_user: device.api_user,
       // Idempotente: decifra se vier cifrado; texto puro passa direto.
       api_password: decryptSecret(device.api_password),
-      fabricante: device.fabricante,
+      fabricante: normalizarFabricante(device.fabricante),
     };
   }
 

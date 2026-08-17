@@ -1,7 +1,11 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
-import { FacialService, WebhookEventDto } from './facial.service';
+import {
+  FacialService,
+  WebhookEventDto,
+  normalizarFabricante,
+} from './facial.service';
 import { AgentBridgeService, AgentResult } from './agent-bridge.service';
 
 /**
@@ -46,7 +50,9 @@ export class AgentController {
         id: device.id,
         nome: device.nome,
         tipo: device.tipo,
-        fabricante: device.fabricante,
+        // O agente escolhe o protocolo por esta string; `dahua` e `intelbras`
+        // são o mesmo firmware (ver normalizarFabricante).
+        fabricante: normalizarFabricante(device.fabricante),
         ip: device.ip,
         porta: device.porta,
         api_user: device.api_user,
@@ -94,7 +100,7 @@ export class AgentController {
           id: d.id,
           nome: d.nome,
           tipo: d.tipo,
-          fabricante: d.fabricante,
+          fabricante: normalizarFabricante(d.fabricante),
           ip: d.ip,
           porta: d.porta,
           api_user: d.api_user,

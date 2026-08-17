@@ -280,6 +280,9 @@ async function runCondoLoop(token) {
         if (device.fabricante === 'hikvision') {
           startHikvisionEventListener(token, device);
         }
+        if (device.fabricante === 'control_id') {
+          startControlIdEventListener(token, device);
+        }
         for (const cmd of entry.commands || []) {
           const result = await executeOnDevice(device, cmd);
           await cloudRequest('POST', `/api/facial/agent/condo/${token}/result`, {
@@ -441,6 +444,27 @@ async function executeOnDevice(device, cmd) {
 
 /** Captura um quadro (JPEG) da câmera do facial e devolve em base64. */
 async function doSnapshot(device) {
+  // Hikvision: ISAPI entrega o quadro direto, sem controle de iluminação
+  // (o terminal já expõe o canal 101 como stream principal).
+  if (device.fabricante === 'hikvision') {
+    const res = await lanRequest(
+      device,
+      'GET',
+      '/ISAPI/Streaming/channels/101/picture',
+    );
+    if (
+      !(res.status >= 200 && res.status < 300) ||
+      !res.buffer ||
+      res.buffer.length < 100
+    ) {
+      return {
+        ok: false,
+        statusCode: res.status,
+        error: 'o aparelho não retornou imagem',
+      };
+    }
+    return { ok: true, imageBase64: res.buffer.toString('base64') };
+  }
   if (device.fabricante !== 'intelbras') {
     return {
       ok: false,
@@ -842,6 +866,59 @@ async function doRemove(device, cmd) {
 }
 
 async function doListUsers(device) {
+  // Hikvision: ISAPI pagina por searchResultPosition; o employeeNo é o nosso
+  // external_id (= face_id gravado no enrollment).
+  if (device.fabricante === 'hikvision') {
+    const ids = [];
+    const PAGE = 50;
+    let pos = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const resp = await lanRequest(
+        device,
+        'POST',
+        '/ISAPI/AccessControl/UserInfo/Search?format=json',
+        {
+          json: {
+            UserInfoSearchCond: {
+              searchID: 'click-list-users',
+              searchResultPosition: pos,
+              maxResults: PAGE,
+            },
+          },
+        },
+      );
+      if (!(resp.status >= 200 && resp.status < 300)) {
+        return { ok: false, error: `Falha ao listar usuários (HTTP ${resp.status})` };
+      }
+      const search = (resp.data && resp.data.UserInfoSearch) || {};
+      const list = search.UserInfo || [];
+      for (const u of list) {
+        if (u.employeeNo) ids.push(String(u.employeeNo));
+      }
+      pos += list.length;
+      // "MORE" indica que ainda há páginas; qualquer outro status encerra.
+      if (list.length === 0 || search.responseStatusStrg !== 'MORE') break;
+    }
+    return { ok: true, userIds: ids };
+  }
+
+  // Control iD: o face_id gravado é o id INTERNO do usuário (ver controlIdCreate).
+  if (device.fabricante === 'control_id') {
+    const session = await controlIdLogin(device);
+    const resp = await lanRequest(
+      device,
+      'POST',
+      `/load_objects.fcgi?session=${session}`,
+      { json: { object: 'users' } },
+    );
+    if (!(resp.status >= 200 && resp.status < 300)) {
+      return { ok: false, error: `Falha ao listar usuários (HTTP ${resp.status})` };
+    }
+    const users = (resp.data && resp.data.users) || [];
+    return { ok: true, userIds: users.filter((u) => u.id != null).map((u) => String(u.id)) };
+  }
+
   if (device.fabricante !== 'intelbras') {
     return { ok: false, error: `list_users não suportado para ${device.fabricante}` };
   }
@@ -891,6 +968,31 @@ async function doListUsers(device) {
 }
 
 async function doRemoveUsers(device, cmd) {
+  // Hikvision e Control iD não têm remoção em lote equivalente ao RPC2: cai
+  // para remoção individual, reusando o caminho já validado do doRemove. Uma
+  // falha isolada não aborta o lote — a varredura de fantasmas roda de hora em
+  // hora e tenta de novo o que sobrou.
+  if (device.fabricante === 'hikvision' || device.fabricante === 'control_id') {
+    const alvos = cmd.faceIds || [];
+    if (alvos.length === 0) return { ok: true };
+    const falhas = [];
+    for (const faceId of alvos) {
+      try {
+        const r = await doRemove(device, { faceId });
+        if (!r.ok && r.statusCode !== 404) falhas.push(faceId);
+      } catch {
+        falhas.push(faceId);
+      }
+    }
+    if (falhas.length > 0) {
+      return {
+        ok: false,
+        error: `falha ao remover ${falhas.length}/${alvos.length} usuário(s): ${falhas.slice(0, 10).join(', ')}`,
+      };
+    }
+    return { ok: true };
+  }
+
   if (device.fabricante !== 'intelbras') {
     return { ok: false, error: `remove_users não suportado para ${device.fabricante}` };
   }
@@ -1613,6 +1715,82 @@ function consumeHikvisionEvents(buf, onData) {
   return tail;
 }
 
+// ---------- Control iD: polling de eventos de acesso → nuvem ----------
+//
+// Diferente de Dahua/Hikvision, o Control iD não expõe stream de eventos: o
+// caminho nativo é o aparelho fazer PUSH para a nuvem (Monitor/object_changes).
+// Esse push exige que o terminal alcance a internet e esteja configurado — o
+// que nem sempre acontece na instalação. Este poller é a rede de segurança:
+// lê access_logs novos direto na LAN, com a MESMA marca d'água usada pelo
+// replay offline (deviceBaselines), então nenhum acesso é enviado duas vezes.
+// Se o push nativo já tiver entregue o evento, a dedup da nuvem o descarta.
+
+const controlIdListeners = new Set();
+const CONTROLID_POLL_MS = 3000;
+
+function startControlIdEventListener(token, device) {
+  if (controlIdListeners.has(device.id)) return;
+  controlIdListeners.add(device.id);
+  console.log(`[agente] ${device.nome}: monitorando acessos (Control iD, polling)`);
+  (async () => {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        const logs = await controlIdFetchNewLogs(device);
+        for (const log of logs) {
+          const ok = await forwardAccessEvent(token, device, {
+            UserID: String(log.user_id),
+            Similarity: 100,
+            timestamp: new Date(log.time * 1000).toISOString(),
+          });
+          // Só avança a marca d'água no que a nuvem confirmou — mesmo critério
+          // do replay offline; senão um acesso recusado sumiria para sempre.
+          if (ok) setBaseline(device.id, log.id);
+          else break;
+        }
+      } catch (err) {
+        console.error(
+          `[agente] ${device.nome}: falha ao ler acessos (Control iD): ${err.message || err}`,
+        );
+      }
+      await sleep(CONTROLID_POLL_MS);
+    }
+  })();
+}
+
+/**
+ * Lê os access_logs mais recentes do Control iD e devolve, em ordem crescente,
+ * só os que passaram da marca d'água. Na primeira leitura apenas estabelece a
+ * baseline (não reprocessa o histórico do aparelho).
+ *
+ * Ordena DESC no aparelho: `asc` traz os 50 registros MAIS ANTIGOS, que num
+ * terminal em uso já estão muito abaixo da baseline — nunca chegaria evento.
+ */
+async function controlIdFetchNewLogs(device) {
+  const session = await controlIdLogin(device);
+  const res = await lanRequest(
+    device,
+    'POST',
+    `/load_objects.fcgi?session=${session}`,
+    { json: { object: 'access_logs', order: ['id', 'desc'], limit: 50 } },
+  );
+  const logs = (res.data && res.data.access_logs) || [];
+  if (!Array.isArray(logs) || logs.length === 0) return [];
+
+  const baseline = deviceBaselines.get(device.id);
+  if (baseline === undefined) {
+    const maxId = Math.max(...logs.map((l) => l.id).filter(Boolean));
+    setBaseline(device.id, maxId);
+    console.log(
+      `[agente] ${device.nome}: baseline de acessos inicializada em ID ${maxId} (Control iD).`,
+    );
+    return [];
+  }
+  return logs
+    .filter((l) => l.id > baseline && l.user_id)
+    .sort((a, b) => a.id - b.id);
+}
+
 function okFrom(res) {
   return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
 }
@@ -1944,6 +2122,24 @@ async function dahuaFindAccessRecords(device, count) {
 
 /** CreateTime do aparelho (epoch unix, string) → ISO. Se o relógio estiver
  *  zerado (aparelho sem NTP volta a 2000 ao perder energia), usa agora. */
+// Janela que o replay da Hikvision varre ao reconectar. 24h cobre uma queda
+// longa de internet sem trazer o histórico inteiro do aparelho.
+const HIK_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * ISO 8601 com offset explícito ("2026-08-17T11:30:00-03:00"), formato que o
+ * ISAPI exige em startTime/endTime — firmwares recusam o sufixo "Z".
+ */
+function hikIsoComOffset(date) {
+  const off = -date.getTimezoneOffset();
+  const sinal = off >= 0 ? '+' : '-';
+  const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, '0');
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return (
+    local.toISOString().slice(0, 19) + sinal + pad(off / 60) + ':' + pad(off % 60)
+  );
+}
+
 function dahuaEpochToISO(createTime) {
   const sec = parseInt(createTime, 10);
   if (!sec || sec < 1577836800 /* 2020-01-01 */) return new Date().toISOString();
@@ -2058,6 +2254,11 @@ async function syncDeviceOfflineLogs(token, device) {
   if (device.fabricante === 'hikvision') {
     try {
       console.log(`[agente] ${device.nome}: iniciando sincronização de acessos offline (Hikvision)...`);
+      // Janela de tempo em vez de posição: sem startTime/endTime, o ISAPI
+      // devolve os 50 eventos MAIS ANTIGOS do aparelho — num terminal em uso
+      // eles ficam muito abaixo da marca d'água e nada seria recuperado.
+      const agora = agoraDaNuvem();
+      const desde = new Date(agora.getTime() - HIK_REPLAY_WINDOW_MS);
       const res = await lanRequest(
         device,
         'POST',
@@ -2069,7 +2270,9 @@ async function syncDeviceOfflineLogs(token, device) {
               searchResultPosition: 0,
               maxResults: 50,
               major: 0,
-              minor: 0
+              minor: 0,
+              startTime: hikIsoComOffset(desde),
+              endTime: hikIsoComOffset(agora),
             }
           }
         }
@@ -2081,7 +2284,7 @@ async function syncDeviceOfflineLogs(token, device) {
 
       infoList.sort((a, b) => (a.serialNo || 0) - (b.serialNo || 0));
 
-      let baseline = deviceBaselines.get(device.id);
+      const baseline = deviceBaselines.get(device.id);
       if (baseline === undefined) {
         const maxSerial = Math.max(...infoList.map(l => l.serialNo).filter(Boolean));
         setBaseline(device.id, maxSerial);
@@ -2092,18 +2295,19 @@ async function syncDeviceOfflineLogs(token, device) {
       let processedCount = 0;
       for (const log of infoList) {
         const serial = log.serialNo || 0;
-        if (serial > baseline) {
-          if (log.employeeNoString) {
-            await forwardAccessEvent(token, device, {
-              UserID: log.employeeNoString,
-              Similarity: 100,
-              timestamp: log.time,
-            }, { backlog: true });
-          }
-          baseline = serial;
-          setBaseline(device.id, serial);
-          processedCount++;
+        if (serial <= baseline) continue;
+        if (log.employeeNoString) {
+          const ok = await forwardAccessEvent(token, device, {
+            UserID: log.employeeNoString,
+            Similarity: 100,
+            timestamp: log.time,
+          }, { backlog: true });
+          // Represa na primeira falha (mesmo critério do Intelbras/Control iD):
+          // avançar após recusa apagaria a passagem do histórico para sempre.
+          if (!ok) break;
         }
+        setBaseline(device.id, serial);
+        processedCount++;
       }
       console.log(`[agente] ${device.nome}: processou ${processedCount} novos acessos offline (Hikvision).`);
     } catch (err) {
@@ -2111,48 +2315,30 @@ async function syncDeviceOfflineLogs(token, device) {
     }
   }
 
-  // Control iD
+  // Control iD — mesma leitura do poller ao vivo (marca d'água compartilhada),
+  // só que marcada como backlog: são passagens que já aconteceram, então a
+  // nuvem registra na auditoria sem acionar abertura automática.
   if (device.fabricante === 'control_id') {
     try {
       console.log(`[agente] ${device.nome}: iniciando sincronização de acessos offline (Control iD)...`);
-      const session = await controlIdLogin(device);
-      const res = await lanRequest(
-        device,
-        'POST',
-        `/load_objects.fcgi?session=${session}`,
-        {
-          json: {
-            object: "access_logs",
-            order: ["id", "asc"],
-            limit: 50
-          }
-        }
-      );
-      const logs = res.data && res.data.access_logs;
-      if (!Array.isArray(logs) || logs.length === 0) {
-        return;
-      }
-
-      let baseline = deviceBaselines.get(device.id);
-      if (baseline === undefined) {
-        const maxId = Math.max(...logs.map(l => l.id).filter(Boolean));
-        setBaseline(device.id, maxId);
-        console.log(`[agente] ${device.nome}: baseline de acessos offline inicializada em ID ${maxId}`);
-        return;
-      }
-
+      const novos = await controlIdFetchNewLogs(device);
       let processedCount = 0;
-      for (const log of logs) {
-        if (log.id > baseline) {
-          await forwardAccessEvent(token, device, {
+      for (const log of novos) {
+        const ok = await forwardAccessEvent(
+          token,
+          device,
+          {
             UserID: String(log.user_id),
-            Similarity: log.confidence ? Math.min(100, Math.round(log.confidence / 18)) : 100,
+            Similarity: 100,
             timestamp: new Date(log.time * 1000).toISOString(),
-          }, { backlog: true });
-          baseline = log.id;
-          setBaseline(device.id, log.id);
-          processedCount++;
-        }
+          },
+          { backlog: true },
+        );
+        // Represa a marca d'água na primeira falha: o próximo ciclo tenta de
+        // novo, em vez de pular a passagem para sempre.
+        if (!ok) break;
+        setBaseline(device.id, log.id);
+        processedCount++;
       }
       console.log(`[agente] ${device.nome}: processou ${processedCount} novos acessos offline (Control iD).`);
     } catch (err) {
