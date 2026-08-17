@@ -33,6 +33,13 @@ export interface EnrollResult {
  * requisição HTTP. Validado contra documentação pública (jun/2026). Para esses
  * casos, use uma botoeira/relé HTTP genérico no acionamento ou um bridge SDK.
  */
+/**
+ * Identificador que NÓS gravamos no aparelho ("morador_42", "visitante_9",
+ * "prestador_servico_3"). Usado para a varredura de fantasmas não encostar em
+ * usuários criados direto no aparelho pelo instalador. Ver listUserIds.
+ */
+const NOSSO_EXTERNAL_ID = /^(morador|visitante|prestador_servico)_\d+$/;
+
 const SEM_COMANDO_HTTP: Record<string, string> = {
   zkteco: 'protocolo TCP/UDP na porta 4370 (PULL/PUSH SDK)',
   topdata: 'protocolo TCP na porta 3570 (SDK Inner)',
@@ -762,6 +769,11 @@ export class FacialDeviceClientService {
    * de fantasmas biométricos. O id devolvido é sempre o mesmo que gravamos em
    * `face_id` no enrollment: UserID (Intelbras), employeeNo (Hikvision) ou o id
    * interno do usuário (Control iD).
+   *
+   * Em Hikvision e Control iD a lista é restrita às pessoas que NÓS
+   * cadastramos (ver NOSSO_EXTERNAL_ID) — senão a varredura apagaria o usuário
+   * admin criado pelo instalador no próprio aparelho, trancando-o para fora.
+   * Intelbras mantém o comportamento atual (varre tudo), já rodando em produção.
    */
   async listUserIds(device: FacialDeviceConfig): Promise<string[]> {
     if (this.agent.isOnline(device.id)) {
@@ -796,8 +808,12 @@ export class FacialDeviceClientService {
         const search = (resp.data as any)?.UserInfoSearch ?? {};
         const list = search.UserInfo ?? [];
         for (const u of list) {
-          if (u.employeeNo) ids.push(String(u.employeeNo));
+          if (u.employeeNo && NOSSO_EXTERNAL_ID.test(String(u.employeeNo))) {
+            ids.push(String(u.employeeNo));
+          }
         }
+        // Pagina sobre TODOS (inclusive os filtrados): parar cedo deixaria
+        // fantasmas nas páginas seguintes.
         pos += list.length;
         if (list.length === 0 || search.responseStatusStrg !== 'MORE') break;
       }
@@ -810,9 +826,14 @@ export class FacialDeviceClientService {
         `/load_objects.fcgi?session=${session}`,
         { object: 'users' },
       );
+      // Quem identifica os NOSSOS usuários no Control iD é o `registration`
+      // (o id interno é indistinguível de um usuário criado no aparelho).
       const users = (resp.data as any)?.users ?? [];
       return users
-        .filter((u: any) => u.id != null)
+        .filter(
+          (u: any) =>
+            u.id != null && NOSSO_EXTERNAL_ID.test(String(u.registration ?? '')),
+        )
         .map((u: any) => String(u.id));
     }
 

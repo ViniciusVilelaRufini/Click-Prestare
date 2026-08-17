@@ -865,6 +865,22 @@ async function doRemove(device, cmd) {
   return okFrom(res);
 }
 
+/**
+ * Identificador que NÓS gravamos no aparelho ("morador_42", "visitante_9",
+ * "prestador_servico_3").
+ *
+ * A varredura de fantasmas apaga tudo que está no aparelho e não está no nosso
+ * banco. Num terminal Hikvision ou Control iD, "tudo" inclui o usuário admin
+ * que o instalador criou no próprio aparelho — apagá-lo trancaria o instalador
+ * para fora. Restringir a listagem ao nosso padrão mantém a varredura fazendo
+ * o trabalho dela (o fantasma que buscamos SEMPRE tem esse formato, porque fomos
+ * nós que o cadastramos) sem tocar em quem não é nosso.
+ *
+ * Não vale para Intelbras: lá o UserID é livre e o comportamento atual (varrer
+ * tudo) já roda em produção — mudá-lo deixaria lixo antigo sem limpeza.
+ */
+const NOSSO_EXTERNAL_ID = /^(morador|visitante|prestador_servico)_\d+$/;
+
 async function doListUsers(device) {
   // Hikvision: ISAPI pagina por searchResultPosition; o employeeNo é o nosso
   // external_id (= face_id gravado no enrollment).
@@ -894,8 +910,12 @@ async function doListUsers(device) {
       const search = (resp.data && resp.data.UserInfoSearch) || {};
       const list = search.UserInfo || [];
       for (const u of list) {
-        if (u.employeeNo) ids.push(String(u.employeeNo));
+        if (u.employeeNo && NOSSO_EXTERNAL_ID.test(String(u.employeeNo))) {
+          ids.push(String(u.employeeNo));
+        }
       }
+      // Pagina sobre TODOS os usuários (inclusive os que filtramos), senão a
+      // varredura pararia cedo e deixaria fantasmas nas páginas seguintes.
       pos += list.length;
       // "MORE" indica que ainda há páginas; qualquer outro status encerra.
       if (list.length === 0 || search.responseStatusStrg !== 'MORE') break;
@@ -915,8 +935,16 @@ async function doListUsers(device) {
     if (!(resp.status >= 200 && resp.status < 300)) {
       return { ok: false, error: `Falha ao listar usuários (HTTP ${resp.status})` };
     }
+    // O face_id do Control iD é o id INTERNO, indistinguível de um usuário
+    // criado no próprio aparelho — quem identifica os nossos é o campo
+    // `registration`, onde gravamos o external_id no enrollment.
     const users = (resp.data && resp.data.users) || [];
-    return { ok: true, userIds: users.filter((u) => u.id != null).map((u) => String(u.id)) };
+    return {
+      ok: true,
+      userIds: users
+        .filter((u) => u.id != null && NOSSO_EXTERNAL_ID.test(String(u.registration ?? '')))
+        .map((u) => String(u.id)),
+    };
   }
 
   if (device.fabricante !== 'intelbras') {
@@ -1695,24 +1723,79 @@ function hikvisionAlertOnce(token, device) {
  * employeeNoString (= nosso external_id) e currentVerifyMode/faceRect.
  */
 function consumeHikvisionEvents(buf, onData) {
-  // O alertStream entrega blocos separados por boundary "--MIME_boundary".
-  const parts = buf.split('--MIME_boundary');
-  const tail = parts.pop();
-  for (const part of parts) {
-    if (!part.includes('AccessControllerEvent')) continue;
-    const i = part.indexOf('{');
-    if (i < 0) continue;
+  let restante = buf;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const fim = fimDoEventoHikvision(restante);
+    if (fim < 0) break;
+    const bloco = restante.slice(0, fim);
+    restante = restante.slice(fim);
+    const dados = parseEventoHikvision(bloco);
+    // Tratamos "tem employeeNo" como reconhecido. Sem employeeNo = ignora.
+    if (dados) onData(dados);
+  }
+  return restante;
+}
+
+/**
+ * Índice onde termina o PRIMEIRO evento completo do buffer, ou -1 se ainda não
+ * chegou inteiro. Aceita as duas formas do corpo: XML (fecha em
+ * `</EventNotificationAlert>`) e JSON (fecha ao balancear as chaves).
+ */
+function fimDoEventoHikvision(buf) {
+  const TAG_FIM = '</EventNotificationAlert>';
+  const iXml = buf.indexOf(TAG_FIM);
+  const iJson = buf.indexOf('{');
+  if (iXml >= 0 && (iJson < 0 || iXml < iJson)) return iXml + TAG_FIM.length;
+  if (iJson < 0) return -1;
+  return fimDoObjetoJson(buf, iJson);
+}
+
+/** Fim do objeto JSON iniciado em `inicio` (respeita chaves dentro de string). */
+function fimDoObjetoJson(buf, inicio) {
+  let profundidade = 0;
+  let emString = false;
+  let escapado = false;
+  for (let i = inicio; i < buf.length; i++) {
+    const c = buf[i];
+    if (emString) {
+      if (escapado) escapado = false;
+      else if (c === '\\') escapado = true;
+      else if (c === '"') emString = false;
+      continue;
+    }
+    if (c === '"') emString = true;
+    else if (c === '{') profundidade++;
+    else if (c === '}' && --profundidade === 0) return i + 1;
+  }
+  return -1;
+}
+
+/** Bloco cru da stream → { UserID, Similarity }, ou null se não der acesso. */
+function parseEventoHikvision(bloco) {
+  if (!bloco.includes('AccessControllerEvent')) return null;
+  const iJson = bloco.indexOf('{');
+  if (iJson >= 0) {
     try {
-      const json = JSON.parse(part.slice(i));
-      const ev = json.AccessControllerEvent || {};
-      const emp = ev.employeeNoString;
-      // Tratamos "tem employeeNo" como reconhecido. Sem employeeNo = ignora.
-      if (emp) onData({ UserID: String(emp), Similarity: ev.similarity ?? 90 });
+      const ev = JSON.parse(bloco.slice(iJson)).AccessControllerEvent || {};
+      const emp = ev.employeeNoString ?? ev.employeeNo;
+      if (!emp) return null;
+      return { UserID: String(emp), Similarity: ev.similarity ?? 90 };
     } catch {
-      /* parcial/inválido — ignora */
+      return null; // parcial/inválido
     }
   }
-  return tail;
+  const tag = (nome) => {
+    const m = bloco.match(new RegExp(`<${nome}>([^<]*)</${nome}>`, 'i'));
+    return m ? m[1].trim() : '';
+  };
+  const emp = tag('employeeNoString') || tag('employeeNo');
+  if (!emp) return null;
+  const similaridade = Number(tag('similarity'));
+  return {
+    UserID: emp,
+    Similarity: Number.isFinite(similaridade) && similaridade > 0 ? similaridade : 90,
+  };
 }
 
 // ---------- Control iD: polling de eventos de acesso → nuvem ----------
@@ -1775,9 +1858,15 @@ async function controlIdFetchNewLogs(device) {
     { json: { object: 'access_logs', order: ['id', 'desc'], limit: 50 } },
   );
   const logs = (res.data && res.data.access_logs) || [];
-  if (!Array.isArray(logs) || logs.length === 0) return [];
-
   const baseline = deviceBaselines.get(device.id);
+  if (!Array.isArray(logs) || logs.length === 0) {
+    // Aparelho ainda sem nenhum acesso (recém-instalado ou pós-reset): fixa a
+    // marca d'água em 0 AGORA. Sem isso, a baseline continuava indefinida e o
+    // PRIMEIRO acesso da vida do aparelho era consumido só para inicializá-la
+    // — a passagem nunca chegava à nuvem.
+    if (baseline === undefined) setBaseline(device.id, 0);
+    return [];
+  }
   if (baseline === undefined) {
     const maxId = Math.max(...logs.map((l) => l.id).filter(Boolean));
     setBaseline(device.id, maxId);

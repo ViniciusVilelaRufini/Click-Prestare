@@ -262,6 +262,97 @@ describe('FacialService — LPR (leitura de placa)', () => {
     });
   });
 
+  /**
+   * Ponta a ponta com o corpo CRU que a câmera manda, sem passar pelo nosso
+   * formato limpo. É o caminho real de uma instalação: aponta-se a câmera para
+   * a URL do webhook e ela posta o formato dela. Antes da camada de payloads
+   * nativos, tudo isso era descartado em silêncio (a placa chegava vazia).
+   */
+  describe('push nativo da câmera (sem integrador no meio)', () => {
+    it('ANPR da Hikvision em JSON vira acesso do morador', async () => {
+      const { svc, prisma } = build({
+        veiculo: { id: 5, placa: 'ABC1D23', morador: MORADOR },
+      });
+
+      await svc.processWebhook('tok-lpr', {
+        eventType: 'ANPR',
+        dateTime: '2026-07-20T10:00:00-03:00',
+        ANPR: { licensePlate: 'ABC1D23', country: 'BRA' },
+      } as any);
+
+      expect(prisma.acessos_Facial.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tipo_dispositivo: 'lpr',
+            id_pessoa: 11,
+            face_id: 'ABC1D23',
+          }),
+        }),
+      );
+    });
+
+    // XML é o padrão de FÁBRICA da notificação Hikvision — o corpo chega como
+    // string (parser text/xml no main.ts), não como objeto.
+    it('ANPR da Hikvision em XML vira acesso do morador', async () => {
+      const { svc, prisma } = build({
+        veiculo: { id: 5, placa: 'ABC1D23', morador: MORADOR },
+      });
+
+      await svc.processWebhook(
+        'tok-lpr',
+        `<?xml version="1.0" encoding="UTF-8"?>
+         <EventNotificationAlert>
+           <eventType>ANPR</eventType>
+           <dateTime>2026-07-20T10:00:00-03:00</dateTime>
+           <ANPR><licensePlate>ABC1D23</licensePlate></ANPR>
+         </EventNotificationAlert>` as any,
+      );
+
+      expect(prisma.acessos_Facial.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ id_pessoa: 11, face_id: 'ABC1D23' }),
+        }),
+      );
+    });
+
+    it('evento de trânsito Dahua/Intelbras vira acesso do morador', async () => {
+      const { svc, prisma } = build({
+        veiculo: { id: 5, placa: 'ABC1D23', morador: MORADOR },
+      });
+
+      await svc.processWebhook('tok-lpr', {
+        Events: [
+          {
+            Code: 'TrafficJunction',
+            Action: 'Pulse',
+            Data: { PlateNumber: 'ABC1D23', UTC: 1755440000 },
+          },
+        ],
+      } as any);
+
+      expect(prisma.acessos_Facial.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ id_pessoa: 11, face_id: 'ABC1D23' }),
+        }),
+      );
+    });
+
+    // Câmera lendo carro que passa na rua: sem placa aproveitável, não pode
+    // virar "negado" e poluir o histórico.
+    it('evento sem placa legível não vira acesso', async () => {
+      const { svc, prisma } = build({
+        veiculo: { id: 5, placa: 'ABC1D23', morador: MORADOR },
+      });
+
+      const res = await svc.processWebhook('tok-lpr', {
+        Events: [{ Code: 'TrafficJunction', Data: { PlateNumber: 'X' } }],
+      } as any);
+
+      expect(res).toEqual({ ok: true, ignored: 'placa_invalida' });
+      expect(prisma.acessos_Facial.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('carro parado no portão', () => {
     it('aplica o cooldown por placa (câmera relê a mesma placa em rajada)', async () => {
       const { svc, accessState, prisma } = build({
