@@ -26,6 +26,7 @@ import {
   RegraAcessoLike,
 } from './access-rules.util';
 import { normalizarPlaca, placaValida, variantesPlaca } from './placa.util';
+import { normalizarPayloadNativo } from './webhook-payload.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 
 /**
@@ -2908,9 +2909,11 @@ export class FacialService {
     >,
     payload: WebhookEventDto,
   ) {
-    // Aceita o push nativo do Control iD (formato Monitor "object_changes")
-    // além do nosso formato limpo. Converte para WebhookEventDto antes de seguir.
-    const normalizado = this.normalizeControlIdPayload(payload as unknown);
+    // Aceita o push NATIVO dos aparelhos (Control iD, ANPR da Hikvision, ITS
+    // Dahua/Intelbras, AccessControllerEvent) além do nosso formato limpo.
+    // Sem isto, uma câmera LPR apontada direto para a nossa URL tinha a leitura
+    // descartada em silêncio — o campo `placa` nunca chegava preenchido.
+    const normalizado = normalizarPayloadNativo(payload as unknown);
     if (normalizado) payload = normalizado;
 
     let tipoPessoa:
@@ -4215,42 +4218,6 @@ export class FacialService {
     }
     // Fallback: registro mais recente.
     return candidatos.sort((a, b) => b.id - a.id)[0];
-  }
-
-  /**
-   * Converte o push nativo do Control iD (Monitor, formato "object_changes")
-   * para o nosso WebhookEventDto. Retorna null se não for esse formato (deixa
-   * passar o formato limpo do simulador/integrações).
-   *
-   * Formato Control iD (validado contra a doc oficial):
-   *   { object_changes: [{ object: 'access_logs', values: {
-   *       time, event, device_id, user_id, portal_id, ... } }], device_id }
-   *
-   * - user_id é o id INTERNO do aparelho — gravamos ele em face_id no
-   *   enrollment, então o webhook resolve a pessoa por face_id.
-   * - user_id "0" = ninguém identificado → acesso negado.
-   * - Direção (entrada/saída) NÃO vem no log (depende do portal). Assumimos
-   *   ENTRADA, caso comum de terminal único na entrada. Para catraca com
-   *   entrada/saída separadas, mapear por portal_id futuramente.
-   */
-  private normalizeControlIdPayload(raw: unknown): WebhookEventDto | null {
-    const obj = raw as any;
-    const changes = obj?.object_changes;
-    if (!Array.isArray(changes)) return null;
-    const entry = changes.find((c) => c?.object === 'access_logs' && c?.values);
-    if (!entry) return null;
-    const v = entry.values;
-    const userId = v.user_id != null ? String(v.user_id) : '';
-    const identificado = userId !== '' && userId !== '0';
-    return {
-      person_id: identificado ? userId : undefined,
-      external_id: identificado ? userId : undefined,
-      event: identificado ? 'access_granted' : 'access_denied',
-      timestamp: v.time
-        ? new Date(Number(v.time) * 1000).toISOString()
-        : undefined,
-      // Direção fica a cargo do device.sentido (o push do Control iD não diz).
-    };
   }
 
   /**

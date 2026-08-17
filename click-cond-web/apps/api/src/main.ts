@@ -11,13 +11,17 @@ import helmet from 'helmet';
 import { join } from 'path';
 import { AppModule } from './app/app.module';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
-import { json, urlencoded } from 'express';
+import { json, text, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ limit: '50mb', extended: true }));
+  // Câmeras Hikvision postam notificação de evento em XML (não em JSON). Sem
+  // este parser o corpo chegava VAZIO no webhook e a leitura de placa era
+  // descartada em silêncio. O XML é convertido em webhook-payload.util.
+  app.use(text({ limit: '10mb', type: ['text/xml', 'application/xml'] }));
 
   // Helmet: CSP desabilitada porque os simuladores HTML em /assets carregam
   // bibliotecas de CDN (face-api.js, jsQR). Demais headers ficam ligados:

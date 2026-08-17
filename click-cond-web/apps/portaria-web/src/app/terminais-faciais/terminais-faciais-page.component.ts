@@ -194,6 +194,9 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         { value: 'hid', label: 'HID' },
         { value: 'control_id', label: 'Control iD' },
         { value: 'intelbras', label: 'Intelbras' },
+        // Leitor Hikvision posta AccessControllerEvent (com cardNo), formato
+        // entendido pelo webhook desde a camada de payloads nativos.
+        { value: 'hikvision', label: 'HikVision' },
         { value: 'genérico', label: 'Genérico (Wiegand→IP)' },
         { value: 'outro', label: 'Outro' },
       ],
