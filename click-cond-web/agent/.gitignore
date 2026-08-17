@@ -13,3 +13,7 @@ device-baselines.json
 events-queue.jsonl
 agent-stdout.log
 agent-stderr.log
+
+# Harness: cópia descartável do agente usada nos testes
+harness/.tmp-agent/
+harness/saida.txt
