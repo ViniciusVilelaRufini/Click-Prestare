@@ -1457,19 +1457,32 @@ function dahuaAttachOnce(token, device, onConnect) {
  * trecho final ainda incompleto. Só processa o evento de acesso (_DoorFace_).
  */
 function consumeDahuaEvents(buf, onData) {
-  const parts = buf.split('--myboundary');
-  const tail = parts.pop(); // último pode estar pela metade
-  for (const part of parts) {
-    if (!part.includes('Code=_DoorFace_')) continue;
-    const i = part.indexOf('data=');
-    if (i < 0) continue;
+  let restante = buf;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const iCode = restante.indexOf('Code=_DoorFace_');
+    if (iCode < 0) break;
+    const iData = restante.indexOf('data=', iCode);
+    if (iData < 0) break; // cabeçalho chegou, corpo ainda não
+    const iChave = restante.indexOf('{', iData);
+    if (iChave < 0) break;
+    const fim = fimDoObjetoJson(restante, iChave);
+    if (fim < 0) break; // JSON pela metade: espera o resto do chunk
+    const bruto = restante.slice(iChave, fim);
+    restante = restante.slice(fim);
     try {
-      onData(JSON.parse(part.slice(i + 5).trim()));
+      onData(JSON.parse(bruto));
     } catch {
-      /* JSON parcial/inválido — ignora */
+      /* JSON inválido — ignora */
     }
   }
-  return tail;
+  // Sem acesso pendente à vista, guarda só o trecho depois do último boundary:
+  // o resto é heartbeat/evento de outro tipo e faria o buffer crescer à toa.
+  if (restante.indexOf('Code=_DoorFace_') < 0) {
+    const ultimo = restante.lastIndexOf('--myboundary');
+    if (ultimo > 0) restante = restante.slice(ultimo);
+  }
+  return restante;
 }
 
 // ---------- Store-and-forward: fila em disco para eventos offline ----------
@@ -1721,6 +1734,11 @@ function hikvisionAlertOnce(token, device) {
  * Extrai eventos AccessControllerEvent completos do buffer e os normaliza para o
  * formato que forwardAccessEvent espera ({ UserID, Similarity }). Hikvision usa
  * employeeNoString (= nosso external_id) e currentVerifyMode/faceRect.
+ *
+ * Emite assim que o evento está COMPLETO, sem esperar o boundary que fecha a
+ * parte — esse boundary só chega junto com o evento SEGUINTE, então quem
+ * esperasse por ele só encaminharia o acesso quando a próxima pessoa passasse
+ * (e ainda o carimbaria com a hora errada). Mesmo cuidado em consumeDahuaEvents.
  */
 function consumeHikvisionEvents(buf, onData) {
   let restante = buf;
