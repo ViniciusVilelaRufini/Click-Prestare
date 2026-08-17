@@ -470,12 +470,50 @@ export class VisitantesService {
     });
 
     type Reg = typeof todas[number];
-    const grupos = new Map<string, Reg[]>();
+    const gruposList: Reg[][] = [];
+
     for (const v of todas) {
-      const key = VisitantesService.chavePessoa(v);
-      const arr = grupos.get(key) ?? [];
-      arr.push(v);
-      grupos.set(key, arr);
+      const docClean = (v.doc_identificacao ?? '').replace(/\D/g, '').trim();
+      const nomeClean = (v.nome ?? '').trim().toLowerCase();
+      const photo = (v.foto_pessoa ?? '').trim();
+      const hasPhoto = photo.startsWith('http');
+      const face = (v.face_id ?? '').trim();
+
+      const matchedGruposIndices: number[] = [];
+      for (let i = 0; i < gruposList.length; i++) {
+        const arr = gruposList[i];
+        const match = arr.some((item) => {
+          const itemDoc = (item.doc_identificacao ?? '').replace(/\D/g, '').trim();
+          const itemNome = (item.nome ?? '').trim().toLowerCase();
+          const itemPhoto = (item.foto_pessoa ?? '').trim();
+          const itemFace = (item.face_id ?? '').trim();
+
+          const matchDoc = docClean.length >= 4 && itemDoc === docClean;
+          const matchFace = face.length > 0 && itemFace === face;
+          const matchPhoto = hasPhoto && itemPhoto.startsWith('http') && itemPhoto === photo;
+          const matchNome = nomeClean.length > 0 && itemNome === nomeClean;
+
+          return matchDoc || matchFace || matchPhoto || matchNome;
+        });
+
+        if (match) {
+          matchedGruposIndices.push(i);
+        }
+      }
+
+      if (matchedGruposIndices.length === 0) {
+        gruposList.push([v]);
+      } else if (matchedGruposIndices.length === 1) {
+        gruposList[matchedGruposIndices[0]].push(v);
+      } else {
+        const firstIdx = matchedGruposIndices[0];
+        gruposList[firstIdx].push(v);
+        for (let j = matchedGruposIndices.length - 1; j >= 1; j--) {
+          const removeIdx = matchedGruposIndices[j];
+          gruposList[firstIdx].push(...gruposList[removeIdx]);
+          gruposList.splice(removeIdx, 1);
+        }
+      }
     }
 
     // Vagas ativas (uma consulta) → mapa id_visitante → nome do morador que
@@ -504,7 +542,7 @@ export class VisitantesService {
     };
 
     const pessoas = [];
-    for (const arr of grupos.values()) {
+    for (const arr of gruposList) {
       arr.sort((a, b) => score(b) - score(a));
       const principal = arr[0];
 
@@ -713,33 +751,63 @@ export class VisitantesService {
    * que garante que o resultado bate, registro a registro, com o agrupamento
    * da lista. Sem ela, o ramo "sem documento" varria quem tem documento.
    */
-  private async registrosDaPessoa(ref: { id_condominio: number | null; doc_identificacao?: string | null; nome?: string | null }) {
-    // Sem condomínio não dá para delimitar o conjunto — buscar sem ele varreria
-    // o sistema inteiro. Os chamadores já validaram a pessoa antes de chegar
-    // aqui, então isto é uma trava de segurança, não um caminho esperado.
+  private async registrosDaPessoa(ref: {
+    id?: number;
+    id_condominio: number | null;
+    doc_identificacao?: string | null;
+    nome?: string | null;
+    foto_pessoa?: string | null;
+    face_id?: string | null;
+  }) {
     if (ref.id_condominio == null) {
       throw new BadRequestException('Registro sem condomínio definido.');
     }
     const idCondominio = Number(ref.id_condominio);
 
-    const doc = ref.doc_identificacao?.trim();
-    const whereAmplo = doc
-      ? { id_condominio: idCondominio, doc_identificacao: doc }
-      : { id_condominio: idCondominio, nome: ref.nome ?? undefined };
+    const docClean = (ref.doc_identificacao ?? '').replace(/\D/g, '').trim();
+    const photo = (ref.foto_pessoa ?? '').trim();
+    const hasPhoto = photo.startsWith('http');
+    const face = (ref.face_id ?? '').trim();
+    const nome = ref.nome?.trim();
+
+    const orConditions: any[] = [];
+    if (docClean.length >= 4) {
+      orConditions.push({ doc_identificacao: ref.doc_identificacao?.trim() });
+    } else if (ref.nome) {
+      orConditions.push({ nome: ref.nome.trim() });
+    }
+    if (hasPhoto) orConditions.push({ foto_pessoa: photo });
+    if (face) orConditions.push({ face_id: face });
+    if (ref.id) orConditions.push({ id: Number(ref.id) });
 
     const candidatos = await this.prisma.visitantes.findMany({
-      where: whereAmplo,
+      where: {
+        id_condominio: idCondominio,
+        OR: orConditions.length > 0 ? orConditions : undefined,
+      },
       select: {
         id: true,
         face_id: true,
         id_condominio: true,
         doc_identificacao: true,
         nome: true,
+        foto_pessoa: true,
       },
     });
 
-    const chaveRef = VisitantesService.chavePessoa(ref);
-    return candidatos.filter((c) => VisitantesService.chavePessoa(c) === chaveRef);
+    return candidatos.filter((c) => {
+      if (ref.id && c.id === Number(ref.id)) return true;
+      const cDoc = (c.doc_identificacao ?? '').replace(/\D/g, '').trim();
+      const cPhoto = (c.foto_pessoa ?? '').trim();
+      const cFace = (c.face_id ?? '').trim();
+      const cNome = (c.nome ?? '').trim().toLowerCase();
+
+      if (docClean.length >= 4 && cDoc.length >= 4 && docClean === cDoc) return true;
+      if (hasPhoto && cPhoto.startsWith('http') && photo === cPhoto) return true;
+      if (face.length > 0 && cFace.length > 0 && face === cFace) return true;
+      if (docClean.length === 0 && cDoc.length === 0 && nomeClean.length > 0 && nomeClean === cNome) return true;
+      return false;
+    });
   }
 
   /**
@@ -1199,6 +1267,24 @@ export class VisitantesService {
           ...(dto.categorias !== undefined && { categorias: dto.categorias }),
         },
       });
+
+      // Propaga alteração de identidade (nome/foto/documento) para todas as visitas dessa pessoa
+      if (dto.nome !== undefined || fotoPes !== undefined || dto.doc_identificacao !== undefined) {
+        const registros = await this.registrosDaPessoa(updated);
+        const outrosIds = registros.map((r) => r.id).filter((id) => id !== updated.id);
+        if (outrosIds.length > 0) {
+          await this.prisma.visitantes.updateMany({
+            where: { id: { in: outrosIds } },
+            data: {
+              ...(dto.nome !== undefined && { nome: dto.nome }),
+              ...(dto.doc_identificacao !== undefined && { doc_identificacao: dto.doc_identificacao }),
+              ...(fotoPes !== undefined && { foto_pessoa: fotoPes }),
+              ...(fotoDoc !== undefined && { foto_documento: fotoDoc }),
+            },
+          }).catch(() => {});
+        }
+      }
+
       // Inclui remoção da foto (fotoPes null) → syncVisitante remove o rosto.
       // Também re-sincroniza quando muda janela de validade ou dias da semana,
       // pois o ValidTo/ValidFrom enviado ao aparelho precisa ser atualizado.

@@ -456,7 +456,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                       child: Text('Fechar', style: AppTypography.body(context)),
                     ),
                   ),
-                  if (canAdd && item['data_saida'] == null && !isExpired) ...[
+                  if (canAdd) ...[
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: ElevatedButton(

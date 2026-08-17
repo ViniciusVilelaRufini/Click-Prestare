@@ -685,6 +685,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                           ? Image.network(
                               getUserPhoto().trim(),
                               fit: BoxFit.cover,
+                              gaplessPlayback: true,
                               errorBuilder: (context, error, stackTrace) {
                                 print(
                                     "[ListCondomiums] Error loading photo: $error");

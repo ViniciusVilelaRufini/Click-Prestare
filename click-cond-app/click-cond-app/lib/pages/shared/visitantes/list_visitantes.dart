@@ -677,7 +677,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           child: Text('Fechar', style: AppTypography.body(context)),
                         ),
                       ),
-                      if (canAdd && item['data_saida'] == null && !isExpired) ...[
+                      if (canAdd) ...[
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton.icon(

@@ -13,7 +13,9 @@ storageLogin(Map<String, dynamic> parsed) {
   _storage.setItem('token', parsed["token"]);
   _storage.setItem('id', parsed["user"]["id"]);
   _storage.setItem('name', parsed["user"]["name"]);
-  _storage.setItem('photo', parsed["user"]["photo"]);
+  final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
+  _storage.setItem('photo', photo);
+  _inMemoryPhoto = photo;
   _storage.setItem('loginType', 'sindico');
 }
 
@@ -21,7 +23,9 @@ storageMorador(Map<String, dynamic> parsed) {
   _storage.setItem('token', parsed["token"]);
   _storage.setItem('id', parsed["user"]["id"]);
   _storage.setItem('name', parsed["user"]["nome"]);
-  _storage.setItem('photo', parsed["user"]["photo"]);
+  final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
+  _storage.setItem('photo', photo);
+  _inMemoryPhoto = photo;
   _storage.setItem('loginType', 'morador');
 }
 
@@ -29,7 +33,9 @@ storageFuncionario(Map<String, dynamic> parsed) {
   _storage.setItem('token', parsed["token"]);
   _storage.setItem('id', parsed["user"]["id"]);
   _storage.setItem('name', parsed["user"]["nome"]);
-  _storage.setItem('photo', parsed["user"]["photo"]);
+  final photo = parsed["user"]["photo"]?.toString().trim() ?? '';
+  _storage.setItem('photo', photo);
+  _inMemoryPhoto = photo;
   _storage.setItem('loginType', 'funcionario');
 
   _storage.setItem('areas_sociais', parsed["user"]["areas_sociais"] ?? 0);
@@ -43,6 +49,7 @@ storageFuncionario(Map<String, dynamic> parsed) {
 }
 
 Future<void> storageLogout() async {
+  _inMemoryPhoto = '';
   try {
     await FirebaseService.instance.desregistrarNoServidor();
   } catch (_) {}
@@ -59,16 +66,24 @@ String getUsername() {
   return name.toString().split(" ")[0];
 }
 
+String _inMemoryPhoto = '';
+
 String getUserPhoto() {
+  if (_inMemoryPhoto.isNotEmpty) return _inMemoryPhoto;
   final photo = _storage.getItem('photo');
   if (photo == null || photo == 'null' || photo == 'undefined' || photo.toString().trim().isEmpty) {
     return '';
   }
-  return photo.toString();
+  _inMemoryPhoto = photo.toString().trim();
+  return _inMemoryPhoto;
 }
 
 void setUserPhoto(String url) {
-  _storage.setItem('photo', url);
+  final clean = url.trim();
+  if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
+    _inMemoryPhoto = clean;
+    _storage.setItem('photo', clean);
+  }
 }
 
 String getUserType() {
