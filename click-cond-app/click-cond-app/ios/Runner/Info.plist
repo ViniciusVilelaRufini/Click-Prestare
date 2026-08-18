@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Click</string>
+	<string>Prestare</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>click</string>
+	<string>prestare</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -69,7 +69,7 @@
 	  áudio, e permissão declarada sem uso levanta pergunta na revisão.
 	-->
 	<key>NSCameraUsageDescription</key>
-	<string>O Click usa a câmera para fotografar moradores, visitantes, prestadores e funcionários no cadastro — essa foto é o que identifica a pessoa no reconhecimento facial da portaria — e para registrar encomendas e comprovantes de despesa.</string>
+	<string>O Prestare usa a câmera para fotografar moradores, visitantes, prestadores e funcionários no cadastro — essa foto é o que identifica a pessoa no reconhecimento facial da portaria — e para registrar encomendas e comprovantes de despesa.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Permite salvar na sua galeria as fotos e comprovantes gerados no aplicativo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
