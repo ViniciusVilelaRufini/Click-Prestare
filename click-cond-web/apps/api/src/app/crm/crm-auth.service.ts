@@ -41,7 +41,7 @@ export class CrmAuthService {
     };
 
     return {
-      access_token: this.jwt.sign(payload),
+      access_token: this.jwt.sign(payload, { expiresIn: '365d' }),
       id: admin.id,
       nome: admin.nome,
       role: 'crm_admin',

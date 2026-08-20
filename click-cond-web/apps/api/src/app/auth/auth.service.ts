@@ -154,7 +154,7 @@ export class AuthService {
         };
 
     return {
-      access_token: this.jwt.sign(payload),
+      access_token: this.jwt.sign(payload, { expiresIn: '365d' }),
       id: sindico ? sindico.id : funcionario.id,
       nome: sindico ? sindico.nome : funcionario.nome,
       turno: sindico ? 'Síndico' : funcionario.turno,
@@ -282,7 +282,7 @@ export class AuthService {
     };
 
     return {
-      access_token: this.jwt.sign(sindicoPayload),
+      access_token: this.jwt.sign(sindicoPayload, { expiresIn: '365d' }),
       id: user.id,
       nome: sindico.name,
       turno: 'Síndico',
@@ -353,7 +353,7 @@ export class AuthService {
     delete (novoPayload as any).exp;
 
     return {
-      access_token: this.jwt.sign(novoPayload),
+      access_token: this.jwt.sign(novoPayload, { expiresIn: '365d' }),
       id: payload.sub,
       nome: payload.nome,
       turno: payload.turno ?? 'Síndico',
@@ -545,7 +545,7 @@ export class AuthService {
       ...(papelReal ? { typeAccess: papelReal } : {}),
     };
 
-    const accessToken = this.jwt.sign(portariaPayload);
+    const accessToken = this.jwt.sign(portariaPayload, { expiresIn: '365d' });
 
     this.qrStore.confirm(qrToken, {
       idUser: userId,

@@ -119,7 +119,7 @@ export class MobileAuthService {
     const userObj = { id: user.id, name: sindico.name, photo: user.photo ?? '' };
     const payload = { sub: user.id, nome: sindico.name, typeAccess: 'Sindico', user: userObj };
 
-    return { token: this.jwt.sign(payload), user: userObj };
+    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
   }
 
   /**
@@ -239,7 +239,7 @@ export class MobileAuthService {
     const userObj = { id: user.id, name: sindico.name, photo: user.photo ?? '' };
     const payload = { sub: user.id, nome: sindico.name, typeAccess: 'Sindico', user: userObj };
 
-    return { token: this.jwt.sign(payload), user: userObj };
+    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
   }
 
   async getSindicoByIdUser(idUser: number) {
@@ -547,7 +547,7 @@ export class MobileAuthService {
     const userObj = { id: user.id, nome: morador.nome, photo: user.photo ?? '' };
     const payload = { sub: user.id, nome: morador.nome, typeAccess: 'Morador', user: userObj };
 
-    return { token: this.jwt.sign(payload), user: userObj };
+    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
   }
 
   async listCondominiosMorador(idUser: number) {
@@ -659,7 +659,7 @@ export class MobileAuthService {
     };
     const payload = { sub: user.id, nome: func.nome, typeAccess: 'Funcionario', user: userObj };
 
-    return { token: this.jwt.sign(payload), user: userObj };
+    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
   }
 
   async listCondominiosFuncionario(idUser: number) {
@@ -1964,7 +1964,7 @@ export class MobileAuthService {
       typeAccess: 'Funcionario',
       user: userObj,
     };
-    return { token: this.jwt.sign(payload), user: userObj };
+    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
   }
 
   async saveFuncionario(body: any, isEdit: boolean, user?: JwtPayload) {
@@ -2397,7 +2397,7 @@ export class MobileAuthService {
           const moradorObj = updatedUser.moradores[0];
           const userObj = { id: updatedUser.id, nome: moradorObj.nome, photo: updatedUser.photo ?? '' };
           const payload = { sub: updatedUser.id, nome: moradorObj.nome, typeAccess: 'Morador', user: userObj };
-          return { token: this.jwt.sign(payload), user: userObj };
+          return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
         }
 
         return '';
@@ -3163,7 +3163,7 @@ export class MobileAuthService {
       const sindico = user.sindicos[0];
       const payload: JwtPayload = { sub: user.id, nome: sindico?.name || '', typeAccess: 'Sindico' };
       return {
-        access_token: this.jwt.sign(payload),
+        access_token: this.jwt.sign(payload, { expiresIn: '365d' }),
         id: user.id,
         nome: sindico?.name || '',
         user: {
@@ -3178,7 +3178,7 @@ export class MobileAuthService {
       const morador = user.moradores[0];
       const payload: JwtPayload = { sub: user.id, nome: morador?.nome || '', typeAccess: 'Morador' };
       return {
-        access_token: this.jwt.sign(payload),
+        access_token: this.jwt.sign(payload, { expiresIn: '365d' }),
         id: user.id,
         nome: morador?.nome || '',
         user: {
@@ -3193,7 +3193,7 @@ export class MobileAuthService {
       const func = user.funcionarios[0];
       const payload: JwtPayload = { sub: user.id, nome: func?.nome || '', typeAccess: 'Funcionario' };
       return {
-        access_token: this.jwt.sign(payload),
+        access_token: this.jwt.sign(payload, { expiresIn: '365d' }),
         id: user.id,
         nome: func?.nome || '',
         user: {

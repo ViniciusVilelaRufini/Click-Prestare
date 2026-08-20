@@ -32,9 +32,9 @@ import { ApartamentosModule } from '../apartamentos/apartamentos.module';
     PassportModule,
     JwtModule.register({
       secret: resolveJwtSecret(),
-      // Sessão estendida para 90 dias: mantém moradores e síndicos logados no app móvel
-      // sem deslogar diariamente. Override via JWT_EXPIRES_IN se necessário.
-      signOptions: { expiresIn: (process.env['JWT_EXPIRES_IN'] ?? '90d') as any },
+      // Sessão estendida para 365 dias: mantém moradores e síndicos logados no app móvel
+      // sem deslogar diariamente.
+      signOptions: { expiresIn: '365d' },
     }),
     OcorrenciasModule,
     FacialModule,
