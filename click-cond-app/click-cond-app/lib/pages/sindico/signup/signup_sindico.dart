@@ -59,7 +59,7 @@ class _SignupSindicoPageState extends State<SignupSindico> {
 
   Future<void> _signup() async {
     if (_isLoading) return;
-    if (!validateDate(_txtDN.text)) {
+    if (_txtDN.text.trim().isNotEmpty && !validateDate(_txtDN.text)) {
       displayMessage(context, getText('alert_error'), getText('signup_erro_dt_nascimento'));
       return;
     }
@@ -143,7 +143,7 @@ class _SignupSindicoPageState extends State<SignupSindico> {
             ),
             const SizedBox(height: AppSpacing.md),
             AppInput(
-              label: getText('data_nascimento'),
+              label: '${getText('data_nascimento')} (Opcional)',
               controller: _txtDN,
               keyboard: TextInputType.number,
               prefixIcon: PhosphorIcons.calendarBlank,
@@ -158,7 +158,7 @@ class _SignupSindicoPageState extends State<SignupSindico> {
             ),
             const SizedBox(height: AppSpacing.md),
             AppInput(
-              label: getText('telefone'),
+              label: '${getText('telefone')} (Opcional)',
               controller: _txtTelefone,
               keyboard: TextInputType.phone,
               prefixIcon: PhosphorIcons.phone,

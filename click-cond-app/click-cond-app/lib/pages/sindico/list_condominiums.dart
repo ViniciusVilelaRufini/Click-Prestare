@@ -176,24 +176,29 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   void _onDashboardTap(String module) {
-    if (_list.isEmpty) return;
-
     final type = getUserType();
 
     Widget? page;
     if (module == 'debts') {
       page = type == 'morador'
           ? const MoradorFinanceiroView()
-          : const ListInadimplentes();
+          : const ListFinanceiro();
     } else if (module == 'occurrences') {
       page = const ListOcorrencias();
     } else if (module == 'visits') {
-      page = const ListVisitantes();
+      page = ListVisitantes(allCondos: _list.isEmpty);
     } else if (module == 'packages') {
-      page = const ListEncomendas();
+      page = ListEncomendas(allCondos: _list.isEmpty);
     }
 
     if (page == null) return;
+
+    if (_list.isEmpty) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => page)).then((_) {
+        if (mounted) _loadList();
+      });
+      return;
+    }
 
     if (_list.length == 1) {
       _goToNext(_list.first, directPage: page);

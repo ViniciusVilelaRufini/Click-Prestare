@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/utils/local_storage.dart';
@@ -12,6 +13,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_button.dart';
+import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/foundation.dart';
@@ -105,10 +107,45 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
     setState(() {});
   }
 
+  Future<void> _deleteAccount() async {
+    final ok = await showAppConfirmDialog(
+      context,
+      title: 'Excluir minha conta',
+      message: 'Tem certeza que deseja excluir sua conta permanentemente? Esta ação é irreversível e todos os seus dados serão apagados.',
+      confirmLabel: 'Excluir Conta',
+      isDanger: true,
+    );
+    if (!ok) return;
+
+    final success = await apiDeleteAccount();
+    if (!mounted) return;
+
+    if (success) {
+      await showAppDialog(
+        context,
+        title: 'Conta Excluída',
+        message: 'Sua conta foi excluída com sucesso.',
+        icon: PhosphorIcons.checkCircle,
+        iconColor: AppColors.success,
+      );
+      await storageLogout();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+    } else {
+      showAppDialog(
+        context,
+        title: 'Erro',
+        message: 'Não foi possível excluir a conta agora. Tente novamente mais tarde.',
+        icon: PhosphorIcons.warningCircle,
+        iconColor: AppColors.error,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: getText('editar_infos'),
+      title: getText('funcionario_nav_edit'),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -154,13 +191,63 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                   const SizedBox(height: AppSpacing.md),
                   AppInput(label: getText('email'), controller: txtEmail, prefixIcon: PhosphorIcons.envelope, keyboard: TextInputType.emailAddress),
                   const SizedBox(height: AppSpacing.md),
-                  AppInput(label: getText('telefone'), controller: txtTelefone, prefixIcon: PhosphorIcons.phone, keyboard: TextInputType.phone),
+                  AppInput(label: '${getText('telefone')} (Opcional)', controller: txtTelefone, prefixIcon: PhosphorIcons.phone, keyboard: TextInputType.phone),
                   const SizedBox(height: AppSpacing.xl),
                   AppButton(
                     label: getText('btn_save'),
                     onPressed: _isSaving ? null : save,
                     loading: _isSaving,
                     icon: PhosphorIcons.floppyDisk,
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.error.withOpacity(0.25)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 18),
+                            const SizedBox(width: AppSpacing.xs),
+                            Text(
+                              'Zona de Perigo',
+                              style: AppTypography.bodySmall(context).copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          'Ao excluir sua conta, todos os seus dados serão removidos permanentemente.',
+                          style: AppTypography.caption(context).copyWith(
+                            color: AppColors.textSecondary(context),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _deleteAccount,
+                            icon: const Icon(PhosphorIcons.trash, size: 16),
+                            label: const Text('Excluir minha conta'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.error,
+                              side: BorderSide(color: AppColors.error.withOpacity(0.5)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xxxl),
                 ],
