@@ -194,7 +194,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     if (page == null) return;
 
     if (_list.isEmpty) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => page)).then((_) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => page!)).then((_) {
         if (mounted) _loadList();
       });
       return;

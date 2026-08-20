@@ -217,7 +217,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                             const SizedBox(width: AppSpacing.xs),
                             Text(
                               'Zona de Perigo',
-                              style: AppTypography.bodySmall(context).copyWith(
+                              style: AppTypography.captionMedium(context).copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.error,
                               ),
