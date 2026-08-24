@@ -222,7 +222,10 @@ class _HomePageState extends State<HomePage> {
                         variant: AppButtonVariant.primary,
                         trailingIcon: PhosphorIcons.arrowRight,
                         onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const Hello()));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const LoginSindico(loginType: 'sindico')),
+                          );
                         },
                       ),
                       const SizedBox(height: AppSpacing.md),

@@ -421,29 +421,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           ),
         ],
       ),
-      floatingActionButton: getUserType() == 'sindico'
-          ? Container(
-              margin: EdgeInsets.only(bottom: navBarSpace + 12.0),
-              child: FloatingActionButton.extended(
-                onPressed: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SignupCondominuim1(),
-                      )).then((_) {
-                    if (mounted) _loadList();
-                  });
-                },
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                icon: Icon(PhosphorIcons.plus),
-                label: Text(
-                  'Novo',
-                  style: AppTypography.button(context).copyWith(color: Colors.white),
-                ),
-              ),
-            )
-          : null,
     );
   }
 
@@ -790,12 +767,49 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           const SizedBox(height: AppSpacing.xxl),
           _buildDashboard(context),
           const SizedBox(height: AppSpacing.xxl),
-          Text(getText('meus_condominios'),
-              style: AppTypography.title(context)),
-          AppSpacing.gapXs,
-          Text(
-              '${_list.length} ${_list.length == 1 ? "condomínio" : "condomínios"}',
-              style: AppTypography.bodySecondary(context)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(getText('meus_condominios'),
+                        style: AppTypography.title(context)),
+                    AppSpacing.gapXs,
+                    Text(
+                        '${_list.length} ${_list.length == 1 ? "condomínio" : "condomínios"}',
+                        style: AppTypography.bodySecondary(context)),
+                  ],
+                ),
+              ),
+              if (getUserType() == 'sindico')
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SignupCondominuim1(),
+                        )).then((_) {
+                      if (mounted) _loadList();
+                    });
+                  },
+                  icon: const Icon(PhosphorIcons.plus, size: 16),
+                  label: const Text('Novo'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           AppSpacing.gapXl,
         ],
       ),
