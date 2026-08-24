@@ -6,5 +6,6 @@ import { ComunicadosService } from './comunicados.service';
 @Module({
   controllers: [ComunicadosController, ComunicadosMobileController],
   providers: [ComunicadosService],
+  exports: [ComunicadosService],
 })
 export class ComunicadosModule {}
