@@ -74,6 +74,63 @@ apiInsertEncomenda(Map<String, dynamic> obj) async {
   }
 }
 
+apiGetApartamentosEncomendas({int? idCondominio}) async {
+  final condId = idCondominio ?? Singleton.instance.id_condominio;
+  final url = ApiConfig.buildUri('/apartamentos/get-all', {
+    if (condId != 0) 'id_condominio': condId.toString(),
+  });
+  try {
+    final response = await ApiClient.get(
+      url,
+      headers: {"Authorization": getToken()},
+    );
+    if (response.statusCode == 200) {
+      final parsed = jsonDecode(response.body);
+      return parsed is List ? parsed : [];
+    }
+  } catch (e) {
+    print(e);
+  }
+  return [];
+}
+
+apiUpdateEncomenda(int id, Map<String, dynamic> obj) async {
+  var url = ApiConfig.buildUri('/encomendas/update');
+  try {
+    var response = await ApiClient.post(
+      url,
+      headers: {
+        "Authorization": getToken(),
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "id": id,
+        "encomenda": obj,
+      }),
+    );
+    return response.statusCode == 200;
+  } catch (e) {
+    return false;
+  }
+}
+
+apiRemoveEncomenda(int id) async {
+  var url = ApiConfig.buildUri('/encomendas/remove');
+  try {
+    var response = await ApiClient.post(
+      url,
+      headers: {
+        "Authorization": getToken(),
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({"id": id}),
+    );
+    return response.statusCode == 200;
+  } catch (e) {
+    return false;
+  }
+}
+
 /// Pré-registro pelo morador de uma encomenda que vai chegar (ex.: iFood).
 /// [codigoRastreio] é para transportadoras (rastreio); [codigoValidacao] é o
 /// código que o entregador pede (iFood) — ambos opcionais.
