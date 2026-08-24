@@ -185,7 +185,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           : const ListFinanceiro();
     } else if (module == 'occurrences') {
       page = const ListOcorrencias();
-    } else if (module == 'visits') {
+    } else if (module == 'visits' || module == 'inside_condo') {
       page = ListVisitantes(allCondos: _list.isEmpty);
     } else if (module == 'packages') {
       page = ListEncomendas(allCondos: _list.isEmpty);
@@ -925,17 +925,43 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               style: AppTypography.bodyMedium(context)
                   .copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              if (type == 'sindico') ...[
+          if (type == 'funcionario') ...[
+            Row(
+              children: [
                 Expanded(
                   child: _DashboardCard(
-                    title: 'Inadimplência',
-                    value: 'R\$ ${formatMoeda(_summary?['debts']?['total'])}',
-                    subtitle: '${_summary?['debts']?['count'] ?? 0} pendências',
-                    icon: PhosphorIcons.money,
-                    color: AppColors.error,
-                    onTap: () => _onDashboardTap('debts'),
+                    title: 'Encomendas',
+                    value: (_summary?['packages'] ?? 0).toString(),
+                    subtitle: 'Aguardando retirada',
+                    icon: PhosphorIcons.package,
+                    color: AppColors.warning,
+                    onTap: () => _onDashboardTap('packages'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: _DashboardCard(
+                    title: 'Visitantes Hoje',
+                    value: (_summary?['visits_today'] ?? _summary?['visits'] ?? 0).toString(),
+                    subtitle: 'Liberados hoje',
+                    icon: PhosphorIcons.userList,
+                    color: AppColors.primary,
+                    onTap: () => _onDashboardTap('visits'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: _DashboardCard(
+                    title: 'No Condomínio',
+                    value: (_summary?['inside_condo'] ?? 0).toString(),
+                    subtitle: 'Presentes agora',
+                    icon: PhosphorIcons.doorOpen,
+                    color: AppColors.success,
+                    onTap: () => _onDashboardTap('inside_condo'),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -943,37 +969,65 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   child: _DashboardCard(
                     title: 'Ocorrências',
                     value: (_summary?['occurrences'] ?? 0).toString(),
-                    subtitle: 'Aguardando resposta',
+                    subtitle: 'Abertas / Ativas',
                     icon: PhosphorIcons.warningCircle,
-                    color: AppColors.warning,
+                    color: AppColors.error,
                     onTap: () => _onDashboardTap('occurrences'),
                   ),
                 ),
-              ] else if (type == 'morador') ...[
-                Expanded(
-                  child: _DashboardCard(
-                    title: 'Visitas Hoje',
-                    value: (_summary?['visits'] ?? 0).toString(),
-                    subtitle: 'Agendadas para hoje',
-                    icon: PhosphorIcons.userList,
-                    color: AppColors.primary,
-                    onTap: () => _onDashboardTap('visits'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _DashboardCard(
-                    title: 'Encomendas',
-                    value: (_summary?['packages'] ?? 0).toString(),
-                    subtitle: 'Aguardando retirada',
-                    icon: PhosphorIcons.package,
-                    color: AppColors.success,
-                    onTap: () => _onDashboardTap('packages'),
-                  ),
-                ),
               ],
-            ],
-          ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                if (type == 'sindico') ...[
+                  Expanded(
+                    child: _DashboardCard(
+                      title: 'Inadimplência',
+                      value: 'R\$ ${formatMoeda(_summary?['debts']?['total'])}',
+                      subtitle: '${_summary?['debts']?['count'] ?? 0} pendências',
+                      icon: PhosphorIcons.money,
+                      color: AppColors.error,
+                      onTap: () => _onDashboardTap('debts'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: _DashboardCard(
+                      title: 'Ocorrências',
+                      value: (_summary?['occurrences'] ?? 0).toString(),
+                      subtitle: 'Aguardando resposta',
+                      icon: PhosphorIcons.warningCircle,
+                      color: AppColors.warning,
+                      onTap: () => _onDashboardTap('occurrences'),
+                    ),
+                  ),
+                ] else if (type == 'morador') ...[
+                  Expanded(
+                    child: _DashboardCard(
+                      title: 'Visitas Hoje',
+                      value: (_summary?['visits'] ?? 0).toString(),
+                      subtitle: 'Agendadas para hoje',
+                      icon: PhosphorIcons.userList,
+                      color: AppColors.primary,
+                      onTap: () => _onDashboardTap('visits'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: _DashboardCard(
+                      title: 'Encomendas',
+                      value: (_summary?['packages'] ?? 0).toString(),
+                      subtitle: 'Aguardando retirada',
+                      icon: PhosphorIcons.package,
+                      color: AppColors.success,
+                      onTap: () => _onDashboardTap('packages'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ],
       ],
     );
