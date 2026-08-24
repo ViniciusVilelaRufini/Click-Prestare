@@ -634,7 +634,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                   activeIcon: PhosphorIcons.plus,
                   label: 'Registrar',
                   onTap: () {
-                    _encomendasKey.currentState?.showRegisterTrackingDialog(context);
+                    _encomendasKey.currentState?.openAddEncomenda(context);
                   },
                   isAction: true,
                 )

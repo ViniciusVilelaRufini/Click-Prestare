@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:click/controllers/controller_encomendas.dart';
 import 'package:click/models/encomenda_model.dart';
+import 'package:click/pages/shared/encomendas/new_encomenda.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -77,6 +78,19 @@ class ListEncomendasState extends State<ListEncomendas> {
     }
   }
 
+  void openAddEncomenda(BuildContext context) {
+    if (_isStaff) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const NewEncomenda()),
+      ).then((res) {
+        if (res == true) _loadList();
+      });
+    } else {
+      showRegisterTrackingDialog(context);
+    }
+  }
+
   void _abrirDestaqueSeNecessario() {
     if (widget.destacarId == null || _jaAbriuDestaque) return;
     final match = _encomendas.where((e) => e.id == widget.destacarId).toList();
@@ -87,11 +101,21 @@ class ListEncomendasState extends State<ListEncomendas> {
         _EncomendaCard.abrir(
           context,
           match.first,
+          isStaff: _isStaff,
           onRetirada: _loadList,
-          onEdit: _isStaff ? (enc) => _showStaffEncomendaForm(context, encomenda: enc) : null,
-          onDelete: _isStaff ? (enc) => _confirmDeleteEncomenda(enc) : null,
+          onEdit: (enc) => _editarEncomenda(enc),
+          onDelete: (enc) => _confirmDeleteEncomenda(enc),
         );
       }
+    });
+  }
+
+  void _editarEncomenda(EncomendaModel enc) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => NewEncomenda(encomenda: enc)),
+    ).then((res) {
+      if (res == true) _loadList();
     });
   }
 
@@ -132,16 +156,10 @@ class ListEncomendasState extends State<ListEncomendas> {
       safeAreaBottom: !widget.hideAppBar,
       floatingActionButton: widget.showFab
           ? FloatingActionButton.extended(
-              heroTag: 'register_tracking',
+              heroTag: 'register_tracking_fab',
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              onPressed: () {
-                if (_isStaff) {
-                  _showStaffEncomendaForm(context);
-                } else {
-                  showRegisterTrackingDialog(context);
-                }
-              },
+              onPressed: () => openAddEncomenda(context),
               icon: const Icon(PhosphorIcons.plus, color: Colors.white, size: 20),
               label: Text(
                 _isStaff ? 'Nova Encomenda' : 'Avisar Encomenda',
@@ -151,13 +169,12 @@ class ListEncomendasState extends State<ListEncomendas> {
           : null,
       body: Column(
         children: [
-          // Barra de busca e filtros (apenas se houver itens ou se for staff)
           Padding(
             padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Campo de Busca
+                // Barra de Busca
                 Container(
                   decoration: BoxDecoration(
                     color: AppColors.surface(context),
@@ -248,11 +265,12 @@ class ListEncomendasState extends State<ListEncomendas> {
                             itemCount: lista.length,
                             itemBuilder: (context, index) {
                               return _EncomendaCard(
+                                key: ValueKey(lista[index].id),
                                 encomenda: lista[index],
                                 isStaff: _isStaff,
                                 onRetirada: _loadList,
-                                onEdit: _isStaff ? (enc) => _showStaffEncomendaForm(context, encomenda: enc) : null,
-                                onDelete: _isStaff ? (enc) => _confirmDeleteEncomenda(enc) : null,
+                                onEdit: (enc) => _editarEncomenda(enc),
+                                onDelete: (enc) => _confirmDeleteEncomenda(enc),
                               );
                             },
                           ),
@@ -306,7 +324,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                   color: AppColors.primary.withOpacity(0.08),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(PhosphorIcons.package, size: 56, color: AppColors.primary),
+                child: const Icon(PhosphorIcons.package, size: 56, color: AppColors.primary),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(
@@ -321,7 +339,7 @@ class ListEncomendasState extends State<ListEncomendas> {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 _isStaff
-                    ? 'Toque no botão "+ Nova Encomenda" abaixo para registrar uma entrega de morador.'
+                    ? 'Toque no botão "+ Nova Encomenda" abaixo para registrar a chegada de um pacote.'
                     : 'Suas encomendas recebidas pela portaria aparecerão aqui.',
                 style: AppTypography.bodySecondary(context),
                 textAlign: TextAlign.center,
@@ -329,7 +347,7 @@ class ListEncomendasState extends State<ListEncomendas> {
               if (_isStaff) ...[
                 const SizedBox(height: AppSpacing.xl),
                 ElevatedButton.icon(
-                  onPressed: () => _showStaffEncomendaForm(context),
+                  onPressed: () => openAddEncomenda(context),
                   icon: const Icon(PhosphorIcons.plus, size: 18),
                   label: const Text('Cadastrar Nova Encomenda'),
                   style: ElevatedButton.styleFrom(
@@ -347,12 +365,12 @@ class ListEncomendasState extends State<ListEncomendas> {
     );
   }
 
-  /// Exclusão de encomenda pelo síndico ou funcionário
   Future<void> _confirmDeleteEncomenda(EncomendaModel enc) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface(ctx),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Excluir Encomenda'),
         content: Text('Deseja realmente remover a encomenda "${enc.descricao}" do Apto ${enc.destinatarioApto}?'),
         actions: [
@@ -382,460 +400,7 @@ class ListEncomendasState extends State<ListEncomendas> {
     }
   }
 
-  /// Formulário de Cadastro / Edição de Encomenda para Funcionário e Síndico
-  void _showStaffEncomendaForm(BuildContext context, {EncomendaModel? encomenda}) {
-    final isEdit = encomenda != null;
-    final formKey = GlobalKey<FormState>();
-    final txtDescricao = TextEditingController(text: encomenda?.descricao ?? '');
-    final txtCodigo = TextEditingController(text: encomenda?.codigoRastreio ?? '');
-    final txtAptoManual = TextEditingController(text: encomenda?.destinatarioApto ?? '');
-    final txtBlocoManual = TextEditingController(text: encomenda?.destinatarioBloco ?? '');
-
-    String selectedCarrier = encomenda?.recebidoDe ?? 'Correios';
-    Map<String, dynamic>? selectedApartamento;
-    List<dynamic> apartamentos = [];
-    bool loadingAptos = true;
-    Uint8List? fotoBytes;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (modalContext, setModalState) {
-            if (loadingAptos) {
-              apiGetApartamentosEncomendas().then((list) {
-                if (modalContext.mounted) {
-                  setModalState(() {
-                    apartamentos = list;
-                    loadingAptos = false;
-                    if (isEdit && encomenda.destinatarioApto != null) {
-                      final found = apartamentos.firstWhere(
-                        (a) =>
-                            a['apto']?.toString() == encomenda.destinatarioApto &&
-                            (encomenda.destinatarioBloco == null ||
-                                a['bloco']?.toString() == encomenda.destinatarioBloco),
-                        orElse: () => null,
-                      );
-                      if (found != null) selectedApartamento = found;
-                    }
-                  });
-                }
-              });
-            }
-
-            Future<void> anexarFoto() async {
-              final img = await getPhoto(modalContext);
-              if (img == null) return;
-              final bytes = await img.readAsBytes();
-              setModalState(() => fotoBytes = bytes);
-            }
-
-            return Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(modalContext).size.height * 0.90,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.surface(modalContext),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.md,
-                AppSpacing.xl,
-                MediaQuery.of(modalContext).viewInsets.bottom + MediaQuery.of(modalContext).padding.bottom + AppSpacing.lg,
-              ),
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 38,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: AppColors.textTertiary(modalContext).withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      Row(
-                        children: [
-                          Icon(
-                            isEdit ? PhosphorIcons.pencilSimple : PhosphorIcons.package,
-                            color: AppColors.primary,
-                            size: 24,
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: Text(
-                              isEdit ? 'Editar Encomenda' : 'Registrar Encomenda',
-                              style: AppTypography.headline(modalContext).copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        'Registre a chegada de volumes na portaria. Os moradores da unidade serão notificados imediatamente.',
-                        style: AppTypography.caption(modalContext),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-
-                      // Seletor de Unidade / Apartamento
-                      if (loadingAptos)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: LinearProgressIndicator(color: AppColors.primary),
-                        )
-                      else if (apartamentos.isNotEmpty) ...[
-                        DropdownButtonFormField<Map<String, dynamic>>(
-                          value: selectedApartamento,
-                          isExpanded: true,
-                          decoration: InputDecoration(
-                            labelText: 'Unidade de Destino *',
-                            labelStyle: AppTypography.caption(modalContext),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            prefixIcon: const Icon(PhosphorIcons.buildings, size: 20),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          ),
-                          dropdownColor: AppColors.surface(modalContext),
-                          icon: const Icon(PhosphorIcons.caretDown, size: 18),
-                          items: apartamentos.map((apt) {
-                            final bloco = apt['bloco']?.toString() ?? '';
-                            final numero = apt['apto']?.toString() ?? apt['numero']?.toString() ?? '';
-                            final moradores = (apt['moradores'] as List<dynamic>?)?.join(', ') ?? '';
-                            final label = bloco.isNotEmpty ? 'Bloco $bloco - Apto $numero' : 'Apto $numero';
-
-                            return DropdownMenuItem<Map<String, dynamic>>(
-                              value: apt,
-                              child: Text(
-                                moradores.isNotEmpty ? '$label ($moradores)' : label,
-                                style: AppTypography.bodySecondary(modalContext).copyWith(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          validator: (val) {
-                            if (val == null && txtAptoManual.text.trim().isEmpty) {
-                              return 'Selecione ou informe a unidade de destino';
-                            }
-                            return null;
-                          },
-                          onChanged: (val) {
-                            setModalState(() {
-                              selectedApartamento = val;
-                              if (val != null) {
-                                txtAptoManual.text = val['apto']?.toString() ?? '';
-                                txtBlocoManual.text = val['bloco']?.toString() ?? '';
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                      ] else ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: txtAptoManual,
-                                decoration: InputDecoration(
-                                  labelText: 'Apartamento *',
-                                  labelStyle: AppTypography.caption(modalContext),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                                validator: (v) => v == null || v.trim().isEmpty ? 'Obrigatório' : null,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: TextFormField(
-                                controller: txtBlocoManual,
-                                decoration: InputDecoration(
-                                  labelText: 'Bloco',
-                                  labelStyle: AppTypography.caption(modalContext),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                      ],
-
-                      // Descrição
-                      TextFormField(
-                        controller: txtDescricao,
-                        decoration: InputDecoration(
-                          labelText: 'Descrição da Encomenda *',
-                          hintText: 'Ex.: Caixa Amazon, Envelope Correios, Mercado Livre',
-                          labelStyle: AppTypography.caption(modalContext),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          prefixIcon: const Icon(PhosphorIcons.package, size: 20),
-                        ),
-                        validator: (v) => v == null || v.trim().isEmpty ? 'Informe uma descrição' : null,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Transportadora
-                      DropdownButtonFormField<String>(
-                        value: selectedCarrier,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          labelText: 'Transportadora / Entregador *',
-                          labelStyle: AppTypography.caption(modalContext),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        ),
-                        dropdownColor: AppColors.surface(modalContext),
-                        icon: const Icon(PhosphorIcons.caretDown, size: 18),
-                        items: ['Correios', 'Mercado Livre', 'Amazon', 'Shopee', 'Loggi', 'Sedex', 'iFood', 'Jadlog', 'Outro']
-                            .map((c) {
-                          final vis = _carrierVisual(c);
-                          return DropdownMenuItem<String>(
-                            value: c,
-                            child: Row(
-                              children: [
-                                Icon(vis.icon, size: 18, color: vis.color),
-                                const SizedBox(width: 10),
-                                Text(
-                                  c,
-                                  style: AppTypography.bodySecondary(modalContext).copyWith(
-                                    color: AppColors.textPrimary(modalContext),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setModalState(() => selectedCarrier = val);
-                          }
-                        },
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Código de Rastreio (com leitor de código de barras)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: txtCodigo,
-                              decoration: InputDecoration(
-                                labelText: 'Código de Rastreio (opcional)',
-                                hintText: 'Código de barras ou número',
-                                labelStyle: AppTypography.caption(modalContext),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                prefixIcon: const Icon(PhosphorIcons.barcode, size: 20),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: IconButton(
-                              icon: const Icon(PhosphorIcons.barcode, color: AppColors.primary),
-                              tooltip: 'Escanear código de barras',
-                              onPressed: () async {
-                                final scannedCode = await Navigator.push<String>(
-                                  modalContext,
-                                  MaterialPageRoute(builder: (_) => _BarcodeScannerPage()),
-                                );
-                                if (scannedCode != null) {
-                                  setModalState(() {
-                                    txtCodigo.text = scannedCode;
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Foto do Volume
-                      if (fotoBytes != null) ...[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.memory(
-                            fotoBytes!,
-                            height: 140,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton.icon(
-                              onPressed: anexarFoto,
-                              icon: const Icon(PhosphorIcons.arrowsClockwise, size: 16),
-                              label: const Text('Trocar Foto'),
-                            ),
-                            TextButton.icon(
-                              onPressed: () => setModalState(() => fotoBytes = null),
-                              icon: const Icon(PhosphorIcons.trash, size: 16, color: Colors.redAccent),
-                              label: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        OutlinedButton.icon(
-                          onPressed: anexarFoto,
-                          icon: const Icon(PhosphorIcons.camera, size: 18),
-                          label: Text(
-                            isEdit && (encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty)
-                                ? 'Alterar foto da encomenda (opcional)'
-                                : 'Tirar foto do pacote (opcional)',
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.xl),
-
-                      // Botões Cancelar / Salvar
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.pop(modalContext),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              child: const Text('Cancelar'),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            flex: 2,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: () async {
-                                if (formKey.currentState?.validate() ?? false) {
-                                  final apto = selectedApartamento?['apto']?.toString() ?? txtAptoManual.text.trim();
-                                  final bloco = selectedApartamento?['bloco']?.toString() ?? txtBlocoManual.text.trim();
-                                  final fotoBase64 = fotoBytes != null ? 'data:image/jpeg;base64,${base64Encode(fotoBytes!)}' : null;
-
-                                  final payload = {
-                                    'descricao': txtDescricao.text.trim(),
-                                    'destinatario_apto': apto,
-                                    'destinatario_bloco': bloco.isNotEmpty ? bloco : null,
-                                    'recebido_de': selectedCarrier,
-                                    'codigo_rastreio': txtCodigo.text.trim().isNotEmpty ? txtCodigo.text.trim() : null,
-                                    if (fotoBase64 != null) 'foto_volume': fotoBase64,
-                                  };
-
-                                  bool success;
-                                  if (isEdit && encomenda.id != null) {
-                                    success = await apiUpdateEncomenda(encomenda.id!, payload);
-                                  } else {
-                                    success = await apiInsertEncomenda(payload);
-                                  }
-
-                                  if (modalContext.mounted) {
-                                    Navigator.pop(modalContext);
-                                  }
-
-                                  if (mounted) {
-                                    if (success) {
-                                      _loadList();
-                                      displayMessage(
-                                        context,
-                                        'Sucesso',
-                                        isEdit
-                                            ? 'Encomenda atualizada com sucesso!'
-                                            : 'Encomenda registrada e moradores notificados!',
-                                      );
-                                    } else {
-                                      displayMessage(context, 'Erro', 'Falha ao salvar encomenda. Verifique os dados.');
-                                    }
-                                  }
-                                }
-                              },
-                              child: Text(
-                                isEdit ? 'Salvar Alterações' : 'Registrar Encomenda',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  /// iFood e delivery de comida usam código de validação (não rastreio).
-  bool _isDeliveryCarrier(String carrier) {
-    final c = carrier.toLowerCase();
-    return c.contains('ifood') || c.contains('food') || c.contains('delivery');
-  }
-
-  /// Ícone + cor de marca de cada transportadora (para os chips do seletor).
-  ({IconData icon, Color color}) _carrierVisual(String carrier) {
-    final c = carrier.toLowerCase();
-    if (c.contains('ifood') || c.contains('food') || c.contains('delivery')) {
-      return (icon: PhosphorIcons.hamburger, color: const Color(0xFFEA1D2C));
-    }
-    if (c.contains('mercado')) {
-      return (icon: PhosphorIcons.handshake, color: const Color(0xFFF2C200));
-    }
-    if (c.contains('amazon')) {
-      return (icon: PhosphorIcons.shoppingCart, color: const Color(0xFFFF9900));
-    }
-    if (c.contains('correios') || c.contains('sedex')) {
-      return (icon: PhosphorIcons.envelopeSimple, color: const Color(0xFF005DA5));
-    }
-    if (c.contains('shopee')) {
-      return (icon: PhosphorIcons.shoppingCart, color: const Color(0xFFEE4D2D));
-    }
-    if (c.contains('dhl')) {
-      return (icon: PhosphorIcons.truck, color: const Color(0xFFD40511));
-    }
-    if (c.contains('fedex')) {
-      return (icon: PhosphorIcons.truck, color: const Color(0xFF4D148C));
-    }
-    if (c.contains('loggi')) {
-      return (icon: PhosphorIcons.truck, color: const Color(0xFF00A3E0));
-    }
-    if (c.contains('jadlog')) {
-      return (icon: PhosphorIcons.truck, color: const Color(0xFFE30613));
-    }
-    return (icon: PhosphorIcons.package, color: AppColors.primary);
-  }
-
+  /// Dialog de aviso de encomenda esperado pelo morador (iFood/Correios)
   void showRegisterTrackingDialog(BuildContext context) {
     final formKey = GlobalKey<FormState>();
     final txtDescricao = TextEditingController();
@@ -850,6 +415,7 @@ class ListEncomendasState extends State<ListEncomendas> {
           builder: (context, setState) {
             return AlertDialog(
               backgroundColor: AppColors.surface(context),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               title: Text(
                 'Aviso de Encomenda',
                 style: AppTypography.body(context).copyWith(fontWeight: FontWeight.bold),
@@ -861,7 +427,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Avise que uma encomenda vai chegar. Para iFood/delivery, informe o código de validação (se o pedido exigir) para o porteiro receber por você.',
+                        'Avise que uma encomenda vai chegar. Para iFood/delivery, informe o código de validação para a portaria receber por você.',
                         style: AppTypography.caption(context),
                       ),
                       const SizedBox(height: 16),
@@ -870,7 +436,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                         decoration: InputDecoration(
                           labelText: 'Descrição (Ex: Livro, Roupa)',
                           labelStyle: AppTypography.caption(context),
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         validator: (value) => value == null || value.isEmpty ? 'Campo obrigatório' : null,
                       ),
@@ -881,35 +447,16 @@ class ListEncomendasState extends State<ListEncomendas> {
                         decoration: InputDecoration(
                           labelText: 'Transportadora',
                           labelStyle: AppTypography.caption(context),
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         ),
                         dropdownColor: AppColors.surface(context),
                         icon: const Icon(PhosphorIcons.caretDown, size: 18),
                         items: ['Correios', 'iFood', 'Mercado Livre', 'Amazon', 'Loggi', 'Outro']
-                            .map((c) {
-                          final vis = _carrierVisual(c);
-                          return DropdownMenuItem<String>(
-                            value: c,
-                            child: Row(
-                              children: [
-                                Icon(vis.icon, size: 18, color: vis.color),
-                                const SizedBox(width: 10),
-                                Text(
-                                  c,
-                                  style: AppTypography.bodySecondary(context).copyWith(
-                                    color: AppColors.textPrimary(context),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                            .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                            .toList(),
                         onChanged: (val) {
-                          if (val != null) {
-                            setState(() => selectedCarrier = val);
-                          }
+                          if (val != null) setState(() => selectedCarrier = val);
                         },
                       ),
                       const SizedBox(height: 12),
@@ -921,38 +468,17 @@ class ListEncomendasState extends State<ListEncomendas> {
                             labelText: 'Código de validação (opcional)',
                             hintText: 'Ex.: código que o iFood pede na entrega',
                             labelStyle: AppTypography.caption(context),
-                            border: const OutlineInputBorder(),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         )
                       else
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: txtCodigo,
-                                decoration: InputDecoration(
-                                  labelText: 'Código de Rastreio (opcional)',
-                                  labelStyle: AppTypography.caption(context),
-                                  border: const OutlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(PhosphorIcons.barcode, color: AppColors.primary),
-                              onPressed: () async {
-                                final scannedCode = await Navigator.push<String>(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => _BarcodeScannerPage()),
-                                );
-                                if (scannedCode != null) {
-                                  setState(() {
-                                    txtCodigo.text = scannedCode;
-                                  });
-                                }
-                              },
-                            ),
-                          ],
+                        TextFormField(
+                          controller: txtCodigo,
+                          decoration: InputDecoration(
+                            labelText: 'Código de Rastreio (opcional)',
+                            labelStyle: AppTypography.caption(context),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
                         ),
                     ],
                   ),
@@ -965,7 +491,6 @@ class ListEncomendasState extends State<ListEncomendas> {
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: AppColors.textTertiary(context).withOpacity(0.3)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
@@ -998,13 +523,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                           }
                         }
                       },
-                      child: const Text(
-                        'Cadastrar',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      child: const Text('Cadastrar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -1014,6 +533,11 @@ class ListEncomendasState extends State<ListEncomendas> {
         );
       },
     );
+  }
+
+  bool _isDeliveryCarrier(String carrier) {
+    final c = carrier.toLowerCase();
+    return c.contains('ifood') || c.contains('food') || c.contains('delivery');
   }
 }
 
@@ -1025,12 +549,13 @@ class _EncomendaCard extends StatelessWidget {
   final void Function(EncomendaModel)? onDelete;
 
   const _EncomendaCard({
+    Key? key,
     required this.encomenda,
     this.isStaff = false,
     this.onRetirada,
     this.onEdit,
     this.onDelete,
-  });
+  }) : super(key: key);
 
   static void abrir(
     BuildContext context,
@@ -1040,7 +565,7 @@ class _EncomendaCard extends StatelessWidget {
     void Function(EncomendaModel)? onEdit,
     void Function(EncomendaModel)? onDelete,
   }) {
-    final statusLower = encomenda.status?.toLowerCase() ?? '';
+    final statusLower = (encomenda.status ?? '').toLowerCase();
     final isRetirado = statusLower == 'retirado' || statusLower == 'retirada' || statusLower == 'entregue';
     Color statusColor;
     if (isRetirado) {
@@ -1163,7 +688,7 @@ class _EncomendaCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.xl),
                     Row(
                       children: [
-                        Icon(PhosphorIcons.checkCircle, color: Colors.green, size: 24),
+                        const Icon(PhosphorIcons.checkCircle, color: Colors.green, size: 24),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
@@ -1290,62 +815,71 @@ class _EncomendaCard extends StatelessWidget {
     
     IconData iconData = PhosphorIcons.package;
     Color iconColor = AppColors.primary;
-    Color bgColor = AppColors.primary.withOpacity(0.1);
+    Color bgColor = AppColors.primary.withOpacity(0.12);
 
     if (recebidoDe.contains('ifood') || recebidoDe.contains('food') || recebidoDe.contains('delivery') || recebidoDe.contains('pizza') || recebidoDe.contains('lanche')) {
       iconData = PhosphorIcons.hamburger;
-      iconColor = Colors.red;
-      bgColor = Colors.red.withOpacity(0.1);
+      iconColor = const Color(0xFFEA1D2C);
+      bgColor = const Color(0xFFEA1D2C).withOpacity(0.12);
     } else if (recebidoDe.contains('mercado livre') || recebidoDe.contains('mercado') || recebidoDe.contains('ml')) {
       iconData = PhosphorIcons.handshake;
-      iconColor = const Color(0xFFFEE600);
-      bgColor = const Color(0xFFFEE600).withOpacity(0.1);
+      iconColor = const Color(0xFFE5B800);
+      bgColor = const Color(0xFFF2C200).withOpacity(0.15);
     } else if (recebidoDe.contains('amazon')) {
       iconData = PhosphorIcons.shoppingCart;
       iconColor = const Color(0xFFFF9900);
-      bgColor = const Color(0xFFFF9900).withOpacity(0.1);
+      bgColor = const Color(0xFFFF9900).withOpacity(0.12);
     } else if (recebidoDe.contains('correios') || recebidoDe.contains('sedex') || recebidoDe.contains('pac')) {
       iconData = PhosphorIcons.envelopeSimple;
       iconColor = const Color(0xFF005DA5);
-      bgColor = const Color(0xFF005DA5).withOpacity(0.1);
+      bgColor = const Color(0xFF005DA5).withOpacity(0.12);
     } else if (recebidoDe.contains('shopee')) {
       iconData = PhosphorIcons.shoppingBag;
       iconColor = const Color(0xFFEE4D2D);
-      bgColor = const Color(0xFFEE4D2D).withOpacity(0.1);
-    } else if (recebidoDe.contains('dhl')) {
+      bgColor = const Color(0xFFEE4D2D).withOpacity(0.12);
+    } else if (recebidoDe.contains('dhl') || recebidoDe.contains('jadlog')) {
       iconData = PhosphorIcons.truck;
-      iconColor = const Color(0xFFFFCC00);
-      bgColor = const Color(0xFFFFCC00).withOpacity(0.1);
+      iconColor = const Color(0xFFE30613);
+      bgColor = const Color(0xFFE30613).withOpacity(0.12);
     } else if (recebidoDe.contains('fedex')) {
       iconData = PhosphorIcons.truck;
       iconColor = const Color(0xFF4D148C);
-      bgColor = const Color(0xFF4D148C).withOpacity(0.1);
+      bgColor = const Color(0xFF4D148C).withOpacity(0.12);
+    } else if (recebidoDe.contains('loggi')) {
+      iconData = PhosphorIcons.truck;
+      iconColor = const Color(0xFF00A3E0);
+      bgColor = const Color(0xFF00A3E0).withOpacity(0.12);
     }
 
     return Container(
-      width: 52,
-      height: 52,
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Icon(iconData, color: iconColor, size: 28),
+      child: Icon(iconData, color: iconColor, size: 24),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusLower = encomenda.status?.toLowerCase() ?? '';
+    final statusLower = (encomenda.status ?? '').toLowerCase();
     final isRetirado = statusLower == 'retirado' || statusLower == 'retirada' || statusLower == 'entregue';
     Color statusColor;
+    String statusText;
     if (isRetirado) {
       statusColor = Colors.green;
+      statusText = 'ENTREGUE';
     } else if (statusLower == 'cancelado' || statusLower == 'recusado') {
       statusColor = Colors.red;
+      statusText = 'CANCELADO';
     } else if (statusLower == 'esperando') {
       statusColor = Colors.blue;
+      statusText = 'A CHEGAR';
     } else {
       statusColor = Colors.orange;
+      statusText = 'AGUARDANDO RETIRADA';
     }
     
     String dataFormatada = '';
@@ -1360,204 +894,244 @@ class _EncomendaCard extends StatelessWidget {
       dataFormatada = 'Aguardando chegada';
     }
 
-    return GestureDetector(
-      onTap: () => _showEncomendaDetails(context, dataFormatada, statusColor),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.md),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border(context).withOpacity(0.5)),
-        ),
-        child: Column(
-          children: [
-            Row(
+    final hasPhoto = encomenda.fotoVolume != null && encomenda.fotoVolume!.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.border(context)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: () => _showEncomendaDetails(context, dataFormatada, statusColor),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildBrandIcon(context),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Tag de Unidade / Apartamento
-                      if (encomenda.destinatarioApto != null && encomenda.destinatarioApto!.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? "Bloco " + encomenda.destinatarioBloco! + " — " : ""}Apto ${encomenda.destinatarioApto}',
-                            style: AppTypography.tiny(context).copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                // Top Header Row: Unidade Badge + Status Pill
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (encomenda.destinatarioApto != null && encomenda.destinatarioApto!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        const SizedBox(height: 4),
-                      ],
-                      Text(
-                        encomenda.descricao ?? 'Encomenda sem descrição',
-                        style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
-                        maxLines: 2, overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(PhosphorIcons.truck, size: 14, color: AppColors.textTertiary(context)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              'Transportadora: ${encomenda.recebidoDe ?? "N/A"}',
-                              style: AppTypography.caption(context),
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Icon(PhosphorIcons.calendar, size: 14, color: AppColors.textTertiary(context)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              statusLower == 'esperando' ? dataFormatada : 'Chegada: $dataFormatada',
-                              style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (isRetirado && encomenda.retiradoPor != null) ...[
-                        const SizedBox(height: 4),
-                        Row(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(PhosphorIcons.checkCircle, size: 14, color: Colors.green),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                'Entregue para: ${encomenda.retiradoPor}',
-                                style: AppTypography.caption(context).copyWith(color: Colors.green, fontWeight: FontWeight.w500),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            const Icon(PhosphorIcons.buildings, size: 13, color: AppColors.primary),
+                            const SizedBox(width: 5),
+                            Text(
+                              '${encomenda.destinatarioBloco != null && encomenda.destinatarioBloco!.isNotEmpty ? "Bloco " + encomenda.destinatarioBloco! + " • " : ""}Apto ${encomenda.destinatarioApto}',
+                              style: AppTypography.tiny(context).copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
+                      )
+                    else
+                      const SizedBox.shrink(),
+
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                        border: Border.all(color: statusColor.withOpacity(0.25)),
                       ),
-                      child: Text(
-                        statusLower == 'esperando' ? 'A CHEGAR' : (encomenda.status?.toUpperCase() ?? 'PENDENTE'),
-                        style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: statusColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            statusText,
+                            style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
                     ),
-                    if (isStaff) ...[
-                      const SizedBox(height: 6),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Main Info Row: Icon + Description + Date + Photo Thumbnail
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildBrandIcon(context),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            encomenda.descricao ?? 'Encomenda sem descrição',
+                            style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(PhosphorIcons.truck, size: 14, color: AppColors.textTertiary(context)),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'Transportadora: ${encomenda.recebidoDe ?? "N/A"}',
+                                  style: AppTypography.caption(context).copyWith(
+                                    color: AppColors.textSecondary(context),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(PhosphorIcons.clock, size: 14, color: AppColors.textTertiary(context)),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  statusLower == 'esperando' ? dataFormatada : 'Chegada: $dataFormatada',
+                                  style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (isRetirado && encomenda.retiradoPor != null) ...[
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                const Icon(PhosphorIcons.checkCircle, size: 14, color: Colors.green),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'Entregue para: ${encomenda.retiradoPor}',
+                                    style: AppTypography.caption(context).copyWith(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (hasPhoto) ...[
+                      const SizedBox(width: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 52,
+                          height: 52,
+                          color: AppColors.surfaceElevated(context),
+                          child: Image.network(
+                            encomenda.fotoVolume!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(PhosphorIcons.imageSquare, size: 22, color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+
+                // Bottom Action Buttons for Staff
+                if (isStaff) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  const Divider(height: 1),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      // Opções extras (excluir)
                       PopupMenuButton<String>(
                         icon: Icon(PhosphorIcons.dotsThreeVertical, size: 18, color: AppColors.textSecondary(context)),
                         padding: EdgeInsets.zero,
                         color: AppColors.surfaceElevated(context),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         onSelected: (val) {
-                          if (val == 'edit') onEdit?.call(encomenda);
                           if (val == 'delete') onDelete?.call(encomenda);
-                          if (val == 'deliver') _abrirRetirada(context);
                         },
                         itemBuilder: (ctx) => [
-                          if (!isRetirado)
-                            const PopupMenuItem(
-                              value: 'deliver',
-                              child: Row(
-                                children: [
-                                  Icon(PhosphorIcons.checkCircle, color: Colors.green, size: 18),
-                                  SizedBox(width: 8),
-                                  Text('Dar Baixa / Entregar'),
-                                ],
-                              ),
-                            ),
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Row(
-                              children: [
-                                Icon(PhosphorIcons.pencilSimple, size: 18),
-                                SizedBox(width: 8),
-                                Text('Editar'),
-                              ],
-                            ),
-                          ),
                           const PopupMenuItem(
                             value: 'delete',
                             child: Row(
                               children: [
                                 Icon(PhosphorIcons.trash, color: Colors.redAccent, size: 18),
                                 SizedBox(width: 8),
-                                Text('Excluir', style: TextStyle(color: Colors.redAccent)),
+                                Text('Excluir Encomenda', style: TextStyle(color: Colors.redAccent)),
                               ],
                             ),
                           ),
                         ],
                       ),
+                      const Spacer(),
+                      OutlinedButton.icon(
+                        onPressed: () => onEdit?.call(encomenda),
+                        icon: const Icon(PhosphorIcons.pencilSimple, size: 14),
+                        label: const Text('Editar'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      if (!isRetirado) ...[
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _abrirRetirada(context),
+                          icon: const Icon(PhosphorIcons.checkCircle, size: 16),
+                          label: const Text('Dar Baixa'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ],
-            ),
-
-            // Botão de Ação Rápida para Staff (quando pendente)
-            if (isStaff && !isRetirado) ...[
-              const SizedBox(height: AppSpacing.sm),
-              const Divider(height: 1),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () => onEdit?.call(encomenda),
-                    icon: const Icon(PhosphorIcons.pencilSimple, size: 14),
-                    label: const Text('Editar'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: () => _abrirRetirada(context),
-                    icon: const Icon(PhosphorIcons.check, size: 14),
-                    label: const Text('Dar Baixa / Entregar'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
                   ),
                 ],
-              ),
-            ],
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -1634,7 +1208,7 @@ class _EncomendaCard extends StatelessWidget {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 36),
+                                const Icon(PhosphorIcons.warningCircle, color: AppColors.error, size: 36),
                                 const SizedBox(height: 8),
                                 Text(
                                   'Erro ao carregar imagem',
@@ -1645,27 +1219,6 @@ class _EncomendaCard extends StatelessWidget {
                           );
                         },
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                ] else ...[
-                  Container(
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.primary.withOpacity(0.1)),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(PhosphorIcons.package, color: AppColors.primary.withOpacity(0.6), size: 40),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Sem foto registrada do volume',
-                          style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
-                        ),
-                      ],
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -1684,24 +1237,6 @@ class _EncomendaCard extends StatelessWidget {
                         icon: PhosphorIcons.package,
                         label: 'Descrição',
                         value: encomenda.descricao ?? 'Sem descrição',
-                      ),
-                      const Divider(height: 24),
-                      _buildDetailRow(
-                        context,
-                        icon: PhosphorIcons.package,
-                        label: 'Status',
-                        widgetValue: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: statusColor.withOpacity(0.3)),
-                          ),
-                          child: Text(
-                            encomenda.status?.toUpperCase() ?? 'PENDENTE',
-                            style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                        ),
                       ),
                       const Divider(height: 24),
                       _buildDetailRow(
@@ -1770,77 +1305,6 @@ class _EncomendaCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (encomenda.retiradoFoto != null && encomenda.retiradoFoto!.isNotEmpty ||
-                    encomenda.retiradoAssinatura != null && encomenda.retiradoAssinatura!.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  Text(
-                    'Comprovante de Retirada',
-                    style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated(context),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.03)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (encomenda.retiradoFoto != null && encomenda.retiradoFoto!.isNotEmpty) ...[
-                          Text(
-                            'Foto do Recebedor',
-                            style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context)),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              height: 180,
-                              width: double.infinity,
-                              color: AppColors.surface(context),
-                              child: Image.network(
-                                encomenda.retiradoFoto!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Center(
-                                  child: Icon(PhosphorIcons.imageSquare, size: 32, color: Colors.grey),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (encomenda.retiradoAssinatura != null && encomenda.retiradoAssinatura!.isNotEmpty)
-                            const SizedBox(height: AppSpacing.md),
-                        ],
-                        if (encomenda.retiradoAssinatura != null && encomenda.retiradoAssinatura!.isNotEmpty) ...[
-                          Text(
-                            'Assinatura Digital',
-                            style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context)),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            height: 100,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.all(8),
-                            child: Image.network(
-                              encomenda.retiradoAssinatura!,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => const Center(
-                                child: Icon(Icons.border_color, size: 32, color: Colors.grey),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
                 const SizedBox(height: AppSpacing.xl),
                 if (!_jaRetirada) ...[
                   ElevatedButton.icon(
@@ -1945,60 +1409,6 @@ class _EncomendaCard extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _BarcodeScannerPage extends StatefulWidget {
-  @override
-  __BarcodeScannerPageState createState() => __BarcodeScannerPageState();
-}
-
-class __BarcodeScannerPageState extends State<_BarcodeScannerPage> {
-  final MobileScannerController _controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    facing: CameraFacing.back,
-  );
-  bool _scanned = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Escanear Código',
-      body: Stack(
-        children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: (capture) {
-              if (_scanned) return;
-              final List<Barcode> barcodes = capture.barcodes;
-              if (barcodes.isNotEmpty) {
-                final code = barcodes.first.rawValue;
-                if (code != null && code.isNotEmpty) {
-                  setState(() => _scanned = true);
-                  Navigator.pop(context, code);
-                }
-              }
-            },
-          ),
-          Center(
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.primary, width: 3),
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
