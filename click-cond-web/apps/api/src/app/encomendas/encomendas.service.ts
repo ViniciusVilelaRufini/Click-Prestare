@@ -536,6 +536,35 @@ export class EncomendasService implements OnModuleInit {
     return encomenda;
   }
 
+  async update(id: number, dto: Partial<CreateEncomendaDto>, operador?: JwtPayload) {
+    if (!this.prisma.isConnected) return { id, ...dto };
+    const existing = await this.prisma.encomendas.findUnique({
+      where: { id: Number(id) },
+      select: { id_condominio: true },
+    });
+    if (!existing) throw new NotFoundException(`Encomenda ${id} não encontrada`);
+    await this.tenant.assertEntidade(existing.id_condominio, operador, `encomenda #${id}`);
+
+    let fotoUrl = dto.foto_volume;
+    if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
+      fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? null;
+    }
+
+    const updated = await this.prisma.encomendas.update({
+      where: { id: Number(id) },
+      data: {
+        ...(dto.descricao !== undefined && { descricao: dto.descricao }),
+        ...(dto.destinatario_apto !== undefined && { destinatario_apto: dto.destinatario_apto }),
+        ...(dto.destinatario_bloco !== undefined && { destinatario_bloco: dto.destinatario_bloco ?? null }),
+        ...(dto.recebido_de !== undefined && { recebido_de: dto.recebido_de ?? null }),
+        ...(dto.codigo_rastreio !== undefined && { codigo_rastreio: dto.codigo_rastreio ?? null }),
+        ...(fotoUrl !== undefined && { foto_volume: fotoUrl }),
+      },
+    });
+
+    return updated;
+  }
+
   async remove(id: number, operador?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
     // Carrega contexto + id_condominio ANTES de deletar — depois sumiu.

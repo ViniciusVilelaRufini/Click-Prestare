@@ -3154,9 +3154,42 @@ export class MobileAuthService {
   // ENCOMENDAS (MOBILE)
   // ==========================================
 
-  async listEncomendasByUser(idUser: number) {
+  async listEncomendasByUser(idUser: number, idCondominio?: number, typeAccess?: string, status?: string) {
     try {
       if (this.prisma.isConnected) {
+        const type = (typeAccess ?? '').toLowerCase();
+
+        // Se for Síndico ou Funcionário, retorna as encomendas do condomínio
+        if (type === 'sindico' || type === 'funcionario') {
+          let condId = idCondominio;
+
+          if (!condId) {
+            if (type === 'funcionario') {
+              const func = await this.prisma.funcionarios.findFirst({
+                where: { id_user: idUser },
+              });
+              condId = func?.id_condominio;
+            } else {
+              const sind = await this.prisma.sindicos_Condominios.findFirst({
+                where: { id_user: idUser },
+              });
+              condId = sind?.id_condominio;
+            }
+          }
+
+          if (condId) {
+            const list = await this.prisma.encomendas.findMany({
+              where: {
+                id_condominio: Number(condId),
+                ...(status ? { status } : {}),
+              },
+              orderBy: { created_at: 'desc' },
+            });
+            return list;
+          }
+        }
+
+        // Caso seja Morador, busca somente as encomendas do seu próprio apartamento/bloco
         const moras = await this.prisma.moradores.findMany({
           where: { id_user: idUser },
         });
@@ -3171,9 +3204,13 @@ export class MobileAuthService {
           ) {
             continue;
           }
+          if (idCondominio && m.id_condominio !== idCondominio) {
+            continue;
+          }
           const listWhere: any = {
             id_condominio: m.id_condominio,
             destinatario_apto: m.apartamento,
+            ...(status ? { status } : {}),
           };
 
           if (m.bloco === null || m.bloco === undefined || m.bloco.trim() === '') {
@@ -3193,7 +3230,9 @@ export class MobileAuthService {
         }
         return total;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('Erro ao listar encomendas:', e);
+    }
     return [];
   }
 

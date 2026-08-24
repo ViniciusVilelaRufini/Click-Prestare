@@ -4,6 +4,7 @@ import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
 import type { JwtPayload } from './jwt-payload.interface';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
+import { EncomendasService } from '../encomendas/encomendas.service';
 
 // ==========================================
 // SÍNDICO
@@ -473,12 +474,25 @@ export class OcorrenciasMobileController {
 // ==========================================
 @Controller('encomendas')
 export class EncomendasMobileController {
-  constructor(private readonly service: MobileAuthService) {}
+  constructor(
+    private readonly service: MobileAuthService,
+    private readonly encomendasService: EncomendasService,
+  ) {}
 
   @Get('get-all')
-  listByUser(@ReqUser() payload: JwtPayload) {
+  listByUser(
+    @ReqUser() payload: JwtPayload,
+    @Query('id_condominio') idCondominio?: string,
+    @Query('status') status?: string,
+  ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.listEncomendasByUser(Number(idUser));
+    const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador';
+    return this.service.listEncomendasByUser(
+      Number(idUser),
+      idCondominio ? Number(idCondominio) : undefined,
+      typeAccess,
+      status,
+    );
   }
 
   @Post('cadastrar')
@@ -490,13 +504,65 @@ export class EncomendasMobileController {
     return this.service.cadastrarRastreioMorador(Number(idUser), body);
   }
 
-  // Condomínios sem portaria: o próprio morador dá baixa na encomenda e pode
-  // anexar uma foto como comprovante da retirada.
+  @Post('insert')
+  insert(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: any,
+  ) {
+    const enc = body.encomenda || body;
+    const idCondominio = Number(body.id_condominio || enc.id_condominio);
+    return this.encomendasService.create({
+      descricao: enc.descricao,
+      destinatario_apto: String(enc.destinatario_apto ?? enc.apto ?? ''),
+      destinatario_bloco: enc.destinatario_bloco ?? enc.bloco ?? null,
+      recebido_de: enc.recebido_de ?? enc.transportadora ?? null,
+      codigo_rastreio: enc.codigo_rastreio ?? null,
+      foto_volume: enc.foto_volume ?? enc.photo ?? null,
+      id_condominio: idCondominio,
+    }, payload);
+  }
+
+  @Post('update')
+  update(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: any,
+  ) {
+    const enc = body.encomenda || body;
+    const id = Number(enc.id ?? body.id);
+    return this.encomendasService.update(id, {
+      descricao: enc.descricao,
+      destinatario_apto: enc.destinatario_apto !== undefined ? String(enc.destinatario_apto ?? enc.apto ?? '') : undefined,
+      destinatario_bloco: enc.destinatario_bloco !== undefined ? (enc.destinatario_bloco ?? enc.bloco ?? null) : undefined,
+      recebido_de: enc.recebido_de !== undefined ? (enc.recebido_de ?? enc.transportadora ?? null) : undefined,
+      codigo_rastreio: enc.codigo_rastreio !== undefined ? (enc.codigo_rastreio ?? null) : undefined,
+      foto_volume: enc.foto_volume !== undefined ? (enc.foto_volume ?? enc.photo ?? null) : undefined,
+    }, payload);
+  }
+
+  @Post('remove')
+  remove(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { id: number | string },
+  ) {
+    return this.encomendasService.remove(Number(body.id), payload);
+  }
+
   @Post('retirar')
   retirar(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { id: number | string; retirado_foto?: string },
+    @Body() body: { id: number | string; retirado_por?: string; retirado_doc?: string; retirado_assinatura?: string; retirado_foto?: string },
   ) {
+    const typeAccess = (payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador').toLowerCase();
+    if (typeAccess === 'sindico' || typeAccess === 'funcionario') {
+      return this.encomendasService.retirar(
+        Number(body.id),
+        body.retirado_por || 'Morador',
+        body.retirado_doc,
+        body.retirado_assinatura,
+        body.retirado_foto,
+        payload,
+      );
+    }
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.retirarEncomendaMorador(
       Number(idUser),

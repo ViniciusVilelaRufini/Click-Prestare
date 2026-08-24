@@ -26,6 +26,7 @@ import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 import { FacialModule } from '../facial/facial.module';
 import { FinanceiroModule } from '../financeiro/financeiro.module';
 import { ApartamentosModule } from '../apartamentos/apartamentos.module';
+import { EncomendasModule } from '../encomendas/encomendas.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ApartamentosModule } from '../apartamentos/apartamentos.module';
     FinanceiroModule,
     // removeApto delega a exclusao (e a auditoria da cascata) para ca.
     ApartamentosModule,
+    EncomendasModule,
   ],
   controllers: [
     AuthController,
