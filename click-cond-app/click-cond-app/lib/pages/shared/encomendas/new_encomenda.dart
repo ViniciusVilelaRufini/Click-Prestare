@@ -253,9 +253,9 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   _buildCardRastreio(),
                   const SizedBox(height: AppSpacing.xxl),
                   AppButton(
-                    text: isEdit ? 'Salvar Alterações' : 'Cadastrar e Notificar Moradores',
+                    label: isEdit ? 'Salvar Alterações' : 'Cadastrar e Notificar Moradores',
                     onPressed: _isSaving ? null : _salvar,
-                    backgroundColor: AppColors.primary,
+                    loading: _isSaving,
                   ),
                 ],
               ),
@@ -517,7 +517,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                         color: AppColors.primary.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(PhosphorIcons.cameraPlus, color: AppColors.primary, size: 28),
+                      child: const Icon(PhosphorIcons.camera, color: AppColors.primary, size: 28),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
