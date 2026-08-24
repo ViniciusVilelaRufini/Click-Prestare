@@ -959,7 +959,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                     title: 'No Condomínio',
                     value: (_summary?['inside_condo'] ?? 0).toString(),
                     subtitle: 'Presentes agora',
-                    icon: PhosphorIcons.doorOpen,
+                    icon: PhosphorIcons.door,
                     color: AppColors.success,
                     onTap: () => _onDashboardTap('inside_condo'),
                   ),
