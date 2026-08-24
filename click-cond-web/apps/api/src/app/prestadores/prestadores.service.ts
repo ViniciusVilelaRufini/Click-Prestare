@@ -313,18 +313,74 @@ export class PrestadoresService {
     if (dto.hasPortariaAccess && dto.email) {
       const senhaInicial = dto.senha || '123456';
       const hash = await bcrypt.hash(senhaInicial, 12);
+      const emailClean = dto.email.trim();
+
       await this.prisma.funcionarios_Portaria.create({
         data: {
           nome: dto.nome,
-          login: dto.email.trim(),
+          login: emailClean,
           password: hash,
-          email: dto.email.trim(),
+          email: emailClean,
           telefone: dto.telefone ?? null,
           turno: 'Geral',
           ativo: 1,
           id_condominio: dto.id_condominio,
         },
       });
+
+      try {
+        let user = await this.prisma.users.findFirst({
+          where: { OR: [{ login: emailClean }, { email: emailClean }] },
+        });
+        if (!user) {
+          user = await this.prisma.users.create({
+            data: {
+              login: emailClean,
+              email: emailClean,
+              password: hash,
+              name: dto.nome,
+              phone: dto.telefone ?? null,
+              is_funcionario: 1,
+              is_sindico: 0,
+              is_morador: 0,
+              photo: fotoPes,
+              profile_image: fotoPes,
+            },
+          });
+        } else {
+          await this.prisma.users.update({
+            where: { id: user.id },
+            data: { is_funcionario: 1, password: hash },
+          });
+        }
+
+        const f = await this.prisma.funcionarios.findFirst({
+          where: { id_user: user.id, id_condominio: dto.id_condominio },
+        });
+        if (!f) {
+          await this.prisma.funcionarios.create({
+            data: {
+              nome: dto.nome,
+              email: emailClean,
+              telefone: dto.telefone ?? null,
+              funcao: 'Porteiro',
+              ch: 'Geral',
+              id_user: user.id,
+              id_condominio: dto.id_condominio,
+              areas_sociais: 1,
+              comunicados: 1,
+              ocorrencias: 1,
+              manutencoes_programadas: 1,
+              prestadores_servico: 1,
+              agendar_mudanca: 1,
+              cadastrar_visitante: 1,
+              apartamentos: 1,
+            },
+          });
+        }
+      } catch (err) {
+        this.logger.error('Erro ao sincronizar funcionario web com Users/Funcionarios', err);
+      }
     }
 
     this.fireFacialSync(criado.id);
@@ -411,6 +467,77 @@ export class PrestadoresService {
               id_condominio: atualizado.id_condominio,
             },
           });
+        }
+
+        try {
+          let user = await this.prisma.users.findFirst({
+            where: { OR: [{ login: emailParaLogin }, { email: emailParaLogin }] },
+          });
+          if (!user) {
+            const senhaInicial = dto.senha || '123456';
+            const userHash = hash || (await bcrypt.hash(senhaInicial, 12));
+            user = await this.prisma.users.create({
+              data: {
+                login: emailParaLogin,
+                email: emailParaLogin,
+                password: userHash,
+                name: dto.nome ?? atualizado.nome,
+                phone: dto.telefone ?? atualizado.telefone ?? null,
+                is_funcionario: 1,
+                is_sindico: 0,
+                is_morador: 0,
+                photo: fotoPes,
+                profile_image: fotoPes,
+              },
+            });
+          } else {
+            await this.prisma.users.update({
+              where: { id: user.id },
+              data: {
+                is_funcionario: 1,
+                ...(hash && { password: hash }),
+                name: dto.nome ?? atualizado.nome,
+                phone: dto.telefone ?? atualizado.telefone,
+                ...(fotoPes && { photo: fotoPes, profile_image: fotoPes }),
+              },
+            });
+          }
+
+          const f = await this.prisma.funcionarios.findFirst({
+            where: { id_user: user.id, id_condominio: atualizado.id_condominio },
+          });
+          if (!f) {
+            await this.prisma.funcionarios.create({
+              data: {
+                nome: dto.nome ?? atualizado.nome,
+                email: emailParaLogin,
+                telefone: dto.telefone ?? atualizado.telefone ?? null,
+                funcao: 'Porteiro',
+                ch: 'Geral',
+                id_user: user.id,
+                id_condominio: atualizado.id_condominio,
+                areas_sociais: 1,
+                comunicados: 1,
+                ocorrencias: 1,
+                manutencoes_programadas: 1,
+                prestadores_servico: 1,
+                agendar_mudanca: 1,
+                cadastrar_visitante: 1,
+                apartamentos: 1,
+              },
+            });
+          } else {
+            await this.prisma.funcionarios.update({
+              where: { id: f.id },
+              data: {
+                nome: dto.nome ?? atualizado.nome,
+                email: emailParaLogin,
+                telefone: dto.telefone ?? atualizado.telefone ?? null,
+              },
+            });
+          }
+        } catch (err) {
+          this.logger.error('Erro ao sincronizar funcionario web com Users/Funcionarios no update', err);
         }
       } else {
         if (dto.hasPortariaAccess === false || (dto.email === null && atual.email)) {

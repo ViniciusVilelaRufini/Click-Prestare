@@ -628,16 +628,134 @@ export class MobileAuthService {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
 
-    const user = await this.prisma.users.findFirst({
-      where: { login },
+    const cleanLogin = login.trim();
+    let user = await this.prisma.users.findFirst({
+      where: {
+        OR: [
+          { login: cleanLogin },
+          { email: cleanLogin },
+        ],
+      },
       include: { funcionarios: true },
     });
 
+    // Se o usuário não existe em Users ou não tem o vínculo na tabela Funcionarios,
+    // busca na tabela Funcionarios_Portaria (criada pelo painel Web).
     if (!user || !user.funcionarios || user.funcionarios.length === 0) {
-      throw new UnauthorizedException('Login ou Senha incorretos');
+      const portaria = await this.prisma.funcionarios_Portaria.findFirst({
+        where: {
+          OR: [
+            { login: cleanLogin },
+            { email: cleanLogin },
+          ],
+        },
+      });
+
+      if (!portaria) {
+        throw new UnauthorizedException('Login ou Senha incorretos');
+      }
+
+      const isMatch = await this.verifyPassword(senhaRaw, portaria.password, portaria.id);
+      if (!isMatch) {
+        throw new UnauthorizedException('Login ou Senha incorretos');
+      }
+
+      const senhaHash = portaria.password.startsWith('$2')
+        ? portaria.password
+        : await bcrypt.hash(senhaRaw, 10);
+
+      // Sincroniza / cria o registro em Users e Funcionarios para o mobile
+      if (!user) {
+        user = await this.prisma.users.create({
+          data: {
+            login: portaria.login,
+            email: portaria.email || portaria.login,
+            password: senhaHash,
+            name: portaria.nome,
+            phone: portaria.telefone,
+            is_funcionario: 1,
+            is_sindico: 0,
+            is_morador: 0,
+          },
+          include: { funcionarios: true },
+        });
+      } else {
+        await this.prisma.users.update({
+          where: { id: user.id },
+          data: {
+            is_funcionario: 1,
+            password: user.password || senhaHash,
+          },
+        });
+      }
+
+      let func = await this.prisma.funcionarios.findFirst({ where: { id_user: user.id } });
+      if (!func) {
+        func = await this.prisma.funcionarios.create({
+          data: {
+            nome: portaria.nome,
+            email: portaria.email || portaria.login,
+            telefone: portaria.telefone,
+            funcao: 'Porteiro',
+            ch: portaria.turno || '',
+            id_user: user.id,
+            id_condominio: portaria.id_condominio,
+            areas_sociais: 1,
+            comunicados: 1,
+            ocorrencias: 1,
+            manutencoes_programadas: 1,
+            prestadores_servico: 1,
+            agendar_mudanca: 1,
+            cadastrar_visitante: 1,
+            apartamentos: 1,
+          },
+        });
+      }
+
+      const userObj = {
+        id: user.id,
+        nome: func.nome,
+        photo: user.photo ?? '',
+        areas_sociais: func.areas_sociais ?? 1,
+        comunicados: func.comunicados ?? 1,
+        ocorrencias: func.ocorrencias ?? 1,
+        manutencoes_programadas: func.manutencoes_programadas ?? 1,
+        prestadores_servico: func.prestadores_servico ?? 1,
+        agendar_mudanca: func.agendar_mudanca ?? 1,
+        cadastrar_visitante: func.cadastrar_visitante ?? 1,
+        apartamentos: func.apartamentos ?? 1,
+      };
+      const payload = { sub: user.id, nome: func.nome, typeAccess: 'Funcionario', user: userObj };
+      return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
     }
 
-    const isMatch = await this.verifyPassword(senhaRaw, user.password, user.id);
+    let isMatch = await this.verifyPassword(senhaRaw, user.password, user.id);
+
+    if (!isMatch) {
+      // Se a senha falhar no Users, pode ser que tenha sido cadastrada/atualizada em Funcionarios_Portaria
+      const portaria = await this.prisma.funcionarios_Portaria.findFirst({
+        where: {
+          OR: [
+            { login: cleanLogin },
+            { email: cleanLogin },
+          ],
+        },
+      });
+
+      if (portaria) {
+        const isPortariaMatch = await this.verifyPassword(senhaRaw, portaria.password, portaria.id);
+        if (isPortariaMatch) {
+          const newHash = portaria.password.startsWith('$2')
+            ? portaria.password
+            : await bcrypt.hash(senhaRaw, 10);
+          await this.prisma.users.update({
+            where: { id: user.id },
+            data: { password: newHash },
+          });
+          isMatch = true;
+        }
+      }
+    }
 
     if (!isMatch) {
       throw new UnauthorizedException('Login ou Senha incorretos');
@@ -648,14 +766,14 @@ export class MobileAuthService {
       id: user.id,
       nome: func.nome,
       photo: user.photo ?? '',
-      areas_sociais: func.areas_sociais ?? 0,
-      comunicados: func.comunicados ?? 0,
-      ocorrencias: func.ocorrencias ?? 0,
-      manutencoes_programadas: func.manutencoes_programadas ?? 0,
-      prestadores_servico: func.prestadores_servico ?? 0,
-      agendar_mudanca: func.agendar_mudanca ?? 0,
-      cadastrar_visitante: func.cadastrar_visitante ?? 0,
-      apartamentos: func.apartamentos ?? 0,
+      areas_sociais: func.areas_sociais ?? 1,
+      comunicados: func.comunicados ?? 1,
+      ocorrencias: func.ocorrencias ?? 1,
+      manutencoes_programadas: func.manutencoes_programadas ?? 1,
+      prestadores_servico: func.prestadores_servico ?? 1,
+      agendar_mudanca: func.agendar_mudanca ?? 1,
+      cadastrar_visitante: func.cadastrar_visitante ?? 1,
+      apartamentos: func.apartamentos ?? 1,
     };
     const payload = { sub: user.id, nome: func.nome, typeAccess: 'Funcionario', user: userObj };
 
