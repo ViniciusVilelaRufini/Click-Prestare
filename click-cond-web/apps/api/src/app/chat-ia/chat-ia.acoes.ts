@@ -493,6 +493,53 @@ FERRAMENTAS_ACAO.push({
   },
 });
 
+FERRAMENTAS_ACAO.push({
+  nome: 'propor_comunicado',
+  descricao:
+    'Prepara a publicação de um comunicado oficial do condomínio para o síndico ou funcionário confirmar. NÃO publica sozinho: devolve uma proposta que aparece como card com o título e texto para confirmação. Use quando o usuário pedir para criar, redigir ou publicar um aviso/comunicado/comunicação para o condomínio.',
+  parametros: {
+    type: 'OBJECT',
+    properties: {
+      titulo: {
+        type: 'STRING',
+        description: 'Título claro e objetivo do comunicado (ex: "Manutenção da Academia", "Dedetização do Bloco A")',
+      },
+      descricao: {
+        type: 'STRING',
+        description: 'Texto completo do comunicado a ser publicado para todos os moradores.',
+      },
+    },
+    required: ['titulo', 'descricao'],
+  },
+  papeis: ['Sindico', 'Funcionario'],
+  async propor(args, ctx) {
+    const titulo = String(args.titulo ?? '').trim();
+    const descricao = String(args.descricao ?? '').trim();
+    if (!titulo) return { erro: 'Informe o título do comunicado.' };
+    if (descricao.length < 5) {
+      return { erro: 'O texto do comunicado é muito curto. Redija uma mensagem mais detalhada.' };
+    }
+
+    return {
+      proposta: {
+        tipo: 'comunicado' as TipoAcao,
+        idUser: ctx.idUser,
+        idCondominio: ctx.idCondominio,
+        titulo: 'Confirmar publicação de comunicado',
+        itens: [
+          { rotulo: 'Título', valor: titulo },
+          { rotulo: 'Mensagem', valor: descricao },
+          { rotulo: 'Destinatários', valor: 'Todos os moradores' },
+        ],
+        payload: {
+          titulo,
+          descricao,
+        },
+      },
+    };
+  },
+});
+
 export function acoesPara(papel: PapelChat): FerramentaAcao[] {
   return FERRAMENTAS_ACAO.filter((f) => f.papeis.includes(papel));
 }
