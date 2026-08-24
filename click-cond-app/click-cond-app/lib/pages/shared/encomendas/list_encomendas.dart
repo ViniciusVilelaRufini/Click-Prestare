@@ -368,22 +368,67 @@ class ListEncomendasState extends State<ListEncomendas> {
   Future<void> _confirmDeleteEncomenda(EncomendaModel enc) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
         backgroundColor: AppColors.surface(ctx),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Excluir Encomenda'),
-        content: Text('Deseja realmente remover a encomenda "${enc.descricao}" do Apto ${enc.destinatarioApto}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(PhosphorIcons.trash, color: AppColors.error, size: 32),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                'Excluir Encomenda',
+                style: AppTypography.headline(ctx).copyWith(fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Tem certeza que deseja excluir o volume "${enc.descricao}" destinado ao Apto ${enc.destinatarioApto}? Esta ação não pode ser desfeita.',
+                style: AppTypography.bodySecondary(ctx),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: BorderSide(color: AppColors.border(ctx)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary(ctx))),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Excluir', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Excluir'),
-          ),
-        ],
+        ),
       ),
     );
 
@@ -1079,29 +1124,36 @@ class _EncomendaCard extends StatelessWidget {
                   const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: [
-                      // Opções extras (excluir)
-                      PopupMenuButton<String>(
-                        icon: Icon(PhosphorIcons.dotsThreeVertical, size: 18, color: AppColors.textSecondary(context)),
-                        padding: EdgeInsets.zero,
-                        color: AppColors.surfaceElevated(context),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        onSelected: (val) {
-                          if (val == 'delete') onDelete?.call(encomenda);
-                        },
-                        itemBuilder: (ctx) => [
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(PhosphorIcons.trash, color: Colors.redAccent, size: 18),
-                                SizedBox(width: 8),
-                                Text('Excluir Encomenda', style: TextStyle(color: Colors.redAccent)),
-                              ],
-                            ),
+                      // Botão de Excluir
+                      InkWell(
+                        onTap: () => onDelete?.call(encomenda),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.error.withOpacity(0.25)),
                           ),
-                        ],
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(PhosphorIcons.trash, size: 15, color: AppColors.error),
+                              SizedBox(width: 4),
+                              Text(
+                                'Excluir',
+                                style: TextStyle(
+                                  color: AppColors.error,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                       const Spacer(),
+                      // Botão de Editar
                       OutlinedButton.icon(
                         onPressed: () => onEdit?.call(encomenda),
                         icon: const Icon(PhosphorIcons.pencilSimple, size: 14),
@@ -1109,10 +1161,12 @@ class _EncomendaCard extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          side: BorderSide(color: AppColors.border(context)),
                         ),
                       ),
                       if (!isRetirado) ...[
                         const SizedBox(width: 8),
+                        // Botão de Dar Baixa
                         ElevatedButton.icon(
                           onPressed: () => _abrirRetirada(context),
                           icon: const Icon(PhosphorIcons.checkCircle, size: 16),
