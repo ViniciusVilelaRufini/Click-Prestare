@@ -836,7 +836,9 @@ export class MobileAuthService {
         : { visits: 1, packages: 2 };
     }
 
-    if (typeAccess === 'Sindico') {
+    const type = (typeAccess ?? '').toLowerCase();
+
+    if (type === 'sindico') {
       try {
         const rels = await this.prisma.sindicos_Condominios.findMany({
           where: { id_user: idUser },
@@ -845,17 +847,6 @@ export class MobileAuthService {
         const ids = rels.map(r => r.id_condominio);
         if (ids.length === 0) return { debts: { count: 0, total: 0.0 }, occurrences: 0 };
 
-        // O card na home do síndico se chama "Inadimplência" e abre a lista de
-        // inadimplentes — então precisa contar a mesma coisa que ela: cobrança
-        // de apartamento em aberto.
-        //
-        // Sem estes filtros, a soma era de TODO lançamento não pago do
-        // condomínio, e o número não queria dizer nada: as despesas do prédio
-        // a pagar entram negativas no banco e SUBTRAÍAM do total, enquanto as
-        // contas pessoais dos moradores (água, luz, internet que eles mesmos
-        // lançam) entram positivas e inflavam — além de ser dado privado deles
-        // aparecendo agregado na tela do síndico. Dívida já renegociada em
-        // acordo também contava, junto com as parcelas que a substituíram.
         const fins = await this.prisma.financeiro.findMany({
           where: {
             id_condominio: { in: ids },
@@ -881,6 +872,90 @@ export class MobileAuthService {
         };
       } catch (e) {
         return { debts: { count: 0, total: 0.0 }, occurrences: 0 };
+      }
+    } else if (type === 'funcionario') {
+      try {
+        let condId: number | undefined;
+        const func = await this.prisma.funcionarios.findFirst({
+          where: { id_user: idUser },
+          select: { id_condominio: true },
+        });
+        condId = func?.id_condominio;
+
+        if (!condId) {
+          const userObj = await this.prisma.users.findUnique({
+            where: { id: idUser },
+            select: { email: true },
+          });
+          if (userObj?.email) {
+            const port = await this.prisma.funcionarios_Portaria.findFirst({
+              where: { email: userObj.email },
+              select: { id_condominio: true },
+            });
+            condId = port?.id_condominio;
+          }
+        }
+
+        if (!condId) {
+          return {
+            packages: 0,
+            visits_today: 0,
+            inside_condo: 0,
+            occurrences: 0,
+          };
+        }
+
+        const hojeIni = new Date();
+        hojeIni.setHours(0, 0, 0, 0);
+        const hojeFim = new Date();
+        hojeFim.setHours(23, 59, 59, 999);
+
+        const [packagesCount, visitsToday, insideCondo, occurrencesCount] = await Promise.all([
+          this.prisma.encomendas.count({
+            where: {
+              id_condominio: condId,
+              status: { notIn: ['Retirada', 'retirada', 'Retirado', 'retirado', 'Cancelado', 'recusado'] },
+            },
+          }),
+          this.prisma.visitantes.count({
+            where: {
+              id_condominio: condId,
+              OR: [
+                { data_entrada: { gte: hojeIni, lte: hojeFim } },
+                { data_hora_inicio: { gte: hojeIni, lte: hojeFim } },
+              ],
+            },
+          }),
+          this.prisma.visitantes.count({
+            where: {
+              id_condominio: condId,
+              data_entrada: { not: null },
+              data_saida: null,
+            },
+          }),
+          this.prisma.ocorrencias.count({
+            where: {
+              id_condominio: condId,
+              status: { notIn: ['Solucionado', 'solucionado', 'Resolvida', 'resolvida'] },
+            },
+          }),
+        ]);
+
+        return {
+          packages: packagesCount,
+          visits_today: visitsToday,
+          visits: visitsToday,
+          inside_condo: insideCondo,
+          occurrences: occurrencesCount,
+        };
+      } catch (e) {
+        console.error('Erro no dashboard summary do funcionário:', e);
+        return {
+          packages: 0,
+          visits_today: 0,
+          inside_condo: 0,
+          occurrences: 0,
+        };
       }
     } else {
       // Morador
