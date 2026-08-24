@@ -505,6 +505,7 @@ export class EncomendasMobileController {
   }
 
   @Post('insert')
+  @HttpCode(200)
   insert(
     @ReqUser() payload: JwtPayload,
     @Body() body: any,
@@ -523,6 +524,7 @@ export class EncomendasMobileController {
   }
 
   @Post('update')
+  @HttpCode(200)
   update(
     @ReqUser() payload: JwtPayload,
     @Body() body: any,
@@ -540,14 +542,17 @@ export class EncomendasMobileController {
   }
 
   @Post('remove')
-  remove(
+  @HttpCode(200)
+  async remove(
     @ReqUser() payload: JwtPayload,
     @Body() body: { id: number | string },
   ) {
-    return this.encomendasService.remove(Number(body.id), payload);
+    await this.encomendasService.remove(Number(body.id), payload);
+    return { ok: true };
   }
 
   @Post('retirar')
+  @HttpCode(200)
   retirar(
     @ReqUser() payload: JwtPayload,
     @Body() body: { id: number | string; retirado_por?: string; retirado_doc?: string; retirado_assinatura?: string; retirado_foto?: string },

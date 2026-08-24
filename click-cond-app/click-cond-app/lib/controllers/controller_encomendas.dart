@@ -108,7 +108,7 @@ apiUpdateEncomenda(int id, Map<String, dynamic> obj) async {
         "encomenda": obj,
       }),
     );
-    return response.statusCode == 200;
+    return response.statusCode >= 200 && response.statusCode < 300;
   } catch (e) {
     return false;
   }
@@ -125,7 +125,7 @@ apiRemoveEncomenda(int id) async {
       },
       body: jsonEncode({"id": id}),
     );
-    return response.statusCode == 200;
+    return response.statusCode >= 200 && response.statusCode < 300;
   } catch (e) {
     return false;
   }

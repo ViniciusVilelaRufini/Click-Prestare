@@ -85,15 +85,34 @@ export class TenantAccessService {
     // 403 em tudo que passa por aqui — inclusive o módulo financeiro inteiro.
     // Em produção, 4 dos 6 funcionários não têm apartamento (só passavam os
     // que por acaso também eram morador ou síndico).
-    if (tipo === 'funcionario') {
+    if (
+      tipo === 'funcionario' ||
+      tipo === 'porteiro' ||
+      tipo === 'prestador' ||
+      (payload as any).is_funcionario === 1 ||
+      payload.user?.is_funcionario === 1
+    ) {
+      if (payload.id_condominio === condId) return;
+
       const vincFunc = await this.prisma.funcionarios.findFirst({
         where: { id_user: userId, id_condominio: condId },
         select: { id: true },
       });
-      if (!vincFunc) {
-        throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
+      if (vincFunc) return;
+
+      const u = await this.prisma.users.findUnique({
+        where: { id: userId },
+        select: { email: true },
+      });
+      if (u?.email) {
+        const vincPort = await this.prisma.funcionarios_Portaria.findFirst({
+          where: { email: u.email, id_condominio: condId },
+          select: { id: true },
+        });
+        if (vincPort) return;
       }
-      return;
+
+      throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
     }
 
     // Morador mobile: precisa ter ao menos um apartamento neste condomínio.
