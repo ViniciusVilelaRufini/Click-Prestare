@@ -20,7 +20,8 @@ export type TipoAcao =
   | 'visitante'
   | 'conta_morador'
   | 'mudanca'
-  | 'comunicado';
+  | 'comunicado'
+  | 'manutencao_programada';
 
 /** Linha do card. Genérico para o app renderizar sem saber o tipo. */
 export interface ItemResumo {

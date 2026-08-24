@@ -8,5 +8,6 @@ import { TenantAccessModule } from '../auth/tenant-access.module';
   imports: [PrismaModule, TenantAccessModule],
   controllers: [AgendaController],
   providers: [AgendaService],
+  exports: [AgendaService],
 })
 export class AgendaModule {}

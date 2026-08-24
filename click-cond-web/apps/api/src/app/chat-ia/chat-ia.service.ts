@@ -28,6 +28,7 @@ import { VisitantesService } from '../visitantes/visitantes.service';
 import { FinanceiroService } from '../financeiro/financeiro.service';
 import { MudancasService } from '../mudancas/mudancas.service';
 import { ComunicadosService } from '../comunicados/comunicados.service';
+import { AgendaService } from '../agenda/agenda.service';
 import type { CartaoAcao } from './acao-pendente.store';
 
 const CHUNK_SIZE = 1200; // caracteres por trecho
@@ -51,6 +52,7 @@ const MODULO_POR_ACAO: Record<string, string> = {
   conta_morador: 'financeiro',
   mudanca: 'mudancas',
   comunicado: 'comunicados',
+  manutencao_programada: 'agenda',
 };
 
 /**
@@ -82,6 +84,7 @@ export class ChatIaService {
     private readonly financeiro: FinanceiroService,
     private readonly mudancas: MudancasService,
     private readonly comunicados: ComunicadosService,
+    private readonly agenda: AgendaService,
   ) {}
 
   // =========================================================================
@@ -437,6 +440,23 @@ export class ChatIaService {
       return 'Comunicado publicado com sucesso! Todos os moradores já foram notificados.';
     }
 
+    if (acao.tipo === 'manutencao_programada') {
+      await this.agenda.create(
+        acao.idCondominio,
+        {
+          titulo: acao.payload.titulo,
+          descricao: acao.payload.descricao,
+          data_inicio: acao.payload.data_inicio,
+          data_termino: acao.payload.data_termino,
+          hora_inicio: acao.payload.hora_inicio,
+          hora_termino: acao.payload.hora_termino,
+          alertar_moradores: acao.payload.alertar_moradores ? 1 : 0,
+        },
+        user,
+      );
+      return 'Manutenção programada cadastrada com sucesso! Ela já aparece na Agenda do condomínio.';
+    }
+
     throw new BadRequestException('Tipo de ação desconhecido.');
   }
 
@@ -737,7 +757,7 @@ Hoje é ${hoje}. O usuário atual é ${papelDesc}.
 - Você tem FERRAMENTAS para consultar os dados do condomínio (contar_moradores, contar_funcionarios, listar_funcionarios, etc). Sempre que a pergunta pedir algo, CHAME a ferramenta apropriada ou consulte os dados do contexto em vez de dizer que não tem acesso.
 - A lista e contagem de funcionários do condomínio (portaria, limpeza, manutenção) É uma informação aberta a todos os moradores. Para responder quantos funcionários existem, use a ferramenta contar_funcionarios ou consulte o bloco "### Funcionários" abaixo. Nunca diga que não tem acesso à listagem de funcionários.
 - Para perguntas de quantidade ("quantos moradores", "quantas unidades"), use as ferramentas de contagem. Não tente contar itens de uma lista.
-- Para AGIR (reservar área, abrir ocorrência, publicar comunicado, cadastrar visitante, agendar mudança) use as ferramentas propor_*. Elas NÃO executam: preparam um card que o usuário confirma na tela. Depois de propor, diga em uma frase o que preparou e peça para ele confirmar no card.
+- Para AGIR (reservar área, abrir ocorrência, publicar comunicado, agendar manutenção programada, cadastrar visitante, agendar mudança, lançar conta) use as ferramentas propor_*. Elas NÃO executam: preparam um card que o usuário confirma na tela. Depois de propor, diga em uma frase o que preparou e peça para ele confirmar no card.
 - Você só enxerga as ferramentas permitidas para este perfil. Se uma consulta não for possível, explique de forma simples e sugira procurar o síndico ou a portaria — nunca afirme que o dado não existe.
 - Não invente dados. Só afirme o que veio do contexto ou do resultado das ferramentas.
 

@@ -12,6 +12,7 @@ import { VisitantesModule } from '../visitantes/visitantes.module';
 import { FinanceiroModule } from '../financeiro/financeiro.module';
 import { MudancasModule } from '../mudancas/mudancas.module';
 import { ComunicadosModule } from '../comunicados/comunicados.module';
+import { AgendaModule } from '../agenda/agenda.module';
 
 @Module({
   // As ações confirmadas executam pelos services de verdade, não por queries
@@ -26,6 +27,7 @@ import { ComunicadosModule } from '../comunicados/comunicados.module';
     FinanceiroModule,
     MudancasModule,
     ComunicadosModule,
+    AgendaModule,
   ],
   controllers: [ChatIaController],
   providers: [ChatIaService, GeminiClient, AcaoPendenteStore],

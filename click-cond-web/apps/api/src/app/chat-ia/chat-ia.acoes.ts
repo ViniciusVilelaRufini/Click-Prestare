@@ -540,6 +540,98 @@ FERRAMENTAS_ACAO.push({
   },
 });
 
+FERRAMENTAS_ACAO.push({
+  nome: 'propor_manutencao_programada',
+  descricao:
+    'Prepara o agendamento de uma manutenção programada do condomínio (ex: limpeza da caixa d\'água, manutenção de elevadores, dedetização, corte de grama, reforma) para o síndico ou funcionário confirmar. NÃO cadastra sozinha: devolve uma proposta que aparece como card com os detalhes para confirmação. Converta datas relativas para AAAA-MM-DD e horários para HH:MM.',
+  parametros: {
+    type: 'OBJECT',
+    properties: {
+      titulo: {
+        type: 'STRING',
+        description: 'Título da manutenção (ex: "Manutenção Preventiva do Elevador Social", "Limpeza da Caixa d\'Água")',
+      },
+      descricao: {
+        type: 'STRING',
+        description: 'Descrição ou detalhes da manutenção programada',
+      },
+      data_inicio: {
+        type: 'STRING',
+        description: 'Data de início no formato AAAA-MM-DD',
+      },
+      data_termino: {
+        type: 'STRING',
+        description: 'Data de término no formato AAAA-MM-DD (opcional, pode ser igual à data de início)',
+      },
+      hora_inicio: {
+        type: 'STRING',
+        description: 'Horário de início no formato HH:MM (ex: "08:00")',
+      },
+      hora_termino: {
+        type: 'STRING',
+        description: 'Horário de término no formato HH:MM (ex: "12:00")',
+      },
+      alertar_moradores: {
+        type: 'BOOLEAN',
+        description: 'Se verdadeiro, notifica os moradores sobre a manutenção programada',
+      },
+    },
+    required: ['titulo', 'data_inicio'],
+  },
+  papeis: ['Sindico', 'Funcionario'],
+  async propor(args, ctx) {
+    const titulo = String(args.titulo ?? '').trim();
+    if (!titulo) return { erro: 'Informe o título da manutenção programada.' };
+
+    const dataIni = lerData(args.data_inicio);
+    if (!dataIni) return { erro: 'Data de início inválida. Use o formato AAAA-MM-DD.' };
+
+    const dataFim = args.data_termino ? lerData(args.data_termino) : dataIni;
+    const horaIni = args.hora_inicio ? lerHora(args.hora_inicio) : null;
+    const horaFim = args.hora_termino ? lerHora(args.hora_termino) : null;
+
+    const itens: ItemResumo[] = [
+      { rotulo: 'Manutenção', valor: titulo },
+      { rotulo: 'Data', valor: dataIni.br + (dataFim && dataFim.br !== dataIni.br ? ` até ${dataFim.br}` : '') },
+    ];
+
+    if (horaIni !== null) {
+      itens.push({
+        rotulo: 'Horário',
+        valor: hhmm(horaIni) + (horaFim !== null ? ` às ${hhmm(horaFim)}` : ''),
+      });
+    }
+
+    const descricao = String(args.descricao ?? '').trim();
+    if (descricao) {
+      itens.push({ rotulo: 'Detalhes', valor: descricao });
+    }
+
+    if (args.alertar_moradores) {
+      itens.push({ rotulo: 'Aviso', valor: 'Notificar moradores' });
+    }
+
+    return {
+      proposta: {
+        tipo: 'manutencao_programada' as TipoAcao,
+        idUser: ctx.idUser,
+        idCondominio: ctx.idCondominio,
+        titulo: 'Confirmar agendamento de manutenção',
+        itens,
+        payload: {
+          titulo,
+          descricao: descricao || null,
+          data_inicio: dataIni.br, // O service espera DD/MM/AAAA ou ISO
+          data_termino: dataFim ? dataFim.br : dataIni.br,
+          hora_inicio: horaIni !== null ? hhmm(horaIni) : null,
+          hora_termino: horaFim !== null ? hhmm(horaFim) : null,
+          alertar_moradores: !!args.alertar_moradores,
+        },
+      },
+    };
+  },
+});
+
 export function acoesPara(papel: PapelChat): FerramentaAcao[] {
   return FERRAMENTAS_ACAO.filter((f) => f.papeis.includes(papel));
 }
