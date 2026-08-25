@@ -117,12 +117,8 @@ export class AgentBridgeService {
       }
     }
 
-    // Só considera alterado se:
-    // 1. Tinha um status anterior conhecido e ele mudou (ex: true -> false ou false -> true)
-    // 2. Ou se era desconhecido (null) e mudou para offline (false) - queremos reportar quedas imediatamente.
-    // Se mudou de desconhecido (null) para online (true), não gera log pois assume-se que já estava online
-    // e apenas restabeleceu a comunicação do status.
-    const changed = lastKnownOnline !== null ? (lastKnownOnline !== online) : (online === false);
+    // Só considera alterado se tinha status anterior conhecido e ele mudou
+    const changed = lastKnownOnline !== null ? (lastKnownOnline !== online) : false;
 
     return {
       changed,
