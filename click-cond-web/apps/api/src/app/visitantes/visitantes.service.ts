@@ -1780,7 +1780,12 @@ export class VisitantesService {
         acessosPin,
         tempoMedioMs,
         permanenciaCount,
-        apartamentosVisitados: Array.from(apartamentosVisitados.values()),
+        apartamentosVisitados: Array.from(apartamentosVisitados.values()).sort(
+          (a, b) =>
+            b.visitas - a.visitas ||
+            (b.ultimaVisita ? new Date(b.ultimaVisita).getTime() : 0) -
+              (a.ultimaVisita ? new Date(a.ultimaVisita).getTime() : 0),
+        ),
       },
       timeline,
     };
