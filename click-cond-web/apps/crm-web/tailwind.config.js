@@ -2,10 +2,13 @@ const { createGlobPatternsForDependencies } = require('@nx/angular/tailwind');
 const { join } = require('path');
 
 /**
- * Design system "Mercury" — tema claro único do CRM.
- * Tokens semânticos consomem as CSS variables definidas em styles.css:
- * surface (fundos), ink (texto), line (bordas), accent (azul royal),
- * success/warning/danger/info (semânticas com variantes soft/border).
+ * Design system "Verdant" — adaptação do kit Paperpillar (Property Management
+ * Dashboard) para o CRM. Superfícies claras sem borda, cards flutuantes de
+ * canto largo, acento verde-escuro e uma paleta cromática fixa
+ * (verde / bege / púrpura / tosca) usada em gráficos, tiles e badges.
+ *
+ * Os tokens semânticos (surface, ink, line, accent, success…) consomem as CSS
+ * variables de styles.css — todo o markup deve usar os tokens, nunca hex.
  */
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -16,11 +19,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Tokens semânticos — fonte de verdade: CSS vars em styles.css
+        // ── Tokens semânticos (fonte de verdade: CSS vars em styles.css) ──
         surface: {
           page: 'var(--surface-page)',
           raised: 'var(--surface-raised)',
           sunken: 'var(--surface-sunken)',
+          contrast: 'var(--surface-contrast)',
           overlay: 'var(--surface-overlay)',
         },
         ink: {
@@ -35,52 +39,57 @@ module.exports = {
           strong: 'var(--border-strong)',
         },
         accent: {
-          DEFAULT: '#2563eb',
-          soft: '#eff6ff',
-          border: '#bfdbfe',
-          600: '#1d4ed8',
-          700: '#1e40af',
+          DEFAULT: '#4a6b52',
+          soft: '#e8f1ea',
+          border: '#cbe0d2',
+          600: '#3f5c46',
+          700: '#38571a',
         },
-        success: {
-          DEFAULT: '#16a34a',
-          soft: '#f0fdf4',
-          border: '#bbf7d0',
-        },
-        warning: {
-          DEFAULT: '#d97706',
-          soft: '#fffbeb',
-          border: '#fde68a',
-        },
-        danger: {
-          DEFAULT: '#dc2626',
-          soft: '#fef2f2',
-          border: '#fecaca',
-        },
-        info: {
-          DEFAULT: '#7c3aed',
-          soft: '#f5f3ff',
-          border: '#ddd6fe',
-        },
+        success: { DEFAULT: '#3f7d51', soft: '#e8f4eb', border: '#c6e3cf' },
+        warning: { DEFAULT: '#a97c2f', soft: '#faf2e2', border: '#ebdcbb' },
+        danger: { DEFAULT: '#9c1c1c', soft: '#fbeded', border: '#f0cfcf' },
+        info: { DEFAULT: '#5b6285', soft: '#eeeff5', border: '#d5d8e8' },
+
+        // ── Paleta cromática do kit (gráficos, tiles, categorias) ──
+        army: '#38571a',
+        forest: { 300: '#4a6b52', 200: '#6e9179', 100: '#a8d0b3', 50: '#e8f1ea' },
+        beige: { 300: '#b39c74', 200: '#e5d5b0', 50: '#f6efe0' },
+        lilac: { 300: '#5b6285', 200: '#b7bcd9', 100: '#e7e7ec', 50: '#f2f2f7' },
+        tosca: { DEFAULT: '#c5dfe1', 300: '#7fb0b4', 50: '#e9f4f5' },
+        brick: '#9c1c1c',
       },
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        display: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+        // General Sans é a face do kit; Inter cobre o corpo denso.
+        sans: ['General Sans', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['General Sans', 'Inter', 'system-ui', 'sans-serif'],
+        // "mono" aqui significa "numérico tabular", não monoespaçado técnico.
+        mono: ['Plus Jakarta Sans', 'General Sans', 'system-ui', 'sans-serif'],
       },
       fontSize: {
-        // Piso tipográfico do sistema: 11px para labels densas
         '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+        // Escala de display do kit (H1 32 · H2 36 · H3 24 · H4 20)
+        'display-lg': ['2.25rem', { lineHeight: '1.15', letterSpacing: '-0.02em' }],
+        'display-md': ['2rem', { lineHeight: '1.2', letterSpacing: '-0.02em' }],
+        'display-sm': ['1.5rem', { lineHeight: '1.3', letterSpacing: '-0.015em' }],
+        'display-xs': ['1.25rem', { lineHeight: '1.35', letterSpacing: '-0.01em' }],
       },
       borderRadius: {
-        DEFAULT: '4px',
-        md: '8px',
-        lg: '8px',
-        xl: '12px',
+        DEFAULT: '8px',
+        md: '10px',
+        lg: '12px',
+        xl: '16px',
+        '2xl': '20px',
+        '3xl': '28px',
       },
       boxShadow: {
-        card: '0 1px 2px rgba(0, 0, 0, 0.05)',
-        pop: '0 4px 16px -4px rgba(24, 24, 27, 0.10)',
-        modal: '0 20px 50px -12px rgba(24, 24, 27, 0.25)',
+        // Elevação do kit: sombras largas e muito difusas, sem borda visível.
+        card: '0 1px 2px rgba(24, 30, 24, 0.04), 0 10px 28px -18px rgba(24, 30, 24, 0.18)',
+        pop: '0 4px 12px -4px rgba(24, 30, 24, 0.08), 0 18px 40px -20px rgba(24, 30, 24, 0.28)',
+        rail: '0 8px 30px -14px rgba(24, 30, 24, 0.25)',
+        modal: '0 32px 64px -16px rgba(24, 30, 24, 0.32)',
+      },
+      maxWidth: {
+        shell: '1360px',
       },
     },
   },

@@ -1,6 +1,7 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { CrmStore } from './crm.store';
 import { AuthService } from '../auth/auth.service';
 import { ClienteDrawerComponent } from './cliente/cliente-drawer.component';
@@ -16,9 +17,10 @@ interface ItemNav {
 }
 
 /**
- * Shell do painel do CRM: navegação (sidebar no desktop, barra rolável no
- * mobile), status de conexão com o banco e host do drawer de cliente e dos
- * toasts. Cada aba é uma rota filha lazy sob /painel — ver app.routes.ts.
+ * Shell do painel do CRM (layout "Verdant"): cabeçalho com saudação, busca
+ * global e ações circulares; rail de ícones flutuante no desktop e barra de
+ * pílulas rolável no mobile. Também hospeda o drawer de cliente e os toasts.
+ * Cada aba é uma rota filha lazy sob /painel — ver app.routes.ts.
  * O estado compartilhado entre abas vive no CrmStore.
  */
 @Component({
@@ -26,6 +28,7 @@ interface ItemNav {
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
@@ -38,8 +41,20 @@ interface ItemNav {
 export class CrmPageComponent implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
   readonly store = inject(CrmStore);
+  private readonly router = inject(Router);
 
   readonly iniciais = iniciais;
+
+  /** Termo digitado na busca global do cabeçalho. */
+  readonly termoBusca = signal('');
+
+  /** Primeiro nome do admin logado — usado na saudação. */
+  readonly primeiroNome = computed(
+    () => (this.auth.adminInfo()?.nome || 'Gestor').trim().split(/\s+/)[0],
+  );
+
+  /** Quantidade de sinais no radar de risco (ponto vermelho do sino). */
+  readonly totalAlertas = computed(() => this.store.overview()?.alertas?.length ?? 0);
 
   /** Itens de navegação (mesma fonte para sidebar e barra mobile). */
   readonly navItens: ItemNav[] = [
@@ -108,6 +123,13 @@ export class CrmPageComponent implements OnInit, OnDestroy {
 
   verificarConexao(): void {
     this.store.verificarConexao();
+  }
+
+  /** Busca global: publica o termo no store e leva para o diretório de clientes. */
+  buscar(): void {
+    this.store.buscaGlobal.set(this.termoBusca().trim());
+    this.store.fecharCliente();
+    this.router.navigate(['/painel/clientes']);
   }
 
   /** Trocar de aba fecha o drawer para não sobrepor a nova tela. */

@@ -3,36 +3,50 @@
 @tailwind utilities;
 
 /* ════════════════════════════════════════════════════════════════
-   DESIGN SYSTEM "MERCURY" — tema claro único do CRM
-   Fundo branco/cinza neutro, bordas finas, texto de alto contraste,
-   acento azul royal. Tokens semânticos únicos: todo o markup deve
-   consumir estas variáveis (via utilitários do tailwind.config).
+   DESIGN SYSTEM "VERDANT" — adaptação do kit Paperpillar
+   (Property Management Dashboard) para o CRM da Click Prestare.
+
+   Princípios:
+   · Cards flutuantes brancos, canto largo (20px), SEM borda — a
+     separação vem da sombra difusa, não de linha.
+   · Acento verde-escuro; ações primárias em preto (pílula).
+   · Paleta cromática fixa p/ gráficos e tiles: verde · bege ·
+     púrpura · tosca. Nunca inventar cor fora dela.
+   · Tipografia General Sans (display + números) + Inter (corpo).
    ════════════════════════════════════════════════════════════════ */
 :root {
   /* superfícies */
-  --surface-page: #f9f9fb;
+  --surface-page: #f4f5f3;
   --surface-raised: #ffffff;
-  --surface-sunken: #f4f4f5;
-  --surface-overlay: rgba(24, 24, 27, 0.45);
-  /* bordas */
-  --border-subtle: #f0f0f2;
-  --border-default: #e4e4e7;
-  --border-strong: #d4d4d8;
+  --surface-sunken: #f1f3f1;
+  --surface-contrast: #1f2226;
+  --surface-overlay: rgba(31, 34, 38, 0.42);
+  /* bordas (uso comedido: divisores internos) */
+  --border-subtle: #f0f1ee;
+  --border-default: #e6e8e3;
+  --border-strong: #d6d9d1;
   /* texto */
-  --text-primary: #18181b;
-  --text-secondary: #52525b;
-  --text-muted: #a1a1aa;
+  --text-primary: #1f2226;
+  --text-secondary: #566072;
+  --text-muted: #8b94a1;
   --text-inverse: #ffffff;
   /* acento */
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-soft: #eff6ff;
-  --accent-border: #bfdbfe;
+  --accent: #4a6b52;
+  --accent-hover: #3f5c46;
+  --accent-soft: #e8f1ea;
+  --accent-border: #cbe0d2;
   /* semânticas */
-  --success: #16a34a; --success-soft: #f0fdf4; --success-border: #bbf7d0;
-  --warning: #d97706; --warning-soft: #fffbeb; --warning-border: #fde68a;
-  --danger:  #dc2626; --danger-soft:  #fef2f2; --danger-border:  #fecaca;
-  --info:    #7c3aed; --info-soft:    #f5f3ff; --info-border:    #ddd6fe;
+  --success: #3f7d51; --success-soft: #e8f4eb; --success-border: #c6e3cf;
+  --warning: #a97c2f; --warning-soft: #faf2e2; --warning-border: #ebdcbb;
+  --danger:  #9c1c1c; --danger-soft:  #fbeded; --danger-border:  #f0cfcf;
+  --info:    #5b6285; --info-soft:    #eeeff5; --info-border:    #d5d8e8;
+  /* paleta cromática (séries de gráfico, na ordem canônica) */
+  --chart-1: #6e9179; /* verde   */
+  --chart-2: #e5d5b0; /* bege    */
+  --chart-3: #c5dfe1; /* tosca   */
+  --chart-4: #b7bcd9; /* púrpura */
+  --chart-5: #4a6b52; /* verde escuro */
+  --chart-track: #eaeee9;
 }
 
 html,
@@ -40,53 +54,147 @@ body {
   height: 100%;
   background: var(--surface-page);
   color: var(--text-primary);
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: 'General Sans', 'Inter', system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
+/* Números sempre alinhados em coluna (tabelas, KPIs, moeda). */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.01em;
+}
+
 @layer components {
-  /* Painel padrão: superfície elevada com borda fina e sombra leve. */
+  /* ── Superfícies ───────────────────────────────────────────── */
+  /* Card padrão do kit: branco, canto largo, sombra difusa, sem borda. */
   .card {
-    @apply relative rounded-xl border border-line bg-surface-raised shadow-card;
+    @apply relative rounded-2xl bg-surface-raised shadow-card;
+  }
+  /* Variante encaixada (dentro de um card, sem elevação própria). */
+  .card-inset {
+    @apply relative rounded-xl bg-surface-sunken;
+  }
+  /* Card com tinta verde suave — destaques e faixas de resumo. */
+  .card-soft {
+    @apply relative rounded-2xl bg-accent-soft;
   }
   .card-hover {
-    @apply transition-all duration-200 hover:border-accent-border hover:shadow-pop;
+    @apply transition-all duration-200 hover:shadow-pop;
+  }
+
+  /* ── Tipografia utilitária ─────────────────────────────────── */
+  .page-title {
+    @apply font-display text-display-md font-semibold text-ink;
+  }
+  .section-title {
+    @apply font-display text-lg font-semibold tracking-tight text-ink;
   }
   .stat-label {
-    @apply text-2xs font-semibold uppercase tracking-wider text-ink-muted;
+    @apply text-xs font-medium text-ink-soft;
   }
   .stat-value {
-    @apply font-mono text-2xl font-semibold tabular-nums text-ink;
+    @apply font-display text-3xl font-semibold tabular-nums tracking-tight text-ink;
+  }
+  .eyebrow {
+    @apply text-2xs font-semibold uppercase tracking-wider text-ink-muted;
   }
   .table-head {
     @apply bg-surface-sunken text-2xs font-semibold uppercase tracking-wider text-ink-muted;
   }
+  /* Link discreto "See All / Ver todos" do kit. */
+  .link-more {
+    @apply text-sm font-medium text-accent underline-offset-4 transition-colors hover:text-accent-700 hover:underline;
+  }
+
+  /* ── Tiles de ícone (quadrado tintado do KPI card) ─────────── */
+  .tile {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-xl;
+  }
+  .tile-green  { @apply bg-forest-50 text-forest-300; }
+  .tile-beige  { @apply bg-beige-50 text-beige-300; }
+  .tile-purple { @apply bg-lilac-50 text-lilac-300; }
+  .tile-tosca  { @apply bg-tosca-50 text-tosca-300; }
+  .tile-dark   { @apply bg-surface-contrast text-white; }
+
+  /* ── Badges (pílulas sem borda, fundo tintado) ─────────────── */
   .badge {
-    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-2xs font-semibold;
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-2xs font-semibold;
   }
-  .badge-success { @apply border-success-border bg-success-soft text-success; }
-  .badge-warning { @apply border-warning-border bg-warning-soft text-warning; }
-  .badge-danger  { @apply border-danger-border bg-danger-soft text-danger; }
-  .badge-info    { @apply border-info-border bg-info-soft text-info; }
-  .badge-accent  { @apply border-accent-border bg-accent-soft text-accent; }
-  .badge-neutral { @apply border-line bg-surface-sunken text-ink-soft; }
+  .badge-success { @apply bg-success-soft text-success; }
+  .badge-warning { @apply bg-warning-soft text-warning; }
+  .badge-danger  { @apply bg-danger-soft text-danger; }
+  .badge-info    { @apply bg-info-soft text-info; }
+  .badge-accent  { @apply bg-accent-soft text-accent; }
+  .badge-neutral { @apply bg-surface-sunken text-ink-soft; }
+
+  /* ── Ações ─────────────────────────────────────────────────── */
+  /* Primária do kit: pílula preta. */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-600 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full bg-surface-contrast px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-black disabled:opacity-40 disabled:pointer-events-none;
   }
+  /* Secundária: pílula branca com hairline. */
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-line bg-surface-raised px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full border border-line bg-surface-raised px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-surface-sunken disabled:opacity-40 disabled:pointer-events-none;
+  }
+  /* Terciária: verde tintado, sem borda. */
+  .btn-accent {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full bg-accent-soft px-5 py-2.5 text-sm font-semibold text-accent transition-colors hover:bg-accent-border disabled:opacity-40 disabled:pointer-events-none;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink disabled:opacity-40 disabled:pointer-events-none;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full bg-danger px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-900 disabled:opacity-40 disabled:pointer-events-none;
   }
+  /* Botão-ícone circular (topo do dashboard: chat, sino, refresh). */
+  .icon-btn {
+    @apply relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-raised text-ink shadow-card transition-all hover:shadow-pop;
+  }
+  .icon-btn-dark {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-contrast text-white transition-colors hover:bg-black;
+  }
+
+  /* ── Formulários ───────────────────────────────────────────── */
   .input {
-    @apply w-full rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink placeholder:text-ink-muted transition-colors focus:border-accent focus:outline-none;
+    @apply w-full rounded-xl border border-line bg-surface-raised px-4 py-2.5 text-sm text-ink placeholder:text-ink-muted transition-colors focus:border-accent focus:outline-none;
+  }
+  /* Campo de busca em pílula larga (assinatura do kit). */
+  .search-pill {
+    @apply flex w-full items-center gap-3 rounded-full bg-surface-raised py-2 pl-6 pr-2 shadow-card;
+  }
+  .search-pill input {
+    @apply min-w-0 flex-1 border-0 bg-transparent text-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-0;
+  }
+
+  /* ── Navegação ─────────────────────────────────────────────── */
+  /* Item do rail lateral: quadrado arredondado; ativo = preto sólido. */
+  .rail-item {
+    @apply relative flex h-11 w-11 items-center justify-center rounded-xl text-ink-muted transition-all hover:bg-surface-sunken hover:text-ink;
+  }
+  .rail-item.is-active {
+    @apply bg-surface-contrast text-white hover:bg-surface-contrast hover:text-white;
+  }
+  /* Rótulo que aparece ao passar o mouse no rail. */
+  .rail-tip {
+    @apply pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-lg bg-surface-contrast px-2.5 py-1.5 text-2xs font-semibold text-white shadow-pop;
+  }
+  .rail-item:hover .rail-tip,
+  .rail-item:focus-visible .rail-tip {
+    @apply block;
+  }
+  /* Aba segmentada em pílula (filtros, sub-abas). */
+  .seg {
+    @apply inline-flex items-center gap-1 rounded-full bg-surface-sunken p-1;
+  }
+  .seg-item {
+    @apply rounded-full px-3.5 py-1.5 text-xs font-semibold text-ink-soft transition-all hover:text-ink;
+  }
+  .seg-item.is-active {
+    @apply bg-surface-raised text-ink shadow-card;
   }
 }
 
@@ -94,31 +202,31 @@ body {
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: 10px;
 }
 
 /* Scrollbar discreta (clara) */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(24, 24, 27, 0.15) transparent;
+  scrollbar-color: rgba(31, 34, 38, 0.15) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(24, 24, 27, 0.1);
+  background: rgba(31, 34, 38, 0.1);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(24, 24, 27, 0.2);
+  background: rgba(31, 34, 38, 0.2);
   background-clip: padding-box;
 }
 
 ::selection {
-  background: rgba(37, 99, 235, 0.2);
+  background: rgba(74, 107, 82, 0.2);
   color: inherit;
 }
 
@@ -158,18 +266,16 @@ body {
 
 /* KPI Card hover elevation */
 .kpi-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .kpi-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px -6px rgba(37, 99, 235, 0.15), 0 0 0 1px rgba(37, 99, 235, 0.2);
-  border-color: rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 12px -4px rgba(24, 30, 24, 0.1), 0 20px 44px -22px rgba(74, 107, 82, 0.45);
 }
 
 /* Tabela — linha com realce no hover */
 .row-glow:hover {
   background: var(--surface-sunken);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.15);
 }
 
 /* Drawer slide-in com leve "spring" (overshoot sutil) */
@@ -277,6 +383,26 @@ body {
   to { stroke-dashoffset: 0; }
 }
 
+/* Hachura diagonal da coluna em destaque (assinatura do kit) */
+.bar-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.24) 0 3px,
+    transparent 3px 8px
+  );
+}
+
+/* Barras do gráfico de colunas: sobem da base na entrada */
+.grow-bar {
+  transform-origin: bottom;
+  animation: grow-bar 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+@keyframes grow-bar {
+  0% { transform: scaleY(0); opacity: 0.4; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
 /* SVG: preencher os segmentos do doughnut progressivamente */
 .sweep-ring {
   animation: sweep-ring 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -293,7 +419,7 @@ body {
 }
 @keyframes flash-success {
   0%, 100% { background-color: transparent; }
-  35% { background-color: rgba(22, 163, 74, 0.14); }
+  35% { background-color: rgba(63, 125, 81, 0.16); }
 }
 
 /* Highlight ao inserir nova entrada em lista/log */
@@ -301,7 +427,7 @@ body {
   animation: row-highlight 1.6s ease-out;
 }
 @keyframes row-highlight {
-  0% { background-color: rgba(37, 99, 235, 0.12); }
+  0% { background-color: rgba(74, 107, 82, 0.14); }
   100% { background-color: transparent; }
 }
 
@@ -346,24 +472,4 @@ body {
 }
 .tab-underline.is-active::after {
   transform: scaleX(1);
-}
-
-/* Realce lateral deslizante para item ativo da sidebar */
-.nav-active-rail {
-  position: relative;
-}
-.nav-active-rail::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  height: 0;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
-  transform: translateY(-50%);
-  transition: height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.nav-active-rail.is-active::before {
-  height: 60%;
 }

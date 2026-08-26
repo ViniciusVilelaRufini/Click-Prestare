@@ -32,6 +32,12 @@ export class CrmStore {
   // ── Seleção cross-aba ──
   readonly clienteSelecionado = signal<CrmCliente | null>(null);
 
+  /**
+   * Busca global do cabeçalho. A aba Clientes consome este termo ao abrir
+   * (o campo de busca local continua sendo a fonte de verdade dentro da aba).
+   */
+  readonly buscaGlobal = signal('');
+
   // ── Conexão com o banco ──
   readonly dbHealth = signal<CrmHealth | null>(null);
   readonly healthLoading = signal(false);
