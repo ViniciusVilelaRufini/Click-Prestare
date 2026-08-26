@@ -137,13 +137,13 @@ html, body {
   background-color: rgba(10, 22, 40, 0.02) !important;
 }
 
-.light input, .light select {
+.light input, .light select, .light textarea {
   background-color: var(--bg-elevated) !important;
   color: var(--text-main) !important;
   border-color: var(--border-color) !important;
 }
 
-.light input::placeholder {
+.light input::placeholder, .light textarea::placeholder {
   color: var(--text-muted) !important;
 }
 
@@ -159,8 +159,21 @@ html, body {
   background-color: rgba(10, 22, 40, 0.02) !important;
 }
 
+.light .bg-slate-900\/60 {
+  background-color: rgba(10, 22, 40, 0.03) !important;
+}
+
 .light .bg-slate-950 {
   background-color: var(--bg-elevated) !important;
+}
+
+.light .bg-slate-950\/60 {
+  background-color: var(--bg-elevated) !important;
+}
+
+.light .bg-slate-950\/30,
+.light .bg-slate-950\/5 {
+  background-color: rgba(10, 22, 40, 0.03) !important;
 }
 
 .light .hover\:border-white\/10:hover {

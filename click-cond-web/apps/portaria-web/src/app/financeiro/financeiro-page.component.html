@@ -638,7 +638,7 @@
 
   <!-- MODAL DE NOVO LANÇAMENTO -->
   @if (modalLancamento()) {
-    <div class="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50 animate-fadeIn text-white">
+    <div class="fixed inset-0 bg-black/25 flex items-center justify-center p-4 z-50 animate-fadeIn text-white">
       <div class="w-full max-w-md rounded-3xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl flex flex-col">
         <div class="p-5 border-b border-white/10 flex items-center justify-between bg-slate-900/40">
           <h3 class="text-base font-semibold text-white">Cadastrar Lançamento</h3>
@@ -1249,10 +1249,10 @@
 
 <!-- Modal: Configuração de Cobrança Automática -->
 @if (modalConfigAuto()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in text-white">
-    <div class="w-full max-w-2xl rounded-3xl bg-graphite-200 border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/25 animate-fade-in text-white">
+    <div class="w-full max-w-2xl rounded-3xl bg-graphite-200 border border-slate-200/80 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
       <!-- Header -->
-      <div class="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-slate-900/40">
+      <div class="px-6 py-5 border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between bg-white/[0.02] dark:bg-slate-900/40">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
             <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1261,11 +1261,11 @@
             </svg>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Cobrança e Faturamento Automático</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Configure a geração mensal e a régua de alertas automáticos via WhatsApp</p>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Cobrança e Faturamento Automático</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">Configure a geração mensal e a régua de alertas automáticos via WhatsApp</p>
           </div>
         </div>
-        <button (click)="modalConfigAuto.set(false)" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition">
+        <button (click)="modalConfigAuto.set(false)" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition">
           ✕
         </button>
       </div>
@@ -1273,58 +1273,58 @@
       <!-- Conteúdo -->
       <div class="p-6 flex-1 overflow-y-auto space-y-6">
         @if (configAutoErro()) {
-          <div class="p-3.5 rounded-2xl bg-red-400/10 border border-red-400/20 text-xs text-red-300">
+          <div class="p-3.5 rounded-2xl bg-red-400/10 border border-red-400/20 text-xs text-red-600 dark:text-red-300">
             {{ configAutoErro() }}
           </div>
         }
 
         <!-- Seção 1: Geração Recorrente (Faturamento Mensal) -->
-        <div class="p-5 rounded-2xl bg-slate-900/40 border border-white/5 space-y-4">
+        <div class="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-white/5 space-y-4">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <h4 class="text-xs font-bold uppercase text-slate-200 tracking-wider">Faturamento Automático</h4>
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <h4 class="text-xs font-bold uppercase text-slate-800 dark:text-slate-200 tracking-wider">Faturamento Automático</h4>
             </div>
             <!-- Toggle Ativar/Desativar -->
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" [(ngModel)]="configAutoData.recorrencia_ativa" class="sr-only peer">
-              <div class="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-450 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-slate-950"></div>
-              <span class="ml-2 text-xs text-slate-400 font-medium select-none">Ativo</span>
+              <div class="w-9 h-5 bg-slate-300 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:after:bg-slate-450 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-white"></div>
+              <span class="ml-2 text-xs text-slate-600 dark:text-slate-400 font-medium select-none">Ativo</span>
             </label>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" [class.opacity-50]="!configAutoData.recorrencia_ativa">
             <div>
-              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Valor da Taxa (R$)</label>
+              <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">Valor da Taxa (R$)</label>
               <input
                 type="number"
                 [disabled]="!configAutoData.recorrencia_ativa"
                 [(ngModel)]="configAutoData.valor_condominio"
                 placeholder="R$ 0,00"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
               />
             </div>
             <div>
-              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Dia de Geração</label>
+              <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">Dia de Geração</label>
               <select
                 [disabled]="!configAutoData.recorrencia_ativa"
                 [(ngModel)]="configAutoData.dia_geracao"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 @for (d of [1, 2, 5, 10, 15, 20, 25]; track d) {
-                  <option [value]="d" class="bg-slate-900 text-white">Todo dia {{ d }}</option>
+                  <option [value]="d" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Todo dia {{ d }}</option>
                 }
               </select>
             </div>
             <div>
-              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Dia de Vencimento</label>
+              <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">Dia de Vencimento</label>
               <select
                 [disabled]="!configAutoData.recorrencia_ativa"
                 [(ngModel)]="configAutoData.dia_vencimento"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 @for (d of [1, 5, 10, 15, 20, 25, 28, 30]; track d) {
-                  <option [value]="d" class="bg-slate-900 text-white">Todo dia {{ d }}</option>
+                  <option [value]="d" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Todo dia {{ d }}</option>
                 }
               </select>
             </div>
@@ -1332,11 +1332,11 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" [class.opacity-50]="!configAutoData.recorrencia_ativa">
             <div>
-              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Mês de Início</label>
+              <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">Mês de Início</label>
               <select
                 [disabled]="!configAutoData.recorrencia_ativa"
                 [(ngModel)]="configAutoData.mes_inicio_recorrencia"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 <option [value]="null">Qualquer Mês (Imediato)</option>
                 <option [value]="1">Janeiro</option>
@@ -1354,11 +1354,11 @@
               </select>
             </div>
             <div>
-              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Ano de Início</label>
+              <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">Ano de Início</label>
               <select
                 [disabled]="!configAutoData.recorrencia_ativa"
                 [(ngModel)]="configAutoData.ano_inicio_recorrencia"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 <option [value]="null">Qualquer Ano (Imediato)</option>
                 <option [value]="2026">2026</option>
@@ -1371,48 +1371,54 @@
           </div>
 
           <div [class.opacity-50]="!configAutoData.recorrencia_ativa">
-            <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Categoria Padrão</label>
+            <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">Categoria Padrão</label>
             <input
               type="text"
               [disabled]="!configAutoData.recorrencia_ativa"
               [(ngModel)]="configAutoData.categoria_padrao"
               placeholder="Ex: Taxa Condominial"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500"
             />
           </div>
 
           <div>
-            <label class="block text-[11px] font-medium text-slate-400 mb-1.5">Chave Pix do Condomínio (para pagamento manual)</label>
+            <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">Chave Pix do Condomínio (para pagamento manual)</label>
             <input
               type="text"
               [(ngModel)]="configAutoData.chave_pix"
               placeholder="Ex: CNPJ, E-mail, Telefone ou Chave Aleatória"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
             />
           </div>
 
           <!-- Seleção de Apartamentos Excluídos -->
           <div [class.opacity-50]="!configAutoData.recorrencia_ativa" class="space-y-2">
-            <label class="block text-[11px] font-medium text-slate-400">Excluir Apartamentos da Geração Automática</label>
-            <div class="p-3.5 rounded-xl bg-slate-900/60 border border-white/10 space-y-2">
-              <div class="text-[10px] text-slate-500 mb-1">Selecione as unidades que NÃO devem receber faturamento automático:</div>
+            <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400">Excluir Apartamentos da Geração Automática</label>
+            <div class="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-white/10 space-y-2">
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Selecione as unidades que NÃO devem receber faturamento automático:</div>
               <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1">
                 @for (apto of apartamentosConfig(); track apto.id) {
                   <button
                     type="button"
                     [disabled]="!configAutoData.recorrencia_ativa"
                     (click)="toggleApartamentoRecorrencia(apto)"
-                    [class.bg-rose-500/10]="apto.ignorar_recorrencia"
-                    [class.border-rose-500/35]="apto.ignorar_recorrencia"
-                    [class.text-rose-400]="apto.ignorar_recorrencia"
-                    [class.bg-white/5]="!apto.ignorar_recorrencia"
-                    [class.border-white/10]="!apto.ignorar_recorrencia"
-                    [class.text-slate-350]="!apto.ignorar_recorrencia"
-                    class="px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                    [class.bg-rose-50]="apto.ignorar_recorrencia"
+                    [class.border-rose-300]="apto.ignorar_recorrencia"
+                    [class.text-rose-700]="apto.ignorar_recorrencia"
+                    [class.dark:bg-rose-950/40]="apto.ignorar_recorrencia"
+                    [class.dark:border-rose-800/60]="apto.ignorar_recorrencia"
+                    [class.dark:text-rose-300]="apto.ignorar_recorrencia"
+                    [class.bg-slate-50]="!apto.ignorar_recorrencia"
+                    [class.border-slate-200]="!apto.ignorar_recorrencia"
+                    [class.text-slate-700]="!apto.ignorar_recorrencia"
+                    [class.dark:bg-slate-800]="!apto.ignorar_recorrencia"
+                    [class.dark:border-white/10]="!apto.ignorar_recorrencia"
+                    [class.dark:text-slate-300]="!apto.ignorar_recorrencia"
+                    class="px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:pointer-events-none shadow-2xs"
                   >
                     <span>Apto {{ apto.apto }}{{ apto.bloco ? ' Bloco ' + apto.bloco : '' }}</span>
                     @if (apto.ignorar_recorrencia) {
-                      <span class="text-[9px] font-bold px-1 rounded bg-rose-500/20 text-rose-500 uppercase">Excluído</span>
+                      <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 uppercase">Excluído</span>
                     }
                   </button>
                 }
@@ -1422,50 +1428,50 @@
         </div>
 
         <!-- Seção 2: Régua de Cobrança (WhatsApp / Z-API) -->
-        <div class="p-5 rounded-2xl bg-slate-900/40 border border-white/5 space-y-4">
+        <div class="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-white/5 space-y-4">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-rose-400"></span>
-              <h4 class="text-xs font-bold uppercase text-slate-200 tracking-wider">WhatsApp Dunning (Cobrança Automática)</h4>
+              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              <h4 class="text-xs font-bold uppercase text-slate-800 dark:text-slate-200 tracking-wider">WhatsApp Dunning (Cobrança Automática)</h4>
             </div>
             <!-- Toggle Ativar/Desativar -->
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" [(ngModel)]="configAutoData.cobranca_auto_whats" class="sr-only peer">
-              <div class="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-450 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-slate-950"></div>
-              <span class="ml-2 text-xs text-slate-400 font-medium select-none">Ativo</span>
+              <div class="w-9 h-5 bg-slate-300 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:after:bg-slate-450 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-white"></div>
+              <span class="ml-2 text-xs text-slate-600 dark:text-slate-400 font-medium select-none">Ativo</span>
             </label>
           </div>
 
-          <p class="text-[11px] text-slate-400" [class.opacity-50]="!configAutoData.cobranca_auto_whats">
+          <p class="text-[11px] text-slate-500 dark:text-slate-400" [class.opacity-50]="!configAutoData.cobranca_auto_whats">
             Defina em quantos dias de atraso o sistema deve disparar as mensagens automáticas de lembrete pelo WhatsApp contendo a cobrança Pix.
           </p>
 
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" [class.opacity-50]="!configAutoData.cobranca_auto_whats">
             <div>
-              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">1º Aviso (Dias de Atraso)</label>
+              <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">1º Aviso (Dias de Atraso)</label>
               <input
                 type="number"
                 [disabled]="!configAutoData.cobranca_auto_whats"
                 [(ngModel)]="configAutoData.dias_atraso_aviso_1"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
               />
             </div>
             <div>
-              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">2º Aviso (Dias de Atraso)</label>
+              <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">2º Aviso (Dias de Atraso)</label>
               <input
                 type="number"
                 [disabled]="!configAutoData.cobranca_auto_whats"
                 [(ngModel)]="configAutoData.dias_atraso_aviso_2"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
               />
             </div>
             <div>
-              <label class="block text-[11px] font-medium text-slate-400 mb-1.5">3º Aviso (Dias de Atraso)</label>
+              <label class="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">3º Aviso (Dias de Atraso)</label>
               <input
                 type="number"
                 [disabled]="!configAutoData.cobranca_auto_whats"
                 [(ngModel)]="configAutoData.dias_atraso_aviso_3"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
               />
             </div>
           </div>
@@ -1473,17 +1479,17 @@
       </div>
 
       <!-- Footer -->
-      <div class="px-6 py-4 border-t border-white/10 bg-slate-900/40 flex items-center justify-end gap-3">
-        <button (click)="modalConfigAuto.set(false)" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">
+      <div class="px-6 py-4 border-t border-slate-200/80 dark:border-white/10 bg-white/[0.02] dark:bg-slate-900/40 flex items-center justify-end gap-3">
+        <button (click)="modalConfigAuto.set(false)" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition">
           Cancelar
         </button>
         <button
           (click)="salvarConfigAuto()"
           [disabled]="savingConfigAuto()"
-          class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/10 disabled:opacity-50"
+          class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 disabled:opacity-50"
         >
           @if (savingConfigAuto()) {
-            <div class="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+            <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             <span>Salvando...</span>
           } @else {
             <span>Salvar Configuração</span>
@@ -1493,42 +1499,41 @@
     </div>
   </div>
 }
-
 <!-- Modal de Cobrar Morador -->
 @if (modalCobrarMorador()) {
-  <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 text-white">
-    <div class="w-full max-w-md rounded-2xl bg-graphite-200 dark:bg-gradient-to-b dark:from-slate-900 dark:to-slate-950 border border-white/10 dark:border-white/10 overflow-hidden shadow-2xl flex flex-col relative animate-in zoom-in-95 duration-200">
+  <div class="fixed inset-0 bg-black/25 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 text-white">
+    <div class="w-full max-w-md rounded-2xl bg-graphite-200 dark:bg-gradient-to-b dark:from-slate-900 dark:to-slate-950 border border-slate-200/80 dark:border-white/10 overflow-hidden shadow-2xl flex flex-col relative animate-in zoom-in-95 duration-200">
       
       <!-- Top Glowing Accent Line -->
       <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400"></div>
 
       <!-- Header -->
-      <div class="p-5 border-b border-white/5 dark:border-white/5 flex items-center justify-between bg-slate-950/5 dark:bg-slate-950/30">
+      <div class="p-5 border-b border-slate-200/80 dark:border-white/5 flex items-center justify-between bg-white/[0.02] dark:bg-slate-950/30">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+          <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white tracking-tight">Cobrar Morador</h3>
-            <p class="text-[10px] text-slate-400 mt-0.5">Lançar uma cobrança vinculada a um apartamento específico</p>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Cobrar Morador</h3>
+            <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Lançar uma cobrança vinculada a um apartamento específico</p>
           </div>
         </div>
         <button (click)="modalCobrarMorador.set(false)" 
-                class="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-slate-500/10 dark:hover:bg-white/10 transition-all">✕</button>
+                class="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all">✕</button>
       </div>
 
       <div class="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
         @if (cobrancaErro()) {
-          <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-300">
+          <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-600 dark:text-red-300">
             {{ cobrancaErro() }}
           </div>
         }
 
         <!-- Seletor de Apartamento -->
         <div>
-          <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Unidade / Apartamento <span class="text-rose-500">*</span></label>
+          <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Unidade / Apartamento <span class="text-rose-500">*</span></label>
           <div class="relative">
             <svg class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
@@ -1536,11 +1541,11 @@
             <select
               [(ngModel)]="selectedAptoOption"
               (change)="onAptoSelectChange()"
-              class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
+              class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
             >
               <option value="" disabled selected>Selecione o Apartamento...</option>
               @for (apto of apartamentosConfig(); track apto.id) {
-                <option [value]="apto.bloco + '|' + apto.apto">
+                <option [value]="apto.bloco + '|' + apto.apto" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                   Apto {{ apto.apto }} Bloco {{ apto.bloco }}
                 </option>
               }
@@ -1556,23 +1561,23 @@
         <!-- Categoria & Valor -->
         <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Categoria <span class="text-rose-500">*</span></label>
+            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Categoria <span class="text-rose-500">*</span></label>
             <div class="relative">
               <svg class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
               </svg>
               <select
                 [(ngModel)]="novaCobranca.categoria"
-                class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
+                class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
               >
-                <option value="Taxa Condominial">Taxa Condominial</option>
-                <option value="Fundo de Reserva">Fundo de Reserva</option>
-                <option value="Multa">Multa</option>
-                <option value="Acordo">Acordo</option>
-                <option value="Doação">Doação</option>
-                <option value="Água">Água</option>
-                <option value="Gás">Gás</option>
-                <option value="Outros">Outros</option>
+                <option value="Taxa Condominial" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Taxa Condominial</option>
+                <option value="Fundo de Reserva" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Fundo de Reserva</option>
+                <option value="Multa" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Multa</option>
+                <option value="Acordo" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Acordo</option>
+                <option value="Doação" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Doação</option>
+                <option value="Água" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Água</option>
+                <option value="Gás" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Gás</option>
+                <option value="Outros" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Outros</option>
               </select>
               <div class="pointer-events-none absolute right-3 top-3.5 text-slate-400">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1582,7 +1587,7 @@
             </div>
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Valor <span class="text-rose-500">*</span></label>
+            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Valor <span class="text-rose-500">*</span></label>
             <div class="relative">
               <span class="text-xs font-bold text-slate-400 dark:text-slate-400 absolute left-3.5 top-2.5 font-mono select-none">R$</span>
               <input
@@ -1590,7 +1595,7 @@
                 type="number"
                 step="0.01"
                 placeholder="0.00"
-                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
+                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
               />
             </div>
           </div>
@@ -1599,27 +1604,27 @@
         <!-- Referência (Mês / Ano) -->
         <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Mês Referência <span class="text-rose-500">*</span></label>
+            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Mês Referência <span class="text-rose-500">*</span></label>
             <div class="relative">
               <svg class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
               </svg>
               <select
                 [(ngModel)]="novaCobranca.referenciaMes"
-                class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
+                class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition cursor-pointer appearance-none"
               >
-                <option value="01">01 - Janeiro</option>
-                <option value="02">02 - Fevereiro</option>
-                <option value="03">03 - Março</option>
-                <option value="04">04 - Abril</option>
-                <option value="05">05 - Maio</option>
-                <option value="06">06 - Junho</option>
-                <option value="07">07 - Julho</option>
-                <option value="08">08 - Agosto</option>
-                <option value="09">09 - Setembro</option>
-                <option value="10">10 - Outubro</option>
-                <option value="11">11 - Novembro</option>
-                <option value="12">12 - Dezembro</option>
+                <option value="01" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">01 - Janeiro</option>
+                <option value="02" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">02 - Fevereiro</option>
+                <option value="03" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">03 - Março</option>
+                <option value="04" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">04 - Abril</option>
+                <option value="05" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">05 - Maio</option>
+                <option value="06" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">06 - Junho</option>
+                <option value="07" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">07 - Julho</option>
+                <option value="08" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">08 - Agosto</option>
+                <option value="09" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">09 - Setembro</option>
+                <option value="10" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">10 - Outubro</option>
+                <option value="11" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">11 - Novembro</option>
+                <option value="12" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">12 - Dezembro</option>
               </select>
               <div class="pointer-events-none absolute right-3 top-3.5 text-slate-400">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1629,7 +1634,7 @@
             </div>
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Ano Referência <span class="text-rose-500">*</span></label>
+            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Ano Referência <span class="text-rose-500">*</span></label>
             <div class="relative">
               <svg class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
@@ -1638,7 +1643,7 @@
                 [(ngModel)]="novaCobranca.referenciaAno"
                 type="number"
                 placeholder="Ex: 2026"
-                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
+                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
               />
             </div>
           </div>
@@ -1647,7 +1652,7 @@
         <!-- Data Emissão & Vencimento -->
         <div class="grid grid-cols-2 gap-3.5">
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Data Emissão <span class="text-rose-500">*</span></label>
+            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Data Emissão <span class="text-rose-500">*</span></label>
             <div class="relative">
               <svg class="w-4 h-4 text-slate-400 dark:text-slate-550 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -1656,12 +1661,12 @@
                 [(ngModel)]="novaCobranca.data"
                 type="text"
                 placeholder="DD/MM/YYYY"
-                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
+                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
               />
             </div>
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Vencimento <span class="text-rose-500">*</span></label>
+            <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Vencimento <span class="text-rose-500">*</span></label>
             <div class="relative">
               <svg class="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -1670,7 +1675,7 @@
                 [(ngModel)]="novaCobranca.data_vencimento"
                 type="text"
                 placeholder="DD/MM/YYYY"
-                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
+                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition font-mono"
               />
             </div>
           </div>
@@ -1678,7 +1683,7 @@
 
         <!-- Descrição -->
         <div>
-          <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Observações (Opcional)</label>
+          <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Observações (Opcional)</label>
           <div class="relative">
             <svg class="w-4 h-4 text-slate-400 dark:text-slate-550 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -1687,44 +1692,44 @@
               [(ngModel)]="novaCobranca.descricao"
               placeholder="Ex: Ref. cota extra de obras"
               rows="2"
-              class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition resize-none"
+              class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition resize-none"
             ></textarea>
           </div>
         </div>
 
         <!-- PIX copia-e-cola (opcional) -->
         <div>
-          <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">PIX copia e cola (opcional)</label>
+          <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">PIX copia e cola (opcional)</label>
           <textarea
             [(ngModel)]="novaCobranca.pix_copia_cola"
             placeholder="Cole aqui o PIX copia-e-cola do condomínio para esta cobrança (aparece como 'Pagar Pix' no app do morador)"
             rows="2"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition resize-none font-mono"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition resize-none font-mono"
           ></textarea>
           <p class="text-[9px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">Se deixar em branco, o app usa a chave PIX do condomínio (ou o PIX automático, se configurado).</p>
         </div>
 
         <!-- Boleto (opcional) -->
         <div>
-          <label class="block text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-1.5">Boleto (opcional)</label>
+          <label class="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">Boleto (opcional)</label>
           @if (!cobrancaBoletoNome) {
             <button type="button" (click)="selecionarBoletoCobranca()"
-              class="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-dashed border-white/15 text-slate-300 text-xs hover:border-blue-500 transition">
+              class="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-950/60 dark:hover:bg-slate-900 border border-dashed border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-300 text-xs hover:border-blue-500 transition">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
               Anexar boleto (PDF ou imagem)
             </button>
           } @else {
             <div class="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs">
-              <svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              <span class="flex-1 text-blue-200 truncate">{{ cobrancaBoletoNome }}</span>
-              <button type="button" (click)="removerBoletoCobranca()" class="text-slate-400 hover:text-rose-400 transition shrink-0">✕</button>
+              <svg class="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <span class="flex-1 text-blue-700 dark:text-blue-200 truncate">{{ cobrancaBoletoNome }}</span>
+              <button type="button" (click)="removerBoletoCobranca()" class="text-slate-400 hover:text-rose-500 transition shrink-0">✕</button>
             </div>
           }
         </div>
 
         <!-- Já Pago Custom switch toggle -->
-        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950/5 dark:bg-slate-950/30 border border-white/10 dark:border-white/5">
-          <span class="text-xs text-slate-350 select-none">Marcar cobrança como paga</span>
+        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-white/5">
+          <span class="text-xs text-slate-700 dark:text-slate-350 select-none">Marcar cobrança como paga</span>
           <label class="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
@@ -1732,7 +1737,7 @@
               [value]="1"
               class="sr-only peer"
             />
-            <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-checked:after:bg-white peer-checked:after:border-white"></div>
+            <div class="w-9 h-5 bg-slate-300 dark:bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-checked:after:bg-white"></div>
           </label>
         </div>
 
@@ -1754,7 +1759,7 @@
           <!-- Dashed Separator -->
           <div class="border-t border-dashed border-blue-500/20 dark:border-white/10 my-2.5"></div>
           
-          <div class="text-xs font-mono font-bold text-blue-650 dark:text-blue-300 truncate tracking-wide py-1 select-all" title="Clique duas vezes para copiar">
+          <div class="text-xs font-mono font-bold text-blue-700 dark:text-blue-300 truncate tracking-wide py-1 select-all" title="Clique duas vezes para copiar">
             Apto {{ novaCobranca.apto || '___' }} Bloco {{ novaCobranca.bloco || '___' }} - {{ novaCobranca.categoria }} Ref. {{ novaCobranca.referenciaMes || 'MM' }}/{{ novaCobranca.referenciaAno || 'AAAA' }}
           </div>
           
@@ -1767,9 +1772,9 @@
       </div>
 
       <!-- Footer -->
-      <div class="p-4 border-t border-white/5 dark:border-white/5 bg-slate-950/5 dark:bg-slate-950/30 flex items-center justify-end gap-3.5">
+      <div class="p-4 border-t border-slate-200/80 dark:border-white/5 bg-white/[0.02] dark:bg-slate-950/30 flex items-center justify-end gap-3.5">
         <button (click)="modalCobrarMorador.set(false)" 
-                class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-500/10 dark:hover:bg-white/10 transition-all active:scale-95">
+                class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all active:scale-95">
           Cancelar
         </button>
         <button
