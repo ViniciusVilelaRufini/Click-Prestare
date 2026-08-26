@@ -9,7 +9,7 @@ import { SkeletonComponent } from '../../shared/ui/skeleton.component';
 import { ModalShellComponent } from '../../shared/ui/modal-shell.component';
 import { KpiCardComponent } from '../../shared/ui/kpi-card.component';
 import { Fatura, StatusFatura } from '../crm.models';
-import { moeda } from '../crm-format';
+import { iniciais, moeda } from '../crm-format';
 
 type KpiCard = 'emitido' | 'recebido' | 'pendente' | 'inadimplencia';
 
@@ -30,6 +30,15 @@ export class CrmFaturamentoComponent {
   private toast = inject(ToastService);
 
   readonly moeda = moeda;
+  readonly iniciais = iniciais;
+
+  /** Paths dos ícones dos KPIs (heroicons outline, viewBox 24). */
+  readonly ICONES = {
+    emitido: 'M9 12h6m-6 4h6M7 3h10a2 2 0 012 2v16l-3-2-2 2-2-2-2 2-2-2-3 2V5a2 2 0 012-2z',
+    recebido: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+    pendente: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+    inadimplencia: 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z',
+  };
 
   readonly filtroFatura = signal<StatusFatura>('todos');
   readonly filtros: { valor: StatusFatura; label: string }[] = [
@@ -43,6 +52,16 @@ export class CrmFaturamentoComponent {
     const filtro = this.filtroFatura();
     if (filtro === 'todos') return this.store.faturas();
     return this.store.faturas().filter((f) => f.status === filtro);
+  });
+
+  /** Quantas faturas há em cada status — contador dentro do filtro segmentado. */
+  readonly contagemStatus = computed(() => {
+    const lista = this.store.faturas();
+    const mapa: Record<string, number> = {};
+    for (const f of this.filtros) mapa[f.valor] = 0;
+    mapa['todos'] = lista.length;
+    for (const f of lista) mapa[f.status] = (mapa[f.status] ?? 0) + 1;
+    return mapa;
   });
 
   // ── Modais ──

@@ -23,7 +23,7 @@ import { CommonModule } from '@angular/common';
       (click)="onBackdrop($event)"
     >
       <div
-        class="card w-full shadow-modal animate-scale-in max-h-[90vh] overflow-y-auto {{ maxWidth }}"
+        class="card w-full rounded-3xl shadow-modal animate-scale-in max-h-[90vh] overflow-y-auto {{ maxWidth }}"
         role="dialog"
         aria-modal="true"
         [attr.aria-label]="ariaLabel"

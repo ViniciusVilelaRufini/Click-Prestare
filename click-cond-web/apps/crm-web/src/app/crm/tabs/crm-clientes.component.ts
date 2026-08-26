@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CrmCliente } from '../crm.service';
@@ -19,7 +19,7 @@ import * as fmt from '../crm-format';
   imports: [CommonModule, FormsModule, EmptyStateComponent, SkeletonComponent],
   templateUrl: './crm-clientes.component.html',
 })
-export class CrmClientesComponent {
+export class CrmClientesComponent implements OnInit {
   readonly store = inject(CrmStore);
 
   readonly iniciais = fmt.iniciais;
@@ -79,6 +79,47 @@ export class CrmClientesComponent {
 
   /** Há filtros ativos? (usado no empty state para oferecer "limpar") */
   readonly temFiltros = computed(() => !!this.busca() || this.filtroEstagio() !== 'todos');
+
+  /**
+   * Quantos clientes há em cada estágio — exibido dentro do filtro segmentado.
+   * Todos os estágios são semeados com 0 para que o contador nunca fique vazio.
+   */
+  readonly contagemEstagios = computed(() => {
+    const lista = this.store.clientes();
+    const mapa: Record<string, number> = {};
+    for (const e of this.estagios) mapa[e.valor] = 0;
+    mapa['todos'] = lista.length;
+    for (const c of lista) mapa[c.estagio] = (mapa[c.estagio] ?? 0) + 1;
+    return mapa;
+  });
+
+  /** Soma do MRR do recorte visível — resumo do topo do diretório. */
+  readonly mrrFiltrado = computed(() => this.clientesFiltrados().reduce((s, c) => s + c.mrr, 0));
+
+  /** Consome o termo digitado na busca global do cabeçalho, se houver. */
+  ngOnInit(): void {
+    const termo = this.store.buscaGlobal();
+    if (!termo) return;
+    this.buscaRaw.set(termo);
+    this.busca.set(termo);
+    this.store.buscaGlobal.set('');
+  }
+
+  /** Circunferência do anel de health score (r = 14 no viewBox 32). */
+  readonly CIRC_HEALTH = 2 * Math.PI * 14;
+
+  /** Traço do anel proporcional ao score (0–100). */
+  dashHealth(score: number): string {
+    const preenchido = (Math.max(0, Math.min(100, score)) / 100) * this.CIRC_HEALTH;
+    return `${preenchido} ${this.CIRC_HEALTH - preenchido}`;
+  }
+
+  /** Cor do traço do anel — acompanha healthClasse(). */
+  corHealth(score: number): string {
+    if (score >= 70) return 'var(--success)';
+    if (score >= 40) return 'var(--warning)';
+    return 'var(--danger)';
+  }
 
   @ViewChild('buscaInput') buscaInputEl?: ElementRef<HTMLInputElement>;
 

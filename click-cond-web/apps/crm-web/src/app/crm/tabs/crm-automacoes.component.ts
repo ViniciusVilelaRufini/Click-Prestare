@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CrmStore } from '../crm.store';
+import { ToastService } from '../../shared/toast.service';
 import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 
 /**
@@ -16,6 +17,7 @@ import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 })
 export class CrmAutomacoesComponent {
   readonly store = inject(CrmStore);
+  private readonly toast = inject(ToastService);
 
   readonly previewTemplate = signal<'pre' | 'venc' | 'pos'>('pre');
 
@@ -70,4 +72,12 @@ export class CrmAutomacoesComponent {
     '{{sindico}}', '{{condominio}}', '{{plano}}', '{{valor}}',
     '{{vencimento}}', '{{dias}}', '{{copia_cola}}', '{{link_pagamento}}',
   ];
+
+  /** Copia a tag para a área de transferência — atalho ao montar o template. */
+  copiarTag(tag: string): void {
+    navigator.clipboard
+      ?.writeText(tag)
+      .then(() => this.toast.trigger(`Tag ${tag} copiada.`, 'success'))
+      .catch(() => this.toast.trigger('Não foi possível copiar a tag.', 'error'));
+  }
 }

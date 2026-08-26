@@ -1,9 +1,9 @@
-<div class="animate-fade-in space-y-6">
-  <!-- Cabeçalho -->
-  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+<div class="animate-fade-in space-y-5">
+  <!-- ══ Cabeçalho da área ══ -->
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
-      <h2 class="text-2xl font-bold tracking-tight text-ink">Faturamento</h2>
-      <p class="mt-1 text-sm text-ink-soft">Cobranças emitidas, conciliação e inadimplência da carteira.</p>
+      <h2 class="section-title text-xl">Faturamento</h2>
+      <p class="mt-0.5 text-sm text-ink-muted">Cobranças emitidas, conciliação e inadimplência da carteira.</p>
     </div>
 
     <button type="button" class="btn-primary press" (click)="store.gerarFaturasMes()" [disabled]="store.salvando()">
@@ -14,17 +14,22 @@
         </svg>
         Gerando…
       } @else {
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
         Gerar faturas do mês
       }
     </button>
   </div>
 
-  <!-- KPIs -->
+  <!-- ══ KPIs de cobrança ══ -->
   <div class="stagger-children grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
     <app-kpi-card
       label="Emitido no mês"
       [valor]="store.faturamentoCards().emitido"
       formato="moeda"
+      tom="green"
+      [icone]="ICONES.emitido"
       [detalhe]="store.faturas().length + ' cobrança(s) gerada(s)'"
       [clicavel]="true"
       (cardClick)="abrirDetalheCard('emitido')"
@@ -33,6 +38,8 @@
       label="Recebido"
       [valor]="store.faturamentoCards().recebido"
       formato="moeda"
+      tom="tosca"
+      [icone]="ICONES.recebido"
       detalhe="Conciliado e liquidado"
       [clicavel]="true"
       (cardClick)="abrirDetalheCard('recebido')"
@@ -41,10 +48,14 @@
       label="Pendente"
       [valor]="store.faturamentoCards().pendente"
       formato="moeda"
+      tom="beige"
+      [icone]="ICONES.pendente"
       detalhe="Aguardando Pix/boleto"
       [clicavel]="true"
       (cardClick)="abrirDetalheCard('pendente')"
     />
+
+    <!-- Inadimplência: KPI com taxa sobre o emitido -->
     <div
       class="card kpi-card press cursor-pointer p-5"
       role="button"
@@ -52,11 +63,20 @@
       (click)="abrirDetalheCard('inadimplencia')"
       (keydown.enter)="abrirDetalheCard('inadimplencia')"
     >
-      <p class="stat-label">Inadimplência</p>
-      <p class="stat-value mt-2 text-danger">{{ moeda(store.faturamentoCards().inadimplencia) }}</p>
-      <div class="mt-3">
-        <div class="mb-1 flex items-center justify-between text-xs">
-          <span class="text-ink-soft">Da receita emitida</span>
+      <div class="flex items-center gap-3">
+        <div class="tile tile-red">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="ICONES.inadimplencia" />
+          </svg>
+        </div>
+        <p class="min-w-0 flex-1 truncate text-sm font-medium text-ink-soft">Inadimplência</p>
+      </div>
+
+      <p class="stat-value mt-4 text-danger">{{ moeda(store.faturamentoCards().inadimplencia) }}</p>
+
+      <div class="mt-2">
+        <div class="mb-1.5 flex items-center justify-between text-xs">
+          <span class="text-ink-muted">Da receita emitida</span>
           <span class="font-mono font-semibold text-danger">{{ store.faturamentoCards().taxa }}%</span>
         </div>
         <div class="h-1.5 overflow-hidden rounded-full bg-surface-sunken">
@@ -66,29 +86,29 @@
     </div>
   </div>
 
-  <!-- Histórico de cobranças -->
+  <!-- ══ Histórico de cobranças ══ -->
   <div class="card overflow-hidden">
-    <div class="flex flex-col justify-between gap-3 border-b border-line px-6 py-4 sm:flex-row sm:items-center">
+    <div class="flex flex-col justify-between gap-3 px-5 pb-2 pt-5 sm:flex-row sm:items-center">
       <div>
-        <h3 class="text-sm font-semibold text-ink">Histórico de cobranças</h3>
-        <p class="mt-0.5 text-xs text-ink-soft">Faturas de serviços e infraestrutura de portaria.</p>
+        <h3 class="section-title">Histórico de cobranças</h3>
+        <p class="mt-0.5 text-xs text-ink-muted">Faturas de serviços e infraestrutura de portaria.</p>
       </div>
 
       <div class="flex items-center gap-3">
-        <div class="flex items-center gap-1 rounded-lg border border-line bg-surface-sunken p-1" role="group" aria-label="Filtrar faturas">
+        <div class="seg scrollbar-none max-w-full overflow-x-auto" role="group" aria-label="Filtrar faturas">
           @for (f of filtros; track f.valor) {
             <button
               type="button"
-              class="press rounded-md px-2.5 py-1 text-xs font-semibold transition-all"
+              class="seg-item press shrink-0"
+              [class.is-active]="filtroFatura() === f.valor"
               [attr.aria-pressed]="filtroFatura() === f.valor"
-              [class]="filtroFatura() === f.valor ? 'bg-surface-raised text-accent shadow-card' : 'text-ink-soft hover:text-ink'"
               (click)="filtroFatura.set(f.valor)"
             >
               {{ f.label }}
+              <span class="ml-1 font-mono opacity-50">{{ contagemStatus()[f.valor] }}</span>
             </button>
           }
         </div>
-        <span class="whitespace-nowrap font-mono text-xs text-ink-muted">{{ faturasFiltradas().length }} faturas</span>
       </div>
     </div>
 
@@ -102,42 +122,44 @@
       />
     } @else {
       <!-- Tabela (≥ md) -->
-      <div class="hidden overflow-x-auto md:block">
+      <div class="hidden overflow-x-auto p-3 md:block">
         <table class="w-full border-collapse text-left text-sm">
           <thead>
-            <tr class="table-head border-b border-line">
-              <th scope="col" class="px-6 py-3">Fatura</th>
-              <th scope="col" class="px-6 py-3">Condomínio</th>
-              <th scope="col" class="px-6 py-3">Valor</th>
-              <th scope="col" class="px-6 py-3">Vencimento</th>
-              <th scope="col" class="px-6 py-3">Forma</th>
-              <th scope="col" class="px-6 py-3">Status</th>
-              <th scope="col" class="px-6 py-3 text-right">Ações</th>
+            <tr class="table-head">
+              <th scope="col" class="rounded-l-xl py-3 pl-4 pr-4">Fatura</th>
+              <th scope="col" class="px-4 py-3">Condomínio</th>
+              <th scope="col" class="px-4 py-3">Valor</th>
+              <th scope="col" class="px-4 py-3">Vencimento</th>
+              <th scope="col" class="px-4 py-3">Forma</th>
+              <th scope="col" class="px-4 py-3">Status</th>
+              <th scope="col" class="rounded-r-xl py-3 pl-4 pr-4 text-right">Ações</th>
             </tr>
           </thead>
-          <tbody class="stagger-children divide-y divide-line-subtle">
+          <tbody class="stagger-children">
             @for (f of faturasFiltradas(); track f.id) {
               <tr
-                class="cursor-pointer transition-colors hover:bg-surface-sunken"
+                class="cursor-pointer border-b border-line-subtle transition-colors last:border-0 hover:bg-surface-sunken"
                 [style.--i]="$index < 10 ? $index : 10"
                 [class.flash-success]="store.ultimaFaturaPaga() === f.id"
                 (click)="abrirFaturaDetalhada(f)"
               >
-                <td class="px-6 py-3 font-mono text-ink-soft">{{ f.id }}</td>
-                <td class="px-6 py-3 font-semibold text-ink">{{ f.condominio }}</td>
-                <td class="px-6 py-3 font-mono font-semibold tabular-nums text-ink">{{ moeda(f.valor) }}</td>
-                <td class="px-6 py-3 font-mono text-ink-soft">{{ f.vencimento | date:'dd/MM/yyyy' }}</td>
-                <td class="px-6 py-3 text-ink-soft">{{ f.metodoPagamento }}</td>
-                <td class="px-6 py-3">
+                <td class="py-3.5 pl-4 pr-4 font-mono text-xs text-ink-muted">{{ f.id }}</td>
+                <td class="px-4 py-3.5 font-semibold text-ink">{{ f.condominio }}</td>
+                <td class="px-4 py-3.5 font-mono font-semibold tabular-nums text-ink">{{ moeda(f.valor) }}</td>
+                <td class="px-4 py-3.5 font-mono text-ink-soft">{{ f.vencimento | date:'dd/MM/yyyy' }}</td>
+                <td class="px-4 py-3.5 text-ink-soft">{{ f.metodoPagamento }}</td>
+                <td class="px-4 py-3.5">
                   <span [class]="statusClasse(f.status)">
                     <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
                     {{ statusLabel(f.status) }}
                   </span>
                 </td>
-                <td class="space-x-2 px-6 py-3 text-right" (click)="$event.stopPropagation()">
+                <td class="py-3.5 pl-4 pr-4 text-right" (click)="$event.stopPropagation()">
                   @if (f.status !== 'paga') {
-                    <button type="button" class="btn-secondary press !px-2.5 !py-1 !text-xs" (click)="abrirBaixaManual(f)">Dar baixa</button>
-                    <button type="button" class="btn-primary press !px-2.5 !py-1 !text-xs" (click)="abrirCobrarWhats(f)">Cobrar</button>
+                    <div class="flex items-center justify-end gap-2">
+                      <button type="button" class="btn-secondary btn-sm press" (click)="abrirBaixaManual(f)">Dar baixa</button>
+                      <button type="button" class="btn-primary btn-sm press" (click)="abrirCobrarWhats(f)">Cobrar</button>
+                    </div>
                   } @else {
                     <span class="text-xs text-ink-muted">Conciliado em {{ f.dataPagamento | date:'dd/MM HH:mm' }}</span>
                   }
@@ -149,10 +171,10 @@
       </div>
 
       <!-- Cards (< md) -->
-      <div class="stagger-children divide-y divide-line-subtle md:hidden">
+      <div class="stagger-children space-y-2 p-3 md:hidden">
         @for (f of faturasFiltradas(); track f.id) {
           <div
-            class="cursor-pointer space-y-3 p-5 transition-colors hover:bg-surface-sunken"
+            class="cursor-pointer space-y-3 rounded-xl bg-surface-sunken p-4 transition-colors"
             [style.--i]="$index < 10 ? $index : 10"
             [class.flash-success]="store.ultimaFaturaPaga() === f.id"
             (click)="abrirFaturaDetalhada(f)"
@@ -169,7 +191,7 @@
             </div>
 
             <div class="flex items-center justify-between">
-              <span class="font-mono text-base font-semibold tabular-nums text-ink">{{ moeda(f.valor) }}</span>
+              <span class="font-mono text-lg font-semibold tabular-nums text-ink">{{ moeda(f.valor) }}</span>
               <span class="font-mono text-xs text-ink-soft">Vence {{ f.vencimento | date:'dd/MM/yyyy' }}</span>
             </div>
 
@@ -188,50 +210,50 @@
   </div>
 </div>
 
-<!-- Modal 1: detalhamento por KPI -->
+<!-- ══ Modal 1: detalhamento por KPI ══ -->
 @if (selectedKpiCard()) {
   <app-modal-shell maxWidth="max-w-4xl" ariaLabel="Detalhamento do indicador" (fechar)="fecharDetalheCard()">
-    <div class="flex items-center justify-between border-b border-line px-6 py-4">
+    <div class="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
       <div>
-        <h3 class="text-sm font-semibold text-ink">{{ tituloCardSelecionado() }}</h3>
-        <p class="mt-0.5 text-xs text-ink-soft">Cobranças correspondentes ao indicador selecionado</p>
+        <h3 class="section-title">{{ tituloCardSelecionado() }}</h3>
+        <p class="mt-0.5 text-xs text-ink-muted">Cobranças correspondentes ao indicador selecionado</p>
       </div>
-      <button type="button" class="btn-ghost press !p-2" aria-label="Fechar" (click)="fecharDetalheCard()">
+      <button type="button" class="icon-btn press h-9 w-9 shadow-none hover:bg-surface-sunken hover:shadow-none" aria-label="Fechar" (click)="fecharDetalheCard()">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
 
-    <div class="flex items-center justify-between border-b border-line bg-surface-sunken px-6 py-3 text-sm text-ink-soft">
-      <span>Total de cobranças: <span class="font-mono font-semibold text-ink">{{ faturasDoCardSelecionado().length }}</span></span>
+    <div class="mx-6 flex items-center justify-between rounded-xl bg-surface-sunken px-4 py-3 text-sm text-ink-soft">
+      <span>Cobranças: <span class="font-mono font-semibold text-ink">{{ faturasDoCardSelecionado().length }}</span></span>
       <span>Valor acumulado: <span class="font-mono font-semibold text-ink">{{ moeda(valorCardSelecionado()) }}</span></span>
     </div>
 
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto p-3">
       <table class="w-full border-collapse text-left text-sm">
         <thead>
-          <tr class="table-head border-b border-line">
-            <th scope="col" class="px-6 py-3">Fatura</th>
-            <th scope="col" class="px-6 py-3">Condomínio</th>
-            <th scope="col" class="px-6 py-3">Valor</th>
-            <th scope="col" class="px-6 py-3">Vencimento</th>
-            <th scope="col" class="px-6 py-3">Status</th>
-            <th scope="col" class="px-6 py-3 text-right">Ação</th>
+          <tr class="table-head">
+            <th scope="col" class="rounded-l-xl py-3 pl-4 pr-4">Fatura</th>
+            <th scope="col" class="px-4 py-3">Condomínio</th>
+            <th scope="col" class="px-4 py-3">Valor</th>
+            <th scope="col" class="px-4 py-3">Vencimento</th>
+            <th scope="col" class="px-4 py-3">Status</th>
+            <th scope="col" class="rounded-r-xl py-3 pl-4 pr-4 text-right">Ação</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-line-subtle">
+        <tbody>
           @for (f of faturasDoCardSelecionado(); track f.id) {
-            <tr class="transition-colors hover:bg-surface-sunken">
-              <td class="px-6 py-3 font-mono text-ink-soft">{{ f.id }}</td>
-              <td class="px-6 py-3 font-semibold text-ink">{{ f.condominio }}</td>
-              <td class="px-6 py-3 font-mono tabular-nums text-ink">{{ moeda(f.valor) }}</td>
-              <td class="px-6 py-3 font-mono text-ink-soft">{{ f.vencimento | date:'dd/MM/yyyy' }}</td>
-              <td class="px-6 py-3">
+            <tr class="border-b border-line-subtle transition-colors last:border-0 hover:bg-surface-sunken">
+              <td class="py-3 pl-4 pr-4 font-mono text-xs text-ink-muted">{{ f.id }}</td>
+              <td class="px-4 py-3 font-semibold text-ink">{{ f.condominio }}</td>
+              <td class="px-4 py-3 font-mono tabular-nums text-ink">{{ moeda(f.valor) }}</td>
+              <td class="px-4 py-3 font-mono text-ink-soft">{{ f.vencimento | date:'dd/MM/yyyy' }}</td>
+              <td class="px-4 py-3">
                 <span [class]="statusClasse(f.status)">{{ statusLabel(f.status) }}</span>
               </td>
-              <td class="px-6 py-3 text-right">
-                <button type="button" class="btn-secondary press !px-2.5 !py-1 !text-xs" (click)="fecharDetalheCard(); abrirFaturaDetalhada(f)">
+              <td class="py-3 pl-4 pr-4 text-right">
+                <button type="button" class="btn-secondary btn-sm press" (click)="fecharDetalheCard(); abrirFaturaDetalhada(f)">
                   Ver detalhes
                 </button>
               </td>
@@ -247,51 +269,51 @@
       </table>
     </div>
 
-    <div class="flex items-center justify-end border-t border-line px-6 py-4">
+    <div class="flex items-center justify-end px-6 pb-6 pt-2">
       <button type="button" class="btn-secondary press" (click)="fecharDetalheCard()">Fechar</button>
     </div>
   </app-modal-shell>
 }
 
-<!-- Modal 2: detalhe completo da fatura -->
+<!-- ══ Modal 2: detalhe completo da fatura ══ -->
 @if (faturaDetalhada(); as f) {
   <app-modal-shell maxWidth="max-w-2xl" ariaLabel="Detalhes da fatura" (fechar)="fecharFaturaDetalhada()">
-    <div class="flex items-center justify-between border-b border-line px-6 py-4">
+    <div class="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
       <div>
-        <h3 class="text-sm font-semibold text-ink">Fatura <span class="font-mono">{{ f.id }}</span></h3>
-        <p class="mt-0.5 text-xs text-ink-soft">Conciliação, contatos e histórico de notificações</p>
+        <h3 class="section-title">Fatura <span class="font-mono">{{ f.id }}</span></h3>
+        <p class="mt-0.5 text-xs text-ink-muted">Conciliação, contatos e histórico de notificações</p>
       </div>
-      <button type="button" class="btn-ghost press !p-2" aria-label="Fechar" (click)="fecharFaturaDetalhada()">
+      <button type="button" class="icon-btn press h-9 w-9 shadow-none hover:bg-surface-sunken hover:shadow-none" aria-label="Fechar" (click)="fecharFaturaDetalhada()">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
 
-    <div class="space-y-6 p-6">
-      <div class="grid grid-cols-2 gap-4">
-        <div class="rounded-lg border border-line bg-surface-sunken/60 p-4">
-          <p class="stat-label">Valor e vencimento</p>
-          <p class="mt-1 font-mono text-xl font-bold text-ink">{{ moeda(f.valor) }}</p>
-          <p class="mt-1 font-mono text-xs text-ink-soft">Vence em {{ f.vencimento | date:'dd/MM/yyyy' }}</p>
+    <div class="space-y-5 px-6 pb-2">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div class="card-inset p-4">
+          <p class="eyebrow">Valor e vencimento</p>
+          <p class="mt-1.5 font-display text-2xl font-semibold tabular-nums text-ink">{{ moeda(f.valor) }}</p>
+          <p class="mt-1 font-mono text-xs text-ink-muted">Vence em {{ f.vencimento | date:'dd/MM/yyyy' }}</p>
         </div>
 
-        <div class="flex flex-col justify-between rounded-lg border border-line bg-surface-sunken/60 p-4">
+        <div class="card-inset flex flex-col justify-between p-4">
           <div>
-            <p class="stat-label">Status atual</p>
+            <p class="eyebrow">Status atual</p>
             <span [class]="statusClasse(f.status)" class="mt-2">
               <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
               {{ statusLabel(f.status) }}
             </span>
           </div>
-          <p class="mt-2 font-mono text-xs text-ink-soft">
-            {{ f.status === 'paga' ? 'Forma: ' : 'Forma prevista: ' }}{{ f.metodoPagamento }}
+          <p class="mt-2 text-xs text-ink-muted">
+            {{ f.status === 'paga' ? 'Forma: ' : 'Forma prevista: ' }}<span class="font-semibold text-ink-soft">{{ f.metodoPagamento }}</span>
           </p>
         </div>
       </div>
 
       @if (store.manualPaymentsMetadata()[f.id]; as metadata) {
-        <div class="space-y-2 rounded-lg border border-success-border bg-success-soft p-4">
+        <div class="space-y-2 rounded-xl bg-success-soft p-4">
           <p class="flex items-center gap-2 text-sm font-semibold text-success">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -303,29 +325,29 @@
             <div>Valor recebido: <span class="font-mono font-semibold text-ink">{{ moeda(metadata.valorPago) }}</span></div>
             <div class="col-span-2">Data/hora: <span class="font-mono font-semibold text-ink">{{ metadata.dataPagamento | date:'dd/MM/yyyy HH:mm' }}</span></div>
             @if (metadata.obs) {
-              <div class="col-span-2 mt-1 rounded border border-line bg-surface-raised p-2 italic">
+              <div class="col-span-2 mt-1 rounded-lg bg-surface-raised p-2.5 italic">
                 <span class="font-semibold not-italic text-ink-muted">Obs:</span> "{{ metadata.obs }}"
               </div>
             }
           </div>
         </div>
       } @else if (f.status === 'paga') {
-        <div class="flex items-center gap-3 rounded-lg border border-line bg-surface-sunken/60 p-4">
-          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success-soft text-success">
+        <div class="flex items-center gap-3 rounded-xl bg-success-soft p-4">
+          <div class="tile h-9 w-9 rounded-full bg-surface-raised text-success">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <div>
-            <p class="text-sm font-semibold text-ink">Pagamento conciliado online</p>
+            <p class="text-sm font-semibold text-success">Pagamento conciliado online</p>
             <p class="mt-0.5 text-xs text-ink-soft">Processado em {{ f.dataPagamento | date:'dd/MM/yyyy HH:mm' }}</p>
           </div>
         </div>
       }
 
       <div class="space-y-2">
-        <h4 class="stat-label">Dados da conta &amp; plano</h4>
-        <div class="grid grid-cols-2 gap-4 rounded-lg border border-line p-4 text-sm text-ink-soft">
+        <h4 class="eyebrow">Dados da conta &amp; plano</h4>
+        <div class="card-inset grid grid-cols-2 gap-4 p-4 text-sm text-ink-muted">
           <div>
             Condomínio
             <span class="mt-0.5 block font-semibold text-ink">{{ f.condominio }}</span>
@@ -334,11 +356,11 @@
             ID do cliente
             <span class="mt-0.5 block font-mono font-semibold text-ink">#{{ f.clienteId }}</span>
           </div>
-          <div class="border-t border-line-subtle pt-3">
+          <div class="border-t border-line pt-3">
             Plano vigente
             <span class="mt-0.5 block font-semibold text-ink">{{ store.findCliente(f.clienteId)?.plano || '—' }}</span>
           </div>
-          <div class="border-t border-line-subtle pt-3">
+          <div class="border-t border-line pt-3">
             Apartamentos
             <span class="mt-0.5 block font-mono font-semibold text-ink">{{ store.findCliente(f.clienteId)?.totalApartamentos || 0 }} UHs</span>
           </div>
@@ -347,12 +369,17 @@
 
       @if (store.findCliente(f.clienteId); as cInfo) {
         <div class="space-y-2">
-          <h4 class="stat-label">Contato administrativo</h4>
-          <div class="rounded-lg border border-line p-4">
+          <h4 class="eyebrow">Contato administrativo</h4>
+          <div class="card-inset p-4">
             @if (cInfo.contatoPrincipal; as ct) {
-              <p class="text-sm font-semibold text-ink">{{ ct.nome }}</p>
-              <p class="mt-0.5 text-xs text-ink-soft">{{ ct.papel }}</p>
-              <div class="mt-3 grid grid-cols-2 gap-2 border-t border-line-subtle pt-3 text-xs text-ink-soft">
+              <div class="flex items-center gap-3">
+                <div class="tile tile-green font-display text-2xs font-bold">{{ iniciais(ct.nome) }}</div>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-ink">{{ ct.nome }}</p>
+                  <p class="mt-0.5 text-xs text-ink-muted">{{ ct.papel }}</p>
+                </div>
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3 text-xs text-ink-muted">
                 <div>WhatsApp: <span class="font-mono font-semibold text-ink">{{ ct.telefone || '—' }}</span></div>
                 <div>E-mail: <span class="font-semibold text-ink">{{ ct.email || '—' }}</span></div>
               </div>
@@ -364,37 +391,37 @@
       }
     </div>
 
-    <div class="flex items-center justify-between border-t border-line px-6 py-4">
+    <div class="flex flex-wrap items-center justify-between gap-2 px-6 pb-6 pt-4">
       <div class="flex items-center gap-2">
         @if (f.status !== 'paga') {
           <button type="button" class="btn-secondary press" (click)="fecharFaturaDetalhada(); abrirBaixaManual(f)">Dar baixa manual</button>
           <button type="button" class="btn-primary press" (click)="fecharFaturaDetalhada(); abrirCobrarWhats(f)">Cobrar no WhatsApp</button>
         }
       </div>
-      <button type="button" class="btn-secondary press" (click)="fecharFaturaDetalhada()">Fechar</button>
+      <button type="button" class="btn-ghost press" (click)="fecharFaturaDetalhada()">Fechar</button>
     </div>
   </app-modal-shell>
 }
 
-<!-- Modal 3: cobrança por WhatsApp -->
+<!-- ══ Modal 3: cobrança por WhatsApp ══ -->
 @if (whatsCobrancaFatura()) {
   <app-modal-shell maxWidth="max-w-2xl" ariaLabel="Cobrança por WhatsApp" (fechar)="whatsCobrancaFatura.set(null)">
-    <div class="flex items-center justify-between border-b border-line px-6 py-4">
+    <div class="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
       <div>
-        <h3 class="text-sm font-semibold text-ink">Cobrança por WhatsApp</h3>
-        <p class="mt-0.5 text-xs text-ink-soft">Revise e edite a mensagem antes do disparo (Z-API)</p>
+        <h3 class="section-title">Cobrança por WhatsApp</h3>
+        <p class="mt-0.5 text-xs text-ink-muted">Revise e edite a mensagem antes do disparo (Z-API)</p>
       </div>
-      <button type="button" class="btn-ghost press !p-2" aria-label="Fechar" (click)="whatsCobrancaFatura.set(null)">
+      <button type="button" class="icon-btn press h-9 w-9 shadow-none hover:bg-surface-sunken hover:shadow-none" aria-label="Fechar" (click)="whatsCobrancaFatura.set(null)">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
 
-    <div class="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
+    <div class="grid grid-cols-1 gap-6 px-6 pb-2 md:grid-cols-2">
       <div class="space-y-4">
         <div>
-          <label class="stat-label mb-1.5 block" for="whats-tel">Telefone do destinatário</label>
+          <label class="eyebrow mb-1.5 block" for="whats-tel">Telefone do destinatário</label>
           <input
             id="whats-tel"
             type="text"
@@ -405,11 +432,11 @@
         </div>
 
         <div>
-          <label class="stat-label mb-1.5 block" for="whats-msg">Corpo da mensagem</label>
+          <label class="eyebrow mb-1.5 block" for="whats-msg">Corpo da mensagem</label>
           <textarea
             id="whats-msg"
             rows="10"
-            class="input resize-none font-mono text-xs leading-relaxed"
+            class="input resize-none text-xs leading-relaxed"
             [ngModel]="whatsMensagemRascunho()"
             (ngModelChange)="whatsMensagemRascunho.set($event)"
           ></textarea>
@@ -418,10 +445,10 @@
       </div>
 
       <div class="flex flex-col items-center gap-3">
-        <p class="stat-label self-start">Visualização</p>
-        <div class="relative flex h-[380px] w-[260px] flex-col overflow-hidden rounded-[30px] border-[6px] border-zinc-800 bg-zinc-900 p-2 shadow-pop">
-          <div class="absolute left-1/2 top-1 z-20 h-3 w-16 -translate-x-1/2 rounded-b-xl bg-zinc-800"></div>
-          <div class="flex flex-1 flex-col overflow-hidden rounded-[20px] bg-[#efeae2]">
+        <p class="eyebrow self-start">Visualização</p>
+        <div class="relative flex h-[380px] w-[260px] flex-col overflow-hidden rounded-[36px] border-[6px] border-surface-contrast bg-surface-contrast p-2 shadow-pop">
+          <div class="absolute left-1/2 top-1 z-20 h-3 w-16 -translate-x-1/2 rounded-b-xl bg-surface-contrast"></div>
+          <div class="flex flex-1 flex-col overflow-hidden rounded-[26px] bg-[#efeae2]">
             <div class="flex items-center gap-1.5 bg-[#075e54] px-2.5 pb-1.5 pt-4">
               <div class="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[8px] font-bold text-white">CP</div>
               <p class="text-[9px] font-semibold leading-none text-white">Click Prestare Suporte</p>
@@ -436,8 +463,8 @@
       </div>
     </div>
 
-    <div class="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
-      <button type="button" class="btn-secondary press" (click)="whatsCobrancaFatura.set(null)">Cancelar</button>
+    <div class="flex items-center justify-end gap-2 px-6 pb-6 pt-4">
+      <button type="button" class="btn-ghost press" (click)="whatsCobrancaFatura.set(null)">Cancelar</button>
       <button type="button" class="btn-primary press" (click)="confirmarEnvioWhats()" [disabled]="store.salvando()">
         @if (store.salvando()) {
           <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
@@ -453,23 +480,23 @@
   </app-modal-shell>
 }
 
-<!-- Modal 4: baixa manual -->
+<!-- ══ Modal 4: baixa manual ══ -->
 @if (baixaManualFatura(); as f) {
   <app-modal-shell maxWidth="max-w-md" ariaLabel="Registrar baixa manual" (fechar)="baixaManualFatura.set(null)">
-    <div class="flex items-center justify-between border-b border-line px-6 py-4">
+    <div class="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
       <div>
-        <h3 class="text-sm font-semibold text-ink">Registrar baixa manual</h3>
-        <p class="mt-0.5 text-xs text-ink-soft">A operação é auditada com autor, motivo e valor</p>
+        <h3 class="section-title">Registrar baixa manual</h3>
+        <p class="mt-0.5 text-xs text-ink-muted">A operação é auditada com autor, motivo e valor</p>
       </div>
-      <button type="button" class="btn-ghost press !p-2" aria-label="Fechar" (click)="baixaManualFatura.set(null)">
+      <button type="button" class="icon-btn press h-9 w-9 shadow-none hover:bg-surface-sunken hover:shadow-none" aria-label="Fechar" (click)="baixaManualFatura.set(null)">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
 
-    <div class="space-y-4 p-6">
-      <div class="space-y-1 rounded-lg border border-line bg-surface-sunken/60 p-4 text-sm text-ink-soft">
+    <div class="space-y-4 px-6 pb-2">
+      <div class="card-inset space-y-1 p-4 text-sm text-ink-muted">
         <div>Fatura: <span class="font-mono font-semibold text-ink">{{ f.id }}</span></div>
         <div>Condomínio: <span class="font-semibold text-ink">{{ f.condominio }}</span></div>
         <div>Valor original: <span class="font-mono font-semibold text-ink">{{ moeda(f.valor) }}</span></div>
@@ -477,7 +504,7 @@
 
       <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2">
-          <label class="stat-label mb-1.5 block" for="baixa-metodo">Método de pagamento</label>
+          <label class="eyebrow mb-1.5 block" for="baixa-metodo">Método de pagamento</label>
           <select id="baixa-metodo" class="input cursor-pointer" [ngModel]="baixaMetodo()" (ngModelChange)="baixaMetodo.set($event)">
             <option value="Pix">Pix</option>
             <option value="Boleto">Boleto</option>
@@ -488,25 +515,35 @@
         </div>
 
         <div>
-          <label class="stat-label mb-1.5 block" for="baixa-data">Data</label>
+          <label class="eyebrow mb-1.5 block" for="baixa-data">Data</label>
           <input id="baixa-data" type="date" class="input font-mono" [ngModel]="baixaData()" (ngModelChange)="baixaData.set($event)" />
         </div>
 
         <div>
-          <label class="stat-label mb-1.5 block" for="baixa-hora">Hora</label>
+          <label class="eyebrow mb-1.5 block" for="baixa-hora">Hora</label>
           <input id="baixa-hora" type="time" class="input font-mono" [ngModel]="baixaHora()" (ngModelChange)="baixaHora.set($event)" />
         </div>
 
         <div class="col-span-2">
-          <label class="stat-label mb-1.5 block" for="baixa-valor">Valor pago (R$)</label>
+          <label class="eyebrow mb-1.5 block" for="baixa-valor">Valor pago (R$)</label>
           <div class="relative">
-            <span class="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs text-ink-muted">R$</span>
-            <input id="baixa-valor" type="number" class="input pl-9 font-mono" [ngModel]="baixaValor()" (ngModelChange)="baixaValor.set($event)" />
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 font-mono text-xs text-ink-muted">R$</span>
+            <input id="baixa-valor" type="number" class="input pl-10 font-mono" [ngModel]="baixaValor()" (ngModelChange)="baixaValor.set($event)" />
           </div>
+          @if (baixaValor() !== f.valor) {
+            <p class="mt-1.5 flex items-center gap-1.5 text-xs text-warning">
+              <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+              </svg>
+              Divergente do valor original ({{ moeda(f.valor) }}) — justifique abaixo.
+            </p>
+          }
         </div>
 
         <div class="col-span-2">
-          <label class="stat-label mb-1.5 block" for="baixa-obs">Motivo / observações <span class="normal-case tracking-normal text-ink-muted">(obrigatório)</span></label>
+          <label class="eyebrow mb-1.5 block" for="baixa-obs">
+            Motivo / observações <span class="normal-case tracking-normal text-danger">*</span>
+          </label>
           <textarea
             id="baixa-obs"
             rows="3"
@@ -515,12 +552,15 @@
             [ngModel]="baixaObservacoes()"
             (ngModelChange)="baixaObservacoes.set($event)"
           ></textarea>
+          <p class="mt-1.5 text-xs text-ink-muted">
+            Mínimo de 5 caracteres — fica registrado na auditoria.
+          </p>
         </div>
       </div>
     </div>
 
-    <div class="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
-      <button type="button" class="btn-secondary press" (click)="baixaManualFatura.set(null)">Cancelar</button>
+    <div class="flex items-center justify-end gap-2 px-6 pb-6 pt-4">
+      <button type="button" class="btn-ghost press" (click)="baixaManualFatura.set(null)">Cancelar</button>
       <button type="button" class="btn-primary press" (click)="executarBaixaManual()" [disabled]="store.salvando()">
         @if (store.salvando()) {
           <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">

@@ -1,12 +1,12 @@
-<div class="animate-fade-in space-y-6">
-  <!-- Cabeçalho -->
-  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+<div class="animate-fade-in space-y-5">
+  <!-- ══ Cabeçalho da área ══ -->
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <div class="flex items-center gap-2">
-        <h2 class="text-2xl font-bold tracking-tight text-ink">Chamados</h2>
+        <h2 class="section-title text-xl">Chamados</h2>
         <span class="badge badge-accent">Suporte B2B</span>
       </div>
-      <p class="mt-1 text-sm text-ink-soft">Suporte técnico, solicitações de hardware e ocorrências dos condomínios.</p>
+      <p class="mt-0.5 text-sm text-ink-muted">Suporte técnico, solicitações de hardware e ocorrências dos condomínios.</p>
     </div>
 
     <button type="button" class="btn-primary press" (click)="abrirNovoChamado()">
@@ -17,29 +17,69 @@
     </button>
   </div>
 
-  <!-- Filtros -->
-  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <div class="flex flex-wrap items-center gap-1 self-start rounded-lg border border-line bg-surface-sunken p-1" role="group" aria-label="Filtrar chamados por área">
-      @for (f of filtros; track f.valor) {
-        <button
-          type="button"
-          class="press rounded-md px-3.5 py-1.5 text-xs font-semibold transition-all"
-          [attr.aria-pressed]="subFiltroChamados() === f.valor"
-          [class]="subFiltroChamados() === f.valor ? 'bg-surface-raised text-accent shadow-card' : 'text-ink-soft hover:text-ink'"
-          (click)="subFiltroChamados.set(f.valor)"
-        >
-          {{ f.label }}
-        </button>
-      }
+  <!-- ══ Resumo da fila ══ -->
+  <div class="stagger-children grid grid-cols-3 gap-5">
+    <div class="card flex items-center gap-3 p-4">
+      <div class="tile tile-beige">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <p class="font-display text-2xl font-semibold tabular-nums text-ink">{{ resumo().pendentes }}</p>
+        <p class="truncate text-xs text-ink-muted">Aguardando retorno</p>
+      </div>
     </div>
 
-    <p class="text-xs text-ink-muted">{{ dicaFiltroAtivo() }}</p>
+    <div class="card flex items-center gap-3 p-4">
+      <div class="tile tile-green">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <p class="font-display text-2xl font-semibold tabular-nums text-ink">{{ resumo().resolvidos }}</p>
+        <p class="truncate text-xs text-ink-muted">Resolvidos</p>
+      </div>
+    </div>
+
+    <div class="card flex items-center gap-3 p-4">
+      <div class="tile tile-purple">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.6a1 1 0 01.7.3l5.4 5.4a1 1 0 01.3.7V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <p class="font-display text-2xl font-semibold tabular-nums text-ink">{{ resumo().total }}</p>
+        <p class="truncate text-xs text-ink-muted">Total técnico</p>
+      </div>
+    </div>
   </div>
 
-  @if (ocorrenciasLoading()) {
-    <app-skeleton variante="tabela" [rows]="5" />
-  } @else if (ocorrenciasFiltradas().length === 0) {
-    <div class="card">
+  <!-- ══ Fila de chamados ══ -->
+  <div class="card overflow-hidden">
+    <div class="flex flex-col gap-3 px-5 pb-4 pt-5 lg:flex-row lg:items-center lg:justify-between">
+      <div class="seg scrollbar-none max-w-full self-start overflow-x-auto" role="group" aria-label="Filtrar chamados por área">
+        @for (f of filtros; track f.valor) {
+          <button
+            type="button"
+            class="seg-item press shrink-0"
+            [class.is-active]="subFiltroChamados() === f.valor"
+            [attr.aria-pressed]="subFiltroChamados() === f.valor"
+            (click)="subFiltroChamados.set(f.valor)"
+          >
+            {{ f.label }}
+            <span class="ml-1 font-mono opacity-50">{{ contagemFiltros()[f.valor] }}</span>
+          </button>
+        }
+      </div>
+
+      <p class="text-xs text-ink-muted">{{ dicaFiltroAtivo() }}</p>
+    </div>
+
+    @if (ocorrenciasLoading()) {
+      <app-skeleton variante="tabela" [rows]="5" />
+    } @else if (ocorrenciasFiltradas().length === 0) {
       <app-empty-state
         icone="check"
         titulo="Nenhum chamado neste filtro"
@@ -47,93 +87,103 @@
         ctaLabel="Abrir chamado manual"
         (cta)="abrirNovoChamado()"
       />
-    </div>
-  } @else {
-    <div class="card overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr class="table-head border-b border-line">
-              <th scope="col" class="px-6 py-3">ID</th>
-              <th scope="col" class="px-6 py-3">Condomínio</th>
-              <th scope="col" class="px-6 py-3">Categoria</th>
-              <th scope="col" class="px-6 py-3">Descrição</th>
-              <th scope="col" class="px-6 py-3">Status</th>
-              <th scope="col" class="px-6 py-3">Abertura</th>
-              <th scope="col" class="px-6 py-3 text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody class="stagger-children divide-y divide-line-subtle">
-            @for (o of ocorrenciasFiltradas(); track o.id) {
-              <tr class="transition-colors hover:bg-surface-sunken" [style.--i]="$index < 10 ? $index : 10">
-                <td class="px-6 py-3 font-mono text-ink-muted">#{{ o.id }}</td>
-                <td class="px-6 py-3 font-semibold text-ink">{{ o.condominio?.nome || 'Geral' }}</td>
-                <td class="px-6 py-3">
-                  <span class="badge badge-neutral">{{ o.categoria?.nome || 'Suporte' }}</span>
-                </td>
-                <td class="max-w-xs truncate px-6 py-3 text-ink-soft" [title]="o.descricao">{{ o.descricao }}</td>
-                <td class="px-6 py-3">
-                  <span class="badge" [class]="o.status === 'Pendente' ? 'badge badge-warning' : 'badge badge-success'">
-                    <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-                    {{ o.status }}
-                  </span>
-                </td>
-                <td class="px-6 py-3 font-mono text-ink-soft">{{ o.created_at | date:'dd/MM/yyyy HH:mm' }}</td>
-                <td class="px-6 py-3 text-right">
-                  @if (o.status === 'Pendente') {
-                    <button type="button" class="btn-primary press !px-3 !py-1.5 !text-xs" (click)="abrirRespostaOcorrencia(o)">Responder</button>
-                  } @else {
-                    <button type="button" class="btn-secondary press !px-3 !py-1.5 !text-xs" (click)="abrirRespostaOcorrencia(o)">Ver resposta</button>
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </div>
-  }
+    } @else {
+      <ul class="stagger-children space-y-2 p-3">
+        @for (o of ocorrenciasFiltradas(); track o.id) {
+          <li
+            class="flex flex-col gap-3 rounded-xl p-3 transition-colors hover:bg-surface-sunken lg:flex-row lg:items-center lg:gap-4"
+            [style.--i]="$index < 10 ? $index : 10"
+          >
+            <!-- Identificação -->
+            <div class="flex min-w-0 flex-1 items-center gap-3">
+              <div class="tile" [ngClass]="areaTom(o)">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="areaIcone(o)" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <p class="truncate text-sm font-semibold text-ink">{{ o.condominio?.nome || 'Geral' }}</p>
+                  <span class="shrink-0 font-mono text-2xs text-ink-muted">#{{ o.id }}</span>
+                </div>
+                <p class="mt-0.5 truncate text-xs text-ink-muted" [title]="o.descricao">{{ o.descricao }}</p>
+              </div>
+            </div>
+
+            <!-- Categoria -->
+            <div class="hidden w-40 shrink-0 xl:block">
+              <span class="badge badge-neutral max-w-full truncate">{{ o.categoria?.nome || 'Suporte' }}</span>
+            </div>
+
+            <!-- Status + abertura -->
+            <div class="flex shrink-0 items-center gap-3 lg:w-52 lg:justify-end">
+              <div class="text-right">
+                <span class="badge" [class]="o.status === 'Pendente' ? 'badge badge-warning' : 'badge badge-success'">
+                  <span class="h-1.5 w-1.5 rounded-full bg-current" [class.status-dot-live]="o.status === 'Pendente'"></span>
+                  {{ o.status }}
+                </span>
+                <p class="mt-1 font-mono text-2xs text-ink-muted">{{ o.created_at | date:'dd/MM/yyyy HH:mm' }}</p>
+              </div>
+
+              @if (o.status === 'Pendente') {
+                <button type="button" class="btn-primary btn-sm press shrink-0" (click)="abrirRespostaOcorrencia(o)">Responder</button>
+              } @else {
+                <button type="button" class="btn-secondary btn-sm press shrink-0" (click)="abrirRespostaOcorrencia(o)">Ver resposta</button>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </div>
 </div>
 
-<!-- Modal: detalhe do chamado + chat -->
+<!-- ══ Modal: detalhe do chamado + chat ══ -->
 @if (ocorrenciaSelecionada(); as o) {
   <app-modal-shell maxWidth="max-w-4xl" ariaLabel="Detalhe do chamado" (fechar)="fecharRespostaOcorrencia()">
     <div class="flex h-[85vh] flex-col md:flex-row">
       <!-- Lado esquerdo: detalhes e resolução -->
-      <div class="flex flex-1 flex-col overflow-y-auto border-line md:border-r">
-        <div class="flex items-center justify-between border-b border-line px-6 py-4">
-          <div>
-            <h3 class="text-sm font-semibold text-ink">Chamado #{{ o.id }}</h3>
-            <p class="mt-0.5 text-xs text-ink-soft">Retorno e controle do chamado no CRM</p>
+      <div class="flex flex-1 flex-col overflow-y-auto">
+        <div class="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
+          <div class="flex items-center gap-3">
+            <div class="tile" [ngClass]="areaTom(o)">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="areaIcone(o)" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="section-title">Chamado <span class="font-mono">#{{ o.id }}</span></h3>
+              <p class="mt-0.5 text-xs text-ink-muted">Retorno e controle do chamado no CRM</p>
+            </div>
           </div>
-          <button type="button" class="btn-ghost press !p-2 md:hidden" aria-label="Fechar" (click)="fecharRespostaOcorrencia()">
+          <button type="button" class="icon-btn press h-9 w-9 shadow-none hover:bg-surface-sunken hover:shadow-none md:hidden" aria-label="Fechar" (click)="fecharRespostaOcorrencia()">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div class="flex-1 space-y-5 p-6">
-          <div class="grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface-sunken/60 p-4">
+        <div class="flex-1 space-y-5 px-6 pb-2">
+          <div class="card-inset grid grid-cols-2 gap-4 p-4">
             <div>
-              <p class="stat-label">Condomínio</p>
+              <p class="eyebrow">Condomínio</p>
               <p class="mt-1 text-sm font-semibold text-ink">{{ o.condominio?.nome || 'Geral' }}</p>
             </div>
             <div>
-              <p class="stat-label">Solicitante</p>
+              <p class="eyebrow">Solicitante</p>
               <p class="mt-1 text-sm text-ink-soft">{{ o.criadoPor?.name || 'Administrador' }}</p>
             </div>
           </div>
 
           <div>
-            <p class="stat-label mb-1.5">Descrição do problema</p>
-            <div class="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-line bg-surface-sunken/60 p-4 text-sm leading-relaxed text-ink-soft">
+            <p class="eyebrow mb-1.5">Descrição do problema</p>
+            <div class="card-inset max-h-40 overflow-y-auto whitespace-pre-wrap p-4 text-sm leading-relaxed text-ink-soft">
               {{ o.descricao }}
             </div>
           </div>
 
           <div>
-            <p class="stat-label mb-1.5">Resposta / resolução <span class="normal-case tracking-normal text-ink-muted">(finaliza o chamado)</span></p>
+            <p class="eyebrow mb-1.5">Resposta / resolução <span class="normal-case tracking-normal text-ink-muted">(finaliza o chamado)</span></p>
 
             @if (o.status === 'Pendente') {
               <textarea
@@ -144,18 +194,21 @@
                 aria-label="Resposta do chamado"
               ></textarea>
             } @else {
-              <div class="mb-4 whitespace-pre-wrap rounded-lg border border-success-border bg-success-soft p-4 text-sm leading-relaxed text-ink">
+              <div class="mb-4 whitespace-pre-wrap rounded-xl bg-success-soft p-4 text-sm leading-relaxed text-ink">
                 {{ o.resposta }}
                 <p class="mt-2 font-mono text-2xs text-success">Resolvido em {{ o.resposta_at | date:'dd/MM/yyyy HH:mm' }}</p>
               </div>
 
               @if (!reabrindoChamado()) {
-                <button type="button" class="btn-secondary press w-full border-warning-border bg-warning-soft text-warning" (click)="iniciarReabertura()">
+                <button type="button" class="btn-accent press w-full bg-warning-soft text-warning hover:bg-warning-border" (click)="iniciarReabertura()">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9M20 20v-5h-.581m0 0A8.003 8.003 0 014.06 13" />
+                  </svg>
                   Reabrir e direcionar chamado (volta ao Kanban)
                 </button>
               } @else {
-                <div class="reveal-down space-y-3 rounded-lg border border-warning-border bg-warning-soft p-4">
-                  <label class="stat-label block text-warning" for="reabertura">Motivo / novas informações do cliente</label>
+                <div class="reveal-down space-y-3 rounded-xl bg-warning-soft p-4">
+                  <label class="eyebrow block text-warning" for="reabertura">Motivo / novas informações do cliente</label>
                   <textarea
                     id="reabertura"
                     [(ngModel)]="reaberturaTexto"
@@ -180,8 +233,8 @@
           </div>
         </div>
 
-        <div class="mt-auto flex items-center justify-end gap-2 border-t border-line px-6 py-4">
-          <button type="button" class="btn-secondary press" (click)="fecharRespostaOcorrencia()">Fechar</button>
+        <div class="mt-auto flex items-center justify-end gap-2 px-6 pb-6 pt-4">
+          <button type="button" class="btn-ghost press" (click)="fecharRespostaOcorrencia()">Fechar</button>
           @if (o.status === 'Pendente') {
             <button
               type="button"
@@ -204,23 +257,23 @@
       </div>
 
       <!-- Lado direito: chat em tempo real -->
-      <div class="flex h-full w-full flex-col bg-surface-sunken/60 md:w-96">
-        <div class="flex items-center justify-between border-b border-line px-5 py-4">
+      <div class="flex h-full w-full flex-col bg-surface-sunken md:w-96">
+        <div class="flex items-start justify-between gap-3 px-5 pb-3 pt-6">
           <div>
-            <h4 class="flex items-center gap-1.5 text-sm font-semibold text-ink">
+            <h4 class="flex items-center gap-1.5 font-display text-sm font-semibold text-ink">
               <span class="status-dot-live h-2 w-2 rounded-full bg-success"></span>
               Chat em tempo real
             </h4>
-            <p class="mt-0.5 text-xs text-ink-soft">Conversa direta com o morador no app</p>
+            <p class="mt-0.5 text-xs text-ink-muted">Conversa direta com o morador no app</p>
           </div>
-          <button type="button" class="btn-ghost press !hidden !p-2 md:!block" aria-label="Fechar" (click)="fecharRespostaOcorrencia()">
+          <button type="button" class="icon-btn press hidden h-9 w-9 md:flex" aria-label="Fechar" (click)="fecharRespostaOcorrencia()">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div id="crm-chat-container" class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+        <div id="crm-chat-container" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
           @if (loadingChatMensagens()) {
             <div class="flex h-full items-center justify-center">
               <svg class="h-5 w-5 animate-spin text-accent" fill="none" viewBox="0 0 24 24" aria-hidden="true">
@@ -243,10 +296,10 @@
               >
                 <span class="mb-1 px-1 text-2xs text-ink-muted">{{ msg.usuario?.name || 'Administração' }}</span>
                 <div
-                  class="max-w-[85%] rounded-lg px-3 py-2 text-sm leading-normal"
+                  class="max-w-[85%] px-3.5 py-2.5 text-sm leading-normal shadow-card"
                   [class]="msg.usuario?.is_sindico === 1
-                    ? 'bg-accent text-white'
-                    : 'border border-line bg-surface-raised text-ink'"
+                    ? 'rounded-2xl rounded-br-md bg-accent text-white'
+                    : 'rounded-2xl rounded-bl-md bg-surface-raised text-ink'"
                 >
                   {{ msg.mensagem }}
                 </div>
@@ -256,17 +309,20 @@
           }
         </div>
 
-        <div class="border-t border-line p-3">
-          <form (submit)="$event.preventDefault(); enviarMensagemChat()" class="flex gap-2">
+        <div class="p-3">
+          <form (submit)="$event.preventDefault(); enviarMensagemChat()" class="search-pill py-1.5 pl-5 pr-1.5">
             <input
               type="text"
               [(ngModel)]="chatNovaMensagem"
               name="novaMensagem"
               placeholder="Escreva uma mensagem…"
-              class="input flex-1"
               aria-label="Nova mensagem"
             />
-            <button type="submit" class="btn-primary press" [disabled]="!chatNovaMensagem.trim()">Enviar</button>
+            <button type="submit" class="icon-btn-dark press h-9 w-9 disabled:opacity-40" [disabled]="!chatNovaMensagem.trim()" aria-label="Enviar mensagem">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" />
+              </svg>
+            </button>
           </form>
         </div>
       </div>
@@ -274,24 +330,24 @@
   </app-modal-shell>
 }
 
-<!-- Modal: novo chamado -->
+<!-- ══ Modal: novo chamado ══ -->
 @if (modalNovoChamadoAberto()) {
   <app-modal-shell maxWidth="max-w-lg" ariaLabel="Novo chamado de suporte" (fechar)="fecharNovoChamado()">
-    <div class="flex items-center justify-between border-b border-line px-6 py-4">
+    <div class="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
       <div>
-        <h3 class="text-sm font-semibold text-ink">Novo chamado de suporte</h3>
-        <p class="mt-0.5 text-xs text-ink-soft">Cria um chamado manual para um condomínio-cliente</p>
+        <h3 class="section-title">Novo chamado de suporte</h3>
+        <p class="mt-0.5 text-xs text-ink-muted">Cria um chamado manual para um condomínio-cliente</p>
       </div>
-      <button type="button" class="btn-ghost press !p-2" aria-label="Fechar" (click)="fecharNovoChamado()">
+      <button type="button" class="icon-btn press h-9 w-9 shadow-none hover:bg-surface-sunken hover:shadow-none" aria-label="Fechar" (click)="fecharNovoChamado()">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
 
-    <div class="space-y-4 p-6">
+    <div class="space-y-4 px-6 pb-2">
       <div>
-        <label class="stat-label mb-1.5 block" for="novo-cond">Condomínio</label>
+        <label class="eyebrow mb-1.5 block" for="novo-cond">Condomínio</label>
         <select id="novo-cond" [(ngModel)]="novoChamadoCondominioId" class="input cursor-pointer">
           <option [value]="null" disabled selected>Escolha um condomínio…</option>
           @for (c of store.clientes(); track c.id) {
@@ -301,7 +357,7 @@
       </div>
 
       <div>
-        <label class="stat-label mb-1.5 block" for="novo-desc">Descrição do chamado</label>
+        <label class="eyebrow mb-1.5 block" for="novo-desc">Descrição do chamado</label>
         <textarea
           id="novo-desc"
           [(ngModel)]="novoChamadoDescricao"
@@ -312,8 +368,8 @@
       </div>
     </div>
 
-    <div class="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
-      <button type="button" class="btn-secondary press" (click)="fecharNovoChamado()">Cancelar</button>
+    <div class="flex items-center justify-end gap-2 px-6 pb-6 pt-4">
+      <button type="button" class="btn-ghost press" (click)="fecharNovoChamado()">Cancelar</button>
       <button
         type="button"
         class="btn-primary press"

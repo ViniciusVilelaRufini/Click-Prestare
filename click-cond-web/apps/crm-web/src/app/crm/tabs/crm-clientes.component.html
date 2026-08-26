@@ -1,29 +1,35 @@
-<div class="animate-fade-in space-y-6">
-  <!-- Cabeçalho -->
-  <div>
-    <h2 class="text-2xl font-bold tracking-tight text-ink">Clientes</h2>
-    <p class="mt-1 text-sm text-ink-soft">Carteira de condomínios: plano, cobrança, hardware e saúde da conta.</p>
+<div class="animate-fade-in space-y-5">
+  <!-- ══ Cabeçalho da área ══ -->
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="section-title text-xl">Clientes</h2>
+      <p class="mt-0.5 text-sm text-ink-muted">Carteira de condomínios: plano, cobrança, hardware e saúde da conta.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="badge badge-neutral">{{ clientesFiltrados().length }} registros</span>
+      <span class="badge badge-accent">{{ moeda(mrrFiltrado()) }} em MRR</span>
+    </div>
   </div>
 
-  <!-- Busca e filtros -->
-  <div class="flex flex-col justify-between gap-3 xl:flex-row xl:items-center">
-    <div class="relative flex-1">
-      <svg class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+  <!-- ══ Busca e filtros ══ -->
+  <div class="card flex flex-col gap-3 p-3 xl:flex-row xl:items-center">
+    <div class="relative min-w-0 flex-1">
+      <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" />
       </svg>
       <input
         #buscaInput
         type="search"
-        class="input pl-10 pr-10"
+        class="w-full rounded-full border-0 bg-surface-sunken py-2.5 pl-11 pr-10 text-sm text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent-border"
         aria-label="Buscar clientes"
-        placeholder="Buscar por condomínio, cidade, síndico ou identificação…  ( / )"
+        placeholder="Buscar por condomínio, cidade, síndico ou identificação…   ( / )"
         [ngModel]="buscaRaw()"
         (ngModelChange)="onBuscaInput($event)"
       />
       @if (buscaRaw()) {
         <button
           type="button"
-          class="press absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-ink-muted transition-colors animate-fade-in hover:bg-surface-sunken hover:text-ink"
+          class="press absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 animate-fade-in items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink"
           aria-label="Limpar busca"
           (click)="limparBusca()"
         >
@@ -35,39 +41,37 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-      <div class="flex items-center gap-1 rounded-lg border border-line bg-surface-sunken p-1" role="group" aria-label="Filtrar por estágio">
+      <div class="seg scrollbar-none max-w-full overflow-x-auto" role="group" aria-label="Filtrar por estágio">
         @for (e of estagios; track e.valor) {
           <button
             type="button"
-            class="press rounded-md px-3 py-1.5 text-xs font-semibold transition-all"
+            class="seg-item press shrink-0"
+            [class.is-active]="filtroEstagio() === e.valor"
             [attr.aria-pressed]="filtroEstagio() === e.valor"
-            [class]="filtroEstagio() === e.valor ? 'bg-surface-raised text-accent shadow-card' : 'text-ink-soft hover:text-ink'"
             (click)="filtroEstagio.set(e.valor)"
           >
             {{ e.label }}
+            <span class="ml-1 font-mono opacity-50">{{ contagemEstagios()[e.valor] }}</span>
           </button>
         }
       </div>
 
-      <select class="input w-auto cursor-pointer font-medium" aria-label="Ordenar clientes" [ngModel]="ordenacao()" (ngModelChange)="ordenacao.set($event)">
-        <option value="mrr">Ordenar: maior MRR</option>
-        <option value="health">Ordenar: health score</option>
-        <option value="vencimento">Ordenar: vencimento</option>
-        <option value="nome">Ordenar: nome</option>
+      <select
+        class="cursor-pointer rounded-full border-0 bg-surface-sunken px-4 py-2.5 text-xs font-semibold text-ink-soft focus:outline-none focus:ring-2 focus:ring-accent-border"
+        aria-label="Ordenar clientes"
+        [ngModel]="ordenacao()"
+        (ngModelChange)="ordenacao.set($event)"
+      >
+        <option value="mrr">Maior MRR</option>
+        <option value="health">Health score</option>
+        <option value="vencimento">Vencimento</option>
+        <option value="nome">Nome</option>
       </select>
     </div>
   </div>
 
-  <!-- Diretório -->
+  <!-- ══ Diretório ══ -->
   <div class="card overflow-hidden">
-    <div class="flex items-center justify-between border-b border-line px-6 py-4">
-      <div>
-        <h3 class="text-sm font-semibold text-ink">Condomínios</h3>
-        <p class="mt-0.5 text-xs text-ink-soft">Clique em um registro para ver os dados completos ou editar.</p>
-      </div>
-      <span class="whitespace-nowrap font-mono text-xs text-ink-muted">{{ clientesFiltrados().length }} registros</span>
-    </div>
-
     @if (store.loading() && !store.clientes().length) {
       <app-skeleton variante="tabela" [rows]="6" />
     } @else if (clientesFiltrados().length === 0) {
@@ -80,36 +84,43 @@
       />
     } @else {
       <!-- Tabela (≥ md) -->
-      <div class="hidden overflow-x-auto md:block">
+      <div class="hidden overflow-x-auto p-2 md:block">
         <table class="w-full border-collapse text-left text-sm">
           <thead>
-            <tr class="table-head border-b border-line">
-              <th scope="col" class="px-4 py-3">Condomínio</th>
+            <tr class="table-head">
+              <th scope="col" class="rounded-l-xl py-3 pl-4 pr-4">Condomínio</th>
               <th scope="col" class="px-4 py-3">Estágio</th>
               <th scope="col" class="px-4 py-3">Plano</th>
-              <th scope="col" class="px-4 py-3">UHs</th>
+              <th scope="col" class="px-4 py-3 text-right">UHs</th>
               <th scope="col" class="px-4 py-3">MRR</th>
               <th scope="col" class="px-4 py-3">Terminais</th>
               <th scope="col" class="px-4 py-3">Health</th>
               <th scope="col" class="hidden px-4 py-3 xl:table-cell">Contato</th>
+              <th scope="col" class="w-10 rounded-r-xl py-3 pl-2 pr-3"><span class="sr-only">Abrir</span></th>
             </tr>
           </thead>
-          <tbody class="stagger-children divide-y divide-line-subtle">
+          <tbody class="stagger-children">
             @for (c of clientesFiltrados(); track c.id) {
-              <tr class="group cursor-pointer transition-colors hover:bg-surface-sunken" [style.--i]="$index < 10 ? $index : 10" (click)="abrirCliente(c)">
-                <td class="px-4 py-3">
+              <tr
+                class="group cursor-pointer border-b border-line-subtle transition-colors last:border-0 hover:bg-surface-sunken"
+                [style.--i]="$index < 10 ? $index : 10"
+                (click)="abrirCliente(c)"
+              >
+                <td class="py-3.5 pl-4 pr-4">
                   <div class="flex items-center gap-3">
-                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-sunken text-2xs font-bold text-ink-soft transition-colors group-hover:border-accent-border group-hover:bg-accent-soft group-hover:text-accent">
+                    <div class="tile h-10 w-10 bg-surface-sunken font-display text-2xs font-bold text-ink-soft transition-colors group-hover:bg-accent-soft group-hover:text-accent">
                       {{ iniciais(c.nome) }}
                     </div>
                     <div class="min-w-0">
-                      <p class="truncate font-semibold leading-snug text-ink transition-colors group-hover:text-accent">{{ c.nome }}</p>
-                      <p class="mt-0.5 truncate text-xs leading-snug text-ink-soft">{{ c.cidade || '—' }}{{ c.uf ? '/' + c.uf : '' }}</p>
+                      <p class="truncate font-semibold leading-snug text-ink">{{ c.nome }}</p>
+                      <p class="mt-0.5 truncate text-xs leading-snug text-ink-muted">
+                        {{ c.cidade || '—' }}{{ c.uf ? '/' + c.uf : '' }}
+                      </p>
                     </div>
                   </div>
                 </td>
 
-                <td class="px-4 py-3">
+                <td class="px-4 py-3.5">
                   <div class="flex flex-wrap items-center gap-1">
                     <span class="badge {{ estagioClasse(c.estagio) }}">
                       <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
@@ -126,11 +137,11 @@
                   </div>
                 </td>
 
-                <td class="whitespace-nowrap px-4 py-3 text-ink-soft">{{ c.plano || 'Sem plano' }}</td>
+                <td class="whitespace-nowrap px-4 py-3.5 text-ink-soft">{{ c.plano || 'Sem plano' }}</td>
 
-                <td class="px-4 py-3 font-mono tabular-nums text-ink-soft">{{ c.totalApartamentos }}</td>
+                <td class="px-4 py-3.5 text-right font-mono tabular-nums text-ink-soft">{{ c.totalApartamentos }}</td>
 
-                <td class="px-4 py-3">
+                <td class="px-4 py-3.5">
                   <p class="font-mono font-semibold tabular-nums text-ink">{{ moeda(c.mrr) }}</p>
                   @if (c.diasParaVencer !== null) {
                     <p class="mt-0.5 whitespace-nowrap text-xs font-medium {{ pagamentoClasse(c.statusPagamento) }}">
@@ -141,7 +152,7 @@
                   }
                 </td>
 
-                <td class="px-4 py-3">
+                <td class="px-4 py-3.5">
                   @if (c.dispositivosFaciais > 0) {
                     <span class="badge" [class]="c.dispositivosOffline > 0 ? 'badge badge-danger' : 'badge badge-success'">
                       <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
@@ -152,24 +163,47 @@
                   }
                 </td>
 
-                <td class="px-4 py-3">
-                  <div class="flex max-w-[120px] items-center gap-2">
-                    <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken">
-                      <div class="h-full rounded-full transition-[width] duration-700 ease-out {{ healthBg(c.healthScore) }}" [style.width.%]="c.healthScore"></div>
-                    </div>
-                    <span class="font-mono text-xs font-semibold tabular-nums {{ healthClasse(c.healthScore) }}">{{ c.healthScore }}</span>
+                <td class="px-4 py-3.5">
+                  <div class="relative h-9 w-9">
+                    <svg class="h-9 w-9 -rotate-90" viewBox="0 0 32 32" aria-hidden="true">
+                      <circle cx="16" cy="16" r="14" fill="none" stroke="var(--chart-track)" stroke-width="3.5" />
+                      <circle
+                        cx="16"
+                        cy="16"
+                        r="14"
+                        fill="none"
+                        [attr.stroke]="corHealth(c.healthScore)"
+                        stroke-width="3.5"
+                        stroke-linecap="round"
+                        [attr.stroke-dasharray]="dashHealth(c.healthScore)"
+                      />
+                    </svg>
+                    <span
+                      class="absolute inset-0 flex items-center justify-center font-mono text-2xs font-bold {{ healthClasse(c.healthScore) }}"
+                      [title]="'Health score ' + c.healthScore"
+                    >
+                      {{ c.healthScore }}
+                    </span>
                   </div>
                 </td>
 
-                <td class="hidden min-w-[140px] px-4 py-3 xl:table-cell">
+                <td class="hidden min-w-[140px] px-4 py-3.5 xl:table-cell">
                   @if (c.contatoPrincipal; as ct) {
                     <p class="max-w-[150px] truncate font-medium text-ink">{{ ct.nome }}</p>
-                    <p class="mt-0.5 max-w-[150px] truncate text-xs text-ink-soft">{{ ct.telefone || ct.email || '—' }}</p>
+                    <p class="mt-0.5 max-w-[150px] truncate text-xs text-ink-muted">{{ ct.telefone || ct.email || '—' }}</p>
                   } @else {
                     <span class="text-ink-muted">—</span>
                   }
                 </td>
 
+                <td class="py-3.5 pl-2 pr-3 text-right">
+                  <svg
+                    class="ml-auto h-4 w-4 text-ink-muted opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                    fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </td>
               </tr>
             }
           </tbody>
@@ -177,21 +211,21 @@
       </div>
 
       <!-- Cards (< md) -->
-      <div class="stagger-children divide-y divide-line-subtle md:hidden">
+      <div class="stagger-children space-y-2 p-3 md:hidden">
         @for (c of clientesFiltrados(); track c.id) {
           <button
             type="button"
-            class="press flex w-full flex-col gap-3 p-5 text-left transition-colors hover:bg-surface-sunken"
+            class="press flex w-full flex-col gap-3 rounded-xl bg-surface-sunken p-4 text-left transition-colors"
             [style.--i]="$index < 10 ? $index : 10"
             (click)="abrirCliente(c)"
           >
             <div class="flex items-center gap-3">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-sunken text-xs font-bold text-ink-soft">
-                {{ iniciais(c.nome) }}
-              </div>
+              <div class="tile bg-surface-raised font-display text-2xs font-bold text-ink-soft">{{ iniciais(c.nome) }}</div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold leading-snug text-ink">{{ c.nome }}</p>
-                <p class="mt-0.5 truncate text-xs leading-snug text-ink-soft">{{ c.cidade || '—' }}{{ c.uf ? '/' + c.uf : '' }}</p>
+                <p class="mt-0.5 truncate text-xs leading-snug text-ink-muted">
+                  {{ c.cidade || '—' }}{{ c.uf ? '/' + c.uf : '' }}
+                </p>
               </div>
               <div class="flex shrink-0 flex-col items-end gap-1">
                 <span class="badge {{ estagioClasse(c.estagio) }}">{{ estagioLabel(c.estagio) }}</span>
@@ -233,7 +267,7 @@
 
             <div class="flex items-center gap-2">
               <span class="shrink-0 text-xs text-ink-muted">Health</span>
-              <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken">
+              <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-raised">
                 <div class="h-full rounded-full transition-[width] duration-700 ease-out {{ healthBg(c.healthScore) }}" [style.width.%]="c.healthScore"></div>
               </div>
               <span class="font-mono text-xs font-semibold tabular-nums {{ healthClasse(c.healthScore) }}">{{ c.healthScore }}</span>

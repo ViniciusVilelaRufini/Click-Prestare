@@ -15,7 +15,7 @@ export type EmptyStateIcone = 'inbox' | 'busca' | 'fatura' | 'chat' | 'pessoas' 
   imports: [CommonModule],
   template: `
     <div class="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center animate-fade-in">
-      <div class="flex h-12 w-12 items-center justify-center rounded-full bg-surface-sunken text-ink-muted">
+      <div class="tile h-14 w-14 rounded-2xl bg-accent-soft text-accent">
         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
           @switch (icone) {
             @case ('busca') {
@@ -45,10 +45,10 @@ export type EmptyStateIcone = 'inbox' | 'busca' | 'fatura' | 'chat' | 'pessoas' 
           }
         </svg>
       </div>
-      <div>
-        <p class="text-sm font-semibold text-ink">{{ titulo }}</p>
+      <div class="max-w-sm">
+        <p class="font-display text-base font-semibold text-ink">{{ titulo }}</p>
         @if (descricao) {
-          <p class="mt-1 text-sm text-ink-soft">{{ descricao }}</p>
+          <p class="mt-1 text-sm text-ink-muted">{{ descricao }}</p>
         }
       </div>
       @if (ctaLabel) {

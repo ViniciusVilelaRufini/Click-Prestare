@@ -102,8 +102,13 @@ body {
   .eyebrow {
     @apply text-2xs font-semibold uppercase tracking-wider text-ink-muted;
   }
+  /* Cabeçalho de tabela: faixa encaixada. A tinta vai nas células para que
+     o arredondamento das pontas (rounded-l/r-xl no th) recorte de fato. */
   .table-head {
-    @apply bg-surface-sunken text-2xs font-semibold uppercase tracking-wider text-ink-muted;
+    @apply text-2xs font-semibold uppercase tracking-wider text-ink-muted;
+  }
+  .table-head > th {
+    @apply bg-surface-sunken;
   }
   /* Link discreto "See All / Ver todos" do kit. */
   .link-more {
@@ -118,6 +123,7 @@ body {
   .tile-beige  { @apply bg-beige-50 text-beige-300; }
   .tile-purple { @apply bg-lilac-50 text-lilac-300; }
   .tile-tosca  { @apply bg-tosca-50 text-tosca-300; }
+  .tile-red    { @apply bg-danger-soft text-danger; }
   .tile-dark   { @apply bg-surface-contrast text-white; }
 
   /* ── Badges (pílulas sem borda, fundo tintado) ─────────────── */
@@ -150,6 +156,15 @@ body {
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full bg-danger px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-900 disabled:opacity-40 disabled:pointer-events-none;
   }
+  /* Modificadores de tamanho — declarados depois das variantes de botão
+     para vencerem no cascade quando combinados (ex.: "btn-primary btn-sm"). */
+  .btn-sm {
+    @apply gap-1.5 px-3.5 py-1.5 text-xs;
+  }
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+
   /* Botão-ícone circular (topo do dashboard: chat, sino, refresh). */
   .icon-btn {
     @apply relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-raised text-ink shadow-card transition-all hover:shadow-pop;
@@ -186,6 +201,19 @@ body {
   .rail-item:focus-visible .rail-tip {
     @apply block;
   }
+  /* Interruptor on/off. Requer <input class="peer sr-only"> como irmão
+     anterior do elemento com .switch-track. */
+  .switch {
+    @apply relative inline-flex shrink-0 cursor-pointer items-center;
+  }
+  .switch-track {
+    @apply h-6 w-11 rounded-full bg-surface-sunken transition-colors
+      after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px]
+      after:rounded-full after:bg-white after:shadow-card after:transition-all after:content-['']
+      peer-checked:bg-accent peer-checked:after:translate-x-5
+      peer-disabled:cursor-not-allowed peer-disabled:opacity-50;
+  }
+
   /* Aba segmentada em pílula (filtros, sub-abas). */
   .seg {
     @apply inline-flex items-center gap-1 rounded-full bg-surface-sunken p-1;

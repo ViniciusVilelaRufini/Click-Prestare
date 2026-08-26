@@ -2,8 +2,9 @@ import { EstagioCrm, StatusPagamento } from './crm.service';
 
 /**
  * Helpers puros de apresentação do CRM.
- * As classes retornadas usam os tokens semânticos do design system Mercury
- * (success/warning/danger/info/accent + variantes -soft/-border, ink, line).
+ * As classes retornadas usam os tokens semânticos do design system Verdant:
+ * variantes prontas de pílula (.badge-*) para rótulos e pares
+ * texto/superfície (-soft) para blocos maiores.
  */
 
 export function moeda(v: number): string {
@@ -26,14 +27,15 @@ export function estagioLabel(e: EstagioCrm): string {
   )[e];
 }
 
+/** Variante de pílula do estágio — usar junto de `.badge`. */
 export function estagioClasse(e: EstagioCrm): string {
   return (
     {
-      ativo: 'text-success bg-success-soft border-success-border',
-      trial: 'text-accent bg-accent-soft border-accent-border',
-      lead: 'text-info bg-info-soft border-info-border',
-      em_atraso: 'text-warning bg-warning-soft border-warning-border',
-      churn: 'text-danger bg-danger-soft border-danger-border',
+      ativo: 'badge-success',
+      trial: 'badge-accent',
+      lead: 'badge-info',
+      em_atraso: 'badge-warning',
+      churn: 'badge-danger',
     } as Record<EstagioCrm, string>
   )[e];
 }
@@ -59,12 +61,13 @@ export function riscoLabel(nivel: 'alto' | 'medio' | 'baixo'): string {
   return ({ alto: 'Risco alto', medio: 'Risco médio', baixo: 'Estável' } as Record<string, string>)[nivel];
 }
 
+/** Variante de pílula do risco de churn — usar junto de `.badge`. */
 export function riscoClasse(nivel: 'alto' | 'medio' | 'baixo'): string {
   return (
     {
-      alto: 'text-danger bg-danger-soft border-danger-border',
-      medio: 'text-warning bg-warning-soft border-warning-border',
-      baixo: 'text-success bg-success-soft border-success-border',
+      alto: 'badge-danger',
+      medio: 'badge-warning',
+      baixo: 'badge-success',
     } as Record<string, string>
   )[nivel];
 }

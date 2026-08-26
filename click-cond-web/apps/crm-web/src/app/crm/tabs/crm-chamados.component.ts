@@ -87,24 +87,77 @@ export class CrmChamadosComponent implements OnInit, OnDestroy {
     return (text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   }
 
-  readonly ocorrenciasFiltradas = computed(() => {
-    const list = this.ocorrenciasList();
-    const subFiltro = this.subFiltroChamados();
+  /** Casa a descrição/categoria da ocorrência contra um conjunto de palavras. */
+  private static casa(o: Ocorrencia, palavras: string[]): boolean {
     const norm = CrmChamadosComponent.normalize;
+    const desc = norm(String(o.descricao ?? ''));
+    const cat = norm(String(o.categoria?.nome ?? ''));
+    return palavras.some((k) => desc.includes(k) || cat.includes(k));
+  }
 
-    const casa = (o: Ocorrencia, palavras: string[]) => {
-      const desc = norm(String(o.descricao ?? ''));
-      const cat = norm(String(o.categoria?.nome ?? ''));
-      return palavras.some((k) => desc.includes(k) || cat.includes(k));
-    };
+  /** Só ocorrências técnicas — barulho, lixo e afins nunca chegam ao CRM. */
+  readonly ocorrenciasTecnicas = computed(() =>
+    this.ocorrenciasList().filter((o) => CrmChamadosComponent.casa(o, CrmChamadosComponent.TECH_KEYWORDS)),
+  );
 
-    // 1. Oculta permanentemente ocorrências não-técnicas (barulho, lixo, etc.)
-    const tecnicas = list.filter((o) => casa(o, CrmChamadosComponent.TECH_KEYWORDS));
-
-    // 2. Aplica o sub-filtro específico de suporte B2B
+  readonly ocorrenciasFiltradas = computed(() => {
+    const subFiltro = this.subFiltroChamados();
+    const tecnicas = this.ocorrenciasTecnicas();
     if (subFiltro === 'todos') return tecnicas;
-    return tecnicas.filter((o) => casa(o, CrmChamadosComponent.FILTRO_KEYWORDS[subFiltro]));
+    return tecnicas.filter((o) => CrmChamadosComponent.casa(o, CrmChamadosComponent.FILTRO_KEYWORDS[subFiltro]));
   });
+
+  /** Contador exibido dentro de cada pílula de filtro. */
+  readonly contagemFiltros = computed(() => {
+    const tecnicas = this.ocorrenciasTecnicas();
+    const mapa: Record<string, number> = { todos: tecnicas.length };
+    for (const f of this.filtros) {
+      if (f.valor === 'todos') continue;
+      mapa[f.valor] = tecnicas.filter((o) =>
+        CrmChamadosComponent.casa(o, CrmChamadosComponent.FILTRO_KEYWORDS[f.valor as Exclude<SubFiltro, 'todos'>]),
+      ).length;
+    }
+    return mapa;
+  });
+
+  /** Resumo do topo: quantos aguardam retorno e quantos já foram resolvidos. */
+  readonly resumo = computed(() => {
+    const tecnicas = this.ocorrenciasTecnicas();
+    const pendentes = tecnicas.filter((o) => o.status === 'Pendente').length;
+    return { pendentes, resolvidos: tecnicas.length - pendentes, total: tecnicas.length };
+  });
+
+  /**
+   * Área técnica do chamado — define o tile (ícone + tinta) da linha.
+   * A ordem importa: 'acesso' tem palavras genéricas e fica por último.
+   */
+  area(o: Ocorrencia): 'facial' | 'app' | 'acesso' | 'geral' {
+    const K = CrmChamadosComponent.FILTRO_KEYWORDS;
+    if (CrmChamadosComponent.casa(o, K.facial)) return 'facial';
+    if (CrmChamadosComponent.casa(o, K.app)) return 'app';
+    if (CrmChamadosComponent.casa(o, K.acesso)) return 'acesso';
+    return 'geral';
+  }
+
+  /** Tinta do tile por área técnica. */
+  areaTom(o: Ocorrencia): string {
+    return {
+      facial: 'tile-purple',
+      app: 'tile-green',
+      acesso: 'tile-tosca',
+      geral: 'tile-beige',
+    }[this.area(o)];
+  }
+
+  /** Ícone do tile por área técnica (heroicons outline, viewBox 24). */
+  areaIcone(o: Ocorrencia): string {
+    return {
+      facial: 'M15 13a3 3 0 11-6 0 3 3 0 016 0z M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2m8-16h2a2 2 0 012 2v2m0 8v2a2 2 0 01-2 2h-2',
+      app: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z',
+      acesso: 'M15 7a2 2 0 012 2m4-2a6 6 0 01-7.7 5.7l-2.3 2.3H9v2H7v2H4a1 1 0 01-1-1v-2.6a1 1 0 01.3-.7l5-5A6 6 0 1121 7z',
+      geral: 'M10.3 3.9 1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0zM12 9v4m0 4h.01',
+    }[this.area(o)];
+  }
 
   ngOnInit(): void {
     this.carregarOcorrencias();
