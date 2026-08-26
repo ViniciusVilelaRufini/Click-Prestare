@@ -210,6 +210,10 @@ model Condominios {
   dias_atraso_aviso_2 Int     @default(5)
   dias_atraso_aviso_3 Int     @default(10)
 
+  // Integração Superlógica: id_condominio_cond no ERP. Preenchido na ativação
+  // comercial. Vazio = condomínio ignorado pela integração.
+  id_superlogica_cond Int?
+
   @@index([endereco], map: "fk_cond_endereco")
 }
 
@@ -221,6 +225,9 @@ model Apartamentos {
   id_condominio       Int
   qtd_vagas           Int                          @default(0)
   ignorar_recorrencia Boolean                      @default(false)
+  // Integração Superlógica: id_unidade_uni no ERP. Gravado quando o apartamento
+  // é criado pela importação — o vínculo é por ID, nunca casado por texto.
+  id_superlogica_uni  Int?
   created_at          DateTime                     @default(now()) @db.DateTime(0)
   updated_at          DateTime                     @default(now()) @updatedAt @db.DateTime(0)
   condominio          Condominios                  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_apto_cond")
@@ -795,9 +802,18 @@ model Financeiro {
   linha_digitavel String?     @db.VarChar(255)
   pix_copia_cola  String?     @db.Text
   id_usuario      Int?
+  // Origem do lançamento: 'superlogica' (espelhado do ERP, somente leitura no
+  // Clique) ou NULL (lançado aqui). id_externo é o id_recebimento_recb.
+  origem          String?     @db.VarChar(20)
+  id_externo      String?     @db.VarChar(50)
   usuario         Users?      @relation(fields: [id_usuario], references: [id], onDelete: Cascade, map: "fk_fin_user")
   condominio      Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_fin_cond")
 
+  // id_condominio faz parte da chave de propósito: não se pode assumir que o
+  // id_recebimento_recb da Superlógica seja único entre condomínios. Se não
+  // fosse, uma cobrança sobrescreveria a de outro condomínio no upsert — e o
+  // morador veria o boleto (com o Pix) de um prédio alheio.
+  @@unique([origem, id_condominio, id_externo], map: "un_fin_origem_externo")
   @@index([id_condominio, pago])
   @@index([id_usuario])
 }

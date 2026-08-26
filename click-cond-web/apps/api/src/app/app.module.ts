@@ -37,6 +37,7 @@ import { ContatosModule } from './contatos/contatos.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { AgendaModule } from './agenda/agenda.module';
 import { ChatIaModule } from './chat-ia/chat-ia.module';
+import { SuperlogicaModule } from './superlogica/superlogica.module';
 
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
@@ -86,6 +87,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     RealtimeModule,
     AgendaModule,
     ChatIaModule,
+    SuperlogicaModule,
   ],
   controllers: [AppController],
   providers: [
