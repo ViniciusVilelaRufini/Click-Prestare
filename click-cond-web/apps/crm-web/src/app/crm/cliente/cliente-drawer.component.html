@@ -1,12 +1,14 @@
 @if (store.clienteSelecionado(); as c) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" (click)="fecharCliente()"
-    role="dialog" aria-modal="true" aria-labelledby="drawer-cliente-titulo">
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" (click)="fecharCliente()">
 
     <!-- Backdrop fade -->
     <div class="absolute inset-0 bg-surface-overlay backdrop-blur-sm animate-fade-in"></div>
 
-    <!-- Painel: retângulo largo com cabeçalho fixo e corpo rolável -->
+    <!-- Painel: retângulo largo com cabeçalho fixo e corpo rolável.
+         O role de diálogo vive aqui, não no wrapper de tela cheia — senão o
+         backdrop entra como conteúdo do diálogo para o leitor de tela. -->
     <div class="relative flex w-full max-w-5xl max-h-[88vh] flex-col overflow-hidden rounded-3xl bg-surface-raised shadow-modal animate-scale-in"
+      role="dialog" aria-modal="true" [attr.aria-label]="'Detalhes de ' + c.nome"
       (click)="$event.stopPropagation()">
 
       <!-- Cabeçalho fixo -->
@@ -117,8 +119,10 @@
               <div class="card-inset p-4 space-y-3.5">
                 <p class="eyebrow">Comercial</p>
                 <div class="space-y-3">
-                  <div>
-                    <label class="eyebrow block mb-1.5">Plano de Assinatura</label>
+                  <!-- Rótulo envolve o campo: associação implícita, sem depender
+                       de pares for/id únicos dentro do drawer. -->
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Plano de Assinatura</span>
                     <select [(ngModel)]="dadosEditados.plano" (ngModelChange)="atualizarMrrCalculado()"
                       class="input cursor-pointer">
                       <option value="Essencial">Essencial</option>
@@ -126,24 +130,24 @@
                       <option value="Elite">Elite</option>
                       <option value="Sem plano">Sem plano</option>
                     </select>
-                  </div>
+                  </label>
 
-                  <div>
-                    <label class="eyebrow block mb-1.5">Faturamento Recorrente (MRR)</label>
-                    <div class="relative">
-                      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-ink-soft font-mono">R$</span>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Faturamento Recorrente (MRR)</span>
+                    <span class="relative block">
+                      <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-ink-muted font-mono">R$</span>
                       <input type="number" [value]="dadosEditados.mrr" readonly
-                        class="input pl-8 font-mono cursor-not-allowed" />
-                    </div>
-                    <p class="text-2xs text-ink-soft mt-1 italic">
-                      Cálculo automático: Base do plano + ({{ dadosEditados.totalApartamentos }} UHs cadastradas * taxa por UH)
-                    </p>
-                  </div>
-                  <div>
-                    <label class="eyebrow block mb-1.5">Próximo Vencimento</label>
-                    <input type="date" [(ngModel)]="dadosEditados.vencimento"
-                      class="input" />
-                  </div>
+                        class="input pl-9 font-mono cursor-not-allowed" />
+                    </span>
+                    <span class="text-2xs text-ink-muted mt-1 block italic">
+                      Cálculo automático: base do plano + ({{ dadosEditados.totalApartamentos }} UHs cadastradas × taxa por UH)
+                    </span>
+                  </label>
+
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Próximo Vencimento</span>
+                    <input type="date" [(ngModel)]="dadosEditados.vencimento" class="input" />
+                  </label>
                 </div>
               </div>
 
@@ -173,21 +177,21 @@
               <div class="card-inset p-4 space-y-3.5">
                 <p class="eyebrow">Contato principal (Administrativo)</p>
                 <div class="space-y-3">
-                  <div>
-                    <label class="eyebrow block mb-1.5">Nome do Síndico</label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Nome do Síndico</span>
                     <input type="text" [(ngModel)]="dadosEditados.sindicoNome" placeholder="Ex: Vinicius Teste"
-                      class="input" />
-                  </div>
-                  <div>
-                    <label class="eyebrow block mb-1.5">E-mail</label>
+                      autocomplete="name" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">E-mail</span>
                     <input type="email" [(ngModel)]="dadosEditados.sindicoEmail" placeholder="sindico@clickprestare.com"
-                      class="input" />
-                  </div>
-                  <div>
-                    <label class="eyebrow block mb-1.5">Telefone / WhatsApp</label>
-                    <input type="text" [(ngModel)]="dadosEditados.sindicoTelefone" placeholder="(11) 99999-9999"
-                      class="input" />
-                  </div>
+                      autocomplete="email" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Telefone / WhatsApp</span>
+                    <input type="tel" [(ngModel)]="dadosEditados.sindicoTelefone" placeholder="(11) 99999-9999"
+                      autocomplete="tel" class="input" />
+                  </label>
                 </div>
               </div>
               </div>
@@ -618,34 +622,34 @@
                 </div>
                 
                 <div class="space-y-3">
-                  <div>
-                    <label class="eyebrow block mb-1.5">Nome Completo</label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Nome Completo</span>
                     <input type="text" [ngModel]="registrarNome()" (ngModelChange)="registrarNome.set($event)" placeholder="Ex: Vinícius Síndico"
-                      class="input" />
-                  </div>
-                  
-                  <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="eyebrow block mb-1.5">Telefone / WhatsApp</label>
-                      <input type="text" [ngModel]="registrarTelefone()" (ngModelChange)="registrarTelefone.set($event)" placeholder="Ex: 17992559990"
-                        class="input" />
-                    </div>
-                    <div>
-                      <label class="eyebrow block mb-1.5">Documento (CPF)</label>
-                      <input type="text" [ngModel]="registrarDocumento()" (ngModelChange)="registrarDocumento.set($event)" placeholder="Ex: 12345678900"
-                        class="input" />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label class="eyebrow block mb-1.5">E-mail (Login do App)</label>
-                    <input type="email" [ngModel]="registrarEmail()" (ngModelChange)="registrarEmail.set($event)" placeholder="morador@clickprestare.com"
-                      class="input" />
-                  </div>
+                      autocomplete="name" class="input" />
+                  </label>
 
                   <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="eyebrow block mb-1.5">Apartamento</label>
+                    <label class="block">
+                      <span class="eyebrow mb-1.5 block">Telefone / WhatsApp</span>
+                      <input type="tel" [ngModel]="registrarTelefone()" (ngModelChange)="registrarTelefone.set($event)" placeholder="Ex: 17992559990"
+                        autocomplete="tel" class="input" />
+                    </label>
+                    <label class="block">
+                      <span class="eyebrow mb-1.5 block">Documento (CPF)</span>
+                      <input type="text" inputmode="numeric" [ngModel]="registrarDocumento()" (ngModelChange)="registrarDocumento.set($event)" placeholder="Ex: 12345678900"
+                        class="input" />
+                    </label>
+                  </div>
+
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">E-mail (Login do App)</span>
+                    <input type="email" [ngModel]="registrarEmail()" (ngModelChange)="registrarEmail.set($event)" placeholder="morador@clickprestare.com"
+                      autocomplete="email" class="input" />
+                  </label>
+
+                  <div class="grid grid-cols-2 gap-3">
+                    <label class="block">
+                      <span class="eyebrow mb-1.5 block">Apartamento</span>
                       <select [ngModel]="registrarAptoId()" (ngModelChange)="registrarAptoId.set($event)"
                         class="input cursor-pointer">
                         <option [value]="null" disabled selected>Selecione...</option>
@@ -653,12 +657,12 @@
                           <option [value]="apto.id">Apto {{ apto.apto }} (Bloco {{ apto.bloco }})</option>
                         }
                       </select>
-                    </div>
-                    <div>
-                      <label class="eyebrow block mb-1.5">Senha de Acesso (Gerada)</label>
+                    </label>
+                    <label class="block">
+                      <span class="eyebrow mb-1.5 block">Senha de Acesso (Gerada)</span>
                       <input type="text" [ngModel]="registrarSenha()" (ngModelChange)="registrarSenha.set($event)"
                         class="input font-mono" />
-                    </div>
+                    </label>
                   </div>
 
                   <button (click)="salvarMorador()"

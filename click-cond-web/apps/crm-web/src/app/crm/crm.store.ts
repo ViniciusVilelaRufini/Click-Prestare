@@ -13,6 +13,9 @@ import {
 } from './crm.models';
 import { moeda } from './crm-format';
 
+/** Rótulos de mês usados na série de faturamento (referência MM/AAAA). */
+const MESES_CURTOS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
 /**
  * Estado compartilhado do CRM (signals) — dados que mais de uma aba consome.
  * Estado de UI efêmero (filtros, buscas, modais abertos) vive em cada aba.
@@ -99,21 +102,39 @@ export class CrmStore {
   readonly salvandoConfigPlanos = signal(false);
   readonly salvandoGateways = signal(false);
 
-  // Mock dados históricos para o gráfico de área de MRR (12 meses)
-  readonly historicoReceita = signal([
-    { mes: 'Jul 25', valor: 2800 },
-    { mes: 'Ago 25', valor: 3100 },
-    { mes: 'Set 25', valor: 3000 },
-    { mes: 'Out 25', valor: 3500 },
-    { mes: 'Nov 25', valor: 4200 },
-    { mes: 'Dez 25', valor: 4000 },
-    { mes: 'Jan 26', valor: 4800 },
-    { mes: 'Fev 26', valor: 5100 },
-    { mes: 'Mar 26', valor: 5500 },
-    { mes: 'Abr 26', valor: 5300 },
-    { mes: 'Mai 26', valor: 6200 },
-    { mes: 'Jun 26', valor: 6800 },
-  ]);
+  /**
+   * Série mensal de faturamento, derivada das faturas reais (Crm_Faturas),
+   * agrupada pela referência MM/AAAA e limitada aos 12 meses mais recentes.
+   *
+   * Antes isto era uma série fixa de demonstração (2.800 → 6.800), o que fazia
+   * o gráfico principal da Visão geral contradizer o MRR exibido ao lado dele.
+   * Não há endpoint de histórico de MRR; o faturamento emitido por mês é o
+   * dado real mais próximo — e é o que o gráfico passa a declarar que mostra.
+   */
+  readonly historicoReceita = computed(() => {
+    const porMes = new Map<string, { emitido: number; recebido: number }>();
+
+    for (const f of this.faturas()) {
+      const acc = porMes.get(f.referencia) ?? { emitido: 0, recebido: 0 };
+      acc.emitido += f.valor;
+      if (f.status === 'paga') acc.recebido += f.valor;
+      porMes.set(f.referencia, acc);
+    }
+
+    return [...porMes.entries()]
+      .map(([referencia, v]) => {
+        const [mm, aaaa] = referencia.split('/');
+        const indice = Number(mm) - 1;
+        return {
+          mes: `${MESES_CURTOS[indice] ?? mm} ${(aaaa ?? '').slice(2)}`,
+          valor: v.emitido,
+          recebido: v.recebido,
+          ordem: Number(aaaa) * 100 + Number(mm),
+        };
+      })
+      .sort((a, b) => a.ordem - b.ordem)
+      .slice(-12);
+  });
 
   // ════════════════ Carregamento ════════════════
 

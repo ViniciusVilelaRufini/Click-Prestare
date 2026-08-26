@@ -49,15 +49,19 @@ export class CrmOverviewComponent {
   /** Coluna do gráfico sob o cursor (null = destaca o mês corrente). */
   readonly mesFocado = signal<number | null>(null);
 
-  /** Série do MRR (12 meses) como array simples, para os sparklines. */
+  /** Série de faturamento emitido por mês, vinda das faturas reais. */
   readonly serieReceita = computed(() => this.store.historicoReceita().map((d) => d.valor));
 
-  /** Variação percentual do último mês sobre o anterior — calculada, não fixa. */
-  readonly variacaoMrr = computed(() => {
+  /**
+   * Variação do faturamento do último mês sobre o anterior.
+   * `null` quando ainda não há dois meses de faturas para comparar — nesse
+   * caso nenhum delta é exibido, em vez de mostrar 0% como se fosse estável.
+   */
+  readonly variacaoFaturamento = computed<number | null>(() => {
     const s = this.serieReceita();
-    if (s.length < 2) return 0;
+    if (s.length < 2) return null;
     const anterior = s[s.length - 2];
-    if (!anterior) return 0;
+    if (!anterior) return null;
     return Math.round(((s[s.length - 1] - anterior) / anterior) * 1000) / 10;
   });
 
@@ -113,6 +117,16 @@ export class CrmOverviewComponent {
 
     return { segmentos, total };
   });
+
+  /**
+   * Posição horizontal do tooltip da coluna, presa entre 8% e 92%.
+   * Sem isso ele vaza do card nas colunas das pontas, já que é centrado
+   * com translate(-50%) sobre a própria posição.
+   */
+  posicaoTooltip(indice: number): number {
+    const centro = ((indice + 0.5) / Math.max(this.barras().length, 1)) * 100;
+    return Math.min(Math.max(centro, 8), 92);
+  }
 
   /** Formato compacto para eixos e legendas (R$ 8,2 mil / R$ 1,4 mi). */
   curta(v: number): string {

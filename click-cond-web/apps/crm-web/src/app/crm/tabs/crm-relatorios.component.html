@@ -214,7 +214,7 @@
                 }
               }
               @case ('notificacoes') {
-                @for (d of store.historicoDisparos(); track d.data) {
+                @for (d of store.historicoDisparos(); track d.data + d.condominio) {
                   <tr class="border-b border-line-subtle transition-colors last:border-0 hover:bg-surface-sunken">
                     <td class="py-3 pl-4 pr-4 font-mono text-ink-soft">{{ d.data | date:'dd/MM/yyyy HH:mm:ss' }}</td>
                     <td class="px-4 py-3 font-semibold text-ink">{{ d.condominio }}</td>

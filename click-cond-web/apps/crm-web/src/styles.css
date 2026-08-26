@@ -25,10 +25,12 @@
   --border-subtle: #f0f1ee;
   --border-default: #e6e8e3;
   --border-strong: #d6d9d1;
-  /* texto */
-  --text-primary: #1f2226;
-  --text-secondary: #566072;
-  --text-muted: #8b94a1;
+  /* texto — contrastes verificados contra --surface-raised e --surface-sunken.
+     muted carrega quase toda a informação secundária da interface, então
+     precisa passar em AA (4.5:1) como texto normal, não só como texto grande. */
+  --text-primary: #1f2226;  /* 15.4:1 no branco */
+  --text-secondary: #566072; /*  6.3:1 no branco */
+  --text-muted: #5f6b7a;     /*  5.1:1 no branco · 4.5:1 no sunken */
   --text-inverse: #ffffff;
   /* acento */
   --accent: #4a6b52;
