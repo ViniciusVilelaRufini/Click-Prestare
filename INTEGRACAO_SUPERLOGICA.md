@@ -155,6 +155,35 @@ Condomínio ativo. Cron passa a sincronizar.
 O vínculo **é** o interruptor: sem `id_superlogica_cond` preenchido, o condomínio é
 ignorado por toda a integração.
 
+A tela fica em **CRM → Superlógica** (`/painel/superlogica`), sob `CrmAdminGuard`: ativar
+é ato comercial da operadora, não do síndico. Ela lista os condomínios do Clique lado a
+lado com os do ERP, marca quais já estão em uso, e mostra ao fim os condomínios da
+carteira que ainda não compraram o app.
+
+### Rotas
+
+| Método | Rota | O que faz |
+|---|---|---|
+| GET | `/crm/superlogica/status` | credenciais presentes no servidor? |
+| GET | `/crm/superlogica/condominios` | condomínios do ERP, marcando os já vinculados |
+| GET | `/crm/superlogica/clientes` | condomínios do Clique e o estado do vínculo |
+| GET | `/crm/superlogica/clientes/:id/preview-unidades` | prévia das unidades — **não importa nada** |
+| POST | `/crm/superlogica/clientes/:id/vincular` | ativa |
+| DELETE | `/crm/superlogica/clientes/:id/vincular` | desativa |
+
+### Travas da ativação
+
+- **Um condomínio do ERP só alimenta um do Clique.** Vincular o mesmo id em dois prédios
+  faria as duas sincronizações puxarem as mesmas cobranças, e um veria os boletos do
+  outro. A aplicação recusa com 409; o índice `un_cond_superlogica` fecha a janela de
+  corrida entre a consulta e a gravação.
+- **O id da Superlógica é conferido contra a lista real do ERP** antes de gravar. Aceitar
+  um número qualquer criaria um vínculo que só falharia na primeira sincronização.
+- **Desativar não apaga o que já foi sincronizado** — só interrompe a atualização. Apagar
+  histórico financeiro do morador por um clique no CRM seria destrutivo demais.
+- **Toda ativação e desativação vai para a auditoria**, com o operador e o vínculo
+  anterior. É evento de dinheiro.
+
 ### 5.2 Por que não existe problema de "de-para"
 
 A Superlógica identifica unidade como `bloco="01"` + `unidade="000101"`, com zeros à
@@ -199,6 +228,7 @@ síndico — editar no Clique faria o app divergir do ERP sem que ninguém perce
 
 ```sql
 ALTER TABLE Condominios  ADD COLUMN id_superlogica_cond INT NULL;
+CREATE UNIQUE INDEX un_cond_superlogica ON Condominios (id_superlogica_cond);
 ALTER TABLE Apartamentos ADD COLUMN id_superlogica_uni  INT NULL;
 ALTER TABLE Financeiro   ADD COLUMN id_externo VARCHAR(50) NULL,
                          ADD COLUMN origem     VARCHAR(20) NULL;
@@ -277,10 +307,11 @@ esse id do cliente permitiria a um síndico pedir as cobranças de outro condom�
 - [x] Service de leitura (condomínios, unidades, cobranças) com paginação
 - [x] Mapper Superlógica → `Financeiro`
 - [x] Testes unitários com HTTP mockado
+- [x] Tela de ativação no CRM (`/painel/superlogica`) com vincular/desvincular,
+      prévia de unidades e auditoria
 
 **Pendente**
 
-- [ ] Tela de ativação no CRM
 - [ ] Importação de unidades gravando `Apartamentos`
 - [ ] Cron de sincronização
 - [ ] Tela do morador no app Flutter

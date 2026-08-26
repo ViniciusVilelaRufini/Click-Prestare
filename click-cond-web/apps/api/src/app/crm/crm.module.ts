@@ -11,6 +11,9 @@ import { OcorrenciasModule } from '../ocorrencias/ocorrencias.module';
 import { MoradoresModule } from '../moradores/moradores.module';
 import { ApartamentosModule } from '../apartamentos/apartamentos.module';
 import { FacialModule } from '../facial/facial.module';
+import { SuperlogicaModule } from '../superlogica/superlogica.module';
+import { CrmSuperlogicaController } from './crm-superlogica.controller';
+import { CrmSuperlogicaService } from './crm-superlogica.service';
 
 @Module({
   imports: [
@@ -28,9 +31,12 @@ import { FacialModule } from '../facial/facial.module';
     // Status ao vivo dos terminais (heartbeat do agente local), o mesmo sinal
     // que a portaria-web usa — ver AgentBridgeService.
     FacialModule,
+    // Leitura do ERP Superlógica para a tela de ativação comercial.
+    // (AuditoriaService vem do AuditoriaModule, que é @Global.)
+    SuperlogicaModule,
   ],
-  controllers: [CrmController, CrmAuthController],
-  providers: [CrmService, CrmFaturasService, CrmAuthService, CrmAdminGuard],
+  controllers: [CrmController, CrmAuthController, CrmSuperlogicaController],
+  providers: [CrmService, CrmFaturasService, CrmAuthService, CrmAdminGuard, CrmSuperlogicaService],
   exports: [CrmService],
 })
 export class CrmModule {}

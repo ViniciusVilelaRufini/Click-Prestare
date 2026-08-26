@@ -1,0 +1,182 @@
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { CrmSuperlogicaService } from './crm-superlogica.service';
+
+/**
+ * Ativação comercial da integração Superlógica.
+ *
+ * O risco desta tela é vincular errado: apontar dois condomínios do Clique para
+ * o mesmo condomínio do ERP faz os dois puxarem as mesmas cobranças, e um
+ * prédio passa a ver os boletos do outro.
+ */
+describe('CrmSuperlogicaService — vínculo', () => {
+  const CASA_PIENZA = { id_condominio_cond: '24', st_nome_cond: 'CASA PIENZA', st_fantasia_cond: 'CASA PIENZA' };
+  const DAMHA = { id_condominio_cond: '31', st_nome_cond: 'DAMHA', st_fantasia_cond: 'DAMHA' };
+
+  function montar(opcoes: {
+    condominios?: any[];
+    vinculados?: any[];
+    unidades?: any[];
+  } = {}) {
+    const update = jest.fn(async () => ({}));
+    const registrar = jest.fn(async () => undefined);
+
+    const prisma = {
+      condominios: {
+        findUnique: jest.fn(async ({ where }: any) =>
+          (opcoes.condominios ?? []).find((c) => c.id === where.id) ?? null,
+        ),
+        findMany: jest.fn(async () => opcoes.vinculados ?? []),
+        update,
+      },
+      apartamentos: { count: jest.fn(async () => 0) },
+    };
+
+    const superlogica = {
+      listarCondominios: jest.fn(async () => [CASA_PIENZA, DAMHA]),
+      listarUnidades: jest.fn(async () => opcoes.unidades ?? []),
+    };
+
+    const client = { estaConfigurado: () => true };
+    const auditoria = { registrar };
+
+    const service = new CrmSuperlogicaService(
+      prisma as any,
+      superlogica as any,
+      client as any,
+      auditoria as any,
+    );
+
+    return { service, prisma, superlogica, update, registrar };
+  }
+
+  it('vincula e registra em auditoria', async () => {
+    const { service, update, registrar } = montar({
+      condominios: [{ id: 7, nome: 'Meu Prédio', id_superlogica_cond: null }],
+    });
+
+    const r = await service.vincular(7, 24, 'Erika');
+
+    expect(update).toHaveBeenCalledWith({ where: { id: 7 }, data: { id_superlogica_cond: 24 } });
+    expect(r.nomeSuperlogica).toBe('CASA PIENZA');
+    expect(registrar).toHaveBeenCalled();
+  });
+
+  it('recusa id que não existe na Superlógica', async () => {
+    // Aceitar um número qualquer criaria um vínculo que só falharia depois, na
+    // primeira sincronização.
+    const { service, update } = montar({
+      condominios: [{ id: 7, nome: 'Meu Prédio', id_superlogica_cond: null }],
+    });
+
+    await expect(service.vincular(7, 999, 'Erika')).rejects.toBeInstanceOf(NotFoundException);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('recusa vincular um condomínio do ERP já usado por outro cliente', async () => {
+    // É o caso que faria um prédio ver os boletos do outro.
+    const { service, update } = montar({
+      condominios: [{ id: 7, nome: 'Meu Prédio', id_superlogica_cond: null }],
+      vinculados: [{ id: 3, nome: 'Outro Prédio', id_superlogica_cond: 24 }],
+    });
+
+    await expect(service.vincular(7, 24, 'Erika')).rejects.toBeInstanceOf(ConflictException);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('permite regravar o mesmo vínculo no mesmo condomínio', async () => {
+    const { service, update } = montar({
+      condominios: [{ id: 3, nome: 'Outro Prédio', id_superlogica_cond: 24 }],
+      vinculados: [{ id: 3, nome: 'Outro Prédio', id_superlogica_cond: 24 }],
+    });
+
+    await expect(service.vincular(3, 24, 'Erika')).resolves.toMatchObject({ success: true });
+    expect(update).toHaveBeenCalled();
+  });
+
+  it('recusa condomínio do Clique inexistente', async () => {
+    const { service } = montar({ condominios: [] });
+
+    await expect(service.vincular(404, 24, 'Erika')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('marca na listagem quais condomínios do ERP já estão em uso', async () => {
+    const { service } = montar({
+      vinculados: [{ id: 3, nome: 'Outro Prédio', id_superlogica_cond: 24 }],
+    });
+
+    const lista = await service.listarDisponiveis();
+
+    expect(lista.find((c) => c.idSuperlogica === 24)?.vinculadoA).toEqual({ id: 3, nome: 'Outro Prédio' });
+    expect(lista.find((c) => c.idSuperlogica === 31)?.vinculadoA).toBeNull();
+  });
+});
+
+describe('CrmSuperlogicaService — desvínculo', () => {
+  it('desliga a integração sem apagar o que já foi sincronizado', async () => {
+    // Apagar histórico financeiro do morador por causa de um clique no CRM
+    // seria destrutivo demais. O prisma mockado não expõe financeiro.delete —
+    // se o service tentasse apagar, o teste estouraria.
+    const update = jest.fn(async () => ({}));
+    const prisma = {
+      condominios: {
+        findUnique: jest.fn(async () => ({ id: 7, nome: 'Meu Prédio', id_superlogica_cond: 24 })),
+        update,
+      },
+    };
+
+    const service = new CrmSuperlogicaService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      { registrar: jest.fn() } as any,
+    );
+
+    await expect(service.desvincular(7, 'Erika')).resolves.toMatchObject({ success: true });
+    expect(update).toHaveBeenCalledWith({ where: { id: 7 }, data: { id_superlogica_cond: null } });
+  });
+});
+
+describe('CrmSuperlogicaService — prévia de unidades', () => {
+  function montarPreview(id_superlogica_cond: number | null) {
+    const listarUnidades = jest.fn(async () => [
+      { id_unidade_uni: '726', st_bloco_uni: '01', st_unidade_uni: '000101', contatos: [{}] },
+    ]);
+
+    const service = new CrmSuperlogicaService(
+      {
+        condominios: { findUnique: jest.fn(async () => ({ id: 7, nome: 'Meu Prédio', id_superlogica_cond })) },
+        apartamentos: { count: jest.fn(async () => 4) },
+      } as any,
+      { listarUnidades } as any,
+      {} as any,
+      {} as any,
+    );
+
+    return { service, listarUnidades };
+  }
+
+  it('recusa prévia de condomínio sem vínculo', async () => {
+    const { service } = montarPreview(null);
+
+    await expect(service.previewUnidades(7)).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('consulta o ERP com o id vindo do banco, não do cliente', async () => {
+    // Aceitar idSuperlogica da requisição deixaria pedir as unidades de
+    // qualquer condomínio da carteira.
+    const { service, listarUnidades } = montarPreview(24);
+
+    await service.previewUnidades(7);
+
+    expect(listarUnidades).toHaveBeenCalledWith(24);
+  });
+
+  it('mostra o que existe dos dois lados antes de importar', async () => {
+    const { service } = montarPreview(24);
+
+    const r = await service.previewUnidades(7);
+
+    expect(r.totalNoErp).toBe(1);
+    expect(r.apartamentosNoClique).toBe(4);
+  });
+});

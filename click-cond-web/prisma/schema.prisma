@@ -212,7 +212,11 @@ model Condominios {
 
   // Integração Superlógica: id_condominio_cond no ERP. Preenchido na ativação
   // comercial. Vazio = condomínio ignorado pela integração.
-  id_superlogica_cond Int?
+  //
+  // Único: um condomínio do ERP só pode alimentar um condomínio do Clique. Sem
+  // essa trava, dois prédios vinculados ao mesmo id puxariam as mesmas
+  // cobranças e um veria os boletos do outro.
+  id_superlogica_cond Int? @unique(map: "un_cond_superlogica")
 
   @@index([endereco], map: "fk_cond_endereco")
 }
