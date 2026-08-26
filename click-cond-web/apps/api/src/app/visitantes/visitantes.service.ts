@@ -1470,7 +1470,17 @@ export class VisitantesService {
     const v = await this.prisma.visitantes.findUnique({
       where: { id: Number(id) },
       include: {
-        apartamento: { select: { id: true, bloco: true, apto: true } },
+        apartamento: {
+          select: {
+            id: true,
+            bloco: true,
+            apto: true,
+            users: {
+              select: { user: { select: { name: true } } },
+              take: 1,
+            },
+          },
+        },
         criadoPor: { select: { name: true } },
         condominio: {
           select: {
@@ -1502,7 +1512,18 @@ export class VisitantesService {
         NOT: { id: v.id },
       },
       include: {
-        apartamento: { select: { id: true, bloco: true, apto: true } },
+        apartamento: {
+          select: {
+            id: true,
+            bloco: true,
+            apto: true,
+            users: {
+              select: { user: { select: { name: true } } },
+              take: 1,
+            },
+          },
+        },
+        criadoPor: { select: { name: true } },
       },
       orderBy: { created_at: 'desc' },
       take: 50,
@@ -1641,18 +1662,55 @@ export class VisitantesService {
     }
     const tempoMedioMs = permanenciaCount > 0 ? permanenciaTotalMs / permanenciaCount : null;
 
-    // Lista única de apartamentos visitados
-    const apartamentosVisitados = new Map<number, { id: number; blocoApto: string; visitas: number }>();
+    // Lista detalhada de apartamentos visitados
+    const apartamentosVisitados = new Map<
+      number,
+      {
+        id: number;
+        blocoApto: string;
+        apto?: string;
+        bloco?: string | null;
+        visitas: number;
+        autorizadoPor?: string | null;
+        ultimaVisita?: string | null;
+        primeiraVisita?: string | null;
+      }
+    >();
+
     for (const reg of todasVisitas) {
       if (!reg.apartamento) continue;
       const a = reg.apartamento;
       const key = a.id;
       const blocoApto = `${a.apto ?? ''}${a.bloco ?? ''}`.trim();
+      const dateReg = reg.data_entrada ?? reg.created_at;
+      const autorizador =
+        reg.criadoPor?.name ||
+        (a as any).users?.[0]?.user?.name ||
+        null;
+
       const existing = apartamentosVisitados.get(key);
       if (existing) {
         existing.visitas++;
+        if (dateReg) {
+          if (!existing.ultimaVisita || new Date(dateReg) > new Date(existing.ultimaVisita)) {
+            existing.ultimaVisita = dateReg.toISOString();
+            if (autorizador) existing.autorizadoPor = autorizador;
+          }
+          if (!existing.primeiraVisita || new Date(dateReg) < new Date(existing.primeiraVisita)) {
+            existing.primeiraVisita = dateReg.toISOString();
+          }
+        }
       } else {
-        apartamentosVisitados.set(key, { id: a.id, blocoApto, visitas: 1 });
+        apartamentosVisitados.set(key, {
+          id: a.id,
+          blocoApto,
+          apto: a.apto ?? '',
+          bloco: a.bloco ?? null,
+          visitas: 1,
+          autorizadoPor: autorizador,
+          ultimaVisita: dateReg ? dateReg.toISOString() : null,
+          primeiraVisita: dateReg ? dateReg.toISOString() : null,
+        });
       }
     }
 

@@ -72,7 +72,16 @@ export interface VisitanteDetalhes {
     acessosPin: number;
     tempoMedioMs: number | null;
     permanenciaCount: number;
-    apartamentosVisitados: { id: number; blocoApto: string; visitas: number }[];
+    apartamentosVisitados: {
+      id: number;
+      blocoApto: string;
+      apto?: string;
+      bloco?: string | null;
+      visitas: number;
+      autorizadoPor?: string | null;
+      ultimaVisita?: string | null;
+      primeiraVisita?: string | null;
+    }[];
   };
   timeline: VisitanteTimelineEntry[];
 }
