@@ -1070,8 +1070,9 @@
                   @if (getStatusVisitante(v) === 'presente') {
                     <button
                       (click)="darBaixa(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-600 hover:text-white hover:border-rose-600 font-semibold transition dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 dark:hover:bg-rose-600 dark:hover:text-white shadow-sm"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-600 hover:!text-white hover:border-rose-600 font-semibold transition dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 dark:hover:bg-rose-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
                     >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                       Dar Baixa
                     </button>
                   } @else if (
@@ -1081,22 +1082,24 @@
                   ) {
                     <button
                       (click)="registrarEntradaManual(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm transition"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:!text-white hover:border-emerald-600 font-semibold transition dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
                     >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                       Registrar Entrada
                     </button>
                   }
                   @if (v.auth_status !== 'pendente' && getStatusVisitante(v) !== 'presente') {
                     <button
                       (click)="abrirSolicitar(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-500 hover:text-white hover:border-amber-500 font-semibold transition dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 dark:hover:bg-amber-500 dark:hover:text-white shadow-sm"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-500 hover:!text-white hover:border-amber-500 font-semibold transition dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 dark:hover:bg-amber-500 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
                     >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                       Solicitar autorização
                     </button>
                   }
                   <button
                     (click)="abrirNovaVisita($any(v))"
-                    class="px-3 py-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition flex items-center gap-1.5"
+                    class="px-3 py-1.5 text-xs rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-600 hover:!text-white hover:border-blue-600 font-semibold transition dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
                   >
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     Nova Visita
@@ -1549,8 +1552,9 @@
                     @if (getStatusVisitante(v) === 'presente') {
                       <button
                         (click)="darBaixa(v)"
-                        class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-600 hover:text-white hover:border-rose-600 font-semibold transition dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 dark:hover:bg-rose-600 dark:hover:text-white shadow-sm"
+                        class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-600 hover:!text-white hover:border-rose-600 font-semibold transition dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 dark:hover:bg-rose-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
                       >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                         Dar Baixa
                       </button>
                     } @else if (
@@ -1560,8 +1564,9 @@
                     ) {
                       <button
                         (click)="registrarEntradaManual(v)"
-                        class="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm transition"
+                        class="px-3 py-1.5 text-xs rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:!text-white hover:border-emerald-600 font-semibold transition dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
                       >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                         Registrar Entrada
                       </button>
                     }
@@ -1569,8 +1574,9 @@
                     @if (v.auth_status !== 'pendente' && getStatusVisitante(v) !== 'presente') {
                       <button
                         (click)="abrirSolicitar(v)"
-                        class="px-3 py-1.5 text-xs rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-500 hover:text-white hover:border-amber-500 font-semibold transition dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 dark:hover:bg-amber-500 dark:hover:text-white shadow-sm"
+                        class="px-3 py-1.5 text-xs rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-500 hover:!text-white hover:border-amber-500 font-semibold transition dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 dark:hover:bg-amber-500 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
                       >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                         Solicitar autorização
                       </button>
                     }
@@ -1578,7 +1584,7 @@
                     <button
                       (click)="abrirNovaVisita($any(v))"
                       title="Cadastrar nova visita para esta pessoa em outro apartamento"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition flex items-center gap-1.5"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-600 hover:!text-white hover:border-blue-600 font-semibold transition dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
                     >
                       <svg
                         class="w-3.5 h-3.5"

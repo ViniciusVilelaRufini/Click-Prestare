@@ -93,7 +93,11 @@ html, body {
 .light button.bg-accent .text-white,
 .light button.bg-accent,
 .light .bg-accent .text-white,
-.light .bg-accent {
+.light .bg-accent,
+.light .keep-white,
+.keep-white,
+.light .hover\:text-white:hover,
+.light .hover\:\!text-white:hover {
   color: #FFFFFF !important;
 }
 
