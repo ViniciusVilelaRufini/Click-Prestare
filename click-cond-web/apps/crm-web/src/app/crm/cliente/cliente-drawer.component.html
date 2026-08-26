@@ -6,14 +6,14 @@
     <div class="absolute inset-0 bg-surface-overlay backdrop-blur-sm animate-fade-in"></div>
 
     <!-- Painel: retângulo largo com cabeçalho fixo e corpo rolável -->
-    <div class="relative flex w-full max-w-5xl max-h-[88vh] flex-col overflow-hidden rounded-xl border border-line bg-surface-raised shadow-modal animate-scale-in"
+    <div class="relative flex w-full max-w-5xl max-h-[88vh] flex-col overflow-hidden rounded-3xl bg-surface-raised shadow-modal animate-scale-in"
       (click)="$event.stopPropagation()">
 
       <!-- Cabeçalho fixo -->
-      <div class="shrink-0 border-b border-line px-6 pt-5">
+      <div class="shrink-0 px-6 pt-6">
         <div class="flex items-start justify-between gap-4 pb-4">
           <div class="flex items-center gap-3 min-w-0 flex-1">
-            <div class="w-11 h-11 rounded border border-accent-border bg-accent-soft flex items-center justify-center text-accent font-bold shrink-0" aria-hidden="true">
+            <div class="tile tile-green h-12 w-12 font-display text-sm font-bold" aria-hidden="true">
               {{ iniciais(c.nome) }}
             </div>
             <div class="min-w-0 flex-1 pr-1">
@@ -35,14 +35,14 @@
           <div class="flex items-center gap-0.5 shrink-0 ml-2">
             @if (!modoEdicao()) {
               <button (click)="iniciarEdicao()" aria-label="Editar condomínio"
-                class="w-9 h-9 rounded-md flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
+                class="w-9 h-9 rounded-full flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
                 title="Editar dados comercial">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
               </button>
               <button (click)="exportarRelatorio()" aria-label="Exportar relatório CSV"
-                class="w-9 h-9 rounded-md flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
+                class="w-9 h-9 rounded-full flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
                 title="Exportar dados (CSV)">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -50,7 +50,7 @@
               </button>
             }
             <button (click)="fecharCliente()" aria-label="Fechar detalhes"
-              class="w-9 h-9 rounded-md flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
+              class="w-9 h-9 rounded-full flex items-center justify-center text-ink-soft hover:text-ink hover:bg-surface-sunken transition-all"
               title="Fechar">
               <svg class="w-4.5 h-4.5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
@@ -59,41 +59,41 @@
 
         <!-- Abas + selos de estado -->
         @if (!modoEdicao()) {
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="scrollbar-none -mb-px flex max-w-full gap-6 overflow-x-auto" role="tablist" aria-label="Informações do condomínio">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-5">
+            <div class="seg scrollbar-none max-w-full overflow-x-auto" role="tablist" aria-label="Informações do condomínio">
             <button (click)="selecionarAba('geral')"
               [attr.aria-selected]="abaSelecionada() === 'geral'"
               role="tab"
-              class="press whitespace-nowrap border-b-2 pb-3 text-sm font-semibold transition-all"
-              [class]="abaSelecionada() === 'geral' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
-              Geral & Finanças
+              class="seg-item press shrink-0"
+              [class.is-active]="abaSelecionada() === 'geral'">
+              Geral &amp; Finanças
             </button>
             <button (click)="selecionarAba('portaria')"
               [attr.aria-selected]="abaSelecionada() === 'portaria'"
               role="tab"
-              class="press whitespace-nowrap border-b-2 pb-3 text-sm font-semibold transition-all"
-              [class]="abaSelecionada() === 'portaria' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
-              Hardware & Acessos
+              class="seg-item press shrink-0"
+              [class.is-active]="abaSelecionada() === 'portaria'">
+              Hardware &amp; Acessos
             </button>
             <button (click)="selecionarAba('servicos')"
               [attr.aria-selected]="abaSelecionada() === 'servicos'"
               role="tab"
-              class="press whitespace-nowrap border-b-2 pb-3 text-sm font-semibold transition-all"
-              [class]="abaSelecionada() === 'servicos' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
-              Serviços & Uso
+              class="seg-item press shrink-0"
+              [class.is-active]="abaSelecionada() === 'servicos'">
+              Serviços &amp; Uso
             </button>
             <button (click)="selecionarAba('moradores')"
               [attr.aria-selected]="abaSelecionada() === 'moradores'"
               role="tab"
-              class="press whitespace-nowrap border-b-2 pb-3 text-sm font-semibold transition-all"
-              [class]="abaSelecionada() === 'moradores' ? 'border-accent text-accent' : 'border-transparent text-ink-soft hover:text-ink'">
+              class="seg-item press shrink-0"
+              [class.is-active]="abaSelecionada() === 'moradores'">
               Moradores
             </button>
             </div>
 
-            <div class="flex items-center gap-1.5 pb-3">
+            <div class="flex items-center gap-1.5">
               <span class="badge {{ estagioClasse(c.estagio) }}">{{ estagioLabel(c.estagio) }}</span>
-              <span class="badge border-line {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
+              <span class="badge badge-neutral {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
               @if (store.dbHealth(); as h) {
                 <span class="badge" [class]="h.connected ? 'badge badge-success' : 'badge badge-warning'">
                   <span class="h-1 w-1 rounded-full bg-current"></span>
@@ -114,11 +114,11 @@
             <!-- Formulário de edição: duas colunas em telas largas -->
             <div class="grid animate-fade-in grid-cols-1 items-start gap-4 lg:grid-cols-2">
               <!-- Commercial Fields -->
-              <div class="card p-4 space-y-3.5">
-                <p class="stat-label">Comercial</p>
+              <div class="card-inset p-4 space-y-3.5">
+                <p class="eyebrow">Comercial</p>
                 <div class="space-y-3">
                   <div>
-                    <label class="stat-label block mb-1.5">Plano de Assinatura</label>
+                    <label class="eyebrow block mb-1.5">Plano de Assinatura</label>
                     <select [(ngModel)]="dadosEditados.plano" (ngModelChange)="atualizarMrrCalculado()"
                       class="input cursor-pointer">
                       <option value="Essencial">Essencial</option>
@@ -129,7 +129,7 @@
                   </div>
 
                   <div>
-                    <label class="stat-label block mb-1.5">Faturamento Recorrente (MRR)</label>
+                    <label class="eyebrow block mb-1.5">Faturamento Recorrente (MRR)</label>
                     <div class="relative">
                       <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-ink-soft font-mono">R$</span>
                       <input type="number" [value]="dadosEditados.mrr" readonly
@@ -140,7 +140,7 @@
                     </p>
                   </div>
                   <div>
-                    <label class="stat-label block mb-1.5">Próximo Vencimento</label>
+                    <label class="eyebrow block mb-1.5">Próximo Vencimento</label>
                     <input type="date" [(ngModel)]="dadosEditados.vencimento"
                       class="input" />
                   </div>
@@ -149,42 +149,42 @@
 
               <!-- Coluna direita: automações + contato -->
               <div class="space-y-4">
-              <div class="card p-4 space-y-3.5">
-                <p class="stat-label">Automações Integradas</p>
+              <div class="card-inset p-4 space-y-3.5">
+                <p class="eyebrow">Automações Integradas</p>
                 <div class="space-y-3">
                   <div class="flex items-center justify-between text-xs">
                     <span class="text-ink-soft">Recorrência Automática</span>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" [(ngModel)]="dadosEditados.recorrenciaAtiva" class="sr-only peer">
-                      <div class="w-9 h-5 bg-surface-sunken border border-line peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:bg-accent after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-ink-muted after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent-soft peer-checked:border-accent"></div>
+                    <label class="switch">
+                      <input type="checkbox" [(ngModel)]="dadosEditados.recorrenciaAtiva" class="peer sr-only">
+                      <span class="switch-track"></span>
                     </label>
                   </div>
                   
                   <div class="flex items-center justify-between text-xs">
                     <span class="text-ink-soft">Régua de WhatsApp</span>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" [(ngModel)]="dadosEditados.cobrancaAutoWhats" class="sr-only peer">
-                      <div class="w-9 h-5 bg-surface-sunken border border-line peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:bg-accent after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-ink-muted after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent-soft peer-checked:border-accent"></div>
+                    <label class="switch">
+                      <input type="checkbox" [(ngModel)]="dadosEditados.cobrancaAutoWhats" class="peer sr-only">
+                      <span class="switch-track"></span>
                     </label>
                   </div>
                 </div>
               </div>
 
-              <div class="card p-4 space-y-3.5">
-                <p class="stat-label">Contato principal (Administrativo)</p>
+              <div class="card-inset p-4 space-y-3.5">
+                <p class="eyebrow">Contato principal (Administrativo)</p>
                 <div class="space-y-3">
                   <div>
-                    <label class="stat-label block mb-1.5">Nome do Síndico</label>
+                    <label class="eyebrow block mb-1.5">Nome do Síndico</label>
                     <input type="text" [(ngModel)]="dadosEditados.sindicoNome" placeholder="Ex: Vinicius Teste"
                       class="input" />
                   </div>
                   <div>
-                    <label class="stat-label block mb-1.5">E-mail</label>
+                    <label class="eyebrow block mb-1.5">E-mail</label>
                     <input type="email" [(ngModel)]="dadosEditados.sindicoEmail" placeholder="sindico@clickprestare.com"
                       class="input" />
                   </div>
                   <div>
-                    <label class="stat-label block mb-1.5">Telefone / WhatsApp</label>
+                    <label class="eyebrow block mb-1.5">Telefone / WhatsApp</label>
                     <input type="text" [(ngModel)]="dadosEditados.sindicoTelefone" placeholder="(11) 99999-9999"
                       class="input" />
                   </div>
@@ -200,7 +200,7 @@
               <div class="grid grid-cols-2 gap-2 lg:col-span-2 lg:grid-cols-4">
                 @if (store.waLink(c); as wa) {
                   <a [href]="wa" target="_blank" rel="noopener"
-                    class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-success-soft border border-success-border text-success hover:bg-success-soft transition-all"
+                    class="press min-h-[42px] flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-full bg-success-soft text-success hover:bg-success-border transition-all"
                     title="Abrir conversa de cobrança no WhatsApp">
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
                     Cobrar (WhatsApp)
@@ -208,29 +208,29 @@
                 }
                 @if (c.contatoPrincipal?.email; as em) {
                   <a [href]="'mailto:' + em"
-                    class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-surface-sunken border border-line text-ink hover:bg-surface-sunken transition-all"
+                    class="press min-h-[42px] flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-full bg-surface-sunken text-ink hover:bg-line transition-all"
                     title="Enviar e-mail ao contato principal">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                     E-mail
                   </a>
                 }
                 <button (click)="iniciarEdicao()"
-                  class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-surface-sunken border border-line text-ink hover:bg-surface-sunken transition-all">
+                  class="press min-h-[42px] flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-full bg-surface-sunken text-ink hover:bg-line transition-all">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                   Editar
                 </button>
                 <button (click)="exportarRelatorio()"
-                  class="press min-h-[40px] flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold rounded-md bg-surface-sunken border border-line text-ink hover:bg-surface-sunken transition-all">
+                  class="press min-h-[42px] flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-full bg-surface-sunken text-ink hover:bg-line transition-all">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                   Exportar
                 </button>
               </div>
 
               <!-- SAÚDE FINANCEIRA -->
-              <div class="card p-4 space-y-3.5">
+              <div class="card-inset p-4 space-y-3.5">
                 <div class="flex items-center justify-between">
-                  <p class="stat-label">Saúde Financeira</p>
-                  <span class="px-2 py-0.5 text-2xs font-bold rounded border {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
+                  <p class="eyebrow">Saúde Financeira</p>
+                  <span class="badge badge-neutral {{ pagamentoClasse(c.statusPagamento) }}">{{ pagamentoLabel(c.statusPagamento) }}</span>
                 </div>
                 <div class="flex items-end justify-between">
                   <div>
@@ -250,17 +250,13 @@
                   </div>
                   @if (c.diasParaVencer != null) {
                     @if (c.diasParaVencer < 0) {
-                      <span class="px-2 py-1 rounded text-2xs font-bold bg-danger-soft text-danger border border-danger-border">
+                      <span class="badge badge-danger">
                         Venceu há {{ Math.abs(c.diasParaVencer) }}d · {{ moeda(c.mrr) }} retido
                       </span>
                     } @else if (c.diasParaVencer <= 7) {
-                      <span class="px-2 py-1 rounded text-2xs font-bold bg-warning-soft text-warning border border-warning-border">
-                        Vence em {{ c.diasParaVencer }}d
-                      </span>
+                      <span class="badge badge-warning">Vence em {{ c.diasParaVencer }}d</span>
                     } @else {
-                      <span class="px-2 py-1 rounded text-2xs font-bold bg-success-soft text-success border border-success-border">
-                        Vence em {{ c.diasParaVencer }}d
-                      </span>
+                      <span class="badge badge-success">Vence em {{ c.diasParaVencer }}d</span>
                     }
                   }
                 </div>
@@ -268,10 +264,10 @@
               </div>
 
               <!-- RISCO & SAÚDE DA CONTA -->
-              <div class="card p-4 space-y-3 border {{ riscoClasse(c.riscoChurn.nivel) }}">
+              <div class="card-inset p-4 space-y-3">
                 <div class="flex items-center justify-between">
-                  <p class="stat-label">Saúde da Conta &amp; Risco</p>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
+                  <p class="eyebrow">Saúde da Conta &amp; Risco</p>
+                  <span class="badge {{ riscoClasse(c.riscoChurn.nivel) }}">
                     {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}/100
                   </span>
                 </div>
@@ -299,8 +295,8 @@
               </div>
 
               <!-- RESUMO OPERACIONAL (faixa cheia; detalhes nas outras abas) -->
-              <div class="card space-y-3 p-4 lg:col-span-2">
-                <p class="stat-label">Resumo Operacional</p>
+              <div class="card-inset space-y-3 p-4 lg:col-span-2">
+                <p class="eyebrow">Resumo Operacional</p>
                 <div class="grid grid-cols-3 gap-3 lg:grid-cols-6">
                   <div class="text-center">
                     <p class="font-mono text-lg font-bold text-ink leading-none">{{ c.totalApartamentos }}</p>
@@ -333,8 +329,8 @@
               </div>
 
               <!-- AUTOMAÇÕES -->
-              <div class="card space-y-3 p-4">
-                <p class="stat-label">Automações da conta</p>
+              <div class="card-inset space-y-3 p-4">
+                <p class="eyebrow">Automações da conta</p>
                 <div class="flex items-center justify-between text-sm">
                   <span class="text-ink-soft">Recorrência automática</span>
                   <span class="badge" [class]="c.recorrenciaAtiva ? 'badge badge-success' : 'badge badge-neutral'">
@@ -354,8 +350,8 @@
               </div>
 
               <!-- CONTATO ADMINISTRATIVO -->
-              <div class="card space-y-3 p-4">
-                <p class="stat-label">Contato administrativo</p>
+              <div class="card-inset space-y-3 p-4">
+                <p class="eyebrow">Contato administrativo</p>
                 @if (c.contatoPrincipal; as ct) {
                   <div class="flex items-center gap-3">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-sunken text-2xs font-bold text-ink-soft">
@@ -390,10 +386,10 @@
           <div class="grid animate-fade-in grid-cols-1 items-start gap-4 lg:grid-cols-2">
             <!-- Radar de risco do condomínio -->
             @if (c.riscoChurn) {
-              <div class="card p-4 space-y-3 border {{ riscoClasse(c.riscoChurn.nivel) }}">
+              <div class="card-inset p-4 space-y-3">
                 <div class="flex items-center justify-between">
-                  <p class="stat-label">Risco de Churn (operacional)</p>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-bold rounded border {{ riscoClasse(c.riscoChurn.nivel) }}">
+                  <p class="eyebrow">Risco de Churn (operacional)</p>
+                  <span class="badge {{ riscoClasse(c.riscoChurn.nivel) }}">
                     {{ riscoLabel(c.riscoChurn.nivel) }} · {{ c.riscoChurn.score }}
                   </span>
                 </div>
@@ -415,8 +411,8 @@
               </div>
             }
             <!-- Dimensionamento -->
-            <div class="card p-4 space-y-3">
-              <p class="stat-label">Dimensionamento Operacional</p>
+            <div class="card-inset p-4 space-y-3">
+              <p class="eyebrow">Dimensionamento Operacional</p>
               <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
                 <div>
                   <p class="text-2xs text-ink-soft">Apartamentos</p>
@@ -438,9 +434,9 @@
             </div>
 
             <!-- Terminais faciais, um a um -->
-            <div class="card space-y-3 p-4 lg:col-span-2">
+            <div class="card-inset space-y-3 p-4 lg:col-span-2">
               <div class="flex items-center justify-between">
-                <p class="stat-label">Terminais faciais (hardware)</p>
+                <p class="eyebrow">Terminais faciais (hardware)</p>
                 @if (resumoTerminais(); as r) {
                   <div class="flex items-center gap-1.5">
                     @if (r.online > 0) {
@@ -514,8 +510,8 @@
             </div>
 
             <!-- Biometry & Access metrics -->
-            <div class="card p-4 space-y-3">
-              <p class="stat-label">Adoção de Tecnologia & Acessos</p>
+            <div class="card-inset p-4 space-y-3">
+              <p class="eyebrow">Adoção de Tecnologia & Acessos</p>
               <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
                 <div>
                   <p class="text-2xs text-ink-soft">Moradores Cadastrados (Face)</p>
@@ -552,8 +548,8 @@
         @if (abaSelecionada() === 'servicos') {
           <div class="grid animate-fade-in grid-cols-1 items-start gap-4 lg:grid-cols-2">
             <!-- Deliveries flow -->
-            <div class="card p-4 space-y-3">
-              <p class="stat-label">Encomendas & Prestadores</p>
+            <div class="card-inset p-4 space-y-3">
+              <p class="eyebrow">Encomendas & Prestadores</p>
               <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
                 <div>
                   <p class="text-2xs text-ink-soft">Aguardando Retirada</p>
@@ -571,8 +567,8 @@
             </div>
 
             <!-- Communication logs -->
-            <div class="card p-4 space-y-3">
-              <p class="stat-label">Engajamento & Comunidades</p>
+            <div class="card-inset p-4 space-y-3">
+              <p class="eyebrow">Engajamento & Comunidades</p>
               <div class="grid grid-cols-2 gap-y-3.5 gap-x-4 text-xs">
                 <div>
                   <p class="text-2xs text-ink-soft">Comunicados Enviados (30d)</p>
@@ -590,8 +586,8 @@
             </div>
 
             <!-- Support and open occurrences tickets -->
-            <div class="card p-4 space-y-3">
-              <p class="stat-label">Suporte & Ocorrências</p>
+            <div class="card-inset p-4 space-y-3">
+              <p class="eyebrow">Suporte & Ocorrências</p>
               <div class="space-y-2">
                 <p class="text-2xs text-ink-soft">Ocorrências abertas pendentes</p>
                 <div class="flex items-center gap-2">
@@ -615,7 +611,7 @@
             
             <!-- Formulário de cadastro de Morador (se visível) -->
             @if (mostrandoFormMorador()) {
-              <div class="card space-y-3.5 border-accent-border bg-accent-soft p-4 reveal-down">
+              <div class="card-soft space-y-3.5 p-4 reveal-down">
                 <div class="flex items-center justify-between">
                   <p class="text-xs font-bold text-accent uppercase tracking-wide">Novo Morador</p>
                   <button (click)="resetFormMorador()" class="press text-xs font-semibold text-ink-soft transition-colors hover:text-ink">Cancelar</button>
@@ -623,33 +619,33 @@
                 
                 <div class="space-y-3">
                   <div>
-                    <label class="stat-label block mb-1.5">Nome Completo</label>
+                    <label class="eyebrow block mb-1.5">Nome Completo</label>
                     <input type="text" [ngModel]="registrarNome()" (ngModelChange)="registrarNome.set($event)" placeholder="Ex: Vinícius Síndico"
                       class="input" />
                   </div>
                   
                   <div class="grid grid-cols-2 gap-3">
                     <div>
-                      <label class="stat-label block mb-1.5">Telefone / WhatsApp</label>
+                      <label class="eyebrow block mb-1.5">Telefone / WhatsApp</label>
                       <input type="text" [ngModel]="registrarTelefone()" (ngModelChange)="registrarTelefone.set($event)" placeholder="Ex: 17992559990"
                         class="input" />
                     </div>
                     <div>
-                      <label class="stat-label block mb-1.5">Documento (CPF)</label>
+                      <label class="eyebrow block mb-1.5">Documento (CPF)</label>
                       <input type="text" [ngModel]="registrarDocumento()" (ngModelChange)="registrarDocumento.set($event)" placeholder="Ex: 12345678900"
                         class="input" />
                     </div>
                   </div>
                   
                   <div>
-                    <label class="stat-label block mb-1.5">E-mail (Login do App)</label>
+                    <label class="eyebrow block mb-1.5">E-mail (Login do App)</label>
                     <input type="email" [ngModel]="registrarEmail()" (ngModelChange)="registrarEmail.set($event)" placeholder="morador@clickprestare.com"
                       class="input" />
                   </div>
 
                   <div class="grid grid-cols-2 gap-3">
                     <div>
-                      <label class="stat-label block mb-1.5">Apartamento</label>
+                      <label class="eyebrow block mb-1.5">Apartamento</label>
                       <select [ngModel]="registrarAptoId()" (ngModelChange)="registrarAptoId.set($event)"
                         class="input cursor-pointer">
                         <option [value]="null" disabled selected>Selecione...</option>
@@ -659,7 +655,7 @@
                       </select>
                     </div>
                     <div>
-                      <label class="stat-label block mb-1.5">Senha de Acesso (Gerada)</label>
+                      <label class="eyebrow block mb-1.5">Senha de Acesso (Gerada)</label>
                       <input type="text" [ngModel]="registrarSenha()" (ngModelChange)="registrarSenha.set($event)"
                         class="input font-mono" />
                     </div>
@@ -678,12 +674,11 @@
             <div class="flex items-center gap-2">
               <div class="relative flex-1">
                 <input type="text" [ngModel]="buscaMorador()" (ngModelChange)="buscaMorador.set($event)" placeholder="Buscar morador..."
-                  class="w-full pl-8 pr-3 py-2 text-xs rounded bg-surface-sunken border border-line text-ink placeholder:text-ink-soft focus:outline-none focus:border-accent transition-all" />
-                <svg class="w-3.5 h-3.5 text-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                  class="w-full rounded-full border-0 bg-surface-sunken py-2.5 pl-10 pr-4 text-xs text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent-border transition-all" />
+                <svg class="w-3.5 h-3.5 text-ink-muted absolute left-4 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
               </div>
               @if (!mostrandoFormMorador()) {
-                <button (click)="abrirFormMorador()"
-                  class="btn-primary press shrink-0 !px-3 !py-2 !text-xs">
+                <button (click)="abrirFormMorador()" class="btn-primary btn-sm press shrink-0">
                   + Registrar Morador
                 </button>
               }
@@ -702,9 +697,9 @@
               } @else {
                 @for (m of moradores(); track m.id) {
                   @if (!buscaMorador() || m.nome.toLowerCase().includes(buscaMorador().toLowerCase()) || (m.apartamento && m.apartamento.includes(buscaMorador()))) {
-                    <div class="card p-3 flex items-center justify-between gap-3 hover:border-line transition duration-200">
-                      <div class="flex items-center gap-2.5 min-w-0">
-                        <div class="w-7 h-7 rounded-full bg-accent-soft flex items-center justify-center text-accent font-bold shrink-0 text-2xs">
+                    <div class="card-inset p-3 flex items-center justify-between gap-3 transition-colors duration-200 hover:bg-line-subtle">
+                      <div class="flex items-center gap-3 min-w-0">
+                        <div class="tile tile-green h-9 w-9 rounded-lg font-display text-2xs font-bold shrink-0">
                           {{ m.nome.substring(0,2).toUpperCase() }}
                         </div>
                         <div class="min-w-0">
@@ -724,14 +719,14 @@
                         <!-- WhatsApp credentials resend button -->
                         @if (m.telefone) {
                           <button (click)="reenviarCredenciaisMorador(m)"
-                            class="press p-1.5 rounded bg-success-soft hover:bg-success-soft text-success border border-success-border"
+                            class="press flex h-8 w-8 items-center justify-center rounded-full bg-success-soft text-success transition-colors hover:bg-success-border"
                             title="Reenviar dados de acesso por WhatsApp">
                             <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.738-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
                           </button>
                         }
                         <!-- Remove resident button -->
                         <button (click)="removerMorador(m.id)"
-                          class="press p-1.5 rounded bg-danger-soft hover:bg-danger-soft text-danger border border-danger-border"
+                          class="press flex h-8 w-8 items-center justify-center rounded-full bg-danger-soft text-danger transition-colors hover:bg-danger-border"
                           title="Remover morador do condomínio">
                           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         </button>
@@ -739,7 +734,7 @@
                     </div>
                   }
                 } @empty {
-                  <div class="py-8 text-center text-ink-soft border border-dashed border-line rounded-lg">
+                  <div class="card-inset py-8 text-center text-sm text-ink-muted">
                     Nenhum morador cadastrado para este condomínio.
                   </div>
                 }
@@ -751,9 +746,9 @@
 
       <!-- Rodapé fixo (apenas no modo de edição) -->
       @if (modoEdicao()) {
-        <div class="flex shrink-0 items-center justify-end gap-3 border-t border-line bg-surface-raised px-6 py-4">
+        <div class="flex shrink-0 items-center justify-end gap-2 bg-surface-raised px-6 pb-6 pt-4">
           <button (click)="cancelarEdicao()" [disabled]="store.salvando()"
-            class="btn-secondary press">
+            class="btn-ghost press">
             Cancelar
           </button>
           <button (click)="salvarEdicao()" [disabled]="store.salvando()"

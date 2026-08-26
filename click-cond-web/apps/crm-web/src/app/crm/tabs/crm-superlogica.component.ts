@@ -9,6 +9,7 @@ import {
   SuperlogicaService,
 } from '../superlogica.service';
 import { ToastService } from '../../shared/toast.service';
+import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 
 /**
  * Aba Superlógica: ativação comercial da integração, condomínio a condomínio.
@@ -22,7 +23,7 @@ import { ToastService } from '../../shared/toast.service';
 @Component({
   selector: 'crm-superlogica',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, EmptyStateComponent],
   templateUrl: './crm-superlogica.component.html',
 })
 export class CrmSuperlogicaComponent implements OnInit {

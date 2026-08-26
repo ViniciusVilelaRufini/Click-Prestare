@@ -13,39 +13,42 @@ import { CommonModule } from '@angular/common';
   template: `
     @switch (variante) {
       @case ('kpi') {
-        <div class="grid grid-cols-2 gap-5 lg:grid-cols-4" aria-hidden="true">
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4" aria-hidden="true">
           @for (i of [1, 2, 3, 4]; track i) {
             <div class="card p-5">
-              <div class="shimmer h-3 w-20 rounded"></div>
-              <div class="shimmer mt-3 h-7 w-28 rounded"></div>
-              <div class="shimmer mt-3 h-2 w-16 rounded"></div>
+              <div class="flex items-center gap-3">
+                <div class="shimmer h-11 w-11 shrink-0 rounded-xl"></div>
+                <div class="shimmer h-3 w-24 rounded-full"></div>
+              </div>
+              <div class="shimmer mt-4 h-8 w-32 rounded-lg"></div>
+              <div class="shimmer mt-3 h-2.5 w-20 rounded-full"></div>
             </div>
           }
         </div>
       }
       @case ('tabela') {
-        <div class="card overflow-hidden" aria-hidden="true">
-          <div class="border-b border-line bg-surface-sunken px-5 py-3">
-            <div class="shimmer h-3 w-48 rounded"></div>
+        <div class="card p-3" aria-hidden="true">
+          <div class="rounded-xl bg-surface-sunken px-4 py-3.5">
+            <div class="shimmer h-3 w-48 rounded-full"></div>
           </div>
           @for (i of linhas; track i) {
-            <div class="flex items-center gap-4 border-b border-line-subtle px-5 py-4 last:border-b-0">
-              <div class="shimmer h-8 w-8 shrink-0 rounded-full"></div>
+            <div class="flex items-center gap-4 px-4 py-4">
+              <div class="shimmer h-11 w-11 shrink-0 rounded-xl"></div>
               <div class="flex-1 space-y-2">
-                <div class="shimmer h-3 w-1/3 rounded"></div>
-                <div class="shimmer h-2 w-1/5 rounded"></div>
+                <div class="shimmer h-3 w-1/3 rounded-full"></div>
+                <div class="shimmer h-2.5 w-1/5 rounded-full"></div>
               </div>
-              <div class="shimmer h-3 w-16 rounded"></div>
-              <div class="shimmer hidden h-3 w-12 rounded sm:block"></div>
+              <div class="shimmer h-3 w-16 rounded-full"></div>
+              <div class="shimmer hidden h-6 w-20 rounded-full sm:block"></div>
             </div>
           }
         </div>
       }
       @default {
-        <div class="card p-5" aria-hidden="true">
-          <div class="shimmer h-4 w-1/3 rounded"></div>
-          <div class="shimmer mt-3 h-3 w-2/3 rounded"></div>
-          <div class="shimmer mt-2 h-3 w-1/2 rounded"></div>
+        <div class="card p-6" aria-hidden="true">
+          <div class="shimmer h-4 w-1/3 rounded-full"></div>
+          <div class="shimmer mt-4 h-3 w-2/3 rounded-full"></div>
+          <div class="shimmer mt-2.5 h-3 w-1/2 rounded-full"></div>
         </div>
       }
     }
