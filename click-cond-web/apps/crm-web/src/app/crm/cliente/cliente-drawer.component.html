@@ -107,8 +107,16 @@
         }
       </div>
 
-      <!-- Corpo rolável -->
-      <div class="flex-1 overflow-y-auto p-6">
+      <!-- Corpo rolável. role=tabpanel + tabindex=0 fecham o par com os
+           role=tab do cabeçalho: sem isto o leitor de tela anunciava as abas
+           mas não tinha região associada para ler, e o painel rolável não
+           era alcançável pelo teclado. -->
+      <div
+        class="flex-1 overflow-y-auto p-6"
+        [attr.role]="modoEdicao() ? null : 'tabpanel'"
+        [attr.tabindex]="modoEdicao() ? null : 0"
+        [attr.aria-label]="'Aba ' + abaSelecionada()"
+      >
 
         <!-- Drawer Tab Content 1: Geral & Finanças -->
         @if (abaSelecionada() === 'geral') {

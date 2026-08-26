@@ -8,8 +8,6 @@ import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 import { SkeletonComponent } from '../../shared/ui/skeleton.component';
 import { iniciais, moeda, severidadeDot } from '../crm-format';
 
-export type AbaCrm = 'overview' | 'clientes' | 'faturamento' | 'automacoes' | 'configuracoes' | 'relatorios' | 'chamados';
-
 /** Paleta cromática das séries — mesma ordem de --chart-1..5 em styles.css. */
 const CORES_SERIE = ['#6e9179', '#e5d5b0', '#c5dfe1', '#b7bcd9', '#4a6b52'];
 

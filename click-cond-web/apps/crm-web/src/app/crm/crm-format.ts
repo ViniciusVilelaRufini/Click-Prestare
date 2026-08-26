@@ -84,16 +84,6 @@ export function healthBg(score: number): string {
   return 'bg-danger';
 }
 
-export function severidadeClasse(s: 'alta' | 'media' | 'baixa'): string {
-  return (
-    {
-      alta: 'border-danger-border bg-danger-soft',
-      media: 'border-warning-border bg-warning-soft',
-      baixa: 'border-line bg-surface-sunken',
-    } as Record<string, string>
-  )[s];
-}
-
 export function severidadeDot(s: 'alta' | 'media' | 'baixa'): string {
   return ({ alta: 'bg-danger', media: 'bg-warning', baixa: 'bg-ink-muted' } as Record<string, string>)[s];
 }
