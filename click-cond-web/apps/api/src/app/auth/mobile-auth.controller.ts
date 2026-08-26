@@ -496,12 +496,22 @@ export class EncomendasMobileController {
   }
 
   @Post('cadastrar')
+  @HttpCode(200)
   cadastrar(
     @ReqUser() payload: JwtPayload,
-    @Body() body: { descricao: string; recebido_de?: string; codigo_rastreio: string },
+    @Body()
+    body: {
+      descricao: string;
+      recebido_de?: string;
+      codigo_rastreio?: string;
+      codigo_validacao?: string;
+      id_condominio?: number;
+      destinatario_apto?: string;
+      destinatario_bloco?: string;
+    },
   ) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.cadastrarRastreioMorador(Number(idUser), body);
+    return this.service.cadastrarRastreioMorador(Number(idUser), body, payload);
   }
 
   @Post('insert')

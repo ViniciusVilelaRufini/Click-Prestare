@@ -3439,29 +3439,77 @@ export class MobileAuthService {
     }
   }
 
-  async cadastrarRastreioMorador(idUser: number, dto: { descricao: string; recebido_de?: string; codigo_rastreio: string }) {
+  async cadastrarRastreioMorador(
+    idUser: number,
+    dto: {
+      descricao: string;
+      recebido_de?: string;
+      codigo_rastreio?: string;
+      codigo_validacao?: string;
+      id_condominio?: number;
+      destinatario_apto?: string;
+      destinatario_bloco?: string;
+    },
+    payload?: JwtPayload,
+  ) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível.');
     }
-    const morador = await this.prisma.moradores.findFirst({
-      where: { id_user: idUser },
-    });
-    if (!morador) {
-      throw new BadRequestException('Morador não encontrado para este usuário.');
+
+    const email = payload?.email ?? payload?.user?.email;
+    let idCondominio = dto.id_condominio ? Number(dto.id_condominio) : payload?.id_condominio;
+    let apto = dto.destinatario_apto ? String(dto.destinatario_apto).trim() : '';
+    let bloco = dto.destinatario_bloco ? String(dto.destinatario_bloco).trim() : null;
+
+    // Se faltar id_condominio ou apto, busca na tabela de moradores
+    if (!idCondominio || !apto) {
+      const morador =
+        (await this.prisma.moradores.findFirst({
+          where: {
+            OR: [
+              { id_user: idUser },
+              ...(email ? [{ email }] : []),
+            ],
+            ...(idCondominio ? { id_condominio: idCondominio } : {}),
+          },
+        })) ||
+        (await this.prisma.moradores.findFirst({
+          where: { id_user: idUser },
+        }));
+
+      if (morador) {
+        if (!idCondominio && morador.id_condominio) idCondominio = morador.id_condominio;
+        if (!apto && morador.apartamento) apto = morador.apartamento;
+        if (!bloco && morador.bloco) bloco = morador.bloco;
+      }
     }
-    if (!morador.id_condominio || !morador.apartamento) {
-      throw new BadRequestException('Morador não está vinculado a um condomínio e apartamento.');
+
+    // Se ainda não tiver condomínio, tenta pelo usuário / sindico
+    if (!idCondominio) {
+      const sc = await this.prisma.sindicos_Condominios.findFirst({
+        where: { sindico: { id_user: idUser } },
+      });
+      if (sc) idCondominio = sc.id_condominio;
+    }
+
+    if (!idCondominio) {
+      throw new BadRequestException('Condomínio não identificado.');
+    }
+
+    if (!apto) {
+      apto = 'Portaria';
     }
 
     return this.prisma.encomendas.create({
       data: {
         descricao: dto.descricao,
-        destinatario_apto: morador.apartamento,
-        destinatario_bloco: morador.bloco ?? null,
-        recebido_de: dto.recebido_de ?? 'Correios',
-        codigo_rastreio: dto.codigo_rastreio,
+        destinatario_apto: apto,
+        destinatario_bloco: bloco || null,
+        recebido_de: dto.recebido_de ?? 'iFood',
+        codigo_rastreio: dto.codigo_rastreio?.trim() || null,
+        codigo_validacao: dto.codigo_validacao?.trim() || null,
         status: 'Esperando',
-        id_condominio: morador.id_condominio,
+        id_condominio: idCondominio,
         notificado: 0,
       },
     });
