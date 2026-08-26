@@ -519,12 +519,12 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     switch (p.auth_status) {
       case 'pendente':
         return this.autorizacaoSemResposta(p)
-          ? { label: 'Sem resposta', cls: 'bg-orange-500/10 text-orange-400 border border-orange-500/20' }
-          : { label: 'Aguardando morador', cls: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' };
+          ? { label: 'Sem resposta', cls: 'bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/60 font-semibold' }
+          : { label: 'Aguardando morador', cls: 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 font-semibold' };
       case 'autorizado':
-        return { label: 'Autorizado ✅', cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' };
+        return { label: 'Autorizado', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 font-semibold' };
       case 'negado':
-        return { label: 'Negado ❌', cls: 'bg-red-500/10 text-red-400 border border-red-500/20' };
+        return { label: 'Negado', cls: 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 font-semibold' };
       default:
         return null;
     }
