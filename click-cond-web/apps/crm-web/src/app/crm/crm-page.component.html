@@ -98,8 +98,11 @@
     <!-- ══ Rail + conteúdo ══ -->
     <div class="flex gap-5">
       <!-- Rail de navegação (≥ lg) -->
+      <!-- z-30: `position: sticky` cria stacking context próprio, então sem isto
+           os cards do conteúdo (posicionados e posteriores no DOM) cobrem os
+           tooltips do rail. Fica abaixo dos modais (z-50) e dos toasts (z-70). -->
       <aside
-        class="sticky top-6 hidden h-[calc(100vh-6.5rem)] w-[76px] shrink-0 flex-col items-center justify-between rounded-3xl bg-surface-raised py-5 shadow-rail lg:flex"
+        class="sticky top-6 z-30 hidden h-[calc(100vh-6.5rem)] w-[76px] shrink-0 flex-col items-center justify-between rounded-3xl bg-surface-raised py-5 shadow-rail lg:flex"
         aria-label="Seções do CRM"
       >
         <nav class="flex flex-col items-center gap-1.5">

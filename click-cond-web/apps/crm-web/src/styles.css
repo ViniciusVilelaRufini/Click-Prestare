@@ -193,9 +193,9 @@ body {
   .rail-item.is-active {
     @apply bg-surface-contrast text-white hover:bg-surface-contrast hover:text-white;
   }
-  /* Rótulo que aparece ao passar o mouse no rail. */
+  /* Rótulo que aparece ao passar o mouse no rail, centrado no ícone. */
   .rail-tip {
-    @apply pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-lg bg-surface-contrast px-2.5 py-1.5 text-2xs font-semibold text-white shadow-pop;
+    @apply pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-contrast px-2.5 py-1.5 text-2xs font-semibold text-white shadow-pop;
   }
   .rail-item:hover .rail-tip,
   .rail-item:focus-visible .rail-tip {

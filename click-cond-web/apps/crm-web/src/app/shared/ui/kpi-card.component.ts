@@ -1,11 +1,14 @@
-import { Component, EventEmitter, Input, Output, computed, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CountUpDirective } from '../count-up.directive';
 
 /**
  * Card de KPI no formato do kit: tile de ícone tintado + rótulo na primeira
- * linha, valor grande (count-up) na segunda e, na terceira, delta ou detalhe
- * com sparkline opcional à direita. Clicável quando [clicavel]="true".
+ * linha, valor grande (count-up) na segunda e, na terceira, o delta e o
+ * detalhe. Clicável quando [clicavel]="true".
+ *
+ * Sem gráfico embutido de propósito: o card precisa ter a mesma silhueta em
+ * toda a grade, e a série temporal vive nos gráficos dedicados da página.
  *
  * Uso:
  *   <app-kpi-card label="MRR" [valor]="ov.mrrTotal" formato="moeda" tom="green"
@@ -38,22 +41,14 @@ import { CountUpDirective } from '../count-up.directive';
         <span [countUp]="valor" [countUpFormat]="formato">{{ valor }}</span>{{ sufixo }}
       </p>
 
-      <div class="mt-2 flex items-center justify-between gap-2">
-        <div class="flex min-w-0 items-center gap-2">
-          @if (delta !== null) {
-            <span class="badge" [ngClass]="delta >= 0 ? 'badge-success' : 'badge-danger'">
-              {{ delta >= 0 ? '↗' : '↘' }} {{ deltaAbs() }}%
-            </span>
-          }
-          @if (detalhe) {
-            <span class="truncate text-xs text-ink-muted">{{ detalhe }}</span>
-          }
-        </div>
-        @if (pontos().length > 1) {
-          <svg class="h-7 w-[72px] shrink-0 overflow-visible" [ngClass]="tracoClasse()" viewBox="0 0 72 28" aria-hidden="true">
-            <path [attr.d]="paths().area" fill="currentColor" opacity="0.12"></path>
-            <path [attr.d]="paths().line" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
-          </svg>
+      <div class="mt-2 flex min-w-0 items-center gap-2">
+        @if (delta !== null) {
+          <span class="badge shrink-0" [ngClass]="delta >= 0 ? 'badge-success' : 'badge-danger'">
+            {{ delta >= 0 ? '↗' : '↘' }} {{ deltaAbs() }}%
+          </span>
+        }
+        @if (detalhe) {
+          <span class="truncate text-xs text-ink-muted">{{ detalhe }}</span>
         }
       </div>
     </div>
@@ -73,49 +68,14 @@ export class KpiCardComponent {
   @Input() icone = '';
   /** Tinta do tile — segue a paleta cromática do design system. */
   @Input() tom: 'green' | 'beige' | 'purple' | 'tosca' | 'dark' = 'green';
-  @Input() set sparkline(v: number[] | null) { this.pontos.set(v ?? []); }
   @Input() clicavel = false;
   @Output() cardClick = new EventEmitter<void>();
 
-  readonly pontos = signal<number[]>([]);
-
   tileClasse(): string {
-    return `tile-${this.tom === 'green' ? 'green' : this.tom}`;
-  }
-
-  /** Sparkline herda a cor do tom do tile. */
-  tracoClasse(): string {
-    const mapa: Record<string, string> = {
-      green: 'text-forest-300',
-      beige: 'text-beige-300',
-      purple: 'text-lilac-300',
-      tosca: 'text-tosca-300',
-      dark: 'text-ink',
-    };
-    return mapa[this.tom] ?? 'text-forest-300';
+    return `tile-${this.tom}`;
   }
 
   deltaAbs(): number {
     return Math.abs(this.delta ?? 0);
   }
-
-  readonly paths = computed(() => {
-    const valores = this.pontos();
-    if (!valores || valores.length < 2) return { line: '', area: '' };
-    const width = 72;
-    const height = 28;
-    const maxVal = Math.max(...valores);
-    const minVal = Math.min(...valores);
-    const range = maxVal === minVal ? 1 : maxVal - minVal;
-
-    const pts = valores.map((val, idx) => {
-      const x = (idx / (valores.length - 1)) * width;
-      const y = height - 2 - ((val - minVal) / range) * (height - 4);
-      return { x, y };
-    });
-
-    const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-    const area = `${line} L ${width} ${height} L 0 ${height} Z`;
-    return { line, area };
-  });
 }
