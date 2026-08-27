@@ -207,6 +207,25 @@
               </p>
             }
 
+            <!-- Trazer os contatos cria conta para pessoas reais: escolha
+                 explícita, desligada por padrão, e sem disparar e-mail. -->
+            @if (c.idSuperlogica != null) {
+              <label class="flex cursor-pointer items-start gap-2 text-xs text-ink-muted">
+                <input
+                  type="checkbox"
+                  class="mt-0.5"
+                  [checked]="comMoradores()[c.id] === true"
+                  (change)="alternarMoradores(c.id, $any($event.target).checked)"
+                />
+                <span>
+                  Importar também os moradores dos contatos do ERP.
+                  <span class="text-ink-muted/80">
+                    Cria cadastro para pessoas reais e vincula ao apartamento. Nenhum e-mail é enviado.
+                  </span>
+                </span>
+              </label>
+            }
+
             <!-- Resultado da última sincronização manual -->
             @if (ultimoSync()[c.id]; as s) {
               <div class="flex flex-wrap items-center gap-2">

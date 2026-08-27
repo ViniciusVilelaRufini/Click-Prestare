@@ -82,8 +82,14 @@ export class CrmSuperlogicaController {
    * casar unidade por texto depois. Idempotente.
    */
   @Post('clientes/:id/importar-unidades')
-  importar(@Param('id', ParseIntPipe) id: number, @ReqUser() user?: JwtPayload) {
-    return this.service.importarUnidades(id, this.operador(user));
+  importar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('comMoradores') comMoradores?: boolean,
+    @ReqUser() user?: JwtPayload,
+  ) {
+    // Default false: trazer os contatos cria contas de pessoas reais, então é
+    // decisão explícita do operador, não efeito colateral de importar unidade.
+    return this.service.importarUnidades(id, this.operador(user), comMoradores === true);
   }
 
   /**

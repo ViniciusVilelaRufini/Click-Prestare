@@ -58,14 +58,18 @@ describe('SuperlogicaSyncService — importação de unidades', () => {
     };
 
     const superlogica = { listarUnidades: jest.fn(async () => unidades) };
-    const service = new SuperlogicaSyncService(prisma, superlogica as any);
-    return { service, create, update };
+    const criarMorador = jest.fn(async () => ({ id: 1 }));
+    const service = new SuperlogicaSyncService(prisma, superlogica as any, {
+      create: criarMorador,
+    } as any);
+    return { service, create, update, criarMorador };
   }
 
-  const unidade = (id: string, bloco: string, uni: string) => ({
+  const unidade = (id: string, bloco: string, uni: string, contatos?: any[]) => ({
     id_unidade_uni: id,
     st_bloco_uni: bloco,
     st_unidade_uni: uni,
+    contatos,
   });
 
   it('cria apartamento já com o vínculo de unidade', async () => {
@@ -131,6 +135,58 @@ describe('SuperlogicaSyncService — importação de unidades', () => {
     const { service } = montar([], [], null);
 
     await expect(service.importarUnidades(7)).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('não cria morador quando a opção está desligada', async () => {
+    // Trazer contato cria conta para pessoa real: só com escolha explícita.
+    const { service, criarMorador } = montar([
+      unidade('1901', 'a', '01', [{ st_nome_con: 'Fulano', st_email_con: 'f@x.com' }]),
+    ]);
+
+    await service.importarUnidades(7);
+
+    expect(criarMorador).not.toHaveBeenCalled();
+  });
+
+  it('cria o morador vinculado ao apartamento, sem enviar e-mail', async () => {
+    const { service, criarMorador } = montar([
+      unidade('1901', 'a', '01', [
+        { st_nome_con: 'Fulano', st_email_con: 'f@x.com', st_telefone_con: '17999', st_cpf_con: '123', st_nometiporesp_tres: 'Inquilino' },
+      ]),
+    ]);
+
+    const r = await service.importarUnidades(7, true);
+
+    expect(r.moradoresCriados).toBe(1);
+    const dto = criarMorador.mock.calls[0][0] as any;
+    expect(dto.nome).toBe('Fulano');
+    expect(dto.tipo).toBe('inquilino');
+    expect(dto.id_condominio).toBe(7);
+    // Importar não pode disparar e-mail para o morador.
+    expect(dto.sendCredentials).toBe(false);
+  });
+
+  it('conta duplicata em vez de estourar ao reimportar', async () => {
+    const { service, criarMorador } = montar([
+      unidade('1901', 'a', '01', [{ st_nome_con: 'Fulano' }]),
+    ]);
+    criarMorador.mockRejectedValueOnce(Object.assign(new Error('já cadastrado'), { status: 400 }));
+
+    const r = await service.importarUnidades(7, true);
+
+    expect(r.moradoresJaExistiam).toBe(1);
+    expect(r.moradoresCriados).toBe(0);
+  });
+
+  it('ignora contato sem nome', async () => {
+    const { service, criarMorador } = montar([
+      unidade('1901', 'a', '01', [{ st_nome_con: '  ', st_email_con: 'x@x.com' }]),
+    ]);
+
+    const r = await service.importarUnidades(7, true);
+
+    expect(criarMorador).not.toHaveBeenCalled();
+    expect(r.moradoresSemNome).toBe(1);
   });
 
   it('importa o condomínio de teste real como 5 apartamentos do bloco "a"', async () => {

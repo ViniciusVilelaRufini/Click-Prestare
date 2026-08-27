@@ -55,6 +55,16 @@ export class CrmSuperlogicaComponent implements OnInit {
   /** Último resultado de sync por condomínio, exibido na linha. */
   readonly ultimoSync = signal<Record<number, ResultadoSync | null>>({});
 
+  /**
+   * Importar também os moradores, por condomínio. Desligado por padrão: cria
+   * conta para pessoas reais, então é escolha explícita do operador.
+   */
+  readonly comMoradores = signal<Record<number, boolean>>({});
+
+  alternarMoradores(idCliente: number, marcado: boolean): void {
+    this.comMoradores.update((s) => ({ ...s, [idCliente]: marcado }));
+  }
+
   readonly totalAtivados = computed(() => this.clientes().filter((c) => c.idSuperlogica != null).length);
 
   /** Condomínios do ERP ainda livres, mais o já vinculado à própria linha. */
@@ -186,12 +196,18 @@ export class CrmSuperlogicaComponent implements OnInit {
    * vinculado, a sincronização não tem a quem entregar a cobrança.
    */
   importarUnidades(cliente: ClienteVinculo): void {
+    const comMoradores = this.comMoradores()[cliente.id] === true;
+
     this.importando.set(cliente.id);
-    this.api.importarUnidades(cliente.id).subscribe({
+    this.api.importarUnidades(cliente.id, comMoradores).subscribe({
       next: (r) => {
-        const partes = [`${r.apartamentosCriados} criado(s)`];
+        const partes = [`${r.apartamentosCriados} apartamento(s) criado(s)`];
         if (r.apartamentosVinculados) partes.push(`${r.apartamentosVinculados} vinculado(s)`);
-        this.toast.trigger(`Unidades importadas: ${partes.join(', ')}.`, 'success');
+        if (comMoradores) {
+          partes.push(`${r.moradoresCriados} morador(es)`);
+          if (r.moradoresJaExistiam) partes.push(`${r.moradoresJaExistiam} já existia(m)`);
+        }
+        this.toast.trigger(`Importação concluída: ${partes.join(', ')}.`, 'success');
 
         // Unidade duplicada não é detalhe de log: ela ficou de fora, e as
         // cobranças dela não vão aparecer para ninguém.

@@ -27,6 +27,9 @@ export interface ResultadoImportacao {
   apartamentosVinculados: number;
   /** Unidades que colidiriam depois de normalizar — não importadas. */
   duplicadasIgnoradas: string[];
+  moradoresCriados: number;
+  moradoresJaExistiam: number;
+  moradoresSemNome: number;
 }
 
 export interface ResultadoSync {
@@ -79,9 +82,17 @@ export class SuperlogicaService {
     return this.http.delete<{ success: boolean }>(`${this.base}/clientes/${idCliente}/vincular`);
   }
 
-  /** Cria/vincula os apartamentos a partir das unidades do ERP. Idempotente. */
-  importarUnidades(idCliente: number): Observable<ResultadoImportacao> {
-    return this.http.post<ResultadoImportacao>(`${this.base}/clientes/${idCliente}/importar-unidades`, {});
+  /**
+   * Cria/vincula os apartamentos a partir das unidades do ERP. Idempotente.
+   *
+   * `comMoradores` também cria os moradores a partir dos contatos — contas de
+   * pessoas reais, então é opção explícita e nunca dispara e-mail.
+   */
+  importarUnidades(idCliente: number, comMoradores = false): Observable<ResultadoImportacao> {
+    return this.http.post<ResultadoImportacao>(
+      `${this.base}/clientes/${idCliente}/importar-unidades`,
+      { comMoradores },
+    );
   }
 
   /** Roda a sincronização de cobranças agora, sem esperar o ciclo horário. */

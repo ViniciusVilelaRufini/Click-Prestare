@@ -279,8 +279,8 @@ export class CrmSuperlogicaService {
    * Fica no CRM (e não no sync automático) porque cria dado: precisa de um
    * humano decidindo, com a prévia na mão.
    */
-  async importarUnidades(idCondominioClique: number, operador: string) {
-    const resultado = await this.sync.importarUnidades(idCondominioClique);
+  async importarUnidades(idCondominioClique: number, operador: string, comMoradores = false) {
+    const resultado = await this.sync.importarUnidades(idCondominioClique, comMoradores);
 
     await this.auditoria.registrar({
       id_condominio: idCondominioClique,
@@ -289,9 +289,10 @@ export class CrmSuperlogicaService {
       modulo: 'superlogica',
       entidade_id: idCondominioClique,
       descricao:
-        `Unidades importadas da Superlógica: ${resultado.apartamentosCriados} criado(s), ` +
-        `${resultado.apartamentosVinculados} vinculado(s)`,
-      detalhes: resultado,
+        `Unidades importadas da Superlógica: ${resultado.apartamentosCriados} apartamento(s) criado(s), ` +
+        `${resultado.apartamentosVinculados} vinculado(s)` +
+        (comMoradores ? `, ${resultado.moradoresCriados} morador(es) criado(s)` : ''),
+      detalhes: { ...resultado, comMoradores },
     });
 
     return resultado;
