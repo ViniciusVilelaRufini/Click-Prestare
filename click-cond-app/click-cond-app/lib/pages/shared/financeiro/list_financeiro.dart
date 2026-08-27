@@ -5,7 +5,6 @@ import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/pages/shared/financeiro/finan_relatorio.dart';
 import 'package:click/pages/shared/financeiro/detail_inadimplente.dart';
@@ -18,6 +17,7 @@ import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart' show
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
+import 'package:click/widgets/cells/cell_financeiro_card.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
@@ -572,292 +572,16 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     }
   }
 
-  Widget _buildStatusBadge(dynamic status, dynamic pago) {
-    Color color = Colors.orange;
-    String text = "Pendente";
-
-    int intStatus = status is int ? status : (int.tryParse(status?.toString() ?? '') ?? 0);
-    int intPago = pago is int ? pago : (int.tryParse(pago?.toString() ?? '') ?? 0);
-
-    if (intPago == 1) {
-      color = Colors.green;
-      text = "Pago";
-    } else if (intStatus == 2) {
-      color = Colors.blue;
-      text = "Verificando";
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.5))),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
-    );
-  }
-
   Widget _buildPersonalFinanceiroCard(dynamic item) {
-    bool isPago = _isPago(item['pago']);
-    final statusVal = item['status'];
-    final statusInt = statusVal is int ? statusVal : int.tryParse(statusVal.toString()) ?? 0;
-    bool isVerifying = statusInt == 2;
-
-    final Color statusColor = isPago
-        ? Colors.green
-        : (isVerifying ? Colors.blue : Colors.orange);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border(context)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 4,
-                height: 40,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item['nome'] ?? '',
-                      style: AppTypography.bodyMedium(context)
-                          .copyWith(fontWeight: FontWeight.w600, height: 1.3),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(PhosphorIcons.calendarBlank,
-                            size: 13, color: AppColors.textTertiary(context)),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            "Vence em ${item['data_vencimento'] ?? '—'}",
-                            style: AppTypography.caption(context),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Text(
-                item['valorReal'] ?? '',
-                style: AppTypography.bodyMedium(context).copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isPago ? Colors.green : AppColors.textPrimary(context),
-                ),
-              ),
-            ],
-          ),
-          if (!isPago) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (item['pix_copia_cola'] != null && item['pix_copia_cola'].toString().trim().isNotEmpty)
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: item['pix_copia_cola'].toString()));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Pix Copia e Cola copiado!"),
-                          backgroundColor: AppColors.primary,
-                        ),
-                      );
-                    },
-                    icon: const Icon(PhosphorIcons.qrCode, size: 14),
-                    label: const Text(
-                      "Copiar Pix",
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
-                    ),
-                  )
-                else if (item['chave_pix'] != null && item['chave_pix'].toString().trim().isNotEmpty)
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      showModalBottomSheet(
-                        context: context,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                        ),
-                        builder: (context) {
-                          return Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  "Chave Pix do Condomínio",
-                                  style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  "Utilize a chave Pix abaixo para realizar o pagamento manual:",
-                                  textAlign: TextAlign.center,
-                                  style: AppTypography.bodyMedium(context),
-                                ),
-                                const SizedBox(height: 20),
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surface(context),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.border(context)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: SelectableText(
-                                          item['chave_pix'].toString(),
-                                          style: AppTypography.bodyMedium(context).copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            fontFamily: 'monospace',
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Clipboard.setData(ClipboardData(text: item['chave_pix'].toString()));
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text("Chave Pix copiada com sucesso!"),
-                                        backgroundColor: AppColors.primary,
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                    minimumSize: const Size(double.infinity, 44),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                  child: const Text("Copiar Chave Pix"),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
-                    icon: const Icon(PhosphorIcons.copy, size: 14),
-                    label: const Text(
-                      "Copiar Pix",
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
-                    ),
-                  ),
-                if (item['linha_digitavel'] != null && item['linha_digitavel'].toString().trim().isNotEmpty)
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: item['linha_digitavel'].toString()));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text("Código de barras copiado!"),
-                          backgroundColor: AppColors.textSecondary(context),
-                        ),
-                      );
-                    },
-                    icon: const Icon(PhosphorIcons.barcode, size: 14),
-                    label: const Text(
-                      "Copiar Código",
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textPrimary(context),
-                      side: BorderSide(color: AppColors.textSecondary(context).withOpacity(0.3)),
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                if (item['url_boleto'] != null && item['url_boleto'].toString().trim().isNotEmpty)
-                  OutlinedButton.icon(
-                    onPressed: () => launchUrl(Uri.parse(item['url_boleto'])),
-                    icon: const Icon(PhosphorIcons.filePdf, color: Colors.redAccent, size: 14),
-                    label: const Text(
-                      "Ver Boleto",
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.redAccent,
-                      side: const BorderSide(color: Colors.redAccent, width: 0.8),
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-          const Divider(height: 24, color: Colors.white10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildStatusBadge(item['status'], item['pago']),
-              Row(
-                children: [
-                  if (!isPago && !isVerifying)
-                    ElevatedButton.icon(
-                      onPressed: () => _uploadComprovante(item['id']),
-                      icon: const Icon(PhosphorIcons.uploadSimple, size: 16),
-                      label: const Text("Comprovante", style: TextStyle(fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        // Sem foregroundColor o tema escuro pintava o texto
-                        // da mesma cor do fundo — botão azul "vazio".
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
-                      ),
-                    ),
-                ],
-              )
-            ],
-          )
-        ],
-      ),
+    // Layout no widget compartilhado — ver widgets/cells/cell_financeiro_card.dart.
+    // Antes este card estava duplicado aqui e em morador_financeiro_view.dart,
+    // e os dois já tinham divergido: mexer num não mudava o outro.
+    return FinanceiroCard(
+      item: item,
+      onEnviarComprovante: () => _uploadComprovante(item['id']),
     );
   }
+
 
   List<Map<String, dynamic>> _getGeneratedMonths() {
     var now = DateTime.now();

@@ -519,9 +519,18 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         ? Colors.green
         : (isVerifying ? Colors.blue : Colors.orange);
 
+    // O nome vem do backend como "Apto 1 Bloco a - Ref. 08/2026". Separar o
+    // que identifica a unidade da referência do mês dá hierarquia ao card;
+    // conta pessoal ("Conta de Água") não tem o hífen e cai no fallback.
+    final String nomeCompleto = (item['nome'] ?? 'Despesa').toString();
+    final int corte = nomeCompleto.indexOf(' - ');
+    final String titulo = corte > 0 ? nomeCompleto.substring(0, corte) : nomeCompleto;
+    final String? referencia = corte > 0 ? nomeCompleto.substring(corte + 3).trim() : null;
+
+    final String vencimento = (item['data_vencimento'] ?? item['data'] ?? '—').toString();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
@@ -534,20 +543,22 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           ),
         ],
       ),
-      child: Column(
+      // A faixa de status vira a borda esquerda do card inteiro, em vez de um
+      // tracinho solto ao lado do título: lê o estado antes de ler o texto.
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 4, color: statusColor),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 4,
-                height: 40,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -556,9 +567,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       children: [
                         Flexible(
                           child: Text(
-                            item['nome'] ?? 'Despesa',
+                            titulo,
                             style: AppTypography.bodyMedium(context)
-                                .copyWith(fontWeight: FontWeight.w600, height: 1.3),
+                                .copyWith(fontWeight: FontWeight.w700, height: 1.25),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -580,6 +591,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       ],
                     ),
                     const SizedBox(height: 6),
+                    // Referência e vencimento numa linha só: são a mesma
+                    // informação temporal, e separá-las inchava o card.
                     Row(
                       children: [
                         Icon(PhosphorIcons.calendarBlank,
@@ -587,7 +600,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                         const SizedBox(width: 5),
                         Flexible(
                           child: Text(
-                            "Vence em ${item['data_vencimento'] ?? item['data'] ?? '—'}",
+                            referencia != null
+                                ? "$referencia · vence $vencimento"
+                                : "Vence em $vencimento",
                             style: AppTypography.caption(context),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -598,357 +613,381 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                item['valorReal'] ?? item['valorString'] ?? 'R\$ 0,00',
-                style: AppTypography.bodyMedium(context).copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isPago ? Colors.green : AppColors.textPrimary(context),
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    item['valorReal'] ?? item['valorString'] ?? 'R\$ 0,00',
+                    style: AppTypography.bodyMedium(context).copyWith(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      height: 1.1,
+                      color: isPago ? Colors.green : AppColors.textPrimary(context),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _buildStatusBadge(item['status'], item['pago']),
+                ],
               ),
             ],
           ),
           if (!isPago) ...[
-            const SizedBox(height: 12),
-            Row(
+            const SizedBox(height: 14),
+            // Chips de pagamento: só aparecem os meios que existem de fato.
+            // Wrap (e não Row com Expanded) para que um botão sozinho não
+            // estique pela largura toda e fique boiando no card.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                if (item['pix_copia_cola'] != null && item['pix_copia_cola'].toString().trim().isNotEmpty)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        showModalBottomSheet(
-                          context: context,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                          ),
-                          builder: (context) {
-                            return Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    "Pague com o Pix",
-                                    style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    "Escaneie o QR Code abaixo para pagar",
-                                    style: AppTypography.caption(context),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Container(
-                                    width: 200,
-                                    height: 200,
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey.shade300),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      // QR gerado localmente (qr_flutter): funciona
-                                      // offline e sem depender do qrserver.com.
-                                      child: QrImageView(
-                                        data: item['pix_copia_cola'].toString(),
-                                        size: 200,
-                                        backgroundColor: Colors.white,
-                                        padding: const EdgeInsets.all(12),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      Clipboard.setData(ClipboardData(text: item['pix_copia_cola'].toString()));
-                                      Navigator.pop(context);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text("Pix Copia e Cola copiado!"),
-                                          backgroundColor: AppColors.primary,
-                                        ),
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size(double.infinity, 44),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    child: const Text("Copiar Código Pix"),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      },
-                      icon: const Icon(PhosphorIcons.qrCode, size: 16),
-                      label: const Text(
-                        "Pagar Pix",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
-                      ),
-                    ),
+                if (_temValor(item['pix_copia_cola']))
+                  _acaoPagamento(
+                    icone: PhosphorIcons.qrCode,
+                    texto: "Pagar Pix",
+                    destaque: true,
+                    onTap: () => _abrirSheetPixQrCode(item),
                   )
-                else if (item['chave_pix'] != null && item['chave_pix'].toString().trim().isNotEmpty)
+                else if (_temValor(item['chave_pix']))
+                  _acaoPagamento(
+                    icone: PhosphorIcons.copy,
+                    texto: "Copiar Pix",
+                    destaque: true,
+                    onTap: () => _abrirSheetChavePix(item),
+                  ),
+                if (_temValor(item['linha_digitavel']))
+                  _acaoPagamento(
+                    icone: PhosphorIcons.barcode,
+                    texto: "Copiar código",
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: item['linha_digitavel'].toString()));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text("Código de barras copiado!"),
+                          backgroundColor: AppColors.textSecondary(context),
+                        ),
+                      );
+                    },
+                  ),
+                if (_temValor(item['url_boleto']))
+                  _acaoPagamento(
+                    icone: PhosphorIcons.filePdf,
+                    texto: "Ver boleto",
+                    cor: Colors.redAccent,
+                    onTap: () => launchUrl(Uri.parse(item['url_boleto'].toString())),
+                  ),
+              ],
+            ),
+            // Sem nenhum dado de pagamento: o síndico ainda não anexou PIX/boleto.
+            if (_semCodigoPagamento(item) && !_temValor(item['chave_pix'])) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.textTertiary(context).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(PhosphorIcons.info, size: 14, color: AppColors.textTertiary(context)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Aguardando os dados de pagamento (PIX ou boleto) do síndico.',
+                        style: AppTypography.tiny(context)
+                            .copyWith(color: AppColors.textTertiary(context)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+          // Rodapé só existe quando há ação a tomar. O status saiu daqui para o
+          // topo, junto do valor, então não sobra uma linha quase vazia.
+          if (_temAcoesDeRodape(item, isPago, isVerifying)) ...[
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (!isPago && !isVerifying)
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        showModalBottomSheet(
-                          context: context,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                          ),
-                          builder: (context) {
-                            return Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    "Chave Pix do Condomínio",
-                                    style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    "Utilize a chave Pix abaixo para realizar o pagamento manual:",
-                                    textAlign: TextAlign.center,
-                                    style: AppTypography.bodyMedium(context),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.surface(context),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: AppColors.border(context)),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: SelectableText(
-                                            item['chave_pix'].toString(),
-                                            style: AppTypography.bodyMedium(context).copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              fontFamily: 'monospace',
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      Clipboard.setData(ClipboardData(text: item['chave_pix'].toString()));
-                                      Navigator.pop(context);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text("Chave Pix copiada com sucesso!"),
-                                          backgroundColor: AppColors.primary,
-                                        ),
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size(double.infinity, 44),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    child: const Text("Copiar Chave Pix"),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      },
-                      icon: const Icon(PhosphorIcons.copy, size: 16),
+                      onPressed: () => _uploadComprovante(item['id']),
+                      icon: const Icon(PhosphorIcons.uploadSimple, size: 16),
                       label: const Text(
-                        "Copiar Pix",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                        "Enviar comprovante",
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ),
-                if (item['linha_digitavel'] != null && item['linha_digitavel'].toString().trim().isNotEmpty) ...[
+                if (item['id_usuario'] != null && item['tipo'] == 'D') ...[
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: item['linha_digitavel'].toString()));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text("Código de barras copiado!"),
-                            backgroundColor: AppColors.textSecondary(context),
-                          ),
-                        );
-                      },
-                      icon: const Icon(PhosphorIcons.barcode, size: 16),
-                      label: const Text(
-                        "Copiar Código",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textPrimary(context),
-                        side: BorderSide(color: AppColors.textSecondary(context).withOpacity(0.3)),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
+                  _acaoIcone(
+                    icone: PhosphorIcons.pencil,
+                    cor: Colors.blueAccent,
+                    tooltip: 'Editar conta',
+                    onTap: () => showContaFormModal(item: item),
                   ),
-                ],
-                if (item['url_boleto'] != null && item['url_boleto'].toString().trim().isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => launchUrl(Uri.parse(item['url_boleto'])),
-                      icon: const Icon(PhosphorIcons.filePdf, color: Colors.redAccent, size: 16),
-                      label: const Text(
-                        "Ver Boleto",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        side: const BorderSide(color: Colors.redAccent, width: 0.8),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
+                  const SizedBox(width: 6),
+                  _acaoIcone(
+                    icone: PhosphorIcons.trash,
+                    cor: Colors.redAccent,
+                    tooltip: 'Excluir conta',
+                    onTap: () => _confirmarExclusaoContaPessoal(item),
                   ),
                 ],
               ],
             ),
-            // Sem nenhum dado de pagamento: o síndico ainda não anexou PIX/boleto.
-            if (_semCodigoPagamento(item) &&
-                (item['chave_pix'] == null || item['chave_pix'].toString().trim().isEmpty)) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(PhosphorIcons.info, size: 14, color: AppColors.textTertiary(context)),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Aguardando os dados de pagamento (PIX ou boleto) do síndico.',
-                      style: AppTypography.tiny(context)
-                          .copyWith(color: AppColors.textTertiary(context)),
-                    ),
-                  ),
-                ],
+          ],
+        ],
+      ),
+    ),
+  ),
+],
+),
+),
+);
+}
+
+  /// Campo preenchido de verdade (nulo, vazio ou só espaços não conta).
+  bool _temValor(dynamic v) => v != null && v.toString().trim().isNotEmpty;
+
+  /// Há algo para o morador fazer no rodapé deste lançamento?
+  bool _temAcoesDeRodape(dynamic item, bool isPago, bool isVerifying) {
+    final podeEnviarComprovante = !isPago && !isVerifying;
+    final ehContaPessoal = item['id_usuario'] != null && item['tipo'] == 'D';
+    return podeEnviarComprovante || ehContaPessoal;
+  }
+
+  /// Chip de meio de pagamento. `destaque` é o meio principal (Pix).
+  Widget _acaoPagamento({
+    required IconData icone,
+    required String texto,
+    required VoidCallback onTap,
+    bool destaque = false,
+    Color? cor,
+  }) {
+    final Color base = cor ?? AppColors.primary;
+    return Material(
+      color: destaque ? base : base.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icone, size: 15, color: destaque ? Colors.white : base),
+              const SizedBox(width: 6),
+              Text(
+                texto,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: destaque ? Colors.white : base,
+                ),
               ),
             ],
-          ],
-          Divider(height: 24, color: AppColors.border(context)),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final fits = constraints.maxWidth >= 260;
-              final statusWidget = _buildStatusBadge(item['status'], item['pago']);
-              
-              final buttonsList = <Widget>[
-                if (!isPago && !isVerifying)
-                  ElevatedButton.icon(
-                    onPressed: () => _uploadComprovante(item['id']),
-                    icon: const Icon(PhosphorIcons.uploadSimple, size: 14),
-                    label: const Text("Comprovante", style: TextStyle(fontSize: 12)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                if (item['id_usuario'] != null && item['tipo'] == 'D') ...[
-                  IconButton(
-                    icon: const Icon(PhosphorIcons.pencil, size: 18, color: Colors.blueAccent),
-                    onPressed: () => showContaFormModal(item: item),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  IconButton(
-                    icon: const Icon(PhosphorIcons.trash, size: 18, color: Colors.redAccent),
-                    onPressed: () async {
-                      bool? confirm = await showConfirmDialog(
-                        context,
-                        text: "Tem certeza que deseja excluir esta conta pessoal?",
-                      );
-                      if (confirm == true) {
-                        final messenger = ScaffoldMessenger.of(context);
-                        setState(() => _isLoading = true);
-                        bool success = await apiRemoveMoradorFinanceiro(item['id']);
-                        if (success) {
-                          _loadData();
-                          messenger.showSnackBar(
-                            const SnackBar(content: Text("Conta pessoal removida com sucesso!")),
-                          );
-                        } else {
-                          setState(() => _isLoading = false);
-                          messenger.showSnackBar(
-                            const SnackBar(content: Text("Erro ao remover conta pessoal.")),
-                          );
-                        }
-                      }
-                    },
-                  ),
-                ],
-              ];
-
-              if (fits) {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(child: statusWidget),
-                    const SizedBox(width: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: buttonsList,
-                    )
-                  ],
-                );
-              } else {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: statusWidget,
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        for (int idx = 0; idx < buttonsList.length; idx++) ...[
-                          if (idx > 0) const SizedBox(width: 8),
-                          if (buttonsList[idx] is ElevatedButton)
-                            Expanded(child: buttonsList[idx])
-                          else
-                            buttonsList[idx],
-                        ],
-                      ],
-                    ),
-                  ],
-                );
-              }
-            },
-          )
-        ],
+          ),
+        ),
       ),
     );
   }
+
+  /// Botão de ícone do rodapé (editar/excluir conta pessoal).
+  Widget _acaoIcone({
+    required IconData icone,
+    required Color cor,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: cor.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(icone, size: 18, color: cor),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmarExclusaoContaPessoal(dynamic item) async {
+    final bool? confirm = await showConfirmDialog(
+      context,
+      text: "Tem certeza que deseja excluir esta conta pessoal?",
+    );
+    if (confirm != true) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isLoading = true);
+    final bool success = await apiRemoveMoradorFinanceiro(item['id']);
+    if (success) {
+      _loadData();
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Conta pessoal removida com sucesso!")),
+      );
+    } else {
+      setState(() => _isLoading = false);
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Erro ao remover conta pessoal.")),
+      );
+    }
+  }
+
+  /// Pix copia-e-cola da cobrança: QR gerado localmente (qr_flutter), sem
+  /// depender de serviço externo.
+  void _abrirSheetPixQrCode(dynamic item) {
+    final String payload = item['pix_copia_cola'].toString();
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Pague com o Pix",
+                style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Escaneie o QR Code abaixo para pagar",
+                style: AppTypography.caption(context),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: QrImageView(
+                    data: payload,
+                    size: 200,
+                    backgroundColor: Colors.white,
+                    padding: const EdgeInsets.all(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: payload));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Pix Copia e Cola copiado!"),
+                      backgroundColor: AppColors.primary,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 44),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text("Copiar Código Pix"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Chave Pix do condomínio (pagamento manual), quando a cobrança não tem
+  /// copia-e-cola próprio.
+  void _abrirSheetChavePix(dynamic item) {
+    final String chave = item['chave_pix'].toString();
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Chave Pix do Condomínio",
+                style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Utilize a chave Pix abaixo para realizar o pagamento manual:",
+                textAlign: TextAlign.center,
+                style: AppTypography.bodyMedium(context),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border(context)),
+                ),
+                child: SelectableText(
+                  chave,
+                  style: AppTypography.bodyMedium(context).copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: chave));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Chave Pix copiada com sucesso!"),
+                      backgroundColor: AppColors.primary,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 44),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text("Copiar Chave Pix"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
 
   Widget _buildStatusBadge(dynamic status, dynamic pago) {
     Color color = Colors.orange;
