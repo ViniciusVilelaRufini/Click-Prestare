@@ -16,11 +16,16 @@ describe('CrmSuperlogicaService — vínculo', () => {
     condominios?: any[];
     vinculados?: any[];
     unidades?: any[];
+    erroUpdate?: any;
   } = {}) {
-    const update = jest.fn(async () => ({}));
+    const update = jest.fn(async () => {
+      if (opcoes.erroUpdate) throw opcoes.erroUpdate;
+      return {};
+    });
+    const updateManyApartamentos = jest.fn(async () => ({ count: 0 }));
     const registrar = jest.fn(async () => undefined);
 
-    const prisma = {
+    const prisma: any = {
       condominios: {
         findUnique: jest.fn(async ({ where }: any) =>
           (opcoes.condominios ?? []).find((c) => c.id === where.id) ?? null,
@@ -28,8 +33,10 @@ describe('CrmSuperlogicaService — vínculo', () => {
         findMany: jest.fn(async () => opcoes.vinculados ?? []),
         update,
       },
-      apartamentos: { count: jest.fn(async () => 0) },
+      apartamentos: { count: jest.fn(async () => 0), updateMany: updateManyApartamentos },
     };
+    // $transaction recebe um callback e o executa com o próprio prisma mockado.
+    prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
 
     const superlogica = {
       listarCondominios: jest.fn(async () => [CASA_PIENZA, DAMHA]),
@@ -46,7 +53,7 @@ describe('CrmSuperlogicaService — vínculo', () => {
       auditoria as any,
     );
 
-    return { service, prisma, superlogica, update, registrar };
+    return { service, prisma, superlogica, update, registrar, updateManyApartamentos };
   }
 
   it('vincula e registra em auditoria', async () => {
@@ -99,6 +106,42 @@ describe('CrmSuperlogicaService — vínculo', () => {
     await expect(service.vincular(404, 24, 'Erika')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('limpa os vínculos de unidade ao trocar de condomínio no ERP', async () => {
+    // id_unidade_uni 726 no condomínio 24 não é a mesma unidade que o 726 no
+    // 31. Manter os antigos casaria cobrança com o apartamento errado.
+    const { service, updateManyApartamentos } = montar({
+      condominios: [{ id: 7, nome: 'Meu Prédio', id_superlogica_cond: 24 }],
+    });
+
+    await service.vincular(7, 31, 'Erika');
+
+    expect(updateManyApartamentos).toHaveBeenCalledWith({
+      where: { id_condominio: 7 },
+      data: { id_superlogica_uni: null },
+    });
+  });
+
+  it('preserva os vínculos de unidade ao regravar o mesmo id', async () => {
+    const { service, updateManyApartamentos } = montar({
+      condominios: [{ id: 3, nome: 'Outro Prédio', id_superlogica_cond: 24 }],
+      vinculados: [{ id: 3, nome: 'Outro Prédio', id_superlogica_cond: 24 }],
+    });
+
+    await service.vincular(3, 24, 'Erika');
+
+    expect(updateManyApartamentos).not.toHaveBeenCalled();
+  });
+
+  it('devolve 409 quando o índice único barra uma corrida entre operadores', async () => {
+    // Sem tratar o P2002, o operador veria "Internal Server Error".
+    const { service } = montar({
+      condominios: [{ id: 7, nome: 'Meu Prédio', id_superlogica_cond: null }],
+      erroUpdate: Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+    });
+
+    await expect(service.vincular(7, 24, 'Erika')).rejects.toBeInstanceOf(ConflictException);
+  });
+
   it('marca na listagem quais condomínios do ERP já estão em uso', async () => {
     const { service } = montar({
       vinculados: [{ id: 3, nome: 'Outro Prédio', id_superlogica_cond: 24 }],
@@ -117,12 +160,15 @@ describe('CrmSuperlogicaService — desvínculo', () => {
     // seria destrutivo demais. O prisma mockado não expõe financeiro.delete —
     // se o service tentasse apagar, o teste estouraria.
     const update = jest.fn(async () => ({}));
-    const prisma = {
+    const updateManyApartamentos = jest.fn(async () => ({ count: 0 }));
+    const prisma: any = {
       condominios: {
         findUnique: jest.fn(async () => ({ id: 7, nome: 'Meu Prédio', id_superlogica_cond: 24 })),
         update,
       },
+      apartamentos: { updateMany: updateManyApartamentos },
     };
+    prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
 
     const service = new CrmSuperlogicaService(
       prisma as any,
@@ -133,6 +179,29 @@ describe('CrmSuperlogicaService — desvínculo', () => {
 
     await expect(service.desvincular(7, 'Erika')).resolves.toMatchObject({ success: true });
     expect(update).toHaveBeenCalledWith({ where: { id: 7 }, data: { id_superlogica_cond: null } });
+  });
+
+  it('limpa os vínculos de unidade ao desativar', async () => {
+    // Fecha o caminho: desvincular do ERP 24 e vincular ao 31 não passaria pela
+    // checagem de troca em vincular(), porque o vínculo anterior já seria null.
+    const updateManyApartamentos = jest.fn(async () => ({ count: 12 }));
+    const prisma: any = {
+      condominios: {
+        findUnique: jest.fn(async () => ({ id: 7, nome: 'Meu Prédio', id_superlogica_cond: 24 })),
+        update: jest.fn(async () => ({})),
+      },
+      apartamentos: { updateMany: updateManyApartamentos },
+    };
+    prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
+
+    const service = new CrmSuperlogicaService(prisma, {} as any, {} as any, { registrar: jest.fn() } as any);
+
+    await service.desvincular(7, 'Erika');
+
+    expect(updateManyApartamentos).toHaveBeenCalledWith({
+      where: { id_condominio: 7 },
+      data: { id_superlogica_uni: null },
+    });
   });
 });
 

@@ -131,10 +131,38 @@ export class CrmSuperlogicaService {
       );
     }
 
-    await this.prisma.condominios.update({
-      where: { id: idCondominioClique },
-      data: { id_superlogica_cond: idSuperlogica },
-    });
+    // Trocar de condomínio no ERP invalida os vínculos de unidade existentes:
+    // id_unidade_uni 726 no condomínio 24 não é a mesma unidade que o 726 no
+    // condomínio 31. Manter os antigos faria a sincronização casar cobrança com
+    // o apartamento errado — vazamento entre moradores do mesmo prédio.
+    const trocouDeErp =
+      condominio.id_superlogica_cond != null && condominio.id_superlogica_cond !== idSuperlogica;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (trocouDeErp) {
+          await tx.apartamentos.updateMany({
+            where: { id_condominio: idCondominioClique },
+            data: { id_superlogica_uni: null },
+          });
+        }
+
+        await tx.condominios.update({
+          where: { id: idCondominioClique },
+          data: { id_superlogica_cond: idSuperlogica },
+        });
+      });
+    } catch (e: any) {
+      // P2002 = violação do índice un_cond_superlogica. Só acontece se outro
+      // operador vinculou o mesmo condomínio entre a checagem acima e este
+      // update. Sem tratar, o operador veria "Internal Server Error".
+      if (e?.code === 'P2002') {
+        throw new ConflictException(
+          `"${alvo.nome}" acabou de ser vinculado a outro condomínio. Atualize a tela.`,
+        );
+      }
+      throw e;
+    }
 
     this.logger.log(`Condomínio ${idCondominioClique} vinculado à Superlógica ${idSuperlogica} por ${operador}`);
 
@@ -145,7 +173,12 @@ export class CrmSuperlogicaService {
       modulo: 'superlogica',
       entidade_id: idCondominioClique,
       descricao: `Integração Superlógica ativada: vinculado a "${alvo.nome}" (id ${idSuperlogica})`,
-      detalhes: { idSuperlogica, nomeSuperlogica: alvo.nome, vinculoAnterior: condominio.id_superlogica_cond },
+      detalhes: {
+        idSuperlogica,
+        nomeSuperlogica: alvo.nome,
+        vinculoAnterior: condominio.id_superlogica_cond,
+        vinculosDeUnidadeLimpos: trocouDeErp,
+      },
     });
 
     return { success: true, idSuperlogica, nomeSuperlogica: alvo.nome };
@@ -168,9 +201,26 @@ export class CrmSuperlogicaService {
       return { success: true, jaEstavaDesvinculado: true };
     }
 
-    await this.prisma.condominios.update({
-      where: { id: idCondominioClique },
-      data: { id_superlogica_cond: null },
+    // Os vínculos de unidade também caem, mantendo o invariante "id_superlogica_uni
+    // só existe enquanto o condomínio está vinculado".
+    //
+    // Sem isso haveria um caminho de vazamento: desvincular do ERP 24 e depois
+    // vincular ao 31 não passaria pela checagem de troca de vincular() — o
+    // vínculo anterior já seria null —, e os apartamentos ficariam com ids de
+    // unidade do 24 sendo casados contra cobranças do 31.
+    //
+    // Os lançamentos em Financeiro NÃO são tocados: desativar interrompe a
+    // atualização, não apaga o histórico do morador.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.apartamentos.updateMany({
+        where: { id_condominio: idCondominioClique },
+        data: { id_superlogica_uni: null },
+      });
+
+      await tx.condominios.update({
+        where: { id: idCondominioClique },
+        data: { id_superlogica_cond: null },
+      });
     });
 
     await this.auditoria.registrar({
@@ -180,7 +230,7 @@ export class CrmSuperlogicaService {
       modulo: 'superlogica',
       entidade_id: idCondominioClique,
       descricao: 'Integração Superlógica desativada',
-      detalhes: { vinculoAnterior: condominio.id_superlogica_cond },
+      detalhes: { vinculoAnterior: condominio.id_superlogica_cond, vinculosDeUnidadeLimpos: true },
     });
 
     return { success: true };
