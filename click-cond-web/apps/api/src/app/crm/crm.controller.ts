@@ -155,6 +155,47 @@ export class CrmController {
     return this.apartamentos.findAll(id, search);
   }
 
+  @UseGuards(CrmAdminGuard)
+  @Post('clientes/:id/apartamentos')
+  criarApartamento(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: any,
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.apartamentos.create({ ...dto, id_condominio: id }, user);
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Put('clientes/:id/apartamentos/:idApto')
+  atualizarApartamento(
+    @Param('idApto', ParseIntPipe) idApto: number,
+    @Body() dto: any,
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.apartamentos.update(idApto, dto, user);
+  }
+
+  /** Remove a unidade. A resposta traz `arrastados`: o que caiu em cascata. */
+  @UseGuards(CrmAdminGuard)
+  @Delete('clientes/:id/apartamentos/:idApto')
+  removerApartamento(
+    @Param('idApto', ParseIntPipe) idApto: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.apartamentos.remove(idApto, user);
+  }
+
+  /** Criação em lote de unidades (blocos × andares × unidades por andar). */
+  @UseGuards(CrmAdminGuard)
+  @Post('clientes/:id/apartamentos/lote')
+  criarApartamentosLote(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { blocos: string[]; andares: number; porAndar: number },
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.condominios.gerarApartamentos(id, body, this.operador(user));
+  }
+
   /** Terminais faciais do condomínio, um a um, com online/offline real. */
   @UseGuards(CrmAdminGuard)
   @Get('clientes/:id/terminais')

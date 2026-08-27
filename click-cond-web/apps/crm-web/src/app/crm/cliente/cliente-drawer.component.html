@@ -84,6 +84,13 @@
               [class.is-active]="abaSelecionada() === 'servicos'">
               Serviços &amp; Uso
             </button>
+            <button (click)="selecionarAba('unidades')"
+              [attr.aria-selected]="abaSelecionada() === 'unidades'"
+              role="tab"
+              class="seg-item press shrink-0"
+              [class.is-active]="abaSelecionada() === 'unidades'">
+              Unidades
+            </button>
             <button (click)="selecionarAba('moradores')"
               [attr.aria-selected]="abaSelecionada() === 'moradores'"
               role="tab"
@@ -652,7 +659,150 @@
           </div>
         }
 
-        <!-- Drawer Tab Content 4: Moradores -->
+        <!-- Drawer Tab Content 4: Unidades -->
+        @if (abaSelecionada() === 'unidades') {
+          <div class="animate-fade-in space-y-4">
+            <!-- Formulário: nova unidade / edição -->
+            @if (mostrandoFormUnidade()) {
+              <div class="card-soft reveal-down space-y-3.5 p-4">
+                <div class="flex items-center justify-between">
+                  <p class="eyebrow text-accent">{{ unidadeEditando() ? 'Editar unidade' : 'Nova unidade' }}</p>
+                  <button (click)="cancelarFormUnidade()" class="press text-xs font-semibold text-ink-soft transition-colors hover:text-ink">Cancelar</button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Bloco</span>
+                    <input type="text" class="input" placeholder="A"
+                      [ngModel]="formUnidade().bloco" (ngModelChange)="formUnidade.set({ ...formUnidade(), bloco: $event })" />
+                  </label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Unidade <span class="text-danger">*</span></span>
+                    <input type="text" class="input font-mono" placeholder="101"
+                      [ngModel]="formUnidade().apto" (ngModelChange)="formUnidade.set({ ...formUnidade(), apto: $event })" />
+                  </label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Fração ideal</span>
+                    <input type="text" class="input font-mono" placeholder="0,0125"
+                      [ngModel]="formUnidade().fracao" (ngModelChange)="formUnidade.set({ ...formUnidade(), fracao: $event })" />
+                  </label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Vagas</span>
+                    <input type="number" min="0" class="input font-mono"
+                      [ngModel]="formUnidade().qtd_vagas" (ngModelChange)="formUnidade.set({ ...formUnidade(), qtd_vagas: $event })" />
+                  </label>
+                </div>
+
+                <button (click)="salvarUnidade()" class="btn-primary press w-full">
+                  {{ unidadeEditando() ? 'Salvar alterações' : 'Cadastrar unidade' }}
+                </button>
+              </div>
+            }
+
+            <!-- Geração em lote -->
+            @if (mostrandoLote()) {
+              <div class="card-inset reveal-down space-y-3 p-4">
+                <div class="flex items-center justify-between">
+                  <p class="eyebrow">Gerar unidades em lote</p>
+                  <button (click)="mostrandoLote.set(false)" class="press text-xs font-semibold text-ink-soft transition-colors hover:text-ink">Cancelar</button>
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Blocos</span>
+                    <input type="text" class="input" placeholder="A, B" [(ngModel)]="lote.blocos" name="lote-blocos" />
+                  </label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Andares</span>
+                    <input type="number" min="1" class="input font-mono" [(ngModel)]="lote.andares" name="lote-andares" />
+                  </label>
+                  <label class="block">
+                    <span class="eyebrow mb-1.5 block">Por andar</span>
+                    <input type="number" min="1" class="input font-mono" [(ngModel)]="lote.porAndar" name="lote-por-andar" />
+                  </label>
+                </div>
+                <p class="rounded-lg bg-accent-soft px-3.5 py-2.5 text-xs text-accent">
+                  Serão criadas <strong class="font-mono font-bold">{{ totalLotePrevisto() }}</strong> unidades.
+                  As que já existirem são ignoradas, então dá para rodar de novo só para um bloco novo.
+                </p>
+                <button (click)="gerarLote()" class="btn-primary press w-full">Gerar unidades</button>
+              </div>
+            }
+
+            <!-- Toolbar -->
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="relative min-w-0 flex-1">
+                <input type="text" placeholder="Buscar unidade ou bloco..."
+                  class="w-full rounded-full border-0 bg-surface-sunken py-2.5 pl-10 pr-4 text-xs text-ink placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent-border"
+                  [ngModel]="buscaUnidade()" (ngModelChange)="buscaUnidade.set($event)" />
+                <svg class="absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              </div>
+              <span class="badge badge-neutral">{{ apartamentos().length }} unidades</span>
+              @if (!mostrandoLote()) {
+                <button (click)="mostrandoLote.set(true); mostrandoFormUnidade.set(false)" class="btn-secondary btn-sm press shrink-0">Em lote</button>
+              }
+              @if (!mostrandoFormUnidade()) {
+                <button (click)="abrirFormUnidade()" class="btn-primary btn-sm press shrink-0">+ Nova unidade</button>
+              }
+            </div>
+
+            <!-- Lista -->
+            @if (unidadesLoading()) {
+              <div class="flex flex-col items-center justify-center gap-2 py-8 text-ink-muted">
+                <svg class="h-5 w-5 animate-spin text-accent" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span class="text-2xs font-semibold uppercase tracking-wider">Carregando unidades…</span>
+              </div>
+            } @else {
+              <div class="space-y-2">
+                @for (a of unidadesFiltradas(); track a.id) {
+                  <div class="card-inset flex items-center justify-between gap-3 p-3 transition-colors hover:bg-line-subtle">
+                    <div class="flex min-w-0 items-center gap-3">
+                      <div class="tile h-9 w-9 rounded-lg bg-surface-raised font-mono text-2xs font-bold text-ink-soft">
+                        {{ a.bloco || '—' }}
+                      </div>
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-semibold text-ink">
+                          Apto {{ a.apto }}
+                          @if (a.bloco) { <span class="font-normal text-ink-muted">· Bloco {{ a.bloco }}</span> }
+                        </p>
+                        <p class="mt-0.5 text-2xs text-ink-muted">
+                          @if (moradoresPorApto()[a.id]) {
+                            {{ moradoresPorApto()[a.id] }} morador(es)
+                          } @else {
+                            Sem morador vinculado
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="flex shrink-0 items-center gap-1.5">
+                      <button (click)="editarUnidade(a)" title="Editar unidade"
+                        class="press flex h-8 w-8 items-center justify-center rounded-full bg-surface-raised text-ink-soft transition-colors hover:text-ink">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                      </button>
+                      <button (click)="removerUnidade(a)" title="Remover unidade"
+                        class="press flex h-8 w-8 items-center justify-center rounded-full bg-danger-soft text-danger transition-colors hover:bg-danger-border">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                } @empty {
+                  <div class="card-inset py-8 text-center text-sm text-ink-muted">
+                    @if (buscaUnidade()) {
+                      Nenhuma unidade corresponde à busca.
+                    } @else {
+                      Nenhuma unidade cadastrada. Use "Em lote" para criar vários andares de uma vez.
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Drawer Tab Content 5: Moradores -->
         @if (abaSelecionada() === 'moradores') {
           <div class="space-y-4 animate-fade-in text-xs">
             

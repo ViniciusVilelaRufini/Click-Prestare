@@ -166,6 +166,45 @@ export class CrmCondominiosService {
     };
   }
 
+  /**
+   * Geração em lote de unidades num condomínio que já existe.
+   * `skipDuplicates` deixa a operação repetível: rodar de novo para um bloco
+   * novo não esbarra nas unidades já cadastradas.
+   */
+  async gerarApartamentos(
+    idCondominio: number,
+    cfg: { blocos: string[]; andares: number; porAndar: number },
+    operador: string,
+  ) {
+    const cond = await this.prisma.condominios.findUnique({
+      where: { id: idCondominio },
+      select: { id: true, nome: true },
+    });
+    if (!cond) throw new NotFoundException('Condomínio não encontrado.');
+
+    const linhas = this.montarApartamentos(idCondominio, cfg);
+    if (!linhas.length) {
+      throw new BadRequestException('Informe ao menos um bloco, os andares e as unidades por andar.');
+    }
+
+    const antes = await this.prisma.apartamentos.count({ where: { id_condominio: idCondominio } });
+    await this.prisma.apartamentos.createMany({ data: linhas, skipDuplicates: true });
+    const depois = await this.prisma.apartamentos.count({ where: { id_condominio: idCondominio } });
+    const criados = depois - antes;
+
+    await this.auditoria.registrar({
+      id_condominio: idCondominio,
+      usuario_nome: operador,
+      acao: 'CREATE',
+      modulo: 'apartamentos',
+      entidade_id: idCondominio,
+      descricao: `Gerou ${criados} unidade(s) em lote para "${cond.nome}" pelo CRM`,
+      detalhes: { blocos: cfg.blocos, andares: cfg.andares, porAndar: cfg.porAndar, criados, repetidos: linhas.length - criados },
+    });
+
+    return { success: true, criados, repetidos: linhas.length - criados, total: depois };
+  }
+
   /** Gera bloco × andar × unidade — ex.: bloco A, andar 3, unidade 2 → "302". */
   private montarApartamentos(
     idCondominio: number,

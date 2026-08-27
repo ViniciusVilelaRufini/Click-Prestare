@@ -106,9 +106,25 @@ export class ApartamentosService {
     return a;
   }
 
+  /**
+   * A operadora (token `crm_admin`) age de propósito fora de qualquer tenant:
+   * é ela quem cadastra as unidades do cliente pelo CRM. As checagens de
+   * síndico/funcionário e de vínculo com o condomínio não se aplicam a ela —
+   * quem autoriza é o CrmAdminGuard, na porta da rota.
+   *
+   * A checagem fica aqui, e não afrouxando assertStaff, porque aquele helper é
+   * compartilhado por uma dezena de services de tenant: mexer nele abriria
+   * agenda, áreas sociais e afins de uma vez só.
+   */
+  private viaOperadora(user?: JwtPayload): boolean {
+    return (user as any)?.role === 'crm_admin';
+  }
+
   async create(dto: CreateApartamentoDto, user?: JwtPayload) {
-    assertStaff(user, 'cadastrar apartamento');
-    await this.tenant.assertCondominio(dto.id_condominio, user);
+    if (!this.viaOperadora(user)) {
+      assertStaff(user, 'cadastrar apartamento');
+      await this.tenant.assertCondominio(dto.id_condominio, user);
+    }
     this.assertAptoValido(dto.apto, dto.bloco);
     if (!this.prisma.isConnected) {
       return {
@@ -152,7 +168,7 @@ export class ApartamentosService {
   }
 
   async update(id: number, dto: Partial<CreateApartamentoDto>, user?: JwtPayload) {
-    assertStaff(user, 'editar apartamento');
+    if (!this.viaOperadora(user)) assertStaff(user, 'editar apartamento');
     if (!this.prisma.isConnected) {
       return { success: true, id };
     }
@@ -162,7 +178,9 @@ export class ApartamentosService {
       select: { apto: true, bloco: true, id_condominio: true },
     });
     if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
-    await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+    if (!this.viaOperadora(user)) {
+      await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+    }
 
     // Valida o estado FINAL da unidade (campo enviado ou valor atual) —
     // impede transformar uma unidade válida em fantasma via update parcial.
@@ -212,14 +230,16 @@ export class ApartamentosService {
    * uma operação em cascata desse tamanho.
    */
   async remove(id: number, user?: JwtPayload) {
-    assertStaff(user, 'remover apartamento');
+    if (!this.viaOperadora(user)) assertStaff(user, 'remover apartamento');
     if (!this.prisma.isConnected) return { success: true };
     const atual = await this.prisma.apartamentos.findUnique({
       where: { id: Number(id) },
       select: { id_condominio: true, apto: true, bloco: true },
     });
     if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
-    await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+    if (!this.viaOperadora(user)) {
+      await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+    }
 
     const [moradores, visitantes, vagas, agendamentos, mudancas] = await Promise.all([
       this.prisma.apartamentos_Users.count({ where: { id_apto: Number(id) } }),

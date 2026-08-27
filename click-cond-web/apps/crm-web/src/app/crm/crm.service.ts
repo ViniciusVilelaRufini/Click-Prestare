@@ -122,6 +122,15 @@ export interface CriarCondominioResposta {
   senhaSindico: string | null;
 }
 
+/** O que a remoção de uma unidade leva junto, devolvido pela API. */
+export interface ArrastadosApartamento {
+  moradores: number;
+  visitantes: number;
+  vagas: number;
+  agendamentos: number;
+  mudancas: number;
+}
+
 export interface ResumoDesativacao {
   moradores: number;
   funcionarios: number;
@@ -208,6 +217,31 @@ export class CrmApi {
 
   getApartamentos(idCondominio: number): Observable<Apartamento[]> {
     return this.http.get<Apartamento[]>(`${this.base}/clientes/${idCondominio}/apartamentos`);
+  }
+
+  criarApartamento(idCondominio: number, dto: { bloco?: string | null; apto: string; fracao?: string | null; qtd_vagas?: number }): Observable<Apartamento> {
+    return this.http.post<Apartamento>(`${this.base}/clientes/${idCondominio}/apartamentos`, dto);
+  }
+
+  atualizarApartamento(idCondominio: number, idApto: number, dto: { bloco?: string | null; apto?: string; fracao?: string | null; qtd_vagas?: number }): Observable<unknown> {
+    return this.http.put(`${this.base}/clientes/${idCondominio}/apartamentos/${idApto}`, dto);
+  }
+
+  /** A resposta traz `arrastados`: o que caiu em cascata junto com a unidade. */
+  removerApartamento(idCondominio: number, idApto: number): Observable<{ success: boolean; arrastados?: ArrastadosApartamento }> {
+    return this.http.delete<{ success: boolean; arrastados?: ArrastadosApartamento }>(
+      `${this.base}/clientes/${idCondominio}/apartamentos/${idApto}`,
+    );
+  }
+
+  gerarApartamentosLote(
+    idCondominio: number,
+    cfg: { blocos: string[]; andares: number; porAndar: number },
+  ): Observable<{ success: boolean; criados: number; repetidos: number; total: number }> {
+    return this.http.post<{ success: boolean; criados: number; repetidos: number; total: number }>(
+      `${this.base}/clientes/${idCondominio}/apartamentos/lote`,
+      cfg,
+    );
   }
 
   /** Terminais faciais do condomínio com online/offline por terminal. */

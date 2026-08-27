@@ -10,7 +10,7 @@ import { Apartamento, ClienteEdicao, Morador } from '../crm.models';
 import { ModalShellComponent } from '../../shared/ui/modal-shell.component';
 import * as fmt from '../crm-format';
 
-type SubAba = 'geral' | 'portaria' | 'servicos' | 'moradores';
+type SubAba = 'geral' | 'portaria' | 'servicos' | 'unidades' | 'moradores';
 
 /**
  * Drawer de detalhe do cliente: visão geral/financeira, hardware e acessos,
@@ -141,7 +141,183 @@ export class ClienteDrawerComponent {
     const c = this.store.clienteSelecionado();
     if (!c) return;
     if (aba === 'moradores') this.carregarMoradoresEApartamentos(c.id);
+    if (aba === 'unidades') this.carregarUnidades(c.id);
     if (aba === 'portaria') this.carregarTerminais(c.id);
+  }
+
+  // ════════════ Unidades (apartamentos) ════════════
+
+  readonly unidadesLoading = signal(false);
+  readonly buscaUnidade = signal('');
+  /** Id da unidade em edição inline; null = nenhuma. */
+  readonly unidadeEditando = signal<number | null>(null);
+  readonly formUnidade = signal({ bloco: '', apto: '', fracao: '', qtd_vagas: 0 });
+  readonly mostrandoFormUnidade = signal(false);
+  readonly mostrandoLote = signal(false);
+  lote = { blocos: 'A', andares: 4, porAndar: 4 };
+
+  /** Quantos moradores estão vinculados a cada unidade — alerta antes de excluir. */
+  readonly moradoresPorApto = computed(() => {
+    const mapa: Record<number, number> = {};
+    for (const m of this.moradores()) {
+      if (m.id_apartamento != null) mapa[m.id_apartamento] = (mapa[m.id_apartamento] ?? 0) + 1;
+    }
+    return mapa;
+  });
+
+  readonly unidadesFiltradas = computed(() => {
+    const termo = this.buscaUnidade().trim().toLowerCase();
+    const lista = this.apartamentos();
+    if (!termo) return lista;
+    return lista.filter(
+      (a) =>
+        String(a.apto ?? '').toLowerCase().includes(termo) ||
+        String(a.bloco ?? '').toLowerCase().includes(termo),
+    );
+  });
+
+  carregarUnidades(idCondominio: number): void {
+    this.unidadesLoading.set(true);
+    // Carrega moradores junto para saber quantos dependem de cada unidade.
+    forkJoin({
+      aptos: this.api.getApartamentos(idCondominio),
+      moradores: this.api.getMoradores(idCondominio),
+    }).subscribe({
+      next: ({ aptos, moradores }) => {
+        this.apartamentos.set(aptos);
+        this.moradores.set(moradores);
+        this.unidadesLoading.set(false);
+      },
+      error: () => {
+        this.unidadesLoading.set(false);
+        this.toast.trigger('Não foi possível carregar as unidades.', 'error');
+      },
+    });
+  }
+
+  abrirFormUnidade(): void {
+    this.formUnidade.set({ bloco: '', apto: '', fracao: '', qtd_vagas: 0 });
+    this.unidadeEditando.set(null);
+    this.mostrandoLote.set(false);
+    this.mostrandoFormUnidade.set(true);
+  }
+
+  editarUnidade(a: Apartamento): void {
+    this.formUnidade.set({
+      bloco: a.bloco ?? '',
+      apto: String(a.apto ?? ''),
+      fracao: (a as any).fracao ?? '',
+      qtd_vagas: (a as any).qtd_vagas ?? 0,
+    });
+    this.unidadeEditando.set(a.id);
+    this.mostrandoLote.set(false);
+    this.mostrandoFormUnidade.set(true);
+  }
+
+  cancelarFormUnidade(): void {
+    this.mostrandoFormUnidade.set(false);
+    this.unidadeEditando.set(null);
+  }
+
+  salvarUnidade(): void {
+    const c = this.store.clienteSelecionado();
+    const f = this.formUnidade();
+    if (!c) return;
+    if (!f.apto.trim()) {
+      this.toast.trigger('Informe o número da unidade.', 'error');
+      return;
+    }
+
+    const dto = {
+      bloco: f.bloco.trim() || null,
+      apto: f.apto.trim(),
+      fracao: f.fracao.trim() || null,
+      qtd_vagas: Number(f.qtd_vagas) || 0,
+    };
+    const id = this.unidadeEditando();
+
+    const req = id
+      ? this.api.atualizarApartamento(c.id, id, dto)
+      : this.api.criarApartamento(c.id, dto);
+
+    req.subscribe({
+      next: () => {
+        this.toast.trigger(id ? 'Unidade atualizada.' : 'Unidade cadastrada.', 'success');
+        this.cancelarFormUnidade();
+        this.carregarUnidades(c.id);
+        this.store.carregar();
+      },
+      error: (err) => {
+        this.toast.trigger(err?.error?.message ?? 'Não foi possível salvar a unidade.', 'error');
+      },
+    });
+  }
+
+  removerUnidade(a: Apartamento): void {
+    const c = this.store.clienteSelecionado();
+    if (!c) return;
+
+    const vinculados = this.moradoresPorApto()[a.id] ?? 0;
+    const rotulo = a.bloco ? `Apto ${a.apto} (Bloco ${a.bloco})` : `Apto ${a.apto}`;
+    const aviso = vinculados
+      ? `${rotulo} tem ${vinculados} morador(es) vinculado(s). Remover a unidade desfaz esses vínculos, além de visitas, vagas e reservas ligadas a ela.\n\nConfirma?`
+      : `Remover ${rotulo}?`;
+    if (!confirm(aviso)) return;
+
+    this.api.removerApartamento(c.id, a.id).subscribe({
+      next: (r) => {
+        const arr = r.arrastados;
+        this.toast.trigger(
+          arr
+            ? `${rotulo} removido — ${arr.moradores} vínculo(s), ${arr.vagas} vaga(s) e ${arr.visitantes} visita(s) foram junto.`
+            : `${rotulo} removido.`,
+          'success',
+        );
+        this.carregarUnidades(c.id);
+        this.store.carregar();
+      },
+      error: (err) => {
+        this.toast.trigger(err?.error?.message ?? 'Não foi possível remover a unidade.', 'error');
+      },
+    });
+  }
+
+  blocosLote(): string[] {
+    return this.lote.blocos.split(',').map((b) => b.trim()).filter(Boolean);
+  }
+
+  totalLotePrevisto(): number {
+    return this.blocosLote().length * Number(this.lote.andares || 0) * Number(this.lote.porAndar || 0);
+  }
+
+  gerarLote(): void {
+    const c = this.store.clienteSelecionado();
+    if (!c) return;
+    if (this.totalLotePrevisto() < 1) {
+      this.toast.trigger('Informe blocos, andares e unidades por andar.', 'error');
+      return;
+    }
+
+    this.api
+      .gerarApartamentosLote(c.id, {
+        blocos: this.blocosLote(),
+        andares: Number(this.lote.andares),
+        porAndar: Number(this.lote.porAndar),
+      })
+      .subscribe({
+        next: (r) => {
+          this.toast.trigger(
+            `${r.criados} unidade(s) criada(s).${r.repetidos ? ` ${r.repetidos} já existiam e foram ignoradas.` : ''}`,
+            'success',
+          );
+          this.mostrandoLote.set(false);
+          this.carregarUnidades(c.id);
+          this.store.carregar();
+        },
+        error: (err) => {
+          this.toast.trigger(err?.error?.message ?? 'Não foi possível gerar as unidades.', 'error');
+        },
+      });
   }
 
   /** Terminais faciais do condomínio, um a um (online/offline real). */
