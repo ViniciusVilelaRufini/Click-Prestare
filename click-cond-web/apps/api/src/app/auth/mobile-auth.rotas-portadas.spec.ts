@@ -44,8 +44,22 @@ describe('MobileAuthService — rotas portadas do Express', () => {
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
     const facial: any = {};
     const tenant = new TenantAccessService(prisma);
-    const svc = new MobileAuthService(prisma, jwt, mail, storage, facial, tenant);
-    return { svc, prisma };
+    // O envio à Superlógica é best-effort e desligado por padrão; aqui só
+    // precisa existir para o saveMorador não estourar.
+    const superlogicaWrite: any = { enviarMorador: jest.fn(async () => ({ enviado: false })) };
+    const svc = new MobileAuthService(
+      prisma,
+      jwt,
+      mail,
+      storage,
+      facial,
+      tenant,
+      undefined as any,
+      undefined as any,
+      undefined as any,
+      superlogicaWrite,
+    );
+    return { svc, prisma, superlogicaWrite };
   }
 
   const proprietario: JwtPayload = { sub: 5, nome: 'Dono', typeAccess: 'Morador' };

@@ -1,6 +1,7 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import { MailService } from '../common/mail/mail.service';
 import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
@@ -26,7 +27,10 @@ export class MobileAuthService {
     private readonly financeiro: FinanceiroService,
     private readonly apartamentos: ApartamentosService,
     private readonly notifications: NotificationsService,
+    private readonly superlogicaWrite: SuperlogicaWriteService,
   ) {}
+
+  private readonly logger = new Logger(MobileAuthService.name);
 
   /**
    * Normaliza o vínculo (tipo) do morador para o vocabulário canônico:
@@ -2764,6 +2768,23 @@ export class MobileAuthService {
             .sendWelcomeMoradorExisting(mor.email, mor.nome ?? '')
             .catch(() => {});
         }
+      }
+
+      // Mão dupla com a Superlógica. É AQUI que o cadastro do app chega — o
+      // app chama /moradores/insert, que cai neste service, e não no
+      // MoradoresService (usado pelo painel web). Sem este gancho, morador
+      // criado pelo celular nunca subia para o ERP.
+      //
+      // Best-effort: o ERP fora do ar não pode derrubar o cadastro. O serviço
+      // checa sozinho se o condomínio tem escrita ligada.
+      if (mor.skipSuperlogica !== true) {
+        this.superlogicaWrite
+          .enviarMorador(created.id)
+          .catch((err) =>
+            this.logger.error(
+              `Falha ao enviar morador ${created.id} à Superlógica: ${err?.message ?? err}`,
+            ),
+          );
       }
 
       return { id: created.id };
