@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaClient, SuperlogicaConfigError } from '../superlogica/superlogica.client';
 import { SuperlogicaService } from '../superlogica/superlogica.service';
+import { SuperlogicaSyncService } from '../superlogica/superlogica-sync.service';
 
 /**
  * Ativação comercial da integração Superlógica.
@@ -40,6 +41,7 @@ export class CrmSuperlogicaService {
     private readonly superlogica: SuperlogicaService,
     private readonly client: SuperlogicaClient,
     private readonly auditoria: AuditoriaService,
+    private readonly sync: SuperlogicaSyncService,
   ) {}
 
   /**
@@ -269,6 +271,47 @@ export class CrmSuperlogicaService {
         contatos: u.contatos?.length ?? 0,
       })),
     };
+  }
+
+  /**
+   * Importa as unidades do ERP como apartamentos vinculados.
+   *
+   * Fica no CRM (e não no sync automático) porque cria dado: precisa de um
+   * humano decidindo, com a prévia na mão.
+   */
+  async importarUnidades(idCondominioClique: number, operador: string) {
+    const resultado = await this.sync.importarUnidades(idCondominioClique);
+
+    await this.auditoria.registrar({
+      id_condominio: idCondominioClique,
+      usuario_nome: operador,
+      acao: 'CREATE',
+      modulo: 'superlogica',
+      entidade_id: idCondominioClique,
+      descricao:
+        `Unidades importadas da Superlógica: ${resultado.apartamentosCriados} criado(s), ` +
+        `${resultado.apartamentosVinculados} vinculado(s)`,
+      detalhes: resultado,
+    });
+
+    return resultado;
+  }
+
+  /** Dispara a sincronização de cobranças na hora, sem esperar o ciclo. */
+  async sincronizarAgora(idCondominioClique: number, operador: string) {
+    const resultado = await this.sync.sincronizarCondominio(idCondominioClique);
+
+    await this.auditoria.registrar({
+      id_condominio: idCondominioClique,
+      usuario_nome: operador,
+      acao: 'UPDATE',
+      modulo: 'superlogica',
+      entidade_id: idCondominioClique,
+      descricao: `Sincronização manual: ${resultado.lancamentosGravados} lançamento(s) gravado(s)`,
+      detalhes: resultado,
+    });
+
+    return resultado;
   }
 
   /** Traduz falha de credencial numa mensagem que o operador entende. */

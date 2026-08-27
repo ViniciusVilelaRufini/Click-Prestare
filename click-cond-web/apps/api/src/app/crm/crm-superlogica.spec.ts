@@ -46,14 +46,17 @@ describe('CrmSuperlogicaService — vínculo', () => {
     const client = { estaConfigurado: () => true };
     const auditoria = { registrar };
 
+    const sync = { importarUnidades: jest.fn(), sincronizarCondominio: jest.fn() };
+
     const service = new CrmSuperlogicaService(
       prisma as any,
       superlogica as any,
       client as any,
       auditoria as any,
+      sync as any,
     );
 
-    return { service, prisma, superlogica, update, registrar, updateManyApartamentos };
+    return { service, prisma, superlogica, update, registrar, updateManyApartamentos, sync };
   }
 
   it('vincula e registra em auditoria', async () => {
@@ -175,6 +178,7 @@ describe('CrmSuperlogicaService — desvínculo', () => {
       {} as any,
       {} as any,
       { registrar: jest.fn() } as any,
+      {} as any,
     );
 
     await expect(service.desvincular(7, 'Erika')).resolves.toMatchObject({ success: true });
@@ -194,7 +198,7 @@ describe('CrmSuperlogicaService — desvínculo', () => {
     };
     prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
 
-    const service = new CrmSuperlogicaService(prisma, {} as any, {} as any, { registrar: jest.fn() } as any);
+    const service = new CrmSuperlogicaService(prisma, {} as any, {} as any, { registrar: jest.fn() } as any, {} as any);
 
     await service.desvincular(7, 'Erika');
 
@@ -217,6 +221,7 @@ describe('CrmSuperlogicaService — prévia de unidades', () => {
         apartamentos: { count: jest.fn(async () => 4) },
       } as any,
       { listarUnidades } as any,
+      {} as any,
       {} as any,
       {} as any,
     );

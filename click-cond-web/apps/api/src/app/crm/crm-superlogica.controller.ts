@@ -74,4 +74,24 @@ export class CrmSuperlogicaController {
   desvincular(@Param('id', ParseIntPipe) id: number, @ReqUser() user?: JwtPayload) {
     return this.service.desvincular(id, this.operador(user));
   }
+
+  /**
+   * Importa as unidades do ERP como apartamentos, já vinculados.
+   *
+   * Passo único da ativação: é o que grava `id_superlogica_uni` e dispensa
+   * casar unidade por texto depois. Idempotente.
+   */
+  @Post('clientes/:id/importar-unidades')
+  importar(@Param('id', ParseIntPipe) id: number, @ReqUser() user?: JwtPayload) {
+    return this.service.importarUnidades(id, this.operador(user));
+  }
+
+  /**
+   * Roda a sincronização das cobranças agora, sem esperar o ciclo horário.
+   * Útil logo após a importação, para o operador ver o resultado.
+   */
+  @Post('clientes/:id/sincronizar')
+  sincronizar(@Param('id', ParseIntPipe) id: number, @ReqUser() user?: JwtPayload) {
+    return this.service.sincronizarAgora(id, this.operador(user));
+  }
 }

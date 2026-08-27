@@ -255,11 +255,27 @@ export class FinanceiroService implements OnModuleInit {
   private async getLancamentoForTenant(id: number, user?: JwtPayload) {
     const lanc = await this.prisma.financeiro.findUnique({
       where: { id: Number(id) },
-      select: { id: true, id_condominio: true, nome: true, valor: true, tipo: true, pago: true, status: true, id_usuario: true, data: true, data_vencimento: true },
+      select: { id: true, id_condominio: true, nome: true, valor: true, tipo: true, pago: true, status: true, id_usuario: true, data: true, data_vencimento: true, origem: true },
     });
     if (!lanc) throw new NotFoundException(`Lançamento ${id} não encontrado`);
     await this.tenant.assertEntidade(lanc.id_condominio, user, `lançamento #${id}`);
     return lanc;
+  }
+
+  /**
+   * Barra alteração em lançamento espelhado de sistema externo.
+   *
+   * Cobrança vinda da Superlógica é somente leitura no Clique: a fonte da
+   * verdade é o ERP. Editar aqui faria o app mostrar um valor — ou um "pago" —
+   * que o ERP não conhece, e a próxima sincronização sobrescreveria em silêncio.
+   * Anexar comprovante continua permitido: o sync não toca nesse campo.
+   */
+  private assertLancamentoEditavel(lanc: { origem?: string | null }, acao: string) {
+    if (lanc.origem === 'superlogica') {
+      throw new BadRequestException(
+        `Este lançamento vem da Superlógica e não pode ser ${acao} no Clique. Faça a alteração no ERP — a sincronização traz a mudança em até uma hora.`,
+      );
+    }
   }
 
   /**
@@ -478,7 +494,8 @@ export class FinanceiroService implements OnModuleInit {
     // Valida: id_condominio do body bate com JWT, e lançamento existe nesse condomínio.
     await this.tenant.assertCondominio(idCondominio, user);
     if (financeiro?.id) {
-      await this.getLancamentoForTenant(Number(financeiro.id), user);
+      const alvo = await this.getLancamentoForTenant(Number(financeiro.id), user);
+      this.assertLancamentoEditavel(alvo, 'editado');
     }
 
     let valor = this.parseValorMonetario(financeiro.valor);
@@ -674,6 +691,7 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return { success: true };
     // Garante que o lançamento pertence ao condomínio do operador.
     const lanc = await this.getLancamentoForTenant(id, user);
+    this.assertLancamentoEditavel(lanc, 'removido');
 
     // Bloqueia remoção em mês fechado.
     const lancCompleto = await this.prisma.financeiro.findUnique({
@@ -1870,6 +1888,9 @@ export class FinanceiroService implements OnModuleInit {
     // Marcar despesa como paga é a mutação MAIS sensível do módulo financeiro.
     // Validação obrigatória: lançamento existe e pertence ao condomínio do operador.
     const lanc = await this.getLancamentoForTenant(id, user);
+    // Em cobrança da Superlógica, quem dá a baixa é o ERP (arquivo de retorno
+    // do banco). Marcar pago aqui duraria até o próximo sync e sumiria.
+    this.assertLancamentoEditavel(lanc, 'baixado');
 
     // Carrega o lançamento completo (precisamos do nome_operador para checar
     // segregação de funções, e da data para checar fechamento).
@@ -2887,6 +2908,7 @@ export class FinanceiroService implements OnModuleInit {
     // (mesma exceção: cobrança de morador atrasada passa mesmo assim).
     for (const rec of reconciliations) {
       const lanc = await this.getLancamentoForTenant(rec.databaseId, user);
+      this.assertLancamentoEditavel(lanc, 'conciliado');
       await this.fechamento.assertPodeAlterar(
         lanc.id_condominio,
         lanc.data ?? lanc.data_vencimento,

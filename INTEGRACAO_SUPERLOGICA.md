@@ -170,6 +170,8 @@ carteira que ainda não compraram o app.
 | GET | `/crm/superlogica/clientes/:id/preview-unidades` | prévia das unidades — **não importa nada** |
 | POST | `/crm/superlogica/clientes/:id/vincular` | ativa |
 | DELETE | `/crm/superlogica/clientes/:id/vincular` | desativa |
+| POST | `/crm/superlogica/clientes/:id/importar-unidades` | cria/vincula os apartamentos |
+| POST | `/crm/superlogica/clientes/:id/sincronizar` | roda o sync agora |
 
 ### Travas da ativação
 
@@ -210,8 +212,39 @@ Para cada condomínio com id_superlogica_cond:
     UPSERT em Financeiro por (origem, id_externo)
 ```
 
-O índice único `(origem, id_externo)` garante que rodar o cron duas vezes não duplique
-lançamento.
+O índice único `(origem, id_condominio, id_externo)` garante que rodar o cron duas vezes
+não duplique lançamento.
+
+Implementado em `superlogica-sync.service.ts`, no padrão de tarefa periódica do projeto
+(`OnModuleInit` + `setInterval`, com flag anti-reentrância). Detalhes que importam:
+
+- **Janela**: do início do mês anterior ao fim do mês seguinte. Pega boleto já emitido
+  para o mês que vem e mudança de status em cobrança antiga.
+- **Sem condomínio vinculado, o tick nem fala com o ERP** — conta antes de sair.
+- **Falha em um condomínio não interrompe os outros.**
+- **O upsert só atualiza o que a Superlógica conhece** (valor, vencimento, pago, Pix,
+  boleto). `url_comprovante` e `photo`, que o operador pode ter anexado no Clique, não
+  são tocados.
+- **Cobrança de unidade não importada não é gravada.** Sem apartamento não há a quem
+  mostrar, e adivinhar o vínculo é como cobrança aparece para o morador errado.
+
+### 5.3.1 Normalização na importação
+
+O ERP identifica unidade com zeros à esquerda (`"000408"`, bloco `"01"`). A importação
+normaliza para `408` / `4`, porque é assim que o casamento por texto do Financeiro
+espera — e porque "Apto 000408" na tela do morador seria errado. Identificação não
+numérica (`"0A1"`, `"Casa 3"`) é preservada como está.
+
+Duas unidades do ERP que normalizam para a mesma identificação **não são importadas** e
+saem em `duplicadasIgnoradas`: importar as duas faria uma sobrescrever o vínculo da
+outra, e as cobranças de uma cairiam na outra.
+
+### 5.3.2 Somente leitura no Clique
+
+Lançamento com `origem='superlogica'` não pode ser editado, removido, baixado nem
+conciliado pelo Clique (`assertLancamentoEditavel` em `financeiro.service.ts`). A fonte
+da verdade é o ERP: marcar pago aqui duraria até o próximo sync e sumiria sozinho, o que
+é pior que recusar. Anexar comprovante continua permitido — o sync não toca nesse campo.
 
 ### 5.4 O morador
 
@@ -310,12 +343,15 @@ esse id do cliente permitiria a um síndico pedir as cobranças de outro condom�
 - [x] Tela de ativação no CRM (`/painel/superlogica`) com vincular/desvincular,
       prévia de unidades e auditoria
 
+- [x] Importação de unidades gravando `Apartamentos` com `id_superlogica_uni`
+- [x] Sincronização de cobranças com upsert (tick horário + disparo manual)
+- [x] Bloqueio de edição para `origem='superlogica'`
+
 **Pendente**
 
-- [ ] Importação de unidades gravando `Apartamentos`
-- [ ] Cron de sincronização
-- [ ] Tela do morador no app Flutter
-- [ ] Bloqueio de edição para `origem='superlogica'`
+- [ ] Botões de importar/sincronizar na tela do CRM (as rotas já existem)
+- [ ] Ajuste da tela do morador no app Flutter (hoje ele já lista `Financeiro`;
+      falta conferir a apresentação de Pix e boleto vindos do ERP)
 
 ---
 
