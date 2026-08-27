@@ -39,11 +39,51 @@ export class SuperlogicaService {
    * id_superlogica_uni — é o que dispensa casar unidade por texto depois.
    */
   async listarUnidades(idCondominioSuperlogica: number): Promise<SuperlogicaUnidade[]> {
-    return this.client.getPaginado<SuperlogicaUnidade>('unidades/index', {
+    const brutas = await this.client.getPaginado<SuperlogicaUnidade>('unidades/index', {
       idCondominio: idCondominioSuperlogica,
       exibirDadosDosContatos: 1,
       exibirGruposDasUnidades: 1,
     });
+
+    return SuperlogicaService.consolidarUnidades(brutas);
+  }
+
+  /**
+   * Junta as linhas repetidas da mesma unidade numa só.
+   *
+   * O ERP devolve a MESMA unidade em mais de uma linha quando ela tem mais de
+   * um contato — tipicamente uma linha com `contatos: []` e outra com a lista
+   * cheia. Observado em produção no condomínio de teste, depois que a unidade
+   * 05 passou a ter dois contatos.
+   *
+   * Sem consolidar, quem pega a primeira linha que casa pode receber a versão
+   * vazia. Nos dois consumidores isso é grave: a importação trataria a segunda
+   * linha como unidade duplicada e pularia os contatos, e o envio de morador
+   * montaria o payload sem os contatos existentes — que é justamente o que
+   * poderia apagá-los da unidade.
+   */
+  static consolidarUnidades(brutas: SuperlogicaUnidade[]): SuperlogicaUnidade[] {
+    const porId = new Map<string, SuperlogicaUnidade>();
+
+    for (const u of brutas) {
+      const chave = String(u.id_unidade_uni);
+      const acumulada = porId.get(chave);
+
+      if (!acumulada) {
+        porId.set(chave, { ...u, contatos: [...(u.contatos ?? [])] });
+        continue;
+      }
+
+      // Mesma unidade: acumula contatos sem repetir por id.
+      const vistos = new Set((acumulada.contatos ?? []).map((c) => String(c.id_contato_con)));
+      for (const c of u.contatos ?? []) {
+        if (vistos.has(String(c.id_contato_con))) continue;
+        vistos.add(String(c.id_contato_con));
+        acumulada.contatos = [...(acumulada.contatos ?? []), c];
+      }
+    }
+
+    return [...porId.values()];
   }
 
   /**

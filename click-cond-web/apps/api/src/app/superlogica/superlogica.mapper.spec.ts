@@ -9,6 +9,61 @@ import type { SuperlogicaCobranca } from './superlogica.types';
  * morador é a cobrança PARSEANDO esse texto (`nomeFaturaDeApto`). Formato
  * errado = cobrança invisível, ou visível para o morador errado.
  */
+/**
+ * O ERP devolve a MESMA unidade em mais de uma linha quando ela tem mais de um
+ * contato. Observado em produção (condomínio de teste 43, unidade 05, depois de
+ * ganhar o segundo contato): vieram 6 linhas para 5 unidades, uma delas com
+ * `contatos: []` e outra com os dois.
+ */
+describe('SuperlogicaService — consolidação de unidades repetidas', () => {
+  const linha = (id: string, contatos: any[]) => ({
+    id_unidade_uni: id,
+    id_condominio_cond: '43',
+    st_unidade_uni: '05',
+    st_bloco_uni: 'a',
+    contatos,
+  }) as any;
+
+  it('junta as linhas da mesma unidade numa só', () => {
+    const r = SuperlogicaService.consolidarUnidades([
+      linha('1905', []),
+      linha('1905', [{ id_contato_con: '4593' }, { id_contato_con: '4594' }]),
+    ]);
+
+    expect(r).toHaveLength(1);
+    expect(r[0].contatos).toHaveLength(2);
+  });
+
+  it('não deixa a versão vazia vencer', () => {
+    // É o caso perigoso: montar o payload de envio a partir da linha vazia
+    // mandaria a unidade sem os contatos existentes.
+    const r = SuperlogicaService.consolidarUnidades([
+      linha('1905', [{ id_contato_con: '4593' }]),
+      linha('1905', []),
+    ]);
+
+    expect(r[0].contatos).toHaveLength(1);
+  });
+
+  it('não duplica contato que aparece nas duas linhas', () => {
+    const r = SuperlogicaService.consolidarUnidades([
+      linha('1905', [{ id_contato_con: '4593' }]),
+      linha('1905', [{ id_contato_con: '4593' }, { id_contato_con: '4594' }]),
+    ]);
+
+    expect(r[0].contatos?.map((c) => c.id_contato_con)).toEqual(['4593', '4594']);
+  });
+
+  it('preserva unidades distintas', () => {
+    const r = SuperlogicaService.consolidarUnidades([
+      linha('1901', [{ id_contato_con: '4589' }]),
+      linha('1905', [{ id_contato_con: '4593' }]),
+    ]);
+
+    expect(r).toHaveLength(2);
+  });
+});
+
 describe('SuperlogicaService — mapeamento de cobrança', () => {
   const service = new SuperlogicaService(new SuperlogicaClient());
 
