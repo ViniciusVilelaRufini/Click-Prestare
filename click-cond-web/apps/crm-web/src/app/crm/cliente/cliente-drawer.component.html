@@ -427,6 +427,17 @@
                       <p class="text-sm text-ink-muted">Sem telefone ou e-mail cadastrado.</p>
                     }
                   </div>
+
+                  <!-- Acesso ao app. Não há "ver senha": o banco guarda bcrypt. -->
+                  <div class="flex items-center justify-between gap-3 border-t border-line pt-3">
+                    <div class="min-w-0">
+                      <p class="text-xs font-semibold text-ink">Senha do app</p>
+                      <p class="mt-0.5 text-2xs text-ink-muted">Guardada com criptografia — só pode ser redefinida.</p>
+                    </div>
+                    <button type="button" class="btn-secondary btn-sm press shrink-0" (click)="abrirSenhaSindico()">
+                      Redefinir
+                    </button>
+                  </div>
                 } @else {
                   <p class="text-sm text-ink-muted">Sem síndico ou contato administrativo cadastrado.</p>
                 }
@@ -964,6 +975,73 @@
       }
     </div>
   </div>
+
+  <!-- ══ Senha do síndico ══ -->
+  @if (modalSenhaSindico()) {
+    <app-modal-shell maxWidth="max-w-md" ariaLabel="Redefinir senha do síndico" (fechar)="modalSenhaSindico.set(false)">
+      @if (senhaSindicoNova(); as cred) {
+        <div class="px-6 pb-6 pt-6">
+          <div class="flex items-start gap-4">
+            <div class="tile tile-green h-12 w-12">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <h3 class="section-title">Senha redefinida</h3>
+              <p class="mt-0.5 text-sm text-ink-muted">
+                A senha anterior deixou de valer. <strong class="font-semibold text-ink">Esta é a única vez que ela
+                aparece</strong> — depois de fechar, só redefinindo de novo.
+              </p>
+            </div>
+          </div>
+
+          <div class="card-inset mt-5 space-y-2 p-4">
+            <div class="flex items-center justify-between gap-3">
+              <span class="eyebrow">Login</span>
+              <span class="truncate font-mono text-sm text-ink">{{ cred.login }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-3 border-t border-line pt-2">
+              <span class="eyebrow">Senha</span>
+              <span class="font-mono text-lg font-bold tracking-widest text-accent">{{ cred.senha }}</span>
+            </div>
+          </div>
+
+          <div class="mt-5 flex items-center justify-end gap-2">
+            <button type="button" class="btn-secondary press" (click)="copiarCredenciaisSindico()">Copiar credenciais</button>
+            <button type="button" class="btn-primary press" (click)="modalSenhaSindico.set(false)">Concluir</button>
+          </div>
+        </div>
+      } @else {
+        <div class="px-6 pb-2 pt-6">
+          <h3 class="section-title">Redefinir senha do síndico</h3>
+          <p class="mt-1 text-sm text-ink-muted">
+            A senha atual não pode ser consultada: o sistema guarda apenas um hash criptográfico dela, que não tem
+            volta. Redefinir cria uma nova e invalida a anterior na hora.
+          </p>
+
+          <label class="mt-5 block">
+            <span class="eyebrow mb-1.5 block">Nova senha</span>
+            <input type="text" class="input font-mono" placeholder="Deixe em branco para gerar automaticamente"
+              [(ngModel)]="senhaDigitada" name="senha-sindico" autocomplete="new-password" />
+            <span class="mt-1.5 block text-xs text-ink-muted">Mínimo de 6 caracteres, se você mesmo definir.</span>
+          </label>
+
+          <p class="mt-4 flex items-start gap-2 rounded-xl bg-warning-soft p-3 text-xs text-warning">
+            <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+            </svg>
+            <span>O síndico será desconectado do app e precisará entrar com a nova senha. Combine com ele antes.</span>
+          </p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 px-6 pb-6 pt-4">
+          <button type="button" class="btn-ghost press" (click)="modalSenhaSindico.set(false)">Cancelar</button>
+          <button type="button" class="btn-primary press" (click)="redefinirSenhaSindico()">Redefinir senha</button>
+        </div>
+      }
+    </app-modal-shell>
+  }
 
   <!-- ══ Confirmação: desativar ══ -->
   @if (modalDesativar()) {

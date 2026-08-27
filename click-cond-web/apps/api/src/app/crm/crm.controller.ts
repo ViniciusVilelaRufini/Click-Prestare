@@ -109,6 +109,20 @@ export class CrmController {
     return this.condominios.purgar(id, body?.confirmacao ?? '', this.operador(user));
   }
 
+  /**
+   * Redefine a senha do síndico e devolve a nova em texto claro.
+   * Não existe rota para ler a senha atual: o banco guarda bcrypt.
+   */
+  @UseGuards(CrmAdminGuard)
+  @Post('clientes/:id/sindico/senha')
+  redefinirSenhaSindico(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { senha?: string },
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.condominios.redefinirSenhaSindico(id, body?.senha, this.operador(user));
+  }
+
   @UseGuards(CrmAdminGuard)
   @Get('clientes/:id/exportar')
   async exportar(@Param('id', ParseIntPipe) id: number, @Res() res: any) {

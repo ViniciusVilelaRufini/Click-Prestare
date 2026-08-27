@@ -176,6 +176,20 @@ export class CrmApi {
     return `${this.base}/clientes/${id}/exportar`;
   }
 
+  /**
+   * Redefine a senha do síndico. Não há como ler a senha atual — o banco
+   * guarda bcrypt, irreversível. Enviar `senha` vazia faz a API gerar uma.
+   */
+  redefinirSenhaSindico(
+    idCondominio: number,
+    senha?: string,
+  ): Observable<{ success: boolean; nome: string | null; login: string | null; senha: string }> {
+    return this.http.post<{ success: boolean; nome: string | null; login: string | null; senha: string }>(
+      `${this.base}/clientes/${idCondominio}/sindico/senha`,
+      { senha: senha ?? '' },
+    );
+  }
+
   // ── Ciclo de vida do condomínio ──
   // A exclusão é em duas fases no servidor: desativar corta o acesso (app,
   // portaria e facial) e é reversível; purgar apaga em cascata e exige o

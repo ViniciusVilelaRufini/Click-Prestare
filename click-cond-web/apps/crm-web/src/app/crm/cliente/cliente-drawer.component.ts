@@ -403,6 +403,50 @@ export class ClienteDrawerComponent {
     this.exportouAntesDaPurga.set(true);
   }
 
+  // ── Senha do síndico ──
+  //
+  // Só existe redefinir. A senha atual está em bcrypt no banco: não há como
+  // exibi-la nem copiá-la, e é exatamente assim que deve ser.
+
+  readonly modalSenhaSindico = signal(false);
+  readonly senhaSindicoNova = signal<{ login: string; senha: string } | null>(null);
+  senhaDigitada = '';
+
+  abrirSenhaSindico(): void {
+    this.senhaDigitada = '';
+    this.senhaSindicoNova.set(null);
+    this.modalSenhaSindico.set(true);
+  }
+
+  redefinirSenhaSindico(): void {
+    const c = this.store.clienteSelecionado();
+    if (!c) return;
+    const digitada = this.senhaDigitada.trim();
+    if (digitada && digitada.length < 6) {
+      this.toast.trigger('A senha deve ter ao menos 6 caracteres.', 'error');
+      return;
+    }
+
+    this.api.redefinirSenhaSindico(c.id, digitada || undefined).subscribe({
+      next: (r) => {
+        this.senhaSindicoNova.set({ login: r.login ?? '—', senha: r.senha });
+        this.toast.trigger('Senha redefinida. O síndico entra com a nova a partir de agora.', 'success');
+      },
+      error: (err) => {
+        this.toast.trigger(err?.error?.message ?? 'Não foi possível redefinir a senha.', 'error');
+      },
+    });
+  }
+
+  copiarCredenciaisSindico(): void {
+    const dados = this.senhaSindicoNova();
+    if (!dados) return;
+    navigator.clipboard
+      ?.writeText(`Acesso Click Prestare\nLogin: ${dados.login}\nSenha: ${dados.senha}`)
+      .then(() => this.toast.trigger('Credenciais copiadas.', 'success'))
+      .catch(() => this.toast.trigger('Não foi possível copiar.', 'error'));
+  }
+
   // ── Zona de risco: desativar / reativar / excluir ──
 
   readonly modalDesativar = signal(false);

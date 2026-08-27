@@ -205,6 +205,59 @@ export class CrmCondominiosService {
     return { success: true, criados, repetidos: linhas.length - criados, total: depois };
   }
 
+  /**
+   * Redefine a senha do síndico do condomínio e devolve a nova em texto claro
+   * — uma única vez, nesta resposta.
+   *
+   * Não existe "consultar a senha atual": o banco guarda bcrypt, que é
+   * irreversível de propósito. Redefinir é a única operação possível, e é
+   * também a mais segura: um vazamento do banco não entrega senha nenhuma.
+   *
+   * Se `novaSenha` vier vazia, uma é gerada. O hash é sempre bcrypt, nunca o
+   * MD5 legado que ainda existe em contas antigas — o login aceita os dois e
+   * migra no primeiro acesso, mas gravar MD5 novo seria andar para trás.
+   */
+  async redefinirSenhaSindico(
+    idCondominio: number,
+    novaSenha: string | null | undefined,
+    operador: string,
+  ) {
+    const vinculo = await this.prisma.sindicos_Condominios.findFirst({
+      where: { id_condominio: idCondominio },
+      include: { user: { select: { id: true, name: true, email: true, login: true } } },
+    });
+    if (!vinculo?.user) {
+      throw new NotFoundException('Este condomínio não tem síndico cadastrado.');
+    }
+
+    const senha = (novaSenha ?? '').trim() || this.gerarSenha();
+    if (senha.length < 6) {
+      throw new BadRequestException('A senha deve ter ao menos 6 caracteres.');
+    }
+
+    await this.prisma.users.update({
+      where: { id: vinculo.user.id },
+      data: { password: await bcrypt.hash(senha, 10) },
+    });
+
+    await this.auditoria.registrar({
+      id_condominio: idCondominio,
+      usuario_nome: operador,
+      acao: 'UPDATE',
+      modulo: 'crm-condominio',
+      entidade_id: vinculo.user.id,
+      // A senha em si nunca entra na auditoria.
+      descricao: `Senha do síndico ${vinculo.user.name ?? vinculo.user.email} redefinida pelo CRM`,
+    });
+
+    return {
+      success: true,
+      nome: vinculo.user.name,
+      login: vinculo.user.login ?? vinculo.user.email,
+      senha,
+    };
+  }
+
   /** Gera bloco × andar × unidade — ex.: bloco A, andar 3, unidade 2 → "302". */
   private montarApartamentos(
     idCondominio: number,
