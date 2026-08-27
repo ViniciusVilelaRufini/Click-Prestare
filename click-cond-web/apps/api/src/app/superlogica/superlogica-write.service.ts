@@ -244,6 +244,45 @@ export class SuperlogicaWriteService {
   }
 
   /**
+   * Envia ao ERP todos os moradores do condomínio que ainda não subiram.
+   *
+   * Existe por dois motivos. Primeiro, o passivo: morador cadastrado antes de a
+   * escrita ser ligada não sobe sozinho, porque o envio acontece no momento do
+   * cadastro. Segundo, e mais importante, o envio automático é fire-and-forget
+   * — a falha vai para o log e ninguém vê. Aqui o resultado de cada um volta
+   * para a tela, então um problema aparece em vez de sumir.
+   */
+  async reenviarPendentes(idCondominioClique: number): Promise<{
+    total: number;
+    enviados: number;
+    resultados: { id: number; nome: string; enviado: boolean; motivo?: string }[];
+  }> {
+    const pendentes = await this.prisma.moradores.findMany({
+      where: { id_condominio: idCondominioClique, id_superlogica_con: null },
+      select: { id: true, nome: true },
+      orderBy: { id: 'asc' },
+    });
+
+    const resultados: { id: number; nome: string; enviado: boolean; motivo?: string }[] = [];
+    let enviados = 0;
+
+    for (const m of pendentes) {
+      try {
+        const r = await this.enviarMorador(m.id);
+        if (r.enviado) enviados++;
+        resultados.push({ id: m.id, nome: m.nome, enviado: r.enviado, motivo: r.motivo });
+      } catch (err: any) {
+        // Um morador com problema não pode parar a fila — e o motivo precisa
+        // chegar à tela, que é o ponto deste método.
+        this.logger.error(`Reenvio do morador ${m.id} falhou: ${err?.message ?? err}`);
+        resultados.push({ id: m.id, nome: m.nome, enviado: false, motivo: err?.message ?? 'erro' });
+      }
+    }
+
+    return { total: pendentes.length, enviados, resultados };
+  }
+
+  /**
    * Mostra exatamente o que seria enviado, sem enviar.
    *
    * Existe para conferir o payload contra o ERP antes de ligar a escrita num

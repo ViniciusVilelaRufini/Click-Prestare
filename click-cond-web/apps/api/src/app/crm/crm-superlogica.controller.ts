@@ -107,6 +107,17 @@ export class CrmSuperlogicaController {
    * A única escrita da integração. Nasce desligada e é ligada condomínio a
    * condomínio, porque altera cadastro real da administradora.
    */
+  /**
+   * Reenvia ao ERP os moradores que ainda não subiram.
+   *
+   * Síncrono de propósito: o envio automático é fire-and-forget e a falha só
+   * aparece no log. Aqui o motivo de cada recusa volta para a tela.
+   */
+  @Post('clientes/:id/reenviar-moradores')
+  reenviar(@Param('id', ParseIntPipe) id: number, @ReqUser() user?: JwtPayload) {
+    return this.service.reenviarMoradores(id, this.operador(user));
+  }
+
   @Post('clientes/:id/escrita')
   escrita(
     @Param('id', ParseIntPipe) id: number,

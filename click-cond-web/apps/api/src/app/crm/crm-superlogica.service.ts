@@ -5,6 +5,7 @@ import { SuperlogicaClient, SuperlogicaConfigError } from '../superlogica/superl
 import { SuperlogicaService } from '../superlogica/superlogica.service';
 import { SuperlogicaSyncService } from '../superlogica/superlogica-sync.service';
 import { MoradoresService } from '../moradores/moradores.service';
+import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 
 /**
  * Ativação comercial da integração Superlógica.
@@ -46,6 +47,7 @@ export class CrmSuperlogicaService {
     private readonly auditoria: AuditoriaService,
     private readonly sync: SuperlogicaSyncService,
     private readonly moradores: MoradoresService,
+    private readonly write: SuperlogicaWriteService,
   ) {}
 
   /**
@@ -427,6 +429,40 @@ export class CrmSuperlogicaService {
     });
 
     return { success: true, escrita: ligado };
+  }
+
+  /**
+   * Reenvia ao ERP os moradores do condomínio que ainda não subiram.
+   *
+   * Diferente do envio automático, este é síncrono: o motivo de cada recusa
+   * volta para a tela em vez de ficar só no log.
+   */
+  async reenviarMoradores(idCondominioClique: number, operador: string) {
+    const condominio = await this.prisma.condominios.findUnique({
+      where: { id: idCondominioClique },
+      select: { id: true, id_superlogica_cond: true, superlogica_escrita: true },
+    });
+    if (!condominio) throw new NotFoundException('Condomínio não encontrado');
+    if (condominio.id_superlogica_cond == null) {
+      throw new ConflictException('Condomínio não está vinculado à Superlógica');
+    }
+    if (condominio.superlogica_escrita !== 1) {
+      throw new ConflictException('Ligue o envio de moradores antes de reenviar');
+    }
+
+    const resultado = await this.write.reenviarPendentes(idCondominioClique);
+
+    await this.auditoria.registrar({
+      id_condominio: idCondominioClique,
+      usuario_nome: operador,
+      acao: 'UPDATE',
+      modulo: 'superlogica',
+      entidade_id: idCondominioClique,
+      descricao: `Reenvio de moradores ao ERP: ${resultado.enviados} de ${resultado.total}`,
+      detalhes: resultado,
+    });
+
+    return resultado;
   }
 
   /** Traduz falha de credencial numa mensagem que o operador entende. */

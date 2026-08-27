@@ -186,6 +186,18 @@
                     {{ sincronizando() === c.id ? 'Sincronizando…' : 'Sincronizar cobranças' }}
                   </button>
 
+                  @if (c.escrita) {
+                    <button
+                      type="button"
+                      class="btn-secondary btn-sm press"
+                      (click)="reenviarMoradores(c)"
+                      [disabled]="reenviando() === c.id"
+                      title="Envia ao ERP os moradores que ainda não subiram, mostrando o motivo de cada recusa"
+                    >
+                      {{ reenviando() === c.id ? 'Enviando…' : 'Reenviar moradores' }}
+                    </button>
+                  }
+
                   <button
                     type="button"
                     class="btn-ghost btn-sm press text-danger hover:bg-danger-soft hover:text-danger"
@@ -260,6 +272,41 @@
                   <span class="badge badge-neutral" title="Cobranças de unidades que não foram importadas">
                     <span class="font-mono">{{ s.semApartamento }}</span> sem apartamento
                   </span>
+                }
+              </div>
+            }
+
+            <!-- Resultado do reenvio: mostra o motivo de cada recusa, que no
+                 envio automático ficaria só no log -->
+            @if (ultimoReenvio()[c.id]; as r) {
+              <div class="card-inset reveal-down p-4">
+                <div class="flex items-center justify-between">
+                  <h4 class="eyebrow">Envio de moradores ao ERP</h4>
+                  <button type="button" class="text-xs font-medium text-ink-muted transition-colors hover:text-ink" (click)="fecharReenvio(c.id)">
+                    Fechar
+                  </button>
+                </div>
+
+                @if (r.total === 0) {
+                  <p class="mt-2 text-xs text-ink-muted">Nenhum morador pendente.</p>
+                } @else {
+                  <p class="mt-2 text-xs text-ink-muted">
+                    <span class="font-mono text-ink">{{ r.enviados }}</span> de
+                    <span class="font-mono text-ink">{{ r.total }}</span> enviado(s).
+                  </p>
+                  <ul class="mt-2 space-y-1">
+                    @for (item of r.resultados; track item.id) {
+                      <li class="flex flex-wrap items-center gap-2 text-xs">
+                        <span class="badge" [ngClass]="item.enviado ? 'badge-success' : 'badge-neutral'">
+                          {{ item.enviado ? 'enviado' : 'não enviado' }}
+                        </span>
+                        <span class="text-ink">{{ item.nome }}</span>
+                        @if (item.motivo) {
+                          <span class="text-ink-muted">— {{ item.motivo }}</span>
+                        }
+                      </li>
+                    }
+                  </ul>
                 }
               </div>
             }

@@ -6,6 +6,7 @@ import {
   ClienteVinculo,
   CondominioSuperlogica,
   PreviewUnidades,
+  ResultadoReenvio,
   ResultadoSync,
   SuperlogicaService,
 } from '../superlogica.service';
@@ -67,6 +68,40 @@ export class CrmSuperlogicaComponent implements OnInit {
 
   /** id do condomínio com a escrita sendo alternada. */
   readonly alterandoEscrita = signal<number | null>(null);
+
+  readonly reenviando = signal<number | null>(null);
+  /** Resultado do último reenvio, por condomínio. */
+  readonly ultimoReenvio = signal<Record<number, ResultadoReenvio | null>>({});
+
+  /**
+   * Reenvia ao ERP os moradores que ainda não subiram.
+   *
+   * O envio automático acontece no cadastro e é fire-and-forget: se falhar,
+   * some no log. Aqui o motivo de cada recusa aparece na tela.
+   */
+  reenviarMoradores(cliente: ClienteVinculo): void {
+    this.reenviando.set(cliente.id);
+    this.api.reenviarMoradores(cliente.id).subscribe({
+      next: (r) => {
+        this.ultimoReenvio.update((s) => ({ ...s, [cliente.id]: r }));
+        this.toast.trigger(
+          r.total === 0
+            ? 'Nenhum morador pendente de envio.'
+            : `${r.enviados} de ${r.total} morador(es) enviado(s) ao ERP.`,
+          r.enviados > 0 || r.total === 0 ? 'success' : 'error',
+        );
+        this.reenviando.set(null);
+      },
+      error: (e) => {
+        this.toast.trigger(e?.error?.message ?? 'Não foi possível reenviar.', 'error');
+        this.reenviando.set(null);
+      },
+    });
+  }
+
+  fecharReenvio(idCliente: number): void {
+    this.ultimoReenvio.update((s) => ({ ...s, [idCliente]: null }));
+  }
 
   /**
    * Liga/desliga o envio de moradores do Clique para o ERP.

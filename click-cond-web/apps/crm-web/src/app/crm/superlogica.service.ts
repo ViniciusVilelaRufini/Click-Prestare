@@ -42,6 +42,12 @@ export interface ResultadoSync {
   descartadas: number;
 }
 
+export interface ResultadoReenvio {
+  total: number;
+  enviados: number;
+  resultados: { id: number; nome: string; enviado: boolean; motivo?: string }[];
+}
+
 export interface PreviewUnidades {
   totalNoErp: number;
   apartamentosNoClique: number;
@@ -100,6 +106,19 @@ export class SuperlogicaService {
   /** Roda a sincronização de cobranças agora, sem esperar o ciclo horário. */
   sincronizar(idCliente: number): Observable<ResultadoSync> {
     return this.http.post<ResultadoSync>(`${this.base}/clientes/${idCliente}/sincronizar`, {});
+  }
+
+  /**
+   * Reenvia ao ERP os moradores que ainda não subiram.
+   *
+   * Síncrono: devolve o motivo de cada recusa, ao contrário do envio
+   * automático, que é fire-and-forget.
+   */
+  reenviarMoradores(idCliente: number): Observable<ResultadoReenvio> {
+    return this.http.post<ResultadoReenvio>(
+      `${this.base}/clientes/${idCliente}/reenviar-moradores`,
+      {},
+    );
   }
 
   /** Liga/desliga o envio de moradores do Clique para o ERP. */
