@@ -163,6 +163,29 @@
                   >
                     {{ carregandoPreview() === c.id ? 'Lendo…' : 'Conferir unidades' }}
                   </button>
+
+                  <!-- Sem apartamento vinculado a sincronização não tem a quem
+                       entregar a cobrança: a importação vem primeiro. -->
+                  <button
+                    type="button"
+                    [class]="c.apartamentosVinculados === 0 ? 'btn-primary btn-sm press' : 'btn-secondary btn-sm press'"
+                    (click)="importarUnidades(c)"
+                    [disabled]="importando() === c.id"
+                    title="Cria os apartamentos a partir das unidades do ERP. Pode rodar de novo sem duplicar."
+                  >
+                    {{ importando() === c.id ? 'Importando…' : 'Importar unidades' }}
+                  </button>
+
+                  <button
+                    type="button"
+                    [class]="c.apartamentosVinculados > 0 ? 'btn-primary btn-sm press' : 'btn-secondary btn-sm press'"
+                    (click)="sincronizarAgora(c)"
+                    [disabled]="sincronizando() === c.id || c.apartamentosVinculados === 0"
+                    [title]="c.apartamentosVinculados === 0 ? 'Importe as unidades antes de sincronizar' : 'Puxa as cobranças agora, sem esperar o ciclo de 1 hora'"
+                  >
+                    {{ sincronizando() === c.id ? 'Sincronizando…' : 'Sincronizar cobranças' }}
+                  </button>
+
                   <button
                     type="button"
                     class="btn-ghost btn-sm press text-danger hover:bg-danger-soft hover:text-danger"
@@ -174,6 +197,32 @@
                 }
               </div>
             </div>
+
+            <!-- Vinculado mas sem apartamento: o passo que falta é a importação.
+                 Sem ela a sincronização não tem a quem entregar a cobrança. -->
+            @if (c.idSuperlogica != null && c.apartamentosVinculados === 0) {
+              <p class="text-xs text-ink-muted">
+                Vinculado, mas nenhuma unidade foi importada ainda — nada aparece no app até
+                <strong class="font-semibold text-ink">Importar unidades</strong>.
+              </p>
+            }
+
+            <!-- Resultado da última sincronização manual -->
+            @if (ultimoSync()[c.id]; as s) {
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="badge badge-neutral">
+                  <span class="font-mono">{{ s.cobrancasLidas }}</span> cobrança(s) lida(s)
+                </span>
+                <span class="badge badge-success">
+                  <span class="font-mono">{{ s.lancamentosGravados }}</span> gravada(s)
+                </span>
+                @if (s.semApartamento > 0) {
+                  <span class="badge badge-neutral" title="Cobranças de unidades que não foram importadas">
+                    <span class="font-mono">{{ s.semApartamento }}</span> sem apartamento
+                  </span>
+                }
+              </div>
+            }
 
             <!-- Prévia das unidades: leitura, não importa nada -->
             @if (preview()[c.id]; as p) {

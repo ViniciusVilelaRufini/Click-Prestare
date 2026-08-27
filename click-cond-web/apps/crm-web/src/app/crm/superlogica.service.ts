@@ -21,6 +21,22 @@ export interface ClienteVinculo {
   apartamentosVinculados: number;
 }
 
+export interface ResultadoImportacao {
+  unidadesNoErp: number;
+  apartamentosCriados: number;
+  apartamentosVinculados: number;
+  /** Unidades que colidiriam depois de normalizar — não importadas. */
+  duplicadasIgnoradas: string[];
+}
+
+export interface ResultadoSync {
+  cobrancasLidas: number;
+  lancamentosGravados: number;
+  /** Cobranças de unidade que não foi importada. */
+  semApartamento: number;
+  descartadas: number;
+}
+
 export interface PreviewUnidades {
   totalNoErp: number;
   apartamentosNoClique: number;
@@ -61,5 +77,15 @@ export class SuperlogicaService {
 
   desvincular(idCliente: number): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(`${this.base}/clientes/${idCliente}/vincular`);
+  }
+
+  /** Cria/vincula os apartamentos a partir das unidades do ERP. Idempotente. */
+  importarUnidades(idCliente: number): Observable<ResultadoImportacao> {
+    return this.http.post<ResultadoImportacao>(`${this.base}/clientes/${idCliente}/importar-unidades`, {});
+  }
+
+  /** Roda a sincronização de cobranças agora, sem esperar o ciclo horário. */
+  sincronizar(idCliente: number): Observable<ResultadoSync> {
+    return this.http.post<ResultadoSync>(`${this.base}/clientes/${idCliente}/sincronizar`, {});
   }
 }

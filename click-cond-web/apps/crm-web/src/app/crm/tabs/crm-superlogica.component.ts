@@ -6,6 +6,7 @@ import {
   ClienteVinculo,
   CondominioSuperlogica,
   PreviewUnidades,
+  ResultadoSync,
   SuperlogicaService,
 } from '../superlogica.service';
 import { ToastService } from '../../shared/toast.service';
@@ -46,6 +47,13 @@ export class CrmSuperlogicaComponent implements OnInit {
   /** Prévia aberta: idCliente → resultado. */
   readonly preview = signal<Record<number, PreviewUnidades | null>>({});
   readonly carregandoPreview = signal<number | null>(null);
+
+  /** id do condomínio importando/sincronizando, para travar os botões. */
+  readonly importando = signal<number | null>(null);
+  readonly sincronizando = signal<number | null>(null);
+
+  /** Último resultado de sync por condomínio, exibido na linha. */
+  readonly ultimoSync = signal<Record<number, ResultadoSync | null>>({});
 
   readonly totalAtivados = computed(() => this.clientes().filter((c) => c.idSuperlogica != null).length);
 
@@ -169,5 +177,60 @@ export class CrmSuperlogicaComponent implements OnInit {
 
   fecharPreview(idCliente: number): void {
     this.preview.update((p) => ({ ...p, [idCliente]: null }));
+  }
+
+  /**
+   * Cria os apartamentos a partir das unidades do ERP.
+   *
+   * É o passo que faltava entre vincular e ver cobrança: sem apartamento
+   * vinculado, a sincronização não tem a quem entregar a cobrança.
+   */
+  importarUnidades(cliente: ClienteVinculo): void {
+    this.importando.set(cliente.id);
+    this.api.importarUnidades(cliente.id).subscribe({
+      next: (r) => {
+        const partes = [`${r.apartamentosCriados} criado(s)`];
+        if (r.apartamentosVinculados) partes.push(`${r.apartamentosVinculados} vinculado(s)`);
+        this.toast.trigger(`Unidades importadas: ${partes.join(', ')}.`, 'success');
+
+        // Unidade duplicada não é detalhe de log: ela ficou de fora, e as
+        // cobranças dela não vão aparecer para ninguém.
+        if (r.duplicadasIgnoradas.length) {
+          this.toast.trigger(
+            `${r.duplicadasIgnoradas.length} unidade(s) ignorada(s) por identificação repetida: ${r.duplicadasIgnoradas.join(', ')}.`,
+            'error',
+          );
+        }
+
+        this.importando.set(null);
+        this.carregarDados();
+      },
+      error: (e) => {
+        this.toast.trigger(e?.error?.message ?? 'Não foi possível importar as unidades.', 'error');
+        this.importando.set(null);
+      },
+    });
+  }
+
+  /** Puxa as cobranças agora, sem esperar o ciclo horário. */
+  sincronizarAgora(cliente: ClienteVinculo): void {
+    this.sincronizando.set(cliente.id);
+    this.api.sincronizar(cliente.id).subscribe({
+      next: (r) => {
+        this.ultimoSync.update((s) => ({ ...s, [cliente.id]: r }));
+        this.toast.trigger(
+          r.cobrancasLidas === 0
+            ? 'Nenhuma cobrança no período. Gere a arrecadação no ERP e sincronize de novo.'
+            : `${r.lancamentosGravados} lançamento(s) gravado(s) de ${r.cobrancasLidas} cobrança(s).`,
+          r.cobrancasLidas === 0 ? 'info' : 'success',
+        );
+        this.sincronizando.set(null);
+        this.carregarDados();
+      },
+      error: (e) => {
+        this.toast.trigger(e?.error?.message ?? 'Não foi possível sincronizar.', 'error');
+        this.sincronizando.set(null);
+      },
+    });
   }
 }
