@@ -15,8 +15,16 @@ import { SuperlogicaContato, SuperlogicaUnidade } from './superlogica.types';
  * condomínio no CRM.
  */
 
-/** ID_LABEL_TRES — tipo de responsável, na tabela da Superlógica. */
+/**
+ * ID_LABEL_TRES — tipo de responsável, na tabela da Superlógica.
+ *
+ * A escolha importa mais do que parece: no ERP, cada contato marcado como
+ * PROPRIETÁRIO vira uma linha própria da unidade na tela de Unidades. Mandar
+ * familiar como proprietário multiplicaria as linhas do prédio e diria que a
+ * unidade tem vários donos.
+ */
 const LABEL_PROPRIETARIO_RESIDENTE = 1;
+const LABEL_DEPENDENTE = 4;
 const LABEL_RESIDENTE = 7;
 
 /** ID_TIPOCONTATO_TCON — 1 = condômino. */
@@ -87,12 +95,11 @@ export class SuperlogicaWriteService {
     });
 
     const i = contatosExistentes.length;
-    const ehInquilino = /inquilin/i.test(novo.tipo ?? '');
 
     payload[`contatos[${i}][ST_NOME_CON]`] = novo.nome;
     payload[`contatos[${i}][DT_ENTRADA_RES]`] = SuperlogicaClient.formatarData(hoje);
     payload[`contatos[${i}][ID_TIPOCONTATO_TCON]`] = TIPO_CONTATO_CONDOMINO;
-    payload[`contatos[${i}][ID_LABEL_TRES]`] = ehInquilino ? LABEL_RESIDENTE : LABEL_PROPRIETARIO_RESIDENTE;
+    payload[`contatos[${i}][ID_LABEL_TRES]`] = SuperlogicaWriteService.labelDoTipo(novo.tipo);
     payload[`contatos[${i}][ID_TIPORESP_TRES]`] = TIPORESP_NAO_RECEBER_COBRANCAS;
 
     if (novo.email) payload[`contatos[${i}][ST_EMAIL_CON]`] = novo.email;
@@ -100,6 +107,26 @@ export class SuperlogicaWriteService {
     if (novo.documento) payload[`contatos[${i}][ST_CPF_CON]`] = novo.documento;
 
     return payload;
+  }
+
+  /**
+   * Traduz o vínculo do Clique para o rótulo de responsável do ERP.
+   *
+   * O app usa 'proprietario', 'inquilino' e 'membro' (familiar cadastrado pelo
+   * próprio morador). Mandar membro como proprietário faria a unidade aparecer
+   * com vários donos na tela de Unidades do ERP — cada proprietário vira uma
+   * linha própria lá.
+   */
+  static labelDoTipo(tipo?: string | null): number {
+    const t = (tipo ?? '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim();
+
+    if (t.includes('inquilin')) return LABEL_RESIDENTE;
+    if (t.includes('membro') || t.includes('familiar') || t.includes('dependente')) return LABEL_DEPENDENTE;
+    return LABEL_PROPRIETARIO_RESIDENTE;
   }
 
   /** Só dígitos, para comparar CPF que veio formatado de um lado e não do outro. */

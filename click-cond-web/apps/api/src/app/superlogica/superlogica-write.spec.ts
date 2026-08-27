@@ -47,12 +47,19 @@ describe('SuperlogicaWriteService — montagem do payload', () => {
     expect(payload['contatos[0][ID_TIPORESP_TRES]']).toBe(4);
   });
 
-  it('marca proprietário e inquilino com rótulos diferentes', () => {
-    const prop = SuperlogicaWriteService.montarPayload(43, 1901, [], { nome: 'X', tipo: 'proprietario' });
-    const inq = SuperlogicaWriteService.montarPayload(43, 1901, [], { nome: 'Y', tipo: 'inquilino' });
+  it('marca cada vínculo com o rótulo certo', () => {
+    // Não é detalhe: no ERP, cada contato marcado como PROPRIETÁRIO vira uma
+    // linha própria da unidade na tela de Unidades. Mandar familiar como
+    // proprietário faria a unidade aparecer com vários donos.
+    const label = (tipo?: string) =>
+      SuperlogicaWriteService.montarPayload(43, 1901, [], { nome: 'X', tipo })['contatos[0][ID_LABEL_TRES]'];
 
-    expect(prop['contatos[0][ID_LABEL_TRES]']).toBe(1); // proprietário residente
-    expect(inq['contatos[0][ID_LABEL_TRES]']).toBe(7); // residente
+    expect(label('proprietario')).toBe(1); // proprietário residente
+    expect(label('Proprietário')).toBe(1); // com acento e maiúscula
+    expect(label('inquilino')).toBe(7); // residente
+    expect(label('membro')).toBe(4); // dependente
+    expect(label('Membro')).toBe(4);
+    expect(label(undefined)).toBe(1); // sem tipo, assume proprietário
   });
 
   it('usa a data de entrada no formato do ERP', () => {
