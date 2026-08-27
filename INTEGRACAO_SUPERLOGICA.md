@@ -394,6 +394,26 @@ para o log, não para a tela do usuário.
 **Sem eco na importação.** Morador criado pela importação (que veio do ERP) leva
 `skipSuperlogica`, senão voltaria para lá como contato duplicado.
 
+### A Superlógica recusa com HTTP 200
+
+Aprendido no primeiro envio real. Um morador com CPF de números aleatórios não
+subia, e nada indicava por quê: **o ERP responde `HTTP 200` mesmo quando recusa a
+operação** — o veredito fica em `status`/`msg` dentro do corpo.
+
+Duas consequências no código:
+
+- O corpo é sempre inspecionado; `status` diferente de `200` é falha, e a `msg`
+  do ERP volta para a tela.
+- O sucesso é **confirmado**, não presumido: os ids dos contatos da unidade são
+  guardados antes da escrita, e um id novo precisa aparecer depois. Vale também
+  para morador sem CPF nem e-mail, que o casamento por dados não reconheceria.
+- CPF é validado por módulo 11 **antes** de enviar, virando a mensagem "CPF
+  inválido — corrija no cadastro do morador" em vez de uma recusa silenciosa.
+
+O caso real: o CRM chegou a exibir "1 de 1 enviado" para um morador que não
+existia no ERP. Sucesso falso é pior que falha — esconde o problema e tira o
+morador da fila de pendentes, então nada tenta de novo.
+
 ### O que continua fora
 
 Criar unidade, alterar cobrança, dar baixa, excluir contato. Se um apartamento do Clique

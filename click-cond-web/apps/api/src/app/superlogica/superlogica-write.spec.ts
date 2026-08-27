@@ -76,6 +76,40 @@ describe('SuperlogicaWriteService — montagem do payload', () => {
   });
 });
 
+/**
+ * A Superlógica recusa CPF inválido — e recusa devolvendo HTTP 200 com o erro
+ * no corpo. Foi o que segurou o primeiro envio real: o morador tinha CPF de
+ * números aleatórios e a recusa passou despercebida.
+ */
+describe('SuperlogicaWriteService — validação de CPF', () => {
+  it('aceita CPF válido, com ou sem máscara', () => {
+    // O que subiu de verdade no condomínio de teste.
+    expect(SuperlogicaWriteService.cpfValido('52470445094')).toBe(true);
+    expect(SuperlogicaWriteService.cpfValido('524.704.450-94')).toBe(true);
+  });
+
+  it('recusa dígito verificador errado', () => {
+    expect(SuperlogicaWriteService.cpfValido('12345678900')).toBe(false);
+    // O válido com o último dígito trocado.
+    expect(SuperlogicaWriteService.cpfValido('52470445095')).toBe(false);
+  });
+
+  it('recusa sequência repetida', () => {
+    // Passa no cálculo do módulo 11, mas não é CPF.
+    expect(SuperlogicaWriteService.cpfValido('11111111111')).toBe(false);
+  });
+
+  it('recusa tamanho errado', () => {
+    expect(SuperlogicaWriteService.cpfValido('1234567890')).toBe(false);
+  });
+
+  it('aceita vazio — CPF é opcional e o ERP aceita contato sem ele', () => {
+    expect(SuperlogicaWriteService.cpfValido('')).toBe(true);
+    expect(SuperlogicaWriteService.cpfValido(null)).toBe(true);
+    expect(SuperlogicaWriteService.cpfValido(undefined)).toBe(true);
+  });
+});
+
 describe('SuperlogicaWriteService — casamento de contato', () => {
   const unidade = {
     id_unidade_uni: '1901',
@@ -110,6 +144,7 @@ describe('SuperlogicaWriteService — condições de envio', () => {
     id_superlogica_cond?: number | null;
     id_superlogica_uni?: number | null;
     id_superlogica_con?: number | null;
+    documento?: string | null;
   }) {
     const put = jest.fn(async () => ({ status: '200' }));
     const update = jest.fn(async () => ({}));
@@ -121,7 +156,8 @@ describe('SuperlogicaWriteService — condições de envio', () => {
           nome: 'Novo',
           email: 'n@x.com',
           telefone: null,
-          documento: '123',
+          // CPF válido: o ERP recusa inválido, e a checagem roda antes do PUT.
+          documento: opcoes.documento === undefined ? '52470445094' : opcoes.documento,
           tipo: 'proprietario',
           bloco: 'a',
           apartamento: '1',
@@ -180,6 +216,16 @@ describe('SuperlogicaWriteService — condições de envio', () => {
 
     expect(put).not.toHaveBeenCalled();
     expect(r.motivo).toContain('sem unidade vinculada');
+  });
+
+  it('recusa antes de escrever quando o CPF é inválido', async () => {
+    // Sem isso, o ERP recusaria com HTTP 200 e a falha viraria silêncio.
+    const { service, put } = montar({ documento: '12345678900' });
+
+    const r = await service.enviarMorador(10);
+
+    expect(put).not.toHaveBeenCalled();
+    expect(r.motivo).toContain('CPF inválido');
   });
 
   it('não reenvia morador já enviado', async () => {

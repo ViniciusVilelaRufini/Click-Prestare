@@ -108,6 +108,33 @@ export class SuperlogicaWriteService {
   }
 
   /**
+   * Valida CPF pelo dígito verificador (módulo 11).
+   *
+   * A Superlógica recusa CPF inválido — e recusa devolvendo HTTP 200 com o erro
+   * no corpo, o que fazia a recusa passar despercebida. Checar aqui transforma
+   * isso numa mensagem clara ("CPF inválido") em vez de um envio que não
+   * acontece por motivo nenhum aparente.
+   *
+   * Aceita vazio: CPF é opcional no cadastro, e contato sem CPF o ERP aceita.
+   */
+  static cpfValido(valor?: string | null): boolean {
+    const cpf = SuperlogicaWriteService.soDigitos(valor);
+    if (!cpf) return true;
+    if (cpf.length !== 11) return false;
+    // Sequências repetidas passam no cálculo mas não são CPF.
+    if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+    const digito = (ate: number): number => {
+      let soma = 0;
+      for (let i = 0; i < ate; i++) soma += Number(cpf[i]) * (ate + 1 - i);
+      const resto = (soma * 10) % 11;
+      return resto === 10 ? 0 : resto;
+    };
+
+    return digito(9) === Number(cpf[9]) && digito(10) === Number(cpf[10]);
+  }
+
+  /**
    * Procura o contato na unidade por CPF ou e-mail.
    *
    * Serve para dois momentos: antes de enviar (não duplicar quem já está lá) e
@@ -189,6 +216,14 @@ export class SuperlogicaWriteService {
     }
     if (morador.id_superlogica_con != null) {
       return { enviado: false, motivo: 'já enviado anteriormente' };
+    }
+    if (!SuperlogicaWriteService.cpfValido(morador.documento)) {
+      // Sem esta checagem, o ERP recusa com HTTP 200 e a falha vira silêncio.
+      // Melhor dizer o que está errado e onde consertar.
+      return {
+        enviado: false,
+        motivo: `CPF inválido ("${morador.documento}") — corrija no cadastro do morador e reenvie`,
+      };
     }
 
     const unidades = await this.superlogica.listarUnidades(condominio.id_superlogica_cond);
