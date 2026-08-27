@@ -215,32 +215,53 @@ export class SuperlogicaWriteService {
       morador,
     );
 
-    await this.client.putEscritaRestrita('unidades/post', payload);
+    // Guardado ANTES da escrita: é como se confirma que o contato nasceu, sem
+    // depender de CPF ou e-mail para reconhecê-lo depois.
+    const idsAntes = new Set((unidade.contatos ?? []).map((c) => String(c.id_contato_con)));
 
-    // A resposta do ERP não traz o id do contato criado de forma confiável
-    // (vem vazio no exemplo oficial), então relemos a unidade para descobrir.
-    const depois = await this.superlogica.listarUnidades(condominio.id_superlogica_cond);
-    const criado = SuperlogicaWriteService.acharContato(
-      depois.find((u) => Number(u.id_unidade_uni) === apartamento.id_superlogica_uni),
-      morador,
-    );
+    const resposta = await this.client.putEscritaRestrita<any>('unidades/post', payload);
 
-    if (criado) {
-      await this.prisma.moradores.update({
-        where: { id: morador.id },
-        data: { id_superlogica_con: Number(criado.id_contato_con) },
-      });
-    } else {
-      // Enviou e não achou depois: não marca como enviado, mas avisa alto —
-      // pode ser latência do ERP ou contato sem CPF nem e-mail para casar.
-      this.logger.warn(
-        `Morador ${idMorador} enviado à unidade ${apartamento.id_superlogica_uni}, mas não foi localizado na releitura.`,
-      );
+    // A Superlógica responde HTTP 200 mesmo quando recusa a operação — o
+    // veredito de verdade está no corpo, em `status`/`msg`. Sem olhar isso, uma
+    // recusa passaria por sucesso.
+    const item = Array.isArray(resposta) ? resposta[0] : resposta;
+    const statusErp = String(item?.status ?? '');
+    const msgErp = String(item?.msg ?? '').trim();
+
+    if (statusErp && statusErp !== '200') {
+      this.logger.error(`Morador ${idMorador}: ERP recusou (status ${statusErp}): ${msgErp}`);
+      return { enviado: false, motivo: `ERP recusou (${statusErp}): ${msgErp || 'sem mensagem'}` };
     }
 
-    this.logger.log(`Morador ${idMorador} enviado à Superlógica (unidade ${apartamento.id_superlogica_uni}).`);
+    // Relê e procura um id que não existia antes. Confirma de fato, e funciona
+    // para morador sem CPF nem e-mail — que o casamento por dados não acharia.
+    const depois = await this.superlogica.listarUnidades(condominio.id_superlogica_cond);
+    const unidadeDepois = depois.find((u) => Number(u.id_unidade_uni) === apartamento.id_superlogica_uni);
+    const novo = (unidadeDepois?.contatos ?? []).find((c) => !idsAntes.has(String(c.id_contato_con)));
 
-    return { enviado: true, idContatoSuperlogica: criado ? Number(criado.id_contato_con) : undefined };
+    if (!novo) {
+      // O ERP disse OK e nada apareceu. Não dá para chamar isso de enviado:
+      // marcar assim esconderia o problema e ainda impediria uma nova
+      // tentativa, porque o morador deixaria de ser pendente.
+      this.logger.error(
+        `Morador ${idMorador}: ERP respondeu "${msgErp || statusErp}" mas nenhum contato novo apareceu na unidade ${apartamento.id_superlogica_uni}.`,
+      );
+      return {
+        enviado: false,
+        motivo: `ERP respondeu "${msgErp || statusErp || 'sem corpo'}" mas nenhum contato novo apareceu na unidade ${apartamento.id_superlogica_uni}`,
+      };
+    }
+
+    await this.prisma.moradores.update({
+      where: { id: morador.id },
+      data: { id_superlogica_con: Number(novo.id_contato_con) },
+    });
+
+    this.logger.log(
+      `Morador ${idMorador} enviado à Superlógica: contato ${novo.id_contato_con} na unidade ${apartamento.id_superlogica_uni}.`,
+    );
+
+    return { enviado: true, idContatoSuperlogica: Number(novo.id_contato_con) };
   }
 
   /**

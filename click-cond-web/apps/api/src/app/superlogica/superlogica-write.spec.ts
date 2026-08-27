@@ -204,6 +204,90 @@ describe('SuperlogicaWriteService — condições de envio', () => {
   });
 });
 
+/**
+ * O envio precisa ser incapaz de dizer "enviado" sem que o contato exista.
+ *
+ * Aconteceu em produção: o CRM mostrou "1 de 1 enviado" e o ERP não tinha o
+ * contato. Um sucesso falso é pior que uma falha — esconde o problema e ainda
+ * impede nova tentativa, porque o morador deixa de ser pendente.
+ */
+describe('SuperlogicaWriteService — confirmação do envio', () => {
+  function montar(opcoes: { resposta?: any; contatosDepois?: any[] }) {
+    const update = jest.fn(async () => ({}));
+    const prisma: any = {
+      moradores: {
+        findUnique: jest.fn(async () => ({
+          id: 10,
+          nome: 'Caio',
+          email: null,
+          telefone: null,
+          documento: null,
+          tipo: 'proprietario',
+          bloco: 'a',
+          apartamento: '1',
+          id_condominio: 7,
+          id_superlogica_con: null,
+        })),
+        update,
+      },
+      condominios: {
+        findUnique: jest.fn(async () => ({ id: 7, id_superlogica_cond: 43, superlogica_escrita: 1 })),
+      },
+      apartamentos: { findFirst: jest.fn(async () => ({ id: 55, id_superlogica_uni: 1901 })) },
+    };
+
+    let chamada = 0;
+    const superlogica = {
+      listarUnidades: jest.fn(async () => {
+        chamada++;
+        const contatos = chamada === 1 ? [{ id_contato_con: '4589' }] : (opcoes.contatosDepois ?? []);
+        return [{ id_unidade_uni: '1901', contatos }];
+      }),
+    };
+
+    const put = jest.fn(async () => opcoes.resposta ?? [{ status: '200', msg: ' 01 a - Sucesso' }]);
+    const service = new SuperlogicaWriteService(prisma, { putEscritaRestrita: put } as any, superlogica as any);
+    return { service, update };
+  }
+
+  it('confirma pelo id que não existia antes, mesmo sem CPF nem e-mail', async () => {
+    const { service, update } = montar({
+      contatosDepois: [{ id_contato_con: '4589' }, { id_contato_con: '4595' }],
+    });
+
+    const r = await service.enviarMorador(10);
+
+    expect(r.enviado).toBe(true);
+    expect(r.idContatoSuperlogica).toBe(4595);
+    expect(update).toHaveBeenCalledWith({ where: { id: 10 }, data: { id_superlogica_con: 4595 } });
+  });
+
+  it('NÃO diz enviado quando o ERP responde OK e nada aparece', async () => {
+    // Exatamente o caso de produção.
+    const { service, update } = montar({ contatosDepois: [{ id_contato_con: '4589' }] });
+
+    const r = await service.enviarMorador(10);
+
+    expect(r.enviado).toBe(false);
+    expect(r.motivo).toContain('nenhum contato novo');
+    // Não pode marcar como enviado: o morador precisa continuar pendente.
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('trata recusa que vem com HTTP 200 no corpo', async () => {
+    // A Superlógica responde 200 mesmo recusando; o veredito está em `status`.
+    const { service, update } = montar({
+      resposta: [{ status: '400', msg: 'Data de entrada inválida' }],
+    });
+
+    const r = await service.enviarMorador(10);
+
+    expect(r.enviado).toBe(false);
+    expect(r.motivo).toContain('Data de entrada inválida');
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
 describe('SuperlogicaClient — a escrita não abre a porta para o resto', () => {
   let client: SuperlogicaClient;
 
