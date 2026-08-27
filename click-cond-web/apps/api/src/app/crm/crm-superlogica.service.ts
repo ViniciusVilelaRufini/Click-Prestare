@@ -4,6 +4,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { SuperlogicaClient, SuperlogicaConfigError } from '../superlogica/superlogica.client';
 import { SuperlogicaService } from '../superlogica/superlogica.service';
 import { SuperlogicaSyncService } from '../superlogica/superlogica-sync.service';
+import { MoradoresService } from '../moradores/moradores.service';
 
 /**
  * Ativação comercial da integração Superlógica.
@@ -30,6 +31,8 @@ export interface CondominioCliqueVinculo {
   totalApartamentos: number;
   /** Quantos apartamentos já têm vínculo de unidade (vindos da importação). */
   apartamentosVinculados: number;
+  /** Mão dupla: envia morador criado no Clique para o ERP. */
+  escrita: boolean;
 }
 
 @Injectable()
@@ -42,6 +45,7 @@ export class CrmSuperlogicaService {
     private readonly client: SuperlogicaClient,
     private readonly auditoria: AuditoriaService,
     private readonly sync: SuperlogicaSyncService,
+    private readonly moradores: MoradoresService,
   ) {}
 
   /**
@@ -80,7 +84,7 @@ export class CrmSuperlogicaService {
   /** Condomínios do Clique e o estado do vínculo de cada um. */
   async listarCondominiosClique(): Promise<CondominioCliqueVinculo[]> {
     const condominios = await this.prisma.condominios.findMany({
-      select: { id: true, nome: true, ativo: true, id_superlogica_cond: true },
+      select: { id: true, nome: true, ativo: true, id_superlogica_cond: true, superlogica_escrita: true },
       orderBy: { nome: 'asc' },
     });
 
@@ -100,6 +104,7 @@ export class CrmSuperlogicaService {
           idSuperlogica: c.id_superlogica_cond,
           totalApartamentos: total,
           apartamentosVinculados: vinculados,
+          escrita: c.superlogica_escrita === 1,
         };
       }),
     );
@@ -280,7 +285,21 @@ export class CrmSuperlogicaService {
    * humano decidindo, com a prévia na mão.
    */
   async importarUnidades(idCondominioClique: number, operador: string, comMoradores = false) {
-    const resultado = await this.sync.importarUnidades(idCondominioClique, comMoradores);
+    const base = await this.sync.importarUnidades(idCondominioClique);
+
+    const moradores = comMoradores
+      ? await this.criarMoradoresDosContatos(base.contatosPorApartamento, idCondominioClique)
+      : { criados: 0, jaExistiam: 0, semNome: 0 };
+
+    const resultado = {
+      unidadesNoErp: base.unidadesNoErp,
+      apartamentosCriados: base.apartamentosCriados,
+      apartamentosVinculados: base.apartamentosVinculados,
+      duplicadasIgnoradas: base.duplicadasIgnoradas,
+      moradoresCriados: moradores.criados,
+      moradoresJaExistiam: moradores.jaExistiam,
+      moradoresSemNome: moradores.semNome,
+    };
 
     await this.auditoria.registrar({
       id_condominio: idCondominioClique,
@@ -298,6 +317,67 @@ export class CrmSuperlogicaService {
     return resultado;
   }
 
+  /**
+   * Cria os moradores a partir dos contatos que a importação trouxe do ERP.
+   *
+   * Passa pelo MoradoresService.create de propósito: é ele que cria/reaproveita
+   * o Users e monta o vínculo em Apartamentos_Users, sem o qual o Financeiro
+   * não sabe de quem é a cobrança.
+   *
+   * Fica aqui, e não no módulo Superlógica, para não fechar um ciclo entre
+   * SuperlogicaModule e MoradoresModule — o CRM já conhece os dois.
+   */
+  private async criarMoradoresDosContatos(
+    porApartamento: { idApartamento: number; contatos: any[] }[],
+    idCondominioClique: number,
+  ) {
+    let criados = 0;
+    let jaExistiam = 0;
+    let semNome = 0;
+
+    for (const { idApartamento, contatos } of porApartamento) {
+      for (const contato of contatos) {
+        const nome = (contato.st_nome_con ?? '').trim();
+        if (!nome) {
+          semNome++;
+          continue;
+        }
+
+        try {
+          await this.moradores.create({
+            nome,
+            email: (contato.st_email_con ?? '').trim() || undefined,
+            telefone: (contato.st_telefone_con ?? '').trim() || undefined,
+            documento: (contato.st_cpf_con ?? '').trim() || undefined,
+            // O ERP diz "Proprietário Residente", "Inquilino"...; o Clique usa
+            // rótulos curtos. Só dá para afirmar com segurança o inquilino.
+            tipo: /inquilin/i.test(contato.st_nometiporesp_tres ?? '') ? 'inquilino' : 'proprietario',
+            id_apartamento: idApartamento,
+            id_condominio: idCondominioClique,
+            // Importar não pode disparar e-mail para o morador: quando essas
+            // pessoas são avisadas é decisão da administradora.
+            sendCredentials: false,
+            // Estas pessoas VIERAM do ERP. Sem isso, o envio automático as
+            // mandaria de volta e criaria contato duplicado na unidade.
+            skipSuperlogica: true,
+          });
+          criados++;
+        } catch (err: any) {
+          // O create recusa duplicata por e-mail, documento ou nome+apartamento.
+          // Numa reimportação isso é o esperado, não um erro.
+          if (err?.status === 400) {
+            jaExistiam++;
+            continue;
+          }
+          this.logger.warn(`Falha ao importar contato "${nome}": ${err?.message ?? err}`);
+          throw err;
+        }
+      }
+    }
+
+    return { criados, jaExistiam, semNome };
+  }
+
   /** Dispara a sincronização de cobranças na hora, sem esperar o ciclo. */
   async sincronizarAgora(idCondominioClique: number, operador: string) {
     const resultado = await this.sync.sincronizarCondominio(idCondominioClique);
@@ -313,6 +393,40 @@ export class CrmSuperlogicaService {
     });
 
     return resultado;
+  }
+
+  /**
+   * Liga/desliga o envio de moradores do Clique para o ERP, por condomínio.
+   *
+   * Escrita no ERP altera cadastro real da administradora, então nasce
+   * desligada e só é ligada de forma explícita, um condomínio por vez.
+   */
+  async definirEscrita(idCondominioClique: number, ligado: boolean, operador: string) {
+    const condominio = await this.prisma.condominios.findUnique({
+      where: { id: idCondominioClique },
+      select: { id: true, nome: true, id_superlogica_cond: true },
+    });
+    if (!condominio) throw new NotFoundException('Condomínio não encontrado');
+    if (condominio.id_superlogica_cond == null) {
+      throw new ConflictException('Vincule o condomínio à Superlógica antes de ligar a escrita');
+    }
+
+    await this.prisma.condominios.update({
+      where: { id: idCondominioClique },
+      data: { superlogica_escrita: ligado ? 1 : 0 },
+    });
+
+    await this.auditoria.registrar({
+      id_condominio: idCondominioClique,
+      usuario_nome: operador,
+      acao: 'UPDATE',
+      modulo: 'superlogica',
+      entidade_id: idCondominioClique,
+      descricao: `Envio de moradores ao ERP ${ligado ? 'LIGADO' : 'desligado'}`,
+      detalhes: { escrita: ligado },
+    });
+
+    return { success: true, escrita: ligado };
   }
 
   /** Traduz falha de credencial numa mensagem que o operador entende. */

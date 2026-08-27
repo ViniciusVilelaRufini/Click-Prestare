@@ -65,6 +65,45 @@ export class CrmSuperlogicaComponent implements OnInit {
     this.comMoradores.update((s) => ({ ...s, [idCliente]: marcado }));
   }
 
+  /** id do condomínio com a escrita sendo alternada. */
+  readonly alterandoEscrita = signal<number | null>(null);
+
+  /**
+   * Liga/desliga o envio de moradores do Clique para o ERP.
+   *
+   * Ligar é a única coisa nesta tela que faz o Clique GRAVAR na Superlógica —
+   * por isso confirma antes.
+   */
+  alternarEscrita(cliente: ClienteVinculo, ligado: boolean): void {
+    if (ligado) {
+      const ok = confirm(
+        `Ligar o envio de moradores de "${cliente.nome}" para a Superlógica?\n\n` +
+          'A partir daí, todo proprietário ou morador cadastrado no Clique passa a ser criado ' +
+          'como contato na unidade correspondente do ERP.\n\n' +
+          'O contato entra SEM receber cobrança — quem é sacado continua sendo decidido no ERP.',
+      );
+      if (!ok) return;
+    }
+
+    this.alterandoEscrita.set(cliente.id);
+    this.api.definirEscrita(cliente.id, ligado).subscribe({
+      next: () => {
+        this.toast.trigger(
+          ligado
+            ? `Envio de moradores de "${cliente.nome}" ligado.`
+            : `Envio de moradores de "${cliente.nome}" desligado.`,
+          ligado ? 'success' : 'info',
+        );
+        this.alterandoEscrita.set(null);
+        this.carregarDados();
+      },
+      error: (e) => {
+        this.toast.trigger(e?.error?.message ?? 'Não foi possível alterar.', 'error');
+        this.alterandoEscrita.set(null);
+      },
+    });
+  }
+
   readonly totalAtivados = computed(() => this.clientes().filter((c) => c.idSuperlogica != null).length);
 
   /** Condomínios do ERP ainda livres, mais o já vinculado à própria linha. */

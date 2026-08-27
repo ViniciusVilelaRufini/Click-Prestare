@@ -1,8 +1,7 @@
 import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaService } from './superlogica.service';
-import { SuperlogicaUnidade } from './superlogica.types';
-import { MoradoresService } from '../moradores/moradores.service';
+import { SuperlogicaContato, SuperlogicaUnidade } from './superlogica.types';
 
 /**
  * Importação de unidades e sincronização das cobranças da Superlógica.
@@ -23,9 +22,14 @@ export interface ResultadoImportacao {
   apartamentosCriados: number;
   apartamentosVinculados: number;
   duplicadasIgnoradas: string[];
-  moradoresCriados: number;
-  moradoresJaExistiam: number;
-  moradoresSemNome: number;
+  /**
+   * Contatos do ERP por apartamento criado/vinculado.
+   *
+   * Devolvidos em vez de virarem moradores aqui: criar morador exige o cadastro
+   * oficial (MoradoresService), e fazer este módulo depender dele fecharia um
+   * ciclo entre SuperlogicaModule e MoradoresModule. Quem orquestra é o CRM.
+   */
+  contatosPorApartamento: { idApartamento: number; contatos: SuperlogicaContato[] }[];
 }
 
 export interface ResultadoSync {
@@ -43,7 +47,6 @@ export class SuperlogicaSyncService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly superlogica: SuperlogicaService,
-    private readonly moradores: MoradoresService,
   ) {}
 
   onModuleInit() {
@@ -94,20 +97,15 @@ export class SuperlogicaSyncService implements OnModuleInit {
    * Idempotente: reexecutar não duplica, porque o upsert usa a chave única
    * (id_condominio, bloco, apto).
    */
-  async importarUnidades(
-    idCondominioClique: number,
-    comMoradores = false,
-  ): Promise<ResultadoImportacao> {
+  async importarUnidades(idCondominioClique: number): Promise<ResultadoImportacao> {
     const condominio = await this.condominioVinculado(idCondominioClique);
     const unidades = await this.superlogica.listarUnidades(condominio.id_superlogica_cond);
 
     let criados = 0;
     let vinculados = 0;
-    let moradoresCriados = 0;
-    let moradoresJaExistiam = 0;
-    let moradoresSemNome = 0;
     const duplicadas: string[] = [];
     const vistos = new Set<string>();
+    const contatosPorApartamento: { idApartamento: number; contatos: SuperlogicaContato[] }[] = [];
 
     for (const u of unidades) {
       const apto = SuperlogicaSyncService.normalizarUnidade(u.st_unidade_uni);
@@ -154,12 +152,7 @@ export class SuperlogicaSyncService implements OnModuleInit {
         criados++;
       }
 
-      if (comMoradores) {
-        const r = await this.importarContatosDaUnidade(u, idApartamento, idCondominioClique);
-        moradoresCriados += r.criados;
-        moradoresJaExistiam += r.jaExistiam;
-        moradoresSemNome += r.semNome;
-      }
+      contatosPorApartamento.push({ idApartamento, contatos: u.contatos ?? [] });
     }
 
     this.logger.log(
@@ -171,67 +164,8 @@ export class SuperlogicaSyncService implements OnModuleInit {
       apartamentosCriados: criados,
       apartamentosVinculados: vinculados,
       duplicadasIgnoradas: duplicadas,
-      moradoresCriados,
-      moradoresJaExistiam,
-      moradoresSemNome,
+      contatosPorApartamento,
     };
-  }
-
-  /**
-   * Cria os moradores de uma unidade a partir dos contatos do ERP.
-   *
-   * Passa pelo MoradoresService.create de propósito, em vez de escrever direto
-   * nas tabelas: é ele que cria/reaproveita o Users, monta o vínculo em
-   * Apartamentos_Users (sem o qual o Financeiro não sabe de quem é a cobrança)
-   * e aplica as checagens de duplicidade.
-   *
-   * `sendCredentials: false` é obrigatório aqui — importar não pode disparar
-   * e-mail para o morador. Quem decide quando essas pessoas são avisadas é a
-   * administradora, não um clique de importação.
-   */
-  private async importarContatosDaUnidade(
-    unidade: SuperlogicaUnidade,
-    idApartamento: number,
-    idCondominioClique: number,
-  ): Promise<{ criados: number; jaExistiam: number; semNome: number }> {
-    let criados = 0;
-    let jaExistiam = 0;
-    let semNome = 0;
-
-    for (const contato of unidade.contatos ?? []) {
-      const nome = (contato.st_nome_con ?? '').trim();
-      if (!nome) {
-        semNome++;
-        continue;
-      }
-
-      try {
-        await this.moradores.create({
-          nome,
-          email: (contato.st_email_con ?? '').trim() || undefined,
-          telefone: (contato.st_telefone_con ?? '').trim() || undefined,
-          documento: (contato.st_cpf_con ?? '').trim() || undefined,
-          // O ERP diz "Proprietário Residente", "Inquilino"...; o Clique usa
-          // rótulos curtos. Só o que dá para afirmar com segurança é inquilino.
-          tipo: /inquilin/i.test(contato.st_nometiporesp_tres ?? '') ? 'inquilino' : 'proprietario',
-          id_apartamento: idApartamento,
-          id_condominio: idCondominioClique,
-          sendCredentials: false,
-        });
-        criados++;
-      } catch (err: any) {
-        // O create recusa duplicata por e-mail, documento ou nome+apartamento.
-        // Numa reimportação isso é o esperado, não um erro.
-        if (err?.status === 400) {
-          jaExistiam++;
-          continue;
-        }
-        this.logger.warn(`Falha ao importar contato "${nome}": ${err?.message ?? err}`);
-        throw err;
-      }
-    }
-
-    return { criados, jaExistiam, semNome };
   }
 
   /** Primeiro dia do mês anterior — início da janela sincronizada. */

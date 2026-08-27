@@ -32,20 +32,26 @@ tipo de lançamento: a taxa condominial dos condomínios ativados.
 
 ---
 
-## 2. Regra de segurança: somente leitura
+## 2. Regra de segurança: leitura, com uma exceção declarada
 
 O ERP é a operação financeira real da Prestare, com boletos de clientes reais. Um POST
 equivocado altera cobrança de verdade, de gente de verdade.
 
-**A integração nunca escreve na Superlógica.** Isso é imposto em três camadas, em
-`superlogica.client.ts`:
+O ERP é a operação financeira real da Prestare. **Cobrança, unidade e condomínio são
+somente leitura — sempre.** A única escrita permitida é cadastrar condômino numa unidade
+(§7), e ela é opcional por condomínio.
 
-1. **Sem método de escrita** — a classe só expõe `get()`. Não existe função que emita
-   POST ou PUT; não é uma trava que possa ser desligada, é código que não existe.
-2. **Allowlist de rotas** — só as três rotas de leitura da integração passam. Allowlist e
-   não blocklist: esquecer de proibir algo novo não abre brecha, porque o padrão é negar.
-3. **Blocklist por cima** — termos proibidos são recusados mesmo que alguém amplie a
-   allowlist sem pensar.
+Imposto em camadas, em `superlogica.client.ts`:
+
+1. **Duas allowlists separadas.** `get()` só aceita as três rotas de leitura;
+   `putEscritaRestrita()` só aceita `unidades/post`. Estar liberada para escrita não
+   libera a rota para leitura, nem o contrário. Allowlist e não blocklist: esquecer de
+   proibir algo novo não abre brecha, porque o padrão é negar.
+2. **Um único método de escrita, de nome longo.** Quem escrever `client.put(...)` sem
+   querer não encontra o método.
+3. **Blocklist por cima das duas** — termos proibidos são recusados mesmo que alguém
+   amplie uma allowlist sem pensar. Nada de `liquidar`, `estornar`, `excluir`.
+4. **Interruptor por condomínio.** `Condominios.superlogica_escrita`, default 0.
 
 ### Rotas proibidas
 
@@ -354,6 +360,45 @@ esse id do cliente permitiria a um síndico pedir as cobranças de outro condom�
       falta conferir a apresentação de Pix e boleto vindos do ERP)
 
 ---
+
+## 7.1 Mão dupla: envio de morador ao ERP
+
+Único caminho de escrita. Quando um proprietário ou morador é cadastrado no Clique, ele
+é criado como **contato da unidade** correspondente na Superlógica.
+
+**Rota:** `PUT /v2/condor/unidades/post` (form-urlencoded), com `ID_CONDOMINIO_COND`,
+`ID_UNIDADE_UNI` e `contatos[n][...]`.
+
+### Decisões que valem mais que o código
+
+**O contato entra sem receber cobrança** (`ID_TIPORESP_TRES = 4`). Cadastrar alguém no
+app não pode mudar para quem o boleto é emitido — isso é decisão financeira da
+administradora, tomada no ERP. O Clique cria cadastro, não sacado.
+
+**A lista de contatos existente é reenviada por `ID_CONTATO_CON`.** O endpoint se chama
+"Editar unidade" e a documentação não diz se a lista de contatos é substituída ou
+acrescida. Mandando todos os contatos atuais mais o novo, o resultado é o mesmo nas duas
+hipóteses — e ninguém perde morador. Essa é a proteção central deste caminho.
+
+**Nada é enviado sem `superlogica_escrita = 1`** naquele condomínio, ligado à mão no CRM
+com uma confirmação explícita.
+
+**Idempotência por `Moradores.id_superlogica_con`.** Morador já enviado não é reenviado.
+Antes de escrever, procura-se o contato na unidade por CPF (só dígitos) ou e-mail: se já
+existe, os dois lados são amarrados sem escrever nada. Casamento por nome não é usado —
+seria pedir para vincular a pessoa errada.
+
+**Best-effort.** O ERP fora do ar não pode impedir um cadastro no Clique: a falha vai
+para o log, não para a tela do usuário.
+
+**Sem eco na importação.** Morador criado pela importação (que veio do ERP) leva
+`skipSuperlogica`, senão voltaria para lá como contato duplicado.
+
+### O que continua fora
+
+Criar unidade, alterar cobrança, dar baixa, excluir contato. Se um apartamento do Clique
+não tem unidade correspondente no ERP, o envio é recusado com motivo — criar a unidade lá
+seria escrita muito além do combinado.
 
 ## 8. Decisões em aberto
 

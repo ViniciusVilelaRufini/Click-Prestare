@@ -5,6 +5,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { somenteDigitos } from '../common/documento.util';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import * as bcrypt from 'bcrypt';
@@ -19,6 +20,13 @@ export interface CreateMoradorDto {
   id_apartamento: number;
   id_condominio: number;
   sendCredentials?: boolean;
+  /**
+   * Não enviar este morador à Superlógica.
+   *
+   * Usado quando ele VEIO de lá (importação): sem isso o envio automático o
+   * mandaria de volta e criaria contato duplicado na unidade.
+   */
+  skipSuperlogica?: boolean;
   foto_pessoa?: string;
   foto_documento?: string;
   tag_rfid?: string;
@@ -40,6 +48,7 @@ export class MoradoresService {
     private readonly storage: StorageService,
     private readonly facial: FacialService,
     private readonly auditoria: AuditoriaService,
+    private readonly superlogicaWrite: SuperlogicaWriteService,
   ) {}
 
   private parseDate(dateStr: string | Date | null | undefined): Date | null {
@@ -838,6 +847,26 @@ export class MoradoresService {
 
     if (dto.sendCredentials && dto.email) {
       this.fireWelcomeEmail(dto.email, dto.nome, passwordWasSet ? (dto.documento || '123456') : undefined);
+    }
+
+    // Mão dupla com a Superlógica. Best-effort de propósito: o ERP fora do ar
+    // não pode impedir o cadastro de um morador no Clique. O serviço checa
+    // sozinho se o condomínio tem escrita ligada — sem isso, não faz nada.
+    if (!dto.skipSuperlogica) {
+      this.superlogicaWrite
+        .enviarMorador(createdMorador.id)
+        .then((r) => {
+          if (r.enviado) {
+            this.logger.log(`Morador ${createdMorador.id} enviado à Superlógica.`);
+          } else if (r.motivo && r.motivo !== 'escrita desligada para este condomínio') {
+            this.logger.log(`Morador ${createdMorador.id} não enviado à Superlógica: ${r.motivo}`);
+          }
+        })
+        .catch((err) =>
+          this.logger.error(
+            `Falha ao enviar morador ${createdMorador.id} à Superlógica: ${err?.message ?? err}`,
+          ),
+        );
     }
 
     if (fotoPessoaUrl) {

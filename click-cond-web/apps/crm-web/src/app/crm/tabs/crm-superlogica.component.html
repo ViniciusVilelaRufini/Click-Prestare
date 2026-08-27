@@ -207,6 +207,27 @@
               </p>
             }
 
+            <!-- Mão dupla: a ÚNICA coisa que grava no ERP. Desligada por
+                 padrão e ligada condomínio a condomínio. -->
+            @if (c.idSuperlogica != null) {
+              <label class="flex cursor-pointer items-start gap-2 text-xs text-ink-muted">
+                <input
+                  type="checkbox"
+                  class="mt-0.5"
+                  [checked]="c.escrita"
+                  [disabled]="alterandoEscrita() === c.id"
+                  (change)="alternarEscrita(c, $any($event.target).checked)"
+                />
+                <span>
+                  Enviar moradores cadastrados no Clique para a Superlógica.
+                  <span class="text-ink-muted/80">
+                    Única gravação no ERP. O contato entra sem receber cobrança — quem é sacado
+                    continua sendo decidido lá.
+                  </span>
+                </span>
+              </label>
+            }
+
             <!-- Trazer os contatos cria conta para pessoas reais: escolha
                  explícita, desligada por padrão, e sem disparar e-mail. -->
             @if (c.idSuperlogica != null) {

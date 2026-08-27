@@ -19,6 +19,8 @@ export interface ClienteVinculo {
   idSuperlogica: number | null;
   totalApartamentos: number;
   apartamentosVinculados: number;
+  /** Mão dupla: envia morador criado no Clique para o ERP. */
+  escrita: boolean;
 }
 
 export interface ResultadoImportacao {
@@ -98,5 +100,13 @@ export class SuperlogicaService {
   /** Roda a sincronização de cobranças agora, sem esperar o ciclo horário. */
   sincronizar(idCliente: number): Observable<ResultadoSync> {
     return this.http.post<ResultadoSync>(`${this.base}/clientes/${idCliente}/sincronizar`, {});
+  }
+
+  /** Liga/desliga o envio de moradores do Clique para o ERP. */
+  definirEscrita(idCliente: number, ligado: boolean): Observable<{ success: boolean; escrita: boolean }> {
+    return this.http.post<{ success: boolean; escrita: boolean }>(
+      `${this.base}/clientes/${idCliente}/escrita`,
+      { ligado },
+    );
   }
 }

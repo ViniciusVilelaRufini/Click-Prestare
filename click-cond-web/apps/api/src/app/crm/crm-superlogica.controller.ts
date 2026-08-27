@@ -100,4 +100,19 @@ export class CrmSuperlogicaController {
   sincronizar(@Param('id', ParseIntPipe) id: number, @ReqUser() user?: JwtPayload) {
     return this.service.sincronizarAgora(id, this.operador(user));
   }
+
+  /**
+   * Liga/desliga o envio de moradores do Clique para o ERP.
+   *
+   * A única escrita da integração. Nasce desligada e é ligada condomínio a
+   * condomínio, porque altera cadastro real da administradora.
+   */
+  @Post('clientes/:id/escrita')
+  escrita(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('ligado') ligado: boolean,
+    @ReqUser() user?: JwtPayload,
+  ) {
+    return this.service.definirEscrita(id, ligado === true, this.operador(user));
+  }
 }

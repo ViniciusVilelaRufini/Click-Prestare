@@ -218,6 +218,11 @@ model Condominios {
   // cobranças e um veria os boletos do outro.
   id_superlogica_cond Int? @unique(map: "un_cond_superlogica")
 
+  // Mão dupla: envia proprietário/morador criado no Clique para o ERP.
+  // Desligado por padrão — escrita no ERP mexe em cadastro real da
+  // administradora, então é ligado condomínio a condomínio, no CRM.
+  superlogica_escrita Int @default(0) @db.TinyInt
+
   @@index([endereco], map: "fk_cond_endereco")
 }
 
@@ -296,6 +301,10 @@ model Moradores {
   face_sync_error  String?      @db.VarChar(500)
   tag_rfid         String?      @db.VarChar(50)
   qrcode_acesso    String?      @db.VarChar(100)
+  // id do contato deste morador na Superlógica. Preenchido quando o Clique o
+  // envia ao ERP; serve de trava de idempotência para não duplicar contato na
+  // unidade a cada reedição.
+  id_superlogica_con Int?
   created_at       DateTime     @default(now()) @db.DateTime(0)
   updated_at       DateTime     @default(now()) @updatedAt @db.DateTime(0)
   condominio       Condominios? @relation(fields: [id_condominio], references: [id], map: "fk_mor_cond")

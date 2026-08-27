@@ -47,6 +47,7 @@ describe('CrmSuperlogicaService — vínculo', () => {
     const auditoria = { registrar };
 
     const sync = { importarUnidades: jest.fn(), sincronizarCondominio: jest.fn() };
+    const criarMorador = jest.fn(async () => ({ id: 1 }));
 
     const service = new CrmSuperlogicaService(
       prisma as any,
@@ -54,9 +55,10 @@ describe('CrmSuperlogicaService — vínculo', () => {
       client as any,
       auditoria as any,
       sync as any,
+      { create: criarMorador } as any,
     );
 
-    return { service, prisma, superlogica, update, registrar, updateManyApartamentos, sync };
+    return { service, prisma, superlogica, update, registrar, updateManyApartamentos, sync, criarMorador };
   }
 
   it('vincula e registra em auditoria', async () => {
@@ -157,6 +159,79 @@ describe('CrmSuperlogicaService — vínculo', () => {
   });
 });
 
+describe('CrmSuperlogicaService — importação de moradores', () => {
+  function montarImport(contatos: any[]) {
+    const criarMorador = jest.fn(async () => ({ id: 1 }));
+    const sync = {
+      importarUnidades: jest.fn(async () => ({
+        unidadesNoErp: 1,
+        apartamentosCriados: 1,
+        apartamentosVinculados: 0,
+        duplicadasIgnoradas: [],
+        contatosPorApartamento: [{ idApartamento: 55, contatos }],
+      })),
+    };
+
+    const service = new CrmSuperlogicaService(
+      {} as any,
+      {} as any,
+      {} as any,
+      { registrar: jest.fn() } as any,
+      sync as any,
+      { create: criarMorador } as any,
+    );
+
+    return { service, criarMorador };
+  }
+
+  it('não cria morador quando a opção está desligada', async () => {
+    // Trazer contato cria conta para pessoa real: só com escolha explícita.
+    const { service, criarMorador } = montarImport([{ st_nome_con: 'Fulano' }]);
+
+    const r = await service.importarUnidades(7, 'Erika');
+
+    expect(criarMorador).not.toHaveBeenCalled();
+    expect(r.moradoresCriados).toBe(0);
+  });
+
+  it('cria o morador vinculado ao apartamento, sem e-mail e sem devolver ao ERP', async () => {
+    const { service, criarMorador } = montarImport([
+      { st_nome_con: 'Fulano', st_email_con: 'f@x.com', st_cpf_con: '123', st_nometiporesp_tres: 'Inquilino' },
+    ]);
+
+    const r = await service.importarUnidades(7, 'Erika', true);
+
+    expect(r.moradoresCriados).toBe(1);
+    const dto = criarMorador.mock.calls[0][0] as any;
+    expect(dto.nome).toBe('Fulano');
+    expect(dto.tipo).toBe('inquilino');
+    expect(dto.id_apartamento).toBe(55);
+    // Importar não pode disparar e-mail para o morador.
+    expect(dto.sendCredentials).toBe(false);
+    // Nem devolver ao ERP quem veio de lá — criaria contato duplicado.
+    expect(dto.skipSuperlogica).toBe(true);
+  });
+
+  it('conta duplicata em vez de estourar ao reimportar', async () => {
+    const { service, criarMorador } = montarImport([{ st_nome_con: 'Fulano' }]);
+    criarMorador.mockRejectedValueOnce(Object.assign(new Error('já cadastrado'), { status: 400 }));
+
+    const r = await service.importarUnidades(7, 'Erika', true);
+
+    expect(r.moradoresJaExistiam).toBe(1);
+    expect(r.moradoresCriados).toBe(0);
+  });
+
+  it('ignora contato sem nome', async () => {
+    const { service, criarMorador } = montarImport([{ st_nome_con: '  ', st_email_con: 'x@x.com' }]);
+
+    const r = await service.importarUnidades(7, 'Erika', true);
+
+    expect(criarMorador).not.toHaveBeenCalled();
+    expect(r.moradoresSemNome).toBe(1);
+  });
+});
+
 describe('CrmSuperlogicaService — desvínculo', () => {
   it('desliga a integração sem apagar o que já foi sincronizado', async () => {
     // Apagar histórico financeiro do morador por causa de um clique no CRM
@@ -179,6 +254,7 @@ describe('CrmSuperlogicaService — desvínculo', () => {
       {} as any,
       { registrar: jest.fn() } as any,
       {} as any,
+      {} as any,
     );
 
     await expect(service.desvincular(7, 'Erika')).resolves.toMatchObject({ success: true });
@@ -198,7 +274,7 @@ describe('CrmSuperlogicaService — desvínculo', () => {
     };
     prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
 
-    const service = new CrmSuperlogicaService(prisma, {} as any, {} as any, { registrar: jest.fn() } as any, {} as any);
+    const service = new CrmSuperlogicaService(prisma, {} as any, {} as any, { registrar: jest.fn() } as any, {} as any, {} as any);
 
     await service.desvincular(7, 'Erika');
 

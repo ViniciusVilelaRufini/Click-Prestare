@@ -12,14 +12,26 @@ import { Injectable, Logger } from '@nestjs/common';
  */
 
 /**
- * Rotas que a integração pode chamar. Allowlist, não blocklist: qualquer coisa
- * fora desta lista é recusada, então esquecer de proibir algo não abre brecha.
+ * Rotas de LEITURA que a integração pode chamar. Allowlist, não blocklist:
+ * qualquer coisa fora desta lista é recusada, então esquecer de proibir algo
+ * não abre brecha.
  */
 const ROTAS_PERMITIDAS = new Set([
   'condominios/get',
   'unidades/index',
   'cobranca/index',
 ]);
+
+/**
+ * Rotas de ESCRITA. Allowlist separada e propositalmente mínima: uma rota, a
+ * que cadastra condômino numa unidade.
+ *
+ * Escrita aqui altera o cadastro real da administradora. Esta lista não deve
+ * crescer sem uma decisão explícita — em especial, nada que mexa em cobrança
+ * (liquidar, estornar, excluir) tem lugar nela, e a blocklist abaixo continua
+ * valendo por cima.
+ */
+const ROTAS_ESCRITA_PERMITIDAS = new Set(['unidades/post']);
 
 /**
  * Rotas explicitamente proibidas, mesmo que alguém as adicione à allowlist por
@@ -106,16 +118,19 @@ export class SuperlogicaClient {
     return Boolean(process.env.SUPERLOGICA_APP_TOKEN && process.env.SUPERLOGICA_ACCESS_TOKEN);
   }
 
-  private validarRota(rota: string): string {
+  private validarRota(rota: string, permitidas: Set<string>, contexto: string): string {
     const normalizada = rota.trim().toLowerCase().replace(/^\/+|\/+$/g, '');
 
+    // A blocklist vale para leitura E escrita. `unidades/post` é permitida por
+    // estar na allowlist de escrita, mas nada que case com estes termos passa —
+    // nem a rota que dispara e-mail real, nem as de baixa/estorno de cobrança.
     const proibida = ROTAS_PROIBIDAS.find((p) => normalizada.includes(p));
     if (proibida) {
-      throw new SuperlogicaRotaBloqueadaError(rota, `contém "${proibida}" (escrita ou envio a terceiros)`);
+      throw new SuperlogicaRotaBloqueadaError(rota, `contém "${proibida}" (operação proibida)`);
     }
 
-    if (!ROTAS_PERMITIDAS.has(normalizada)) {
-      throw new SuperlogicaRotaBloqueadaError(rota, 'fora da allowlist de leitura');
+    if (!permitidas.has(normalizada)) {
+      throw new SuperlogicaRotaBloqueadaError(rota, `fora da allowlist de ${contexto}`);
     }
 
     return normalizada;
@@ -125,7 +140,7 @@ export class SuperlogicaClient {
    * GET numa rota da allowlist. Único método de rede da classe.
    */
   async get<T>(rota: string, params: Record<string, string | number> = {}): Promise<T[]> {
-    const rotaValida = this.validarRota(rota);
+    const rotaValida = this.validarRota(rota, ROTAS_PERMITIDAS, 'leitura');
 
     const query = new URLSearchParams();
     for (const [chave, valor] of Object.entries(params)) {
@@ -162,6 +177,56 @@ export class SuperlogicaClient {
       if (Array.isArray(dados)) return dados as T[];
       if (Array.isArray(dados?.data)) return dados.data as T[];
       return [];
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * PUT numa rota da allowlist de ESCRITA.
+   *
+   * Único caminho de escrita da integração. Nome longo de propósito: quem
+   * escrever `client.put(...)` sem querer não encontra o método.
+   *
+   * O corpo vai como `x-www-form-urlencoded` porque é o que a Superlógica
+   * espera nos endpoints de gravação — JSON é silenciosamente ignorado.
+   */
+  async putEscritaRestrita<T = unknown>(
+    rota: string,
+    campos: Record<string, string | number>,
+  ): Promise<T> {
+    const rotaValida = this.validarRota(rota, ROTAS_ESCRITA_PERMITIDAS, 'escrita');
+
+    const corpo = new URLSearchParams();
+    for (const [chave, valor] of Object.entries(campos)) {
+      corpo.set(chave, String(valor));
+    }
+
+    const timeoutMs = Number(process.env.SUPERLOGICA_HTTP_TIMEOUT_MS ?? 15000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const resposta = await fetch(`${this.baseUrl}/${rotaValida}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          app_token: this.appToken,
+          access_token: this.accessToken,
+        },
+        body: corpo.toString(),
+        signal: controller.signal,
+      });
+
+      const texto = await resposta.text();
+
+      if (!resposta.ok) {
+        this.logger.error(`PUT ${rotaValida} → ${resposta.status}: ${texto.slice(0, 300)}`);
+        throw new SuperlogicaHttpError(resposta.status, texto.slice(0, 300));
+      }
+
+      this.logger.log(`PUT ${rotaValida} → 200`);
+      return JSON.parse(texto) as T;
     } finally {
       clearTimeout(timer);
     }
