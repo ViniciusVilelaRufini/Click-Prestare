@@ -45,6 +45,10 @@ const simuladorHabilitado =
     AccessStateService,
     AgentBridgeService,
   ],
-  exports: [FacialService, AgentBridgeService],
+  // FacialDeviceClientService é exportado porque o CRM precisa dele para
+  // desprovisionar a biometria dos terminais antes de excluir um condomínio
+  // (CrmCondominiosService). Sem o export, o Nest não resolve a injeção e
+  // derruba a aplicação inteira no bootstrap, não só o módulo do CRM.
+  exports: [FacialService, AgentBridgeService, FacialDeviceClientService],
 })
 export class FacialModule {}
