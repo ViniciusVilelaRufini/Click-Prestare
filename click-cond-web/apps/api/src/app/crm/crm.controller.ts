@@ -1,5 +1,7 @@
-import { Controller, Get, Post, Put, Body, Query, Res, NotFoundException, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Query, Res, NotFoundException, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { CrmService } from './crm.service';
+import { CrmCondominiosService } from './crm-condominios.service';
+import type { CriarCondominioDto } from './crm-condominios.service';
 import { CrmFaturasService } from './crm-faturas.service';
 import { CrmAdminGuard } from './crm-admin.guard';
 import { MoradoresService } from '../moradores/moradores.service';
@@ -20,6 +22,7 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 export class CrmController {
   constructor(
     private readonly service: CrmService,
+    private readonly condominios: CrmCondominiosService,
     private readonly faturas: CrmFaturasService,
     private readonly moradores: MoradoresService,
     private readonly apartamentos: ApartamentosService,
@@ -64,6 +67,46 @@ export class CrmController {
     const atualizado = await this.service.atualizarCliente(id, data);
     if (!atualizado) throw new NotFoundException('Cliente não encontrado');
     return { success: true, data: atualizado };
+  }
+
+  // ============== Ciclo de vida do condomínio ==============
+  //
+  // A exclusão é em duas fases de propósito: desativar corta o acesso e é
+  // reversível; a purga apaga em cascata e exige o condomínio já desativado
+  // mais o nome digitado por extenso. Ver CrmCondominiosService.
+
+  @UseGuards(CrmAdminGuard)
+  @Post('clientes')
+  criar(@Body() dto: CriarCondominioDto, @ReqUser() user: JwtPayload) {
+    return this.condominios.criar(dto, this.operador(user));
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('clientes/:id/desativar')
+  async desativar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { motivo?: string },
+    @ReqUser() user: JwtPayload,
+  ) {
+    const resumo = await this.condominios.desativar(id, body?.motivo ?? '', this.operador(user));
+    return { success: true, data: resumo };
+  }
+
+  @UseGuards(CrmAdminGuard)
+  @Post('clientes/:id/reativar')
+  reativar(@Param('id', ParseIntPipe) id: number, @ReqUser() user: JwtPayload) {
+    return this.condominios.reativar(id, this.operador(user));
+  }
+
+  /** Exclusão definitiva. `confirmacao` deve repetir o nome do condomínio. */
+  @UseGuards(CrmAdminGuard)
+  @Delete('clientes/:id')
+  purgar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { confirmacao?: string },
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.condominios.purgar(id, body?.confirmacao ?? '', this.operador(user));
   }
 
   @UseGuards(CrmAdminGuard)

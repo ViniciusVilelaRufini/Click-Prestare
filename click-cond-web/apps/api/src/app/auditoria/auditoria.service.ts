@@ -20,7 +20,10 @@ export type AuditoriaAcao =
   | 'DEVICE_CHANGE'     // CRUD em dispositivos (criar/desativar/trocar IP)
   | 'ONLINE'            // dispositivo voltou a responder na LAN (heartbeat do agente)
   | 'OFFLINE'           // dispositivo parou de responder na LAN
-  | 'FANTASMAS_REMOVIDOS'; // tickFantasmas removeu biometria órfã de um terminal
+  | 'FANTASMAS_REMOVIDOS' // tickFantasmas removeu biometria órfã de um terminal
+  // ---- Ciclo de vida comercial do condomínio (CRM) ----
+  | 'DEACTIVATE'        // condomínio desligado: corta app, portaria e facial
+  | 'REACTIVATE';       // condomínio religado antes da purga
 
 export interface RegistrarAuditoriaDto {
   id_condominio: number;

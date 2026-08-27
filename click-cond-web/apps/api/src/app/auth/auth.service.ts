@@ -177,8 +177,11 @@ export class AuthService {
       );
     }
 
+    // `condominio: { ativo: 1 }`: desativar o condomínio no CRM precisa derrubar
+    // a portaria junto. Sem esta condição o porteiro continuava entrando e
+    // operando (abrir portão, registrar visitante) num prédio já desligado.
     const funcionario = await this.prisma.funcionarios_Portaria.findFirst({
-      where: { login, ativo: 1 },
+      where: { login, ativo: 1, condominio: { ativo: 1 } },
     });
 
     if (funcionario) {
@@ -235,7 +238,11 @@ export class AuthService {
       where: { login },
       include: {
         sindicos: true,
+        // Só vínculos com condomínio ativo: um síndico que administra dois
+        // prédios e teve um desativado continua entrando pelo outro, mas não
+        // consegue mais operar o que foi desligado.
         sindicosCondominios: {
+          where: { condominio: { ativo: 1 } },
           include: { condominio: { select: { nome: true } } },
           orderBy: { id: 'asc' },
         },
@@ -249,7 +256,7 @@ export class AuthService {
 
     if (!user.sindicosCondominios || user.sindicosCondominios.length === 0) {
       this.registrarFalha(login);
-      throw new UnauthorizedException('Síndico sem condomínio vinculado.');
+      throw new UnauthorizedException('Síndico sem condomínio ativo vinculado.');
     }
 
     const pwdStored = user.password ?? '';

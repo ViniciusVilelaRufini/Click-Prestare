@@ -7,6 +7,7 @@ import { CrmApi, CrmTerminal } from '../crm.service';
 import { CrmStore } from '../crm.store';
 import { ToastService } from '../../shared/toast.service';
 import { Apartamento, ClienteEdicao, Morador } from '../crm.models';
+import { ModalShellComponent } from '../../shared/ui/modal-shell.component';
 import * as fmt from '../crm-format';
 
 type SubAba = 'geral' | 'portaria' | 'servicos' | 'moradores';
@@ -19,7 +20,7 @@ type SubAba = 'geral' | 'portaria' | 'servicos' | 'moradores';
 @Component({
   selector: 'crm-cliente-drawer',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ModalShellComponent],
   templateUrl: './cliente-drawer.component.html',
 })
 export class ClienteDrawerComponent {
@@ -223,6 +224,61 @@ export class ClienteDrawerComponent {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    this.exportouAntesDaPurga.set(true);
+  }
+
+  // ── Zona de risco: desativar / reativar / excluir ──
+
+  readonly modalDesativar = signal(false);
+  readonly modalPurga = signal(false);
+  motivoDesativacao = '';
+  confirmacaoNome = '';
+
+  /**
+   * Exportação feita nesta sessão do drawer. A purga só é liberada depois —
+   * é a única recuperação possível, já que o delete é em cascata e definitivo.
+   */
+  readonly exportouAntesDaPurga = signal(false);
+
+  abrirDesativar(): void {
+    this.motivoDesativacao = '';
+    this.modalDesativar.set(true);
+  }
+
+  confirmarDesativacao(): void {
+    const c = this.store.clienteSelecionado();
+    if (!c) return;
+    if (this.motivoDesativacao.trim().length < 5) {
+      this.toast.trigger('Informe o motivo da desativação (mínimo 5 caracteres).', 'error');
+      return;
+    }
+    this.modalDesativar.set(false);
+    this.store.desativarCondominio(c.id, c.nome, this.motivoDesativacao.trim());
+  }
+
+  reativar(): void {
+    const c = this.store.clienteSelecionado();
+    if (!c) return;
+    this.store.reativarCondominio(c.id, c.nome);
+  }
+
+  abrirPurga(): void {
+    this.confirmacaoNome = '';
+    this.exportouAntesDaPurga.set(false);
+    this.modalPurga.set(true);
+  }
+
+  /** O nome digitado precisa bater exatamente — a API valida de novo. */
+  nomeConfere(): boolean {
+    const c = this.store.clienteSelecionado();
+    return !!c && this.confirmacaoNome.trim() === c.nome.trim();
+  }
+
+  confirmarPurga(): void {
+    const c = this.store.clienteSelecionado();
+    if (!c || !this.nomeConfere() || !this.exportouAntesDaPurga()) return;
+    this.modalPurga.set(false);
+    this.store.purgarCondominio(c.id, this.confirmacaoNome.trim());
   }
 
   // ── Moradores ──

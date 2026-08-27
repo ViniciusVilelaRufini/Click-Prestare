@@ -5,9 +5,15 @@
       <h2 class="section-title text-xl">Clientes</h2>
       <p class="mt-0.5 text-sm text-ink-muted">Carteira de condomínios: plano, cobrança, hardware e saúde da conta.</p>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <span class="badge badge-neutral">{{ clientesFiltrados().length }} registros</span>
       <span class="badge badge-accent">{{ moeda(mrrFiltrado()) }} em MRR</span>
+      <button type="button" class="btn-primary press ml-1" (click)="abrirNovo()">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+        Novo condomínio
+      </button>
     </div>
   </div>
 
@@ -278,3 +284,181 @@
     }
   </div>
 </div>
+
+<!-- ══ Modal: novo condomínio ══ -->
+@if (modalNovoAberto()) {
+  <app-modal-shell maxWidth="max-w-2xl" ariaLabel="Novo condomínio" (fechar)="fecharNovo()">
+    @if (senhaGerada(); as cred) {
+      <!-- Passo final: a senha só existe nesta resposta da API. -->
+      <div class="px-6 pb-6 pt-6">
+        <div class="flex items-start gap-4">
+          <div class="tile tile-green h-12 w-12">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <h3 class="section-title">Condomínio criado</h3>
+            <p class="mt-0.5 text-sm text-ink-muted">
+              Entregue estas credenciais ao síndico. <strong class="font-semibold text-ink">A senha não pode ser
+              consultada depois</strong> — só redefinida.
+            </p>
+          </div>
+        </div>
+
+        <div class="card-inset mt-5 space-y-2 p-4">
+          <div class="flex items-center justify-between gap-3">
+            <span class="eyebrow">Síndico</span>
+            <span class="text-sm font-semibold text-ink">{{ cred.nome }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-t border-line pt-2">
+            <span class="eyebrow">Login</span>
+            <span class="truncate font-mono text-sm text-ink">{{ cred.email }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-t border-line pt-2">
+            <span class="eyebrow">Senha</span>
+            <span class="font-mono text-lg font-bold tracking-widest text-accent">{{ cred.senha }}</span>
+          </div>
+        </div>
+
+        <div class="mt-5 flex items-center justify-end gap-2">
+          <button type="button" class="btn-secondary press" (click)="copiarSenha()">Copiar credenciais</button>
+          <button type="button" class="btn-primary press" (click)="fecharNovo()">Concluir</button>
+        </div>
+      </div>
+    } @else {
+      <div class="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
+        <div>
+          <h3 class="section-title">Novo condomínio</h3>
+          <p class="mt-0.5 text-xs text-ink-muted">O condomínio nasce ativo e já aparece no app e na portaria.</p>
+        </div>
+        <button type="button" class="icon-btn press h-9 w-9 shadow-none hover:bg-surface-sunken hover:shadow-none" aria-label="Fechar" (click)="fecharNovo()">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-5 px-6 pb-2">
+        <!-- Identificação -->
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label class="block sm:col-span-2">
+            <span class="eyebrow mb-1.5 block">Nome do condomínio <span class="text-danger">*</span></span>
+            <input type="text" class="input" placeholder="Ex.: Edifício Vista Bella" [(ngModel)]="novo.nome" name="novo-nome" />
+          </label>
+          <label class="block">
+            <span class="eyebrow mb-1.5 block">Identificação / CNPJ</span>
+            <input type="text" class="input font-mono" placeholder="00.000.000/0001-00" [(ngModel)]="novo.identificacao" name="novo-ident" />
+          </label>
+          <label class="block">
+            <span class="eyebrow mb-1.5 block">Plano</span>
+            <select class="input cursor-pointer" [(ngModel)]="novo.plano" name="novo-plano">
+              <option value="Essencial">Essencial</option>
+              <option value="Profissional">Profissional</option>
+              <option value="Elite">Elite</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="eyebrow mb-1.5 block">Mensalidade (R$)</span>
+            <input type="number" class="input font-mono" [(ngModel)]="novo.valorMensal" name="novo-valor" />
+          </label>
+          <label class="block">
+            <span class="eyebrow mb-1.5 block">Dia do vencimento</span>
+            <input type="number" min="1" max="28" class="input font-mono" [(ngModel)]="novo.diaVencimento" name="novo-dia" />
+          </label>
+        </div>
+
+        <!-- Síndico -->
+        <div class="card-inset p-4">
+          <label class="flex cursor-pointer items-center justify-between gap-3">
+            <span>
+              <span class="block text-sm font-semibold text-ink">Criar acesso do síndico</span>
+              <span class="mt-0.5 block text-xs text-ink-muted">Gera a conta e a senha inicial para entrar no app.</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" class="peer sr-only" [(ngModel)]="novo.comSindico" name="novo-com-sindico" />
+              <span class="switch-track"></span>
+            </span>
+          </label>
+
+          @if (novo.comSindico) {
+            <div class="reveal-down mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label class="block">
+                <span class="eyebrow mb-1.5 block">Nome <span class="text-danger">*</span></span>
+                <input type="text" class="input" autocomplete="name" [(ngModel)]="novo.sindicoNome" name="novo-sind-nome" />
+              </label>
+              <label class="block">
+                <span class="eyebrow mb-1.5 block">E-mail (login) <span class="text-danger">*</span></span>
+                <input type="email" class="input" autocomplete="email" [(ngModel)]="novo.sindicoEmail" name="novo-sind-email" />
+              </label>
+              <label class="block">
+                <span class="eyebrow mb-1.5 block">Telefone / WhatsApp</span>
+                <input type="tel" class="input" autocomplete="tel" [(ngModel)]="novo.sindicoTelefone" name="novo-sind-tel" />
+              </label>
+              <label class="block">
+                <span class="eyebrow mb-1.5 block">CPF</span>
+                <input type="text" inputmode="numeric" class="input" [(ngModel)]="novo.sindicoDocumento" name="novo-sind-doc" />
+              </label>
+            </div>
+          }
+        </div>
+
+        <!-- Apartamentos -->
+        <div class="card-inset p-4">
+          <label class="flex cursor-pointer items-center justify-between gap-3">
+            <span>
+              <span class="block text-sm font-semibold text-ink">Gerar apartamentos em lote</span>
+              <span class="mt-0.5 block text-xs text-ink-muted">Cria as unidades por bloco, andar e quantidade por andar.</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" class="peer sr-only" [(ngModel)]="novo.comApartamentos" name="novo-com-aptos" />
+              <span class="switch-track"></span>
+            </span>
+          </label>
+
+          @if (novo.comApartamentos) {
+            <div class="reveal-down mt-4 space-y-3">
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <label class="block">
+                  <span class="eyebrow mb-1.5 block">Blocos</span>
+                  <input type="text" class="input" placeholder="A, B" [(ngModel)]="novo.blocos" name="novo-blocos" />
+                </label>
+                <label class="block">
+                  <span class="eyebrow mb-1.5 block">Andares</span>
+                  <input type="number" min="1" class="input font-mono" [(ngModel)]="novo.andares" name="novo-andares" />
+                </label>
+                <label class="block">
+                  <span class="eyebrow mb-1.5 block">Unidades por andar</span>
+                  <input type="number" min="1" class="input font-mono" [(ngModel)]="novo.porAndar" name="novo-por-andar" />
+                </label>
+              </div>
+
+              <p class="rounded-lg bg-accent-soft px-3.5 py-2.5 text-xs text-accent">
+                Serão criados <strong class="font-mono font-bold">{{ totalAptosPrevisto() }}</strong> apartamentos —
+                blocos {{ blocosLista().join(', ') || '—' }}, numerados como 101, 102, 201…
+                @if (totalAptosPrevisto() > 2000) {
+                  <strong class="mt-1 block text-danger">Acima do limite de 2000. Reduza a combinação.</strong>
+                }
+              </p>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 px-6 pb-6 pt-4">
+        <button type="button" class="btn-ghost press" (click)="fecharNovo()">Cancelar</button>
+        <button type="button" class="btn-primary press" [disabled]="store.salvando() || !podeSalvarNovo()" (click)="salvarNovo()">
+          @if (store.salvando()) {
+            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Criando…
+          } @else {
+            Criar condomínio
+          }
+        </button>
+      </div>
+    }
+  </app-modal-shell>
+}

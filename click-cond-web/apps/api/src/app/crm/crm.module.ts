@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { CrmController } from './crm.controller';
 import { CrmService } from './crm.service';
+import { CrmCondominiosService } from './crm-condominios.service';
 import { CrmFaturasService } from './crm-faturas.service';
 import { CrmAuthController } from './crm-auth.controller';
 import { CrmAuthService } from './crm-auth.service';
@@ -36,7 +37,14 @@ import { CrmSuperlogicaService } from './crm-superlogica.service';
     SuperlogicaModule,
   ],
   controllers: [CrmController, CrmAuthController, CrmSuperlogicaController],
-  providers: [CrmService, CrmFaturasService, CrmAuthService, CrmAdminGuard, CrmSuperlogicaService],
+  providers: [
+    CrmService,
+    CrmCondominiosService,
+    CrmFaturasService,
+    CrmAuthService,
+    CrmAdminGuard,
+    CrmSuperlogicaService,
+  ],
   exports: [CrmService],
 })
 export class CrmModule {}

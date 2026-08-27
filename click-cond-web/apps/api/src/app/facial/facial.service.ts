@@ -599,15 +599,20 @@ export class FacialService {
    * Resolve o condomínio a partir do token do agente. Aceita o agent_token
    * (dedicado do condomínio, preferido) ou, por compatibilidade, o
    * webhook_token de um dispositivo ativo.
+   *
+   * Condomínio desativado (`ativo = 0`) é recusado nos dois caminhos: a
+   * desativação comercial precisa parar o controle de acesso físico junto,
+   * senão o prédio continua abrindo a porta para todo mundo enquanto o
+   * cliente já foi desligado do sistema.
    */
   async resolveCondominioForAgent(token: string): Promise<number> {
     const cond = await this.prisma.condominios.findFirst({
-      where: { agent_token: token },
+      where: { agent_token: token, ativo: 1 },
       select: { id: true },
     });
     if (cond) return cond.id;
     const device = await this.prisma.facial_Devices.findFirst({
-      where: { webhook_token: token, ativo: 1 },
+      where: { webhook_token: token, ativo: 1, condominio: { ativo: 1 } },
       select: { id_condominio: true },
     });
     if (device) return device.id_condominio;

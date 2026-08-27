@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CrmCliente } from '../crm.service';
 import { CrmStore } from '../crm.store';
+import { ToastService } from '../../shared/toast.service';
 import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
+import { ModalShellComponent } from '../../shared/ui/modal-shell.component';
 import { SkeletonComponent } from '../../shared/ui/skeleton.component';
 import { EstagioFiltro, Ordenacao } from '../crm.models';
 import * as fmt from '../crm-format';
@@ -16,7 +18,7 @@ import * as fmt from '../crm-format';
 @Component({
   selector: 'crm-clientes',
   standalone: true,
-  imports: [CommonModule, FormsModule, EmptyStateComponent, SkeletonComponent],
+  imports: [CommonModule, FormsModule, EmptyStateComponent, SkeletonComponent, ModalShellComponent],
   templateUrl: './crm-clientes.component.html',
 })
 export class CrmClientesComponent implements OnInit {
@@ -152,5 +154,123 @@ export class CrmClientesComponent implements OnInit {
 
   abrirCliente(c: CrmCliente): void {
     this.store.abrirCliente(c);
+  }
+
+  // ════════════ Novo condomínio ════════════
+
+  private readonly toast = inject(ToastService);
+
+  readonly modalNovoAberto = signal(false);
+  /** Senha do síndico devolvida pela API — exibida uma única vez. */
+  readonly senhaGerada = signal<{ nome: string; email: string; senha: string } | null>(null);
+
+  novo = {
+    nome: '',
+    identificacao: '',
+    plano: 'Profissional',
+    valorMensal: 0,
+    diaVencimento: 10,
+    comSindico: false,
+    sindicoNome: '',
+    sindicoEmail: '',
+    sindicoTelefone: '',
+    sindicoDocumento: '',
+    comApartamentos: false,
+    blocos: 'A',
+    andares: 4,
+    porAndar: 4,
+  };
+
+  blocosLista(): string[] {
+    return this.novo.blocos
+      .split(',')
+      .map((b) => b.trim())
+      .filter(Boolean);
+  }
+
+  totalAptosPrevisto(): number {
+    if (!this.novo.comApartamentos) return 0;
+    return this.blocosLista().length * Number(this.novo.andares || 0) * Number(this.novo.porAndar || 0);
+  }
+
+  abrirNovo(): void {
+    this.novo = {
+      nome: '', identificacao: '', plano: 'Profissional', valorMensal: 0, diaVencimento: 10,
+      comSindico: false, sindicoNome: '', sindicoEmail: '', sindicoTelefone: '', sindicoDocumento: '',
+      comApartamentos: false, blocos: 'A', andares: 4, porAndar: 4,
+    };
+    this.senhaGerada.set(null);
+    this.modalNovoAberto.set(true);
+  }
+
+  fecharNovo(): void {
+    this.modalNovoAberto.set(false);
+  }
+
+  podeSalvarNovo(): boolean {
+    if (!this.novo.nome.trim()) return false;
+    if (this.novo.comSindico && (!this.novo.sindicoNome.trim() || !this.novo.sindicoEmail.trim())) return false;
+    if (this.novo.comApartamentos && this.totalAptosPrevisto() < 1) return false;
+    return true;
+  }
+
+  salvarNovo(): void {
+    if (!this.podeSalvarNovo()) {
+      this.toast.trigger('Preencha o nome do condomínio e os campos marcados.', 'error');
+      return;
+    }
+    if (this.totalAptosPrevisto() > 2000) {
+      this.toast.trigger('A combinação geraria mais de 2000 apartamentos. Reduza blocos, andares ou unidades.', 'error');
+      return;
+    }
+
+    this.store
+      .criarCondominio({
+        nome: this.novo.nome.trim(),
+        identificacao: this.novo.identificacao.trim() || null,
+        plano: this.novo.plano,
+        valorMensal: Number(this.novo.valorMensal) || 0,
+        diaVencimento: Number(this.novo.diaVencimento) || 10,
+        sindico: this.novo.comSindico
+          ? {
+              nome: this.novo.sindicoNome.trim(),
+              email: this.novo.sindicoEmail.trim(),
+              telefone: this.novo.sindicoTelefone.trim() || null,
+              documento: this.novo.sindicoDocumento.trim() || null,
+            }
+          : null,
+        apartamentos: this.novo.comApartamentos
+          ? {
+              blocos: this.blocosLista(),
+              andares: Number(this.novo.andares),
+              porAndar: Number(this.novo.porAndar),
+            }
+          : null,
+      })
+      .subscribe({
+        next: (r) => {
+          // A senha só volta nesta resposta. Se o modal fechar sem mostrá-la,
+          // não há como recuperá-la depois — só redefinir.
+          if (r.senhaSindico) {
+            this.senhaGerada.set({
+              nome: this.novo.sindicoNome.trim(),
+              email: this.novo.sindicoEmail.trim(),
+              senha: r.senhaSindico,
+            });
+          } else {
+            this.fecharNovo();
+          }
+        },
+        error: () => { /* toast já disparado pelo store */ },
+      });
+  }
+
+  copiarSenha(): void {
+    const dados = this.senhaGerada();
+    if (!dados) return;
+    navigator.clipboard
+      ?.writeText(`Acesso Click Prestare\nLogin: ${dados.email}\nSenha: ${dados.senha}`)
+      .then(() => this.toast.trigger('Credenciais copiadas.', 'success'))
+      .catch(() => this.toast.trigger('Não foi possível copiar.', 'error'));
   }
 }

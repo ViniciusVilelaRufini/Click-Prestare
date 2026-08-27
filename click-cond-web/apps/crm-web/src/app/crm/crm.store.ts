@@ -1,6 +1,15 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { forkJoin } from 'rxjs';
-import { CrmApi, CrmCliente, CrmFatura, CrmHealth, CrmOverview, EstagioCrm } from './crm.service';
+import { Observable, forkJoin, shareReplay } from 'rxjs';
+import {
+  CriarCondominioResposta,
+  CrmApi,
+  CrmCliente,
+  CrmFatura,
+  CrmHealth,
+  CrmOverview,
+  EstagioCrm,
+  NovoCondominioDto,
+} from './crm.service';
 import { ToastService } from '../shared/toast.service';
 import {
   BaixaManualMetadata,
@@ -172,6 +181,92 @@ export class CrmStore {
       error: () => {
         this.erro.set('Não foi possível carregar os dados do CRM. Tente novamente.');
         this.loading.set(false);
+      },
+    });
+  }
+
+  // ════════════ Ciclo de vida do condomínio ════════════
+
+  /** Cria o condomínio e recarrega a carteira. Devolve a resposta da API. */
+  criarCondominio(dto: NovoCondominioDto): Observable<CriarCondominioResposta> {
+    this.salvando.set(true);
+    const req = this.api.criarCondominio(dto).pipe(shareReplay(1));
+    req.subscribe({
+      next: (r) => {
+        this.salvando.set(false);
+        this.carregar();
+        this.toast.trigger(
+          `Condomínio "${r.nome}" criado${r.apartamentosCriados ? ` com ${r.apartamentosCriados} apartamento(s)` : ''}.`,
+          'success',
+        );
+      },
+      error: (err) => {
+        this.salvando.set(false);
+        this.toast.trigger(err?.error?.message ?? 'Não foi possível criar o condomínio.', 'error');
+      },
+    });
+    return req;
+  }
+
+  desativarCondominio(id: number, nome: string, motivo: string): void {
+    this.salvando.set(true);
+    this.api.desativarCondominio(id, motivo).subscribe({
+      next: ({ data }) => {
+        this.salvando.set(false);
+        this.carregar();
+        this.fecharCliente();
+        this.toast.trigger(
+          `"${nome}" desativado. ${data.moradores} morador(es) e ${data.terminais} terminal(is) perderam acesso.`,
+          'success',
+        );
+      },
+      error: (err) => {
+        this.salvando.set(false);
+        this.toast.trigger(err?.error?.message ?? 'Não foi possível desativar o condomínio.', 'error');
+      },
+    });
+  }
+
+  reativarCondominio(id: number, nome: string): void {
+    this.salvando.set(true);
+    this.api.reativarCondominio(id).subscribe({
+      next: () => {
+        this.salvando.set(false);
+        this.carregar();
+        this.toast.trigger(`"${nome}" reativado. O acesso volta no próximo login.`, 'success');
+      },
+      error: (err) => {
+        this.salvando.set(false);
+        this.toast.trigger(err?.error?.message ?? 'Não foi possível reativar o condomínio.', 'error');
+      },
+    });
+  }
+
+  purgarCondominio(id: number, confirmacao: string): void {
+    this.salvando.set(true);
+    this.api.purgarCondominio(id, confirmacao).subscribe({
+      next: (r) => {
+        this.salvando.set(false);
+        this.carregar();
+        this.fecharCliente();
+
+        // Terminal que não respondeu continua com rostos gravados: isso precisa
+        // chegar ao operador como aviso, não passar como sucesso silencioso.
+        if (r.terminaisComFalha?.length) {
+          this.toast.trigger(
+            `"${r.nome}" excluído, mas ${r.terminaisComFalha.length} terminal(is) não responderam e seguem com biometria gravada: ${r.terminaisComFalha.join(', ')}.`,
+            'error',
+          );
+        } else {
+          this.toast.trigger(
+            `"${r.nome}" excluído. ${r.contasRemovidas} conta(s) removida(s), ${r.contasPreservadas} preservada(s) por terem vínculo em outro condomínio.`,
+            'success',
+          );
+        }
+      },
+      error: (err) => {
+        this.salvando.set(false);
+        this.toast.trigger(err?.error?.message ?? 'Não foi possível excluir o condomínio.', 'error');
       },
     });
   }

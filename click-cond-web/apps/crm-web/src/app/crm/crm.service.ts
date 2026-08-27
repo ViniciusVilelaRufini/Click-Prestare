@@ -97,6 +97,47 @@ export interface CrmHealth {
   dbLatencyMs: number;
 }
 
+/** Payload de criação de condomínio — espelha CriarCondominioDto da API. */
+export interface NovoCondominioDto {
+  nome: string;
+  identificacao?: string | null;
+  plano?: string | null;
+  valorMensal?: number | null;
+  diaVencimento?: number | null;
+  sindico?: {
+    nome: string;
+    email: string;
+    telefone?: string | null;
+    documento?: string | null;
+  } | null;
+  apartamentos?: { blocos: string[]; andares: number; porAndar: number } | null;
+}
+
+export interface CriarCondominioResposta {
+  id: number;
+  nome: string;
+  apartamentosCriados: number;
+  sindicoCriado: boolean;
+  /** Devolvida uma única vez pela API, para entregar ao síndico. */
+  senhaSindico: string | null;
+}
+
+export interface ResumoDesativacao {
+  moradores: number;
+  funcionarios: number;
+  terminais: number;
+  apartamentos: number;
+}
+
+export interface ResultadoPurga extends ResumoDesativacao {
+  success: boolean;
+  nome: string;
+  contasRemovidas: number;
+  contasPreservadas: number;
+  terminaisLimpos: number;
+  terminaisComFalha: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class CrmApi {
   private http = inject(HttpClient);
@@ -124,6 +165,35 @@ export class CrmApi {
 
   exportarUrl(id: number): string {
     return `${this.base}/clientes/${id}/exportar`;
+  }
+
+  // ── Ciclo de vida do condomínio ──
+  // A exclusão é em duas fases no servidor: desativar corta o acesso (app,
+  // portaria e facial) e é reversível; purgar apaga em cascata e exige o
+  // condomínio já desativado mais o nome digitado por extenso.
+
+  criarCondominio(dto: NovoCondominioDto): Observable<CriarCondominioResposta> {
+    return this.http.post<CriarCondominioResposta>(`${this.base}/clientes`, dto);
+  }
+
+  desativarCondominio(id: number, motivo: string): Observable<{ success: boolean; data: ResumoDesativacao }> {
+    return this.http.post<{ success: boolean; data: ResumoDesativacao }>(
+      `${this.base}/clientes/${id}/desativar`,
+      { motivo },
+    );
+  }
+
+  reativarCondominio(id: number): Observable<{ success: boolean; nome: string }> {
+    return this.http.post<{ success: boolean; nome: string }>(
+      `${this.base}/clientes/${id}/reativar`,
+      {},
+    );
+  }
+
+  purgarCondominio(id: number, confirmacao: string): Observable<ResultadoPurga> {
+    return this.http.delete<ResultadoPurga>(`${this.base}/clientes/${id}`, {
+      body: { confirmacao },
+    });
   }
 
   // Rotas do próprio CRM (CrmAdminGuard). As antigas /condominios/:id/*
