@@ -28,6 +28,15 @@ describe('SuperlogicaSyncService — normalização de unidade', () => {
     expect(SuperlogicaSyncService.normalizarUnidade('')).toBe('');
     expect(SuperlogicaSyncService.normalizarUnidade('0000')).toBe('0');
   });
+
+  it('cobre o formato real do condomínio de teste (bloco alfabético)', () => {
+    // Lido da licença em 27/08/2026, condomínio "Teste Prestare Api" (id 43):
+    // bloco "a" minúsculo e unidades "01".."05". Diferente da CASA PIENZA, que
+    // usa bloco numérico "01" — as duas formas precisam sobreviver.
+    expect(SuperlogicaSyncService.normalizarUnidade('a')).toBe('a');
+    expect(SuperlogicaSyncService.normalizarUnidade('01')).toBe('1');
+    expect(SuperlogicaSyncService.normalizarUnidade('05')).toBe('5');
+  });
 });
 
 describe('SuperlogicaSyncService — importação de unidades', () => {
@@ -122,6 +131,25 @@ describe('SuperlogicaSyncService — importação de unidades', () => {
     const { service } = montar([], [], null);
 
     await expect(service.importarUnidades(7)).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('importa o condomínio de teste real como 5 apartamentos do bloco "a"', async () => {
+    // Payload real do "Teste Prestare Api" (id 43), lido em 27/08/2026.
+    const reais = [
+      unidade('1901', 'a', '01'),
+      unidade('1902', 'a', '02'),
+      unidade('1903', 'a', '03'),
+      unidade('1904', 'a', '04'),
+      unidade('1905', 'a', '05'),
+    ];
+    const { service, create } = montar(reais);
+
+    const r = await service.importarUnidades(7);
+
+    expect(r.apartamentosCriados).toBe(5);
+    expect(r.duplicadasIgnoradas).toEqual([]);
+    expect(create.mock.calls.map((c: any[]) => c[0].data.apto)).toEqual(['1', '2', '3', '4', '5']);
+    expect(create.mock.calls.every((c: any[]) => c[0].data.bloco === 'a')).toBe(true);
   });
 });
 
