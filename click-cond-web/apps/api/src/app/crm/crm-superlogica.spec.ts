@@ -162,6 +162,7 @@ describe('CrmSuperlogicaService — vínculo', () => {
 describe('CrmSuperlogicaService — importação de moradores', () => {
   function montarImport(contatos: any[]) {
     const criarMorador = jest.fn(async () => ({ id: 1 }));
+    const updateMorador = jest.fn(async () => ({}));
     const sync = {
       importarUnidades: jest.fn(async () => ({
         unidadesNoErp: 1,
@@ -173,15 +174,16 @@ describe('CrmSuperlogicaService — importação de moradores', () => {
     };
 
     const service = new CrmSuperlogicaService(
-      {} as any,
+      { moradores: { update: updateMorador } } as any,
       {} as any,
       {} as any,
       { registrar: jest.fn() } as any,
       sync as any,
       { create: criarMorador } as any,
+      {} as any,
     );
 
-    return { service, criarMorador };
+    return { service, criarMorador, updateMorador };
   }
 
   it('não cria morador quando a opção está desligada', async () => {
@@ -210,6 +212,22 @@ describe('CrmSuperlogicaService — importação de moradores', () => {
     expect(dto.sendCredentials).toBe(false);
     // Nem devolver ao ERP quem veio de lá — criaria contato duplicado.
     expect(dto.skipSuperlogica).toBe(true);
+  });
+
+  it('marca o morador importado com o id do contato de origem', async () => {
+    // Sem isso, "Reenviar moradores" o trataria como pendente e o devolveria ao
+    // ERP. Como os contatos de lá costumam vir sem CPF nem e-mail, a checagem
+    // de duplicidade não o reconheceria e criaria um contato repetido.
+    const { service, updateMorador } = montarImport([
+      { st_nome_con: 'Fulano', id_contato_con: '4589' },
+    ]);
+
+    await service.importarUnidades(7, 'Erika', true);
+
+    expect(updateMorador).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { id_superlogica_con: 4589 },
+    });
   });
 
   it('conta duplicata em vez de estourar ao reimportar', async () => {

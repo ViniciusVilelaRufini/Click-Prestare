@@ -346,7 +346,7 @@ export class CrmSuperlogicaService {
         }
 
         try {
-          await this.moradores.create({
+          const criado = await this.moradores.create({
             nome,
             email: (contato.st_email_con ?? '').trim() || undefined,
             telefone: (contato.st_telefone_con ?? '').trim() || undefined,
@@ -363,6 +363,19 @@ export class CrmSuperlogicaService {
             // mandaria de volta e criaria contato duplicado na unidade.
             skipSuperlogica: true,
           });
+
+          // Grava de onde ele veio. Sem isso, "Reenviar moradores" o trataria
+          // como pendente e o mandaria de volta ao ERP — e como os contatos de
+          // lá costumam vir sem CPF nem e-mail, a checagem de duplicidade não
+          // o reconheceria, criando um contato repetido na unidade.
+          const idContato = Number(contato.id_contato_con);
+          if (criado?.id && Number.isFinite(idContato)) {
+            await this.prisma.moradores.update({
+              where: { id: criado.id },
+              data: { id_superlogica_con: idContato },
+            });
+          }
+
           criados++;
         } catch (err: any) {
           // O create recusa duplicata por e-mail, documento ou nome+apartamento.
