@@ -75,14 +75,6 @@ export class CrmOverviewComponent {
     }));
   });
 
-  /** Coluna em destaque: a sob o cursor ou, sem hover, o mês corrente. */
-  readonly barraDestaque = computed(() => {
-    const barras = this.barras();
-    if (!barras.length) return null;
-    const idx = this.mesFocado() ?? barras.length - 1;
-    return { ...barras[idx], indice: idx };
-  });
-
   /** Marcas do eixo Y (topo → base), rotuladas em escala curta. */
   readonly escalaY = computed(() => {
     const max = Math.max(...this.barras().map((b) => b.valor), 1);
@@ -115,16 +107,6 @@ export class CrmOverviewComponent {
 
     return { segmentos, total };
   });
-
-  /**
-   * Posição horizontal do tooltip da coluna, presa entre 8% e 92%.
-   * Sem isso ele vaza do card nas colunas das pontas, já que é centrado
-   * com translate(-50%) sobre a própria posição.
-   */
-  posicaoTooltip(indice: number): number {
-    const centro = ((indice + 0.5) / Math.max(this.barras().length, 1)) * 100;
-    return Math.min(Math.max(centro, 8), 92);
-  }
 
   /** Formato compacto para eixos e legendas (R$ 8,2 mil / R$ 1,4 mi). */
   curta(v: number): string {
