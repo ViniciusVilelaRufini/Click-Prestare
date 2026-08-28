@@ -7,6 +7,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -48,9 +49,23 @@ class _ChatMessage {
 class _ChatIaPageState extends State<ChatIaPage> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final FocusNode _campoFoco = FocusNode();
 
   final List<_ChatMessage> _mensagens = [];
   bool _isSending = false;
+
+  /// Conversa aberta. `null` = conversa nova, ainda sem nada gravado: o id
+  /// chega na primeira resposta do backend.
+  String? _conversaId;
+
+  List<ConversaIa> _conversas = [];
+  bool _carregandoConversas = false;
+  String? _erroConversas;
+
+  final SpeechToText _speech = SpeechToText();
+  bool _speechPronto = false;
+  bool _ouvindo = false;
 
   // Sugestões iniciais adaptadas ao papel do usuário.
   List<String> get _sugestoes {
@@ -73,7 +88,150 @@ class _ChatIaPageState extends State<ChatIaPage> {
   void dispose() {
     _msgController.dispose();
     _scrollController.dispose();
+    _campoFoco.dispose();
+    _speech.stop();
     super.dispose();
+  }
+
+  // ==========================================================================
+  // Conversas
+  // ==========================================================================
+
+  Future<void> _carregarConversas() async {
+    setState(() {
+      _carregandoConversas = true;
+      _erroConversas = null;
+    });
+    try {
+      final lista = await apiListarConversasIa();
+      if (!mounted) return;
+      setState(() {
+        _conversas = lista;
+        _carregandoConversas = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _erroConversas = e.toString();
+        _carregandoConversas = false;
+      });
+    }
+  }
+
+  void _novaConversa() {
+    setState(() {
+      _mensagens.clear();
+      _conversaId = null;
+      _isSending = false;
+    });
+  }
+
+  Future<void> _abrirConversa(ConversaIa conversa) async {
+    setState(() {
+      _mensagens.clear();
+      _conversaId = conversa.id;
+      _isSending = true;
+    });
+    try {
+      final msgs = await apiAbrirConversaIa(conversa.id);
+      if (!mounted) return;
+      setState(() {
+        _mensagens.addAll(msgs.map((m) => _ChatMessage(m.texto, m.isUser)));
+        _isSending = false;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  Future<void> _apagarConversa(ConversaIa conversa) async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Apagar conversa'),
+        content: Text('"${conversa.titulo}" será apagada. Não dá para desfazer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Apagar', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmou != true) return;
+
+    // Otimista na lista; se o servidor recusar, a conversa volta.
+    final antes = List<ConversaIa>.from(_conversas);
+    setState(() => _conversas.removeWhere((c) => c.id == conversa.id));
+    try {
+      await apiApagarConversaIa(conversa.id);
+      if (_conversaId == conversa.id && mounted) _novaConversa();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _conversas = antes);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  // ==========================================================================
+  // Voz
+  // ==========================================================================
+
+  /// Liga/desliga o ditado. O texto reconhecido cai no campo e o envio segue
+  /// manual: numa IA que executa ações, transcrição errada não pode virar
+  /// pedido enviado sozinho.
+  Future<void> _alternarVoz() async {
+    if (_ouvindo) {
+      await _speech.stop();
+      if (mounted) setState(() => _ouvindo = false);
+      return;
+    }
+
+    if (!_speechPronto) {
+      _speechPronto = await _speech.initialize(
+        onStatus: (s) {
+          // 'done'/'notListening' chegam também por silêncio ou timeout.
+          if (!mounted) return;
+          if (s == 'done' || s == 'notListening') setState(() => _ouvindo = false);
+        },
+        onError: (_) {
+          if (mounted) setState(() => _ouvindo = false);
+        },
+      );
+    }
+    if (!_speechPronto) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Não consegui usar o microfone. Verifique a permissão nas configurações.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _ouvindo = true);
+    await _speech.listen(
+      localeId: 'pt_BR',
+      listenOptions: SpeechListenOptions(partialResults: true),
+      onResult: (r) {
+        _msgController.text = r.recognizedWords;
+        _msgController.selection = TextSelection.fromPosition(
+          TextPosition(offset: _msgController.text.length),
+        );
+      },
+    );
   }
 
   void _scrollToBottom() {
@@ -92,6 +250,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
     final texto = (textoSugerido ?? _msgController.text).trim();
     if (texto.isEmpty || _isSending) return;
 
+    // Fecha o teclado ao enviar. No iOS não há botão de voltar do sistema:
+    // sem isto ele fica aberto sobre a resposta, sem gesto para dispensar.
+    _campoFoco.unfocus();
+    if (_ouvindo) {
+      _speech.stop();
+      _ouvindo = false;
+    }
+
     setState(() {
       _mensagens.add(_ChatMessage(texto, true));
       _isSending = true;
@@ -99,12 +265,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
     });
     _scrollToBottom();
 
-    final resposta = await apiPerguntarChatIa(texto);
+    final resposta = await apiPerguntarChatIa(texto, conversaId: _conversaId);
 
     if (!mounted) return;
     setState(() {
       _mensagens.add(_ChatMessage(resposta.texto, false, acao: resposta.acao));
       _isSending = false;
+      // Conversa nova: o backend gerou o id e as próximas perguntas seguem nela.
+      _conversaId ??= resposta.conversaId;
     });
     _scrollToBottom();
   }
@@ -197,18 +365,44 @@ class _ChatIaPageState extends State<ChatIaPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.bg(context),
+      // A lista só é buscada ao abrir a gaveta: não faz sentido pagar uma
+      // requisição por mensagem enviada.
+      onDrawerChanged: (aberta) {
+        if (aberta) _carregarConversas();
+      },
+      drawer: _buildDrawerConversas(context),
       // Mesmo padrão do AppScaffold do app: caretLeft na cor de texto
       // primária, com o título ao lado.
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading: Navigator.canPop(context)
-            ? IconButton(
+        leadingWidth: 96,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (Navigator.canPop(context))
+              IconButton(
                 icon: Icon(PhosphorIcons.caretLeft,
                     color: AppColors.textPrimary(context)),
                 onPressed: () => Navigator.pop(context),
-              )
-            : null,
+              ),
+            IconButton(
+              tooltip: 'Conversas',
+              icon: Icon(PhosphorIcons.chatCircleDots,
+                  color: AppColors.textPrimary(context)),
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Nova conversa',
+            icon: Icon(PhosphorIcons.notePencil,
+                color: AppColors.textPrimary(context)),
+            onPressed: _novaConversa,
+          ),
+        ],
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -229,6 +423,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   ? _buildEmptyState(context)
                   : ListView.builder(
                       controller: _scrollController,
+                      // Arrastar a conversa fecha o teclado — no iPhone era o
+                      // único gesto que faltava para dispensá-lo.
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       // Folga no rodapé: sem ela a última mensagem fica
                       // permanentemente escondida atrás do campo flutuante.
                       padding: const EdgeInsets.fromLTRB(
@@ -258,8 +456,148 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
+  /// Lateral de conversas passadas.
+  Widget _buildDrawerConversas(BuildContext context) {
+    return Drawer(
+      backgroundColor: AppColors.bg(context),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
+              child: Row(
+                children: [
+                  Icon(PhosphorIcons.chatCircleDots,
+                      color: AppColors.primary, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text('Conversas',
+                        style: AppTypography.headline(context)),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _novaConversa();
+                },
+                icon: const Icon(PhosphorIcons.notePencil, size: 18),
+                label: const Text('Nova conversa'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  minimumSize: const Size.fromHeight(44),
+                  side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Expanded(child: _buildListaConversas(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListaConversas(BuildContext context) {
+    if (_carregandoConversas) {
+      return Center(
+        child: SizedBox(
+          height: 22,
+          width: 22,
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+        ),
+      );
+    }
+    if (_erroConversas != null) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(PhosphorIcons.cloudSlash,
+                color: AppColors.textTertiary(context), size: 36),
+            const SizedBox(height: AppSpacing.sm),
+            Text(_erroConversas!,
+                textAlign: TextAlign.center,
+                style: AppTypography.caption(context)),
+            const SizedBox(height: AppSpacing.md),
+            TextButton(
+              onPressed: _carregarConversas,
+              child: const Text('Tentar de novo'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_conversas.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Center(
+          child: Text(
+            'Nenhuma conversa ainda. O que você perguntar fica salvo aqui.',
+            textAlign: TextAlign.center,
+            style: AppTypography.caption(context),
+          ),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      itemCount: _conversas.length,
+      itemBuilder: (_, i) {
+        final c = _conversas[i];
+        final aberta = c.id == _conversaId;
+        return ListTile(
+          selected: aberta,
+          selectedTileColor: AppColors.primary.withOpacity(0.08),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Text(
+            c.titulo,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.bodyMedium(context),
+          ),
+          subtitle: Text(_dataRelativa(c.ultimaEm),
+              style: AppTypography.tiny(context)),
+          trailing: IconButton(
+            tooltip: 'Apagar',
+            icon: Icon(PhosphorIcons.trash,
+                size: 18, color: AppColors.textTertiary(context)),
+            onPressed: () => _apagarConversa(c),
+          ),
+          onTap: () {
+            Navigator.pop(context);
+            if (!aberta) _abrirConversa(c);
+          },
+        );
+      },
+    );
+  }
+
+  String _dataRelativa(DateTime? d) {
+    if (d == null) return '';
+    final local = d.toLocal();
+    final agora = DateTime.now();
+    final dias = DateTime(agora.year, agora.month, agora.day)
+        .difference(DateTime(local.year, local.month, local.day))
+        .inDays;
+    final pad = (int n) => n.toString().padLeft(2, '0');
+    if (dias == 0) return 'Hoje às ${pad(local.hour)}:${pad(local.minute)}';
+    if (dias == 1) return 'Ontem às ${pad(local.hour)}:${pad(local.minute)}';
+    if (dias < 7) return 'Há $dias dias';
+    return '${pad(local.day)}/${pad(local.month)}/${local.year}';
+  }
+
   Widget _buildEmptyState(BuildContext context) {
     return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(AppSpacing.xl),
       children: [
         const SizedBox(height: AppSpacing.xxxl),
@@ -597,7 +935,9 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   Expanded(
                     child: TextField(
                       controller: _msgController,
+                      focusNode: _campoFoco,
                       textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.send,
                       minLines: 1,
                       maxLines: 4,
                       style: AppTypography.body(context),
@@ -618,7 +958,28 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: 4),
+                  // Ditado: enche o campo, não envia. Quem revisa é o usuário.
+                  GestureDetector(
+                    onTap: _isSending ? null : _alternarVoz,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _ouvindo
+                            ? AppColors.error.withOpacity(0.15)
+                            : Colors.transparent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _ouvindo ? PhosphorIcons.microphoneFill : PhosphorIcons.microphone,
+                        color: _ouvindo
+                            ? AppColors.error
+                            : AppColors.textSecondary(context),
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
                   GestureDetector(
                     onTap: _isSending ? null : () => _enviar(),
                     child: Container(

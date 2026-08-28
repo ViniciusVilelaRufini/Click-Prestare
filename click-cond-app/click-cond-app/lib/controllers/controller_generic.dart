@@ -328,17 +328,103 @@ class AcaoPendenteIa {
 class RespostaIa {
   final String texto;
   final AcaoPendenteIa? acao;
-  RespostaIa(this.texto, {this.acao});
+
+  /// Conversa em que este turno foi gravado. Numa conversa nova o backend
+  /// gera o id e devolve aqui — a tela passa a usá-lo nas perguntas seguintes.
+  final String? conversaId;
+  RespostaIa(this.texto, {this.acao, this.conversaId});
+}
+
+/// Uma conversa passada, como aparece na lateral do assistente.
+class ConversaIa {
+  final String id;
+  final String titulo;
+  final DateTime? ultimaEm;
+  final int total;
+
+  ConversaIa(this.id, this.titulo, this.ultimaEm, this.total);
+
+  static ConversaIa? deJson(dynamic j) {
+    if (j is! Map) return null;
+    final id = j['conversa_id']?.toString();
+    if (id == null || id.isEmpty) return null;
+    return ConversaIa(
+      id,
+      (j['titulo'] ?? 'Conversa').toString(),
+      DateTime.tryParse((j['ultima_em'] ?? '').toString()),
+      int.tryParse((j['total'] ?? '0').toString()) ?? 0,
+    );
+  }
+}
+
+/// Mensagem de uma conversa carregada do histórico.
+class MensagemIa {
+  final String texto;
+  final bool isUser;
+  MensagemIa(this.texto, this.isUser);
+}
+
+/// Conversas passadas do usuário neste condomínio (mais recentes primeiro).
+Future<List<ConversaIa>> apiListarConversasIa() async {
+  final url = _buildUri('/chat-ia/conversas', {
+    'id_condominio': Singleton.instance.id_condominio.toString(),
+  });
+  final response = await ApiClient.get(url, headers: _authHeaders())
+      .timeout(const Duration(seconds: 20));
+  if (response.statusCode != 200) {
+    throw 'Não foi possível carregar suas conversas.';
+  }
+  final parsed = jsonDecode(response.body);
+  if (parsed is! List) return [];
+  return parsed
+      .map(ConversaIa.deJson)
+      .whereType<ConversaIa>()
+      .toList();
+}
+
+/// Mensagens de uma conversa. O backend só devolve conversa do próprio usuário.
+Future<List<MensagemIa>> apiAbrirConversaIa(String conversaId) async {
+  final url = _buildUri('/chat-ia/conversas/$conversaId', {
+    'id_condominio': Singleton.instance.id_condominio.toString(),
+  });
+  final response = await ApiClient.get(url, headers: _authHeaders())
+      .timeout(const Duration(seconds: 20));
+  if (response.statusCode != 200) {
+    throw 'Não foi possível abrir essa conversa.';
+  }
+  final parsed = jsonDecode(response.body);
+  if (parsed is! List) return [];
+  return parsed
+      .whereType<Map>()
+      .map((m) => MensagemIa(
+            (m['mensagem'] ?? '').toString(),
+            (m['papel'] ?? '').toString() == 'user',
+          ))
+      .where((m) => m.texto.isNotEmpty)
+      .toList();
+}
+
+Future<void> apiApagarConversaIa(String conversaId) async {
+  final url = _buildUri('/chat-ia/conversas/$conversaId', {
+    'id_condominio': Singleton.instance.id_condominio.toString(),
+  });
+  final response = await ApiClient.delete(url, headers: _authHeaders())
+      .timeout(const Duration(seconds: 20));
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw 'Não foi possível apagar essa conversa.';
+  }
 }
 
 /// Envia uma pergunta ao Assistente IA e devolve a resposta.
 /// O escopo dos dados (síndico vê tudo, morador só o próprio) é aplicado no
 /// backend a partir do JWT; o histórico da conversa também é mantido lá.
-Future<RespostaIa> apiPerguntarChatIa(String pergunta) async {
+Future<RespostaIa> apiPerguntarChatIa(String pergunta, {String? conversaId}) async {
   final url = _buildUri('/chat-ia/perguntar');
   final body = json.encode({
     "id_condominio": Singleton.instance.id_condominio.toString(),
     "pergunta": pergunta,
+    // Sem id, o backend abre uma conversa nova e devolve o dela.
+    if (conversaId != null && conversaId.isNotEmpty) "conversa_id": conversaId,
   });
   try {
     final response = await ApiClient.post(
@@ -351,6 +437,7 @@ Future<RespostaIa> apiPerguntarChatIa(String pergunta) async {
       return RespostaIa(
         (parsed["resposta"] ?? "").toString(),
         acao: AcaoPendenteIa.deJson(parsed["acao"]),
+        conversaId: parsed["conversa_id"]?.toString(),
       );
     }
     try {

@@ -68,6 +68,10 @@
 	  diretriz 5.1.1. O microfone foi removido daqui — nenhuma tela do app grava
 	  áudio, e permissão declarada sem uso levanta pergunta na revisão.
 	-->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>O Prestare usa o microfone para você ditar a pergunta ao assistente PRESTARE IA em vez de digitar. O áudio é convertido em texto no próprio aparelho e não é gravado nem enviado.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>O reconhecimento de fala converte o que você dita em texto no campo de perguntas do assistente PRESTARE IA, no próprio aparelho.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>O Prestare usa a câmera para fotografar moradores, visitantes, prestadores e funcionários no cadastro — essa foto é o que identifica a pessoa no reconhecimento facial da portaria — e para registrar encomendas e comprovantes de despesa.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

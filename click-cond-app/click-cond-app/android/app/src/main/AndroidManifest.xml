@@ -2,6 +2,8 @@
     package="br.com.clickprestare.app"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Ditado por voz no PRESTARE IA. O reconhecimento roda no aparelho. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- BILLING removida junto com o in_app_purchase: sem a biblioteca de
          faturamento, a permissao sozinha faz o Google classificar o app como
          integracao AIDL legada e rejeitar a versao. -->
@@ -54,6 +56,12 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+        <!-- Android 11+ esconde os apps instalados: sem declarar o serviço de
+             reconhecimento de fala, o ditado do PRESTARE IA não acha motor
+             nenhum e o initialize() falha em silêncio. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>

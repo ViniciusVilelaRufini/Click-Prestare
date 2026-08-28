@@ -2,8 +2,10 @@ import {
   BadRequestException,
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertSindico } from '../auth/tenant.util';
@@ -36,6 +38,10 @@ const CHUNK_OVERLAP = 200; // sobreposição p/ não cortar contexto no meio
 const TOP_K = 5; // trechos recuperados por pergunta
 const SCORE_MINIMO = 0.5; // abaixo disso o trecho é ruído
 const HISTORICO_TURNOS = 12;
+/** Teto da lateral de conversas. Sem paginação: a lista é de acesso rápido. */
+const MAX_CONVERSAS = 50;
+/** Cabe na coluna `titulo` (VARCHAR(120)) e ainda lê bem na lateral. */
+const TITULO_MAX = 120;
 
 /**
  * Teto de idas e voltas com ferramentas numa única pergunta. Cada rodada é
@@ -91,7 +97,12 @@ export class ChatIaService {
   // Fluxo principal
   // =========================================================================
 
-  async responder(idCondominio: number, pergunta: string, user: JwtPayload) {
+  async responder(
+    idCondominio: number,
+    pergunta: string,
+    user: JwtPayload,
+    conversaIdPedida?: string,
+  ) {
     if (!idCondominio || Number.isNaN(idCondominio)) {
       throw new BadRequestException('id_condominio é obrigatório.');
     }
@@ -104,11 +115,21 @@ export class ChatIaService {
     const idUser = Number(user?.user?.id ?? user?.sub);
     const papel = this.papelDe(user);
 
+    // Conversa alheia ou inexistente vira conversa NOVA, não erro: assim não
+    // se confirma para o cliente que um id de outra pessoa existe.
+    const { conversaId, nova } = await this.resolverConversa(
+      idCondominio,
+      idUser,
+      conversaIdPedida,
+    );
+
     const [ctxFerramenta, contextoEstruturado, trechosDocs, historico] = await Promise.all([
       this.montarContextoFerramenta(idCondominio, idUser, papel),
       this.montarContextoEstruturado(idCondominio, user),
       this.buscarTrechos(idCondominio, texto),
-      this.getHistoricoRecente(idCondominio, idUser),
+      nova
+        ? Promise.resolve([])
+        : this.getHistoricoRecente(idCondominio, idUser, conversaId),
     ]);
 
     const instrucao = this.montarInstrucaoSistema({
@@ -147,10 +168,17 @@ export class ChatIaService {
     // Grava os dois turnos em ORDEM. Antes eram dois inserts disparados com
     // `void` em paralelo: eles corriam entre si e o id saía trocado, deixando
     // a resposta gravada antes da pergunta e embaralhando a memória da conversa.
-    void this.salvarTurnos(idCondominio, idUser, [
-      { papel: 'user', mensagem: texto },
-      { papel: 'assistant', mensagem: resposta },
-    ]);
+    void this.salvarTurnos(
+      idCondominio,
+      idUser,
+      [
+        { papel: 'user', mensagem: texto },
+        { papel: 'assistant', mensagem: resposta },
+      ],
+      conversaId,
+      // O título é a primeira pergunta da conversa, gravado só uma vez.
+      nova ? texto.slice(0, TITULO_MAX) : undefined,
+    );
 
     // Um card por turno: dois cards de uma vez confundiriam o usuário.
     // Proposta confirmável ganha da informativa — ela é que exige decisão.
@@ -167,7 +195,7 @@ export class ChatIaService {
         }
       : informativo;
 
-    return { resposta, ...(acao && { acao }) };
+    return { resposta, conversa_id: conversaId, ...(acao && { acao }) };
   }
 
   /**
@@ -677,11 +705,47 @@ export class ChatIaService {
   // Histórico
   // =========================================================================
 
-  private async getHistoricoRecente(idCondominio: number, idUser: number) {
+  /**
+   * Decide em qual conversa o turno entra.
+   *
+   * Sem id, ou com id que não pertence a este usuário neste condomínio, abre
+   * uma conversa nova. Devolver 404 no caso alheio confirmaria que aquele id
+   * existe — o escopo aqui é o do JWT, nunca o do corpo da requisição.
+   */
+  private async resolverConversa(
+    idCondominio: number,
+    idUser: number,
+    pedida?: string,
+  ): Promise<{ conversaId: string; nova: boolean }> {
+    const id = (pedida ?? '').toString().trim();
+    if (!id) return { conversaId: randomUUID(), nova: true };
+    try {
+      const existe = await this.prisma.chat_Ia_Historico.findFirst({
+        where: { id_condominio: idCondominio, id_user: idUser, conversa_id: id },
+        select: { id: true },
+      });
+      if (existe) return { conversaId: id, nova: false };
+    } catch (e: any) {
+      this.logger.warn(`não validou a conversa pedida: ${e?.message ?? e}`);
+    }
+    return { conversaId: randomUUID(), nova: true };
+  }
+
+  private async getHistoricoRecente(
+    idCondominio: number,
+    idUser: number,
+    conversaId: string,
+  ) {
     if (!idUser || Number.isNaN(idUser)) return [];
     try {
       const linhas = await this.prisma.chat_Ia_Historico.findMany({
-        where: { id_condominio: idCondominio, id_user: idUser },
+        // Filtrar pela conversa é o que impede uma pergunta nova de herdar o
+        // contexto do assunto anterior do mesmo usuário.
+        where: {
+          id_condominio: idCondominio,
+          id_user: idUser,
+          conversa_id: conversaId,
+        },
         select: { papel: true, mensagem: true },
         orderBy: { id: 'desc' },
         take: HISTORICO_TURNOS,
@@ -691,6 +755,87 @@ export class ChatIaService {
       this.logger.warn(`histórico indisponível: ${e?.message ?? e}`);
       return [];
     }
+  }
+
+  // =========================================================================
+  // Conversas (lateral do app)
+  // =========================================================================
+
+  /** Conversas do usuário neste condomínio, da mais recente para a mais antiga. */
+  async listarConversas(idCondominio: number, user: JwtPayload) {
+    if (!idCondominio || Number.isNaN(idCondominio)) {
+      throw new BadRequestException('id_condominio é obrigatório.');
+    }
+    await this.tenant.assertCondominio(idCondominio, user);
+    if (!this.prisma.isConnected) return [];
+
+    const idUser = Number(user?.user?.id ?? user?.sub);
+    if (!idUser || Number.isNaN(idUser)) return [];
+
+    const grupos = await this.prisma.chat_Ia_Historico.groupBy({
+      by: ['conversa_id'],
+      where: {
+        id_condominio: idCondominio,
+        id_user: idUser,
+        conversa_id: { not: null },
+      },
+      _max: { created_at: true, titulo: true },
+      _count: { _all: true },
+      orderBy: { _max: { created_at: 'desc' } },
+      take: MAX_CONVERSAS,
+    });
+
+    return grupos.map((g) => ({
+      conversa_id: g.conversa_id,
+      // O título mora só na primeira linha; MAX ignora os nulos das demais.
+      titulo: g._max.titulo ?? 'Conversa',
+      ultima_em: g._max.created_at,
+      total: g._count._all,
+    }));
+  }
+
+  /** Mensagens de uma conversa, em ordem. */
+  async obterConversa(idCondominio: number, conversaId: string, user: JwtPayload) {
+    const { idUser, id } = await this.escoparConversa(idCondominio, conversaId, user);
+
+    const linhas = await this.prisma.chat_Ia_Historico.findMany({
+      where: { id_condominio: idCondominio, id_user: idUser, conversa_id: id },
+      select: { papel: true, mensagem: true, created_at: true },
+      orderBy: { id: 'asc' },
+    });
+    if (linhas.length === 0) throw new NotFoundException('Conversa não encontrada.');
+    return linhas;
+  }
+
+  async apagarConversa(idCondominio: number, conversaId: string, user: JwtPayload) {
+    const { idUser, id } = await this.escoparConversa(idCondominio, conversaId, user);
+
+    // O where carrega condomínio e usuário do JWT: mesmo com um id válido de
+    // outra pessoa, o delete não alcança linha nenhuma.
+    const { count } = await this.prisma.chat_Ia_Historico.deleteMany({
+      where: { id_condominio: idCondominio, id_user: idUser, conversa_id: id },
+    });
+    if (count === 0) throw new NotFoundException('Conversa não encontrada.');
+    return { ok: true, removidas: count };
+  }
+
+  private async escoparConversa(
+    idCondominio: number,
+    conversaId: string,
+    user: JwtPayload,
+  ) {
+    if (!idCondominio || Number.isNaN(idCondominio)) {
+      throw new BadRequestException('id_condominio é obrigatório.');
+    }
+    const id = (conversaId ?? '').toString().trim();
+    if (!id) throw new BadRequestException('conversa_id é obrigatório.');
+    await this.tenant.assertCondominio(idCondominio, user);
+
+    const idUser = Number(user?.user?.id ?? user?.sub);
+    if (!idUser || Number.isNaN(idUser)) {
+      throw new NotFoundException('Conversa não encontrada.');
+    }
+    return { idUser, id };
   }
 
   /**
@@ -705,17 +850,22 @@ export class ChatIaService {
     idCondominio: number,
     idUser: number,
     turnos: { papel: 'user' | 'assistant'; mensagem: string }[],
+    conversaId: string,
+    titulo?: string,
   ) {
     if (!idUser || Number.isNaN(idUser)) return;
     const validos = turnos.filter((t) => t.mensagem);
     if (validos.length === 0) return;
     try {
       await this.prisma.chat_Ia_Historico.createMany({
-        data: validos.map((t) => ({
+        data: validos.map((t, i) => ({
           id_condominio: idCondominio,
           id_user: idUser,
           papel: t.papel,
           mensagem: t.mensagem,
+          conversa_id: conversaId,
+          // Só a primeira linha da conversa carrega o título.
+          titulo: i === 0 ? titulo ?? null : null,
         })),
       });
     } catch (e: any) {

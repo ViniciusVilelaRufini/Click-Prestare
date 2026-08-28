@@ -1,4 +1,13 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -20,14 +29,55 @@ export class ChatIaController {
   @Post('perguntar')
   @HttpCode(200)
   perguntar(
-    @Body() body: { id_condominio?: string | number; pergunta?: string },
+    @Body()
+    body: {
+      id_condominio?: string | number;
+      pergunta?: string;
+      conversa_id?: string;
+    },
     @ReqUser() payload: JwtPayload,
   ) {
     return this.service.responder(
       Number(body?.id_condominio),
       body?.pergunta ?? '',
       payload,
+      body?.conversa_id,
     );
+  }
+
+  /**
+   * Conversas passadas do usuário (lateral do app).
+   *
+   * O dono sai do JWT: o cliente escolhe QUAL conversa, nunca de quem. Um
+   * conversa_id de outra pessoa não é encontrado dentro deste escopo.
+   */
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('conversas')
+  listarConversas(
+    @Query('id_condominio') idCondominio: string,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.listarConversas(Number(idCondominio), payload);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('conversas/:id')
+  obterConversa(
+    @Param('id') id: string,
+    @Query('id_condominio') idCondominio: string,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.obterConversa(Number(idCondominio), id, payload);
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Delete('conversas/:id')
+  apagarConversa(
+    @Param('id') id: string,
+    @Query('id_condominio') idCondominio: string,
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.apagarConversa(Number(idCondominio), id, payload);
   }
 
   /**

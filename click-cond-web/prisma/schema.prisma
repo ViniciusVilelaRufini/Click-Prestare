@@ -1273,6 +1273,12 @@ model Chat_Ia_Historico {
   papel         String   @db.VarChar(12) // 'user' | 'assistant'
   mensagem      String   @db.Text
   created_at    DateTime @default(now()) @db.Timestamp(0)
+  // Agrupa as linhas em conversas separadas (uuid gerado pelo backend).
+  // Null só em linhas anteriores à migração de 28/08/2026.
+  conversa_id   String?  @db.Char(36)
+  // Gravado apenas na primeira linha da conversa; a listagem usa MAX(titulo).
+  titulo        String?  @db.VarChar(120)
 
   @@index([id_condominio, id_user], map: "idx_chatia_cond_user")
+  @@index([id_condominio, id_user, conversa_id], map: "idx_chatia_conversa")
 }

@@ -39,6 +39,9 @@ dependencies:
   easy_localization: ^3.0.8
   google_fonts: ^8.1.0
   phosphor_flutter: ^1.4.0
+  # Ditado no campo do assistente. O reconhecimento roda no aparelho: nenhum
+  # áudio sai do dispositivo, o texto é revisado antes de virar pergunta.
+  speech_to_text: ^7.4.0
 
   flutter_localizations:
     sdk: flutter
