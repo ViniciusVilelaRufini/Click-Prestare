@@ -974,10 +974,11 @@ export class MobileAuthService {
       });
       const aptoIds = aptoUsers.map(a => a.id_apto);
 
+      // Conta visitantes E prestadores: o card "Visitas Hoje" abre a lista
+      // conjunta do app, então o número precisa bater com o que ela mostra.
       const visitsCount = await this.prisma.visitantes.count({
         where: {
           id_apartamento: { in: aptoIds },
-          is_prestador: { not: 1 },
           OR: [
             {
               data_entrada: { not: null },

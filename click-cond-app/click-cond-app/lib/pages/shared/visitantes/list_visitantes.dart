@@ -41,6 +41,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
   bool _isLoading = false;
   bool _isFabExpanded = true;
   int _pendentesCount = 0;
+  // Esta tela mostra visitantes e prestadores no mesmo lugar; o chip escolhe o recorte.
+  String _tipoFiltro = 'todos'; // todos | visitantes | prestadores
 
   @override
   void initState() {
@@ -132,9 +134,18 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     }
   }
 
+  /// Permissão de agir sobre o registro: prestador exige a permissão de
+  /// prestadores, visitante a de visitantes. Como a lista virou conjunta,
+  /// não dá para checar só 'cadastrar_visitante'.
+  bool _canManage(dynamic item) {
+    if (getUserType() != 'funcionario') return true;
+    final isPrestador = item['is_prestador'] == 1;
+    return getUserPermission(isPrestador ? 'prestadores_servico' : 'cadastrar_visitante') == 1;
+  }
+
   void _showVisitanteDetails(BuildContext context, dynamic item) {
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
-    final canAdd = (getUserType() != 'funcionario') || getUserPermission('cadastrar_visitante') == 1;
+    final canAdd = _canManage(item);
     
     bool isExpired = false;
     final endStr = item['data_hora_termino'];
@@ -788,8 +799,17 @@ class ListVisitantesPageState extends State<ListVisitantes> {
   Widget build(BuildContext context) {
     final canAdd = (getUserType() != 'funcionario') || getUserPermission('cadastrar_visitante') == 1;
 
-    // Filtrar apenas visitantes (onde is_prestador não é 1)
-    final visitorsOnlyList = list.where((e) => e['is_prestador'] != 1).toList();
+    // Lista conjunta: visitantes + prestadores. O chip escolhe o recorte e é
+    // aplicado antes das abas, para os contadores refletirem o filtro.
+    final prestadoresCount = list.where((e) => e['is_prestador'] == 1).length;
+    final visitantesCount = list.length - prestadoresCount;
+    final visitorsOnlyList = _tipoFiltro == 'todos'
+        ? list.toList()
+        : list
+            .where((e) => _tipoFiltro == 'prestadores'
+                ? e['is_prestador'] == 1
+                : e['is_prestador'] != 1)
+            .toList();
 
     // Filtrar quem está no condomínio atualmente OU possui liberação ativa/agendada para hoje
     final now = DateTime.now();
@@ -863,7 +883,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     return DefaultTabController(
       length: 2,
       child: AppScaffold(
-        title: getText('visitantes_list'),
+        title: 'Visitantes e Prestadores',
         showBackButton: !widget.hideAppBar,
         safeAreaBottom: !widget.hideAppBar,
         actions: [
@@ -950,7 +970,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                       if (_isFabExpanded) ...[
                                         const SizedBox(width: 8),
                                         const Text(
-                                          'Cadastrar novo visitante',
+                                          'Cadastrar visitante ou prestador',
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontWeight: FontWeight.bold,
@@ -1010,6 +1030,36 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _TipoChip(
+                      label: 'Todos (${list.length})',
+                      selected: _tipoFiltro == 'todos',
+                      onTap: () => setState(() => _tipoFiltro = 'todos'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _TipoChip(
+                      label: 'Visitantes ($visitantesCount)',
+                      selected: _tipoFiltro == 'visitantes',
+                      onTap: () => setState(() => _tipoFiltro = 'visitantes'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _TipoChip(
+                      label: 'Prestadores ($prestadoresCount)',
+                      selected: _tipoFiltro == 'prestadores',
+                      onTap: () => setState(() => _tipoFiltro = 'prestadores'),
+                    ),
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -1085,7 +1135,13 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                         RefreshIndicator(
                           onRefresh: loadList,
                           child: listInside.isEmpty
-                              ? _EmptyState('Nenhum visitante no local no momento.', PhosphorIcons.houseLine)
+                              ? _EmptyState(
+                                  _tipoFiltro == 'prestadores'
+                                      ? 'Nenhum prestador no local no momento.'
+                                      : _tipoFiltro == 'visitantes'
+                                          ? 'Nenhum visitante no local no momento.'
+                                          : 'Ninguém no local no momento.',
+                                  PhosphorIcons.houseLine)
                               : ListView.separated(
                                   padding: const EdgeInsets.only(
                                     left: AppSpacing.lg,
@@ -1105,7 +1161,13 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                         RefreshIndicator(
                           onRefresh: loadList,
                           child: listCadastrados.isEmpty
-                              ? _EmptyState('Nenhum visitante cadastrado.', PhosphorIcons.identificationCard)
+                              ? _EmptyState(
+                                  _tipoFiltro == 'prestadores'
+                                      ? 'Nenhum prestador cadastrado.'
+                                      : _tipoFiltro == 'visitantes'
+                                          ? 'Nenhum visitante cadastrado.'
+                                          : 'Nenhum visitante ou prestador cadastrado.',
+                                  PhosphorIcons.identificationCard)
                               : ListView.separated(
                                   padding: const EdgeInsets.only(
                                     left: AppSpacing.lg,
@@ -1118,7 +1180,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                   itemBuilder: (_, i) => _VisitanteCard(
                                     item: listCadastrados[i],
                                     onTap: () => _showVisitanteDetails(context, listCadastrados[i]),
-                                    onQuickRelease: canAdd
+                                    onQuickRelease: _canManage(listCadastrados[i])
                                         ? () => Navigator.push(
                                               context,
                                               MaterialPageRoute(
@@ -1235,6 +1297,12 @@ class _VisitanteCard extends StatelessWidget {
                               '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto']}',
                               style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
                             ),
+                          if (item['is_prestador'] == 1)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
+                              child: Text('PRESTADOR', style: AppTypography.tiny(context).copyWith(color: AppColors.warning, fontWeight: FontWeight.bold)),
+                            ),
                           if (isInside)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
@@ -1310,6 +1378,46 @@ class _VisitanteCard extends StatelessWidget {
               Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TipoChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TipoChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          height: 34,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary.withOpacity(0.12) : AppColors.surface(context),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected ? AppColors.primary.withOpacity(0.5) : Colors.transparent,
+            ),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: AppTypography.tiny(context).copyWith(
+                color: selected ? AppColors.primary : AppColors.textSecondary(context),
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
         ),
       ),
     );
