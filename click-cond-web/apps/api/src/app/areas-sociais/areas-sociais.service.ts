@@ -9,6 +9,15 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
 
+/**
+ * Fuso dos condomínios. O servidor (Railway) roda em UTC, os moradores vivem
+ * em UTC−3: usar o relógio do servidor faz o "hoje" da agenda virar às 21h
+ * (00h UTC) e descarta como vencido bloco que ainda está 3h no futuro para o
+ * morador. Todo cálculo de "agora"/"hoje" da agenda passa por aqui.
+ * Mesma armadilha documentada em financeiro.service.ts (job de lembretes).
+ */
+const TIMEZONE_CONDOMINIO = 'America/Sao_Paulo';
+
 @Injectable()
 export class AreasSociaisService {
   private readonly logger = new Logger(AreasSociaisService.name);
@@ -30,9 +39,36 @@ export class AreasSociaisService {
     return [0, 0];
   }
 
+  /**
+   * "Agora" no fuso do condomínio, devolvido como Date cujos acessores locais
+   * (getFullYear/getHours/...) já falam o relógio de São Paulo. É essa a forma
+   * que o resto do cálculo espera, porque os blocos são montados com
+   * `new Date(ano, mês, dia, hora, minuto)` — comparar relógio com relógio.
+   */
+  private agoraNoFusoDoCondominio(): Date {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: TIMEZONE_CONDOMINIO,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    });
+    const p: Record<string, string> = {};
+    for (const parte of fmt.formatToParts(new Date())) p[parte.type] = parte.value;
+    // hourCycle h23 pode devolver "24" para meia-noite em alguns ICU.
+    const hora = p.hour === '24' ? 0 : Number(p.hour);
+    return new Date(Number(p.year), Number(p.month) - 1, Number(p.day), hora, Number(p.minute), Number(p.second), 0);
+  }
+
   // Junta uma data (ano/mês/dia) com um horário (hora/minuto), ignorando o
   // "dia" de `time` — no banco hora_inicio/hora_termino são gravados como
   // 1970-01-01 + HH:mm, só o relógio importa.
+  //
+  // ATENÇÃO: `date`/`time` vêm de colunas DATE/TIME e são lidos com acessores
+  // locais, então isto só devolve o relógio certo enquanto o processo estiver
+  // em UTC (Railway está; TZ=America/Sao_Paulo no servidor QUEBRARIA isto).
+  // A comparação passou a ser contra o "agora" de São Paulo — relógio de
+  // parede contra relógio de parede —, então a janela lida aqui precisa ser a
+  // do condomínio, não deslocada pelo fuso do processo.
   private combineDateTime(date: Date, time: Date | null | undefined): Date {
     const [h, m] = time ? [time.getHours(), time.getMinutes()] : [0, 0];
     return new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, m, 0, 0);
@@ -117,6 +153,14 @@ export class AreasSociaisService {
       ? areaSocial.horarios
       : JSON.stringify(areaSocial.horarios ?? []);
 
+    // O app publicado não manda `regras` no payload de edição. Se a chave não
+    // veio, a coluna nem entra no update — senão o morador/síndico editando
+    // capacidade pelo app apagava silenciosamente o texto cadastrado na web.
+    // Chave presente e vazia continua significando "apagar as regras".
+    const regrasPatch = areaSocial.regras === undefined
+      ? {}
+      : { regras: typeof areaSocial.regras === 'string' && areaSocial.regras.trim() !== '' ? areaSocial.regras : null };
+
     await this.prisma.areas_Sociais.updateMany({
       where: {
         id: Number(areaSocial.id),
@@ -130,7 +174,7 @@ export class AreasSociaisService {
         precisa_pagamento: Number(areaSocial.pagar ?? areaSocial.precisa_pagamento ?? 0),
         horarios: horariosStr,
         capacidade: Number(areaSocial.capacidade ?? 0),
-        regras: typeof areaSocial.regras === 'string' && areaSocial.regras.trim() !== '' ? areaSocial.regras : null,
+        ...regrasPatch,
       },
     });
 
@@ -270,10 +314,16 @@ export class AreasSociaisService {
       horariosObj = [];
     }
 
-    // Buscar agendamentos futuros (data > ontem)
-    const ontem = new Date();
+    // Relógio do condomínio, não o do servidor (ver TIMEZONE_CONDOMINIO).
+    const agora = this.agoraNoFusoDoCondominio();
+    const hojeBase = new Date(agora);
+    hojeBase.setHours(0, 0, 0, 0);
+
+    // Buscar agendamentos futuros (data > ontem) — ontem também sai do "hoje"
+    // do condomínio, senão às 21h BRT (já 00h UTC) as reservas do dia atual do
+    // morador ficavam de fora e o horário aparecia como livre.
+    const ontem = new Date(hojeBase);
     ontem.setDate(ontem.getDate() - 1);
-    const agora = new Date();
 
     const agendamentosDb = await this.prisma.areas_Sociais_Agendamentos.findMany({
       where: {
@@ -319,21 +369,25 @@ export class AreasSociaisService {
       orderBy: [{ data_inicio: 'asc' }],
     });
     const manutencoesAtivas = manutencoesDb
+      // Linha sem data de início ou término não delimita janela nenhuma: cair
+      // no epoch criava 1970 → término, que intersecta TUDO e deixava a área
+      // sem nenhum horário disponível.
+      .filter(m => m.data_inicio != null && m.data_termino != null)
       .map(m => ({
         raw: m,
-        inicio: this.combineDateTime(m.data_inicio ?? new Date(0), m.hora_inicio),
-        fim: this.combineDateTime(m.data_termino ?? new Date(0), m.hora_termino),
+        inicio: this.combineDateTime(m.data_inicio as Date, m.hora_inicio),
+        fim: this.combineDateTime(m.data_termino as Date, m.hora_termino),
       }))
       .filter(m => m.fim > agora);
 
     // Calcular horários livres para 60 dias, incluindo hoje
     const horariosLivres: Record<string, any[]> = {};
-    const hojeBase = new Date();
-    hojeBase.setHours(0, 0, 0, 0);
 
     for (let i = 0; i < 60; i++) {
       const currDate = new Date(hojeBase);
       currDate.setDate(currDate.getDate() + i);
+      // currDate já carrega o dia do condomínio (veio de hojeBase), então a
+      // chave dd/MM/yyyy e as comparações abaixo falam do mesmo dia.
       const dataFormatada = currDate.toLocaleDateString('pt-BR', {
         day: '2-digit', month: '2-digit', year: 'numeric',
       });
@@ -512,10 +566,14 @@ export class AreasSociaisService {
     const manutencoesDb = await this.prisma.areas_Sociais_Manutencoes.findMany({
       where: { id_area_social: Number(agendamento.id_area_social) },
     });
-    const janelasManutencao = manutencoesDb.map(m => ({
-      inicio: this.combineDateTime(m.data_inicio ?? new Date(0), m.hora_inicio),
-      fim: this.combineDateTime(m.data_termino ?? new Date(0), m.hora_termino),
-    }));
+    // Mesma regra do get: manutenção sem data de início/término não bloqueia
+    // nada (com o epoch, uma linha meia-boca recusava toda reserva da área).
+    const janelasManutencao = manutencoesDb
+      .filter(m => m.data_inicio != null && m.data_termino != null)
+      .map(m => ({
+        inicio: this.combineDateTime(m.data_inicio as Date, m.hora_inicio),
+        fim: this.combineDateTime(m.data_termino as Date, m.hora_termino),
+      }));
     const inicioBlocoSolicitado = this.combineDateTime(dataObj, horaDeObj);
     const fimBlocoSolicitado = this.combineDateTime(dataObj, horaAteObj);
     if (this.colideComJanela(inicioBlocoSolicitado, fimBlocoSolicitado, janelasManutencao)) {

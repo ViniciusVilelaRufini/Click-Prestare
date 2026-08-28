@@ -71,6 +71,15 @@ describe('AreasSociaisService — regras da área', () => {
     expect(dataArg.regras).toBeNull();
   });
 
+  it('update SEM a chave regras não toca na coluna (app publicado não manda o campo)', async () => {
+    const { svc, prisma } = build();
+    await svc.update(2, { id: 30, nome: 'Salão', capacidade: 40 }, sindico);
+    const dataArg = prisma.areas_Sociais.updateMany.mock.calls[0][0].data;
+    expect('regras' in dataArg).toBe(false);
+    // O resto do payload continua sendo gravado normalmente.
+    expect(dataArg.capacidade).toBe(40);
+  });
+
   it('get devolve as regras cadastradas na área', async () => {
     const { svc } = build({
       area: {
