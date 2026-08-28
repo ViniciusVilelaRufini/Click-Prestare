@@ -127,6 +127,7 @@ class Localizable_EnUs {
           LocalizableModel(key: 'lb_bloco', text: 'Block'),
       
           LocalizableModel(key: 'lb_li_concordo', text: 'I have read and agree with the rules'),
+          LocalizableModel(key: 'lb_regras_area', text: 'Area rules'),
           LocalizableModel(key: 'lb_complementos', text: 'Additions'),
       
           LocalizableModel(key: 'lb_logout', text: 'Exit'),

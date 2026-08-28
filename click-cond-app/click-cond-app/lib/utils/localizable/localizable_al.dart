@@ -127,6 +127,7 @@ class Localizable_Al {
     LocalizableModel(key: 'lb_bloco', text: 'Block'),
 
     LocalizableModel(key: 'lb_li_concordo', text: 'Ich habe die Regeln gelesen und bin damit einverstanden'),
+    LocalizableModel(key: 'lb_regras_area', text: 'Bereichsregeln'),
     LocalizableModel(key: 'lb_complementos', text: 'Add-ons'),
 
     LocalizableModel(key: 'lb_logout', text: 'Ausgehen'),

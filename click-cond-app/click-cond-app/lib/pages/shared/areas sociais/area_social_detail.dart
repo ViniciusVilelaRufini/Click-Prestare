@@ -397,6 +397,30 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                                   ],
                                 ),
                                 _buildWeatherWidget(),
+                                if ((obj['regras'] ?? '').toString().trim().isNotEmpty) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  Text(
+                                    getText('lb_regras_area').toUpperCase(),
+                                    style: AppTypography.captionMedium(context).copyWith(
+                                      color: AppColors.primary,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(AppSpacing.md),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surface(context),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: AppColors.border(context)),
+                                    ),
+                                    child: Text(
+                                      obj['regras'].toString(),
+                                      style: AppTypography.body(context),
+                                    ),
+                                  ),
+                                ],
                                 if (obj['precisa_agendar'] == 1) ...[
                                   const SizedBox(height: AppSpacing.lg),
                                   if (obj['tem_monitoramento'] == true)

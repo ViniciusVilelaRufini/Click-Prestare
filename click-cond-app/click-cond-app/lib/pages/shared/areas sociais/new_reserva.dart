@@ -35,6 +35,10 @@ class _NewReservaPageState extends State<NewReserva> {
   DateTime? selectedDay;
   dynamic selectedHour = ' - ';
 
+  // Sem regras cadastradas não há o que aceitar — o checkbox some e o save
+  // não pode ficar bloqueado esperando um aceite que não faz sentido pedir.
+  bool get hasRegras => widget.obj['regras'] != null && widget.obj['regras'].toString().trim().isNotEmpty;
+
   @override
   void dispose() {
     txtData.dispose(); txtBloco.dispose(); txtApto.dispose();
@@ -80,7 +84,7 @@ class _NewReservaPageState extends State<NewReserva> {
       displayMessage(context, getText('alert'), 'Apartamento inválido.');
       return;
     }
-    if (!acceptTerms) {
+    if (hasRegras && !acceptTerms) {
       displayMessage(context, getText('alert'), getText('area_social_erro_normas'));
       return;
     }
@@ -317,19 +321,38 @@ class _NewReservaPageState extends State<NewReserva> {
                     ),
                 ],
               ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Checkbox(
-                  value: acceptTerms,
-                  onChanged: isEdit ? null : (v) => setState(() => acceptTerms = v ?? false),
-                  activeColor: AppColors.primary,
+            if (hasRegras) ...[
+              const SizedBox(height: AppSpacing.md),
+              _section(getText('lb_regras_area')),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border(context)),
                 ),
-                Expanded(
-                  child: Text(getText('lb_li_concordo'), style: AppTypography.body(context)),
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: SingleChildScrollView(
+                  child: Text(
+                    widget.obj['regras'].toString(),
+                    style: AppTypography.body(context),
+                  ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Checkbox(
+                    value: acceptTerms,
+                    onChanged: isEdit ? null : (v) => setState(() => acceptTerms = v ?? false),
+                    activeColor: AppColors.primary,
+                  ),
+                  Expanded(
+                    child: Text(getText('lb_li_concordo'), style: AppTypography.body(context)),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: AppSpacing.xl),
             if (!isEdit)
               AppButton(

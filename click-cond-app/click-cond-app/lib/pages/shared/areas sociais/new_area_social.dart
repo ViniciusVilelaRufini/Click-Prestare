@@ -32,6 +32,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
   var _isSaving = false;
   final txtNome = TextEditingController();
   final txtCapacidade = TextEditingController();
+  final txtRegras = TextEditingController();
   var autorizacao = '0';
   var pagamento = '0';
   var agendamento = '0';
@@ -51,6 +52,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
   void dispose() {
     txtNome.dispose();
     txtCapacidade.dispose();
+    txtRegras.dispose();
     super.dispose();
   }
 
@@ -81,6 +83,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
       pagamento = widget.obj['precisa_pagamento']?.toString() ?? '0';
       agendamento = widget.obj['precisa_agendar']?.toString() ?? '0';
       imageFile = widget.obj['imagem'];
+      txtRegras.text = widget.obj['regras']?.toString() ?? '';
     }
     if (mounted) setState(() => _isLoading = false);
   }
@@ -105,6 +108,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
         autorizacao: autorizacao,
         imagem: base64,
         horarios: daysOfWeek,
+        regras: txtRegras.text,
       );
       var res = await apiSaveObject('areas-sociais', 'areaSocial', obj, widget.isEdit);
       if (res.toString().isEmpty) {
@@ -224,6 +228,14 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     controller: txtCapacidade,
                     prefixIcon: PhosphorIcons.usersThree,
                     keyboard: TextInputType.number,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppInput(
+                    label: getText('lb_regras_area'),
+                    controller: txtRegras,
+                    prefixIcon: PhosphorIcons.notepad,
+                    maxLines: 6,
+                    textCapitalization: TextCapitalization.sentences,
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('area_social_obrigatoriedades')),
@@ -385,13 +397,15 @@ class AreaSocialModel {
   String? autorizacao;
   String? pagar;
   List<DiasDaSemanaAreaSocialModel>? horarios;
+  String? regras;
 
   AreaSocialModel({this.id, this.nome, this.capacidade, this.imagem,
-      this.agendar, this.autorizacao, this.pagar, this.horarios});
+      this.agendar, this.autorizacao, this.pagar, this.horarios, this.regras});
 
   Map toJson() => {
         'id': id, 'nome': nome, 'capacidade': capacidade, 'imagem': imagem,
         'agendar': agendar, 'autorizacao': autorizacao, 'pagar': pagar, 'horarios': horarios,
+        'regras': regras,
       };
 }
 

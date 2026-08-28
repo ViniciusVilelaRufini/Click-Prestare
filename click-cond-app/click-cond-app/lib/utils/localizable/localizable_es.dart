@@ -127,6 +127,7 @@ class Localizable_Es {
           LocalizableModel(key: 'lb_bloco', text: 'Bloquear'),
       
           LocalizableModel(key: 'lb_li_concordo', text: 'He leído y acepto las reglas.'),
+          LocalizableModel(key: 'lb_regras_area', text: 'Reglas del área'),
           LocalizableModel(key: 'lb_complementos', text: 'Complementos'),
       
           LocalizableModel(key: 'lb_logout', text: 'para salir'),

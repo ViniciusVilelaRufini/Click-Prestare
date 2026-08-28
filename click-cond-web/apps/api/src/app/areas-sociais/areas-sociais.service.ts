@@ -95,6 +95,9 @@ export class AreasSociaisService {
         horarios: horariosStr,
         capacidade: Number(areaSocial.capacidade ?? 0),
         id_condominio: Number(idCondominio),
+        // Regra é texto livre do síndico; sem regra cadastrada o app não
+        // exige aceite nenhum (não faz sentido aceitar "o nada").
+        regras: typeof areaSocial.regras === 'string' && areaSocial.regras.trim() !== '' ? areaSocial.regras : null,
       },
     });
 
@@ -127,6 +130,7 @@ export class AreasSociaisService {
         precisa_pagamento: Number(areaSocial.pagar ?? areaSocial.precisa_pagamento ?? 0),
         horarios: horariosStr,
         capacidade: Number(areaSocial.capacidade ?? 0),
+        regras: typeof areaSocial.regras === 'string' && areaSocial.regras.trim() !== '' ? areaSocial.regras : null,
       },
     });
 
@@ -163,6 +167,7 @@ export class AreasSociaisService {
         precisa_agendar: true,
         precisa_autorizacao: true,
         precisa_pagamento: true,
+        regras: true,
         _count: { select: { devices: true } },
       },
     });
@@ -247,6 +252,7 @@ export class AreasSociaisService {
           '15/05/2026': [{ horarioDe: '10:00', horarioAte: '14:00' }],
         },
         manutencoes: [],
+        regras: null,
       };
     }
 
@@ -415,6 +421,7 @@ export class AreasSociaisService {
       agendamentos,
       horarios_livres: horariosLivres,
       manutencoes,
+      regras: area.regras ?? null,
     };
   }
 

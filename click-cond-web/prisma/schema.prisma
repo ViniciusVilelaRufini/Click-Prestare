@@ -458,6 +458,9 @@ model Areas_Sociais {
   // Só habilite em áreas com terminal DEDICADO — nunca na entrada principal.
   controle_acesso_facial Int                       @default(0) @db.TinyInt
   horarios            String?                      @db.Text
+  // Normas de uso da área, mostradas ao morador ANTES do aceite na reserva.
+  // Sem isto, a tela pedia aceite de regras que não existiam em lugar nenhum.
+  regras              String?                      @db.Text
   capacidade          Int?
   id_condominio       Int
   created_at          DateTime                     @default(now()) @db.DateTime(0)

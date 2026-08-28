@@ -127,6 +127,7 @@ class Localizable_PtBr {
     LocalizableModel(key: 'lb_bloco', text: 'Bloco'),
 
     LocalizableModel(key: 'lb_li_concordo', text: 'Li e concordo com as normas'),
+    LocalizableModel(key: 'lb_regras_area', text: 'Regras da área'),
     LocalizableModel(key: 'lb_complementos', text: 'Complementos'),
 
     LocalizableModel(key: 'lb_logout', text: 'Sair'),

@@ -15,6 +15,7 @@ export interface AreaSocial {
   horarios?: any[];
   tem_monitoramento?: boolean;
   ocupacao?: number;
+  regras?: string | null;
 }
 
 export interface AgendamentoArea {

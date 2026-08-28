@@ -24,7 +24,7 @@ export class AreasSociaisPageComponent implements OnInit {
 
   // Controle do Modal
   readonly modalAberto = signal(false);
-  novaArea: any = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true };
+  novaArea: any = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true, regras: '' };
   readonly areaEditando = signal<AreaSocial | null>(null);
 
   // Upload da foto do espaço
@@ -131,7 +131,7 @@ export class AreasSociaisPageComponent implements OnInit {
 
   abrirModalArea() {
     this.areaEditando.set(null);
-    this.novaArea = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true };
+    this.novaArea = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true, regras: '' };
     this.fotoPreview.set(null);
     this.fotoNome.set(null);
     this.fotoErro.set(null);
@@ -148,7 +148,8 @@ export class AreasSociaisPageComponent implements OnInit {
       capacidade: area.capacidade || null,
       imagem: area.imagem || '',
       agendar: area.precisa_agendar === 1,
-      autorizacao: area.precisa_autorizacao === 1
+      autorizacao: area.precisa_autorizacao === 1,
+      regras: area.regras || ''
     };
     this.fotoPreview.set(area.imagem || null);
     this.fotoNome.set(area.imagem ? 'Imagem Atual' : null);
@@ -218,6 +219,7 @@ export class AreasSociaisPageComponent implements OnInit {
       imagem: this.novaArea.imagem || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600',
       agendar: this.novaArea.agendar ? 1 : 0,
       autorizacao: this.novaArea.autorizacao ? 1 : 0,
+      regras: this.novaArea.regras || '',
       horarios: this.areaEditando()?.horarios || Array.from({ length: 7 }).map(() => ({
         horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }]
       }))
