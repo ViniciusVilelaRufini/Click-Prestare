@@ -993,19 +993,27 @@ class ListVisitantesPageState extends State<ListVisitantes> {
             : null,
         body: NotificationListener<ScrollNotification>(
           onNotification: (ScrollNotification notification) {
-            if (notification.metrics.axis == Axis.vertical) {
-              if (notification is ScrollUpdateNotification) {
-                final double delta = notification.scrollDelta ?? 0;
-                if (delta > 3.0 && _isFabExpanded) {
-                  setState(() {
-                    _isFabExpanded = false;
-                  });
-                } else if (delta < -3.0 && !_isFabExpanded) {
-                  setState(() {
-                    _isFabExpanded = true;
-                  });
-                }
-              }
+            if (notification.metrics.axis != Axis.vertical) return false;
+            if (notification is! ScrollUpdateNotification) return false;
+
+            final m = notification.metrics;
+            // Mesmo motivo da ilha da home: no iOS o repique do bounce gera
+            // delta positivo ao voltar ao topo e encolhia o botão sozinho.
+            if (m.outOfRange) return false;
+            if (m.pixels <= m.minScrollExtent + 4) {
+              if (!_isFabExpanded) setState(() => _isFabExpanded = true);
+              return false;
+            }
+
+            final double delta = notification.scrollDelta ?? 0;
+            if (delta > 3.0 && _isFabExpanded) {
+              setState(() {
+                _isFabExpanded = false;
+              });
+            } else if (delta < -3.0 && !_isFabExpanded) {
+              setState(() {
+                _isFabExpanded = true;
+              });
             }
             return false;
           },

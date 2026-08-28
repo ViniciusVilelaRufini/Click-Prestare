@@ -37,6 +37,7 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
@@ -86,6 +87,18 @@ class _MyCondominiumState extends State<MyCondominium> {
     super.initState();
     Singleton.instance.id_condominio = widget.id;
     _menu = _buildMenu();
+    // Já esteve aberto nesta sessão: pinta com o cache e revalida em segundo
+    // plano, em vez de voltar ao esqueleto a cada retorno para a tela.
+    final cached = CondCache.get(widget.id);
+    if (cached != null) {
+      _cond = cached.cond;
+      _summary = cached.summary;
+      _saldo = cached.saldo;
+      _ocorrenciasAbertas = cached.ocorrenciasAbertas;
+      _temp = cached.temp;
+      _weatherDesc = cached.weatherDesc;
+      _weatherIcon = cached.weatherIcon;
+    }
     _loadCond();
   }
 
@@ -202,6 +215,19 @@ class _MyCondominiumState extends State<MyCondominium> {
           _ocorrenciasAbertas = ocorrList is List ? ocorrList.length : 0;
           _summary = results[1] as Map<String, dynamic>?;
         });
+
+        CondCache.put(
+          widget.id,
+          CondCacheEntry(
+            cond: cond,
+            summary: _summary,
+            saldo: _saldo,
+            ocorrenciasAbertas: _ocorrenciasAbertas,
+            temp: _temp,
+            weatherDesc: _weatherDesc,
+            weatherIcon: _weatherIcon,
+          ),
+        );
 
         // Trigger weather fetch
         final String city = cond['cidade'] ?? '';
@@ -328,6 +354,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                 _weatherDesc = desc;
                 _weatherIcon = icon;
               });
+              CondCache.putWeather(widget.id, temp, desc, icon);
             }
           }
         }
@@ -432,8 +459,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                 child: Row(
                   children: [
                     Expanded(child: Text('Gerenciar', style: AppTypography.title(context))),
-                    if (!_isLoading)
-                      Text('${_menu.length} módulos', style: AppTypography.tiny(context)),
+                    Text('${_menu.length} módulos', style: AppTypography.tiny(context)),
                   ],
                 ),
               ),
@@ -441,25 +467,21 @@ class _MyCondominiumState extends State<MyCondominium> {
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, 88),
-              sliver: _isLoading
-                  ? SliverList.separated(
-                      itemCount: 6,
-                      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                      itemBuilder: (_, __) => AppSkeleton.listTile(context),
-                    )
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (_, i) {
-                          if (i.isOdd) return const SizedBox(height: AppSpacing.sm);
-                          final idx = i ~/ 2;
-                          return _MenuRow(
-                            item: _menu[idx],
-                            onTap: () => _navigate(_menu[idx].page),
-                          );
-                        },
-                        childCount: _menu.length * 2 - 1,
-                      ),
-                    ),
+              // O menu é montado localmente (_buildMenu), não depende de rede:
+              // nunca fica em esqueleto esperando o carregamento do condomínio.
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (_, i) {
+                    if (i.isOdd) return const SizedBox(height: AppSpacing.sm);
+                    final idx = i ~/ 2;
+                    return _MenuRow(
+                      item: _menu[idx],
+                      onTap: () => _navigate(_menu[idx].page),
+                    );
+                  },
+                  childCount: _menu.length * 2 - 1,
+                ),
+              ),
             ),
           ],
         ),
@@ -473,7 +495,7 @@ class _MyCondominiumState extends State<MyCondominium> {
         ? MoradorFinanceiroView(key: _moradorFinanceiroKey, hideAppBar: true, showFab: false)
         : ListFinanceiro(key: _financeiroKey, hideAppBar: true, showFab: false);
 
-    // O Click IA saiu daqui: virou página empurrada pelo botão central, para
+    // O PRESTARE IA saiu daqui: virou página empurrada pelo botão central, para
     // não ficar com a ilha sobreposta ao campo de digitar.
     final tabs = [
       _buildHomeTab(context),
@@ -486,19 +508,33 @@ class _MyCondominiumState extends State<MyCondominium> {
       backgroundColor: AppColors.bg(context),
       body: NotificationListener<ScrollNotification>(
         onNotification: (ScrollNotification notification) {
-          if (notification.metrics.axis == Axis.vertical) {
-            if (notification is ScrollUpdateNotification) {
-              final double delta = notification.scrollDelta ?? 0;
-              if (delta > 3.0 && _isNavBarVisible) {
-                setState(() {
-                  _isNavBarVisible = false;
-                });
-              } else if (delta < -3.0 && !_isNavBarVisible) {
-                setState(() {
-                  _isNavBarVisible = true;
-                });
-              }
-            }
+          if (notification.metrics.axis != Axis.vertical) return false;
+          if (notification is! ScrollUpdateNotification) return false;
+
+          final m = notification.metrics;
+          // No iOS a física é BouncingScrollPhysics: ao chegar no topo a lista
+          // passa do limite e a mola traz de volta, gerando deltas POSITIVOS
+          // idênticos aos de quem está descendo a tela — era isso que
+          // minimizava a ilha justamente ao voltar ao topo. No Android
+          // (Clamping) o scroll para em 0 e o efeito não aparece.
+          if (m.outOfRange) return false;
+
+          // Regra explícita, igual nas duas plataformas: no topo a ilha fica
+          // aberta, sem depender do delta.
+          if (m.pixels <= m.minScrollExtent + 4) {
+            if (!_isNavBarVisible) setState(() => _isNavBarVisible = true);
+            return false;
+          }
+
+          final double delta = notification.scrollDelta ?? 0;
+          if (delta > 3.0 && _isNavBarVisible) {
+            setState(() {
+              _isNavBarVisible = false;
+            });
+          } else if (delta < -3.0 && !_isNavBarVisible) {
+            setState(() {
+              _isNavBarVisible = true;
+            });
           }
           return false;
         },
@@ -651,7 +687,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                     });
                   },
                 )),
-      // Botão circular central: abre o Click IA.
+      // Botão circular central: abre o PRESTARE IA.
       _buildAiNavButton(context),
       showFinanceActions
           ? _buildAnimatedNavItem(
@@ -747,7 +783,7 @@ class _MyCondominiumState extends State<MyCondominium> {
     ];
   }
 
-  /// Botão circular central da ilha — abre o Click IA como PÁGINA.
+  /// Botão circular central da ilha — abre o PRESTARE IA como PÁGINA.
   ///
   /// Antes era a aba de índice 4 do IndexedStack, o que deixava a ilha por
   /// cima do chat e sem caminho de volta. Como página empurrada, ela ganha a
@@ -761,7 +797,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             context,
             MaterialPageRoute(builder: (_) => const ChatIaPage()),
           ).then((_) {
-            // O Click IA cria visitante, reserva e ocorrência. As abas vivem
+            // O PRESTARE IA cria visitante, reserva e ocorrência. As abas vivem
             // num IndexedStack e só carregam no initState, então sem este
             // refresh o que ele acabou de criar não aparece — o registro está
             // no banco, mas a lista na tela é a de antes.

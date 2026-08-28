@@ -14,7 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'resposta_formatada.dart';
 import 'telas_app.dart';
 
-/// Click IA — assistente do condomínio.
+/// PRESTARE IA — assistente do condomínio.
 ///
 /// Consulta em linguagem natural (atas, funcionários, visitantes, cobranças) e
 /// executa ações com confirmação. O escopo dos dados é aplicado no backend pelo
@@ -214,7 +214,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
           children: [
             Icon(PhosphorIcons.sparkle, color: AppColors.primary, size: 22),
             const SizedBox(width: AppSpacing.sm),
-            Text('Click IA', style: AppTypography.headline(context)),
+            Text('PRESTARE IA', style: AppTypography.headline(context)),
           ],
         ),
       ),
@@ -276,7 +276,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Olá! Sou o Click IA.',
+          'Olá! Sou o PRESTARE IA.',
           textAlign: TextAlign.center,
           style: AppTypography.headline(context),
         ),
@@ -603,7 +603,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       style: AppTypography.body(context),
                       onSubmitted: (_) => _enviar(),
                       decoration: InputDecoration(
-                        hintText: 'Pergunte algo ao Click IA...',
+                        hintText: 'Pergunte algo ao PRESTARE IA...',
                         hintStyle: AppTypography.body(context)
                             .copyWith(color: AppColors.textTertiary(context)),
                         // Sem preenchimento nem borda: o fundo é o próprio

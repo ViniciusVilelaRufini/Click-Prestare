@@ -1,4 +1,5 @@
 import 'package:click/services/firebase_service.dart';
+import 'package:click/utils/cond_cache.dart';
 import 'package:localstorage/localstorage.dart';
 
 // Instância única — inicializada via ensureReady() no main antes de usar
@@ -50,6 +51,9 @@ storageFuncionario(Map<String, dynamic> parsed) {
 
 Future<void> storageLogout() async {
   _inMemoryPhoto = '';
+  // Cache de exibição do condomínio vive no processo, não no storage: sem isto
+  // o próximo login veria o saldo/resumo do usuário anterior antes do refresh.
+  CondCache.clear();
   try {
     await FirebaseService.instance.desregistrarNoServidor();
   } catch (_) {}
