@@ -56,7 +56,7 @@ class _NewManutencaoAreaSocialPageState extends State<NewManutencaoAreaSocial> {
     if (mounted) setState(() {});
   }
 
-  Future<void> save() async {
+  Future<void> save({bool confirmarCancelamentos = false}) async {
     try {
       setState(() => _isSaving = true);
       var obj = AreaSocialManutencaoModel(
@@ -67,13 +67,37 @@ class _NewManutencaoAreaSocialPageState extends State<NewManutencaoAreaSocial> {
         data_termino: convertStringToDate(txtDataTermino.text),
         hora_termino: convertStringToTime(txtHoraTermino.text),
         descricao: txtDescricao.text,
+        confirmar_cancelamentos: confirmarCancelamentos ? true : null,
       );
-      var res = await apiSaveObject("areas-sociais/manutencao", "manutencao", obj, widget.isEdit);
-      if (res.toString().isEmpty) {
+      var res = await apiSaveManutencaoAreaSocial(obj, widget.isEdit);
+      if (res['success'] == true) {
         if (mounted) Navigator.of(context).pop(true);
-      } else {
-        if (mounted) displayMessage(context, getText('alert_error'), res.toString());
+        return;
       }
+
+      // 409: já existem reservas dentro da janela. Mostra quantas e quais
+      // vão ser canceladas e só reenvia com a flag se o síndico confirmar —
+      // marcar manutenção não pode apagar a reserva de alguém em silêncio.
+      final conflitos = res['conflitos'];
+      if (conflitos is List && conflitos.isNotEmpty) {
+        final linhas = conflitos.map((c) {
+          final bloco = c['bloco'] ?? '';
+          final apto = c['apto'] ?? '';
+          final unidade = (bloco.toString().isNotEmpty || apto.toString().isNotEmpty)
+              ? '$bloco/$apto'
+              : '';
+          return '• ${c['data']} ${c['hora_de']}-${c['hora_ate']}${unidade.isNotEmpty ? ' ($unidade)' : ''}';
+        }).join('\n');
+        final texto = '${res['total']} reserva(s) serão canceladas por causa desta manutenção:\n\n$linhas\n\nDeseja continuar?';
+        final confirmou = await showConfirmDialog(context, text: texto);
+        if (confirmou == true) {
+          await save(confirmarCancelamentos: true);
+          return;
+        }
+        return;
+      }
+
+      if (mounted) displayMessage(context, getText('alert_error'), (res['error'] ?? '').toString());
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), e.toString());
     } finally {
@@ -219,14 +243,20 @@ class AreaSocialManutencaoModel {
   String? data_termino;
   String? hora_termino;
   String? descricao;
+  // Só vai no payload quando o síndico confirmou o cancelamento das reservas
+  // atingidas (segunda chamada, depois do 409). `null` some do JSON — versões
+  // antigas do app nunca mandam essa chave, o que é o comportamento esperado.
+  bool? confirmar_cancelamentos;
 
   AreaSocialManutencaoModel({this.id, this.id_area_social, this.data_inicio,
-      this.hora_inicio, this.data_termino, this.hora_termino, this.descricao});
+      this.hora_inicio, this.data_termino, this.hora_termino, this.descricao,
+      this.confirmar_cancelamentos});
 
   Map toJson() => {
         'id': id, 'id_area_social': id_area_social,
         'data_inicio': data_inicio, 'hora_inicio': hora_inicio,
         'data_termino': data_termino, 'hora_termino': hora_termino,
         'descricao': descricao,
+        if (confirmar_cancelamentos == true) 'confirmar_cancelamentos': true,
       };
 }

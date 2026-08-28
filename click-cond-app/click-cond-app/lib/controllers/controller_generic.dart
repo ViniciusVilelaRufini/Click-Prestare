@@ -83,6 +83,61 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
   return "Erro HTTP ${response.statusCode}: $shortBody";
 }
 
+/// Salva uma manutenção de área social tratando o 409 de conflito à parte:
+/// o body do 409 é `{ conflitos: [...], total }` (ver `insertManutencao`/
+/// `updateManutencao` na API), não `{ message }` como o resto das rotas —
+/// por isso não reaproveita `apiSaveObject`, que só sabe extrair `message`.
+///
+/// Retorno: `{'success': true}`, `{'success': false, 'conflitos': [...],
+/// 'total': n}` (precisa perguntar e repetir com `confirmar_cancelamentos`),
+/// ou `{'success': false, 'error': '...'}` (erro genérico pra exibir).
+Future<Map<String, dynamic>> apiSaveManutencaoAreaSocial(dynamic obj, bool isEdit) async {
+  http.Response? response;
+  try {
+    final endUri = isEdit ? 'update' : 'insert';
+    final url = _buildUri('/areas-sociais/manutencao/$endUri');
+
+    final Map<String, dynamic> payload = {};
+    payload['id_condominio'] = Singleton.instance.id_condominio.toString();
+    payload['manutencao'] = obj is Map ? obj : obj.toJson();
+    final body = json.encode(payload);
+
+    response = await ApiClient.post(
+          url,
+          headers: _authHeaders(withContentType: true),
+          body: body,
+          encoding: utf8,
+        ).timeout(_kTimeout);
+  } catch (e) {
+    return {'success': false, 'error': 'Falha de comunicação com o servidor. Verifique sua conexão.'};
+  }
+
+  if (response.statusCode >= 200 && response.statusCode < 300) {
+    return {'success': true};
+  }
+
+  if (response.statusCode == 409) {
+    try {
+      final parsed = jsonDecode(response.body);
+      final conflitos = parsed is Map ? parsed['conflitos'] : null;
+      if (conflitos is List) {
+        return {'success': false, 'conflitos': conflitos, 'total': parsed['total'] ?? conflitos.length};
+      }
+    } catch (_) {}
+  }
+
+  // ignore: avoid_print
+  print('[apiSaveManutencaoAreaSocial] HTTP ${response.statusCode} body=${response.body}');
+  try {
+    final parsed = jsonDecode(response.body);
+    if (parsed is Map && parsed["message"] != null) {
+      final msg = parsed["message"];
+      return {'success': false, 'error': msg is List ? msg.join(', ') : msg.toString()};
+    }
+  } catch (_) {}
+  return {'success': false, 'error': 'Erro HTTP ${response.statusCode}'};
+}
+
 apiDeleteObject(String route, int idObj) async {
   final url = _buildUri('/$route/remove');
   final body = json.encode({"id": idObj});

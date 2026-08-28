@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -819,6 +819,85 @@ export class AreasSociaisService {
   // ==========================================
   // MANUTENÇÕES
   // ==========================================
+
+  /**
+   * Reservas 'pendente'/'aprovado' da área que colidem com a janela de uma
+   * manutenção nova ou editada. Usa os mesmos `combineDateTime`/`colideComJanela`
+   * do resto do arquivo — nada de reimplementar a checagem de sobreposição.
+   * Traz `apartamento` (pro relatório de conflito) e `user` (pro push depois).
+   */
+  private async detectarAgendamentosAtingidos(idAreaSocial: number, inicio: Date, fim: Date) {
+    const candidatos = await this.prisma.areas_Sociais_Agendamentos.findMany({
+      where: {
+        id_area_social: Number(idAreaSocial),
+        status: { in: ['pendente', 'aprovado'] },
+      },
+      include: {
+        apartamento: { select: { bloco: true, apto: true } },
+        user: { select: { fcm_token: true } },
+      },
+    });
+
+    return candidatos.filter((ag) => {
+      if (!ag.data) return false;
+      const agInicio = this.combineDateTime(ag.data, ag.hora_de);
+      const agFim = this.combineDateTime(ag.data, ag.hora_ate);
+      return this.colideComJanela(agInicio, agFim, [{ inicio, fim }]);
+    });
+  }
+
+  // Formato do relatório de conflito exigido pelo front (409) — snake_case
+  // porque é isso que a tela de manutenção espera renderizar na lista.
+  private formatarConflito(ag: any) {
+    return {
+      id: ag.id,
+      data: ag.data ? ag.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '',
+      hora_de: ag.hora_de ? ag.hora_de.toTimeString().substring(0, 5) : '',
+      hora_ate: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
+      bloco: ag.apartamento?.bloco ?? '',
+      apto: ag.apartamento?.apto ?? '',
+    };
+  }
+
+  /**
+   * Marca cada reserva atingida como 'cancelado' (nunca apaga — o status já
+   * basta pra sumir de `horarios_livres` e pro facial revogar o acesso),
+   * revoga o facial e avisa o dono por push. Cada passo é best-effort na
+   * própria reserva: uma falha de push/facial numa não trava as demais nem
+   * desfaz o cancelamento (mesmo padrão de `updateStatusAgendamento`).
+   */
+  private async cancelarAgendamentosAtingidos(conflitantes: any[], nomeArea: string) {
+    for (const ag of conflitantes) {
+      await this.prisma.areas_Sociais_Agendamentos.update({
+        where: { id: ag.id },
+        data: { status: 'cancelado' },
+      });
+
+      this.facial
+        .syncReservaArea(Number(ag.id))
+        .catch((err) => this.logger.warn(`syncReservaArea (manutenção) ag ${ag.id}: ${err?.message ?? err}`));
+
+      const token = ag.user?.fcm_token;
+      if (token) {
+        const dataStr = ag.data
+          ? ag.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : '';
+        const horaDeStr = ag.hora_de ? ag.hora_de.toTimeString().substring(0, 5) : '';
+        const horaAteStr = ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '';
+        try {
+          await this.notifications.sendPushNotification(
+            token,
+            'Reserva cancelada',
+            `Sua reserva para ${nomeArea} em ${dataStr} (${horaDeStr}-${horaAteStr}) foi cancelada: a área entrará em manutenção nesse período.`,
+            { type: 'reserva_cancelada_manutencao', id: String(ag.id) },
+          );
+        } catch (err) {
+          this.logger.warn(`push cancelamento por manutenção ag ${ag.id}: ${(err as Error)?.message ?? err}`);
+        }
+      }
+    }
+  }
+
   async insertManutencao(manutencao: any, user?: JwtPayload) {
     assertOperador(user, 'agendar manutenção');
     if (!this.prisma.isConnected) return { success: true };
@@ -838,17 +917,39 @@ export class AreasSociaisService {
 
     const [hI, mI] = this.parseTime(manutencao.hora_inicio);
     const [hF, mF] = this.parseTime(manutencao.hora_termino);
+    const horaInicioObj = new Date(1970, 0, 1, hI, mI, 0);
+    const horaTerminoObj = new Date(1970, 0, 1, hF, mF, 0);
+
+    // Reservas já existentes que caem na janela nova — sem isso a manutenção
+    // entrava "por cima" de reservas ativas: morador nunca era avisado e, em
+    // área com facial, a catraca continuava abrindo pra ele.
+    const inicioJanela = this.combineDateTime(dIni, horaInicioObj);
+    const fimJanela = this.combineDateTime(dFim, horaTerminoObj);
+    const conflitantes = await this.detectarAgendamentosAtingidos(Number(manutencao.id_area_social), inicioJanela, fimJanela);
+
+    if (conflitantes.length > 0 && manutencao.confirmar_cancelamentos !== true) {
+      // Nada é gravado sem confirmação explícita — matar silenciosamente as
+      // reservas de outras famílias é pior do que pedir mais um clique.
+      throw new ConflictException({
+        conflitos: conflitantes.map((ag) => this.formatarConflito(ag)),
+        total: conflitantes.length,
+      });
+    }
 
     await this.prisma.areas_Sociais_Manutencoes.create({
       data: {
         id_area_social: Number(manutencao.id_area_social),
         descricao: manutencao.descricao,
         data_inicio: dIni,
-        hora_inicio: new Date(1970, 0, 1, hI, mI, 0),
+        hora_inicio: horaInicioObj,
         data_termino: dFim,
-        hora_termino: new Date(1970, 0, 1, hF, mF, 0),
+        hora_termino: horaTerminoObj,
       },
     });
+
+    if (conflitantes.length > 0) {
+      await this.cancelarAgendamentosAtingidos(conflitantes, area.nome);
+    }
 
     return { success: true };
   }
@@ -859,7 +960,7 @@ export class AreasSociaisService {
 
     const atual = await this.prisma.areas_Sociais_Manutencoes.findUnique({
       where: { id: Number(manutencao.id) },
-      include: { area: { select: { id_condominio: true } } },
+      include: { area: { select: { id_condominio: true, nome: true } } },
     });
     if (!atual) throw new NotFoundException('Manutenção não encontrada.');
     await this.tenant.assertEntidade(atual.area?.id_condominio, user, `manutenção #${manutencao.id}`);
@@ -872,17 +973,34 @@ export class AreasSociaisService {
 
     const [hI, mI] = this.parseTime(manutencao.hora_inicio);
     const [hF, mF] = this.parseTime(manutencao.hora_termino);
+    const horaInicioObj = new Date(1970, 0, 1, hI, mI, 0);
+    const horaTerminoObj = new Date(1970, 0, 1, hF, mF, 0);
+
+    const inicioJanela = this.combineDateTime(dIni, horaInicioObj);
+    const fimJanela = this.combineDateTime(dFim, horaTerminoObj);
+    const conflitantes = await this.detectarAgendamentosAtingidos(atual.id_area_social, inicioJanela, fimJanela);
+
+    if (conflitantes.length > 0 && manutencao.confirmar_cancelamentos !== true) {
+      throw new ConflictException({
+        conflitos: conflitantes.map((ag) => this.formatarConflito(ag)),
+        total: conflitantes.length,
+      });
+    }
 
     await this.prisma.areas_Sociais_Manutencoes.update({
       where: { id: Number(manutencao.id) },
       data: {
         descricao: manutencao.descricao,
         data_inicio: dIni,
-        hora_inicio: new Date(1970, 0, 1, hI, mI, 0),
+        hora_inicio: horaInicioObj,
         data_termino: dFim,
-        hora_termino: new Date(1970, 0, 1, hF, mF, 0),
+        hora_termino: horaTerminoObj,
       },
     });
+
+    if (conflitantes.length > 0) {
+      await this.cancelarAgendamentosAtingidos(conflitantes, atual.area?.nome ?? 'Área Social');
+    }
 
     return { success: true };
   }
