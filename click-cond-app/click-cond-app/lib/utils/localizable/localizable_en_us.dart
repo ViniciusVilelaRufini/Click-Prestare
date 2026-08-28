@@ -107,6 +107,7 @@ class Localizable_EnUs {
           LocalizableModel(key: 'lb_pendente', text: 'Pending'),
           LocalizableModel(key: 'lb_aprovado', text: 'Approved'),
           LocalizableModel(key: 'lb_recusado', text: 'Rejected'),
+          LocalizableModel(key: 'lb_cancelado', text: 'Cancelled'),
           LocalizableModel(key: 'lb_solucionado', text: 'Resolved'),
           LocalizableModel(key: 'lb_nao_informado', text: 'Not provided'),
           LocalizableModel(key: 'lb_aceitar', text: 'Accept'),

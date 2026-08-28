@@ -123,5 +123,59 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
         svc.updateStatusAgendamento(500, true, '', moradorCond2),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
+
+    it('recusa pelo síndico grava status "recusado" (não "cancelado")', async () => {
+      const agendamento500 = { id: 500, id_user: 5, status: 'pendente', area: { id_condominio: 2 } };
+      const { svc, prisma } = build({
+        areas_Sociais_Agendamentos: {
+          findMany: jest.fn(async () => []),
+          create: jest.fn(async () => ({ id: 500, status: 'pendente' })),
+          findUnique: jest.fn(async () => ({ ...agendamento500 })),
+          update: jest.fn(async ({ data }: any) => ({ ...agendamento500, ...data })),
+        },
+      });
+      await svc.updateStatusAgendamento(500, false, '', funcionarioCond2);
+      expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'recusado' }) }),
+      );
+    });
+  });
+
+  describe('removeAgendamento — status gravado ao cancelar', () => {
+    // Agendamento 500 já aprovado, pertence ao morador de sub=5, no condomínio 2.
+    const agendamentoAprovado = { id: 500, id_user: 5, status: 'aprovado', area: { id_condominio: 2 } };
+
+    it('dono cancelando a própria reserva aprovada grava "cancelado" (não "recusado")', async () => {
+      const { svc, prisma } = build({
+        areas_Sociais_Agendamentos: {
+          findMany: jest.fn(async () => []),
+          create: jest.fn(async () => ({ id: 500, status: 'pendente' })),
+          findUnique: jest.fn(async () => ({ ...agendamentoAprovado })),
+          update: jest.fn(async ({ data }: any) => ({ ...agendamentoAprovado, ...data })),
+          delete: jest.fn(async () => ({})),
+        },
+      });
+      await svc.removeAgendamento(500, 5, 'Morador', moradorCond2);
+      expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'cancelado' } }),
+      );
+      expect(prisma.areas_Sociais_Agendamentos.delete).toHaveBeenCalled();
+    });
+
+    it('síndico removendo reserva aprovada de outro morador também grava "cancelado"', async () => {
+      const { svc, prisma } = build({
+        areas_Sociais_Agendamentos: {
+          findMany: jest.fn(async () => []),
+          create: jest.fn(async () => ({ id: 500, status: 'pendente' })),
+          findUnique: jest.fn(async () => ({ ...agendamentoAprovado })),
+          update: jest.fn(async ({ data }: any) => ({ ...agendamentoAprovado, ...data })),
+          delete: jest.fn(async () => ({})),
+        },
+      });
+      await svc.removeAgendamento(500, 6, 'Funcionario', funcionarioCond2);
+      expect(prisma.areas_Sociais_Agendamentos.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'cancelado' } }),
+      );
+    });
   });
 });

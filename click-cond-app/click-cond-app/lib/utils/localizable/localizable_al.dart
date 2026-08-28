@@ -107,6 +107,7 @@ class Localizable_Al {
     LocalizableModel(key: 'lb_pendente', text: 'Ausstehend'),
     LocalizableModel(key: 'lb_aprovado', text: 'Genehmigt'),
     LocalizableModel(key: 'lb_recusado', text: 'Abgelehnt'),
+    LocalizableModel(key: 'lb_cancelado', text: 'Storniert'),
     LocalizableModel(key: 'lb_solucionado', text: 'Gelöst'),
     LocalizableModel(key: 'lb_nao_informado', text: 'Nicht informiert'),
     LocalizableModel(key: 'lb_aceitar', text: 'Akzeptieren'),

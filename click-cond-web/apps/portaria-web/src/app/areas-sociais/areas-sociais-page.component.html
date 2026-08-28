@@ -211,8 +211,9 @@
           <div class="p-5 rounded-2xl bg-graphite-200 border border-white/10 border-l-4 flex items-center justify-between gap-6 flex-wrap hover:bg-white/[0.02] hover:border-white/20 transition duration-200"
                [class.border-l-amber-500]="ag.status === 'pendente'"
                [class.border-l-emerald-500]="ag.status === 'aprovado'"
-               [class.border-l-red-500]="ag.status === 'recusado'">
-            
+               [class.border-l-red-500]="ag.status === 'recusado'"
+               [class.border-l-slate-500]="statusNeutro(ag.status)">
+
             <div class="flex items-start gap-4 min-w-0 flex-1">
               <!-- Dynamic Icon based on status -->
               <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 border"
@@ -221,8 +222,10 @@
                    [class.bg-emerald-500/10]="ag.status === 'aprovado'"
                    [class.border-emerald-500/20]="ag.status === 'aprovado'"
                    [class.bg-red-500/10]="ag.status === 'recusado'"
-                   [class.border-red-500/20]="ag.status === 'recusado'">
-                
+                   [class.border-red-500/20]="ag.status === 'recusado'"
+                   [class.bg-slate-500/10]="statusNeutro(ag.status)"
+                   [class.border-slate-500/20]="statusNeutro(ag.status)">
+
                 @if (ag.status === 'aprovado') {
                   <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -231,9 +234,14 @@
                   <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
-                } @else {
+                } @else if (ag.status === 'pendente') {
                   <svg class="w-5 h-5 text-amber-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                } @else {
+                  <!-- 'cancelado' e status desconhecido: ícone neutro, sem pulsar -->
+                  <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636L5.636 18.364M12 21a9 9 0 100-18 9 9 0 000 18z"/>
                   </svg>
                 }
               </div>
@@ -253,11 +261,15 @@
                     [class.bg-red-500/10]="ag.status === 'recusado'"
                     [class.text-red-400]="ag.status === 'recusado'"
                     [class.border-red-500/20]="ag.status === 'recusado'"
+                    [class.bg-slate-500/10]="statusNeutro(ag.status)"
+                    [class.text-slate-400]="statusNeutro(ag.status)"
+                    [class.border-slate-500/20]="statusNeutro(ag.status)"
                   >
                     <span class="w-1.5 h-1.5 rounded-full"
                           [class.bg-amber-400]="ag.status === 'pendente'"
                           [class.bg-emerald-400]="ag.status === 'aprovado'"
-                          [class.bg-red-400]="ag.status === 'recusado'"></span>
+                          [class.bg-red-400]="ag.status === 'recusado'"
+                          [class.bg-slate-400]="statusNeutro(ag.status)"></span>
                     {{ ag.status }}
                   </span>
                 </div>

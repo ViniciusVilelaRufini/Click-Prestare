@@ -57,6 +57,12 @@ export class AreasSociaisPageComponent implements OnInit {
     );
   });
 
+  // 'cancelado' (dono desistiu) e qualquer status futuro/desconhecido caem
+  // aqui: tratamento neutro em vez de herdar a cor vermelha de 'recusado'.
+  statusNeutro(status: string): boolean {
+    return status !== 'pendente' && status !== 'aprovado' && status !== 'recusado';
+  }
+
   readonly pendentesCount = computed(() =>
     this.agendamentos().filter(a => a.status === 'pendente').length
   );

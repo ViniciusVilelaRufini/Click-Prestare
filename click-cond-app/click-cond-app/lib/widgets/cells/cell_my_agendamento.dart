@@ -40,10 +40,22 @@ class CellMyAgendamento extends StatelessWidget {
       statusText = getText('lb_aprovado');
       statusColor = const Color(0xFF10B981);
       statusIcon = PhosphorIcons.checkCircle;
-    } else if (status == 'recusado' || status == 'cancelado') {
+    } else if (status == 'recusado') {
       statusText = getText('lb_recusado');
       statusColor = const Color(0xFFEF4444);
       statusIcon = PhosphorIcons.xCircle;
+    } else if (status == 'cancelado') {
+      // Cancelamento pelo próprio morador não é recusa do síndico — cor
+      // neutra para não sugerir que a reserva foi negada.
+      statusText = getText('lb_cancelado');
+      statusColor = AppColors.textSecondary(context);
+      statusIcon = PhosphorIcons.prohibit;
+    } else if (status != 'pendente') {
+      // Status não reconhecido: mostra o texto cru em vez de travar a tela
+      // ou herdar o rótulo de "recusado".
+      statusText = item['status']?.toString() ?? statusText;
+      statusColor = AppColors.textSecondary(context);
+      statusIcon = PhosphorIcons.question;
     }
 
     final nomeArea = item['nomeArea']?.toString() ?? 'Área Social';

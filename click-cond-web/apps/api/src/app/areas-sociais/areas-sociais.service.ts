@@ -562,15 +562,16 @@ export class AreasSociaisService {
       }
     }
 
-    // Cancelamento: se estava aprovada, revoga o acesso facial ANTES de apagar
-    // (marca 'recusado' → syncReservaArea remove os moradores do terminal).
+    // Cancelamento (dono ou síndico via remove): revoga o acesso facial ANTES
+    // de apagar. É 'cancelado', não 'recusado' — recusa é decisão do síndico
+    // via updateStatusAgendamento; aqui é a reserva sendo desfeita.
     const agAntes = await this.prisma.areas_Sociais_Agendamentos.findUnique({
       where: { id: Number(id) },
     });
     if (agAntes?.status === 'aprovado') {
       await this.prisma.areas_Sociais_Agendamentos.update({
         where: { id: Number(id) },
-        data: { status: 'recusado' },
+        data: { status: 'cancelado' },
       });
       await this.facial
         .syncReservaArea(Number(id))
