@@ -460,36 +460,50 @@ class _ChatIaPageState extends State<ChatIaPage> {
             ),
           ],
         ),
-        child: Row(
+        // Stack, não Row: são dois botões à esquerda e um à direita, então o
+        // vão entre eles não tem o mesmo meio que a barra. Num Expanded o
+        // título centraliza no vão e sai visivelmente deslocado.
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            if (Navigator.canPop(context))
-              _acaoTopo(
-                icon: PhosphorIcons.caretLeft,
-                tooltip: 'Voltar',
-                onTap: () => Navigator.pop(context),
-              ),
-            const SizedBox(width: AppSpacing.xs),
-            _acaoTopo(
-              icon: PhosphorIcons.chatCircleDots,
-              tooltip: 'Conversas',
-              onTap: () => _scaffoldKey.currentState?.openDrawer(),
+            Row(
+              children: [
+                if (Navigator.canPop(context))
+                  _acaoTopo(
+                    icon: PhosphorIcons.caretLeft,
+                    tooltip: 'Voltar',
+                    onTap: () => Navigator.pop(context),
+                  ),
+                const SizedBox(width: AppSpacing.xs),
+                _acaoTopo(
+                  icon: PhosphorIcons.chatCircleDots,
+                  tooltip: 'Conversas',
+                  onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                ),
+                const Spacer(),
+                _acaoTopo(
+                  icon: PhosphorIcons.notePencil,
+                  tooltip: 'Nova conversa',
+                  onTap: _novaConversa,
+                ),
+              ],
             ),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'PRESTARE IA',
-                  style: AppTypography.bodyMedium(context).copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+            // Folga lateral para o título nunca encostar nos botões; o
+            // IgnorePointer deixa o toque passar para o que estiver embaixo.
+            IgnorePointer(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 96),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'PRESTARE IA',
+                    style: AppTypography.bodyMedium(context).copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
-            _acaoTopo(
-              icon: PhosphorIcons.notePencil,
-              tooltip: 'Nova conversa',
-              onTap: _novaConversa,
             ),
           ],
         ),
