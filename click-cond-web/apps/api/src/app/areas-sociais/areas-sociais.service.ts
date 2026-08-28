@@ -1,5 +1,11 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Prisma } from '../prisma/generated';
+
+// Client "de dentro" de um `prisma.$transaction(async (tx) => ...)` — mesma
+// API do PrismaService, mas as operações só confirmam junto com o resto do
+// bloco (ou fazem rollback juntas).
+type PrismaTx = Prisma.TransactionClient;
 import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
@@ -859,20 +865,32 @@ export class AreasSociaisService {
     };
   }
 
-  /**
-   * Marca cada reserva atingida como 'cancelado' (nunca apaga — o status já
-   * basta pra sumir de `horarios_livres` e pro facial revogar o acesso),
-   * revoga o facial e avisa o dono por push. Cada passo é best-effort na
-   * própria reserva: uma falha de push/facial numa não trava as demais nem
-   * desfaz o cancelamento (mesmo padrão de `updateStatusAgendamento`).
-   */
-  private async cancelarAgendamentosAtingidos(conflitantes: any[], nomeArea: string) {
+  // Marca cada reserva atingida como 'cancelado' dentro da MESMA transação
+  // que grava a manutenção — ver `insertManutencao`/`updateManutencao`. `tx`
+  // é o client transacional do Prisma (interactive transaction), nunca
+  // `this.prisma` direto: se a 3ª de 5 atualizações falhar (queda de conexão,
+  // por exemplo), o rollback tem que desfazer TUDO — manutenção incluída —
+  // em vez de deixar 2 reservas canceladas e 3 "aprovadas" dentro da janela
+  // de manutenção (a inconsistência que esta task existe para fechar) e, no
+  // insert, uma manutenção órfã que uma nova tentativa duplicaria.
+  private async cancelarStatusEmTransacao(tx: PrismaTx, conflitantes: any[]) {
     for (const ag of conflitantes) {
-      await this.prisma.areas_Sociais_Agendamentos.update({
+      await tx.areas_Sociais_Agendamentos.update({
         where: { id: ag.id },
         data: { status: 'cancelado' },
       });
+    }
+  }
 
+  /**
+   * Efeitos colaterais EXTERNOS do cancelamento por manutenção — revoga o
+   * facial e avisa o dono por push. De propósito FORA da transação: são
+   * chamadas de rede best-effort (mesmo padrão de `updateStatusAgendamento`)
+   * que não podem fazer um rollback de banco por causa de push fora do ar.
+   * Só roda depois que a transação de escrita já confirmou.
+   */
+  private async notificarCancelamentosPorManutencao(conflitantes: any[], nomeArea: string) {
+    for (const ag of conflitantes) {
       this.facial
         .syncReservaArea(Number(ag.id))
         .catch((err) => this.logger.warn(`syncReservaArea (manutenção) ag ${ag.id}: ${err?.message ?? err}`));
@@ -936,19 +954,31 @@ export class AreasSociaisService {
       });
     }
 
-    await this.prisma.areas_Sociais_Manutencoes.create({
-      data: {
-        id_area_social: Number(manutencao.id_area_social),
-        descricao: manutencao.descricao,
-        data_inicio: dIni,
-        hora_inicio: horaInicioObj,
-        data_termino: dFim,
-        hora_termino: horaTerminoObj,
-      },
+    // Manutenção nova + cancelamento das reservas atingidas precisam confirmar
+    // juntos ou nenhum dos dois: sem transação, uma falha no meio dos updates
+    // deixava a manutenção gravada com só parte das reservas canceladas — e,
+    // pior, reexecutar o insert criaria uma SEGUNDA linha de manutenção.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.areas_Sociais_Manutencoes.create({
+        data: {
+          id_area_social: Number(manutencao.id_area_social),
+          descricao: manutencao.descricao,
+          data_inicio: dIni,
+          hora_inicio: horaInicioObj,
+          data_termino: dFim,
+          hora_termino: horaTerminoObj,
+        },
+      });
+
+      if (conflitantes.length > 0) {
+        await this.cancelarStatusEmTransacao(tx, conflitantes);
+      }
     });
 
+    // Facial + push são efeitos externos best-effort — de propósito depois
+    // da transação já confirmada (ver `notificarCancelamentosPorManutencao`).
     if (conflitantes.length > 0) {
-      await this.cancelarAgendamentosAtingidos(conflitantes, area.nome);
+      await this.notificarCancelamentosPorManutencao(conflitantes, area.nome);
     }
 
     return { success: true };
@@ -987,19 +1017,25 @@ export class AreasSociaisService {
       });
     }
 
-    await this.prisma.areas_Sociais_Manutencoes.update({
-      where: { id: Number(manutencao.id) },
-      data: {
-        descricao: manutencao.descricao,
-        data_inicio: dIni,
-        hora_inicio: horaInicioObj,
-        data_termino: dFim,
-        hora_termino: horaTerminoObj,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.areas_Sociais_Manutencoes.update({
+        where: { id: Number(manutencao.id) },
+        data: {
+          descricao: manutencao.descricao,
+          data_inicio: dIni,
+          hora_inicio: horaInicioObj,
+          data_termino: dFim,
+          hora_termino: horaTerminoObj,
+        },
+      });
+
+      if (conflitantes.length > 0) {
+        await this.cancelarStatusEmTransacao(tx, conflitantes);
+      }
     });
 
     if (conflitantes.length > 0) {
-      await this.cancelarAgendamentosAtingidos(conflitantes, atual.area?.nome ?? 'Área Social');
+      await this.notificarCancelamentosPorManutencao(conflitantes, atual.area?.nome ?? 'Área Social');
     }
 
     return { success: true };
