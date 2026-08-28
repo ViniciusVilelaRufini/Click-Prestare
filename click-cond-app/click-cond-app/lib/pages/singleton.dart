@@ -7,8 +7,14 @@ class Singleton {
 
   var id_condominio;
   var id_apartamento;
-  var apartamento;
-  var bloco;
+  // Nunca nulos: quatro telas (visitante, prestador, reserva, mudança) jogam
+  // estes valores direto em TextEditingController.text, que não aceita null.
+  // Eles só são preenchidos ao ABRIR um condomínio, então quem chegava nessas
+  // telas direto da home — clicando num evento em "Meus Eventos", por exemplo —
+  // batia em "type 'Null' is not a subtype of type 'String'". Quem lê já trata
+  // string vazia; ninguém usa null como sinal de "não definido".
+  var apartamento = '';
+  var bloco = '';
   var apto_tipo; // vínculo do morador no apto: Proprietário/Inquilino/Membro/morador/null
 
   /// O morador logado é o "dono" do apto (pode cadastrar familiares)?
