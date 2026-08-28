@@ -373,48 +373,12 @@ class _ChatIaPageState extends State<ChatIaPage> {
         if (aberta) _carregarConversas();
       },
       drawer: _buildDrawerConversas(context),
-      // Mesmo padrão do AppScaffold do app: caretLeft na cor de texto
-      // primária, com o título ao lado.
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leadingWidth: 96,
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (Navigator.canPop(context))
-              IconButton(
-                icon: Icon(PhosphorIcons.caretLeft,
-                    color: AppColors.textPrimary(context)),
-                onPressed: () => Navigator.pop(context),
-              ),
-            IconButton(
-              tooltip: 'Conversas',
-              icon: Icon(PhosphorIcons.chatCircleDots,
-                  color: AppColors.textPrimary(context)),
-              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Nova conversa',
-            icon: Icon(PhosphorIcons.notePencil,
-                color: AppColors.textPrimary(context)),
-            onPressed: _novaConversa,
-          ),
-        ],
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(PhosphorIcons.sparkle, color: AppColors.primary, size: 22),
-            const SizedBox(width: AppSpacing.sm),
-            Text('PRESTARE IA', style: AppTypography.headline(context)),
-          ],
-        ),
-      ),
-      // Stack (e não Column): o campo precisa FLUTUAR sobre a conversa para o
-      // desfoque ter o que desfocar. Empilhado abaixo da lista, o vidro ficaria
-      // por cima do fundo chapado do Scaffold e não apareceria.
+      // Sem AppBar: o topo é uma caixa de vidro dentro do Stack, igual ao
+      // campo de digitar e à ilha de navegação da home. Uma AppBar comum é
+      // opaca e a conversa pararia numa borda dura em vez de sumir atrás dela.
+      // Stack (e não Column): as duas caixas precisam FLUTUAR sobre a conversa
+      // para o desfoque ter o que desfocar. Empilhadas fora dela, o vidro
+      // ficaria sobre o fundo chapado do Scaffold e não apareceria.
       body: SafeArea(
         child: Stack(
           children: [
@@ -427,11 +391,11 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       // único gesto que faltava para dispensá-lo.
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      // Folga no rodapé: sem ela a última mensagem fica
-                      // permanentemente escondida atrás do campo flutuante.
+                      // Folga em cima e embaixo: sem ela a primeira e a última
+                      // mensagem ficam presas atrás das caixas flutuantes.
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.lg,
-                        AppSpacing.lg,
+                        84,
                         AppSpacing.lg,
                         104,
                       ),
@@ -447,10 +411,109 @@ class _ChatIaPageState extends State<ChatIaPage> {
             Positioned(
               left: 0,
               right: 0,
+              top: 0,
+              child: _buildTopBar(context),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
               bottom: 0,
               child: _buildInput(context),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Caixa de vidro do topo — mesmo material do campo de digitar e da ilha de
+  /// navegação da home: sombra por fora, cor e borda DENTRO do recorte, para o
+  /// desfoque não vazar pelos cantos arredondados.
+  Widget _buildTopBar(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const raio = 24.0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(raio),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.30 : 0.06),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(raio),
+          clipBehavior: Clip.antiAlias,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.black.withOpacity(0.20)
+                    : Colors.white.withOpacity(0.35),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.12)
+                      : Colors.white.withOpacity(0.45),
+                  width: 1,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                children: [
+                  if (Navigator.canPop(context))
+                    IconButton(
+                      tooltip: 'Voltar',
+                      icon: Icon(PhosphorIcons.caretLeft,
+                          color: AppColors.textPrimary(context), size: 20),
+                      onPressed: () => Navigator.pop(context),
+                      splashRadius: 20,
+                    ),
+                  IconButton(
+                    tooltip: 'Conversas',
+                    icon: Icon(PhosphorIcons.chatCircleDots,
+                        color: AppColors.textPrimary(context), size: 20),
+                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                    splashRadius: 20,
+                  ),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(PhosphorIcons.sparkle,
+                              color: AppColors.primary, size: 20),
+                          const SizedBox(width: 6),
+                          Text('PRESTARE IA',
+                              style: AppTypography.bodyMedium(context)
+                                  .copyWith(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Nova conversa',
+                    icon: Icon(PhosphorIcons.notePencil,
+                        color: AppColors.textPrimary(context), size: 20),
+                    onPressed: _novaConversa,
+                    splashRadius: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -548,34 +611,89 @@ class _ChatIaPageState extends State<ChatIaPage> {
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+    // Mesma linguagem dos cards do app (_MenuRow da home): superfície
+    // arredondada, ícone em quadrado com fundo da cor primária, título e
+    // apoio embaixo.
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
       itemCount: _conversas.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
       itemBuilder: (_, i) {
         final c = _conversas[i];
         final aberta = c.id == _conversaId;
-        return ListTile(
-          selected: aberta,
-          selectedTileColor: AppColors.primary.withOpacity(0.08),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: Text(
-            c.titulo,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.bodyMedium(context),
+        return Material(
+          color: aberta
+              ? AppColors.primary.withOpacity(0.10)
+              : AppColors.surface(context),
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            onTap: () {
+              Navigator.pop(context);
+              if (!aberta) _abrirConversa(c);
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.md),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: aberta
+                      ? AppColors.primary.withOpacity(0.35)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(PhosphorIcons.chatCircleText,
+                        color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.titulo,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodyMedium(context),
+                        ),
+                        const SizedBox(height: 2),
+                        // Texto único: em Row, data + contagem estouravam a
+                        // largura da gaveta em títulos de duas linhas.
+                        Text(
+                          [
+                            _dataRelativa(c.ultimaEm),
+                            if (c.total > 0) '${c.total} mensagens',
+                          ].where((s) => s.isNotEmpty).join(' • '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.tiny(context)
+                              .copyWith(color: AppColors.textTertiary(context)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Apagar',
+                    icon: Icon(PhosphorIcons.trash,
+                        size: 18, color: AppColors.textTertiary(context)),
+                    onPressed: () => _apagarConversa(c),
+                    splashRadius: 20,
+                  ),
+                ],
+              ),
+            ),
           ),
-          subtitle: Text(_dataRelativa(c.ultimaEm),
-              style: AppTypography.tiny(context)),
-          trailing: IconButton(
-            tooltip: 'Apagar',
-            icon: Icon(PhosphorIcons.trash,
-                size: 18, color: AppColors.textTertiary(context)),
-            onPressed: () => _apagarConversa(c),
-          ),
-          onTap: () {
-            Navigator.pop(context);
-            if (!aberta) _abrirConversa(c);
-          },
         );
       },
     );
@@ -598,7 +716,8 @@ class _ChatIaPageState extends State<ChatIaPage> {
   Widget _buildEmptyState(BuildContext context) {
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.all(AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl, 84, AppSpacing.xl, AppSpacing.xl),
       children: [
         const SizedBox(height: AppSpacing.xxxl),
         Center(
@@ -943,7 +1062,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       style: AppTypography.body(context),
                       onSubmitted: (_) => _enviar(),
                       decoration: InputDecoration(
-                        hintText: 'Pergunte algo ao PRESTARE IA...',
+                        hintText: 'Pergunte algo',
                         hintStyle: AppTypography.body(context)
                             .copyWith(color: AppColors.textTertiary(context)),
                         // Sem preenchimento nem borda: o fundo é o próprio
@@ -972,9 +1091,9 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       ),
                       child: Icon(
                         _ouvindo ? PhosphorIcons.microphoneFill : PhosphorIcons.microphone,
-                        color: _ouvindo
-                            ? AppColors.error
-                            : AppColors.textSecondary(context),
+                        // Mesma cor do botão de enviar; só o estado de escuta
+                        // foge dela, para ficar claro que o microfone está ligado.
+                        color: _ouvindo ? AppColors.error : AppColors.primary,
                         size: 22,
                       ),
                     ),

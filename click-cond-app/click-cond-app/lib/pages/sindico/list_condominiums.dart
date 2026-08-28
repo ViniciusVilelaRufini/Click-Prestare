@@ -514,16 +514,35 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
+  /// Abre o assistente a partir da LISTA de condomínios.
+  ///
+  /// Toda requisição do assistente é escopada por `id_condominio`, que só é
+  /// preenchido ao entrar num condomínio. Aberto direto daqui, o chat
+  /// respondia "id_condominio é obrigatório" a qualquer pergunta. Com um
+  /// condomínio só, escolher por ele é óbvio; com vários, é preciso dizer qual.
+  void _abrirAssistente() {
+    if (Singleton.instance.id_condominio == null && _list.length == 1) {
+      Singleton.instance.id_condominio = _list.first["id"];
+    }
+    if (Singleton.instance.id_condominio == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Abra um condomínio para falar com o PRESTARE IA.'),
+        ),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ChatIaPage()),
+    ).then((_) => _loadList());
+  }
+
   Widget _buildAiNavButton(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ChatIaPage()),
-          ).then((_) => _loadList());
-        },
+        onTap: _abrirAssistente,
         customBorder: const CircleBorder(),
         child: Container(
           width: 46,
