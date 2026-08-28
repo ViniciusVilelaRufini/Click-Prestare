@@ -391,13 +391,16 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       // único gesto que faltava para dispensá-lo.
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      // Folga em cima e embaixo: sem ela a primeira e a última
-                      // mensagem ficam presas atrás das caixas flutuantes.
+                      // Folga em cima e embaixo. A de baixo é MENOR que a
+                      // altura do campo (~80): no fim da conversa a última
+                      // bolha encosta por baixo do vidro, que assim sempre tem
+                      // o que desfocar. Com folga maior, o campo ficava sobre
+                      // espaço vazio e virava uma faixa branca chapada.
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.lg,
                         84,
                         AppSpacing.lg,
-                        104,
+                        72,
                       ),
                       itemCount: _mensagens.length + (_isSending ? 1 : 0),
                       itemBuilder: (context, index) {
@@ -1036,12 +1039,15 @@ class _ChatIaPageState extends State<ChatIaPage> {
           borderRadius: BorderRadius.circular(raio),
           clipBehavior: Clip.antiAlias,
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            // Desfoque menor e véu mais fino: com 20/0.35 sobre o fundo claro
+            // o vidro virava branco chapado e a mensagem que passa por baixo
+            // desaparecia em vez de aparecer borrada.
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Container(
               decoration: BoxDecoration(
                 color: isDark
-                    ? Colors.black.withOpacity(0.20)
-                    : Colors.white.withOpacity(0.35),
+                    ? Colors.black.withOpacity(0.25)
+                    : Colors.white.withOpacity(0.22),
                 border: Border.all(
                   color: isDark
                       ? Colors.white.withOpacity(0.12)
