@@ -426,13 +426,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
-  /// Caixa de vidro do topo — mesmo material do campo de digitar e da ilha de
-  /// navegação da home: sombra por fora, cor e borda DENTRO do recorte, para o
-  /// desfoque não vazar pelos cantos arredondados.
+  /// Caixa azul do topo — mesmo gradiente e sombra do card da home, com os
+  /// controles em branco por cima. Flutua sobre a conversa (a lista tem folga
+  /// no topo), então o conteúdo desliza por baixo em vez de parar numa borda.
   Widget _buildTopBar(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    const raio = 24.0;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -440,80 +437,72 @@ class _ChatIaPageState extends State<ChatIaPage> {
         AppSpacing.lg,
         AppSpacing.sm,
       ),
-      child: DecoratedBox(
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(raio),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primaryGradientStart,
+              AppColors.primaryGradientEnd
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.30 : 0.06),
-              blurRadius: 22,
+              color: AppColors.primary.withOpacity(0.25),
+              blurRadius: 20,
               offset: const Offset(0, 8),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(raio),
-          clipBehavior: Clip.antiAlias,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.black.withOpacity(0.20)
-                    : Colors.white.withOpacity(0.35),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.12)
-                      : Colors.white.withOpacity(0.45),
-                  width: 1,
-                ),
+        child: Row(
+          children: [
+            if (Navigator.canPop(context))
+              IconButton(
+                tooltip: 'Voltar',
+                icon: const Icon(PhosphorIcons.caretLeft,
+                    color: Colors.white, size: 20),
+                onPressed: () => Navigator.pop(context),
+                splashRadius: 20,
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                children: [
-                  if (Navigator.canPop(context))
-                    IconButton(
-                      tooltip: 'Voltar',
-                      icon: Icon(PhosphorIcons.caretLeft,
-                          color: AppColors.textPrimary(context), size: 20),
-                      onPressed: () => Navigator.pop(context),
-                      splashRadius: 20,
-                    ),
-                  IconButton(
-                    tooltip: 'Conversas',
-                    icon: Icon(PhosphorIcons.chatCircleDots,
-                        color: AppColors.textPrimary(context), size: 20),
-                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                    splashRadius: 20,
-                  ),
-                  Expanded(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(PhosphorIcons.sparkle,
-                              color: AppColors.primary, size: 20),
-                          const SizedBox(width: 6),
-                          Text('PRESTARE IA',
-                              style: AppTypography.bodyMedium(context)
-                                  .copyWith(fontWeight: FontWeight.bold)),
-                        ],
+            IconButton(
+              tooltip: 'Conversas',
+              icon: const Icon(PhosphorIcons.chatCircleDots,
+                  color: Colors.white, size: 20),
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+              splashRadius: 20,
+            ),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(PhosphorIcons.sparkle,
+                        color: Colors.white, size: 20),
+                    const SizedBox(width: 6),
+                    Text(
+                      'PRESTARE IA',
+                      style: AppTypography.bodyMedium(context).copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Nova conversa',
-                    icon: Icon(PhosphorIcons.notePencil,
-                        color: AppColors.textPrimary(context), size: 20),
-                    onPressed: _novaConversa,
-                    splashRadius: 20,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+            IconButton(
+              tooltip: 'Nova conversa',
+              icon: const Icon(PhosphorIcons.notePencil,
+                  color: Colors.white, size: 20),
+              onPressed: _novaConversa,
+              splashRadius: 20,
+            ),
+          ],
         ),
       ),
     );
