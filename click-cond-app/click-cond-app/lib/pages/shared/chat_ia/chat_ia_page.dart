@@ -438,8 +438,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
         AppSpacing.sm,
       ),
       child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
@@ -452,57 +451,71 @@ class _ChatIaPageState extends State<ChatIaPage> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withOpacity(0.25),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: AppColors.primary.withOpacity(0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Row(
           children: [
             if (Navigator.canPop(context))
-              IconButton(
+              _acaoTopo(
+                icon: PhosphorIcons.caretLeft,
                 tooltip: 'Voltar',
-                icon: const Icon(PhosphorIcons.caretLeft,
-                    color: Colors.white, size: 20),
-                onPressed: () => Navigator.pop(context),
-                splashRadius: 20,
+                onTap: () => Navigator.pop(context),
               ),
-            IconButton(
+            const SizedBox(width: AppSpacing.xs),
+            _acaoTopo(
+              icon: PhosphorIcons.chatCircleDots,
               tooltip: 'Conversas',
-              icon: const Icon(PhosphorIcons.chatCircleDots,
-                  color: Colors.white, size: 20),
-              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-              splashRadius: 20,
+              onTap: () => _scaffoldKey.currentState?.openDrawer(),
             ),
             Expanded(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(PhosphorIcons.sparkle,
-                        color: Colors.white, size: 20),
-                    const SizedBox(width: 6),
-                    Text(
-                      'PRESTARE IA',
-                      style: AppTypography.bodyMedium(context).copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'PRESTARE IA',
+                  style: AppTypography.bodyMedium(context).copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-            IconButton(
+            _acaoTopo(
+              icon: PhosphorIcons.notePencil,
               tooltip: 'Nova conversa',
-              icon: const Icon(PhosphorIcons.notePencil,
-                  color: Colors.white, size: 20),
-              onPressed: _novaConversa,
-              splashRadius: 20,
+              onTap: _novaConversa,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Botão redondo translúcido — o mesmo tratamento das ações do card azul da
+  /// home (`_buildHeaderActions` em list_condominiums.dart).
+  Widget _acaoTopo({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        onTap: onTap,
+        child: Tooltip(
+          message: tooltip,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 18),
+          ),
         ),
       ),
     );
