@@ -547,14 +547,15 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       // tracinho solto ao lado do título: lê o estado antes de ler o texto.
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(width: 4, color: statusColor),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 4, color: statusColor),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -735,7 +736,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     tooltip: 'Editar conta',
                     onTap: () => showContaFormModal(item: item),
                   ),
-                  const SizedBox(width: 6),
                   _acaoIcone(
                     icone: PhosphorIcons.trash,
                     cor: Colors.redAccent,
@@ -751,6 +751,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     ),
   ),
 ],
+),
 ),
 ),
 );

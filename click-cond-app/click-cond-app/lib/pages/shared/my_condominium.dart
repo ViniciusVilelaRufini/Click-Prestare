@@ -21,6 +21,7 @@ import 'package:click/pages/shared/morador/my_apartamento_view.dart';
 import 'package:click/pages/sindico/link_self_morador_sheet.dart';
 import 'package:click/pages/shared/mudancas/list_mudancas.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
+import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/sindico/relatorios_page.dart';
 import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/prestador%20de%20servico/list_prestadores.dart';
@@ -145,6 +146,7 @@ class _MyCondominiumState extends State<MyCondominium> {
       _MenuItem(getText('lb_funcionarios_condominio'), PhosphorIcons.users, const ListPrestadoresCadastro()),
       _MenuItem(getText('lb_manut_programadas'), PhosphorIcons.wrench, ListAgenda()),
       _MenuItem(getText('lb_prestadores_servico'), PhosphorIcons.handshake, ListPrestadores()),
+      _MenuItem('Eventos de Acesso', PhosphorIcons.clockCounterClockwise, const HistoricoAcessosPage()),
       _MenuItem(getText('lb_agendar_mudanca'), PhosphorIcons.truck, ListMudancas()),
       _MenuItem(getText('lb_cadastrar_visitante'), PhosphorIcons.userPlus, ListVisitantes()),
       // Morador vê apenas o próprio apartamento ("Meu Apartamento"); síndico/funcionário

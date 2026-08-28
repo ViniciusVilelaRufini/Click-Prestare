@@ -145,8 +145,8 @@ module.exports = {
     }
 
     const eventos = [];
-    const selectBase = `select af.id, af.nome_pessoa, af.evento, af.timestamp, af.tipo_pessoa,
-                               c.nome as condominio
+    const selectBase = `select af.id, af.id_pessoa, af.nome_pessoa, af.evento, af.timestamp, af.tipo_pessoa,
+                               af.tipo_dispositivo, af.confianca, c.nome as condominio
                           from Acessos_Facial af
                           left join Condominios c on c.id = af.id_condominio`;
 
@@ -175,9 +175,12 @@ module.exports = {
     eventos.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     return eventos.slice(0, lim).map((e) => ({
       id: e.id,
+      id_pessoa: e.id_pessoa,
       nome: (e.nome_pessoa || '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
       evento: e.evento,
       tipo_pessoa: e.tipo_pessoa,
+      tipo_dispositivo: e.tipo_dispositivo,
+      confianca: e.confianca,
       categoria: e.categoria,
       condominio: e.condominio || '',
       timestamp: e.timestamp,

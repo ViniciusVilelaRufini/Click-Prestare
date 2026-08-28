@@ -3,7 +3,7 @@ description: Click - Gestão inteligente de condomínios. Controle de acesso, vi
 
 publish_to: 'none'
 
-version: 1.2.0+54
+version: 1.2.1+55
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -59,12 +59,14 @@ dev_dependencies:
     sdk: flutter
 
 flutter_native_splash:
-  color: "#18181b"
-  image: assets/images/logo.png
+  color: "#0B4C9D"
+  color_dark: "#0B4C9D"
+  image: assets/images/splash_logo.png
   android_12:
-    image: assets/images/logo.png
-    icon_background_color: "#18181b"
-    color: "#18181b"
+    image: assets/images/splash_android12.png
+    icon_background_color: "#0B4C9D"
+    color: "#0B4C9D"
+    color_dark: "#0B4C9D"
 
 flutter:
   uses-material-design: true

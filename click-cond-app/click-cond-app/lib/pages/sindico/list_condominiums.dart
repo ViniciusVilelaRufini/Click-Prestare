@@ -7,6 +7,7 @@ import 'package:click/controllers/controller_notificacoes.dart';
 import 'package:click/pages/shared/chat_ia/chat_ia_page.dart';
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
 import 'package:click/pages/shared/notificacoes/notificacoes_page.dart';
+import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
 import 'package:click/pages/shared/financeiro/list_inadimplentes.dart';
@@ -17,7 +18,6 @@ import 'package:click/pages/shared/morador/edit_morador.dart';
 import 'package:click/pages/shared/my_condominium.dart';
 import 'package:click/pages/shared/ocorrencias/list_ocorrencias.dart';
 import 'package:click/pages/shared/visitantes/list_visitantes.dart';
-import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/sindico/edit_sindico.dart';
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
@@ -1209,6 +1209,15 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     );
   }
 
+  void _abrirHistoricoAcessos({int? destacarId}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HistoricoAcessosPage(destacarId: destacarId),
+      ),
+    ).then((_) => _loadList());
+  }
+
   Widget _buildMeusEventos(BuildContext context) {
     if (_eventos.isEmpty) return const SizedBox.shrink();
     const maxLinhas = 4;
@@ -1222,16 +1231,46 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(PhosphorIcons.clockCounterClockwise,
-                  color: AppColors.primary, size: 15),
-              const SizedBox(width: 6),
-              Text(
-                'MEUS EVENTOS',
-                style: AppTypography.tiny(context).copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+              Row(
+                children: [
+                  Icon(PhosphorIcons.clockCounterClockwise,
+                      color: AppColors.primary, size: 15),
+                  const SizedBox(width: 6),
+                  Text(
+                    'MEUS EVENTOS',
+                    style: AppTypography.tiny(context).copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () => _abrirHistoricoAcessos(),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Ver todos',
+                        style: AppTypography.tiny(context).copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        PhosphorIcons.caretRight,
+                        color: AppColors.primary,
+                        size: 13,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1255,12 +1294,29 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 Divider(
                     height: 1,
                     color: AppColors.textTertiary(context).withOpacity(0.1)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                  child: Text(
-                    '+ $restantes ${restantes == 1 ? 'evento' : 'eventos'} recentes',
-                    style: AppTypography.tiny(context)
-                        .copyWith(color: AppColors.textTertiary(context)),
+                InkWell(
+                  onTap: () => _abrirHistoricoAcessos(),
+                  borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(AppRadius.lg)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}',
+                            style: AppTypography.tiny(context).copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(PhosphorIcons.arrowRight,
+                              size: 12, color: AppColors.primary),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1272,12 +1328,11 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   Widget _buildEventoRow(BuildContext context, dynamic e) {
+    final id = int.tryParse(e['id']?.toString() ?? '');
     final isEntrada = (e['evento'] ?? '').toString() == 'entrada';
     final isVoce = (e['categoria'] ?? '').toString() == 'voce';
     final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
     final nome = (e['nome'] ?? '').toString();
-    final idPessoa = int.tryParse((e['id_pessoa'] ?? e['id'])?.toString() ?? '');
-    final canOpen = !isVoce && idPessoa != null && idPessoa > 0;
 
     final Color cor = isEntrada ? AppColors.success : AppColors.primary;
     final IconData icon =
@@ -1340,31 +1395,17 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 style: AppTypography.tiny(context)
                     .copyWith(color: tagColor, fontWeight: FontWeight.bold)),
           ),
-          if (canOpen) ...[
-            const SizedBox(width: 4),
-            Icon(PhosphorIcons.caretRight,
-                size: 14, color: AppColors.textTertiary(context)),
-          ],
+          const SizedBox(width: 4),
+          Icon(PhosphorIcons.caretRight,
+              size: 14, color: AppColors.textTertiary(context)),
         ],
       ),
     );
 
-    if (!canOpen) return row;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => NewVisitante(
-                isEdit: true,
-                myId: idPessoa,
-              ),
-            ),
-          ).then((_) => _loadList());
-        },
+        onTap: () => _abrirHistoricoAcessos(destacarId: id),
         child: row,
       ),
     );

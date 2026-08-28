@@ -1112,6 +1112,8 @@ export class MobileAuthService {
       nome: (e.nome_pessoa || '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
       evento: e.evento,
       tipo_pessoa: e.tipo_pessoa,
+      tipo_dispositivo: e.tipo_dispositivo,
+      confianca: e.confianca,
       categoria,
       condominio: condMap.get(e.id_condominio) || '',
       timestamp: e.timestamp,
