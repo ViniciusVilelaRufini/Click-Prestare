@@ -25,6 +25,9 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
         create: jest.fn(async () => ({ id: 500, status: 'pendente' })),
         findUnique: jest.fn(async () => null),
       },
+      areas_Sociais_Manutencoes: {
+        findMany: jest.fn(async () => []),
+      },
       // Dois usos, distinguidos pelo `where`:
       //  - `id_user`  → TenantAccessService resolvendo o vínculo do morador
       //                 mobile (que não carrega id_condominio no token);

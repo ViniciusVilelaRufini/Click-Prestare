@@ -30,6 +30,20 @@ export class AreasSociaisService {
     return [0, 0];
   }
 
+  // Junta uma data (ano/mês/dia) com um horário (hora/minuto), ignorando o
+  // "dia" de `time` — no banco hora_inicio/hora_termino são gravados como
+  // 1970-01-01 + HH:mm, só o relógio importa.
+  private combineDateTime(date: Date, time: Date | null | undefined): Date {
+    const [h, m] = time ? [time.getHours(), time.getMinutes()] : [0, 0];
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, m, 0, 0);
+  }
+
+  // Colisão de intervalos [inicio, fim): true quando o bloco intersecta
+  // alguma das janelas (parcial ou totalmente), tocar na borda não conta.
+  private colideComJanela(inicioBloco: Date, fimBloco: Date, janelas: Array<{ inicio: Date; fim: Date }>): boolean {
+    return janelas.some((j) => inicioBloco < j.fim && fimBloco > j.inicio);
+  }
+
   /**
    * Resolve a imagem recebida do front em uma URL curta que caiba no
    * `varchar(500)` da coluna. Se vier um data URL (upload de arquivo),
@@ -232,6 +246,7 @@ export class AreasSociaisService {
         horarios_livres: {
           '15/05/2026': [{ horarioDe: '10:00', horarioAte: '14:00' }],
         },
+        manutencoes: [],
       };
     }
 
@@ -252,6 +267,7 @@ export class AreasSociaisService {
     // Buscar agendamentos futuros (data > ontem)
     const ontem = new Date();
     ontem.setDate(ontem.getDate() - 1);
+    const agora = new Date();
 
     const agendamentosDb = await this.prisma.areas_Sociais_Agendamentos.findMany({
       where: {
@@ -264,6 +280,8 @@ export class AreasSociaisService {
       orderBy: [{ data: 'asc' }, { hora_de: 'asc' }],
     });
 
+    // Lista completa devolvida na resposta — é a agenda da área (síndico vê o
+    // histórico), então NÃO filtra por status.
     const agendamentos = agendamentosDb.map(ag => {
       const dataStr = ag.data
         ? ag.data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -282,29 +300,72 @@ export class AreasSociaisService {
       };
     });
 
-    // Calcular horários livres para 60 dias
+    // Só reserva 'pendente' ou 'aprovado' ocupa de fato o horário — o mesmo
+    // filtro que insertAgendamento usa na checagem de conflito. Sem isso uma
+    // reserva recusada continuava sumindo com o horário na tela.
+    const agendamentosOcupam = agendamentos.filter(ag => ['pendente', 'aprovado'].includes(ag.status));
+
+    // Manutenções desta área que ainda não terminaram — passadas não afetam
+    // horário nenhum. Comparação por data+hora combinadas (não só data), já
+    // que a manutenção pode terminar no meio do dia.
+    const manutencoesDb = await this.prisma.areas_Sociais_Manutencoes.findMany({
+      where: { id_area_social: Number(idArea) },
+      orderBy: [{ data_inicio: 'asc' }],
+    });
+    const manutencoesAtivas = manutencoesDb
+      .map(m => ({
+        raw: m,
+        inicio: this.combineDateTime(m.data_inicio ?? new Date(0), m.hora_inicio),
+        fim: this.combineDateTime(m.data_termino ?? new Date(0), m.hora_termino),
+      }))
+      .filter(m => m.fim > agora);
+
+    // Calcular horários livres para 60 dias, incluindo hoje
     const horariosLivres: Record<string, any[]> = {};
-    const currDate = new Date();
+    const hojeBase = new Date();
+    hojeBase.setHours(0, 0, 0, 0);
 
     for (let i = 0; i < 60; i++) {
-      currDate.setDate(currDate.getDate() + 1);
+      const currDate = new Date(hojeBase);
+      currDate.setDate(currDate.getDate() + i);
       const dataFormatada = currDate.toLocaleDateString('pt-BR', {
         day: '2-digit', month: '2-digit', year: 'numeric',
       });
       // Lógica de dia da semana do legado (Segunda = 0, Domingo = 6)
       const dayRaw = currDate.getDay();
       const weekDay = dayRaw - 1 < 0 ? 6 : dayRaw - 1;
+      const ehHoje = i === 0;
 
-      if (horariosObj[weekDay] && Array.isArray(horariosObj[weekDay].horarios)) {
-        if (horariosObj[weekDay].horarios.length > 0) {
-          horariosLivres[dataFormatada] = JSON.parse(JSON.stringify(horariosObj[weekDay].horarios));
+      if (horariosObj[weekDay] && Array.isArray(horariosObj[weekDay].horarios) && horariosObj[weekDay].horarios.length > 0) {
+        let blocos: any[] = JSON.parse(JSON.stringify(horariosObj[weekDay].horarios));
+
+        if (ehHoje) {
+          // Hoje: descarta bloco cujo fim já passou — oferecer horário vencido
+          // troca um defeito por outro.
+          blocos = blocos.filter(h => {
+            const [hAte, mAte] = this.parseTime(h.horarioAte);
+            const fimBloco = new Date(currDate.getFullYear(), currDate.getMonth(), currDate.getDate(), hAte, mAte, 0, 0);
+            return fimBloco > agora;
+          });
+        }
+
+        // Remove bloco que intersecta alguma janela de manutenção ativa.
+        blocos = blocos.filter(h => {
+          const [hDe, mDe] = this.parseTime(h.horarioDe);
+          const [hAte, mAte] = this.parseTime(h.horarioAte);
+          const inicioBloco = new Date(currDate.getFullYear(), currDate.getMonth(), currDate.getDate(), hDe, mDe, 0, 0);
+          const fimBloco = new Date(currDate.getFullYear(), currDate.getMonth(), currDate.getDate(), hAte, mAte, 0, 0);
+          return !this.colideComJanela(inicioBloco, fimBloco, manutencoesAtivas);
+        });
+
+        if (blocos.length > 0) {
+          horariosLivres[dataFormatada] = blocos;
         }
       }
     }
 
-    // Remover horários já ocupados
-    // Invertemos para remover com segurança, ou filtramos
-    agendamentos.forEach(ag => {
+    // Remover horários já ocupados por reserva ativa (pendente/aprovado)
+    agendamentosOcupam.forEach(ag => {
       const dataAg = ag.data;
       if (horariosLivres[dataAg]) {
         horariosLivres[dataAg] = horariosLivres[dataAg].filter(h => {
@@ -317,6 +378,20 @@ export class AreasSociaisService {
         }
       }
     });
+
+    // Campo adicional para a tela explicar por que um dia sumiu.
+    const manutencoes = manutencoesAtivas.map(m => ({
+      id: m.raw.id,
+      descricao: m.raw.descricao ?? '',
+      data_inicio: m.raw.data_inicio
+        ? m.raw.data_inicio.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : '',
+      hora_inicio: m.raw.hora_inicio ? m.raw.hora_inicio.toTimeString().substring(0, 5) : '',
+      data_termino: m.raw.data_termino
+        ? m.raw.data_termino.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : '',
+      hora_termino: m.raw.hora_termino ? m.raw.hora_termino.toTimeString().substring(0, 5) : '',
+    }));
 
     // Ocupação atual desta área (contador "quantas pessoas estão dentro agora").
     const [ocupacaoMap, devicesCount] = await Promise.all([
@@ -339,6 +414,7 @@ export class AreasSociaisService {
       horarios: horariosObj,
       agendamentos,
       horarios_livres: horariosLivres,
+      manutencoes,
     };
   }
 
@@ -422,6 +498,21 @@ export class AreasSociaisService {
 
     if (conflito) {
       throw new BadRequestException('Este espaço já possui um agendamento ativo que conflita com o horário solicitado.');
+    }
+
+    // Recusa reserva que caia em manutenção — tirar da lista de horarios_livres
+    // não basta porque a rota aceita POST direto, sem passar pela tela.
+    const manutencoesDb = await this.prisma.areas_Sociais_Manutencoes.findMany({
+      where: { id_area_social: Number(agendamento.id_area_social) },
+    });
+    const janelasManutencao = manutencoesDb.map(m => ({
+      inicio: this.combineDateTime(m.data_inicio ?? new Date(0), m.hora_inicio),
+      fim: this.combineDateTime(m.data_termino ?? new Date(0), m.hora_termino),
+    }));
+    const inicioBlocoSolicitado = this.combineDateTime(dataObj, horaDeObj);
+    const fimBlocoSolicitado = this.combineDateTime(dataObj, horaAteObj);
+    if (this.colideComJanela(inicioBlocoSolicitado, fimBlocoSolicitado, janelasManutencao)) {
+      throw new BadRequestException('Esta área está em manutenção no horário solicitado.');
     }
 
     // Definir status inicial baseado na regra da área.
