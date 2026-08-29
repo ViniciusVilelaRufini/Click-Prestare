@@ -1221,6 +1221,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
   Widget _buildMeusEventos(BuildContext context) {
     if (_eventos.isEmpty) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     const maxLinhas = 4;
     final mostrar = _eventos.take(maxLinhas).toList();
     final restantes = _eventos.length - mostrar.length;
@@ -1228,49 +1229,46 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: AppSpacing.xl),
+        const SizedBox(height: AppSpacing.xxl),
         Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Icon(PhosphorIcons.clockCounterClockwise,
-                      color: AppColors.primary, size: 15),
-                  const SizedBox(width: 6),
-                  Text(
-                    'MEUS EVENTOS',
-                    style: AppTypography.tiny(context).copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
+              Text(
+                'Meus Eventos',
+                style: AppTypography.bodyMedium(context).copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
-              InkWell(
-                onTap: () => _abrirHistoricoAcessos(),
-                borderRadius: BorderRadius.circular(6),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Ver todos',
-                        style: AppTypography.tiny(context).copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _abrirHistoricoAcessos(),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Ver todos',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        PhosphorIcons.caretRight,
-                        color: AppColors.primary,
-                        size: 13,
-                      ),
-                    ],
+                        const SizedBox(width: 3),
+                        const Icon(
+                          PhosphorIcons.caretRightBold,
+                          color: AppColors.primary,
+                          size: 12,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1279,43 +1277,68 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         ),
         Container(
           decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            color: AppColors.surfaceElevated(context),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.border(context),
+              width: 1.1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withOpacity(0.30)
+                    : const Color(0xFF64748B).withOpacity(0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
+          clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
               for (var i = 0; i < mostrar.length; i++) ...[
                 if (i > 0)
                   Divider(
-                      height: 1,
-                      color: AppColors.textTertiary(context).withOpacity(0.1)),
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.border(context),
+                  ),
                 _buildEventoRow(context, mostrar[i]),
               ],
               if (restantes > 0) ...[
                 Divider(
-                    height: 1,
-                    color: AppColors.textTertiary(context).withOpacity(0.1)),
-                InkWell(
-                  onTap: () => _abrirHistoricoAcessos(),
-                  borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(AppRadius.lg)),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                    child: Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}',
-                            style: AppTypography.tiny(context).copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
+                  height: 1,
+                  thickness: 1,
+                  color: AppColors.border(context),
+                ),
+                Material(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.02)
+                      : const Color(0xFFF8FAFC),
+                  child: InkWell(
+                    onTap: () => _abrirHistoricoAcessos(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}',
+                              style: TextStyle(
+                                color: isDark ? const Color(0xFF60A5FA) : AppColors.primary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(PhosphorIcons.arrowRight,
-                              size: 12, color: AppColors.primary),
-                        ],
+                            const SizedBox(width: 6),
+                            Icon(
+                              PhosphorIcons.arrowRightBold,
+                              size: 13,
+                              color: isDark ? const Color(0xFF60A5FA) : AppColors.primary,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1329,85 +1352,162 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   Widget _buildEventoRow(BuildContext context, dynamic e) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final id = int.tryParse(e['id']?.toString() ?? '');
     final isEntrada = (e['evento'] ?? '').toString() == 'entrada';
     final isVoce = (e['categoria'] ?? '').toString() == 'voce';
     final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
     final nome = (e['nome'] ?? '').toString();
 
-    final Color cor = isEntrada ? AppColors.success : AppColors.primary;
-    final IconData icon =
-        isEntrada ? PhosphorIcons.signIn : PhosphorIcons.signOut;
+    // Paleta de status limpa e refinada para light e dark mode
+    final Color iconBg = isDark
+        ? (isEntrada
+            ? const Color(0xFF064E3B).withOpacity(0.35)
+            : const Color(0xFF1E3A8A).withOpacity(0.35))
+        : (isEntrada
+            ? const Color(0xFF10B981).withOpacity(0.12)
+            : AppColors.primary.withOpacity(0.12));
 
-    final String tag = isVoce
-        ? 'Você'
-        : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante');
-    final Color tagColor = isVoce ? AppColors.primary : Colors.orange;
+    final Color iconColor = isDark
+        ? (isEntrada ? const Color(0xFF34D399) : const Color(0xFF60A5FA))
+        : (isEntrada ? const Color(0xFF059669) : AppColors.primary);
 
-    final row = Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-      child: Row(
-        children: [
-          Icon(icon, color: cor, size: 18),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      isEntrada ? 'Entrou' : 'Saiu',
-                      style: AppTypography.captionMedium(context)
-                          .copyWith(color: cor),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        nome.isNotEmpty
-                            ? nome
-                            : (isVoce ? 'Você' : 'Visitante'),
-                        style: AppTypography.caption(context)
-                            .copyWith(color: AppColors.textSecondary(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  _formatDataHora(e['timestamp']),
-                  style: AppTypography.tiny(context)
-                      .copyWith(color: AppColors.textTertiary(context)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: tagColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Text(tag,
-                style: AppTypography.tiny(context)
-                    .copyWith(color: tagColor, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(width: 4),
-          Icon(PhosphorIcons.caretRight,
-              size: 14, color: AppColors.textTertiary(context)),
-        ],
-      ),
-    );
+    final IconData icon = isEntrada
+        ? PhosphorIcons.arrowDownLeftBold
+        : PhosphorIcons.arrowUpRightBold;
+
+    final String statusLabel = isEntrada ? 'Entrou' : 'Saiu';
+
+    // Tags refinadas
+    final String tag;
+    final Color tagBg;
+    final Color tagBorder;
+    final Color tagTextColor;
+
+    if (isVoce) {
+      tag = 'Você';
+      tagBg = isDark ? const Color(0xFF1E3A8A).withOpacity(0.3) : const Color(0xFFEFF6FF);
+      tagBorder = isDark ? const Color(0xFF2563EB).withOpacity(0.4) : const Color(0xFFBFDBFE);
+      tagTextColor = isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
+    } else if (tipoPessoa == 'prestador') {
+      tag = 'Prestador';
+      tagBg = isDark ? const Color(0xFF7C2D12).withOpacity(0.25) : const Color(0xFFFFF7ED);
+      tagBorder = isDark ? const Color(0xFFEA580C).withOpacity(0.35) : const Color(0xFFFED7AA);
+      tagTextColor = isDark ? const Color(0xFFFDBA74) : const Color(0xFFC2410C);
+    } else {
+      tag = 'Visitante';
+      tagBg = isDark ? const Color(0xFF4C1D95).withOpacity(0.25) : const Color(0xFFFAF5FF);
+      tagBorder = isDark ? const Color(0xFF7C3AED).withOpacity(0.35) : const Color(0xFFE9D5FF);
+      tagTextColor = isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6D28D9);
+    }
+
+    final String displayName = nome.isNotEmpty
+        ? nome
+        : (isVoce ? 'Você' : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante'));
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _abrirHistoricoAcessos(destacarId: id),
-        child: row,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+          child: Row(
+            children: [
+              // Badge de status moderno
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 17,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Nome e status + timestamp
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        letterSpacing: -0.1,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: iconColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4.5),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: iconColor,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '•  ${_formatDataHora(e['timestamp'])}',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Tag de papel
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: tagBg,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: tagBorder, width: 0.8),
+                ),
+                child: Text(
+                  tag,
+                  style: TextStyle(
+                    color: tagTextColor,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                PhosphorIcons.caretRightBold,
+                size: 13,
+                color: isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

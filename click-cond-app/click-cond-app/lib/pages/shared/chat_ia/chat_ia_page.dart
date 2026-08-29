@@ -85,6 +85,14 @@ class _ChatIaPageState extends State<ChatIaPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _campoFoco.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
     _msgController.dispose();
     _scrollController.dispose();
@@ -1024,12 +1032,24 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
-  /// Campo flutuante em "liquid glass" — mesmo tratamento da ilha de navegação
-  /// do app: sombra por fora, cor e borda DENTRO do recorte, para que o
-  /// desfoque não vaze pelos cantos arredondados.
+  /// Campo flutuante moderno — borda nítida de alto contraste no light mode
+  /// e visual elegante com destaque suave de foco.
   Widget _buildInput(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isFocused = _campoFoco.hasFocus;
     const raio = 30.0;
+
+    final Color bgColor = isDark
+        ? const Color(0xFF131D2E).withOpacity(0.92)
+        : Colors.white;
+
+    final Color borderColor = isFocused
+        ? AppColors.primary
+        : (isDark
+            ? const Color(0xFF2E3D52)
+            : const Color(0xFFD0D5DD)); // Borda perfeitamente visível e nítida no light mode
+
+    final double borderWidth = isFocused ? 1.5 : 1.2;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -1038,35 +1058,42 @@ class _ChatIaPageState extends State<ChatIaPage> {
         AppSpacing.lg,
         AppSpacing.lg,
       ),
-      child: DecoratedBox(
+      child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(raio),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.30 : 0.06),
-              blurRadius: 22,
-              offset: const Offset(0, 8),
-            ),
+            if (!isDark) ...[
+              BoxShadow(
+                color: const Color(0xFF101828).withOpacity(0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: const Color(0xFF101828).withOpacity(0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ] else ...[
+              BoxShadow(
+                color: Colors.black.withOpacity(0.35),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(raio),
           clipBehavior: Clip.antiAlias,
           child: BackdropFilter(
-            // Desfoque menor e véu mais fino: com 20/0.35 sobre o fundo claro
-            // o vidro virava branco chapado e a mensagem que passa por baixo
-            // desaparecia em vez de aparecer borrada.
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
             child: Container(
               decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.black.withOpacity(0.25)
-                    : Colors.white.withOpacity(0.22),
+                color: bgColor,
+                borderRadius: BorderRadius.circular(raio),
                 border: Border.all(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.12)
-                      : Colors.white.withOpacity(0.45),
-                  width: 1,
+                  color: borderColor,
+                  width: borderWidth,
                 ),
               ),
               padding: const EdgeInsets.fromLTRB(AppSpacing.md, 6, 6, 6),
@@ -1087,8 +1114,6 @@ class _ChatIaPageState extends State<ChatIaPage> {
                         hintText: 'Pergunte algo',
                         hintStyle: AppTypography.body(context)
                             .copyWith(color: AppColors.textTertiary(context)),
-                        // Sem preenchimento nem borda: o fundo é o próprio
-                        // vidro; um fill aqui criaria uma caixa dentro da caixa.
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
@@ -1113,8 +1138,6 @@ class _ChatIaPageState extends State<ChatIaPage> {
                       ),
                       child: Icon(
                         _ouvindo ? PhosphorIcons.microphoneFill : PhosphorIcons.microphone,
-                        // Mesma cor do botão de enviar; só o estado de escuta
-                        // foge dela, para ficar claro que o microfone está ligado.
                         color: _ouvindo ? AppColors.error : AppColors.primary,
                         size: 22,
                       ),
