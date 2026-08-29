@@ -1,7 +1,29 @@
 import { ConflictException } from '@nestjs/common';
 import { AreasSociaisService } from './areas-sociais.service';
+import { AllExceptionsFilter } from '../common/filters/all-exceptions.filter';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+
+/**
+ * Passa a exceção pelo MESMO filter global registrado no main.ts e devolve o
+ * body que de fato iria pra rede. Assert em `getResponse()` não serve: o
+ * filter reconstrói o body, e foi exatamente aí que `{conflitos,total}` sumia.
+ */
+function bodyNaRede(exception: unknown) {
+  const reply = jest.fn();
+  const filter = new AllExceptionsFilter({
+    httpAdapter: { reply, getRequestUrl: () => '/areas-sociais/manutencao/insert' },
+  } as any);
+  jest.spyOn((filter as any).logger, 'error').mockImplementation(() => undefined);
+  filter.catch(exception, {
+    switchToHttp: () => ({
+      getRequest: () => ({ headers: {} }),
+      getResponse: () => ({ setHeader: jest.fn() }),
+    }),
+  } as any);
+  const [, body, status] = reply.mock.calls[0];
+  return { body, status };
+}
 
 /**
  * Cobre o buraco que a entrega anterior deixou: marcar manutenção sobre uma
@@ -110,10 +132,22 @@ describe('AreasSociaisService — manutenção cancela reservas atingidas', () =
       }
 
       expect(erro).toBeInstanceOf(ConflictException);
-      expect(erro.getResponse()).toEqual({
-        conflitos: [{ id: 1, data: '10/06/2026', hora_de: '10:00', hora_ate: '14:00', bloco: 'A', apto: '101' }],
-        total: 1,
-      });
+
+      // O que importa é o que CHEGA no cliente, depois do filter global.
+      const { body, status } = bodyNaRede(erro);
+      expect(status).toBe(409);
+      expect(body.conflitos).toEqual([
+        { id: 1, data: '10/06/2026', hora_de: '10:00', hora_ate: '14:00', bloco: 'A', apto: '101' },
+      ]);
+      expect(body.total).toBe(1);
+      // App antigo (que não sabe reenviar com confirmar_cancelamentos) só sabe
+      // exibir `message` — tem que ser uma frase acionável em português, nunca
+      // o "Conflict Exception" default do Nest.
+      expect(typeof body.message).toBe('string');
+      expect(body.message).not.toMatch(/Conflict Exception/i);
+      expect(body.message).toMatch(/reserva/i);
+      expect(body.message).toMatch(/atualize o aplicativo/i);
+
       expect(prisma.areas_Sociais_Manutencoes.create).not.toHaveBeenCalled();
       expect(prisma.areas_Sociais_Agendamentos.update).not.toHaveBeenCalled();
       expect(facial.syncReservaArea).not.toHaveBeenCalled();
@@ -210,7 +244,16 @@ describe('AreasSociaisService — manutenção cancela reservas atingidas', () =
     it('com conflito e sem confirmar_cancelamentos: não grava e devolve 409', async () => {
       const { svc, prisma } = build({ agendamentos: [agendamentoDb({ id: 1 })] });
 
-      await expect(svc.updateManutencao(updateBase, sindicoCond2)).rejects.toThrow(ConflictException);
+      const erro = await svc.updateManutencao(updateBase, sindicoCond2).catch((e) => e);
+      expect(erro).toBeInstanceOf(ConflictException);
+
+      // Mesma garantia do insert: o payload sobrevive ao filter global.
+      const { body, status } = bodyNaRede(erro);
+      expect(status).toBe(409);
+      expect(body.total).toBe(1);
+      expect(body.conflitos).toHaveLength(1);
+      expect(body.message).toMatch(/atualize o aplicativo/i);
+
       expect(prisma.areas_Sociais_Manutencoes.update).not.toHaveBeenCalled();
     });
 

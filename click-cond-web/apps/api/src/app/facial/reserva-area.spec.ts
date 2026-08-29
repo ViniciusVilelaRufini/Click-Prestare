@@ -26,7 +26,10 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
     { id: 12, nome: 'Beto', foto_pessoa: null, face_id: null, id_condominio: 1 }, // sem foto
   ];
 
-  function build(agOverrides: Record<string, any> = {}, opts: { outraReserva?: number } = {}) {
+  function build(
+    agOverrides: Record<string, any> = {},
+    opts: { outraReserva?: number; outraReservaRegistro?: any } = {},
+  ) {
     const ag = {
       id: 100,
       id_area_social: 3,
@@ -46,7 +49,22 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
       isConnected: true,
       areas_Sociais_Agendamentos: {
         findUnique: jest.fn(async () => ag),
-        count: jest.fn(async () => opts.outraReserva ?? 0),
+        // "Outra reserva aprovada vigente do apto": agora o service busca o
+        // REGISTRO (precisa da janela dela), não um contador.
+        findFirst: jest.fn(async () =>
+          opts.outraReservaRegistro ??
+          (opts.outraReserva
+            ? {
+                id: 200,
+                id_area_social: 3,
+                id_apartamento: 50,
+                data: new Date('2026-07-25T00:00:00.000Z'),
+                hora_de: new Date('1970-01-01T09:00:00.000Z'),
+                hora_ate: new Date('1970-01-01T12:00:00.000Z'),
+                status: 'aprovado',
+              }
+            : null),
+        ),
       },
       facial_Devices: { findMany: jest.fn(async () => [DEVICE]) },
       apartamentos_Users: {
@@ -93,10 +111,79 @@ describe('FacialService — syncReservaArea (áreas sociais)', () => {
     expect(client.enrollPerson).not.toHaveBeenCalled();
   });
 
-  it('recusado MAS com outra reserva vigente → NÃO remove', async () => {
+  it('recusado MAS com outra reserva vigente → não remove; reenrola com a janela DA OUTRA reserva', async () => {
     const { svc, client } = build({ status: 'recusado' }, { outraReserva: 1 });
     await svc.syncReservaArea(100);
-    expect(client.removePerson).not.toHaveBeenCalled();
+    // Ana (com foto) mantém o acesso — não é removida.
+    expect(client.removePerson).not.toHaveBeenCalledWith(DEVICE, 'morador_11');
+    // Não basta "deixar como está": o aparelho guarda UMA janela por pessoa e
+    // ela ainda seria a da reserva perdida (14:00–18:00 de 20/07).
+    expect(client.enrollPerson).toHaveBeenCalledWith(
+      DEVICE,
+      expect.objectContaining({
+        externalId: 'morador_11',
+        validFrom: '2026-07-25 09:00:00',
+        validTo: '2026-07-25 12:00:00',
+      }),
+    );
+  });
+
+  /**
+   * O furo que esta suíte existe para fechar: manutenção sobre uma reserva
+   * de um apto que tem OUTRA reserva futura. A checagem antiga era por
+   * apartamento ("tem outra reserva? então não mexe"), e o terminal ficava
+   * com a janela da reserva CANCELADA — o morador entrava no meio da
+   * manutenção.
+   */
+  describe('manutenção cancela a reserva de um apto que tem outra reserva futura', () => {
+    const RESERVA_B = {
+      id: 201,
+      id_area_social: 3,
+      id_apartamento: 50,
+      data: new Date('2026-06-20T00:00:00.000Z'), // 20/06, fora da manutenção
+      hora_de: new Date('1970-01-01T10:00:00.000Z'),
+      hora_ate: new Date('1970-01-01T14:00:00.000Z'),
+      status: 'aprovado',
+    };
+
+    it('a janela gravada no terminal deixa de sobrepor a manutenção (vira a da reserva B)', async () => {
+      // Reserva A: 10/06 10:00–14:00, cancelada pela manutenção de 10/06 09:00–18:00.
+      const { svc, client } = build(
+        {
+          status: 'cancelado',
+          data: new Date('2026-06-10T00:00:00.000Z'),
+          hora_de: new Date('1970-01-01T10:00:00.000Z'),
+          hora_ate: new Date('1970-01-01T14:00:00.000Z'),
+        },
+        { outraReservaRegistro: RESERVA_B },
+      );
+
+      await svc.syncReservaArea(100);
+
+      expect(client.enrollPerson).toHaveBeenCalledTimes(1);
+      const [, payload] = client.enrollPerson.mock.calls[0];
+
+      // Acesso preservado para a reserva legítima que sobrou...
+      expect(payload.validFrom).toBe('2026-06-20 10:00:00');
+      expect(payload.validTo).toBe('2026-06-20 14:00:00');
+
+      // ...e nada da janela sobrepõe o dia da manutenção.
+      expect(payload.validFrom.startsWith('2026-06-10')).toBe(false);
+      expect(payload.validTo.startsWith('2026-06-10')).toBe(false);
+    });
+
+    it('sem foto utilizável, a reserva cancelada revoga (não deixa a janela velha no aparelho)', async () => {
+      const { svc, client } = build(
+        { status: 'cancelado' },
+        { outraReservaRegistro: RESERVA_B },
+      );
+      jest.spyOn(svc as any, 'fetchPhotoAsBase64').mockResolvedValue(null);
+
+      await svc.syncReservaArea(100);
+
+      expect(client.enrollPerson).not.toHaveBeenCalled();
+      expect(client.removePerson).toHaveBeenCalledWith(DEVICE, 'morador_11');
+    });
   });
 
   it('área sem controle de acesso (controle_acesso_facial!=1) → não faz nada', async () => {

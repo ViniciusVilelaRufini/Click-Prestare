@@ -29,6 +29,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Extrai mensagem do HttpException corretamente — quando o objeto de resposta
     // tem `message` (BadRequestException, etc.), prefere esse valor.
     let message: string | string[] = 'Erro interno do servidor';
+
+    // Campos EXTRAS do payload do exception, preservados no body final.
+    //
+    // Por que isto existe: quando alguém lança `new ConflictException({...})`
+    // com um payload estruturado (ex.: a lista de reservas atingidas por uma
+    // manutenção), este filter global reconstruía o body do zero e o payload
+    // sumia na rede — o cliente recebia só `{statusCode, message}` e o fluxo
+    // que depende desses campos ficava morto em produção. Agora as chaves
+    // próprias do payload sobrevivem ao lado de statusCode/timestamp/path.
+    //
+    // As chaves reservadas ficam de fora de propósito:
+    //  - `statusCode` vem de getStatus();
+    //  - `message` é resolvido/sanitizado logo abaixo;
+    //  - `error` é o rótulo padrão que o Nest injeta ao receber uma STRING
+    //    (`new BadRequestException('texto')` vira `{statusCode, message, error}`).
+    //    Ignorá-lo mantém o body de todo o resto da API byte a byte igual ao
+    //    de hoje — só payloads de objeto ganham campos.
+    const RESERVADAS = new Set(['statusCode', 'message', 'error']);
+    const extras: Record<string, unknown> = {};
+
     if (exception instanceof HttpException) {
       const resp = exception.getResponse();
       if (typeof resp === 'string') {
@@ -37,6 +57,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         const m = (resp as any).message;
         if (m) message = m;
         else message = exception.message;
+        for (const [chave, valor] of Object.entries(resp as Record<string, unknown>)) {
+          if (!RESERVADAS.has(chave)) extras[chave] = valor;
+        }
       } else {
         message = exception.message;
       }
@@ -64,6 +87,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     message = sanitizeRuntimeError(message);
 
     const responseBody = {
+      ...extras,
       statusCode: httpStatus,
       timestamp: new Date().toISOString(),
       path: httpAdapter.getRequestUrl(request),

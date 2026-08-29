@@ -47,6 +47,43 @@ export class AreasSociaisService {
     return n;
   }
 
+  /**
+   * O usuário autenticado é um OPERADOR (síndico/funcionário/porteiro), e não
+   * um morador? Usado para isentar a administração do teto mensal por
+   * apartamento — a isenção precisa valer em qualquer superfície (app do
+   * síndico e portaria-web), não só onde o front lembra de mandar uma flag.
+   *
+   * Por que não `isOperador()` de tenant.util aqui: aquele helper trata
+   * QUALQUER token com `id_condominio` como console da portaria — e o token do
+   * morador também traz `id_condominio`, o que isentaria o condomínio inteiro
+   * do limite. Aqui o papel vem do `typeAccess` (a mesma fonte que o resto
+   * deste service usa para reconhecer 'Morador'), com o token da portaria-web
+   * (sem `typeAccess`, mas com `turno` + condomínio) aceito à parte.
+   */
+  private ehOperador(user?: JwtPayload, typeAccessArg?: string): boolean {
+    const tipo = (user?.typeAccess ?? user?.user?.typeAccess ?? typeAccessArg ?? '')
+      .toString()
+      .toLowerCase();
+    if (tipo === 'morador') return false;
+    if (
+      ['sindico', 'funcionario', 'admin', 'superadmin', 'administrador', 'porteiro', 'operador'].includes(tipo)
+    ) {
+      return true;
+    }
+    if (
+      (user as any)?.is_sindico === 1 ||
+      (user as any)?.is_funcionario === 1 ||
+      user?.user?.is_sindico === 1 ||
+      user?.user?.is_funcionario === 1
+    ) {
+      return true;
+    }
+    // Token do login da portaria-web: `{ sub, nome, id_condominio, turno }`,
+    // sem typeAccess nenhum.
+    if (!tipo && user?.turno != null && !!user?.id_condominio) return true;
+    return false;
+  }
+
   private parseTime(timeStr: string | null | undefined): [number, number] {
     const s = String(timeStr ?? '00:00').trim();
     const match = s.match(/(\d{2}):(\d{2})/);
@@ -169,9 +206,33 @@ export class AreasSociaisService {
 
     const imagemUrl = await this.resolveImagem(areaSocial.imagem);
 
-    const horariosStr = typeof areaSocial.horarios === 'string'
-      ? areaSocial.horarios
-      : JSON.stringify(areaSocial.horarios ?? []);
+    // Mesma regra de `regras`/`limite_mensal_apto` (ver abaixo): chave ausente
+    // = "não mexe nessa coluna". Sem isto, qualquer cliente que não mandasse
+    // a grade semanal (a tela de áreas da portaria-web, que até então nem
+    // recebia `horarios` na listagem) apagava os horários da área ao salvar
+    // qualquer outro campo.
+    const horariosPatch = areaSocial.horarios === undefined
+      ? {}
+      : {
+          horarios: typeof areaSocial.horarios === 'string'
+            ? areaSocial.horarios
+            : JSON.stringify(areaSocial.horarios ?? []),
+        };
+
+    // Idem para "exige pagamento" e capacidade: nenhuma das duas é editável na
+    // tela de áreas da web, que portanto não as envia — e escrever
+    // `Number(undefined ?? 0)` desligava o pagamento e zerava a capacidade
+    // configuradas em outra superfície. Aceita as duas grafias do campo de
+    // pagamento (`pagar` do app antigo, `precisa_pagamento`).
+    const pagamentoInformado =
+      areaSocial.pagar !== undefined || areaSocial.precisa_pagamento !== undefined;
+    const pagamentoPatch = pagamentoInformado
+      ? { precisa_pagamento: Number(areaSocial.pagar ?? areaSocial.precisa_pagamento ?? 0) }
+      : {};
+
+    const capacidadePatch = areaSocial.capacidade === undefined
+      ? {}
+      : { capacidade: Number(areaSocial.capacidade ?? 0) };
 
     // O app publicado não manda `regras` no payload de edição. Se a chave não
     // veio, a coluna nem entra no update — senão o morador/síndico editando
@@ -201,9 +262,9 @@ export class AreasSociaisService {
         ...(imagemUrl ? { imagem: imagemUrl } : {}),
         precisa_agendar: Number(areaSocial.agendar ?? areaSocial.precisa_agendar ?? 0),
         precisa_autorizacao: Number(areaSocial.autorizacao ?? areaSocial.precisa_autorizacao ?? 0),
-        precisa_pagamento: Number(areaSocial.pagar ?? areaSocial.precisa_pagamento ?? 0),
-        horarios: horariosStr,
-        capacidade: Number(areaSocial.capacidade ?? 0),
+        ...pagamentoPatch,
+        ...horariosPatch,
+        ...capacidadePatch,
         ...limitePatch,
         ...regrasPatch,
       },
@@ -244,6 +305,12 @@ export class AreasSociaisService {
         precisa_autorizacao: true,
         precisa_pagamento: true,
         regras: true,
+        // A grade semanal precisa vir na listagem: a tela de áreas da
+        // portaria-web edita a partir DESTE payload e devolve o objeto inteiro
+        // no update. Sem `horarios` aqui, o front mandava um default de
+        // 08:00–22:00 nos 7 dias e substituía a grade real da área a cada
+        // salvamento.
+        horarios: true,
         _count: { select: { devices: true } },
       },
     });
@@ -254,8 +321,17 @@ export class AreasSociaisService {
     return areas.map(a => {
       const { _count, ...rest } = a;
       const temMonitoramento = (_count?.devices ?? 0) > 0;
+      // Mesma forma do `get()`: array já parseado. Coluna vazia/corrompida
+      // vira [] em vez de derrubar a listagem inteira.
+      let horariosObj: any[] = [];
+      try {
+        horariosObj = a.horarios ? JSON.parse(a.horarios) : [];
+      } catch {
+        horariosObj = [];
+      }
       return {
         ...rest,
+        horarios: Array.isArray(horariosObj) ? horariosObj : [],
         imagem: a.imagem && a.imagem.trim() !== '' ? a.imagem : defaultImage,
         tem_monitoramento: temMonitoramento,
         ocupacao: temMonitoramento ? (ocupacaoMap.get(a.id) ?? 0) : 0,
@@ -533,6 +609,14 @@ export class AreasSociaisService {
     // (para aparecer em "minhas reservas" e disparar push para ele), e a
     // checagem de isolamento de morador não se aplica.
     const peloSindico = !!agendamento.agendarPeloSindico;
+    // Isenção do teto mensal: é PAPEL, não flag. A flag `agendarPeloSindico`
+    // só é enviada pela portaria-web; o app do síndico nunca a manda, então
+    // amarrar a isenção nela deixava o síndico logado no app preso ao limite
+    // do apartamento ("limite atingido", sem override) na hora de reservar
+    // para um evento do condomínio. A flag continua valendo para o que ela
+    // sempre significou (dono da reserva + auto-aprovação), aqui só somamos o
+    // papel autenticado.
+    const isentoDoLimite = peloSindico || this.ehOperador(user, typeAccess);
     // Sem essa checagem, qualquer morador mandava agendarPeloSindico:true e
     // auto-aprovava a própria reserva pulando a fila de autorização.
     if (peloSindico) assertOperador(user, 'agendar em nome de outro morador (auto-aprovação)');
@@ -623,7 +707,7 @@ export class AreasSociaisService {
     // getFullYear()/getMonth() (sem passar por Intl/UTC) preserva o mesmo
     // calendário que o morador digitou — nada de decidir a virada de mês
     // pelo relógio do servidor.
-    if (!peloSindico && areaAlvo.limite_mensal_apto && areaAlvo.limite_mensal_apto > 0) {
+    if (!isentoDoLimite && areaAlvo.limite_mensal_apto && areaAlvo.limite_mensal_apto > 0) {
       const anoAlvo = dataObj.getFullYear();
       const mesAlvo = dataObj.getMonth();
       const primeiroDiaMes = new Date(anoAlvo, mesAlvo, 1);
@@ -945,6 +1029,30 @@ export class AreasSociaisService {
     };
   }
 
+  /**
+   * Corpo do 409 de "manutenção sobre reservas ativas".
+   *
+   * `conflitos`/`total` são o que a tela nova consome para montar o diálogo de
+   * confirmação e repetir o pedido com `confirmar_cancelamentos: true` (o
+   * AllExceptionsFilter preserva essas chaves no body — sem isso, elas nunca
+   * chegariam ao cliente).
+   *
+   * `message` existe para o app JÁ PUBLICADO, que não conhece o fluxo de
+   * confirmação e só sabe exibir `message`: em vez de um "Conflict Exception"
+   * sem saída, o síndico lê o que aconteceu e o que fazer (atualizar o app).
+   */
+  private payloadConflitoManutencao(conflitantes: any[]) {
+    const n = conflitantes.length;
+    return {
+      conflitos: conflitantes.map((ag) => this.formatarConflito(ag)),
+      total: n,
+      message:
+        `Existe${n > 1 ? 'm' : ''} ${n} reserva${n > 1 ? 's' : ''} ativa${n > 1 ? 's' : ''} nesta janela de manutenção. ` +
+        'Atualize o aplicativo para confirmar o cancelamento dessas reservas, ' +
+        'ou cancele-as manualmente antes de agendar a manutenção.',
+    };
+  }
+
   // Marca cada reserva atingida como 'cancelado' dentro da MESMA transação
   // que grava a manutenção — ver `insertManutencao`/`updateManutencao`. `tx`
   // é o client transacional do Prisma (interactive transaction), nunca
@@ -1028,10 +1136,7 @@ export class AreasSociaisService {
     if (conflitantes.length > 0 && manutencao.confirmar_cancelamentos !== true) {
       // Nada é gravado sem confirmação explícita — matar silenciosamente as
       // reservas de outras famílias é pior do que pedir mais um clique.
-      throw new ConflictException({
-        conflitos: conflitantes.map((ag) => this.formatarConflito(ag)),
-        total: conflitantes.length,
-      });
+      throw new ConflictException(this.payloadConflitoManutencao(conflitantes));
     }
 
     // Manutenção nova + cancelamento das reservas atingidas precisam confirmar
@@ -1091,10 +1196,7 @@ export class AreasSociaisService {
     const conflitantes = await this.detectarAgendamentosAtingidos(atual.id_area_social, inicioJanela, fimJanela);
 
     if (conflitantes.length > 0 && manutencao.confirmar_cancelamentos !== true) {
-      throw new ConflictException({
-        conflitos: conflitantes.map((ag) => this.formatarConflito(ag)),
-        total: conflitantes.length,
-      });
+      throw new ConflictException(this.payloadConflitoManutencao(conflitantes));
     }
 
     await this.prisma.$transaction(async (tx) => {

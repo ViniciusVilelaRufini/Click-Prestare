@@ -1418,14 +1418,30 @@ export class FacialService {
     return { validFrom: `${dia} ${de}`, validTo: `${dia} ${ate}` };
   }
 
-  /** O apartamento tem OUTRA reserva aprovada vigente/futura nesta área? */
-  private async aptoTemOutraReservaVigente(
+  /**
+   * A PRÓXIMA outra reserva aprovada vigente/futura do apartamento nesta área
+   * (ou null). Devolve a reserva inteira, não um booleano, porque quem chama
+   * precisa da JANELA dela para reescrever a validade gravada no aparelho.
+   *
+   * Por que a janela importa: o terminal guarda uma única janela por pessoa.
+   * Quando a reserva atual é cancelada (manutenção, por exemplo) mas o apto
+   * ainda tem outra reserva aprovada, apenas "não remover" deixava o aparelho
+   * com a janela da reserva CANCELADA — e o morador entrava na área no meio da
+   * manutenção. Reenrolar com a janela da reserva remanescente fecha o buraco
+   * sem tirar o acesso a que ele ainda tem direito.
+   */
+  private async proximaOutraReservaAprovada(
     idArea: number,
     idApto: number,
     excluirAgId: number,
-  ): Promise<boolean> {
-    const hojeStr = new Date().toISOString().slice(0, 10);
-    const c = await this.prisma.areas_Sociais_Agendamentos.count({
+  ) {
+    // "Hoje" no fuso do condomínio — o servidor roda em UTC e, depois das 21h
+    // locais, `new Date()` já virou o dia seguinte lá: uma reserva de hoje
+    // sairia da janela e o acesso seria revogado cedo demais.
+    const hojeStr = new Date()
+      .toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo', hour12: false })
+      .slice(0, 10);
+    return this.prisma.areas_Sociais_Agendamentos.findFirst({
       where: {
         id_area_social: idArea,
         id_apartamento: idApto,
@@ -1433,15 +1449,16 @@ export class FacialService {
         NOT: { id: excluirAgId },
         data: { gte: new Date(hojeStr) },
       },
+      orderBy: [{ data: 'asc' }, { hora_de: 'asc' }],
     });
-    return c > 0;
   }
 
   /**
    * Enrola/remove os moradores do apartamento no(s) terminal(is) facial(is) da
    * área conforme o status da reserva. Aprovado → enrola com a janela do
-   * horário (o aparelho nega sozinho fora dela). Recusado/removido → remove
-   * (a menos que o apto tenha outra reserva vigente). Fire-and-forget.
+   * horário (o aparelho nega sozinho fora dela). Recusado/cancelado → remove;
+   * se o apto ainda tiver OUTRA reserva aprovada, reenrola com a janela dela
+   * (nunca deixa a janela da reserva perdida no aparelho). Fire-and-forget.
    */
   async syncReservaArea(idAgendamento: number) {
     if (FACIAL_DISABLED) return { skipped: true, reason: 'integration_disabled' };
@@ -1473,19 +1490,35 @@ export class FacialService {
       : [];
 
     const aprovado = ag.status === 'aprovado';
-    const { validFrom, validTo } = this.janelaReserva(ag);
-    const manterSeOutraReserva = !aprovado
-      ? await this.aptoTemOutraReservaVigente(ag.id_area_social, ag.id_apartamento, ag.id)
-      : false;
+    // Reserva perdida (recusada/cancelada): o apto pode ainda ter OUTRA reserva
+    // aprovada. Nesse caso não basta "não remover" — é preciso REESCREVER a
+    // janela do aparelho para a da reserva remanescente, senão o terminal
+    // continua abrindo no horário da reserva que acabou de ser cancelada
+    // (exatamente o furo de "manutenção com a catraca aberta").
+    const reservaRemanescente = !aprovado
+      ? await this.proximaOutraReservaAprovada(ag.id_area_social, ag.id_apartamento, ag.id)
+      : null;
+    // A janela gravada é sempre a da reserva que de fato dá direito de entrar.
+    const { validFrom, validTo } = this.janelaReserva(
+      aprovado ? ag : (reservaRemanescente ?? ag),
+    );
 
     for (const device of devices) {
       for (const m of moradores) {
         const externalId = `morador_${m.id}`;
         try {
-          if (aprovado) {
-            if (!m.foto_pessoa) continue; // sem foto: não dá p/ enrolar
-            const fotoBase64 = await this.fetchPhotoAsBase64(m.foto_pessoa);
-            if (!fotoBase64) continue;
+          if (aprovado || reservaRemanescente) {
+            // Sem foto utilizável não dá para (re)enrolar. Quando a reserva
+            // atual foi perdida, cair fora sem fazer nada deixaria a janela
+            // velha no aparelho — então aqui a saída segura é REMOVER (quem
+            // não tem foto não tem acesso facial nenhum de qualquer forma; o
+            // tick de reservas re-enrola assim que houver foto).
+            const fotoBase64 = m.foto_pessoa ? await this.fetchPhotoAsBase64(m.foto_pessoa) : null;
+            if (!fotoBase64) {
+              if (aprovado) continue;
+              await this.client.removePerson(this.toConfig(device), m.face_id ?? externalId);
+              continue;
+            }
             await this.client.enrollPerson(this.toConfig(device), {
               externalId,
               nome: m.nome,
@@ -1494,7 +1527,7 @@ export class FacialService {
               validTo,
               userTimes: -1,
             });
-          } else if (!manterSeOutraReserva) {
+          } else {
             await this.client.removePerson(
               this.toConfig(device),
               m.face_id ?? externalId,
@@ -1507,7 +1540,14 @@ export class FacialService {
         }
       }
     }
-    return { ok: true, devices: devices.length, moradores: moradores.length, aprovado };
+    return {
+      ok: true,
+      devices: devices.length,
+      moradores: moradores.length,
+      aprovado,
+      // Reenrolado com a janela de outra reserva aprovada do apto.
+      reenroladoComOutraReserva: !aprovado && !!reservaRemanescente,
+    };
   }
 
   /**

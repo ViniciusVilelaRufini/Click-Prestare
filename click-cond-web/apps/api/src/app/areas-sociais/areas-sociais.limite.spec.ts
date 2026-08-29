@@ -248,6 +248,54 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
     expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
   });
 
+  describe('isenção do limite é por PAPEL, não por flag do cliente', () => {
+    // `agendarPeloSindico` só é enviada pela portaria-web; o app do síndico
+    // nunca manda essa flag. Amarrar a isenção nela deixava o síndico logado
+    // no app preso ao teto do apartamento, sem override nenhum.
+    it('síndico pelo APP (sem agendarPeloSindico) é isento com o apartamento no limite', async () => {
+      const { svc, prisma } = build({
+        limite: 1,
+        reservasNoMes: [{ data: new Date(2026, 5, 3), status: 'aprovado' }],
+      });
+      await svc.insertAgendamento(agendamentoBase, 1, 'Sindico', sindico);
+      expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
+    });
+
+    it('funcionário pelo app também é isento sem flag nenhuma', async () => {
+      const funcionario: JwtPayload = { sub: 4, nome: 'Zelador', id_condominio: 2, typeAccess: 'Funcionario' };
+      const { svc, prisma } = build({
+        limite: 1,
+        reservasNoMes: [{ data: new Date(2026, 5, 3), status: 'aprovado' }],
+      });
+      await svc.insertAgendamento(agendamentoBase, 4, 'Funcionario', funcionario);
+      expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
+    });
+
+    it('operador da portaria-web (token sem typeAccess, com turno) é isento', async () => {
+      const porteiro: JwtPayload = { sub: 7, nome: 'Portaria', id_condominio: 2, turno: 'noite' };
+      const { svc, prisma } = build({
+        limite: 1,
+        reservasNoMes: [{ data: new Date(2026, 5, 3), status: 'aprovado' }],
+      });
+      await svc.insertAgendamento(agendamentoBase, 7, '', porteiro);
+      expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
+    });
+
+    it('morador continua submetido ao limite — o token dele TAMBÉM tem id_condominio', async () => {
+      // Regressão do jeito errado de derivar o papel: `isOperador()` de
+      // tenant.util considera qualquer token com id_condominio como console
+      // da portaria, e isso isentaria o condomínio inteiro.
+      const { svc, prisma } = build({
+        limite: 1,
+        reservasNoMes: [{ data: new Date(2026, 5, 3), status: 'aprovado' }],
+      });
+      await expect(svc.insertAgendamento(agendamentoBase, 6, 'Morador', morador)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.areas_Sociais_Agendamentos.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('update() — não apagar limite configurado por edição que não manda o campo', () => {
     it('chave ausente não toca na coluna (app publicado não manda limite_mensal_apto)', async () => {
       const { svc, prisma } = build();

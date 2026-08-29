@@ -222,9 +222,21 @@ export class AreasSociaisPageComponent implements OnInit {
       agendar: this.novaArea.agendar ? 1 : 0,
       autorizacao: this.novaArea.autorizacao ? 1 : 0,
       regras: this.novaArea.regras || '',
-      horarios: this.areaEditando()?.horarios || Array.from({ length: 7 }).map(() => ({
-        horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }]
-      }))
+      // Edição: devolve a grade que veio do backend (o get-all agora manda
+      // `horarios`). Se por algum motivo ela não vier, a chave é OMITIDA — a
+      // API preserva a coluna quando o campo está ausente. Nunca mandar o
+      // default de 08:00–22:00 numa edição: isso apagava a grade real da área.
+      // Criação: aí sim o default faz sentido, a área ainda não tem grade.
+      ...(this.areaEditando()
+        ? (this.areaEditando()?.horarios ? { horarios: this.areaEditando()?.horarios } : {})
+        : {
+            horarios: Array.from({ length: 7 }).map(() => ({
+              horarios: [{ horarioDe: '08:00', horarioAte: '22:00' }],
+            })),
+          }),
+      // `precisa_pagamento` não é editável nesta tela: a chave fica de fora
+      // para a API manter o valor já configurado (antes ela era gravada como
+      // 0 a cada salvamento, desligando a cobrança sem ninguém pedir).
     };
 
     const request = this.areaEditando()
