@@ -482,6 +482,9 @@ model Areas_Sociais_Agendamentos {
   hora_de        DateTime?     @db.Time(0)
   hora_ate       DateTime?     @db.Time(0)
   status         String        @default("pendente") @db.VarChar(50)
+  // Quantas pessoas o morador espera levar. Null = reserva feita por versão do
+  // app que não pergunta isso — nunca validar contra capacidade nesse caso.
+  convidados     Int?
   created_at     DateTime      @default(now()) @db.DateTime(0)
   updated_at     DateTime      @default(now()) @updatedAt @db.DateTime(0)
   apartamento    Apartamentos  @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_asa_apto")

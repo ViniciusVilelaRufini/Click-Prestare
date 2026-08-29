@@ -28,6 +28,7 @@ export interface AgendamentoArea {
   data: string;
   horaDe: string;
   horaAte: string;
+  convidados?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })

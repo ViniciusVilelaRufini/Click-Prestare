@@ -487,6 +487,10 @@ class Localizable_EnUs {
           //OUTROS
           LocalizableModel(key: 'pessoas', text: 'People'),
           LocalizableModel(key: 'capacidade_indeterminada', text: 'Undetermined capacity'),
+          LocalizableModel(key: 'lb_convidados', text: 'Number of guests'),
+          LocalizableModel(key: 'convidados_dica_capacidade', text: 'Total people expected, including residents. Venue capacity: %CAP% people.'),
+          LocalizableModel(key: 'convidados_erro_capacidade', text: 'This venue holds at most %CAP% people (including residents).'),
+          LocalizableModel(key: 'convidados_erro_invalido', text: 'Enter a valid number of guests.'),
           LocalizableModel(key: 'pagos', text: 'Paid'),
           LocalizableModel(key: 'escolha_opcao_desejada', text: 'Choose the desired option'),
           LocalizableModel(key: 'ciente', text: 'Aware'),

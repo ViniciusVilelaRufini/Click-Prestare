@@ -496,6 +496,10 @@ class Localizable_PtPt {
     //OUTROS
     LocalizableModel(key: 'pessoas', text: 'Pessoas'),
     LocalizableModel(key: 'capacidade_indeterminada', text: 'Capacidade indeterminada'),
+    LocalizableModel(key: 'lb_convidados', text: 'Número de convidados'),
+    LocalizableModel(key: 'convidados_dica_capacidade', text: 'Total de pessoas esperadas, incluindo os residentes. Capacidade do espaço: %CAP% pessoas.'),
+    LocalizableModel(key: 'convidados_erro_capacidade', text: 'Este espaço comporta no máximo %CAP% pessoas (incluindo os residentes).'),
+    LocalizableModel(key: 'convidados_erro_invalido', text: 'Indique um número de convidados válido.'),
     LocalizableModel(key: 'pagos', text: 'Pagos'),
     LocalizableModel(key: 'escolha_opcao_desejada', text: 'Escolha a opção pretendida'),
     LocalizableModel(key: 'ciente', text: 'Ciente'),

@@ -298,6 +298,16 @@
                     </svg>
                     {{ ag.horaDe }} - {{ ag.horaAte }}
                   </span>
+
+                  <!-- Convidados Badge (só aparece quando informado) -->
+                  @if (ag.convidados) {
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300">
+                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-5.13a4 4 0 11-8 0 4 4 0 018 0zm6 3a4 4 0 10-8 0"/>
+                      </svg>
+                      {{ ag.convidados }} convidados
+                    </span>
+                  }
                 </div>
 
                 <p class="text-[10px] text-slate-500 mt-2 font-mono flex items-center gap-1">
@@ -624,6 +634,24 @@
                 <button type="button" (click)="definirDuracao(4)" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/5 text-slate-300 hover:bg-white/10 transition">4h</button>
               </div>
             }
+          </div>
+
+          <!-- Convidados: opcional, checado contra a capacidade do espaço no backend -->
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">
+              Número de convidados (opcional)
+              @if (areaReserva()?.capacidade) {
+                <span class="text-slate-500">— capacidade: {{ areaReserva()?.capacidade }} pessoas</span>
+              }
+            </label>
+            <input
+              [(ngModel)]="novaReserva.convidados"
+              type="number"
+              min="1"
+              placeholder="Total de pessoas, incluindo o morador"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                     focus:outline-none focus:border-accent transition"
+            />
           </div>
 
           @if (novaReserva.horaDe && novaReserva.horaAte && !reservaValida() && novaReserva.id_apartamento && novaReserva.data) {

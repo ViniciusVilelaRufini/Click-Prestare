@@ -496,6 +496,10 @@ class Localizable_Es {
           //OUTROS
           LocalizableModel(key: 'pessoas', text: 'Gente'),
           LocalizableModel(key: 'capacidade_indeterminada', text: 'Capacidad indeterminada'),
+          LocalizableModel(key: 'lb_convidados', text: 'Número de invitados'),
+          LocalizableModel(key: 'convidados_dica_capacidade', text: 'Total de personas esperadas, incluyendo a los residentes. Capacidad del espacio: %CAP% personas.'),
+          LocalizableModel(key: 'convidados_erro_capacidade', text: 'Este espacio admite como máximo %CAP% personas (incluyendo a los residentes).'),
+          LocalizableModel(key: 'convidados_erro_invalido', text: 'Ingrese un número de invitados válido.'),
           LocalizableModel(key: 'pagos', text: 'Pagado'),
           LocalizableModel(key: 'escolha_opcao_desejada', text: 'Elija la opción deseada'),
           LocalizableModel(key: 'ciente', text: 'Consciente'),

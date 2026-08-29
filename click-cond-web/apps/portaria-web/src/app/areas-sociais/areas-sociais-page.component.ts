@@ -43,8 +43,8 @@ export class AreasSociaisPageComponent implements OnInit {
   readonly reservando = signal(false);
   readonly reservaErro = signal<string | null>(null);
   readonly reservaSucesso = signal(false);
-  novaReserva: { id_apartamento: number | null; data: string; horaDe: string; horaAte: string } = {
-    id_apartamento: null, data: '', horaDe: '', horaAte: ''
+  novaReserva: { id_apartamento: number | null; data: string; horaDe: string; horaAte: string; convidados: number | null } = {
+    id_apartamento: null, data: '', horaDe: '', horaAte: '', convidados: null
   };
 
   // Apartamentos filtrados pela busca digitada no modal de reserva.
@@ -247,7 +247,7 @@ export class AreasSociaisPageComponent implements OnInit {
   // ==========================================
   abrirModalReserva(area: AreaSocial) {
     this.areaReserva.set(area);
-    this.novaReserva = { id_apartamento: null, data: '', horaDe: '', horaAte: '' };
+    this.novaReserva = { id_apartamento: null, data: '', horaDe: '', horaAte: '', convidados: null };
     this.buscaApto.set('');
     this.reservaErro.set(null);
     this.reservaSucesso.set(false);
@@ -367,6 +367,7 @@ export class AreasSociaisPageComponent implements OnInit {
       data: dataBr,                        // DD/MM/YYYY
       horaDe: this.novaReserva.horaDe,     // HH:mm
       horaAte: this.novaReserva.horaAte,   // HH:mm
+      convidados: this.novaReserva.convidados || null,
     };
 
     this.api.insertAgendamento(payload).subscribe({

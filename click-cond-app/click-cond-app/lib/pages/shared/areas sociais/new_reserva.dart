@@ -12,6 +12,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewReserva extends StatefulWidget {
@@ -27,6 +28,7 @@ class _NewReservaPageState extends State<NewReserva> {
   final txtData = TextEditingController();
   final txtBloco = TextEditingController();
   final txtApto = TextEditingController();
+  final txtConvidados = TextEditingController();
   var _isLoading = false;
   var _isSaving = false;
   var list = [];
@@ -39,9 +41,12 @@ class _NewReservaPageState extends State<NewReserva> {
   // não pode ficar bloqueado esperando um aceite que não faz sentido pedir.
   bool get hasRegras => widget.obj['regras'] != null && widget.obj['regras'].toString().trim().isNotEmpty;
 
+  // Capacidade 0/nula = área sem limite configurado — mesma regra da API.
+  int get capacidade => int.tryParse(widget.obj['capacidade']?.toString() ?? '') ?? 0;
+
   @override
   void dispose() {
-    txtData.dispose(); txtBloco.dispose(); txtApto.dispose();
+    txtData.dispose(); txtBloco.dispose(); txtApto.dispose(); txtConvidados.dispose();
     super.dispose();
   }
 
@@ -62,6 +67,8 @@ class _NewReservaPageState extends State<NewReserva> {
     txtApto.text = widget.objEditReserva['apto'];
     txtBloco.text = widget.objEditReserva['bloco'];
     selectedHour = '${widget.objEditReserva['horaDe']} - ${widget.objEditReserva['horaAte']}';
+    final convidadosSalvo = widget.objEditReserva['convidados'];
+    txtConvidados.text = convidadosSalvo != null ? convidadosSalvo.toString() : '';
     acceptTerms = true;
     if (mounted) setState(() {});
   }
@@ -88,6 +95,24 @@ class _NewReservaPageState extends State<NewReserva> {
       displayMessage(context, getText('alert'), getText('area_social_erro_normas'));
       return;
     }
+    // Convidados é opcional — string vazia não valida nada (reserva do jeito
+    // antigo continua funcionando). Só entra na checagem quando preenchido.
+    int? convidados;
+    if (txtConvidados.text.trim().isNotEmpty) {
+      convidados = int.tryParse(txtConvidados.text.trim());
+      if (convidados == null || convidados <= 0) {
+        displayMessage(context, getText('alert'), getText('convidados_erro_invalido'));
+        return;
+      }
+      if (capacidade > 0 && convidados > capacidade) {
+        displayMessage(
+          context,
+          getText('alert'),
+          getText('convidados_erro_capacidade').replaceAll('%CAP%', capacidade.toString()),
+        );
+        return;
+      }
+    }
     try {
       setState(() => _isSaving = true);
       final partes = selectedHour.toString().split(' - ');
@@ -98,6 +123,7 @@ class _NewReservaPageState extends State<NewReserva> {
         horaDe: partes[0].trim(),
         horaAte: partes[1].trim(),
         id_apartamento: aptoId,
+        convidados: convidados,
       );
       var res = await apiSaveObject('areas-sociais/agendamento', 'agendamento', obj, widget.objEditReserva != null);
       if (res.toString().isEmpty) {
@@ -321,6 +347,22 @@ class _NewReservaPageState extends State<NewReserva> {
                     ),
                 ],
               ),
+            const SizedBox(height: AppSpacing.xl),
+            _section(getText('lb_convidados')),
+            AppInput(
+              label: getText('lb_convidados'),
+              controller: txtConvidados,
+              prefixIcon: PhosphorIcons.users,
+              keyboard: TextInputType.number,
+              formatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              capacidade > 0
+                  ? getText('convidados_dica_capacidade').replaceAll('%CAP%', capacidade.toString())
+                  : getText('capacidade_indeterminada'),
+              style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+            ),
             if (hasRegras) ...[
               const SizedBox(height: AppSpacing.md),
               _section(getText('lb_regras_area')),
@@ -390,11 +432,21 @@ class AreaSocialReservaModel {
   String? horaDe;
   String? horaAte;
   String? id_apartamento;
+  int? convidados;
 
-  AreaSocialReservaModel({this.id, this.id_area_social, this.data, this.horaDe, this.horaAte, this.id_apartamento});
+  AreaSocialReservaModel({
+    this.id,
+    this.id_area_social,
+    this.data,
+    this.horaDe,
+    this.horaAte,
+    this.id_apartamento,
+    this.convidados,
+  });
 
   Map toJson() => {
         'id': id, 'id_area_social': id_area_social, 'data': data,
         'horaDe': horaDe, 'horaAte': horaAte, 'id_apartamento': id_apartamento,
+        'convidados': convidados,
       };
 }

@@ -359,6 +359,7 @@ export class AreasSociaisService {
         horaDe: horaDeStr,
         horaAte: horaAteStr,
         status: ag.status,
+        convidados: ag.convidados ?? null,
       };
     });
 
@@ -586,6 +587,23 @@ export class AreasSociaisService {
       throw new BadRequestException('Esta área está em manutenção no horário solicitado.');
     }
 
+    // Convidados é opcional (app antigo não manda o campo — null continua
+    // válido e não é checado). Só quando um valor é de fato enviado é que
+    // validamos: precisa ser inteiro positivo e, se a área tem capacidade
+    // configurada (>0), não pode ultrapassá-la. Capacidade 0/nula = "não
+    // configurada" — sem limite nenhum.
+    let convidados: number | null = null;
+    if (agendamento.convidados !== undefined && agendamento.convidados !== null && agendamento.convidados !== '') {
+      const convidadosNum = Number(agendamento.convidados);
+      if (!Number.isInteger(convidadosNum) || convidadosNum <= 0) {
+        throw new BadRequestException('Número de convidados inválido.');
+      }
+      if (areaAlvo.capacidade && areaAlvo.capacidade > 0 && convidadosNum > areaAlvo.capacidade) {
+        throw new BadRequestException(`Esta área comporta no máximo ${areaAlvo.capacidade} pessoas (incluindo os moradores).`);
+      }
+      convidados = convidadosNum;
+    }
+
     // Definir status inicial baseado na regra da área.
     // Reserva criada pelo síndico/porteiro já entra aprovada (a própria
     // criação pela administração equivale à aprovação).
@@ -604,6 +622,7 @@ export class AreasSociaisService {
         hora_de: horaDeObj,
         hora_ate: horaAteObj,
         status: statusInicial,
+        convidados,
       },
     });
 
@@ -695,6 +714,7 @@ export class AreasSociaisService {
       data: ag.data ? ag.data.toLocaleDateString('pt-BR') : '',
       horaDe: ag.hora_de ? ag.hora_de.toTimeString().substring(0, 5) : '',
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
+      convidados: ag.convidados ?? null,
     }));
   }
 
@@ -748,6 +768,7 @@ export class AreasSociaisService {
       data: ag.data ? ag.data.toLocaleDateString('pt-BR') : '',
       horaDe: ag.hora_de ? ag.hora_de.toTimeString().substring(0, 5) : '',
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
+      convidados: ag.convidados ?? null,
     }));
   }
 
