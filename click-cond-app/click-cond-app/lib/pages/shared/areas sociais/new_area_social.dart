@@ -32,6 +32,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
   var _isSaving = false;
   final txtNome = TextEditingController();
   final txtCapacidade = TextEditingController();
+  final txtLimiteMensalApto = TextEditingController();
   final txtRegras = TextEditingController();
   var autorizacao = '0';
   var pagamento = '0';
@@ -52,6 +53,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
   void dispose() {
     txtNome.dispose();
     txtCapacidade.dispose();
+    txtLimiteMensalApto.dispose();
     txtRegras.dispose();
     super.dispose();
   }
@@ -79,6 +81,11 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
     if (widget.obj != null) {
       txtNome.text = widget.obj['nome']?.toString() ?? '';
       txtCapacidade.text = widget.obj['capacidade']?.toString() ?? '';
+      // Null ou 0 vindos da API significam "sem limite" — campo fica vazio,
+      // não "0", senão o síndico acha que já está limitando a área.
+      final limiteObj = widget.obj['limite_mensal_apto'];
+      final limiteInt = limiteObj is int ? limiteObj : int.tryParse(limiteObj?.toString() ?? '');
+      txtLimiteMensalApto.text = (limiteInt == null || limiteInt <= 0) ? '' : limiteInt.toString();
       autorizacao = widget.obj['precisa_autorizacao']?.toString() ?? '0';
       pagamento = widget.obj['precisa_pagamento']?.toString() ?? '0';
       agendamento = widget.obj['precisa_agendar']?.toString() ?? '0';
@@ -103,6 +110,8 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
         id: widget.myId ?? -1,
         nome: txtNome.text,
         capacidade: int.parse(txtCapacidade.text.isNotEmpty ? txtCapacidade.text : '-1'),
+        // Vazio = sem limite (null); a API já trata null/0 como "não bloqueia".
+        limiteMensalApto: txtLimiteMensalApto.text.trim().isEmpty ? null : int.tryParse(txtLimiteMensalApto.text.trim()),
         agendar: agendamento,
         pagar: pagamento,
         autorizacao: autorizacao,
@@ -228,6 +237,20 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     controller: txtCapacidade,
                     prefixIcon: PhosphorIcons.usersThree,
                     keyboard: TextInputType.number,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppInput(
+                    label: getText('area_social_limite_mensal'),
+                    controller: txtLimiteMensalApto,
+                    prefixIcon: PhosphorIcons.calendarCheck,
+                    keyboard: TextInputType.number,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 4),
+                    child: Text(
+                      getText('area_social_limite_mensal_vazio'),
+                      style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppInput(
@@ -392,6 +415,9 @@ class AreaSocialModel {
   int? id;
   String? nome;
   int? capacidade;
+  // Teto de reservas pendente/aprovado por apartamento no mês. Null = sem
+  // limite — mesmo estado de hoje para toda área que o síndico não configurar.
+  int? limiteMensalApto;
   String? imagem;
   String? agendar;
   String? autorizacao;
@@ -399,11 +425,11 @@ class AreaSocialModel {
   List<DiasDaSemanaAreaSocialModel>? horarios;
   String? regras;
 
-  AreaSocialModel({this.id, this.nome, this.capacidade, this.imagem,
+  AreaSocialModel({this.id, this.nome, this.capacidade, this.limiteMensalApto, this.imagem,
       this.agendar, this.autorizacao, this.pagar, this.horarios, this.regras});
 
   Map toJson() => {
-        'id': id, 'nome': nome, 'capacidade': capacidade, 'imagem': imagem,
+        'id': id, 'nome': nome, 'capacidade': capacidade, 'limite_mensal_apto': limiteMensalApto, 'imagem': imagem,
         'agendar': agendar, 'autorizacao': autorizacao, 'pagar': pagar, 'horarios': horarios,
         'regras': regras,
       };

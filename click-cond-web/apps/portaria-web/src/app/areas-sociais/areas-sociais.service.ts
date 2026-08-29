@@ -12,6 +12,9 @@ export interface AreaSocial {
   precisa_autorizacao?: number;
   precisa_pagamento?: number;
   capacidade?: number;
+  // Teto de reservas pendente/aprovado por apartamento no mês. Null/0 = sem
+  // limite (comportamento de sempre, até o síndico configurar).
+  limite_mensal_apto?: number | null;
   horarios?: any[];
   tem_monitoramento?: boolean;
   ocupacao?: number;

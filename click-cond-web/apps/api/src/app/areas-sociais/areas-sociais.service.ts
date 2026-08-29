@@ -36,6 +36,17 @@ export class AreasSociaisService {
     private readonly tenant: TenantAccessService,
   ) {}
 
+  /**
+   * Vazio/ausente/0 vira `null` no banco — "sem limite", o mesmo estado de
+   * todas as 8 áreas hoje. Só um inteiro positivo de fato configura um teto.
+   */
+  private parseLimiteMensal(valor: unknown): number | null {
+    if (valor === undefined || valor === null || valor === '') return null;
+    const n = Number(valor);
+    if (!Number.isInteger(n) || n <= 0) return null;
+    return n;
+  }
+
   private parseTime(timeStr: string | null | undefined): [number, number] {
     const s = String(timeStr ?? '00:00').trim();
     const match = s.match(/(\d{2}):(\d{2})/);
@@ -136,6 +147,9 @@ export class AreasSociaisService {
         precisa_pagamento: Number(areaSocial.pagar ?? areaSocial.precisa_pagamento ?? 0),
         horarios: horariosStr,
         capacidade: Number(areaSocial.capacidade ?? 0),
+        // Vazio/ausente = sem limite (comportamento de sempre). Só vira teto
+        // de verdade quando o síndico digita um número > 0.
+        limite_mensal_apto: this.parseLimiteMensal(areaSocial.limite_mensal_apto),
         id_condominio: Number(idCondominio),
         // Regra é texto livre do síndico; sem regra cadastrada o app não
         // exige aceite nenhum (não faz sentido aceitar "o nada").
@@ -180,6 +194,7 @@ export class AreasSociaisService {
         precisa_pagamento: Number(areaSocial.pagar ?? areaSocial.precisa_pagamento ?? 0),
         horarios: horariosStr,
         capacidade: Number(areaSocial.capacidade ?? 0),
+        limite_mensal_apto: this.parseLimiteMensal(areaSocial.limite_mensal_apto),
         ...regrasPatch,
       },
     });
@@ -214,6 +229,7 @@ export class AreasSociaisService {
         nome: true,
         imagem: true,
         capacidade: true,
+        limite_mensal_apto: true,
         precisa_agendar: true,
         precisa_autorizacao: true,
         precisa_pagamento: true,
@@ -475,6 +491,7 @@ export class AreasSociaisService {
       precisa_autorizacao: area.precisa_autorizacao,
       precisa_pagamento: area.precisa_pagamento,
       capacidade: area.capacidade ?? 0,
+      limite_mensal_apto: area.limite_mensal_apto ?? null,
       id_condominio: area.id_condominio,
       tem_monitoramento: temMonitoramento,
       ocupacao: temMonitoramento ? (ocupacaoMap.get(area.id) ?? 0) : 0,
@@ -585,6 +602,38 @@ export class AreasSociaisService {
     const fimBlocoSolicitado = this.combineDateTime(dataObj, horaAteObj);
     if (this.colideComJanela(inicioBlocoSolicitado, fimBlocoSolicitado, janelasManutencao)) {
       throw new BadRequestException('Esta área está em manutenção no horário solicitado.');
+    }
+
+    // Limite mensal por apartamento (null/0 = sem limite, comportamento de
+    // sempre). Reserva feita pelo síndico não conta nem é bloqueada — é a
+    // administração resolvendo, não o morador tentando monopolizar a área.
+    // O mês é o da DATA SOLICITADA (não o de "agora"): reservar em janeiro
+    // para março conta contra março. `dataObj` já foi montado a partir dos
+    // componentes DD/MM/YYYY do próprio pedido, então ler ano/mês dele com
+    // getFullYear()/getMonth() (sem passar por Intl/UTC) preserva o mesmo
+    // calendário que o morador digitou — nada de decidir a virada de mês
+    // pelo relógio do servidor.
+    if (!peloSindico && areaAlvo.limite_mensal_apto && areaAlvo.limite_mensal_apto > 0) {
+      const anoAlvo = dataObj.getFullYear();
+      const mesAlvo = dataObj.getMonth();
+      const primeiroDiaMes = new Date(anoAlvo, mesAlvo, 1);
+      const primeiroDiaProxMes = new Date(anoAlvo, mesAlvo + 1, 1);
+
+      const agendamentosNoMes = await this.prisma.areas_Sociais_Agendamentos.findMany({
+        where: {
+          id_area_social: Number(agendamento.id_area_social),
+          id_apartamento: Number(agendamento.id_apartamento),
+          status: { in: ['pendente', 'aprovado'] },
+          data: { gte: primeiroDiaMes, lt: primeiroDiaProxMes },
+        },
+      });
+
+      if (agendamentosNoMes.length >= areaAlvo.limite_mensal_apto) {
+        const nomeMes = primeiroDiaMes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        throw new BadRequestException(
+          `Este apartamento já atingiu o limite de ${areaAlvo.limite_mensal_apto} reserva(s) por mês nesta área em ${nomeMes}.`,
+        );
+      }
     }
 
     // Convidados é opcional (app antigo não manda o campo — null continua

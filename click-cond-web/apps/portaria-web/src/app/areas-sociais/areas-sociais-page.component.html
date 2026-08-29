@@ -386,6 +386,21 @@
             />
           </div>
 
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Limite de reservas por apartamento no mês</label>
+            <input
+              [(ngModel)]="novaArea.limite_mensal_apto"
+              type="number"
+              min="1"
+              placeholder="Sem limite"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
+                     focus:outline-none focus:border-accent transition"
+            />
+            <p class="mt-1 text-[11px] text-slate-500">
+              Vazio significa que o mesmo apartamento pode reservar quantas vezes quiser no mês.
+            </p>
+          </div>
+
           <!-- Foto do Espaço -->
           <div>
             <div class="flex items-center justify-between mb-1.5">

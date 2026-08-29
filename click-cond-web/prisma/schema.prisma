@@ -461,6 +461,10 @@ model Areas_Sociais {
   // Normas de uso da área, mostradas ao morador ANTES do aceite na reserva.
   // Sem isto, a tela pedia aceite de regras que não existiam em lugar nenhum.
   regras              String?                      @db.Text
+  // Teto de reservas por apartamento no mês. Null/0 = sem limite, que é o
+  // estado de todas as áreas hoje — ninguém passa a ser bloqueado sem o
+  // síndico configurar.
+  limite_mensal_apto  Int?
   capacidade          Int?
   id_condominio       Int
   created_at          DateTime                     @default(now()) @db.DateTime(0)

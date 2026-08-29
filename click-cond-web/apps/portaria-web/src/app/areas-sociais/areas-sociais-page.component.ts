@@ -24,7 +24,7 @@ export class AreasSociaisPageComponent implements OnInit {
 
   // Controle do Modal
   readonly modalAberto = signal(false);
-  novaArea: any = { nome: '', capacidade: null, imagem: '', agendar: true, autorizacao: true, regras: '' };
+  novaArea: any = { nome: '', capacidade: null, limite_mensal_apto: null, imagem: '', agendar: true, autorizacao: true, regras: '' };
   readonly areaEditando = signal<AreaSocial | null>(null);
 
   // Upload da foto do espaço
@@ -146,6 +146,7 @@ export class AreasSociaisPageComponent implements OnInit {
       id: area.id,
       nome: area.nome,
       capacidade: area.capacidade || null,
+      limite_mensal_apto: area.limite_mensal_apto || null,
       imagem: area.imagem || '',
       agendar: area.precisa_agendar === 1,
       autorizacao: area.precisa_autorizacao === 1,
@@ -216,6 +217,7 @@ export class AreasSociaisPageComponent implements OnInit {
       ...(this.areaEditando() ? { id: this.areaEditando()?.id } : {}),
       nome: this.novaArea.nome,
       capacidade: this.novaArea.capacidade,
+      limite_mensal_apto: this.novaArea.limite_mensal_apto || null,
       imagem: this.novaArea.imagem || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600',
       agendar: this.novaArea.agendar ? 1 : 0,
       autorizacao: this.novaArea.autorizacao ? 1 : 0,
