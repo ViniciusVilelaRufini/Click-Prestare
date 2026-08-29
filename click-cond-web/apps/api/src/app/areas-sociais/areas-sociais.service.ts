@@ -181,6 +181,16 @@ export class AreasSociaisService {
       ? {}
       : { regras: typeof areaSocial.regras === 'string' && areaSocial.regras.trim() !== '' ? areaSocial.regras : null };
 
+    // Mesmo cuidado de `regras`: o app publicado não manda `limite_mensal_apto`
+    // no payload de edição. Se a chave não veio, a coluna nem entra no
+    // update — senão editar qualquer outro campo pela versão antiga do app
+    // apagava silenciosamente um teto que o síndico configurou pela web.
+    // Chave presente (mesmo null/vazia) significa "aplicar este valor",
+    // incluindo limpar o limite de propósito.
+    const limitePatch = areaSocial.limite_mensal_apto === undefined
+      ? {}
+      : { limite_mensal_apto: this.parseLimiteMensal(areaSocial.limite_mensal_apto) };
+
     await this.prisma.areas_Sociais.updateMany({
       where: {
         id: Number(areaSocial.id),
@@ -194,7 +204,7 @@ export class AreasSociaisService {
         precisa_pagamento: Number(areaSocial.pagar ?? areaSocial.precisa_pagamento ?? 0),
         horarios: horariosStr,
         capacidade: Number(areaSocial.capacidade ?? 0),
-        limite_mensal_apto: this.parseLimiteMensal(areaSocial.limite_mensal_apto),
+        ...limitePatch,
         ...regrasPatch,
       },
     });

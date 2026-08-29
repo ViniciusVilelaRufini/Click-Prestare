@@ -32,6 +32,7 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
       isConnected: true,
       areas_Sociais: {
         findUnique: jest.fn(async ({ where }: any) => (where.id === 30 ? { ...area } : null)),
+        updateMany: jest.fn(async () => ({ count: 1 })),
       },
       areas_Sociais_Agendamentos: {
         // Um único mock cobre dois usos do service: checagem de conflito do
@@ -154,15 +155,13 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
     expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
   });
 
-  it('reserva feita pelo síndico não é contada para o limite de outra reserva do morador', async () => {
-    // Site alvo tem limite 1 e já 1 reserva feita pelo síndico no mês; a
-    // reserva do síndico em si não deveria ter sido bloqueada (caso acima) —
-    // aqui garantimos que o morador ainda consegue reservar por conta própria
-    // se essa reserva do síndico não entrar na contagem dele. Como a contagem
-    // olha status, não "quem criou", simulamos que ela ficou 'aprovado' e
-    // portanto CONTA contra o apartamento (comportamento aceito: o teto é por
-    // apartamento, não por "quem pediu" — só a criação pelo síndico em si que
-    // não é bloqueada nem soma na tentativa atual).
+  it('reserva feita pelo síndico CONTA para o limite do apartamento em tentativas futuras do morador', async () => {
+    // O apartamento usou a área — a reserva foi feita pelo síndico a pedido
+    // do morador, mas quem ocupa o horário é o apartamento mesmo assim. Regra
+    // deliberada: contar é o resultado mais justo (o teto é por apartamento,
+    // não por "quem preencheu o formulário"). O que fica isento é só a
+    // CRIAÇÃO pelo síndico em si (ver teste acima) — reservas seguintes do
+    // morador já entram na fila do limite normalmente.
     const { svc } = build({
       limite: 1,
       reservasNoMes: [{ data: new Date(2026, 5, 3), status: 'aprovado' }],
@@ -170,6 +169,23 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
     await expect(svc.insertAgendamento(agendamentoBase, 6, 'Morador', morador)).rejects.toThrow(
       BadRequestException,
     );
+  });
+
+  it('reserva feita pelo síndico não é bloqueada mesmo com o apartamento já no limite', async () => {
+    // Mesmo cenário do teste acima (apartamento já no limite), mas agora é o
+    // PRÓPRIO síndico tentando agendar em nome do morador: não deve ser
+    // barrado — a checagem do limite nem roda para peloSindico:true.
+    const { svc, prisma } = build({
+      limite: 1,
+      reservasNoMes: [{ data: new Date(2026, 5, 3), status: 'aprovado' }],
+    });
+    await svc.insertAgendamento(
+      { ...agendamentoBase, agendarPeloSindico: true },
+      1,
+      'Sindico',
+      sindico,
+    );
+    expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
   });
 
   it('virada de mês: reserva do mês anterior não conta para o mês solicitado', async () => {
@@ -196,5 +212,69 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
     await expect(
       svc.insertAgendamento({ ...agendamentoBase, data: '25/03/2027' }, 6, 'Morador', morador),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('virada de ano: reserva em dezembro não puxa reservas de janeiro seguinte nem do dezembro anterior', async () => {
+    // Pede reserva para 20/12/2026 com limite 1. Já existe 1 reserva em
+    // dezembro/2026 (deve contar e travar) — mas a mesma tabela também tem
+    // reservas em janeiro/2027 e dezembro/2025 que, se o range de mês
+    // arredondasse o ano errado, vazariam para a contagem.
+    const { svc, prisma } = build({
+      limite: 1,
+      reservasNoMes: [
+        { data: new Date(2026, 11, 5), status: 'aprovado' }, // dez/2026 — conta
+        { data: new Date(2027, 0, 3), status: 'aprovado' }, // jan/2027 — não conta
+        { data: new Date(2025, 11, 28), status: 'aprovado' }, // dez/2025 — não conta
+      ],
+    });
+    await expect(
+      svc.insertAgendamento({ ...agendamentoBase, data: '20/12/2026' }, 6, 'Morador', morador),
+    ).rejects.toThrow(BadRequestException);
+    expect(prisma.areas_Sociais_Agendamentos.create).not.toHaveBeenCalled();
+  });
+
+  it('virada de ano: dezembro sem a reserva do mesmo mês não bloqueia (confirma que jan/dez vizinhos não vazam)', async () => {
+    // Mesmo cenário de datas vizinhas do teste acima, mas SEM nenhuma reserva
+    // dentro de dezembro/2026 — se o range estivesse errado e enxergasse
+    // jan/2027 ou dez/2025, esta reserva seria bloqueada indevidamente.
+    const { svc, prisma } = build({
+      limite: 1,
+      reservasNoMes: [
+        { data: new Date(2027, 0, 3), status: 'aprovado' }, // jan/2027 — não conta
+        { data: new Date(2025, 11, 28), status: 'aprovado' }, // dez/2025 — não conta
+      ],
+    });
+    await svc.insertAgendamento({ ...agendamentoBase, data: '20/12/2026' }, 6, 'Morador', morador);
+    expect(prisma.areas_Sociais_Agendamentos.create).toHaveBeenCalled();
+  });
+
+  describe('update() — não apagar limite configurado por edição que não manda o campo', () => {
+    it('chave ausente não toca na coluna (app publicado não manda limite_mensal_apto)', async () => {
+      const { svc, prisma } = build();
+      await svc.update(2, { id: 30, nome: 'Salão', capacidade: 40 }, sindico);
+      const dataArg = prisma.areas_Sociais.updateMany.mock.calls[0][0].data;
+      expect('limite_mensal_apto' in dataArg).toBe(false);
+    });
+
+    it('chave presente e null limpa o limite deliberadamente', async () => {
+      const { svc, prisma } = build();
+      await svc.update(2, { id: 30, nome: 'Salão', limite_mensal_apto: null }, sindico);
+      const dataArg = prisma.areas_Sociais.updateMany.mock.calls[0][0].data;
+      expect(dataArg.limite_mensal_apto).toBeNull();
+    });
+
+    it('chave presente e vazia também limpa o limite', async () => {
+      const { svc, prisma } = build();
+      await svc.update(2, { id: 30, nome: 'Salão', limite_mensal_apto: '' }, sindico);
+      const dataArg = prisma.areas_Sociais.updateMany.mock.calls[0][0].data;
+      expect(dataArg.limite_mensal_apto).toBeNull();
+    });
+
+    it('chave presente com número grava o novo limite', async () => {
+      const { svc, prisma } = build();
+      await svc.update(2, { id: 30, nome: 'Salão', limite_mensal_apto: 3 }, sindico);
+      const dataArg = prisma.areas_Sociais.updateMany.mock.calls[0][0].data;
+      expect(dataArg.limite_mensal_apto).toBe(3);
+    });
   });
 });
