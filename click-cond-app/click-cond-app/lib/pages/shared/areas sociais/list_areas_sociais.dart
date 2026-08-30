@@ -53,7 +53,9 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
     if (mounted) setState(() => _isLoading = false);
   }
 
-  bool get _isSindico => getUserType() == 'sindico';
+  bool get _isSindico =>
+      getUserType() == 'sindico' ||
+      (getUserType() == 'funcionario' && getUserPermission("areas_sociais") == 1);
   bool get _isMorador => getUserType() == 'morador';
 
   @override

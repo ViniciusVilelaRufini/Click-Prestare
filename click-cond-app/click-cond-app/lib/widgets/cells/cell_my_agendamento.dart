@@ -6,14 +6,52 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class CellMyAgendamento extends StatelessWidget {
   final dynamic item;
+  final Function(int id)? onCancel;
 
   const CellMyAgendamento({
     Key? key,
     required this.item,
+    this.onCancel,
   }) : super(key: key);
+
+  void _mostrarModalCancelar(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancelar Agendamento', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Tem certeza que deseja cancelar sua reserva? O horário voltará a ficar disponível para outros moradores.',
+          style: TextStyle(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Voltar', style: TextStyle(color: AppColors.textSecondary(context))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final rawId = item['id'];
+              final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+              onCancel?.call(id);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Sim, Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final String apto = item['apto']?.toString() ?? '';
     final String blocoRaw = item['bloco']?.toString() ?? '';
     String blocoText = '';
@@ -32,11 +70,15 @@ class CellMyAgendamento extends StatelessWidget {
 
     final String status =
         item['status']?.toString().toLowerCase() ?? 'pendente';
+    final bool isPendente = status == 'pendente';
+    final bool isAprovado = status == 'aprovado' || status == 'confirmado';
+    final bool isCancelavel = isPendente || isAprovado;
+
     String statusText = getText('lb_pendente');
     Color statusColor = const Color(0xFFF59E0B);
     IconData statusIcon = PhosphorIcons.clock;
 
-    if (status == 'aprovado' || status == 'confirmado') {
+    if (isAprovado) {
       statusText = getText('lb_aprovado');
       statusColor = const Color(0xFF10B981);
       statusIcon = PhosphorIcons.checkCircle;
@@ -45,14 +87,10 @@ class CellMyAgendamento extends StatelessWidget {
       statusColor = const Color(0xFFEF4444);
       statusIcon = PhosphorIcons.xCircle;
     } else if (status == 'cancelado') {
-      // Cancelamento pelo próprio morador não é recusa do síndico — cor
-      // neutra para não sugerir que a reserva foi negada.
       statusText = getText('lb_cancelado');
       statusColor = AppColors.textSecondary(context);
       statusIcon = PhosphorIcons.prohibit;
     } else if (status != 'pendente') {
-      // Status não reconhecido: mostra o texto cru em vez de travar a tela
-      // ou herdar o rótulo de "recusado".
       statusText = item['status']?.toString() ?? statusText;
       statusColor = AppColors.textSecondary(context);
       statusIcon = PhosphorIcons.question;
@@ -66,6 +104,9 @@ class CellMyAgendamento extends StatelessWidget {
         ? '$horaDe às $horaAte'
         : horaDe;
     final dataCriacao = item['data_criacao']?.toString() ?? '';
+    final aprovadoPor = item['aprovado_por']?.toString() ?? (isAprovado ? 'Síndico' : null);
+    final aprovadoEm = item['aprovado_em']?.toString();
+    final motivoRecusa = item['motivo_recusa']?.toString();
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -145,6 +186,7 @@ class CellMyAgendamento extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 10),
+
                       // Data e Horário da Reserva
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -192,6 +234,49 @@ class CellMyAgendamento extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
+
+                      // Detalhe de quem aprovou/recusou/cancelou
+                      if (aprovadoPor != null && aprovadoPor.isNotEmpty) ...[
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: statusColor.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isAprovado
+                                    ? PhosphorIcons.checkCircle
+                                    : (status == 'recusado' ? PhosphorIcons.xCircle : PhosphorIcons.prohibit),
+                                size: 14,
+                                color: statusColor,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  isAprovado
+                                      ? 'Aprovado por $aprovadoPor${aprovadoEm != null ? " ($aprovadoEm)" : ""}'
+                                      : (status == 'recusado'
+                                          ? 'Recusado por $aprovadoPor${motivoRecusa != null && motivoRecusa.isNotEmpty ? " • Motivo: $motivoRecusa" : ""}'
+                                          : '$aprovadoPor'),
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? statusColor.withOpacity(0.9) : (isAprovado ? const Color(0xFF065F46) : const Color(0xFF991B1B)),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
                       // Rodapé: Unidade e Data da Solicitação
                       Row(
                         children: [
@@ -219,6 +304,28 @@ class CellMyAgendamento extends StatelessWidget {
                             ),
                         ],
                       ),
+
+                      // Botão de Cancelar Reserva para o morador
+                      if (isCancelavel && onCancel != null) ...[
+                        const SizedBox(height: 10),
+                        const Divider(height: 1),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () => _mostrarModalCancelar(context),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFEF4444),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            ),
+                            icon: const Icon(PhosphorIcons.xCircle, size: 15),
+                            label: const Text(
+                              'Cancelar Agendamento',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

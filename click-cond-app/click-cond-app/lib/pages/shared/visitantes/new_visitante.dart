@@ -375,10 +375,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
     }
   }
 
-  // Esta tela é reusada para Prestador de Serviço (defaultType == 'prestador').
-  // Nesse caso o título e os textos refletem "prestador" e o seletor de tipo
-  // (Visitante/Prestador) é ocultado, pois o tipo já está definido.
-  bool get isPrestador => (widget.defaultType ?? currentTipo) == 'prestador';
+  // Permite alternar dinamicamente entre Visitante e Prestador de Serviço.
+  bool get isPrestador => currentTipo == 'prestador';
 
   @override
   Widget build(BuildContext context) {
@@ -493,15 +491,25 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       ),
                     ),
                   ),
-                  // Seletor de tipo só aparece no fluxo de Visitante. No fluxo de
-                  // Prestador o tipo já está fixo, então é ocultado.
-                  if (!isPrestador) ...[
+                  // Seletor de Tipo (Visitante vs Prestador de Serviços)
+                  if (!widget.isEdit) ...[
                     const SizedBox(height: AppSpacing.md),
-                    Text(getText('lb_tipo'), style: AppTypography.captionMedium(context).copyWith(color: AppColors.textSecondary(context))),
+                    Text(
+                      getText('lb_tipo'),
+                      style: AppTypography.captionMedium(context)
+                          .copyWith(color: AppColors.textSecondary(context)),
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     _TipoPicker(
                       currentTipo: currentTipo,
-                      onChanged: (v) => setState(() => currentTipo = v),
+                      onChanged: (v) {
+                        setState(() {
+                          currentTipo = v;
+                          if (currentTipo == 'prestador' && diasSemana.isEmpty) {
+                            diasSemana = ['seg', 'ter', 'qua', 'qui', 'sex'];
+                          }
+                        });
+                      },
                     ),
                   ],
                   if (isPrestador) ...[

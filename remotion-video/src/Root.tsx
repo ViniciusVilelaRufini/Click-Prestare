@@ -3,12 +3,38 @@ import { Composition } from "remotion";
 import { HelloWorld, myCompSchema } from "./HelloWorld";
 import { Logo, myCompSchema2 } from "./HelloWorld/Logo";
 import { PrestareVideo } from "./PrestareVideo";
+import { ClickReels } from "./ClickReels";
+import { FPS, HEIGHT, TIMELINE, TOTAL_DURATION, WIDTH } from "./ClickReels/lib/timeline";
+import { SCENE_PREVIEWS } from "./ClickReels/previews";
 
 // Each <Composition> is an entry in the sidebar!
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      {/* Reels / Shorts / TikTok — vídeo principal do app Click */}
+      <Composition
+        id="ClickReels"
+        component={ClickReels}
+        durationInFrames={TOTAL_DURATION}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+      />
+
+      {/* Uma composição por cena: permite iterar em 5s em vez de 48s */}
+      {TIMELINE.map((scene) => (
+        <Composition
+          key={scene.id}
+          id={`ClickReels-${scene.id}`}
+          component={SCENE_PREVIEWS[scene.id]}
+          durationInFrames={scene.duration}
+          fps={FPS}
+          width={WIDTH}
+          height={HEIGHT}
+        />
+      ))}
+
       <Composition
         id="PrestareVideo"
         component={PrestareVideo}

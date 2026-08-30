@@ -465,6 +465,9 @@ model Areas_Sociais {
   // estado de todas as áreas hoje — ninguém passa a ser bloqueado sem o
   // síndico configurar.
   limite_mensal_apto  Int?
+  // Opt-in: sem confirmação 30 min antes, a reserva é cancelada e o horário
+  // liberado. Default 0 — nenhuma área muda de comportamento sem o síndico.
+  exige_confirmacao   Int                          @default(0) @db.TinyInt
   capacidade          Int?
   id_condominio       Int
   created_at          DateTime                     @default(now()) @db.DateTime(0)
@@ -489,6 +492,15 @@ model Areas_Sociais_Agendamentos {
   // Quantas pessoas o morador espera levar. Null = reserva feita por versão do
   // app que não pergunta isso — nunca validar contra capacidade nesse caso.
   convidados     Int?
+  // Confirmação de uso pedida 30 min antes por push.
+  confirmada_em       DateTime? @db.DateTime(0)
+  // Quando o lembrete foi de fato ENVIADO. Null significa que o morador nunca
+  // teve como confirmar (sem token/push falhou) — e nesse caso a reserva não
+  // pode ser cancelada por falta de confirmação.
+  lembrete_enviado_em DateTime? @db.DateTime(0)
+  aprovado_por_nome   String?   @db.VarChar(255)
+  aprovado_em         DateTime? @db.DateTime(0)
+  motivo_recusa       String?   @db.Text
   created_at     DateTime      @default(now()) @db.DateTime(0)
   updated_at     DateTime      @default(now()) @updatedAt @db.DateTime(0)
   apartamento    Apartamentos  @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_asa_apto")

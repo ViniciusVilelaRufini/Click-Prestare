@@ -34,7 +34,14 @@ export class AreasSociaisService {
     private readonly storage: StorageService,
     private readonly facial: FacialService,
     private readonly tenant: TenantAccessService,
-  ) {}
+  ) {
+    // Tick novo — lembrete de confirmação (30 min antes) + cancelamento por
+    // não-confirmação em áreas opt-in. Mesmo padrão dos ticks de facial.service
+    // (setTimeout de warm-up + setInterval). 5 min de intervalo, casando com a
+    // janela de 10 min do lembrete (ver `enviarLembretesConfirmacao`).
+    setTimeout(() => void this.tickConfirmacaoReservas(), 5 * 60 * 1000);
+    setInterval(() => void this.tickConfirmacaoReservas(), 5 * 60 * 1000);
+  }
 
   /**
    * Vazio/ausente/0 vira `null` no banco — "sem limite", o mesmo estado de
@@ -182,6 +189,9 @@ export class AreasSociaisService {
         precisa_agendar: Number(areaSocial.agendar ?? areaSocial.precisa_agendar ?? 0),
         precisa_autorizacao: Number(areaSocial.autorizacao ?? areaSocial.precisa_autorizacao ?? 0),
         precisa_pagamento: Number(areaSocial.pagar ?? areaSocial.precisa_pagamento ?? 0),
+        // Opt-in de confirmação de presença. Default 0 — área nova não muda
+        // de comportamento sem o síndico marcar explicitamente.
+        exige_confirmacao: Number(areaSocial.exige_confirmacao ?? 0) ? 1 : 0,
         horarios: horariosStr,
         capacidade: Number(areaSocial.capacidade ?? 0),
         // Vazio/ausente = sem limite (comportamento de sempre). Só vira teto
@@ -252,6 +262,13 @@ export class AreasSociaisService {
       ? {}
       : { limite_mensal_apto: this.parseLimiteMensal(areaSocial.limite_mensal_apto) };
 
+    // Mesmo cuidado das demais flags opcionais: o app publicado não conhece
+    // este campo e não o envia — chave ausente não pode apagar o opt-in que o
+    // síndico configurou pela web.
+    const exigeConfirmacaoPatch = areaSocial.exige_confirmacao === undefined
+      ? {}
+      : { exige_confirmacao: Number(areaSocial.exige_confirmacao) ? 1 : 0 };
+
     await this.prisma.areas_Sociais.updateMany({
       where: {
         id: Number(areaSocial.id),
@@ -267,6 +284,7 @@ export class AreasSociaisService {
         ...capacidadePatch,
         ...limitePatch,
         ...regrasPatch,
+        ...exigeConfirmacaoPatch,
       },
     });
 
@@ -304,6 +322,9 @@ export class AreasSociaisService {
         precisa_agendar: true,
         precisa_autorizacao: true,
         precisa_pagamento: true,
+        // Opt-in de confirmação de presença — a tela de áreas da web precisa
+        // ler o estado atual para mostrar o toggle já marcado.
+        exige_confirmacao: true,
         regras: true,
         // A grade semanal precisa vir na listagem: a tela de áreas da
         // portaria-web edita a partir DESTE payload e devolve o objeto inteiro
@@ -462,6 +483,7 @@ export class AreasSociaisService {
         horaAte: horaAteStr,
         status: ag.status,
         convidados: ag.convidados ?? null,
+        confirmada_em: ag.confirmada_em ?? null,
       };
     });
 
@@ -576,6 +598,7 @@ export class AreasSociaisService {
       precisa_agendar: area.precisa_agendar,
       precisa_autorizacao: area.precisa_autorizacao,
       precisa_pagamento: area.precisa_pagamento,
+      exige_confirmacao: area.exige_confirmacao ?? 0,
       capacidade: area.capacidade ?? 0,
       limite_mensal_apto: area.limite_mensal_apto ?? null,
       id_condominio: area.id_condominio,
@@ -818,6 +841,190 @@ export class AreasSociaisService {
     return { success: true };
   }
 
+  /**
+   * Morador confirma que vai usar a reserva (resposta ao lembrete de 30 min
+   * antes). Mesma checagem de posse do `removeAgendamento`: só o dono, quando
+   * o token é de morador — síndico/porteiro confirmando em nome de alguém
+   * segue liberado, como já acontece no cancelamento.
+   *
+   * Idempotente: a segunda chamada não regrava `confirmada_em` (preserva o
+   * horário da PRIMEIRA confirmação) nem reexecuta side-effect nenhum — não
+   * há nenhum aqui, mas o não-regravar já evita um update supérfluo.
+   */
+  async confirmarAgendamento(id: number, userId: number, typeAccess: string, user?: JwtPayload) {
+    if (!this.prisma.isConnected) return { success: true };
+
+    const ag = await this.prisma.areas_Sociais_Agendamentos.findUnique({
+      where: { id: Number(id) },
+      include: { area: { select: { id_condominio: true } } },
+    });
+    if (!ag) throw new NotFoundException('Agendamento não encontrado.');
+    await this.tenant.assertEntidade(ag.area?.id_condominio, user, `agendamento #${id}`);
+
+    if (typeAccess === 'Morador' && ag.id_user !== Number(userId)) {
+      throw new ForbiddenException('Você só pode confirmar sua própria reserva.');
+    }
+
+    if (!ag.confirmada_em) {
+      await this.prisma.areas_Sociais_Agendamentos.update({
+        where: { id: Number(id) },
+        data: { confirmada_em: this.agoraNoFusoDoCondominio() },
+      });
+    }
+
+    return { success: true };
+  }
+
+  // ==========================================
+  // CONFIRMAÇÃO DE RESERVA (lembrete + cancelamento por não-confirmação)
+  // ==========================================
+
+  /**
+   * Roda a cada 5 min (ver construtor). Dois passos independentes — um erro
+   * em um não deve impedir o outro de rodar no mesmo ciclo.
+   */
+  private async tickConfirmacaoReservas() {
+    if (!this.prisma.isConnected) return;
+    const agora = this.agoraNoFusoDoCondominio();
+    try {
+      await this.enviarLembretesConfirmacao(agora);
+    } catch (e: any) {
+      this.logger.warn(`tickConfirmacaoReservas (lembrete) erro: ${e?.message ?? e}`);
+    }
+    try {
+      await this.cancelarReservasNaoConfirmadas(agora);
+    } catch (e: any) {
+      this.logger.warn(`tickConfirmacaoReservas (cancelamento) erro: ${e?.message ?? e}`);
+    }
+  }
+
+  /**
+   * Busca candidatos amplo (aprovado + lembrete ainda não enviado, ±1 dia) e
+   * filtra em memória por `combineDateTime`, igual ao resto do arquivo —
+   * evita reimplementar comparação de data/hora no SQL sujeita ao fuso do
+   * processo. A janela [agora+25min, agora+35min] é PROPOSITALMENTE mais larga
+   * que o intervalo do tick (5 min): um ciclo atrasado ou perdido não faz a
+   * reserva pular a janela e nunca receber lembrete.
+   */
+  private async enviarLembretesConfirmacao(agora: Date) {
+    const hojeBase = new Date(agora);
+    hojeBase.setHours(0, 0, 0, 0);
+    const ontem = new Date(hojeBase);
+    ontem.setDate(ontem.getDate() - 1);
+    const amanha = new Date(hojeBase);
+    amanha.setDate(amanha.getDate() + 1);
+
+    const candidatos = await this.prisma.areas_Sociais_Agendamentos.findMany({
+      where: {
+        status: 'aprovado',
+        lembrete_enviado_em: null,
+        data: { gte: ontem, lte: amanha },
+      },
+      include: {
+        user: { select: { fcm_token: true } },
+        area: { select: { nome: true } },
+      },
+    });
+
+    const janelaInicio = new Date(agora.getTime() + 25 * 60 * 1000);
+    const janelaFim = new Date(agora.getTime() + 35 * 60 * 1000);
+
+    for (const ag of candidatos) {
+      if (!ag.data) continue;
+      const inicio = this.combineDateTime(ag.data, ag.hora_de);
+      // Bordas inclusas de propósito (ver janela acima).
+      if (inicio < janelaInicio || inicio > janelaFim) continue;
+
+      // Sem fcm_token o morador nunca teve como receber o lembrete — não
+      // gravamos `lembrete_enviado_em`, então o cancelamento (que exige essa
+      // coluna preenchida) nunca vai alcançar essa reserva.
+      const token = ag.user?.fcm_token;
+      if (!token) continue;
+
+      try {
+        const resultado = await this.notifications.sendPushNotification(
+          token,
+          'Vai usar sua reserva?',
+          `Sua reserva em ${ag.area?.nome ?? 'área social'} começa em 30 minutos. Confirme para não perder o horário.`,
+          { type: 'confirmacao_reserva', id: String(ag.id) },
+        );
+        // Só grava quando o envio de fato deu certo (`sendPushNotification`
+        // devolve null em qualquer falha/token morto) — é a mesma regra que
+        // protege o cancelamento de punir quem nunca recebeu o aviso.
+        if (resultado) {
+          await this.prisma.areas_Sociais_Agendamentos.update({
+            where: { id: ag.id },
+            data: { lembrete_enviado_em: agora },
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`lembrete confirmação ag ${ag.id}: ${(err as Error)?.message ?? err}`);
+      }
+    }
+  }
+
+  /**
+   * Cancela reserva 'aprovado' de área opt-in (`exige_confirmacao=1`) cujo
+   * início já passou sem confirmação — MAS só se o lembrete de fato saiu
+   * (`lembrete_enviado_em IS NOT NULL`). Sem essa condição, um morador sem
+   * `fcm_token` (ou cujo push falhou) seria punido por uma falha nossa: ele
+   * nunca teve como confirmar.
+   */
+  private async cancelarReservasNaoConfirmadas(agora: Date) {
+    const hojeBase = new Date(agora);
+    hojeBase.setHours(0, 0, 0, 0);
+    const ontem = new Date(hojeBase);
+    ontem.setDate(ontem.getDate() - 1);
+    const amanha = new Date(hojeBase);
+    amanha.setDate(amanha.getDate() + 1);
+
+    const candidatos = await this.prisma.areas_Sociais_Agendamentos.findMany({
+      where: {
+        status: 'aprovado',
+        confirmada_em: null,
+        lembrete_enviado_em: { not: null },
+        data: { gte: ontem, lte: amanha },
+        area: { exige_confirmacao: 1 },
+      },
+      include: {
+        user: { select: { fcm_token: true } },
+        area: { select: { nome: true } },
+      },
+    });
+
+    for (const ag of candidatos) {
+      if (!ag.data) continue;
+      const inicio = this.combineDateTime(ag.data, ag.hora_de);
+      if (inicio > agora) continue; // ainda não começou
+
+      await this.prisma.areas_Sociais_Agendamentos.update({
+        where: { id: ag.id },
+        data: { status: 'cancelado' },
+      });
+
+      // Facial e push são efeitos externos best-effort, fora do caminho que
+      // já gravou o cancelamento — mesmo padrão de
+      // `notificarCancelamentosPorManutencao`.
+      this.facial
+        .syncReservaArea(Number(ag.id))
+        .catch((err) => this.logger.warn(`syncReservaArea (não-confirmação) ag ${ag.id}: ${err?.message ?? err}`));
+
+      const token = ag.user?.fcm_token;
+      if (token) {
+        try {
+          await this.notifications.sendPushNotification(
+            token,
+            'Reserva cancelada',
+            `Sua reserva em ${ag.area?.nome ?? 'área social'} foi cancelada por falta de confirmação.`,
+            { type: 'reserva_cancelada_confirmacao', id: String(ag.id) },
+          );
+        } catch (err) {
+          this.logger.warn(`push cancelamento por não-confirmação ag ${ag.id}: ${(err as Error)?.message ?? err}`);
+        }
+      }
+    }
+  }
+
   async getAllAgendamentos(idCondominio: number, user?: JwtPayload) {
     // Lista global de reservas do condomínio (fila de aprovação) — é
     // ferramenta de gestão, não deveria ser lida por um morador qualquer.
@@ -858,6 +1065,10 @@ export class AreasSociaisService {
       horaDe: ag.hora_de ? ag.hora_de.toTimeString().substring(0, 5) : '',
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
+      confirmada_em: ag.confirmada_em ?? null,
+      aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
+      aprovado_em: ag.aprovado_em ? ag.aprovado_em.toLocaleDateString('pt-BR') + ' às ' + ag.aprovado_em.toTimeString().substring(0, 5) : null,
+      motivo_recusa: ag.motivo_recusa ?? null,
     }));
   }
 
@@ -868,6 +1079,7 @@ export class AreasSociaisService {
         {
           id: 1, nomeArea: 'Churrasqueira Gourmet', status: 'aprovado', bloco: 'A', apto: '101',
           data_criacao: '14/05/2026 às 10:00', data: '20/05/2026', horaDe: '12:00', horaAte: '16:00',
+          aprovado_por: 'Síndico', aprovado_em: '14/05/2026 às 10:05', motivo_recusa: null,
         },
       ];
     }
@@ -912,13 +1124,16 @@ export class AreasSociaisService {
       horaDe: ag.hora_de ? ag.hora_de.toTimeString().substring(0, 5) : '',
       horaAte: ag.hora_ate ? ag.hora_ate.toTimeString().substring(0, 5) : '',
       convidados: ag.convidados ?? null,
+      confirmada_em: ag.confirmada_em ?? null,
+      aprovado_por: ag.aprovado_por_nome ?? (ag.status === 'aprovado' ? 'Síndico' : null),
+      aprovado_em: ag.aprovado_em ? ag.aprovado_em.toLocaleDateString('pt-BR') + ' às ' + ag.aprovado_em.toTimeString().substring(0, 5) : null,
+      motivo_recusa: ag.motivo_recusa ?? null,
     }));
   }
 
   async updateStatusAgendamento(id: number, statusRaw: string | boolean, motivo?: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
 
-    assertOperador(user, 'aprovar ou recusar reserva');
     const agAlvo = await this.prisma.areas_Sociais_Agendamentos.findUnique({
       where: { id: Number(id) },
       include: { area: { select: { id_condominio: true } } },
@@ -930,14 +1145,35 @@ export class AreasSociaisService {
     if (typeof statusRaw === 'boolean') {
       novoStatus = statusRaw ? 'aprovado' : 'recusado';
     } else {
-      novoStatus = statusRaw;
+      novoStatus = String(statusRaw).toLowerCase();
+    }
+
+    const idUser = user?.user?.id ?? user?.sub;
+    const typeAccess = user?.typeAccess ?? user?.user?.typeAccess ?? 'Morador';
+
+    if (novoStatus === 'cancelado') {
+      // Morador cancelando a própria reserva OU Síndico cancelando
+      if (typeAccess === 'Morador' && Number(agAlvo.id_user) !== Number(idUser)) {
+        throw new ForbiddenException('Você só pode cancelar seus próprios agendamentos.');
+      }
+    } else {
+      assertOperador(user, 'aprovar ou recusar reserva');
+    }
+
+    let aprovadorNome: string | null = null;
+    if (novoStatus === 'aprovado' || novoStatus === 'recusado') {
+      aprovadorNome = user?.name ?? user?.user?.name ?? (typeAccess === 'sindico' ? 'Síndico' : 'Administração');
+    } else if (novoStatus === 'cancelado') {
+      aprovadorNome = typeAccess === 'Morador' ? 'Cancelado pelo Morador' : (user?.name ?? 'Cancelado pelo Síndico');
     }
 
     const agendamento = await this.prisma.areas_Sociais_Agendamentos.update({
       where: { id: Number(id) },
       data: {
         status: novoStatus,
-        // se houver coluna de motivo gravamos, senão ignoramos graciosamente
+        aprovado_por_nome: aprovadorNome,
+        aprovado_em: new Date(),
+        motivo_recusa: motivo ? String(motivo) : null,
       },
       include: {
         user: true,

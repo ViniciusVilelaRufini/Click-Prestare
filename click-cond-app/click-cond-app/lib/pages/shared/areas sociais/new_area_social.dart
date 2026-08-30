@@ -356,16 +356,43 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(PhosphorIcons.lightningBold, size: 14, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                'MODELOS RÁPIDOS',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              Row(
+                children: [
+                  const Icon(PhosphorIcons.lightningBold, size: 15, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'MODELOS RÁPIDOS (1 TOQUE)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: _openCustomGridGenerator,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(PhosphorIcons.slidersHorizontalBold, size: 13, color: AppColors.primary),
+                      SizedBox(width: 4),
+                      Text(
+                        'Personalizar...',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -376,23 +403,33 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
             child: Row(
               children: [
                 _buildPresetChip(
-                  label: 'Todos os dias (08h às 22h)',
-                  onTap: () => _applyPreset('todos_08_22'),
+                  icon: PhosphorIcons.tennisBallBold,
+                  label: 'Quadras (1h em 1h: 08h às 22h)',
+                  onTap: () => _applyPreset('quadras_1h_08_22'),
                 ),
                 const SizedBox(width: 8),
                 _buildPresetChip(
-                  label: 'Seg a Sex (08h-22h) + Fim de semana (09h-23h)',
-                  onTap: () => _applyPreset('seg_sex_fim_semana'),
+                  icon: PhosphorIcons.tennisBallBold,
+                  label: 'Quadras (1h em 1h: 07h às 23h)',
+                  onTap: () => _applyPreset('quadras_1h_07_23'),
                 ),
                 const SizedBox(width: 8),
                 _buildPresetChip(
-                  label: 'Seg a Sex apenas (08h às 22h)',
-                  onTap: () => _applyPreset('seg_sex_only'),
+                  icon: PhosphorIcons.barbellBold,
+                  label: 'Academia/Lazer (2h em 2h: 08h às 22h)',
+                  onTap: () => _applyPreset('blocos_2h_08_22'),
                 ),
                 const SizedBox(width: 8),
                 _buildPresetChip(
-                  label: '24 Horas (Livre)',
-                  onTap: () => _applyPreset('24h'),
+                  icon: PhosphorIcons.forkKnifeBold,
+                  label: 'Churrasqueira (Almoço 10h-16h / Noite 18h-23h59)',
+                  onTap: () => _applyPreset('turnos_almoco_noite'),
+                ),
+                const SizedBox(width: 8),
+                _buildPresetChip(
+                  icon: PhosphorIcons.confettiBold,
+                  label: 'Salão de Festas (Dia todo: 08h às 23h59)',
+                  onTap: () => _applyPreset('dia_todo'),
                 ),
               ],
             ),
@@ -402,7 +439,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
     );
   }
 
-  Widget _buildPresetChip({required String label, required VoidCallback onTap}) {
+  Widget _buildPresetChip({required IconData icon, required String label, required VoidCallback onTap}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Material(
@@ -416,15 +453,15 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: AppColors.primary.withOpacity(0.3),
+              color: AppColors.primary.withOpacity(0.35),
               width: 1,
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(PhosphorIcons.magicWandBold, size: 13, color: AppColors.primary),
-              const SizedBox(width: 5),
+              Icon(icon, size: 14, color: AppColors.primary),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: const TextStyle(
@@ -440,31 +477,48 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
     );
   }
 
+  List<HorarioModel> _generateSlots(int startHour, int endHour, int intervalMinutes) {
+    List<HorarioModel> slots = [];
+    int currentMin = startHour * 60;
+    int endMin = endHour * 60;
+
+    while (currentMin + intervalMinutes <= endMin) {
+      int nextMin = currentMin + intervalMinutes;
+      String de = '${(currentMin ~/ 60).toString().padLeft(2, '0')}:${(currentMin % 60).toString().padLeft(2, '0')}';
+      String ate = '${(nextMin ~/ 60).toString().padLeft(2, '0')}:${(nextMin % 60).toString().padLeft(2, '0')}';
+      slots.add(HorarioModel(horarioDe: de, horarioAte: ate));
+      currentMin = nextMin;
+    }
+    return slots;
+  }
+
   void _applyPreset(String preset) {
     setState(() {
-      if (preset == 'todos_08_22') {
+      if (preset == 'quadras_1h_08_22') {
+        final slots = _generateSlots(8, 22, 60);
         for (var d in daysOfWeek) {
-          d.horarios = [HorarioModel(horarioDe: '08:00', horarioAte: '22:00')];
+          d.horarios = slots.map((h) => HorarioModel(horarioDe: h.horarioDe, horarioAte: h.horarioAte)).toList();
         }
-      } else if (preset == 'seg_sex_fim_semana') {
-        for (var i = 0; i < daysOfWeek.length; i++) {
-          if (i < 5) {
-            daysOfWeek[i].horarios = [HorarioModel(horarioDe: '08:00', horarioAte: '22:00')];
-          } else {
-            daysOfWeek[i].horarios = [HorarioModel(horarioDe: '09:00', horarioAte: '23:00')];
-          }
-        }
-      } else if (preset == 'seg_sex_only') {
-        for (var i = 0; i < daysOfWeek.length; i++) {
-          if (i < 5) {
-            daysOfWeek[i].horarios = [HorarioModel(horarioDe: '08:00', horarioAte: '22:00')];
-          } else {
-            daysOfWeek[i].horarios = [];
-          }
-        }
-      } else if (preset == '24h') {
+      } else if (preset == 'quadras_1h_07_23') {
+        final slots = _generateSlots(7, 23, 60);
         for (var d in daysOfWeek) {
-          d.horarios = [HorarioModel(horarioDe: '00:00', horarioAte: '23:59')];
+          d.horarios = slots.map((h) => HorarioModel(horarioDe: h.horarioDe, horarioAte: h.horarioAte)).toList();
+        }
+      } else if (preset == 'blocos_2h_08_22') {
+        final slots = _generateSlots(8, 22, 120);
+        for (var d in daysOfWeek) {
+          d.horarios = slots.map((h) => HorarioModel(horarioDe: h.horarioDe, horarioAte: h.horarioAte)).toList();
+        }
+      } else if (preset == 'turnos_almoco_noite') {
+        for (var d in daysOfWeek) {
+          d.horarios = [
+            HorarioModel(horarioDe: '10:00', horarioAte: '16:00'),
+            HorarioModel(horarioDe: '18:00', horarioAte: '23:59'),
+          ];
+        }
+      } else if (preset == 'dia_todo') {
+        for (var d in daysOfWeek) {
+          d.horarios = [HorarioModel(horarioDe: '08:00', horarioAte: '23:59')];
         }
       } else if (preset == 'limpar') {
         for (var d in daysOfWeek) {
@@ -476,13 +530,312 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          preset == 'limpar' ? 'Horários limpos com sucesso.' : 'Modelo de horários aplicado!',
+          preset == 'limpar' ? 'Horários limpos com sucesso.' : 'Modelo de horários aplicado para a semana!',
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  void _openCustomGridGenerator() {
+    int startHour = 8;
+    int endHour = 22;
+    int intervalMin = 60; // 1 hora
+    final selectedDays = {0, 1, 2, 3, 4, 5, 6}; // todos os dias
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setGenState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final slotsPreview = _generateSlots(startHour, endHour, intervalMin);
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(top: BorderSide(color: AppColors.border(context))),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.textTertiary(context),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Gerador de Grade de Horários',
+                    style: AppTypography.headline(context),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Crie horários em blocos de 30m, 1h, 1h30 ou 2h automaticamente.',
+                    style: AppTypography.caption(context).copyWith(color: AppColors.textSecondary(context)),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Duração do agendamento
+                  Text(
+                    'DURAÇÃO DE CADA RESERVA',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var item in [
+                          {'min': 30, 'label': '30 min'},
+                          {'min': 60, 'label': '1 hora'},
+                          {'min': 90, 'label': '1h 30m'},
+                          {'min': 120, 'label': '2 horas'},
+                          {'min': 180, 'label': '3 horas'},
+                          {'min': 240, 'label': '4 horas'},
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ChoiceChip(
+                              label: Text(item['label'] as String, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                              selected: intervalMin == item['min'],
+                              selectedColor: AppColors.primary.withOpacity(0.15),
+                              onSelected: (_) => setGenState(() => intervalMin = item['min'] as int),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Janela de Horário
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'INÍCIO GERAL',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            DropdownButtonFormField<int>(
+                              value: startHour,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              items: [
+                                for (var h = 0; h < 23; h++)
+                                  DropdownMenuItem(
+                                    value: h,
+                                    child: Text('${h.toString().padLeft(2, '0')}:00', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setGenState(() {
+                                    startHour = val;
+                                    if (endHour <= startHour) endHour = (startHour + 1).clamp(1, 24);
+                                  });
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TÉRMINO GERAL',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            DropdownButtonFormField<int>(
+                              value: endHour,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              items: [
+                                for (var h = 1; h <= 24; h++)
+                                  DropdownMenuItem(
+                                    value: h,
+                                    child: Text('${(h == 24 ? '23:59' : '${h.toString().padLeft(2, '0')}:00')}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                              ],
+                              onChanged: (val) {
+                                if (val != null && val > startHour) {
+                                  setGenState(() => endHour = val);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Resumo dos slots gerados
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                    ),
+                    child: Text(
+                      'Serão criados ${slotsPreview.length} intervalos de ${intervalMin}m por dia (ex: ${slotsPreview.isNotEmpty ? "${slotsPreview.first.horarioDe}-${slotsPreview.first.horarioAte} até ${slotsPreview.last.horarioDe}-${slotsPreview.last.horarioAte}" : ""})',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Dias para aplicar
+                  Text(
+                    'APLICAR NOS DIAS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < daysOfWeek.length; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: FilterChip(
+                              label: Text(daysOfWeek[i].nome.substring(0, 3).toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                              selected: selectedDays.contains(i),
+                              selectedColor: AppColors.primary.withOpacity(0.2),
+                              onSelected: (val) {
+                                setGenState(() {
+                                  if (val) {
+                                    selectedDays.add(i);
+                                  } else {
+                                    selectedDays.remove(i);
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  AppButton(
+                    label: 'Gerar Grade para ${selectedDays.length} dias',
+                    onPressed: selectedDays.isEmpty
+                        ? null
+                        : () {
+                            setState(() {
+                              for (var i in selectedDays) {
+                                daysOfWeek[i].horarios = slotsPreview
+                                    .map((h) => HorarioModel(horarioDe: h.horarioDe, horarioAte: h.horarioAte))
+                                    .toList();
+                              }
+                            });
+                            Navigator.of(ctx).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Grade de horários gerada com sucesso!'),
+                                duration: Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _addNextSlot(DiasDaSemanaAreaSocialModel dia) {
+    setState(() {
+      if (dia.horarios.isEmpty) {
+        dia.horarios.add(HorarioModel(horarioDe: '08:00', horarioAte: '09:00'));
+        return;
+      }
+
+      final ultimo = dia.horarios.last;
+      final fimUltimo = ultimo.horarioAte;
+      final pFim = fimUltimo.split(':');
+      int hFim = int.tryParse(pFim[0]) ?? 8;
+      int mFim = (pFim.length > 1 ? int.tryParse(pFim[1]) : 0) ?? 0;
+
+      // Calcula duração do último slot
+      int duracaoMinutos = 60;
+      try {
+        final pIni = ultimo.horarioDe.split(':');
+        int hIni = int.tryParse(pIni[0]) ?? 8;
+        int mIni = (pIni.length > 1 ? int.tryParse(pIni[1]) : 0) ?? 0;
+        int diff = (hFim * 60 + mFim) - (hIni * 60 + mIni);
+        if (diff > 0 && diff <= 360) {
+          duracaoMinutos = diff;
+        }
+      } catch (_) {}
+
+      int proximoIniTotal = hFim * 60 + mFim;
+      int proximoFimTotal = proximoIniTotal + duracaoMinutos;
+
+      if (proximoIniTotal >= 24 * 60) {
+        proximoIniTotal = 0;
+        proximoFimTotal = duracaoMinutos;
+      }
+      if (proximoFimTotal > 24 * 60) {
+        proximoFimTotal = 23 * 60 + 59;
+      }
+
+      final iniStr =
+          '${(proximoIniTotal ~/ 60).toString().padLeft(2, '0')}:${(proximoIniTotal % 60).toString().padLeft(2, '0')}';
+      final fimStr =
+          '${(proximoFimTotal ~/ 60).toString().padLeft(2, '0')}:${(proximoFimTotal % 60).toString().padLeft(2, '0')}';
+
+      dia.horarios.add(HorarioModel(horarioDe: iniStr, horarioAte: fimStr));
+    });
   }
 
   Widget _buildDayCard(int index) {
@@ -581,7 +934,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                 setState(() {
                   if (val) {
                     if (dia.horarios.isEmpty) {
-                      dia.horarios.add(HorarioModel(horarioDe: '08:00', horarioAte: '22:00'));
+                      dia.horarios.add(HorarioModel(horarioDe: '08:00', horarioAte: '09:00'));
                     }
                   } else {
                     dia.horarios.clear();
@@ -625,13 +978,13 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                   context,
                   dia.horarios[i].horarioDe,
                   (newVal) => setState(() => dia.horarios[i].horarioDe = newVal),
-                  title: 'Horário de Início (${dia.nome})',
+                  title: 'Início (${dia.nome})',
                 ),
                 onChangeAte: () => _pickTime(
                   context,
                   dia.horarios[i].horarioAte,
                   (newVal) => setState(() => dia.horarios[i].horarioAte = newVal),
-                  title: 'Horário de Término (${dia.nome})',
+                  title: 'Término (${dia.nome})',
                 ),
               ),
           ],
@@ -640,9 +993,9 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Adicionar intervalo
+              // Adicionar intervalo (inteligente sequencial)
               InkWell(
-                onTap: () => setState(() => dia.horarios.add(HorarioModel(horarioDe: '08:00', horarioAte: '22:00'))),
+                onTap: () => _addNextSlot(dia),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
@@ -706,8 +1059,6 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
-
             return Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
@@ -872,23 +1223,27 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       TextButton(
                         onPressed: () => Navigator.of(ctx).pop(),
                         child: Text(
                           'Cancelar',
-                          style: TextStyle(color: AppColors.textSecondary(context), fontSize: 15),
+                          style: TextStyle(color: AppColors.textSecondary(context), fontSize: 14),
                         ),
                       ),
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary(context),
+                      Expanded(
+                        child: Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary(context),
+                          ),
                         ),
                       ),
                       TextButton(
@@ -898,7 +1253,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                         },
                         child: const Text(
                           'Pronto',
-                          style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 15),
+                          style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),
                         ),
                       ),
                     ],

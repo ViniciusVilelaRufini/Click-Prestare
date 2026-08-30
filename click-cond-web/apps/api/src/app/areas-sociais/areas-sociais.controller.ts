@@ -63,6 +63,17 @@ export class AreasSociaisController {
     return this.service.removeAgendamento(Number(body.id), Number(idUser), typeAccess, payload);
   }
 
+  @Post('agendamento/confirmar')
+  @HttpCode(200)
+  confirmarAgendamento(
+    @Body() body: { id: string | number },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    const idUser = payload.user?.id ?? payload.sub;
+    const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Morador';
+    return this.service.confirmarAgendamento(Number(body.id), Number(idUser), typeAccess, payload);
+  }
+
   @Get('agendamentos/get-all')
   getAllAgendamentos(@Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
     return this.service.getAllAgendamentos(Number(idCondominio), payload);

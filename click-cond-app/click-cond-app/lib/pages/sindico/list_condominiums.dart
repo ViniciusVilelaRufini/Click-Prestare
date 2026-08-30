@@ -789,7 +789,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           const SizedBox(height: AppSpacing.xxl),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Column(
@@ -1277,19 +1277,19 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         ),
         Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceElevated(context),
+            color: AppColors.surface(context),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: AppColors.border(context),
-              width: 1.1,
+              width: 1.0,
             ),
             boxShadow: [
               BoxShadow(
                 color: isDark
-                    ? Colors.black.withOpacity(0.30)
-                    : const Color(0xFF64748B).withOpacity(0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+                    ? Colors.black.withOpacity(0.20)
+                    : const Color(0xFF64748B).withOpacity(0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -1359,18 +1359,18 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
     final nome = (e['nome'] ?? '').toString();
 
-    // Paleta de status limpa e refinada para light e dark mode
+    // Paleta de status no padrão visual do app (sem tons esverdeados no dark)
     final Color iconBg = isDark
         ? (isEntrada
-            ? const Color(0xFF064E3B).withOpacity(0.35)
-            : const Color(0xFF1E3A8A).withOpacity(0.35))
+            ? const Color(0xFF1E293B)
+            : const Color(0xFF1E293B))
         : (isEntrada
-            ? const Color(0xFF10B981).withOpacity(0.12)
-            : AppColors.primary.withOpacity(0.12));
+            ? AppColors.primary.withOpacity(0.10)
+            : const Color(0xFFF1F5F9));
 
     final Color iconColor = isDark
-        ? (isEntrada ? const Color(0xFF34D399) : const Color(0xFF60A5FA))
-        : (isEntrada ? const Color(0xFF059669) : AppColors.primary);
+        ? (isEntrada ? const Color(0xFF38BDF8) : const Color(0xFF818CF8))
+        : (isEntrada ? AppColors.primary : const Color(0xFF4F46E5));
 
     final IconData icon = isEntrada
         ? PhosphorIcons.arrowDownLeftBold
@@ -1378,7 +1378,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
     final String statusLabel = isEntrada ? 'Entrou' : 'Saiu';
 
-    // Tags refinadas
+    // Tags com visual neutro e consistente
     final String tag;
     final Color tagBg;
     final Color tagBorder;
@@ -1391,14 +1391,14 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       tagTextColor = isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
     } else if (tipoPessoa == 'prestador') {
       tag = 'Prestador';
-      tagBg = isDark ? const Color(0xFF7C2D12).withOpacity(0.25) : const Color(0xFFFFF7ED);
-      tagBorder = isDark ? const Color(0xFFEA580C).withOpacity(0.35) : const Color(0xFFFED7AA);
-      tagTextColor = isDark ? const Color(0xFFFDBA74) : const Color(0xFFC2410C);
+      tagBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+      tagBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+      tagTextColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
     } else {
       tag = 'Visitante';
-      tagBg = isDark ? const Color(0xFF4C1D95).withOpacity(0.25) : const Color(0xFFFAF5FF);
-      tagBorder = isDark ? const Color(0xFF7C3AED).withOpacity(0.35) : const Color(0xFFE9D5FF);
-      tagTextColor = isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6D28D9);
+      tagBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+      tagBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+      tagTextColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
     }
 
     final String displayName = nome.isNotEmpty
@@ -1416,7 +1416,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           ),
           child: Row(
             children: [
-              // Badge de status moderno
               Container(
                 width: 36,
                 height: 36,
@@ -1431,7 +1430,6 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 ),
               ),
               const SizedBox(width: 12),
-              // Nome e status + timestamp
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1481,29 +1479,28 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 ),
               ),
               const SizedBox(width: 8),
-              // Tag de papel
+              // Tag pill
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: tagBg,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: tagBorder, width: 0.8),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: tagBorder, width: 1),
                 ),
                 child: Text(
                   tag,
                   style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                     color: tagTextColor,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Icon(
-                PhosphorIcons.caretRightBold,
-                size: 13,
-                color: isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8),
+                PhosphorIcons.caretRight,
+                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                size: 14,
               ),
             ],
           ),

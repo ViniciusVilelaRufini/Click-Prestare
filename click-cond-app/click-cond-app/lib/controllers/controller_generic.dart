@@ -225,6 +225,25 @@ apiUpdateStatus(String route, int idItem, bool status, String motivo) async {
   }
 }
 
+Future<String> apiUpdateStatusAgendamento(int idItem, String status, {String motivo = ''}) async {
+  final url = _buildUri('/areas-sociais/agendamento/update-status');
+  final body = json.encode({
+    "id": idItem,
+    "status": status,
+    "motivo_recusa": motivo,
+    "id_condominio": Singleton.instance.id_condominio.toString(),
+  });
+  try {
+    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+        .timeout(_kTimeout);
+    if (response.statusCode == 200) return "";
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    throw parsed["message"] ?? "Erro desconhecido";
+  } catch (e) {
+    throw e;
+  }
+}
+
 apiUpdateStatusOcorrManut(String route, int idItem, String status) async {
   final url = _buildUri('/$route/update-status');
   final body = json.encode({

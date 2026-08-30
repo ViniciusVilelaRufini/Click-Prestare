@@ -6,14 +6,104 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class CellAgendamento extends StatelessWidget {
   final dynamic item;
+  final Function(int id, String status, String motivo)? onStatusChange;
 
   const CellAgendamento({
     Key? key,
     required this.item,
+    this.onStatusChange,
   }) : super(key: key);
+
+  void _mostrarModalRecusa(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Recusar Reserva', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Deseja informar o motivo da recusa ao morador? (Opcional):',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Ex: Espaço em manutenção neste horário',
+                hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary(context)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary(context))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final rawId = item['id'];
+              final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+              onStatusChange?.call(id, 'recusado', controller.text.trim());
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Confirmar Recusa', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarModalCancelar(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancelar Agendamento', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Tem certeza que deseja cancelar esta reserva? O morador será notificado e o horário voltará a ficar disponível.',
+          style: TextStyle(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Voltar', style: TextStyle(color: AppColors.textSecondary(context))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final rawId = item['id'];
+              final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+              onStatusChange?.call(id, 'cancelado', 'Cancelado pela administração');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Sim, Cancelar', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final String apto = item['apto']?.toString() ?? '';
     final String blocoRaw = item['bloco']?.toString() ?? '';
     String blocoText = '';
@@ -32,11 +122,14 @@ class CellAgendamento extends StatelessWidget {
 
     final String status =
         item['status']?.toString().toLowerCase() ?? 'pendente';
+    final bool isPendente = status == 'pendente';
+    final bool isAprovado = status == 'aprovado' || status == 'confirmado';
+
     String statusText = getText('lb_pendente');
     Color statusColor = const Color(0xFFF59E0B);
     IconData statusIcon = PhosphorIcons.clock;
 
-    if (status == 'aprovado' || status == 'confirmado') {
+    if (isAprovado) {
       statusText = getText('lb_aprovado');
       statusColor = const Color(0xFF10B981);
       statusIcon = PhosphorIcons.checkCircle;
@@ -45,14 +138,10 @@ class CellAgendamento extends StatelessWidget {
       statusColor = const Color(0xFFEF4444);
       statusIcon = PhosphorIcons.xCircle;
     } else if (status == 'cancelado') {
-      // Cancelamento pelo próprio morador não é recusa do síndico — cor
-      // neutra para não sugerir que a reserva foi negada.
       statusText = getText('lb_cancelado');
       statusColor = AppColors.textSecondary(context);
       statusIcon = PhosphorIcons.prohibit;
     } else if (status != 'pendente') {
-      // Status não reconhecido: mostra o texto cru em vez de travar a tela
-      // ou herdar o rótulo de "recusado".
       statusText = item['status']?.toString() ?? statusText;
       statusColor = AppColors.textSecondary(context);
       statusIcon = PhosphorIcons.question;
@@ -66,6 +155,9 @@ class CellAgendamento extends StatelessWidget {
         ? '$horaDe às $horaAte'
         : horaDe;
     final dataCriacao = item['data_criacao']?.toString() ?? '';
+    final aprovadoPor = item['aprovado_por']?.toString() ?? (isAprovado ? 'Síndico' : null);
+    final aprovadoEm = item['aprovado_em']?.toString();
+    final motivoRecusa = item['motivo_recusa']?.toString();
 
     return Container(
       margin: const EdgeInsets.symmetric(
@@ -145,6 +237,7 @@ class CellAgendamento extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 10),
+
                       // Data e Horário da Reserva
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -192,6 +285,49 @@ class CellAgendamento extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
+
+                      // Detalhe de quem aprovou/recusou/cancelou
+                      if (aprovadoPor != null && aprovadoPor.isNotEmpty) ...[
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: statusColor.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isAprovado
+                                    ? PhosphorIcons.checkCircle
+                                    : (status == 'recusado' ? PhosphorIcons.xCircle : PhosphorIcons.prohibit),
+                                size: 14,
+                                color: statusColor,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  isAprovado
+                                      ? 'Aprovado por $aprovadoPor${aprovadoEm != null ? " ($aprovadoEm)" : ""}'
+                                      : (status == 'recusado'
+                                          ? 'Recusado por $aprovadoPor${motivoRecusa != null && motivoRecusa.isNotEmpty ? " • Motivo: $motivoRecusa" : ""}'
+                                          : '$aprovadoPor'),
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? statusColor.withOpacity(0.9) : (isAprovado ? const Color(0xFF065F46) : const Color(0xFF991B1B)),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
                       // Rodapé: Unidade e Data da Solicitação
                       Row(
                         children: [
@@ -219,6 +355,79 @@ class CellAgendamento extends StatelessWidget {
                             ),
                         ],
                       ),
+
+                      // Botões de Ação (Aprovar / Recusar) para o Síndico
+                      if (isPendente && onStatusChange != null) ...[
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _mostrarModalRecusa(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFEF4444),
+                                  padding: const EdgeInsets.symmetric(vertical: 9),
+                                  side: const BorderSide(color: Color(0x55EF4444)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                icon: const Icon(PhosphorIcons.xBold, size: 14),
+                                label: const Text(
+                                  'Recusar',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  final rawId = item['id'];
+                                  final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+                                  onStatusChange?.call(id, 'aprovado', '');
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 9),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                icon: const Icon(PhosphorIcons.checkBold, size: 14),
+                                label: const Text(
+                                  'Aprovar',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (isAprovado && onStatusChange != null) ...[
+                        // Se já aprovado, opção de Cancelar Reserva
+                        const SizedBox(height: 10),
+                        const Divider(height: 1),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () => _mostrarModalCancelar(context),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFEF4444),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            ),
+                            icon: const Icon(PhosphorIcons.xCircle, size: 15),
+                            label: const Text(
+                              'Cancelar Reserva',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -230,3 +439,4 @@ class CellAgendamento extends StatelessWidget {
     );
   }
 }
+
