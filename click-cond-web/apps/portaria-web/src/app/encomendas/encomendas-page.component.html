@@ -209,6 +209,7 @@
         <label class="block md:col-span-2">
           <span class="text-xs font-medium text-slate-400 mb-1.5 block">Destinatário (Bloco / Apto) *</span>
           <select [(ngModel)]="selectedApto"
+            aria-label="Destinatário (Bloco / Apto)"
             class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-emerald-400/60">
             <option [ngValue]="null">Selecione o destinatário...</option>
             @for (a of apartamentos(); track a.id) {
@@ -336,10 +337,10 @@
                   Marcar retirada
                 </button>
               }
-              <button (click)="imprimir(e)" title="Imprimir etiqueta" class="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/5 transition">
+              <button (click)="imprimir(e)" title="Imprimir etiqueta" aria-label="Imprimir etiqueta" class="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/5 transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
               </button>
-              <button (click)="remover(e)" title="Remover" class="p-1.5 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition">
+              <button (click)="remover(e)" title="Remover" aria-label="Remover encomenda" class="p-1.5 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
               </button>
             </div>
@@ -357,6 +358,7 @@
                   <input type="checkbox" 
                          [checked]="todasSelecionadas()" 
                          (change)="toggleSelecionarTodos()" 
+                         aria-label="Selecionar todas as encomendas para retirada em lote"
                          class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer" />
                 }
               </th>
@@ -382,6 +384,7 @@
                            [checked]="selecionadas().has(e.id)"
                            [disabled]="deveDesabilitarCheckbox(e)"
                            [title]="deveDesabilitarCheckbox(e) ? 'Selecione apenas encomendas do mesmo destinatário para retirada em lote' : ''"
+                           [attr.aria-label]="'Selecionar encomenda #' + e.id + ' para retirada em lote'"
                            (change)="toggleSelecionado(e.id)"
                            (click)="$event.stopPropagation()"
                            class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" />
@@ -537,11 +540,11 @@
                       Marcar retirada
                     </button>
                   }
-                  <button (click)="imprimir(e); $event.stopPropagation()" title="Imprimir etiqueta"
+                  <button (click)="imprimir(e); $event.stopPropagation()" title="Imprimir etiqueta" aria-label="Imprimir etiqueta"
                           class="p-1.5 rounded-md text-slate-400 hover:text-accent hover:bg-white/5 transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                   </button>
-                  <button (click)="remover(e); $event.stopPropagation()" title="Remover encomenda"
+                  <button (click)="remover(e); $event.stopPropagation()" title="Remover encomenda" aria-label="Remover encomenda"
                           class="p-1.5 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                   </button>
@@ -563,6 +566,7 @@
           
           <div class="flex items-center gap-2">
             <button (click)="pagina.set(pagina() - 1)" [disabled]="pagina() === 1"
+              aria-label="Página anterior"
               class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </button>
@@ -573,6 +577,7 @@
                   <span class="px-2 text-slate-500">...</span>
                 } @else {
                   <button (click)="pagina.set(p)"
+                    [attr.aria-label]="'Página ' + p"
                     class="w-8 h-8 rounded-lg text-xs font-semibold transition"
                     [class.bg-emerald-500]="pagina() === p"
                     [class.text-white]="pagina() === p"
@@ -586,6 +591,7 @@
             </div>
 
             <button (click)="pagina.set(pagina() + 1)" [disabled]="pagina() === totalPaginas()"
+              aria-label="Próxima página"
               class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -608,7 +614,7 @@
             </svg>
             <h3 class="text-sm font-semibold text-white">Registrar Retirada de Encomenda</h3>
           </div>
-          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false" class="text-slate-400 hover:text-white transition">
+          <button (click)="retirandoEncomenda.set(null); isBatchRetirada = false" aria-label="Fechar modal" class="text-slate-400 hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -661,7 +667,7 @@
               
               @if (capturedPhoto) {
                 <div class="relative w-full max-w-[200px] h-[150px] mx-auto rounded-lg overflow-hidden border border-white/10">
-                  <img [src]="capturedPhoto" class="w-full h-full object-cover" />
+                  <img [src]="capturedPhoto" alt="Comprovante de foto capturada" class="w-full h-full object-cover" />
                   <button (click)="capturedPhoto = null" 
                           class="absolute top-2 right-2 p-1.5 rounded-full bg-red-500/80 text-white hover:bg-red-600 transition"
                           title="Remover foto">
@@ -740,7 +746,7 @@
         <!-- Header -->
         <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-white">Comprovante de Retirada</h3>
-          <button (click)="viewingProof.set(null)" class="text-slate-400 hover:text-white transition">
+          <button (click)="viewingProof.set(null)" aria-label="Fechar comprovante" class="text-slate-400 hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -755,7 +761,7 @@
             <div class="space-y-2">
               <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Foto do Recebedor</span>
               <div class="w-full max-w-[200px] h-[150px] mx-auto rounded-lg overflow-hidden border border-white/10 bg-black/40">
-                <img [src]="proof.photo" class="w-full h-full object-cover" />
+                <img [src]="proof.photo" alt="Foto do recebedor da encomenda" class="w-full h-full object-cover" />
               </div>
             </div>
           }
@@ -764,7 +770,7 @@
             <div class="space-y-2">
               <span class="text-[10px] text-slate-500 uppercase tracking-wider block font-mono">Assinatura Digital</span>
               <div class="w-full h-[120px] rounded-xl overflow-hidden border border-white/10 bg-white/50 p-2 flex items-center justify-center">
-                <img [src]="proof.signature" class="max-h-full max-w-full object-contain" />
+                <img [src]="proof.signature" alt="Assinatura digital do recebedor" class="max-h-full max-w-full object-contain" />
               </div>
             </div>
           }

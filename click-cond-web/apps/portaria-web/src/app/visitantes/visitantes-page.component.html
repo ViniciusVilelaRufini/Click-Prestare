@@ -305,6 +305,7 @@
               @if (p.foto_pessoa) {
                 <img
                   [src]="p.foto_pessoa"
+                  [alt]="'Foto de ' + p.nome"
                   class="w-10 h-10 rounded-full object-cover border border-accent/40"
                 />
               } @else {
@@ -606,6 +607,7 @@
               @if (fotoPessoaBase64()) {
                 <img
                   [src]="fotoPessoaBase64()"
+                  alt="Foto da pessoa"
                   class="w-full h-full object-cover"
                 />
               } @else {
@@ -714,6 +716,7 @@
               @if (fotoDocumentoBase64()) {
                 <img
                   [src]="fotoDocumentoBase64()"
+                  alt="Foto do documento de identificação"
                   class="w-full h-full object-cover"
                 />
               } @else {
@@ -909,6 +912,7 @@
                 @if (v.foto_pessoa) {
                   <img
                     [src]="v.foto_pessoa"
+                    [alt]="'Foto de ' + v.nome"
                     class="w-full h-full object-cover"
                   />
                 } @else {
@@ -1187,6 +1191,7 @@
                       @if (v.foto_pessoa) {
                         <img
                           [src]="v.foto_pessoa"
+                          [alt]="'Foto de ' + v.nome"
                           class="w-full h-full object-cover"
                         />
                       } @else {
@@ -1289,6 +1294,7 @@
                             >
                             <button
                               (click)="togglePin(v.id, $event)"
+                              [attr.aria-label]="pinsRevelados().has(v.id) ? 'Ocultar PIN' : 'Mostrar PIN'"
                               class="text-emerald-650 dark:text-emerald-400/60 hover:text-emerald-900 dark:hover:text-emerald-300 transition focus:outline-none -mr-0.5"
                               title="Mostrar/Ocultar PIN"
                             >
@@ -1671,6 +1677,7 @@
             <button
               (click)="pagina.set(pagina() - 1)"
               [disabled]="pagina() === 1"
+              aria-label="Página anterior"
               class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition"
             >
               <svg
@@ -1695,6 +1702,7 @@
                 } @else {
                   <button
                     (click)="pagina.set(p)"
+                    [attr.aria-label]="'Página ' + p"
                     class="w-8 h-8 rounded-lg text-xs font-semibold transition"
                     [class.bg-accent]="pagina() === p"
                     [class.text-white]="pagina() === p"
@@ -1711,6 +1719,7 @@
             <button
               (click)="pagina.set(pagina() + 1)"
               [disabled]="pagina() === totalPaginas()"
+              aria-label="Próxima página"
               class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition"
             >
               <svg
@@ -1740,7 +1749,7 @@
       <div class="w-full max-w-md rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl animate-fade-in">
         <div class="px-6 py-4 bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Solicitar autorização</h3>
-          <button (click)="fecharSolicitar()" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
+          <button (click)="fecharSolicitar()" aria-label="Fechar solicitação" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1756,6 +1765,7 @@
             <select
               [ngModel]="solicitarAptoId()"
               (ngModelChange)="solicitarAptoId.set($event)"
+              aria-label="Apartamento de destino"
               class="w-full rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:border-accent"
             >
               @for (a of apartamentos(); track a.id) {
@@ -1793,7 +1803,7 @@
             </svg>
             Autorização de visitante
           </h3>
-          <button (click)="fecharAuthModal()" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
+          <button (click)="fecharAuthModal()" aria-label="Fechar modal de autorização" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1914,6 +1924,7 @@
           </div>
           <button
             (click)="fecharValidador()"
+            aria-label="Fechar validador PIN"
             class="text-slate-400 hover:text-white transition"
           >
             <svg
@@ -2052,6 +2063,7 @@
                     @if (validationResult().foto_pessoa) {
                       <img
                         [src]="validationResult().foto_pessoa"
+                        [alt]="'Foto de ' + validationResult().nome"
                         class="w-full h-full object-cover"
                       />
                     } @else {
@@ -2154,6 +2166,7 @@
           </h3>
           <button
             (click)="fecharCamera()"
+            aria-label="Fechar câmera"
             class="text-slate-400 hover:text-white transition"
           >
             <svg
@@ -2294,6 +2307,7 @@
               @if (d.visitante.foto_pessoa) {
                 <img
                   [src]="d.visitante.foto_pessoa"
+                  [alt]="'Foto de ' + d.visitante.nome"
                   class="w-full h-full object-cover"
                 />
               } @else {
@@ -2506,7 +2520,7 @@
                 class="bg-emerald-500/[0.04] dark:bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3"
               >
                 <div
-                  class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1"
+                  class="text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1"
                 >
                   Entradas
                 </div>
@@ -2520,7 +2534,7 @@
                 class="bg-rose-500/[0.04] dark:bg-rose-500/5 border border-rose-500/20 rounded-xl p-3"
               >
                 <div
-                  class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1"
+                  class="text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1"
                 >
                   Saídas
                 </div>
@@ -2534,7 +2548,7 @@
                 class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-3"
               >
                 <div
-                  class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1"
+                  class="text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1"
                 >
                   Permanência média
                 </div>
@@ -2542,7 +2556,7 @@
                   {{ formatarPermanencia(d.stats.tempoMedioMs) }}
                 </div>
                 <div
-                  class="text-[9px] text-slate-450 dark:text-slate-500 mt-0.5"
+                  class="text-[9px] text-slate-450 dark:text-slate-350 mt-0.5"
                 >
                   {{ d.stats.permanenciaCount }} pareadas
                 </div>
@@ -2551,7 +2565,7 @@
                 class="bg-slate-50 dark:bg-slate-800/30 border border-slate-200/60 dark:border-white/5 rounded-xl p-3"
               >
                 <div
-                  class="text-[10px] text-slate-500 dark:text-slate-450 uppercase tracking-wider mb-1"
+                  class="text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider mb-1"
                 >
                   Método
                 </div>
@@ -2560,7 +2574,7 @@
                 >
                   <span class="text-accent">{{ d.stats.acessosFaciais }}</span>
                   facial
-                  <span class="text-slate-400 dark:text-slate-500">·</span>
+                  <span class="text-slate-400 dark:text-slate-400">·</span>
                   <span>{{ d.stats.acessosPin }}</span> PIN
                 </div>
               </div>
@@ -2885,19 +2899,19 @@
                           </span>
                           @if (h.terminalNome) {
                             <span
-                              class="text-[10px] text-slate-450 dark:text-slate-500 font-mono"
+                              class="text-[10px] text-slate-450 dark:text-slate-300 font-mono"
                               >{{ h.terminalNome }}</span
                             >
                           }
                           @if (h.confianca != null) {
                             <span
-                              class="text-[10px] text-slate-450 dark:text-slate-500"
+                              class="text-[10px] text-slate-450 dark:text-slate-300"
                               >· {{ (h.confianca * 100).toFixed(0) }}%</span
                             >
                           }
                           @if (h.blocoApto) {
                             <span
-                              class="text-[10px] text-slate-500 dark:text-slate-450"
+                              class="text-[10px] text-slate-500 dark:text-slate-300"
                               >· Apto {{ h.blocoApto }}</span
                             >
                           }
@@ -2954,6 +2968,7 @@
           </h3>
           <button
             (click)="fecharAmpliarFoto()"
+            aria-label="Fechar foto ampliada"
             class="text-slate-400 hover:text-white transition"
           >
             <svg
@@ -2976,6 +2991,7 @@
         >
           <img
             [src]="fotoAmpliadaUrl()"
+            [alt]="fotoAmpliadaTitulo() || 'Foto ampliada'"
             class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg"
           />
         </div>

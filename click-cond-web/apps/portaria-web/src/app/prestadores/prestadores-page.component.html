@@ -269,7 +269,7 @@
           <div class="flex items-center gap-3">
             <div class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0">
               @if (fotoPessoaBase64()) {
-                <img [src]="fotoPessoaBase64()" class="w-full h-full object-cover" />
+                <img [src]="fotoPessoaBase64()" alt="Foto do prestador" class="w-full h-full object-cover" />
               } @else {
                 <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
@@ -310,7 +310,7 @@
           <div class="flex items-center gap-3">
             <div class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0">
               @if (fotoDocumentoBase64()) {
-                <img [src]="fotoDocumentoBase64()" class="w-full h-full object-cover" />
+                <img [src]="fotoDocumentoBase64()" alt="Foto do documento de identificação" class="w-full h-full object-cover" />
               } @else {
                 <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -461,7 +461,7 @@
           <div class="flex items-start gap-3">
             <div class="w-11 h-11 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0 overflow-hidden">
               @if (p.foto_pessoa) {
-                <img [src]="p.foto_pessoa" class="w-full h-full object-cover" />
+                <img [src]="p.foto_pessoa" [alt]="'Foto de ' + p.nome" class="w-full h-full object-cover" />
               } @else {
                 <span class="text-sm font-bold text-amber-400">{{ iniciais(p.nome) }}</span>
               }
@@ -574,6 +574,7 @@
         
         <div class="flex items-center gap-2">
           <button (click)="pagina.set(pagina() - 1)" [disabled]="pagina() === 1"
+            aria-label="Página anterior"
             class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
           </button>
@@ -584,6 +585,7 @@
                 <span class="px-2 text-slate-500">...</span>
               } @else {
                 <button (click)="pagina.set(p)"
+                  [attr.aria-label]="'Página ' + p"
                   class="w-8 h-8 rounded-lg text-xs font-semibold transition"
                   [class.bg-accent]="pagina() === p"
                   [class.text-white]="pagina() === p"
@@ -597,6 +599,7 @@
           </div>
 
           <button (click)="pagina.set(pagina() + 1)" [disabled]="pagina() === totalPaginas()"
+            aria-label="Próxima página"
             class="p-2 rounded-lg border border-white/10 bg-white/5 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:text-slate-400 transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </button>
@@ -618,7 +621,7 @@
             </svg>
             <h3 class="text-sm font-semibold text-white">Detalhes do Funcionário</h3>
           </div>
-          <button (click)="detalhesPrestador.set(null)" class="text-slate-400 hover:text-white transition">
+          <button (click)="detalhesPrestador.set(null)" aria-label="Fechar detalhes" class="text-slate-400 hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -631,7 +634,7 @@
                  [class.cursor-zoom-in]="dp.foto_pessoa"
                  class="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0 overflow-hidden">
               @if (dp.foto_pessoa) {
-                <img [src]="dp.foto_pessoa" class="w-full h-full object-cover" />
+                <img [src]="dp.foto_pessoa" [alt]="'Foto de ' + dp.nome" class="w-full h-full object-cover" />
               } @else {
                 <span class="text-lg font-bold text-amber-400">{{ iniciais(dp.nome) }}</span>
               }
@@ -730,6 +733,7 @@
                     @if (v.foto_pessoa) {
                       <a [href]="v.foto_pessoa" target="_blank" class="shrink-0" title="Clique para abrir foto cheia">
                         <img [src]="v.foto_pessoa" 
+                             [alt]="'Foto de acesso de ' + (v.nome || 'prestador')"
                              class="w-10 h-10 rounded-lg object-cover border border-white/10 shadow-sm hover:scale-105 transition" />
                       </a>
                     }
@@ -785,7 +789,7 @@
         <h3 class="text-sm font-semibold text-white">
           Capturando Foto - {{ activeCamera() === 'pessoa' ? 'Funcionário' : 'Documento (RG)' }}
         </h3>
-        <button (click)="fecharCamera()" class="text-slate-400 hover:text-white transition">
+        <button (click)="fecharCamera()" aria-label="Fechar câmera" class="text-slate-400 hover:text-white transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
@@ -817,12 +821,12 @@
     <div class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
       <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
         <h3 class="text-sm font-semibold text-white">{{ fotoAmpliadaTitulo() }}</h3>
-        <button (click)="fecharAmpliarFoto()" class="text-slate-400 hover:text-white transition">
+        <button (click)="fecharAmpliarFoto()" aria-label="Fechar foto ampliada" class="text-slate-400 hover:text-white transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
       <div class="p-2 flex-1 overflow-auto flex items-center justify-center bg-slate-950">
-        <img [src]="fotoAmpliadaUrl()" class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg" />
+        <img [src]="fotoAmpliadaUrl()" [alt]="fotoAmpliadaTitulo() || 'Foto ampliada'" class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg" />
       </div>
     </div>
   </div>
@@ -841,7 +845,7 @@
         <div class="flex items-center gap-3">
           <div class="w-16 h-16 rounded-lg border border-white/10 bg-graphite-200 flex items-center justify-center overflow-hidden shrink-0">
             @if (editAcessoFoto()) {
-              <img [src]="editAcessoFoto()" class="w-full h-full object-cover" />
+              <img [src]="editAcessoFoto()" [alt]="'Foto de ' + (editAcessoForm.nome || 'funcionário')" class="w-full h-full object-cover" />
             } @else {
               <span class="text-lg font-semibold text-accent">{{ (editAcessoForm.nome || '?').charAt(0).toUpperCase() }}</span>
             }

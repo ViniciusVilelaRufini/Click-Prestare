@@ -404,19 +404,17 @@
           } @else {
             <ul class="space-y-0">
               @for (e of eventosFiltrados(); track $index) {
-                @if ($index > 0) {
-                  <hr class="border-0 border-t border-slate-200/60 dark:border-white/5 mx-1" />
-                }
-                 <li (click)="abrirDetalhes(e)"
+                <li (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
                     [class]="modoCompacto() && eventosMaximizados()
-                             ? 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-1.5 rounded-lg border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group'
-                             : 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border border-transparent hover:border-slate-200/40 dark:hover:border-white/5 group'">
+                             ? 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-1.5 rounded-lg border-b border-slate-200/40 dark:border-white/5 last:border-b-0 group'
+                             : 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-3 rounded-xl border-b border-slate-200/40 dark:border-white/5 last:border-b-0 group'">
                   
                   <!-- Ícone / Miniatura do Evento -->
                   @if (e.tipo === 'Visitante' || e.tipo === 'Prestador' || e.tipo === 'Acesso Facial') {
                     @if (e.detalhes.fotoPessoa) {
                       <img [src]="e.detalhes.fotoPessoa"
+                           [alt]="'Foto de ' + (e.detalhes.nome || 'pessoa')"
                            class="w-7 h-7 rounded-full object-cover border border-slate-200 dark:border-white/10 shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-105" />
                     } @else {
                       <div class="w-7 h-7 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-xs shrink-0 transition-transform duration-200 group-hover:scale-105">
@@ -660,6 +658,7 @@
               <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
                 @if (ev.detalhes.fotoPessoa) {
                   <img [src]="ev.detalhes.fotoPessoa" 
+                       [alt]="'Foto de ' + (ev.detalhes.nome || 'pessoa')"
                        (click)="abrirAmpliarFoto(ev.detalhes.fotoPessoa, 'Foto de ' + ev.detalhes.nome)"
                        class="w-10 h-10 rounded-full object-cover border border-slate-250 dark:border-white/10 shadow-sm cursor-pointer hover:scale-105 transition-all" 
                        title="Clique para ampliar a foto" />
@@ -924,6 +923,7 @@
               <div class="flex items-center gap-3 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-200/40 dark:border-white/5">
                 @if (ev.detalhes.fotoPessoa) {
                   <img [src]="ev.detalhes.fotoPessoa"
+                       [alt]="'Foto de identificação facial de ' + (ev.detalhes.nome || 'pessoa')"
                        (click)="abrirAmpliarFoto(ev.detalhes.fotoPessoa, 'Foto de ' + ev.detalhes.nome)"
                        class="w-12 h-12 rounded-full object-cover border-2 border-accent/40 shadow-sm cursor-pointer hover:scale-105 transition-all"
                        title="Clique para ampliar a foto" />
@@ -1045,12 +1045,12 @@
       <div class="relative max-w-3xl max-h-[85vh] rounded-2xl border border-white/10 bg-graphite overflow-hidden shadow-2xl animate-fade-in flex flex-col" (click)="$event.stopPropagation()">
         <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-white">{{ fotoAmpliadaTitulo() }}</h3>
-          <button (click)="fecharAmpliarFoto()" class="text-slate-400 hover:text-white transition">
+          <button (click)="fecharAmpliarFoto()" aria-label="Fechar foto ampliada" class="text-slate-400 hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
         <div class="p-2 flex-1 overflow-auto flex items-center justify-center bg-slate-950">
-          <img [src]="fotoAmpliadaUrl()" class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg" />
+          <img [src]="fotoAmpliadaUrl()" [alt]="fotoAmpliadaTitulo() || 'Foto ampliada em alta resolução'" class="max-w-full max-h-[70vh] rounded-lg object-contain shadow-lg" />
         </div>
       </div>
     </div>
@@ -1121,7 +1121,7 @@
                         <!-- Avatar -->
                         <div class="w-10 h-10 rounded-full overflow-hidden bg-slate-200 dark:bg-white/5 flex items-center justify-center flex-shrink-0 border border-slate-300 dark:border-white/10">
                           @if (p.foto_pessoa) {
-                            <img [src]="p.foto_pessoa" class="w-full h-full object-cover" />
+                            <img [src]="p.foto_pessoa" [alt]="'Foto de ' + p.nome" class="w-full h-full object-cover" />
                           } @else {
                             <svg class="w-5 h-5 text-slate-400 dark:text-slate-500" fill="currentColor" viewBox="0 0 24 24">
                               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
@@ -1166,7 +1166,7 @@
                 <div class="flex items-center gap-3">
                   <div class="w-11 h-11 rounded-full overflow-hidden bg-slate-200 dark:bg-white/5 flex items-center justify-center border border-accent/25 flex-shrink-0">
                     @if (pessoaSelecionada()?.foto_pessoa) {
-                      <img [src]="pessoaSelecionada()?.foto_pessoa" class="w-full h-full object-cover" />
+                      <img [src]="pessoaSelecionada()?.foto_pessoa" [alt]="'Foto de ' + (pessoaSelecionada()?.nome || 'visitante')" class="w-full h-full object-cover" />
                     } @else {
                       <svg class="w-6 h-6 text-accent" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
@@ -1189,6 +1189,7 @@
               <div>
                 <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Apartamento de Destino</label>
                 <select [(ngModel)]="idApartamentoSelecionado"
+                        aria-label="Apartamento de destino"
                         class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white">
                   <option [value]="null" disabled selected>-- Selecione o Apartamento --</option>
                   @for (apt of apartamentos(); track apt.id) {
@@ -1267,7 +1268,7 @@
             </svg>
             <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Validar Acesso por PIN</h3>
           </div>
-          <button (click)="fecharValidador()" class="text-slate-400 hover:text-slate-650 dark:hover:text-white transition">
+          <button (click)="fecharValidador()" aria-label="Fechar validador PIN" class="text-slate-400 hover:text-slate-650 dark:hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -1337,7 +1338,7 @@
                 <div class="flex items-center gap-3">
                   <div class="w-11 h-11 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden">
                     @if (validationResult().foto_pessoa) {
-                      <img [src]="validationResult().foto_pessoa" class="w-full h-full object-cover" />
+                      <img [src]="validationResult().foto_pessoa" [alt]="'Foto de ' + validationResult().nome" class="w-full h-full object-cover" />
                     } @else {
                       <span class="text-xs font-bold text-accent">{{ iniciais(validationResult().nome) }}</span>
                     }
@@ -1436,7 +1437,7 @@
             </svg>
             <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Registrar Baixa (Saída)</h3>
           </div>
-          <button (click)="fecharModalBaixa()" class="text-slate-400 hover:text-slate-650 dark:hover:text-white transition">
+          <button (click)="fecharModalBaixa()" aria-label="Fechar modal de baixa" class="text-slate-400 hover:text-slate-650 dark:hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -1487,7 +1488,7 @@
                   <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
                       @if (p.foto_pessoa) {
-                        <img [src]="p.foto_pessoa" class="w-full h-full object-cover" />
+                        <img [src]="p.foto_pessoa" [alt]="'Foto de ' + p.nome" class="w-full h-full object-cover" />
                       } @else {
                         <span class="text-xs font-bold text-slate-500 dark:text-slate-400">{{ iniciais(p.nome) }}</span>
                       }
