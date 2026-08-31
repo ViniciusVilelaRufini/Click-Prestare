@@ -174,17 +174,25 @@ export class FinanceiroService implements OnModuleInit {
     const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const aptoEsc = escape(apto.trim());
 
-    // Apartamento precisa estar entre "Apto " e fronteira de palavra (espaço,
-    // fim de string, ou pontuação).
-    const aptoRegex = new RegExp(`\\bApto\\s+${aptoEsc}\\b`, 'i');
+    // Apartamento precisa estar entre "Apto " e fim de token. `\b` sozinho
+    // NÃO basta: ele barra dígito colado ("101" não casa com apto "10"),
+    // mas deixa passar pontuação colada — "10.1", "10-A" e "10/2" também
+    // têm `\b` logo depois do "10" (ponto/hífen/barra não são \w), então
+    // `\bApto\s+10\b` casava com "Apto 10.1" e vazava o boleto do vizinho
+    // pro morador do apto 10. Todo produtor de nome ("Apto X Bloco Y - Ref...",
+    // "- Rateio: ...", "- Acordo Parc.") separa os campos por espaço, então o
+    // token do apto é sempre seguido de espaço ou fim de string — usamos
+    // lookahead `(?=\s|$)` em vez de `\b` para exigir exatamente isso.
+    const aptoRegex = new RegExp(`\\bApto\\s+${aptoEsc}(?=\\s|$)`, 'i');
     if (!aptoRegex.test(nome)) return false;
 
     // Se bloco informado, valida também. Se vazio/null, aceita lançamento
-    // sem bloco (apartamento sem bloco em condomínios pequenos).
+    // sem bloco (apartamento sem bloco em condomínios pequenos). Mesmo
+    // raciocínio do apto: fronteira final por lookahead, não `\b`.
     const blocoNorm = bloco?.trim() ?? '';
     if (blocoNorm) {
       const blocoEsc = escape(blocoNorm);
-      const blocoRegex = new RegExp(`\\bBloco\\s+${blocoEsc}\\b`, 'i');
+      const blocoRegex = new RegExp(`\\bBloco\\s+${blocoEsc}(?=\\s|$)`, 'i');
       return blocoRegex.test(nome);
     }
     // Sem bloco no perfil: aceita só se o nome também não tiver bloco
