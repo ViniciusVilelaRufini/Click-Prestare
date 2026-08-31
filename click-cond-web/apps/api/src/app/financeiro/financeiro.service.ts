@@ -174,25 +174,33 @@ export class FinanceiroService implements OnModuleInit {
     const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const aptoEsc = escape(apto.trim());
 
-    // Apartamento precisa estar entre "Apto " e fim de token. `\b` sozinho
-    // NÃO basta: ele barra dígito colado ("101" não casa com apto "10"),
-    // mas deixa passar pontuação colada — "10.1", "10-A" e "10/2" também
-    // têm `\b` logo depois do "10" (ponto/hífen/barra não são \w), então
-    // `\bApto\s+10\b` casava com "Apto 10.1" e vazava o boleto do vizinho
-    // pro morador do apto 10. Todo produtor de nome ("Apto X Bloco Y - Ref...",
-    // "- Rateio: ...", "- Acordo Parc.") separa os campos por espaço, então o
-    // token do apto é sempre seguido de espaço ou fim de string — usamos
-    // lookahead `(?=\s|$)` em vez de `\b` para exigir exatamente isso.
-    const aptoRegex = new RegExp(`\\bApto\\s+${aptoEsc}(?=\\s|$)`, 'i');
+    // Apartamento precisa estar entre "Apto " e o PRÓXIMO CAMPO do nome. `\b`
+    // sozinho não basta: ele barra dígito colado ("101" não casa com apto
+    // "10"), mas deixa passar pontuação colada — "10.1", "10-A" e "10/2"
+    // também têm `\b` logo depois do "10", e o boleto do vizinho vazava.
+    //
+    // Exigir só `(?=\s|$)` também não basta, porque o espaço é separador dos
+    // campos mas não é proibido DENTRO do valor: `assertAptoValido` aceita
+    // "10 A" e `normalizarUnidade` devolve identificação não numérica
+    // verbatim, então "Apto 10 A - Ref..." existe de verdade — e casava com o
+    // apto "10", que é o mesmo vazamento por outro caminho.
+    //
+    // Os três produtores de nome ("Apto X [Bloco Y] - Ref. MM/AAAA",
+    // "... - Rateio: ...", "... - Acordo Parc. i/n") só encerram o token do
+    // apto de dois jeitos: seguido de " Bloco " ou do " - " que abre o
+    // sufixo. Ancorar nisso é o que distingue o valor do separador.
+    const aptoRegex = new RegExp(`\\bApto\\s+${aptoEsc}(?=\\s+Bloco\\s|\\s*-\\s|$)`, 'i');
     if (!aptoRegex.test(nome)) return false;
 
     // Se bloco informado, valida também. Se vazio/null, aceita lançamento
     // sem bloco (apartamento sem bloco em condomínios pequenos). Mesmo
-    // raciocínio do apto: fronteira final por lookahead, não `\b`.
+    // raciocínio do apto, e o bloco tem o mesmo defeito: "Bloco A B" casava
+    // com o bloco "A". O bloco é sempre o último campo antes do " - ", então
+    // é só nele (ou no fim da string) que o token pode terminar.
     const blocoNorm = bloco?.trim() ?? '';
     if (blocoNorm) {
       const blocoEsc = escape(blocoNorm);
-      const blocoRegex = new RegExp(`\\bBloco\\s+${blocoEsc}(?=\\s|$)`, 'i');
+      const blocoRegex = new RegExp(`\\bBloco\\s+${blocoEsc}(?=\\s*-\\s|$)`, 'i');
       return blocoRegex.test(nome);
     }
     // Sem bloco no perfil: aceita só se o nome também não tiver bloco
