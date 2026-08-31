@@ -84,6 +84,15 @@ limite.
 **em memória**. Com N réplicas, o limite efetivo vira N× o configurado e deixa de
 ser confiável. Réplica só depois do Redis (throttler storage compartilhado).
 
+E há um segundo bloqueador, mais caro que o throttler: `SuperlogicaWriteService`
+serializa a escrita no ERP com **mutex em memória** — `filasPorUnidade`, por
+unidade, e `lotesRodando`, por condomínio no reenvio em lote. Cada réplica tem os
+seus, e nenhuma vê os das outras. Com N réplicas, dois PUTs simultâneos na mesma
+unidade voltam a montar payload com listas de contatos que se ignoram, e o
+segundo apaga contato de morador **real** do cadastro da administradora
+(ver `INTEGRACAO_SUPERLOGICA.md` §7.1). Furar o throttler afrouxa rate limit;
+furar este apaga dado de cliente. Réplica só depois de o lock viver no banco.
+
 ---
 
 ## Fase 4 — Retenção de eventos (o limite de storage)

@@ -427,9 +427,15 @@ esse id do cliente permitiria a um síndico pedir as cobranças de outro condom�
 **O apartamento é resolvido pelo vínculo por ID (`Apartamentos_Users`), não por texto.**
 O casamento por bloco/apto em texto continua existindo no código como via secundária,
 mas o vínculo por ID vem primeiro porque bloco/apto `NULL` casava com qualquer linha nula
-do condomínio — morador podia ir parar na unidade errada do ERP real. Vínculo ambíguo
-(mais de um apartamento possível) também vira **recusa com motivo**, nunca chute: errar
-de unidade aqui é escrita real no ERP, e desfazer não é automático.
+do condomínio — morador podia ir parar na unidade errada do ERP real. Proprietário com
+duas unidades no mesmo condomínio tem **uma linha de `Moradores` por vínculo**, todas com
+o mesmo `id_user`, e as duas linhas veem os mesmos dois vínculos: o que as distingue é o
+`bloco`/`apartamento` da própria linha, copiado do apartamento no momento do vínculo, e é
+por ele que o empate se desfaz. Isso não é voltar ao casamento por texto — o candidato já
+teve de sair da lista de vínculos por ID, então o texto só escolhe entre apartamentos que
+comprovadamente são deste morador. Se nem assim sobra um só, o envio vira **recusa com
+motivo**, nunca chute: errar de unidade aqui é escrita real no ERP, e desfazer não é
+automático.
 
 **O envio é serializado por unidade.** Uma fila em memória (`filasPorUnidade`) garante
 que dois envios para a mesma unidade nunca leiam a lista de contatos ao mesmo tempo — sem
@@ -446,7 +452,19 @@ dentro do próprio laço. No lote, **morador sem CPF nem e-mail é recusado ante
 escrever**: a confirmação de sucesso depende de reconhecer o contato novo por um dos
 dois, e sem nenhum, cada passada do lote criaria mais um contato órfão na unidade real do
 ERP, sem teto. O envio avulso, que lê dentro do lock, continua dando conta desse morador
-por diff de ids.
+por diff de ids. **Um lote por condomínio de cada vez** (`lotesRodando`): o reenvio é
+síncrono e demorado, o operador reaperta o botão achando que travou, e dois lotes têm
+cada um a sua lista de entrada — a do segundo não enxerga o que o primeiro criou. O
+segundo pedido volta com `emAndamento` para a tela mostrar, em vez de escrever.
+
+A ressalva que o lote traz para o reenvio da lista completa (a proteção central descrita
+mais abaixo): **durante um lote, a lista reenviada vale uma geração atrasada.** Ela é atualizada a cada envio do próprio laço, mas
+um contato criado na mesma unidade por outro caminho (um cadastro pelo app entre duas
+iterações) não entra no payload seguinte — e, sob a hipótese de que o endpoint substitui a
+lista, esse contato é apagado. O dano irreversível está fechado: sem CPF ou e-mail que
+case, o lote não vincula `id_superlogica_con`, então a trava de idempotência nunca cruza
+com o contato de outra pessoa. Este, não: fecha-se de vez quando o lock sair da memória e
+for para o banco.
 
 **O contato entra sem receber cobrança** (`ID_TIPORESP_TRES = 4`). Cadastrar alguém no
 app não pode mudar para quem o boleto é emitido — isso é decisão financeira da
@@ -455,7 +473,9 @@ administradora, tomada no ERP. O Clique cria cadastro, não sacado.
 **A lista de contatos existente é reenviada por `ID_CONTATO_CON`.** O endpoint se chama
 "Editar unidade" e a documentação não diz se a lista de contatos é substituída ou
 acrescida. Mandando todos os contatos atuais mais o novo, o resultado é o mesmo nas duas
-hipóteses — e ninguém perde morador. Essa é a proteção central deste caminho.
+hipóteses — e ninguém perde morador. Essa é a proteção central deste caminho, com uma
+ressalva: no envio avulso ela é integral, porque a lista é lida dentro do lock; no reenvio
+em lote ela vale uma geração atrasada, pelo motivo descrito acima.
 
 **Nada é enviado sem `superlogica_escrita = 1`** naquele condomínio, ligado à mão no CRM
 com uma confirmação explícita.
