@@ -361,6 +361,8 @@ function cenarioErp(opcoes: {
 }) {
   const estado = opcoes.unidades ?? [{ id_unidade_uni: '1901', contatos: [] }];
   const travas = new Map<number, Promise<void>>();
+  /** Unidades cujo próximo PUT aplica a escrita e MESMO ASSIM lança. */
+  const falhas = new Set<number>();
   let proximoId = 900;
 
   // Cópia a cada leitura: no ERP de verdade cada listagem traz objetos novos, e
@@ -380,12 +382,24 @@ function cenarioErp(opcoes: {
     const reenviados = Object.keys(payload)
       .filter((k) => k.endsWith('[ID_CONTATO_CON]'))
       .map((k) => String(payload[k]));
-    const nome = String(Object.entries(payload).find(([k]) => k.endsWith('[ST_NOME_CON]'))?.[1] ?? '');
+    const doNovo = (campo: string) =>
+      String(Object.entries(payload).find(([k]) => k.endsWith(`[${campo}]`))?.[1] ?? '');
 
     unidade.contatos = [
       ...unidade.contatos.filter((c: any) => reenviados.includes(String(c.id_contato_con))),
-      { id_contato_con: String(proximoId++), st_nome_con: nome, st_cpf_con: '', st_email_con: '' },
+      {
+        id_contato_con: String(proximoId++),
+        st_nome_con: doNovo('ST_NOME_CON'),
+        // O ERP guarda o que recebeu: é assim que o contato é reconhecível
+        // depois pelo casamento por CPF/e-mail.
+        st_cpf_con: doNovo('ST_CPF_CON'),
+        st_email_con: doNovo('ST_EMAIL_CON'),
+      },
     ];
+
+    // A escrita foi aplicada e a resposta se perdeu — timeout ou 5xx depois do
+    // commit. Daqui de fora os dois casos são indistinguíveis.
+    if (falhas.delete(idUnidade)) throw new Error('timeout na resposta do ERP');
 
     return [{ status: '200', msg: '01 a - Sucesso' }];
   });
@@ -432,13 +446,13 @@ function cenarioErp(opcoes: {
       .filter((k) => k.endsWith('[ID_CONTATO_CON]'))
       .map((k) => String(payload[k]));
 
-  return { service, put, listarUnidades, update, findFirstApto, estado, travar, idsDoPayload };
+  return { service, put, listarUnidades, update, findFirstApto, estado, travar, falhas, idsDoPayload };
 }
 
 const moradorFake = (id: number, extra: any = {}) => ({
   id,
   nome: `Morador ${id}`,
-  email: null,
+  email: `morador${id}@x.com`,
   telefone: null,
   documento: null,
   tipo: 'proprietario',
@@ -641,6 +655,64 @@ describe('SuperlogicaWriteService — reenvio em lote', () => {
 
     expect(idsDoPayload(put.mock.calls[1][1])).toEqual(['900']);
     expect(estado[0].contatos.map((c: any) => c.id_contato_con)).toEqual(['900', '901']);
+  });
+
+  it('PUT que lança não deixa a lista do lote obsoleta', async () => {
+    // Timeout na resposta depois de o ERP aplicar a escrita: daqui de fora não
+    // dá para saber se o contato nasceu. Seguir o lote com a entrada antiga
+    // desta unidade faria o próximo morador montar o payload sem ele — e apagá-
+    // lo do ERP. A entrada é descartada, e a próxima escrita relê.
+    const { service, estado, put, listarUnidades, falhas, idsDoPayload } = lote();
+    falhas.add(1901);
+
+    const r = await service.reenviarPendentes(7);
+
+    expect(r.resultados[0]).toMatchObject({ id: 10, enviado: false });
+    expect(r.resultados[1]).toMatchObject({ id: 11, enviado: true });
+    // O segundo morador da unidade 1901 releu e mandou o contato órfão junto.
+    expect(idsDoPayload(put.mock.calls[1][1])).toEqual(['900']);
+    expect(estado[0].contatos.map((c: any) => c.id_contato_con)).toEqual(['900', '901']);
+    // 1 leitura de entrada + 1 releitura (entrada descartada) + 2 confirmações
+    // dos dois envios que responderam.
+    expect(listarUnidades).toHaveBeenCalledTimes(4);
+  });
+
+  it('relê o ERP quando a unidade não está na lista pré-carregada', async () => {
+    // Unidade criada no ERP depois da leitura de entrada do lote. Recusar sem
+    // consultar seria dizer "não existe" sobre algo que existe — o envio avulso
+    // teria encontrado.
+    const { service, put, listarUnidades } = cenarioErp({
+      moradores: [moradorFake(10)],
+      vinculos: { 1010: [{ id: 55, id_superlogica_uni: 1901 }] },
+    });
+
+    const r = await service.enviarMorador(10, []);
+
+    expect(r.enviado).toBe(true);
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(listarUnidades).toHaveBeenCalledTimes(2); // releitura + confirmação
+  });
+
+  it('não vincula contato que não dá para reconhecer como sendo do morador', async () => {
+    // A lista de entrada do lote é mais velha que o lock: um contato criado
+    // pelo app nessa janela também aparece como "id que não existia antes".
+    // Vincular ele cruzaria o `id_superlogica_con` com a pessoa errada — e como
+    // esse campo é a trava de idempotência, ninguém tentaria de novo.
+    const { service, update, put } = cenarioErp({
+      moradores: [moradorFake(10, { email: null, documento: null })],
+      vinculos: { 1010: [{ id: 55, id_superlogica_uni: 1901 }] },
+      unidades: [{ id_unidade_uni: '1901', contatos: [] }],
+    });
+
+    // Lista de entrada com a unidade "vazia", como estava quando o lote começou.
+    const r = await service.enviarMorador(10, [{ id_unidade_uni: '1901', contatos: [] } as any]);
+
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(r.enviado).toBe(false);
+    expect(r.motivo).toContain('não dá para confirmar qual contato');
+    // Fica pendente e é tentado de novo: perder uma tentativa é recuperável,
+    // cruzar a trava de idempotência não é.
+    expect(update).not.toHaveBeenCalled();
   });
 });
 

@@ -392,7 +392,18 @@ export class SuperlogicaWriteService {
     // Com lista pré-carregada, quem chama é responsável por mantê-la em dia —
     // `reenviarPendentes` a atualiza com o resultado de cada envio, logo abaixo.
     const unidades = unidadesPreCarregadas ?? (await this.superlogica.listarUnidades(idCondominioSuperlogica));
-    const unidade = unidades.find((u) => Number(u.id_unidade_uni) === idUnidadeSuperlogica);
+    let unidade = unidades.find((u) => Number(u.id_unidade_uni) === idUnidadeSuperlogica);
+
+    if (!unidade && unidadesPreCarregadas) {
+      // A lista de entrada do lote é mais velha que o ERP: a unidade pode ter
+      // nascido lá depois dela, ou a entrada foi descartada por uma escrita que
+      // não voltou resposta. Ler de novo é o que o envio avulso faria — recusar
+      // sem consultar o ERP seria dizer "não existe" sobre algo que existe.
+      const relidas = await this.superlogica.listarUnidades(idCondominioSuperlogica);
+      unidade = relidas.find((u) => Number(u.id_unidade_uni) === idUnidadeSuperlogica);
+      if (unidade) SuperlogicaWriteService.guardarUnidade(unidadesPreCarregadas, unidade);
+    }
+
     if (!unidade) {
       return { enviado: false, motivo: 'unidade não encontrada no ERP' };
     }
@@ -419,7 +430,19 @@ export class SuperlogicaWriteService {
     // depender de CPF ou e-mail para reconhecê-lo depois.
     const idsAntes = new Set((unidade.contatos ?? []).map((c) => String(c.id_contato_con)));
 
-    const resposta = await this.client.putEscritaRestrita<any>('unidades/post', payload);
+    let resposta: any;
+    try {
+      resposta = await this.client.putEscritaRestrita<any>('unidades/post', payload);
+    } catch (err) {
+      // A exceção não diz se o ERP aplicou a escrita: timeout na resposta e 5xx
+      // depois do commit são indistinguíveis daqui. O que não pode acontecer é
+      // o lote seguir usando a entrada antiga desta unidade — o próximo morador
+      // montaria o payload sem um contato que talvez já exista, e sob a
+      // hipótese de substituição da §7.1 isso apaga morador real. Descartar a
+      // entrada faz a próxima escrita nesta unidade reler do ERP.
+      SuperlogicaWriteService.esquecerUnidade(unidadesPreCarregadas, idUnidadeSuperlogica);
+      throw err;
+    }
 
     // A Superlógica responde HTTP 200 mesmo quando recusa a operação — o
     // veredito de verdade está no corpo, em `status`/`msg`. Sem olhar isso, uma
@@ -444,10 +467,8 @@ export class SuperlogicaWriteService {
     // e é o que faz o próximo morador da MESMA unidade montar o payload com
     // este contato dentro — sem isso o reaproveitamento da lista reintroduziria
     // a corrida dentro do próprio laço de `reenviarPendentes`.
-    if (unidadesPreCarregadas && unidadeDepois) {
-      const i = unidadesPreCarregadas.findIndex((u) => Number(u.id_unidade_uni) === idUnidadeSuperlogica);
-      if (i >= 0) unidadesPreCarregadas[i] = unidadeDepois;
-    }
+    if (unidadeDepois) SuperlogicaWriteService.guardarUnidade(unidadesPreCarregadas, unidadeDepois);
+    else SuperlogicaWriteService.esquecerUnidade(unidadesPreCarregadas, idUnidadeSuperlogica);
 
     if (!novo) {
       // O ERP disse OK e nada apareceu. Não dá para chamar isso de enviado:
@@ -462,16 +483,69 @@ export class SuperlogicaWriteService {
       };
     }
 
+    // Eleger "o id que não existia antes" só é confiável quando `idsAntes` veio
+    // de uma leitura feita DENTRO do lock — o caso do envio avulso.
+    //
+    // Com lista pré-carregada, `idsAntes` veio da leitura de entrada do lote,
+    // possivelmente minutos antes: um contato criado nessa janela por um envio
+    // do app também aparece como "novo", e vincular ele cruzaria o
+    // `id_superlogica_con` com o contato de outra pessoa. Como esse campo é a
+    // trava de idempotência, ninguém tentaria de novo e o cruzamento ficaria.
+    // Então aqui o contato tem que ser reconhecido como sendo DESTE morador.
+    //
+    // Não dá para fechar a janela relendo: esta API só lista o condomínio
+    // inteiro, e reler por morador é justamente o O(n) que este lote veio
+    // eliminar. Fecha-se o dano, não a janela: sem confirmação, o morador
+    // continua pendente e é tentado de novo — perder uma tentativa é
+    // recuperável, cruzar a trava não é.
+    let contato = novo;
+    if (unidadesPreCarregadas) {
+      const meu = SuperlogicaWriteService.acharContato(unidadeDepois, morador);
+      if (!meu) {
+        this.logger.error(
+          `Morador ${idMorador}: escrita na unidade ${idUnidadeSuperlogica} pode ter dado certo, mas nenhum contato de lá casa com o morador — não vinculado, para não cruzar com contato de outra pessoa.`,
+        );
+        return {
+          enviado: false,
+          motivo: `o envio pode ter dado certo, mas sem CPF ou e-mail que case não dá para confirmar qual contato da unidade ${idUnidadeSuperlogica} é deste morador — cadastre CPF ou e-mail e reenvie`,
+        };
+      }
+      contato = meu;
+    }
+
     await this.prisma.moradores.update({
       where: { id: morador.id },
-      data: { id_superlogica_con: Number(novo.id_contato_con) },
+      data: { id_superlogica_con: Number(contato.id_contato_con) },
     });
 
     this.logger.log(
-      `Morador ${idMorador} enviado à Superlógica: contato ${novo.id_contato_con} na unidade ${idUnidadeSuperlogica}.`,
+      `Morador ${idMorador} enviado à Superlógica: contato ${contato.id_contato_con} na unidade ${idUnidadeSuperlogica}.`,
     );
 
-    return { enviado: true, idContatoSuperlogica: Number(novo.id_contato_con) };
+    return { enviado: true, idContatoSuperlogica: Number(contato.id_contato_con) };
+  }
+
+  /**
+   * Põe a unidade recém-lida na lista do lote (ou acrescenta, se ela não estava
+   * lá). É o que faz o próximo morador da MESMA unidade montar o payload já com
+   * os contatos que acabaram de nascer.
+   */
+  private static guardarUnidade(unidades: SuperlogicaUnidade[] | undefined, unidade: SuperlogicaUnidade): void {
+    if (!unidades) return;
+    const i = unidades.findIndex((u) => Number(u.id_unidade_uni) === Number(unidade.id_unidade_uni));
+    if (i >= 0) unidades[i] = unidade;
+    else unidades.push(unidade);
+  }
+
+  /**
+   * Descarta a unidade da lista do lote quando não se sabe mais o que há nela.
+   * A próxima escrita naquela unidade relê do ERP em vez de confiar em dado
+   * velho — dado velho aqui apaga contato de morador real.
+   */
+  private static esquecerUnidade(unidades: SuperlogicaUnidade[] | undefined, idUnidade: number): void {
+    if (!unidades) return;
+    const i = unidades.findIndex((u) => Number(u.id_unidade_uni) === idUnidade);
+    if (i >= 0) unidades.splice(i, 1);
   }
 
   /**
