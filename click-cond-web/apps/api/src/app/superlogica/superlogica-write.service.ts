@@ -194,6 +194,7 @@ export class SuperlogicaWriteService {
         tipo: true,
         bloco: true,
         apartamento: true,
+        id_user: true,
         id_condominio: true,
         id_superlogica_con: true,
       },
@@ -205,16 +206,106 @@ export class SuperlogicaWriteService {
       select: { id: true, id_superlogica_cond: true, superlogica_escrita: true },
     });
 
+    const { apartamento, motivoApartamento } = await this.resolverApartamento({
+      ...morador,
+      id_condominio: morador.id_condominio,
+    });
+
+    return { morador, condominio, apartamento, motivoApartamento };
+  }
+
+  /**
+   * Descobre em qual apartamento o morador mora — o passo que decide em qual
+   * unidade do ERP real o contato vai ser gravado.
+   *
+   * O vínculo por ID (`Apartamentos_Users`) vem primeiro porque o casamento por
+   * texto é frágil de um jeito perigoso: renomear o apartamento quebra a
+   * resolução em silêncio, e morador com `apartamento` vazio viraria
+   * `{ bloco: null, apto: null }`, que casa com QUALQUER linha de bloco/apto
+   * nulos do condomínio (o unique `un_apto_cond` não impede duplicatas porque
+   * o MySQL trata NULL como distinto) — e aí o morador nasce numa unidade
+   * errada do ERP.
+   *
+   * Empate não se resolve no chute: mandar o morador para o apartamento errado
+   * é pior que não mandar, então a ambiguidade vira recusa com motivo.
+   */
+  private async resolverApartamento(morador: {
+    id_user: number | null;
+    id_condominio: number;
+    bloco: string | null;
+    apartamento: string | null;
+  }): Promise<{
+    apartamento: { id: number; id_superlogica_uni: number | null } | null;
+    motivoApartamento?: string;
+  }> {
+    if (morador.id_user != null) {
+      const vinculos = await this.prisma.apartamentos_Users.findMany({
+        where: { id_user: morador.id_user, apartamento: { id_condominio: morador.id_condominio } },
+        select: { apartamento: { select: { id: true, id_superlogica_uni: true } } },
+      });
+
+      const aptos = vinculos.map((v) => v.apartamento).filter(Boolean);
+      // Vínculo que já aponta para uma unidade do ERP é o único que interessa
+      // ao envio; se só um está nessa condição, o empate se desfaz sozinho.
+      const comUnidade = aptos.filter((a) => a.id_superlogica_uni != null);
+      const candidatos = comUnidade.length ? comUnidade : aptos;
+
+      if (candidatos.length === 1) return { apartamento: candidatos[0] };
+      if (candidatos.length > 1) {
+        return {
+          apartamento: null,
+          motivoApartamento: 'morador vinculado a mais de um apartamento — envie pelo painel',
+        };
+      }
+    }
+
+    // Sem vínculo por ID sobra o texto — mas nunca com apto vazio, que é o caso
+    // que casava NULL/NULL e escrevia numa unidade qualquer.
+    if (!(morador.apartamento ?? '').trim()) {
+      return { apartamento: null, motivoApartamento: 'morador sem apartamento identificado' };
+    }
+
     const apartamento = await this.prisma.apartamentos.findFirst({
       where: {
         id_condominio: morador.id_condominio,
         bloco: morador.bloco || null,
-        apto: morador.apartamento || null,
+        apto: morador.apartamento,
       },
       select: { id: true, id_superlogica_uni: true },
     });
 
-    return { morador, condominio, apartamento };
+    return { apartamento };
+  }
+
+  /**
+   * Fila por unidade: dois envios para a MESMA unidade nunca se sobrepõem.
+   *
+   * Sem isso, dois envios simultâneos leem a mesma lista de contatos e cada um
+   * faz o PUT com a lista que leu — o segundo sem o contato criado pelo
+   * primeiro. Se o endpoint "Editar unidade" substituir a lista (a hipótese que
+   * a §7.1 declara não resolvida, e contra a qual reenviar todos os contatos é
+   * justamente a proteção), o segundo PUT apaga um morador real do ERP.
+   *
+   * Premissa: o Railway roda UMA réplica, então um mutex em processo basta. Com
+   * múltiplas réplicas isso precisa virar lock no banco — o mutex em memória de
+   * cada réplica não veria as outras.
+   */
+  private readonly filasPorUnidade = new Map<string, Promise<unknown>>();
+
+  private async naFilaDaUnidade<T>(chave: string, tarefa: () => Promise<T>): Promise<T> {
+    const anterior = this.filasPorUnidade.get(chave) ?? Promise.resolve();
+    // O `catch` é do encadeamento, não do resultado: um envio que falhou não
+    // pode travar a fila de quem vem atrás.
+    const atual = anterior.catch(() => undefined).then(tarefa);
+    this.filasPorUnidade.set(chave, atual);
+
+    try {
+      return await atual;
+    } finally {
+      // Libera a chave quando ninguém entrou na fila depois de mim — senão o
+      // Map cresce uma entrada por unidade e nunca encolhe.
+      if (this.filasPorUnidade.get(chave) === atual) this.filasPorUnidade.delete(chave);
+    }
   }
 
   /**
@@ -223,12 +314,17 @@ export class SuperlogicaWriteService {
    * Best-effort por decisão: falar com a Superlógica não pode derrubar o
    * cadastro de morador no Clique. Toda recusa devolve um motivo, que fica no
    * log e na auditoria, em vez de virar exceção na cara do usuário do app.
+   *
+   * `unidadesPreCarregadas` é a lista de unidades do condomínio já lida por
+   * quem chama (hoje só `reenviarPendentes`, para não varrer o condomínio
+   * inteiro uma vez por morador). É OPCIONAL de propósito: sem ela o
+   * comportamento é o de sempre, e os gatilhos automáticos não mudam.
    */
-  async enviarMorador(idMorador: number): Promise<ResultadoEnvio> {
+  async enviarMorador(idMorador: number, unidadesPreCarregadas?: SuperlogicaUnidade[]): Promise<ResultadoEnvio> {
     const ctx = await this.carregarContexto(idMorador);
     if (!ctx) return { enviado: false, motivo: 'morador sem condomínio' };
 
-    const { morador, condominio, apartamento } = ctx;
+    const { morador, condominio, apartamento, motivoApartamento } = ctx;
 
     if (condominio?.superlogica_escrita !== 1) {
       return { enviado: false, motivo: 'escrita desligada para este condomínio' };
@@ -236,7 +332,10 @@ export class SuperlogicaWriteService {
     if (condominio?.id_superlogica_cond == null) {
       return { enviado: false, motivo: 'condomínio não vinculado' };
     }
-    if (!apartamento?.id_superlogica_uni) {
+    if (!apartamento) {
+      return { enviado: false, motivo: motivoApartamento ?? 'apartamento não encontrado' };
+    }
+    if (!apartamento.id_superlogica_uni) {
       // Sem unidade correspondente não há onde pendurar o contato. Criar a
       // unidade no ERP seria escrita muito além do combinado.
       return { enviado: false, motivo: 'apartamento sem unidade vinculada no ERP' };
@@ -253,8 +352,47 @@ export class SuperlogicaWriteService {
       };
     }
 
-    const unidades = await this.superlogica.listarUnidades(condominio.id_superlogica_cond);
-    const unidade = unidades.find((u) => Number(u.id_unidade_uni) === apartamento.id_superlogica_uni);
+    // Daqui para baixo é seção crítica: ler os contatos, montar o payload com
+    // eles e escrever tem que ser indivisível para a mesma unidade.
+    return this.naFilaDaUnidade(
+      `${condominio.id_superlogica_cond}:${apartamento.id_superlogica_uni}`,
+      () =>
+        this.escreverNaUnidade(
+          morador,
+          condominio.id_superlogica_cond as number,
+          apartamento.id_superlogica_uni as number,
+          unidadesPreCarregadas,
+        ),
+    );
+  }
+
+  /**
+   * O que roda com a unidade travada: lê os contatos, monta o payload, escreve
+   * e confirma.
+   *
+   * A leitura acontece AQUI dentro, e não antes das validações, porque uma
+   * leitura feita fora do lock já pode estar obsoleta quando o PUT sai — que é
+   * exatamente como um contato real some da unidade.
+   */
+  private async escreverNaUnidade(
+    morador: {
+      id: number;
+      nome: string;
+      email: string | null;
+      telefone: string | null;
+      documento: string | null;
+      tipo: string | null;
+    },
+    idCondominioSuperlogica: number,
+    idUnidadeSuperlogica: number,
+    unidadesPreCarregadas?: SuperlogicaUnidade[],
+  ): Promise<ResultadoEnvio> {
+    const idMorador = morador.id;
+
+    // Com lista pré-carregada, quem chama é responsável por mantê-la em dia —
+    // `reenviarPendentes` a atualiza com o resultado de cada envio, logo abaixo.
+    const unidades = unidadesPreCarregadas ?? (await this.superlogica.listarUnidades(idCondominioSuperlogica));
+    const unidade = unidades.find((u) => Number(u.id_unidade_uni) === idUnidadeSuperlogica);
     if (!unidade) {
       return { enviado: false, motivo: 'unidade não encontrada no ERP' };
     }
@@ -271,8 +409,8 @@ export class SuperlogicaWriteService {
     }
 
     const payload = SuperlogicaWriteService.montarPayload(
-      condominio.id_superlogica_cond,
-      apartamento.id_superlogica_uni,
+      idCondominioSuperlogica,
+      idUnidadeSuperlogica,
       unidade.contatos ?? [],
       morador,
     );
@@ -297,20 +435,30 @@ export class SuperlogicaWriteService {
 
     // Relê e procura um id que não existia antes. Confirma de fato, e funciona
     // para morador sem CPF nem e-mail — que o casamento por dados não acharia.
-    const depois = await this.superlogica.listarUnidades(condominio.id_superlogica_cond);
-    const unidadeDepois = depois.find((u) => Number(u.id_unidade_uni) === apartamento.id_superlogica_uni);
+    const depois = await this.superlogica.listarUnidades(idCondominioSuperlogica);
+    const unidadeDepois = depois.find((u) => Number(u.id_unidade_uni) === idUnidadeSuperlogica);
     const novo = (unidadeDepois?.contatos ?? []).find((c) => !idsAntes.has(String(c.id_contato_con)));
+
+    // A lista pré-carregada envelheceu no instante do PUT. Trocar a unidade
+    // pela versão recém-lida é de graça (a leitura já aconteceu para confirmar)
+    // e é o que faz o próximo morador da MESMA unidade montar o payload com
+    // este contato dentro — sem isso o reaproveitamento da lista reintroduziria
+    // a corrida dentro do próprio laço de `reenviarPendentes`.
+    if (unidadesPreCarregadas && unidadeDepois) {
+      const i = unidadesPreCarregadas.findIndex((u) => Number(u.id_unidade_uni) === idUnidadeSuperlogica);
+      if (i >= 0) unidadesPreCarregadas[i] = unidadeDepois;
+    }
 
     if (!novo) {
       // O ERP disse OK e nada apareceu. Não dá para chamar isso de enviado:
       // marcar assim esconderia o problema e ainda impediria uma nova
       // tentativa, porque o morador deixaria de ser pendente.
       this.logger.error(
-        `Morador ${idMorador}: ERP respondeu "${msgErp || statusErp}" mas nenhum contato novo apareceu na unidade ${apartamento.id_superlogica_uni}.`,
+        `Morador ${idMorador}: ERP respondeu "${msgErp || statusErp}" mas nenhum contato novo apareceu na unidade ${idUnidadeSuperlogica}.`,
       );
       return {
         enviado: false,
-        motivo: `ERP respondeu "${msgErp || statusErp || 'sem corpo'}" mas nenhum contato novo apareceu na unidade ${apartamento.id_superlogica_uni}`,
+        motivo: `ERP respondeu "${msgErp || statusErp || 'sem corpo'}" mas nenhum contato novo apareceu na unidade ${idUnidadeSuperlogica}`,
       };
     }
 
@@ -320,7 +468,7 @@ export class SuperlogicaWriteService {
     });
 
     this.logger.log(
-      `Morador ${idMorador} enviado à Superlógica: contato ${novo.id_contato_con} na unidade ${apartamento.id_superlogica_uni}.`,
+      `Morador ${idMorador} enviado à Superlógica: contato ${novo.id_contato_con} na unidade ${idUnidadeSuperlogica}.`,
     );
 
     return { enviado: true, idContatoSuperlogica: Number(novo.id_contato_con) };
@@ -349,9 +497,17 @@ export class SuperlogicaWriteService {
     const resultados: { id: number; nome: string; enviado: boolean; motivo?: string }[] = [];
     let enviados = 0;
 
+    // Uma leitura de entrada para o lote inteiro. Cada envio varria o
+    // condomínio de 50 em 50 duas vezes: 300 pendentes viravam milhares de
+    // requisições sequenciais dentro de UMA requisição HTTP, que estoura o
+    // gateway — e o operador reapertando o botão depois do timeout multiplicava
+    // a corrida. A releitura de confirmação de cada envio continua existindo:
+    // é ela que prova que o contato nasceu.
+    const unidades = await this.carregarUnidadesDoCondominio(idCondominioClique);
+
     for (const m of pendentes) {
       try {
-        const r = await this.enviarMorador(m.id);
+        const r = await this.enviarMorador(m.id, unidades);
         if (r.enviado) enviados++;
         resultados.push({ id: m.id, nome: m.nome, enviado: r.enviado, motivo: r.motivo });
       } catch (err: any) {
@@ -366,6 +522,33 @@ export class SuperlogicaWriteService {
   }
 
   /**
+   * Lê as unidades do condomínio uma vez, para o lote.
+   *
+   * Devolve `undefined` em vez de estourar: sem a lista, cada envio volta a ler
+   * por conta própria e a falha aparece morador a morador na tela, que é o
+   * comportamento de sempre — o lote não pode morrer inteiro por causa da
+   * leitura de entrada.
+   *
+   * Com escrita desligada ou condomínio sem vínculo nenhum envio vai sair, e
+   * varrer o condomínio inteiro à toa seria só carga no ERP.
+   */
+  private async carregarUnidadesDoCondominio(idCondominioClique: number): Promise<SuperlogicaUnidade[] | undefined> {
+    const condominio = await this.prisma.condominios.findUnique({
+      where: { id: idCondominioClique },
+      select: { id_superlogica_cond: true, superlogica_escrita: true },
+    });
+    if (condominio?.superlogica_escrita !== 1) return undefined;
+    if (condominio.id_superlogica_cond == null) return undefined;
+
+    try {
+      return await this.superlogica.listarUnidades(condominio.id_superlogica_cond);
+    } catch (err: any) {
+      this.logger.error(`Leitura das unidades do condomínio ${idCondominioClique} falhou: ${err?.message ?? err}`);
+      return undefined;
+    }
+  }
+
+  /**
    * Mostra exatamente o que seria enviado, sem enviar.
    *
    * Existe para conferir o payload contra o ERP antes de ligar a escrita num
@@ -375,9 +558,10 @@ export class SuperlogicaWriteService {
     const ctx = await this.carregarContexto(idMorador);
     if (!ctx) return { payload: null, motivo: 'morador sem condomínio' };
 
-    const { morador, condominio, apartamento } = ctx;
+    const { morador, condominio, apartamento, motivoApartamento } = ctx;
     if (condominio?.id_superlogica_cond == null) return { payload: null, motivo: 'condomínio não vinculado' };
-    if (!apartamento?.id_superlogica_uni) return { payload: null, motivo: 'apartamento sem unidade vinculada no ERP' };
+    if (!apartamento) return { payload: null, motivo: motivoApartamento ?? 'apartamento não encontrado' };
+    if (!apartamento.id_superlogica_uni) return { payload: null, motivo: 'apartamento sem unidade vinculada no ERP' };
 
     const unidades = await this.superlogica.listarUnidades(condominio.id_superlogica_cond);
     const unidade = unidades.find((u) => Number(u.id_unidade_uni) === apartamento.id_superlogica_uni);

@@ -341,6 +341,309 @@ describe('SuperlogicaWriteService — confirmação do envio', () => {
   });
 });
 
+/**
+ * "ERP" em memória para os testes de resolução de apartamento, corrida e lote.
+ *
+ * O PUT aqui SUBSTITUI a lista de contatos da unidade pela que veio no payload
+ * — a hipótese pessimista da §7.1, a que o reenvio de todos os contatos existe
+ * para proteger. Com ela, um contato que o payload esquecer de reenviar SOME,
+ * que é justamente o estrago que a corrida causa no ERP real.
+ *
+ * Nenhum teste toca a rede.
+ */
+function cenarioErp(opcoes: {
+  moradores: any[];
+  /** Vínculos de `Apartamentos_Users`, por `id_user`. */
+  vinculos?: Record<number, { id: number; id_superlogica_uni: number | null }[]>;
+  /** O que o casamento por texto acharia (o caminho antigo). */
+  aptoPorTexto?: { id: number; id_superlogica_uni: number | null } | null;
+  unidades?: { id_unidade_uni: string; contatos: any[] }[];
+}) {
+  const estado = opcoes.unidades ?? [{ id_unidade_uni: '1901', contatos: [] }];
+  const travas = new Map<number, Promise<void>>();
+  let proximoId = 900;
+
+  // Cópia a cada leitura: no ERP de verdade cada listagem traz objetos novos, e
+  // o teste não pode passar por causa de alias com o estado interno.
+  const clonar = () => estado.map((u) => ({ ...u, contatos: u.contatos.map((c: any) => ({ ...c })) }));
+
+  const listarUnidades = jest.fn(async () => clonar());
+
+  const put = jest.fn(async (_rota: string, payload: any) => {
+    const idUnidade = Number(payload['ID_UNIDADE_UNI']);
+    // Latência do ERP: é nesta janela que dois envios se atropelavam.
+    await (travas.get(idUnidade) ?? new Promise<void>((r) => setImmediate(r)));
+
+    const unidade = estado.find((u) => Number(u.id_unidade_uni) === idUnidade);
+    if (!unidade) return [{ status: '400', msg: 'unidade inexistente' }];
+
+    const reenviados = Object.keys(payload)
+      .filter((k) => k.endsWith('[ID_CONTATO_CON]'))
+      .map((k) => String(payload[k]));
+    const nome = String(Object.entries(payload).find(([k]) => k.endsWith('[ST_NOME_CON]'))?.[1] ?? '');
+
+    unidade.contatos = [
+      ...unidade.contatos.filter((c: any) => reenviados.includes(String(c.id_contato_con))),
+      { id_contato_con: String(proximoId++), st_nome_con: nome, st_cpf_con: '', st_email_con: '' },
+    ];
+
+    return [{ status: '200', msg: '01 a - Sucesso' }];
+  });
+
+  const update = jest.fn(async () => ({}));
+  const findFirstApto = jest.fn(async () => opcoes.aptoPorTexto ?? null);
+  const findManyVinculos = jest.fn(async ({ where }: any) =>
+    (opcoes.vinculos?.[where.id_user] ?? []).map((apartamento) => ({ apartamento })),
+  );
+
+  const prisma: any = {
+    moradores: {
+      findUnique: jest.fn(async ({ where }: any) => opcoes.moradores.find((m) => m.id === where.id) ?? null),
+      findMany: jest.fn(async () =>
+        opcoes.moradores.filter((m) => m.id_superlogica_con == null).map((m) => ({ id: m.id, nome: m.nome })),
+      ),
+      update,
+    },
+    condominios: {
+      findUnique: jest.fn(async () => ({ id: 7, id_superlogica_cond: 43, superlogica_escrita: 1 })),
+    },
+    apartamentos: { findFirst: findFirstApto },
+    apartamentos_Users: { findMany: findManyVinculos },
+  };
+
+  const service = new SuperlogicaWriteService(
+    prisma,
+    { putEscritaRestrita: put } as any,
+    { listarUnidades } as any,
+  );
+
+  /** Segura o PUT daquela unidade até quem chamou soltar. */
+  const travar = (idUnidade: number) => {
+    let liberar!: () => void;
+    travas.set(idUnidade, new Promise<void>((r) => (liberar = r)));
+    return () => {
+      travas.delete(idUnidade);
+      liberar();
+    };
+  };
+
+  const idsDoPayload = (payload: any) =>
+    Object.keys(payload)
+      .filter((k) => k.endsWith('[ID_CONTATO_CON]'))
+      .map((k) => String(payload[k]));
+
+  return { service, put, listarUnidades, update, findFirstApto, estado, travar, idsDoPayload };
+}
+
+const moradorFake = (id: number, extra: any = {}) => ({
+  id,
+  nome: `Morador ${id}`,
+  email: null,
+  telefone: null,
+  documento: null,
+  tipo: 'proprietario',
+  bloco: 'a',
+  apartamento: '1',
+  id_user: 1000 + id,
+  id_condominio: 7,
+  id_superlogica_con: null,
+  ...extra,
+});
+
+/**
+ * Em qual unidade do ERP real o contato vai parar.
+ *
+ * Errar aqui é gravar o morador no apartamento de outra pessoa — o motivo de o
+ * vínculo por ID vir antes do casamento por texto.
+ */
+describe('SuperlogicaWriteService — resolução do apartamento', () => {
+  it('recusa morador sem apartamento identificável em vez de casar NULL/NULL', async () => {
+    // `{ bloco: null, apto: null }` casa com QUALQUER linha de bloco/apto nulos
+    // do condomínio — o MySQL trata NULL como distinto, então o unique não
+    // impede duplicatas. O morador nasceria numa unidade qualquer do ERP.
+    const { service, put, findFirstApto } = cenarioErp({
+      moradores: [moradorFake(10, { bloco: null, apartamento: '' })],
+      aptoPorTexto: { id: 55, id_superlogica_uni: 1901 },
+    });
+
+    const r = await service.enviarMorador(10);
+
+    expect(r.enviado).toBe(false);
+    expect(r.motivo).toBe('morador sem apartamento identificado');
+    expect(findFirstApto).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it('usa o apartamento do vínculo por ID, não o casamento por texto', async () => {
+    // O texto ("a"/"1") apontaria para a unidade 1901; o vínculo diz 1902.
+    // Renomear apartamento não pode desviar o morador de unidade.
+    const { service, put, findFirstApto } = cenarioErp({
+      moradores: [moradorFake(10)],
+      vinculos: { 1010: [{ id: 56, id_superlogica_uni: 1902 }] },
+      aptoPorTexto: { id: 55, id_superlogica_uni: 1901 },
+      unidades: [
+        { id_unidade_uni: '1901', contatos: [] },
+        { id_unidade_uni: '1902', contatos: [] },
+      ],
+    });
+
+    const r = await service.enviarMorador(10);
+
+    expect(r.enviado).toBe(true);
+    expect(findFirstApto).not.toHaveBeenCalled();
+    expect(put.mock.calls[0][1]['ID_UNIDADE_UNI']).toBe(1902);
+  });
+
+  it('recusa quando o vínculo é ambíguo entre apartamentos elegíveis', async () => {
+    // Adivinhar entre dois é como o morador entra na unidade errada.
+    const { service, put } = cenarioErp({
+      moradores: [moradorFake(10)],
+      vinculos: {
+        1010: [
+          { id: 55, id_superlogica_uni: 1901 },
+          { id: 56, id_superlogica_uni: 1902 },
+        ],
+      },
+    });
+
+    const r = await service.enviarMorador(10);
+
+    expect(r.enviado).toBe(false);
+    expect(r.motivo).toBe('morador vinculado a mais de um apartamento — envie pelo painel');
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it('desempata pelo vínculo que tem unidade no ERP', async () => {
+    // Um só é candidato de verdade: o outro não tem onde pendurar contato.
+    const { service, put } = cenarioErp({
+      moradores: [moradorFake(10)],
+      vinculos: {
+        1010: [
+          { id: 55, id_superlogica_uni: null },
+          { id: 56, id_superlogica_uni: 1901 },
+        ],
+      },
+    });
+
+    const r = await service.enviarMorador(10);
+
+    expect(r.enviado).toBe(true);
+    expect(put.mock.calls[0][1]['ID_UNIDADE_UNI']).toBe(1901);
+  });
+
+  it('cai no casamento por texto quando não há vínculo por ID', async () => {
+    const { service, put, findFirstApto } = cenarioErp({
+      moradores: [moradorFake(10)],
+      aptoPorTexto: { id: 55, id_superlogica_uni: 1901 },
+    });
+
+    const r = await service.enviarMorador(10);
+
+    expect(r.enviado).toBe(true);
+    expect(findFirstApto).toHaveBeenCalled();
+    expect(put.mock.calls[0][1]['ID_UNIDADE_UNI']).toBe(1901);
+  });
+});
+
+/**
+ * Dois envios simultâneos para a MESMA unidade.
+ *
+ * Sem serialização, os dois leem a mesma lista de contatos e o segundo PUT sai
+ * sem o contato que o primeiro acabou de criar — apagando um morador real do
+ * ERP, sob a hipótese que a §7.1 declara não resolvida.
+ */
+describe('SuperlogicaWriteService — corrida na mesma unidade', () => {
+  it('o payload do segundo envio inclui o contato criado pelo primeiro', async () => {
+    const { service, put, estado, idsDoPayload } = cenarioErp({
+      moradores: [moradorFake(10), moradorFake(11)],
+      vinculos: {
+        1010: [{ id: 55, id_superlogica_uni: 1901 }],
+        1011: [{ id: 55, id_superlogica_uni: 1901 }],
+      },
+      unidades: [{ id_unidade_uni: '1901', contatos: [{ id_contato_con: '500', st_nome_con: 'Vizinho' }] }],
+    });
+
+    const [a, b] = await Promise.all([service.enviarMorador(10), service.enviarMorador(11)]);
+
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(idsDoPayload(put.mock.calls[0][1])).toEqual(['500']);
+    // O segundo PUT carrega o vizinho E o contato recém-criado pelo primeiro.
+    expect(idsDoPayload(put.mock.calls[1][1])).toEqual(['500', '900']);
+    // E nada sumiu da unidade.
+    expect(estado[0].contatos.map((c: any) => c.id_contato_con)).toEqual(['500', '900', '901']);
+    expect([a.idContatoSuperlogica, b.idContatoSuperlogica]).toEqual([900, 901]);
+  });
+
+  it('envios em unidades diferentes não esperam um pelo outro', async () => {
+    const { service, travar } = cenarioErp({
+      moradores: [moradorFake(10), moradorFake(11)],
+      vinculos: {
+        1010: [{ id: 55, id_superlogica_uni: 1901 }],
+        1011: [{ id: 56, id_superlogica_uni: 1902 }],
+      },
+      unidades: [
+        { id_unidade_uni: '1901', contatos: [] },
+        { id_unidade_uni: '1902', contatos: [] },
+      ],
+    });
+
+    const liberar = travar(1901);
+    const preso = service.enviarMorador(10);
+
+    // Se a trava fosse global em vez de por unidade, isto nunca resolveria.
+    const livre = await service.enviarMorador(11);
+    expect(livre.enviado).toBe(true);
+
+    liberar();
+    expect((await preso).enviado).toBe(true);
+  });
+});
+
+/**
+ * O lote não pode varrer o condomínio inteiro uma vez por morador: 300
+ * pendentes viravam milhares de requisições sequenciais dentro de uma única
+ * requisição HTTP.
+ */
+describe('SuperlogicaWriteService — reenvio em lote', () => {
+  function lote() {
+    return cenarioErp({
+      moradores: [moradorFake(10), moradorFake(11), moradorFake(12)],
+      vinculos: {
+        1010: [{ id: 55, id_superlogica_uni: 1901 }],
+        1011: [{ id: 55, id_superlogica_uni: 1901 }],
+        1012: [{ id: 56, id_superlogica_uni: 1902 }],
+      },
+      unidades: [
+        { id_unidade_uni: '1901', contatos: [] },
+        { id_unidade_uni: '1902', contatos: [] },
+      ],
+    });
+  }
+
+  it('faz UMA leitura de entrada para o lote inteiro', async () => {
+    const { service, listarUnidades } = lote();
+
+    const r = await service.reenviarPendentes(7);
+
+    expect(r.enviados).toBe(3);
+    // Antes: 2 leituras por morador (6). Agora: 1 de entrada + 1 confirmação
+    // por envio bem-sucedido — e as confirmações continuam existindo, são elas
+    // que provam que o contato nasceu.
+    expect(listarUnidades).toHaveBeenCalledTimes(1 + 3);
+  });
+
+  it('o segundo morador da mesma unidade não apaga o contato do primeiro', async () => {
+    // Reaproveitar a lista sem atualizá-la reintroduziria a corrida dentro do
+    // próprio laço.
+    const { service, estado, put, idsDoPayload } = lote();
+
+    await service.reenviarPendentes(7);
+
+    expect(idsDoPayload(put.mock.calls[1][1])).toEqual(['900']);
+    expect(estado[0].contatos.map((c: any) => c.id_contato_con)).toEqual(['900', '901']);
+  });
+});
+
 describe('SuperlogicaClient — a escrita não abre a porta para o resto', () => {
   let client: SuperlogicaClient;
 
