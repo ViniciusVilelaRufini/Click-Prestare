@@ -155,9 +155,21 @@ async function minhasUnidades(
 /**
  * A fatura "Apto X Bloco Y - ..." é da unidade informada?
  *
- * Match exato com fronteira de palavra: `nome.includes('Apto 10')` casaria
- * também com 100, 101 e 1010 — vazamento de dado financeiro entre vizinhos.
- * Mesma regra do FinanceiroService.nomeFaturaDeApto.
+ * Mesma regra do FinanceiroService.nomeFaturaDeApto — e ela precisa continuar
+ * sendo a mesma: aqui o retorno inclui url_boleto, pix_copia_cola e
+ * linha_digitavel, então casar frouxo é o assistente entregando o boleto do
+ * vizinho a quem perguntar.
+ *
+ * `\b` sozinho não basta. Ele barra dígito colado ("1010" não casa com apto
+ * "101"), mas deixa passar pontuação colada: ponto, hífen e barra não são \w,
+ * então "Apto 10.1", "Apto 10-A" e "Apto 10/2" também têm `\b` logo depois do
+ * "10". Exigir só espaço-ou-fim tampouco resolve, porque o espaço separa os
+ * campos mas não é proibido DENTRO do valor — "10 A" é apto válido, e o nome
+ * "Apto 10 A - Ref..." voltava a casar com o apto "10".
+ *
+ * A fronteira certa é o próximo campo de verdade. Os produtores de nome
+ * encerram o token do apto de dois jeitos, " Bloco " ou o " - " que abre o
+ * sufixo; o bloco é sempre o último campo antes do " - ".
  */
 function faturaEhDaUnidade(
   nome: string | null | undefined,
@@ -166,9 +178,10 @@ function faturaEhDaUnidade(
 ): boolean {
   if (!nome || !apto) return false;
   const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (!new RegExp(`\\bApto\\s+${escapar(apto.trim())}\\b`, 'i').test(nome)) return false;
+  const fimDoApto = String.raw`(?=\s+Bloco\s|\s*-\s|$)`;
+  if (!new RegExp(`\\bApto\\s+${escapar(apto.trim())}${fimDoApto}`, 'i').test(nome)) return false;
   const b = bloco?.trim() ?? '';
-  if (b) return new RegExp(`\\bBloco\\s+${escapar(b)}\\b`, 'i').test(nome);
+  if (b) return new RegExp(`\\bBloco\\s+${escapar(b)}(?=\\s*-\\s|$)`, 'i').test(nome);
   return !/\bBloco\s+\S/i.test(nome);
 }
 

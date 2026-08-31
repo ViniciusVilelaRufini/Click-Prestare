@@ -168,6 +168,48 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       expect(r.total).toBe(0);
     });
 
+    /**
+     * O `\b` acima resolve dígito colado, mas não pontuação nem espaço colados
+     * — e a identificação de unidade aceita os dois: `assertAptoValido` só
+     * recusa vazio e só-zeros, e a importação da Superlógica devolve
+     * identificação não numérica verbatim ("101-A", "101 B").
+     *
+     * Aqui o vazamento é mais caro que na tela: a resposta carrega url_boleto,
+     * pix_copia_cola e linha_digitavel, então casar frouxo é o assistente
+     * entregando o boleto do vizinho a quem souber perguntar.
+     */
+    it.each([
+      ['pontuação', 'Apto 101.1 Bloco A - Ref. 07/2026'],
+      ['hífen', 'Apto 101-A Bloco A - Ref. 07/2026'],
+      ['barra', 'Apto 101/2 Bloco A - Ref. 07/2026'],
+      ['espaço dentro do valor', 'Apto 101 A Bloco A - Ref. 07/2026'],
+    ])('meus_boletos não entrega a fatura do vizinho com %s colado no apto', async (_caso, nome) => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findMany = jest.fn(async () => [
+        { id: 5, nome, tipo: 'C', valor: 650, pago: 0, id_usuario: null, data_vencimento: null, status: '0' },
+      ]);
+      const r: any = await pegar('meus_boletos').executar({}, c);
+      expect(r.total).toBe(0);
+    });
+
+    it('meus_boletos não confunde Bloco A com Bloco A B', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findMany = jest.fn(async () => [
+        { id: 6, nome: 'Apto 101 Bloco A B - Ref. 07/2026', tipo: 'C', valor: 650, pago: 0, id_usuario: null, data_vencimento: null, status: '0' },
+      ]);
+      const r: any = await pegar('meus_boletos').executar({}, c);
+      expect(r.total).toBe(0);
+    });
+
+    it('a fatura legítima da unidade continua chegando', async () => {
+      const c = ctx();
+      (c.prisma as any).financeiro.findMany = jest.fn(async () => [
+        { id: 7, nome: 'Apto 101 Bloco A - Ref. 07/2026', tipo: 'C', valor: 650, pago: 0, id_usuario: null, data_vencimento: null, status: '0' },
+      ]);
+      const r: any = await pegar('meus_boletos').executar({}, c);
+      expect(r.cobrancas.map((x: any) => x.id)).toEqual([7]);
+    });
+
     it('minhas_ocorrencias limita ao próprio usuário quando não é staff', async () => {
       const c = ctx();
       await pegar('minhas_ocorrencias').executar({}, c);
