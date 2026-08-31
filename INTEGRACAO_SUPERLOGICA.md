@@ -62,9 +62,13 @@ endpoint é um `GET` de leitura aparente que **dispara e-mail real para o morado
 condor/atual/publico/emailcobrancasemaberto?cpf=...
 ```
 
-Chamá-lo em desenvolvimento manda e-mail de cobrança para uma pessoa real. Também estão
-bloqueados `comunicados/notificarcomunicado` e as ações de escrita de cobrança
-(`liquidar`, `estornar`, `excluir`, `update`, `desinvalidar`, `put`, `post`, `delete`).
+Chamá-lo em desenvolvimento manda e-mail de cobrança para uma pessoa real. A blocklist real
+(`ROTAS_PROIBIDAS` em `superlogica.client.ts`) tem oito termos:
+`emailcobrancasemaberto`, `notificarcomunicado`, `liquidar`, `estornar`, `excluir`,
+`desinvalidar`, `desfazer`, `imprimircarta`. `update`, `put`, `post` e `delete` **não**
+estão nela — e `post` não pode estar: bloquear a palavra bloquearia a própria
+`unidades/post`, a única rota de escrita permitida. Quem barra escrita indevida ali não é
+a blocklist, é a allowlist separada de `putEscritaRestrita()` (item 1 acima).
 
 ### Testes
 
@@ -92,8 +96,13 @@ Configuradas no `.env` local e nas Variables do serviço no Railway.
 > **⚠️ Validade de 1 ano — expira em 26/08/2027.** Quando vencer, a sincronização para de
 > funcionar. Renovar gerando um novo app no ERP e trocando as duas variáveis.
 
-`SUPERLOGICA_LICENCA` é necessária porque nem tudo fica em `api.superlogica.net`; alguns
-recursos ficam em `<licenca>.superlogica.net`.
+`SUPERLOGICA_LICENCA` **não é lida por nenhum código hoje** — `grep` no projeto inteiro
+não acha um leitor, e o `baseUrl` do cliente é fixo em
+`https://api.superlogica.net/v2/condor` (`superlogica.client.ts`). A variável fica
+reservada: nem tudo no ERP mora em `api.superlogica.net`, alguns recursos ficam em
+`<licenca>.superlogica.net`, mas nenhum dos usados hoje (§4) é um deles. Deixá-la vazia
+não quebra a integração atual; ela só passa a importar no dia em que algum endpoint novo
+exigir o domínio com licença.
 
 ---
 
@@ -287,6 +296,23 @@ Todas as colunas são anuláveis: nada muda para quem já usa o sistema.
 > `prisma/manual_2026-08_superlogica.sql`, e verificado por `SELECT` em cada
 > coluna e no índice. O script é idempotente — reexecutar é no-op.
 
+```sql
+CREATE UNIQUE INDEX un_apto_superlogica ON Apartamentos (id_condominio, id_superlogica_uni);
+```
+
+`(id_condominio, id_superlogica_uni)`: impede dois apartamentos do mesmo condomínio
+carregarem o mesmo `id_unidade_uni` do ERP. Sem esse índice, o `Map` de
+`superlogica-sync.service.ts` guarda só o último apartamento com aquele id, e as
+cobranças da unidade caem no apartamento errado — em silêncio, dinheiro de morador
+aparecendo na tela de outro.
+
+> **⚠️ PENDENTE DE APLICAÇÃO.** Definido no `schema.prisma` e no script manual
+> `prisma/manual_2026-08_superlogica_unidade_unica.sql`, mas **não foi rodado em
+> produção** — ao contrário do índice acima, este ainda não existe no banco. Enquanto
+> não for aplicado, a proteção que ele dá não existe de fato: dois apartamentos do
+> mesmo condomínio podem carregar o mesmo `id_superlogica_uni` sem que nada acuse. O
+> script inclui uma consulta de diagnóstico de duplicatas para rodar antes.
+
 ### De-para dos campos
 
 | `Financeiro` (Clique) | Superlógica | Observação |
@@ -307,8 +333,9 @@ Todas as colunas são anuláveis: nada muda para quem já usa o sistema.
 
 O Financeiro do Clique descobre de qual morador é uma cobrança **parseando o texto** de
 `nome`, no formato `"Apto X Bloco Y - Ref. MM/AAAA"` (`nomeFaturaDeApto` em
-`financeiro.service.ts`). O comentário na linha 125 daquele arquivo registra um vazamento
-de dados entre apartamentos causado por casamento por substring.
+`financeiro.service.ts`). O comentário acima da regex, naquele método, registra um
+vazamento de dados entre apartamentos causado por casamento por substring — detalhado
+logo abaixo.
 
 Consequências para o mapper:
 
@@ -317,9 +344,30 @@ Consequências para o mapper:
 - Fugir do formato faz a cobrança não aparecer para ninguém, ou aparecer para o morador
   errado.
 
-Isso é uma fragilidade herdada, não uma escolha desta integração. Como agora existe
-`Apartamentos.id_superlogica_uni`, o caminho certo a médio prazo é dar a `Financeiro` uma
-FK `id_apartamento` e aposentar o casamento por texto.
+**A fronteira do regex é explícita, não `\b`.** `\bApto\s+10\b` barra dígito colado
+("101" não casa com apto "10"), mas `\b` sozinho não barra pontuação colada — e
+`normalizarUnidade` preserva identificação não numérica no apto, então formatos assim
+existem em produção:
+
+| Nome gerado | Apto do perfil | `\b` (antes) | `(?=\s\|$)` (agora) |
+|---|---|---|---|
+| `"Apto 10.1 Bloco A - Ref. 08/2026"` | `10` | casava (vazava) | não casa |
+| `"Apto 10-A Bloco A - Ref. 08/2026"` | `10` | casava (vazava) | não casa |
+| `"Apto 10/2 Bloco A - Ref. 08/2026"` | `10` | casava (vazava) | não casa |
+| `"Apto 101 Bloco A - Ref. 08/2026"` | `10` | não casava | não casa |
+| `"Apto 10 Bloco A - Ref. 08/2026"` | `10` | casava | casa |
+
+`nomeFaturaDeApto` (`financeiro.service.ts`) trocou a fronteira final por lookahead
+`(?=\s|$)`, que exige espaço ou fim de string depois do token — o único formato que todo
+produtor de nome deste documento gera. Fail-closed de propósito: lançamento legado com
+pontuação colada no apto deixa de casar em vez de continuar vazando; melhor sumir da tela
+do morador certo do que aparecer na do errado.
+
+Isso estreita a fronteira, não elimina o casamento por texto. Isso é uma fragilidade
+herdada, não uma escolha desta integração. Como agora existe
+`Apartamentos.id_superlogica_uni`, o caminho certo a médio prazo continua sendo dar a
+`Financeiro` uma FK `id_apartamento` e aposentar o casamento por texto de vez — essa
+dívida segue aberta.
 
 O mapper descarta a cobrança (em vez de gravar algo ambíguo) quando:
 
@@ -352,12 +400,17 @@ esse id do cliente permitiria a um síndico pedir as cobranças de outro condom�
 - [x] Importação de unidades gravando `Apartamentos` com `id_superlogica_uni`
 - [x] Sincronização de cobranças com upsert (tick horário + disparo manual)
 - [x] Bloqueio de edição para `origem='superlogica'`
+- [x] Envio de morador ao ERP (§7.1), com apartamento resolvido por vínculo ID
+      (`Apartamentos_Users`), envio serializado por unidade e recusa (em vez de
+      chute) quando o vínculo é ambíguo ou inexistente
 
 **Pendente**
 
 - [ ] Botões de importar/sincronizar na tela do CRM (as rotas já existem)
 - [ ] Ajuste da tela do morador no app Flutter (hoje ele já lista `Financeiro`;
       falta conferir a apresentação de Pix e boleto vindos do ERP)
+- [ ] Aplicar em produção o índice `un_apto_superlogica` (§6) — definido no
+      schema e no script manual, ainda não rodado no banco
 
 ---
 
@@ -370,6 +423,30 @@ esse id do cliente permitiria a um síndico pedir as cobranças de outro condom�
 `ID_UNIDADE_UNI` e `contatos[n][...]`.
 
 ### Decisões que valem mais que o código
+
+**O apartamento é resolvido pelo vínculo por ID (`Apartamentos_Users`), não por texto.**
+O casamento por bloco/apto em texto continua existindo no código como via secundária,
+mas o vínculo por ID vem primeiro porque bloco/apto `NULL` casava com qualquer linha nula
+do condomínio — morador podia ir parar na unidade errada do ERP real. Vínculo ambíguo
+(mais de um apartamento possível) também vira **recusa com motivo**, nunca chute: errar
+de unidade aqui é escrita real no ERP, e desfazer não é automático.
+
+**O envio é serializado por unidade.** Uma fila em memória (`filasPorUnidade`) garante
+que dois envios para a mesma unidade nunca leiam a lista de contatos ao mesmo tempo — sem
+isso, dois PUTs simultâneos partiam da mesma lista antiga e o segundo apagava o contato
+que o primeiro acabara de criar. A leitura dos contatos acontece **dentro** da seção
+crítica, não antes dela. Premissa que a proteção carrega: **o Railway roda uma única
+réplica.** Com múltiplas réplicas, o mutex em memória de cada processo não veria as
+outras, e a corrida volta a existir — vira lock no banco nesse cenário, não está feito.
+
+**`reenviarPendentes` não varre mais o condomínio inteiro por morador.** O lote lê a
+entrada uma vez, e o resultado de cada envio (inclusive a unidade relida) atualiza a
+lista em memória para o próximo morador da mesma unidade — evita reintroduzir a corrida
+dentro do próprio laço. No lote, **morador sem CPF nem e-mail é recusado antes de
+escrever**: a confirmação de sucesso depende de reconhecer o contato novo por um dos
+dois, e sem nenhum, cada passada do lote criaria mais um contato órfão na unidade real do
+ERP, sem teto. O envio avulso, que lê dentro do lock, continua dando conta desse morador
+por diff de ids.
 
 **O contato entra sem receber cobrança** (`ID_TIPORESP_TRES = 4`). Cadastrar alguém no
 app não pode mudar para quem o boleto é emitido — isso é decisão financeira da
