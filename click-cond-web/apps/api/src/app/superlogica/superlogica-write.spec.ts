@@ -358,6 +358,8 @@ function cenarioErp(opcoes: {
   /** O que o casamento por texto acharia (o caminho antigo). */
   aptoPorTexto?: { id: number; id_superlogica_uni: number | null } | null;
   unidades?: { id_unidade_uni: string; contatos: any[] }[];
+  /** ERP que cria o contato mas não devolve CPF/e-mail na releitura. */
+  erpNaoEcoaDados?: boolean;
 }) {
   const estado = opcoes.unidades ?? [{ id_unidade_uni: '1901', contatos: [] }];
   const travas = new Map<number, Promise<void>>();
@@ -392,8 +394,8 @@ function cenarioErp(opcoes: {
         st_nome_con: doNovo('ST_NOME_CON'),
         // O ERP guarda o que recebeu: é assim que o contato é reconhecível
         // depois pelo casamento por CPF/e-mail.
-        st_cpf_con: doNovo('ST_CPF_CON'),
-        st_email_con: doNovo('ST_EMAIL_CON'),
+        st_cpf_con: opcoes.erpNaoEcoaDados ? '' : doNovo('ST_CPF_CON'),
+        st_email_con: opcoes.erpNaoEcoaDados ? '' : doNovo('ST_EMAIL_CON'),
       },
     ];
 
@@ -693,25 +695,48 @@ describe('SuperlogicaWriteService — reenvio em lote', () => {
     expect(listarUnidades).toHaveBeenCalledTimes(2); // releitura + confirmação
   });
 
-  it('não vincula contato que não dá para reconhecer como sendo do morador', async () => {
-    // A lista de entrada do lote é mais velha que o lock: um contato criado
-    // pelo app nessa janela também aparece como "id que não existia antes".
-    // Vincular ele cruzaria o `id_superlogica_con` com a pessoa errada — e como
-    // esse campo é a trava de idempotência, ninguém tentaria de novo.
-    const { service, update, put } = cenarioErp({
+  it('recusa morador sem CPF nem e-mail ANTES de escrever — nenhum órfão nasce', async () => {
+    // Sem CPF nem e-mail não há como confirmar qual contato é dele, então ele
+    // continuaria pendente e cada passada do reenvio criaria outro contato
+    // órfão na unidade, sem teto. Recusar antes do PUT não perde nada: o envio
+    // avulso, que lê dentro do lock, dá conta desse morador.
+    const { service, put, update, estado } = cenarioErp({
       moradores: [moradorFake(10, { email: null, documento: null })],
       vinculos: { 1010: [{ id: 55, id_superlogica_uni: 1901 }] },
-      unidades: [{ id_unidade_uni: '1901', contatos: [] }],
     });
 
-    // Lista de entrada com a unidade "vazia", como estava quando o lote começou.
+    const r = await service.reenviarPendentes(7);
+
+    expect(put).not.toHaveBeenCalled();
+    expect(estado[0].contatos).toEqual([]);
+    expect(update).not.toHaveBeenCalled();
+    expect(r.enviados).toBe(0);
+    expect(r.resultados[0].motivo).toContain('sem CPF nem e-mail');
+  });
+
+  it('não vincula contato que não dá para reconhecer como sendo do morador', async () => {
+    // Rede de segurança do caminho de lote: a lista de entrada é mais velha que
+    // o lock, então um contato criado pelo app nessa janela também aparece como
+    // "id que não existia antes". Vincular ele cruzaria o `id_superlogica_con`
+    // com a pessoa errada — e como esse campo é a trava de idempotência,
+    // ninguém tentaria de novo.
+    //
+    // Aqui o morador TEM e-mail (senão seria recusado antes do PUT), mas o ERP
+    // não devolve os dados do contato criado, então nada casa com ele.
+    const { service, update, put } = cenarioErp({
+      moradores: [moradorFake(10)],
+      vinculos: { 1010: [{ id: 55, id_superlogica_uni: 1901 }] },
+      unidades: [{ id_unidade_uni: '1901', contatos: [] }],
+      erpNaoEcoaDados: true,
+    });
+
     const r = await service.enviarMorador(10, [{ id_unidade_uni: '1901', contatos: [] } as any]);
 
     expect(put).toHaveBeenCalledTimes(1);
     expect(r.enviado).toBe(false);
     expect(r.motivo).toContain('não dá para confirmar qual contato');
-    // Fica pendente e é tentado de novo: perder uma tentativa é recuperável,
-    // cruzar a trava de idempotência não é.
+    // Fica pendente e é tentado de novo — e, tendo e-mail, a próxima tentativa
+    // reconhece o contato em vez de criar outro.
     expect(update).not.toHaveBeenCalled();
   });
 });

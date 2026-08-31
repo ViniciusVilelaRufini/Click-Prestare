@@ -182,6 +182,17 @@ export class SuperlogicaWriteService {
     });
   }
 
+  /**
+   * Tem por onde `acharContato` reconhecer esta pessoa depois?
+   *
+   * Mesmas duas guardas de lá: sem CPF (só dígitos) e sem e-mail, o casamento
+   * não tem por onde começar — casar por nome seria pedir para vincular a
+   * pessoa errada.
+   */
+  static temComoReconhecer(alvo: { email?: string | null; documento?: string | null }): boolean {
+    return !!SuperlogicaWriteService.soDigitos(alvo.documento) || !!(alvo.email ?? '').trim();
+  }
+
   private async carregarContexto(idMorador: number) {
     const morador = await this.prisma.moradores.findUnique({
       where: { id: idMorador },
@@ -406,6 +417,25 @@ export class SuperlogicaWriteService {
 
     if (!unidade) {
       return { enviado: false, motivo: 'unidade não encontrada no ERP' };
+    }
+
+    // No lote, morador sem CPF nem e-mail é recusado ANTES de escrever.
+    //
+    // Aqui a eleição do contato depende de reconhecê-lo por CPF ou e-mail (a
+    // leitura de entrada veio de fora do lock, então "id que não existia antes"
+    // pode ser de outra pessoa). Sem nenhum dos dois, o envio até funcionaria,
+    // mas não haveria como confirmar qual contato é dele — e o morador seguiria
+    // pendente. Cada nova passada do reenvio criaria outro contato órfão na
+    // unidade, sem teto, sujando o cadastro real da administradora.
+    //
+    // Recusar antes do PUT não perde nada: o envio avulso, que lê dentro do
+    // lock, continua dando conta desse morador sem CPF nem e-mail.
+    if (unidadesPreCarregadas && !SuperlogicaWriteService.temComoReconhecer(morador)) {
+      return {
+        enviado: false,
+        motivo:
+          'morador sem CPF nem e-mail — o reenvio em lote precisa de um dos dois para confirmar qual contato é dele; preencha no cadastro e reenvie',
+      };
     }
 
     // Já existe lá? Então só amarra os dois lados — reenviar criaria um contato
