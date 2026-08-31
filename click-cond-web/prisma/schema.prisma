@@ -248,6 +248,12 @@ model Apartamentos {
   vagas               Vagas[]
 
   @@unique([id_condominio, bloco, apto], map: "un_apto_cond")
+  // Impede dois apartamentos do mesmo condomínio carregarem o mesmo
+  // id_superlogica_uni: se acontecesse, o Map de superlogica-sync.service.ts
+  // guardaria só o último e as cobranças da unidade cairiam no apartamento
+  // errado, em silêncio. Em MySQL, NULLs não colidem em índice único — os
+  // apartamentos ainda não vinculados ao ERP não são afetados.
+  @@unique([id_condominio, id_superlogica_uni], map: "un_apto_superlogica")
 }
 
 model Sindicos {
