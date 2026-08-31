@@ -129,6 +129,18 @@ export class SuperlogicaWriteService {
     return LABEL_PROPRIETARIO_RESIDENTE;
   }
 
+  /**
+   * Mesma identificação de unidade escrita nos dois lados?
+   *
+   * `Moradores.bloco`/`apartamento` são cópias de `Apartamentos.bloco`/`apto`
+   * feitas na hora do vínculo, então o normal é baterem byte a byte. Vazio e
+   * NULL contam como a mesma coisa — bloco em branco é gravado das duas formas
+   * dependendo de quem cadastrou.
+   */
+  private static mesmoTexto(a?: string | null, b?: string | null): boolean {
+    return (a ?? '').trim().toLowerCase() === (b ?? '').trim().toLowerCase();
+  }
+
   /** Só dígitos, para comparar CPF que veio formatado de um lado e não do outro. */
   private static soDigitos(valor?: string | null): string {
     return (valor ?? '').replace(/\D/g, '');
@@ -252,20 +264,39 @@ export class SuperlogicaWriteService {
     if (morador.id_user != null) {
       const vinculos = await this.prisma.apartamentos_Users.findMany({
         where: { id_user: morador.id_user, apartamento: { id_condominio: morador.id_condominio } },
-        select: { apartamento: { select: { id: true, id_superlogica_uni: true } } },
+        select: { apartamento: { select: { id: true, id_superlogica_uni: true, bloco: true, apto: true } } },
       });
 
       const aptos = vinculos.map((v) => v.apartamento).filter(Boolean);
       // Vínculo que já aponta para uma unidade do ERP é o único que interessa
       // ao envio; se só um está nessa condição, o empate se desfaz sozinho.
       const comUnidade = aptos.filter((a) => a.id_superlogica_uni != null);
-      const candidatos = comUnidade.length ? comUnidade : aptos;
+      let candidatos = comUnidade.length ? comUnidade : aptos;
+
+      if (candidatos.length > 1) {
+        // Duas unidades no mesmo condomínio é caso comum (o proprietário que
+        // tem dois aptos), e `moradores.service.ts` cria UMA linha de
+        // `Moradores` por vínculo, todas com o mesmo `id_user` — logo as duas
+        // linhas caem aqui com a mesma lista de candidatos. O que as distingue
+        // é justamente `bloco`/`apartamento`, copiados do apartamento no
+        // momento do vínculo. Desempatar por eles não é voltar ao casamento por
+        // texto: o candidato já teve de sair da lista de vínculos por ID, então
+        // o texto só escolhe entre apartamentos que comprovadamente são deste
+        // morador.
+        const doMorador = candidatos.filter(
+          (a) =>
+            SuperlogicaWriteService.mesmoTexto(a.bloco, morador.bloco) &&
+            SuperlogicaWriteService.mesmoTexto(a.apto, morador.apartamento),
+        );
+        if (doMorador.length === 1) candidatos = doMorador;
+      }
 
       if (candidatos.length === 1) return { apartamento: candidatos[0] };
       if (candidatos.length > 1) {
         return {
           apartamento: null,
-          motivoApartamento: 'morador vinculado a mais de um apartamento — envie pelo painel',
+          motivoApartamento:
+            'morador vinculado a mais de um apartamento e sem bloco/apartamento que identifique qual — corrija o vínculo no cadastro do morador e reenvie',
         };
       }
     }
@@ -588,6 +619,44 @@ export class SuperlogicaWriteService {
    * para a tela, então um problema aparece em vez de sumir.
    */
   async reenviarPendentes(idCondominioClique: number): Promise<{
+    total: number;
+    enviados: number;
+    resultados: { id: number; nome: string; enviado: boolean; motivo?: string }[];
+    emAndamento?: boolean;
+    motivo?: string;
+  }> {
+    // O mutex por unidade serializa os PUTs, mas não salva o lote de si mesmo:
+    // cada lote tem seu próprio array `unidades`, lido no começo e nunca visto
+    // pelo outro. Dois lotes concorrentes no mesmo condomínio montam payload
+    // com listas que se ignoram, e o segundo cria um contato duplicado no ERP
+    // real. E o gatilho é banal: `reenviarMoradores` é síncrono e varre o
+    // condomínio inteiro, então o operador acha que travou e reaperta o botão.
+    if (this.lotesRodando.has(idCondominioClique)) {
+      return {
+        total: 0,
+        enviados: 0,
+        resultados: [],
+        emAndamento: true,
+        motivo: 'já existe um reenvio em andamento para este condomínio — aguarde ele terminar',
+      };
+    }
+    this.lotesRodando.add(idCondominioClique);
+    try {
+      return await this.executarLote(idCondominioClique);
+    } finally {
+      this.lotesRodando.delete(idCondominioClique);
+    }
+  }
+
+  /**
+   * Um reenvio em lote por condomínio de cada vez.
+   *
+   * Mesma premissa de réplica única do mutex por unidade: em processo basta
+   * enquanto o Railway roda uma réplica só. Ver ESCALABILIDADE.md.
+   */
+  private readonly lotesRodando = new Set<number>();
+
+  private async executarLote(idCondominioClique: number): Promise<{
     total: number;
     enviados: number;
     resultados: { id: number; nome: string; enviado: boolean; motivo?: string }[];

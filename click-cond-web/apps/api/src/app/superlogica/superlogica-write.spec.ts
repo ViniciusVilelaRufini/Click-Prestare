@@ -511,13 +511,16 @@ describe('SuperlogicaWriteService — resolução do apartamento', () => {
   });
 
   it('recusa quando o vínculo é ambíguo entre apartamentos elegíveis', async () => {
-    // Adivinhar entre dois é como o morador entra na unidade errada.
+    // Adivinhar entre dois é como o morador entra na unidade errada. Aqui nem o
+    // desempate por bloco/apto ajuda: a linha do morador diz "a"/"1" e nenhum
+    // dos dois apartamentos vinculados é esse — o cadastro está inconsistente,
+    // e é ele que precisa ser corrigido.
     const { service, put } = cenarioErp({
       moradores: [moradorFake(10)],
       vinculos: {
         1010: [
-          { id: 55, id_superlogica_uni: 1901 },
-          { id: 56, id_superlogica_uni: 1902 },
+          { id: 55, id_superlogica_uni: 1901, bloco: 'b', apto: '2' },
+          { id: 56, id_superlogica_uni: 1902, bloco: 'c', apto: '3' },
         ],
       },
     });
@@ -525,8 +528,39 @@ describe('SuperlogicaWriteService — resolução do apartamento', () => {
     const r = await service.enviarMorador(10);
 
     expect(r.enviado).toBe(false);
-    expect(r.motivo).toBe('morador vinculado a mais de um apartamento — envie pelo painel');
+    // O motivo tem que apontar para onde o operador conserta. Mandar "envie
+    // pelo painel" era um beco sem saída: o painel roda este mesmo código.
+    expect(r.motivo).toContain('corrija o vínculo no cadastro do morador');
     expect(put).not.toHaveBeenCalled();
+  });
+
+  it('proprietário com duas unidades no mesmo condomínio sobe nas duas', async () => {
+    // `moradores.service.ts` cria UMA linha de `Moradores` por vínculo, todas
+    // com o mesmo `id_user`. Sem desempatar por bloco/apto, as duas linhas veem
+    // dois candidatos e as duas são recusadas para sempre — o proprietário com
+    // dois aptos, que é caso comum, nunca mais sobe ao ERP.
+    const vinculos = [
+      { id: 55, id_superlogica_uni: 1901, bloco: 'a', apto: '1' },
+      { id: 56, id_superlogica_uni: 1902, bloco: 'a', apto: '2' },
+    ];
+    const { service, put } = cenarioErp({
+      moradores: [
+        moradorFake(10, { id_user: 1010, bloco: 'a', apartamento: '1' }),
+        moradorFake(11, { id_user: 1010, bloco: 'a', apartamento: '2' }),
+      ],
+      vinculos: { 1010: vinculos },
+      unidades: [
+        { id_unidade_uni: '1901', contatos: [] },
+        { id_unidade_uni: '1902', contatos: [] },
+      ],
+    });
+
+    const a = await service.enviarMorador(10);
+    const b = await service.enviarMorador(11);
+
+    expect([a.enviado, b.enviado]).toEqual([true, true]);
+    expect(put.mock.calls[0][1]['ID_UNIDADE_UNI']).toBe(1901);
+    expect(put.mock.calls[1][1]['ID_UNIDADE_UNI']).toBe(1902);
   });
 
   it('desempata pelo vínculo que tem unidade no ERP', async () => {
@@ -646,6 +680,43 @@ describe('SuperlogicaWriteService — reenvio em lote', () => {
     // por envio bem-sucedido — e as confirmações continuam existindo, são elas
     // que provam que o contato nasceu.
     expect(listarUnidades).toHaveBeenCalledTimes(1 + 3);
+  });
+
+  it('recusa um segundo lote no mesmo condomínio enquanto o primeiro roda', async () => {
+    // O mutex por unidade serializa os PUTs, mas cada lote tem seu próprio
+    // array de unidades: a lista do segundo não enxerga o contato que o
+    // primeiro acabou de criar, e o payload sai duplicando contato no ERP real.
+    // Como o reenvio é síncrono e demora, o operador reaperta o botão — este é
+    // o caminho comum, não o raro.
+    const { service, travar, put } = lote();
+
+    const liberar = travar(1901);
+    const primeiro = service.reenviarPendentes(7);
+    // Dá tempo de o primeiro lote chegar ao PUT preso antes do segundo entrar.
+    await new Promise((r) => setImmediate(r));
+
+    const segundo = await service.reenviarPendentes(7);
+
+    expect(segundo.emAndamento).toBe(true);
+    expect(segundo.total).toBe(0);
+    expect(segundo.resultados).toEqual([]);
+    expect(segundo.motivo).toContain('reenvio em andamento');
+
+    liberar();
+    expect((await primeiro).enviados).toBe(3);
+    // Só os três PUTs do primeiro lote — nenhum contato duplicado nasceu.
+    expect(put).toHaveBeenCalledTimes(3);
+  });
+
+  it('libera o condomínio depois que o lote termina', async () => {
+    // A guarda não pode virar trava permanente: um lote que terminou (ou que
+    // estourou) tem de deixar o próximo passar.
+    const { service } = lote();
+
+    await service.reenviarPendentes(7);
+    const segundo = await service.reenviarPendentes(7);
+
+    expect(segundo.emAndamento).toBeUndefined();
   });
 
   it('o segundo morador da mesma unidade não apaga o contato do primeiro', async () => {
