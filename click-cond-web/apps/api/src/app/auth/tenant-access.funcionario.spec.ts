@@ -19,6 +19,7 @@ describe('TenantAccessService — vínculo do funcionário', () => {
       sindicos_Condominios: { findFirst: jest.fn(async () => null) },
       apartamentos_Users: { findFirst: jest.fn(async () => null) },
       funcionarios: { findFirst: jest.fn(async () => null) },
+      users: { findUnique: jest.fn(async () => null) },
       ...overrides,
     };
     return { service: new TenantAccessService(prisma), prisma };

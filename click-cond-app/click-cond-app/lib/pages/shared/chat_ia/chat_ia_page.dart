@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io' as io;
 import 'dart:ui' show ImageFilter;
 
 import 'package:click/controllers/controller_generic.dart';
@@ -5,7 +7,9 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
@@ -38,12 +42,15 @@ class _ChatMessage {
   /// Nada foi gravado ainda: só o toque em Confirmar executa.
   final AcaoPendenteIa? acao;
 
+  /// Dados do anexo (foto ou PDF) caso o usuário tenha enviado.
+  final Map<String, dynamic>? anexo;
+
   /// Estado do card: null = aguardando, texto = resultado já resolvido.
   String? resultado;
   bool resolvidaComSucesso = false;
   bool confirmando = false;
 
-  _ChatMessage(this.texto, this.isUser, {this.acao});
+  _ChatMessage(this.texto, this.isUser, {this.acao, this.anexo});
 }
 
 class _ChatIaPageState extends State<ChatIaPage> {
@@ -54,6 +61,9 @@ class _ChatIaPageState extends State<ChatIaPage> {
 
   final List<_ChatMessage> _mensagens = [];
   bool _isSending = false;
+
+  /// Anexo selecionado aguardando envio ({nome, mime_type, base64, path, is_image, tamanho_kb})
+  Map<String, dynamic>? _anexoPendente;
 
   /// Conversa aberta. `null` = conversa nova, ainda sem nada gravado: o id
   /// chega na primeira resposta do backend.
@@ -242,6 +252,206 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
+  // ==========================================================================
+  // Anexos (Câmera / Galeria / Arquivo)
+  // ==========================================================================
+
+  Future<void> _processarArquivo(String caminho, String nome, String mimeType) async {
+    try {
+      final file = io.File(caminho);
+      if (!await file.exists()) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.lengthInBytes > 10 * 1024 * 1024) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('O arquivo é muito grande (máximo 10MB).'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      final base64String = base64Encode(bytes);
+      final isImage = mimeType.startsWith('image/');
+      final tamanhoKb = (bytes.lengthInBytes / 1024).round();
+
+      setState(() {
+        _anexoPendente = {
+          'nome': nome,
+          'mime_type': mimeType,
+          'base64': base64String,
+          'path': caminho,
+          'is_image': isImage,
+          'tamanho_kb': tamanhoKb,
+        };
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao carregar anexo: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _capturarFotoCamera() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        await _processarArquivo(picked.path, picked.name, 'image/jpeg');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro na câmera: $e'), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  Future<void> _selecionarFotoGaleria() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        final ext = picked.name.split('.').last.toLowerCase();
+        final mime = ext == 'png' ? 'image/png' : (ext == 'webp' ? 'image/webp' : 'image/jpeg');
+        await _processarArquivo(picked.path, picked.name, mime);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro na galeria: $e'), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  Future<void> _selecionarDocumento() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
+      );
+      if (result != null && result.files.isNotEmpty && result.files.single.path != null) {
+        final f = result.files.single;
+        final ext = (f.extension ?? '').toLowerCase();
+        final mime = ext == 'pdf' ? 'application/pdf' : (ext == 'png' ? 'image/png' : 'image/jpeg');
+        await _processarArquivo(f.path!, f.name, mime);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao selecionar arquivo: $e'), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  Future<void> _abrirMenuAnexo() async {
+    _campoFoco.unfocus();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.border(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  'Anexar Conta / Fatura',
+                  style: AppTypography.headline(context).copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Tire uma foto ou selecione o PDF da sua conta de luz, água, internet ou boleto para a IA identificar.',
+                    textAlign: TextAlign.center,
+                    style: AppTypography.caption(context),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(PhosphorIcons.camera, color: AppColors.primary),
+                  ),
+                  title: Text('Tirar foto com a câmera', style: AppTypography.body(context)),
+                  subtitle: Text('Capture a conta de luz, água ou boleto', style: AppTypography.tiny(context)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _capturarFotoCamera();
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(PhosphorIcons.image, color: Colors.teal),
+                  ),
+                  title: Text('Escolher da galeria', style: AppTypography.body(context)),
+                  subtitle: Text('Selecione uma foto da sua galeria', style: AppTypography.tiny(context)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _selecionarFotoGaleria();
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.deepOrange.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(PhosphorIcons.filePdf, color: Colors.deepOrange),
+                  ),
+                  title: Text('Selecionar documento / PDF', style: AppTypography.body(context)),
+                  subtitle: Text('Arquivo PDF ou imagem da fatura', style: AppTypography.tiny(context)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _selecionarDocumento();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -256,24 +466,39 @@ class _ChatIaPageState extends State<ChatIaPage> {
 
   Future<void> _enviar([String? textoSugerido]) async {
     final texto = (textoSugerido ?? _msgController.text).trim();
-    if (texto.isEmpty || _isSending) return;
+    final anexo = _anexoPendente;
+    if ((texto.isEmpty && anexo == null) || _isSending) return;
 
-    // Fecha o teclado ao enviar. No iOS não há botão de voltar do sistema:
-    // sem isto ele fica aberto sobre a resposta, sem gesto para dispensar.
+    // Fecha o teclado ao enviar.
     _campoFoco.unfocus();
     if (_ouvindo) {
       _speech.stop();
       _ouvindo = false;
     }
 
+    final textoEnvio = texto.isNotEmpty
+        ? texto
+        : (anexo != null ? 'Identifique e processe este documento/fatura.' : '');
+
     setState(() {
-      _mensagens.add(_ChatMessage(texto, true));
+      _mensagens.add(_ChatMessage(textoEnvio, true, anexo: anexo));
       _isSending = true;
       _msgController.clear();
+      _anexoPendente = null;
     });
     _scrollToBottom();
 
-    final resposta = await apiPerguntarChatIa(texto, conversaId: _conversaId);
+    final resposta = await apiPerguntarChatIa(
+      textoEnvio,
+      conversaId: _conversaId,
+      arquivo: anexo != null
+          ? {
+              'nome': anexo['nome'],
+              'mime_type': anexo['mime_type'],
+              'base64': anexo['base64'],
+            }
+          : null,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -828,6 +1053,43 @@ class _ChatIaPageState extends State<ChatIaPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (isMe && msg.anexo != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: msg.anexo!['is_image'] == true && msg.anexo!['path'] != null
+                            ? Image.file(
+                                io.File(msg.anexo!['path']),
+                                height: 140,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(PhosphorIcons.filePdf, color: Colors.white, size: 24),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        msg.anexo!['nome'] ?? 'Fatura Anexada',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     // A resposta vem em markdown; sem o renderizador os
                     // asteriscos de **negrito** apareciam crus na tela.
                     // A do usuário é texto puro e não precisa passar por isso.
@@ -1032,6 +1294,83 @@ class _ChatIaPageState extends State<ChatIaPage> {
     );
   }
 
+  Widget _buildAnexoPreview(BuildContext context) {
+    if (_anexoPendente == null) return const SizedBox.shrink();
+    final isImage = _anexoPendente!['is_image'] == true;
+    final path = _anexoPendente!['path'] as String?;
+    final nome = _anexoPendente!['nome'] ?? 'Arquivo';
+    final kb = _anexoPendente!['tamanho_kb'] ?? 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.35), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: isImage && path != null
+                ? Image.file(
+                    io.File(path),
+                    width: 38,
+                    height: 38,
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    width: 38,
+                    height: 38,
+                    color: Colors.deepOrange.withOpacity(0.15),
+                    child: const Icon(PhosphorIcons.filePdf, color: Colors.deepOrange, size: 22),
+                  ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  nome,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.caption(context).copyWith(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '$kb KB • Fatura pronta para envio',
+                  style: AppTypography.tiny(context).copyWith(color: AppColors.primary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => setState(() => _anexoPendente = null),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.border(context).withOpacity(0.5),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(PhosphorIcons.x, size: 14, color: AppColors.textPrimary(context)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Campo flutuante moderno — borda nítida de alto contraste no light mode
   /// e visual elegante com destaque suave de foco.
   Widget _buildInput(BuildContext context) {
@@ -1058,111 +1397,139 @@ class _ChatIaPageState extends State<ChatIaPage> {
         AppSpacing.lg,
         AppSpacing.lg,
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(raio),
-          boxShadow: [
-            if (!isDark) ...[
-              BoxShadow(
-                color: const Color(0xFF101828).withOpacity(0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: const Color(0xFF101828).withOpacity(0.04),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ] else ...[
-              BoxShadow(
-                color: Colors.black.withOpacity(0.35),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(raio),
-          clipBehavior: Clip.antiAlias,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(raio),
-                border: Border.all(
-                  color: borderColor,
-                  width: borderWidth,
-                ),
-              ),
-              padding: const EdgeInsets.fromLTRB(AppSpacing.md, 6, 6, 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _msgController,
-                      focusNode: _campoFoco,
-                      textCapitalization: TextCapitalization.sentences,
-                      textInputAction: TextInputAction.send,
-                      minLines: 1,
-                      maxLines: 4,
-                      style: AppTypography.body(context),
-                      onSubmitted: (_) => _enviar(),
-                      decoration: InputDecoration(
-                        hintText: 'Pergunte algo',
-                        hintStyle: AppTypography.body(context)
-                            .copyWith(color: AppColors.textTertiary(context)),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        filled: false,
-                        isDense: true,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAnexoPreview(context),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(raio),
+              boxShadow: [
+                if (!isDark) ...[
+                  BoxShadow(
+                    color: const Color(0xFF101828).withOpacity(0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
-                  const SizedBox(width: 4),
-                  // Ditado: enche o campo, não envia. Quem revisa é o usuário.
-                  GestureDetector(
-                    onTap: _isSending ? null : _alternarVoz,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: _ouvindo
-                            ? AppColors.error.withOpacity(0.15)
-                            : Colors.transparent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        _ouvindo ? PhosphorIcons.microphoneFill : PhosphorIcons.microphone,
-                        color: _ouvindo ? AppColors.error : AppColors.primary,
-                        size: 22,
-                      ),
-                    ),
+                  BoxShadow(
+                    color: const Color(0xFF101828).withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: _isSending ? null : () => _enviar(),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: _isSending
-                            ? AppColors.primary.withOpacity(0.5)
-                            : AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(PhosphorIcons.paperPlaneRight,
-                          color: Colors.white, size: 20),
-                    ),
+                ] else ...[
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.35),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
                   ),
                 ],
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(raio),
+              clipBehavior: Clip.antiAlias,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(raio),
+                    border: Border.all(
+                      color: borderColor,
+                      width: borderWidth,
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 6, 6, 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Botão de Anexo (Foto / Arquivo / PDF)
+                      GestureDetector(
+                        onTap: _isSending ? null : _abrirMenuAnexo,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.transparent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            PhosphorIcons.paperclip,
+                            color: _anexoPendente != null
+                                ? AppColors.primary
+                                : AppColors.textTertiary(context),
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: TextField(
+                          controller: _msgController,
+                          focusNode: _campoFoco,
+                          textCapitalization: TextCapitalization.sentences,
+                          textInputAction: TextInputAction.send,
+                          minLines: 1,
+                          maxLines: 4,
+                          style: AppTypography.body(context),
+                          onSubmitted: (_) => _enviar(),
+                          decoration: InputDecoration(
+                            hintText: _anexoPendente != null
+                                ? 'Descreva a fatura (ou envie)'
+                                : 'Pergunte algo',
+                            hintStyle: AppTypography.body(context)
+                                .copyWith(color: AppColors.textTertiary(context)),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            isDense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // Ditado: enche o campo, não envia. Quem revisa é o usuário.
+                      GestureDetector(
+                        onTap: _isSending ? null : _alternarVoz,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _ouvindo
+                                ? AppColors.error.withOpacity(0.15)
+                                : Colors.transparent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _ouvindo ? PhosphorIcons.microphoneFill : PhosphorIcons.microphone,
+                            color: _ouvindo ? AppColors.error : AppColors.primary,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: _isSending ? null : () => _enviar(),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _isSending
+                                ? AppColors.primary.withOpacity(0.5)
+                                : AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(PhosphorIcons.paperPlaneRight,
+                              color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

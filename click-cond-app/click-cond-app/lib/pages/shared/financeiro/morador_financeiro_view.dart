@@ -18,6 +18,8 @@ import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:click/utils/financeiro_constants.dart';
+import 'package:click/widgets/cells/cell_financeiro_card.dart';
+import 'package:click/pages/shared/financeiro/morador_relatorio_page.dart';
 
 enum FinanceiroViewMode { morador, condominio }
 
@@ -224,7 +226,17 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           IconButton(
             icon: const Icon(PhosphorIcons.downloadSimple),
             onPressed: () {
-              displayMessage(context, "Exportar", "Relatório sendo gerado...");
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MoradorRelatorioPage(
+                    initialMes: mes ?? DateTime.now().month.toString().padLeft(2, '0'),
+                    initialAno: ano ?? DateTime.now().year.toString(),
+                    items: _items,
+                    onRefresh: () => _loadData(),
+                  ),
+                ),
+              );
             },
           )
         ],
@@ -237,22 +249,55 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           : RefreshIndicator(
               onRefresh: () => _loadData(),
               child: ListView(
-                padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 120),
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 2, bottom: 100),
                 children: [
                   _buildViewToggle(),
                   _buildMonthSelector(),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 6),
                   if (_viewMode == FinanceiroViewMode.morador) ...[
                     _buildSummaryCard(activeItems),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 18),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Text(
-                        "Contas",
-                        style: AppTypography.bodyMedium(context).copyWith(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(PhosphorIcons.wallet, size: 16, color: AppColors.primary),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Contas",
+                                style: AppTypography.bodyMedium(context).copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 17,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            "${activeItems.where((i) {
+                              int p = i['pago'] is int ? i['pago'] : (int.tryParse(i['pago']?.toString() ?? '') ?? 0);
+                              return p != 1;
+                            }).length} pendente(s)",
+                            style: AppTypography.caption(context).copyWith(
+                              color: activeItems.any((i) {
+                                int p = i['pago'] is int ? i['pago'] : (int.tryParse(i['pago']?.toString() ?? '') ?? 0);
+                                return p != 1;
+                              })
+                                  ? const Color(0xFFEF4444)
+                                  : const Color(0xFF10B981),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -274,12 +319,37 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             ),
       ),
       floatingActionButton: widget.showFab && _viewMode == FinanceiroViewMode.morador
-        ? FloatingActionButton.extended(
-            heroTag: null,
-            onPressed: () => showContaFormModal(),
-            icon: const Icon(PhosphorIcons.plus, color: Colors.white),
-            label: const Text("Nova Conta", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            backgroundColor: AppColors.primary,
+        ? Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: FloatingActionButton.extended(
+              heroTag: null,
+              elevation: 0,
+              highlightElevation: 0,
+              onPressed: () => showContaFormModal(),
+              icon: const Icon(PhosphorIcons.plusBold, color: Colors.white, size: 18),
+              label: const Text(
+                "Nova Conta",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14.5,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
           )
         : null,
     );
@@ -342,6 +412,26 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
+  Color _corCategoria(String title) {
+    switch (title.toLowerCase()) {
+      case 'condomínio':
+      case 'condominio':
+        return const Color(0xFF2563EB); // Royal Blue
+      case 'aluguel':
+        return const Color(0xFF6366F1); // Indigo
+      case 'água':
+      case 'agua':
+        return const Color(0xFF0EA5E9); // Sky Cyan
+      case 'luz':
+        return const Color(0xFFF59E0B); // Amber
+      case 'internet':
+        return const Color(0xFF8B5CF6); // Purple
+      case 'outros':
+      default:
+        return const Color(0xFF10B981); // Emerald
+    }
+  }
+
   Widget _buildCategoriesGrid(List<dynamic> activeItems, List<String> personalCategories) {
     // 1. Condomínio
     var condoCharges = activeItems.where((i) {
@@ -391,7 +481,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.4,
+        childAspectRatio: 1.15,
       ),
       itemCount: categories.length,
       itemBuilder: (context, index) {
@@ -402,100 +492,149 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   }
 
   Widget _buildCategoryCard(_CategoryItem cat, List<String> personalCategories) {
-    final hasPending = cat.pendingCount > 0;
+    final bool hasPending = cat.pendingCount > 0;
+    final Color catColor = _corCategoria(cat.title);
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MoradorFinanceiroCategoryDetailPage(
-              title: cat.title,
-              icon: cat.icon,
-              getItems: () => _items,
-              personalCategories: personalCategories,
-              mes: mes ?? '',
-              ano: ano ?? '',
-              onRefresh: () => _loadData(),
-              showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
-                showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
-              },
-              buildFinanceiroCard: (item, {onChanged}) => _buildFinanceiroCard(item, onChanged: onChanged),
+    return Material(
+      color: AppColors.surface(context),
+      borderRadius: BorderRadius.circular(18),
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MoradorFinanceiroCategoryDetailPage(
+                title: cat.title,
+                icon: cat.icon,
+                getItems: () => _items,
+                personalCategories: personalCategories,
+                mes: mes ?? '',
+                ano: ano ?? '',
+                onRefresh: () => _loadData(),
+                showContaFormModal: ({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
+                  showContaFormModal(item: item, initialCategory: initialCategory, customContext: customContext, onSuccess: onSuccess);
+                },
+                buildFinanceiroCard: (item, {onChanged}) => _buildFinanceiroCard(item, onChanged: onChanged),
+              ),
             ),
+          ).then((_) {
+            setState(() {});
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: hasPending
+                  ? const Color(0xFFEF4444).withOpacity(0.35)
+                  : AppColors.border(context).withOpacity(0.8),
+              width: hasPending ? 1.4 : 1.1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (hasPending ? const Color(0xFFEF4444) : Colors.black)
+                    .withOpacity(hasPending ? 0.06 : 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ).then((_) {
-          setState(() {});
-        });
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            )
-          ],
-          border: Border.all(
-            color: AppColors.border(context),
-            width: 1.2,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Topo do card: Ícone em squircle estilizado + Badge de status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
-                      shape: BoxShape.circle,
+                      color: catColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: catColor.withOpacity(0.25),
+                        width: 1,
+                      ),
                     ),
-                    child: Icon(cat.icon, color: AppColors.primary, size: 24),
+                    child: Center(
+                      child: Icon(cat.icon, color: catColor, size: 22),
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  if (hasPending)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFFEF4444).withOpacity(0.4),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            PhosphorIcons.warningCircleFill,
+                            size: 11,
+                            color: Color(0xFFEF4444),
+                          ),
+                          const SizedBox(width: 3.5),
+                          Text(
+                            cat.pendingCount.toString(),
+                            style: const TextStyle(
+                              color: Color(0xFFEF4444),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                ],
+              ),
+              // Base do card: Título e subtítulo
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
                     cat.title,
-                    style: TextStyle(
-                      color: AppColors.textPrimary(context),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                    style: AppTypography.bodyMedium(context).copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      height: 1.15,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    hasPending
+                        ? "${cat.pendingCount} pendente${cat.pendingCount > 1 ? 's' : ''}"
+                        : "Nenhuma pendência",
+                    style: TextStyle(
+                      color: hasPending
+                          ? const Color(0xFFEF4444)
+                          : AppColors.textTertiary(context),
+                      fontSize: 11.5,
+                      fontWeight: hasPending ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-            ),
-            if (hasPending)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.error,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  child: Center(
-                    child: Text(
-                      cat.pendingCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -510,252 +649,18 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   }
 
   Widget _buildFinanceiroCard(dynamic item, {VoidCallback? onChanged}) {
-    int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
-    int status = item['status'] is int ? item['status'] : (int.tryParse(item['status']?.toString() ?? '') ?? 0);
-    bool isPago = pago == 1;
-    bool isVerifying = status == 2;
-
-    final Color statusColor = isPago
-        ? Colors.green
-        : (isVerifying ? Colors.blue : Colors.orange);
-
-    // O nome vem do backend como "Apto 1 Bloco a - Ref. 08/2026". Separar o
-    // que identifica a unidade da referência do mês dá hierarquia ao card;
-    // conta pessoal ("Conta de Água") não tem o hífen e cai no fallback.
-    final String nomeCompleto = (item['nome'] ?? 'Despesa').toString();
-    final int corte = nomeCompleto.indexOf(' - ');
-    final String titulo = corte > 0 ? nomeCompleto.substring(0, corte) : nomeCompleto;
-    final String? referencia = corte > 0 ? nomeCompleto.substring(corte + 3).trim() : null;
-
-    final String vencimento = (item['data_vencimento'] ?? item['data'] ?? '—').toString();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border(context)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      // A faixa de status vira a borda esquerda do card inteiro, em vez de um
-      // tracinho solto ao lado do título: lê o estado antes de ler o texto.
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(width: 4, color: statusColor),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            titulo,
-                            style: AppTypography.bodyMedium(context)
-                                .copyWith(fontWeight: FontWeight.w700, height: 1.25),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (item['id_usuario'] != null && item['tipo'] == 'D') ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              "Pessoal",
-                              style: TextStyle(color: AppColors.primary, fontSize: 8, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    // Referência e vencimento numa linha só: são a mesma
-                    // informação temporal, e separá-las inchava o card.
-                    Row(
-                      children: [
-                        Icon(PhosphorIcons.calendarBlank,
-                            size: 13, color: AppColors.textTertiary(context)),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            referencia != null
-                                ? "$referencia · vence $vencimento"
-                                : "Vence em $vencimento",
-                            style: AppTypography.caption(context),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    item['valorReal'] ?? item['valorString'] ?? 'R\$ 0,00',
-                    style: AppTypography.bodyMedium(context).copyWith(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      height: 1.1,
-                      color: isPago ? Colors.green : AppColors.textPrimary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _buildStatusBadge(item['status'], item['pago']),
-                ],
-              ),
-            ],
-          ),
-          if (!isPago) ...[
-            const SizedBox(height: 14),
-            // Chips de pagamento: só aparecem os meios que existem de fato.
-            // Wrap (e não Row com Expanded) para que um botão sozinho não
-            // estique pela largura toda e fique boiando no card.
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (_temValor(item['pix_copia_cola']))
-                  _acaoPagamento(
-                    icone: PhosphorIcons.qrCode,
-                    texto: "Pagar Pix",
-                    destaque: true,
-                    onTap: () => _abrirSheetPixQrCode(item),
-                  )
-                else if (_temValor(item['chave_pix']))
-                  _acaoPagamento(
-                    icone: PhosphorIcons.copy,
-                    texto: "Copiar Pix",
-                    destaque: true,
-                    onTap: () => _abrirSheetChavePix(item),
-                  ),
-                if (_temValor(item['linha_digitavel']))
-                  _acaoPagamento(
-                    icone: PhosphorIcons.barcode,
-                    texto: "Copiar código",
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: item['linha_digitavel'].toString()));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text("Código de barras copiado!"),
-                          backgroundColor: AppColors.textSecondary(context),
-                        ),
-                      );
-                    },
-                  ),
-                if (_temValor(item['url_boleto']))
-                  _acaoPagamento(
-                    icone: PhosphorIcons.filePdf,
-                    texto: "Ver boleto",
-                    cor: Colors.redAccent,
-                    onTap: () => launchUrl(Uri.parse(item['url_boleto'].toString())),
-                  ),
-              ],
-            ),
-            // Sem nenhum dado de pagamento: o síndico ainda não anexou PIX/boleto.
-            if (_semCodigoPagamento(item) && !_temValor(item['chave_pix'])) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.textTertiary(context).withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(PhosphorIcons.info, size: 14, color: AppColors.textTertiary(context)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Aguardando os dados de pagamento (PIX ou boleto) do síndico.',
-                        style: AppTypography.tiny(context)
-                            .copyWith(color: AppColors.textTertiary(context)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-          // Rodapé só existe quando há ação a tomar. O status saiu daqui para o
-          // topo, junto do valor, então não sobra uma linha quase vazia.
-          if (_temAcoesDeRodape(item, isPago, isVerifying)) ...[
-            const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (!isPago && !isVerifying)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _uploadComprovante(item['id']),
-                      icon: const Icon(PhosphorIcons.uploadSimple, size: 16),
-                      label: const Text(
-                        "Enviar comprovante",
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ),
-                if (item['id_usuario'] != null && item['tipo'] == 'D') ...[
-                  const SizedBox(width: 8),
-                  _acaoIcone(
-                    icone: PhosphorIcons.pencil,
-                    cor: Colors.blueAccent,
-                    tooltip: 'Editar conta',
-                    onTap: () => showContaFormModal(item: item),
-                  ),
-                  _acaoIcone(
-                    icone: PhosphorIcons.trash,
-                    cor: Colors.redAccent,
-                    tooltip: 'Excluir conta',
-                    onTap: () => _confirmarExclusaoContaPessoal(item),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ],
-      ),
-    ),
-  ),
-],
-),
-),
-),
-);
-}
+    return FinanceiroCard(
+      item: item,
+      onEnviarComprovante: () => _uploadComprovante(item['id']),
+      onEditar: (item['id_usuario'] != null && item['tipo'] == 'D')
+          ? () => showContaFormModal(item: item)
+          : null,
+      onExcluir: (item['id_usuario'] != null && item['tipo'] == 'D')
+          ? () => _confirmarExclusaoContaPessoal(item)
+          : null,
+      mostrarSeloPessoal: item['id_usuario'] != null && item['tipo'] == 'D',
+    );
+  }
 
   /// Campo preenchido de verdade (nulo, vazio ou só espaços não conta).
   bool _temValor(dynamic v) => v != null && v.toString().trim().isNotEmpty;
@@ -1238,31 +1143,65 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     if ((scannedLinha != null && scannedLinha!.trim().isNotEmpty) ||
                         (scannedPix != null && scannedPix!.trim().isNotEmpty))
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.35)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(PhosphorIcons.checkCircle, size: 18, color: AppColors.primary),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
                                 scannedPix != null && scannedPix!.trim().isNotEmpty
-                                    ? "PIX do boleto vinculado"
-                                    : "Código de barras vinculado",
-                                style: AppTypography.caption(context)
-                                    .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
+                                    ? PhosphorIcons.qrCode
+                                    : PhosphorIcons.barcode,
+                                size: 20,
+                                color: AppColors.primary,
                               ),
                             ),
-                            InkWell(
-                              onTap: () => setModalState(() {
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    scannedPix != null && scannedPix!.trim().isNotEmpty
+                                        ? "Pix Copia e Cola Vinculado"
+                                        : "Código de Barras Vinculado",
+                                    style: AppTypography.caption(context).copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    scannedPix != null && scannedPix!.trim().isNotEmpty
+                                        ? "${scannedPix!.substring(0, scannedPix!.length > 25 ? 25 : scannedPix!.length)}..."
+                                        : (scannedLinha!.length > 18
+                                            ? "${scannedLinha!.substring(0, 8)}...${scannedLinha!.substring(scannedLinha!.length - 8)}"
+                                            : scannedLinha!),
+                                    style: AppTypography.tiny(context).copyWith(
+                                      color: AppColors.textSecondary(context),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(PhosphorIcons.trash, size: 18, color: Colors.redAccent),
+                              tooltip: 'Remover código',
+                              onPressed: () => setModalState(() {
                                 scannedLinha = null;
                                 scannedPix = null;
                               }),
-                              child: Icon(PhosphorIcons.x, size: 16, color: AppColors.textTertiary(context)),
                             ),
                           ],
                         ),
@@ -1279,24 +1218,52 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             if (raw == null || raw.trim().isEmpty) return;
                             final parsed = parseBoletoScan(raw);
                             if (parsed.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Não consegui ler o código. Tente novamente.')),
-                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Não consegui identificar o código. Tente novamente.')),
+                                );
+                              }
                               return;
                             }
                             setModalState(() {
                               scannedLinha = parsed.linhaDigitavel;
                               scannedPix = parsed.pixCopiaCola;
+                              if (parsed.valorFormatado != null && parsed.valorFormatado!.isNotEmpty) {
+                                txtValor.text = parsed.valorFormatado!;
+                              }
+                              if (parsed.vencimentoFormatado != null && parsed.vencimentoFormatado!.isNotEmpty) {
+                                txtVencimento.text = parsed.vencimentoFormatado!;
+                              }
+                              if (txtNome.text.trim().isEmpty) {
+                                if (parsed.bancoOuTipo != null) {
+                                  txtNome.text = "$selectedCategoria - ${parsed.bancoOuTipo}";
+                                } else {
+                                  txtNome.text = selectedCategoria;
+                                }
+                              }
                             });
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    parsed.pixCopiaCola != null
+                                        ? "Pix Copia e Cola vinculado com sucesso!"
+                                        : "Código de barras vinculado${parsed.valorFormatado != null ? ' (R\$ ${parsed.valorFormatado})' : ''}!",
+                                  ),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
                           },
-                          icon: const Icon(PhosphorIcons.barcode, size: 16, color: AppColors.primary),
+                          icon: const Icon(PhosphorIcons.barcode, size: 18, color: AppColors.primary),
                           label: Text("Escanear boleto",
                               style: AppTypography.captionMedium(context)
                                   .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                         ),
                       ),
@@ -1328,10 +1295,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             "data_vencimento": txtVencimento.text.trim(),
                             "categoria": selectedCategoria,
                             "pago": isPago ? 1 : 0,
-                            if (scannedLinha != null && scannedLinha!.trim().isNotEmpty)
-                              "linha_digitavel": scannedLinha,
-                            if (scannedPix != null && scannedPix!.trim().isNotEmpty)
-                              "pix_copia_cola": scannedPix,
+                            "linha_digitavel": (scannedLinha != null && scannedLinha!.trim().isNotEmpty) ? scannedLinha!.trim() : '',
+                            "pix_copia_cola": (scannedPix != null && scannedPix!.trim().isNotEmpty) ? scannedPix!.trim() : '',
                           };
 
                           bool success;
@@ -1346,7 +1311,10 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             _loadData();
                             if (onSuccess != null) onSuccess();
                             messenger.showSnackBar(
-                              SnackBar(content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!")),
+                              SnackBar(
+                                content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!"),
+                                backgroundColor: Colors.green,
+                              ),
                             );
                           } else {
                             if (mounted) setState(() => _isLoading = false);
@@ -1462,7 +1430,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     if (selectedIndex == -1) selectedIndex = 0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.surface(context).withOpacity(0.5),
@@ -1732,20 +1700,45 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
     return AppScaffold(
       title: widget.title,
       floatingActionButton: !isCondo
-          ? FloatingActionButton.extended(
-              heroTag: null,
-              onPressed: () {
-                widget.showContaFormModal(
-                  initialCategory: widget.title,
-                  customContext: context,
-                  onSuccess: () {
-                    setState(() {});
-                  },
-                );
-              },
-              icon: const Icon(PhosphorIcons.plus, color: Colors.white),
-              label: const Text("Adicionar Conta", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              backgroundColor: AppColors.primary,
+          ? Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.35),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton.extended(
+                heroTag: null,
+                elevation: 0,
+                highlightElevation: 0,
+                onPressed: () {
+                  widget.showContaFormModal(
+                    initialCategory: widget.title,
+                    customContext: context,
+                    onSuccess: () {
+                      setState(() {});
+                    },
+                  );
+                },
+                icon: const Icon(PhosphorIcons.plusBold, color: Colors.white, size: 18),
+                label: const Text(
+                  "Adicionar Conta",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
             )
           : null,
       body: RefreshIndicator(

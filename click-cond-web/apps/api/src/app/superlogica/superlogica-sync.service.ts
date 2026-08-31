@@ -225,6 +225,10 @@ export class SuperlogicaSyncService implements OnModuleInit {
         continue;
       }
 
+      if (dados.url_boleto && !dados.linha_digitavel) {
+        dados.linha_digitavel = await SuperlogicaService.extrairLinhaDigitavel(dados.url_boleto);
+      }
+
       await this.prisma.financeiro.upsert({
         where: {
           origem_id_condominio_id_externo: {
@@ -244,6 +248,7 @@ export class SuperlogicaSyncService implements OnModuleInit {
           pago: dados.pago,
           status: dados.status,
           descricao: dados.descricao,
+          linha_digitavel: dados.linha_digitavel,
           pix_copia_cola: dados.pix_copia_cola,
           url_boleto: dados.url_boleto,
         },

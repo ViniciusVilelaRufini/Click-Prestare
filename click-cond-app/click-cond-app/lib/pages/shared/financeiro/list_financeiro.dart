@@ -14,9 +14,12 @@ import 'package:click/pages/shared/financeiro/new_financeiro_receita.dart';
 import 'package:click/pages/shared/financeiro/new_rateio.dart';
 import 'package:click/pages/shared/financeiro/config_recorrencia.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart' show MoradorFinanceiroCategoryDetailPage;
+import 'package:click/pages/shared/financeiro/morador_relatorio_page.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
+import 'package:click/utils/boleto_utils.dart';
+import 'package:click/pages/shared/financeiro/scan_boleto_page.dart';
 import 'package:click/widgets/cells/cell_financeiro_card.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
@@ -221,7 +224,26 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       title: getText('lb_financeiro'),
       showBackButton: !widget.hideAppBar,
       safeAreaBottom: !widget.hideAppBar,
-      actions: null,
+      actions: !isSindico
+          ? [
+              IconButton(
+                icon: const Icon(PhosphorIcons.downloadSimple),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MoradorRelatorioPage(
+                        initialMes: mes,
+                        initialAno: ano,
+                        items: _personalLancamentos,
+                        onRefresh: () => loadList(),
+                      ),
+                    ),
+                  );
+                },
+              )
+            ]
+          : null,
       body: _isLoading
           ? _buildSkeleton(context)
           : RefreshIndicator(
@@ -977,6 +999,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       );
     }
     bool isPago = isEditing ? item['pago'] == 1 : false;
+    String? scannedLinha = isEditing ? item['linha_digitavel']?.toString() : null;
+    String? scannedPix = isEditing ? item['pix_copia_cola']?.toString() : null;
 
     showModalBottomSheet(
       context: ctx,
@@ -1163,6 +1187,138 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    Text("Boleto (opcional)",
+                        style: AppTypography.caption(context)
+                            .copyWith(color: AppColors.textSecondary(context))),
+                    const SizedBox(height: 8),
+                    if ((scannedLinha != null && scannedLinha!.trim().isNotEmpty) ||
+                        (scannedPix != null && scannedPix!.trim().isNotEmpty))
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.35)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                scannedPix != null && scannedPix!.trim().isNotEmpty
+                                    ? PhosphorIcons.qrCode
+                                    : PhosphorIcons.barcode,
+                                size: 20,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    scannedPix != null && scannedPix!.trim().isNotEmpty
+                                        ? "Pix Copia e Cola Vinculado"
+                                        : "Código de Barras Vinculado",
+                                    style: AppTypography.caption(context).copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    scannedPix != null && scannedPix!.trim().isNotEmpty
+                                        ? "${scannedPix!.substring(0, scannedPix!.length > 25 ? 25 : scannedPix!.length)}..."
+                                        : (scannedLinha!.length > 18
+                                            ? "${scannedLinha!.substring(0, 8)}...${scannedLinha!.substring(scannedLinha!.length - 8)}"
+                                            : scannedLinha!),
+                                    style: AppTypography.tiny(context).copyWith(
+                                      color: AppColors.textSecondary(context),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(PhosphorIcons.trash, size: 18, color: Colors.redAccent),
+                              tooltip: 'Remover código',
+                              onPressed: () => setModalState(() {
+                                scannedLinha = null;
+                                scannedPix = null;
+                              }),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final raw = await Navigator.push<String>(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ScanBoletoPage()),
+                            );
+                            if (raw == null || raw.trim().isEmpty) return;
+                            final parsed = parseBoletoScan(raw);
+                            if (parsed.isEmpty) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Não consegui identificar o código. Tente novamente.')),
+                                );
+                              }
+                              return;
+                            }
+                            setModalState(() {
+                              scannedLinha = parsed.linhaDigitavel;
+                              scannedPix = parsed.pixCopiaCola;
+                              if (parsed.valorFormatado != null && parsed.valorFormatado!.isNotEmpty) {
+                                txtValor.text = parsed.valorFormatado!;
+                              }
+                              if (parsed.vencimentoFormatado != null && parsed.vencimentoFormatado!.isNotEmpty) {
+                                txtVencimento.text = parsed.vencimentoFormatado!;
+                              }
+                              if (txtNome.text.trim().isEmpty) {
+                                if (parsed.bancoOuTipo != null) {
+                                  txtNome.text = "$selectedCategoria - ${parsed.bancoOuTipo}";
+                                } else {
+                                  txtNome.text = selectedCategoria;
+                                }
+                              }
+                            });
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    parsed.pixCopiaCola != null
+                                        ? "Pix Copia e Cola vinculado com sucesso!"
+                                        : "Código de barras vinculado${parsed.valorFormatado != null ? ' (R\$ ${parsed.valorFormatado})' : ''}!",
+                                  ),
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(PhosphorIcons.barcode, size: 18, color: AppColors.primary),
+                          label: Text("Escanear boleto",
+                              style: AppTypography.captionMedium(context)
+                                  .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
@@ -1191,6 +1347,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             "data_vencimento": txtVencimento.text.trim(),
                             "categoria": selectedCategoria,
                             "pago": isPago ? 1 : 0,
+                            "linha_digitavel": (scannedLinha != null && scannedLinha!.trim().isNotEmpty) ? scannedLinha!.trim() : '',
+                            "pix_copia_cola": (scannedPix != null && scannedPix!.trim().isNotEmpty) ? scannedPix!.trim() : '',
                           };
 
                           bool success;
@@ -1205,7 +1363,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             loadList();
                             if (onSuccess != null) onSuccess();
                             messenger.showSnackBar(
-                              SnackBar(content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!")),
+                              SnackBar(
+                                content: Text(isEditing ? "Conta atualizada!" : "Conta criada com sucesso!"),
+                                backgroundColor: Colors.green,
+                              ),
                             );
                           } else {
                             if (mounted) setState(() => _isLoading = false);

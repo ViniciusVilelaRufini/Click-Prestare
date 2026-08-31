@@ -182,10 +182,37 @@ export class SuperlogicaService {
       pago: pago ? 1 : 0,
       status: pago ? 'pago' : 'pendente',
       descricao: cobranca.st_documento_recb || null,
+      linha_digitavel: (cobranca as any).st_linhadigitavel_recb || null,
       pix_copia_cola: cobranca.st_pixqrcode_recb || null,
       url_boleto: cobranca.link_segundavia || null,
       forma_pagamento: 'Boleto',
       nome_operador: 'Superlógica',
     };
+  }
+
+  /**
+   * Extrai a linha digitável do boleto a partir da URL da 2ª via pública
+   * da Superlógica (acessando a versão MiniHtml sem interação).
+   */
+  static async extrairLinhaDigitavel(urlSegundaVia?: string | null): Promise<string | null> {
+    if (!urlSegundaVia || typeof urlSegundaVia !== 'string') return null;
+    const miniUrl = urlSegundaVia.replace('-FaturaHtml-flSegundaVia', '-MiniHtml-flSegundaVia');
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(miniUrl, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const html = await res.text();
+      const m = html.match(/[?&]l=([0-9.\s]+)(?:&|$)/);
+      if (m && m[1]) {
+        return decodeURIComponent(m[1]).trim();
+      }
+      const m2 = html.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/);
+      if (m2) return m2[0].trim();
+    } catch {
+      return null;
+    }
+    return null;
   }
 }

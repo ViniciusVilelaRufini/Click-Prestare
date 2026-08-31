@@ -9,6 +9,7 @@ import { isOperador } from '../auth/tenant.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FechamentoService } from './fechamento.service';
 import { OpenPixService } from './openpix.service';
+import { SuperlogicaService } from '../superlogica/superlogica.service';
 
 @Injectable()
 export class FinanceiroService implements OnModuleInit {
@@ -1786,6 +1787,19 @@ export class FinanceiroService implements OnModuleInit {
       }
       return false;
     });
+
+    for (const item of filteredList) {
+      if (!item.linha_digitavel && item.url_boleto && item.origem === 'superlogica') {
+        SuperlogicaService.extrairLinhaDigitavel(item.url_boleto).then((linha) => {
+          if (linha && this.prisma.isConnected) {
+            this.prisma.financeiro.update({
+              where: { id: item.id },
+              data: { linha_digitavel: linha },
+            }).catch(() => null);
+          }
+        }).catch(() => null);
+      }
+    }
 
     return filteredList.map(item => ({
       id: item.id,

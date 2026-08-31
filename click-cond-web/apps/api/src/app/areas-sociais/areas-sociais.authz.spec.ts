@@ -118,7 +118,12 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
 
   describe('updateStatusAgendamento (aprovar/recusar reserva)', () => {
     it('NEGA morador aprovar/recusar reserva', async () => {
-      const { svc } = build();
+      const agendamento500 = { id: 500, id_user: 5, status: 'pendente', area: { id_condominio: 2 } };
+      const { svc } = build({
+        areas_Sociais_Agendamentos: {
+          findUnique: jest.fn(async () => ({ ...agendamento500 })),
+        },
+      });
       await expect(
         svc.updateStatusAgendamento(500, true, '', moradorCond2),
       ).rejects.toBeInstanceOf(ForbiddenException);

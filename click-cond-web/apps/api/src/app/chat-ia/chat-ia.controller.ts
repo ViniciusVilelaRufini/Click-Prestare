@@ -34,6 +34,11 @@ export class ChatIaController {
       id_condominio?: string | number;
       pergunta?: string;
       conversa_id?: string;
+      arquivo?: {
+        nome?: string;
+        mime_type: string;
+        base64: string;
+      };
     },
     @ReqUser() payload: JwtPayload,
   ) {
@@ -42,6 +47,7 @@ export class ChatIaController {
       body?.pergunta ?? '',
       payload,
       body?.conversa_id,
+      body?.arquivo,
     );
   }
 

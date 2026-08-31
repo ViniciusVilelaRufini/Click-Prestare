@@ -492,13 +492,18 @@ Future<void> apiApagarConversaIa(String conversaId) async {
 /// Envia uma pergunta ao Assistente IA e devolve a resposta.
 /// O escopo dos dados (síndico vê tudo, morador só o próprio) é aplicado no
 /// backend a partir do JWT; o histórico da conversa também é mantido lá.
-Future<RespostaIa> apiPerguntarChatIa(String pergunta, {String? conversaId}) async {
+Future<RespostaIa> apiPerguntarChatIa(
+  String pergunta, {
+  String? conversaId,
+  Map<String, dynamic>? arquivo,
+}) async {
   final url = _buildUri('/chat-ia/perguntar');
   final body = json.encode({
     "id_condominio": Singleton.instance.id_condominio.toString(),
     "pergunta": pergunta,
     // Sem id, o backend abre uma conversa nova e devolve o dela.
     if (conversaId != null && conversaId.isNotEmpty) "conversa_id": conversaId,
+    if (arquivo != null && arquivo.isNotEmpty) "arquivo": arquivo,
   });
   try {
     final response = await ApiClient.post(

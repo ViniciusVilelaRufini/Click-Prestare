@@ -350,6 +350,14 @@ FERRAMENTAS_ACAO.push({
           'Vencimento no formato AAAA-MM-DD. Se o usuário não disser, omita: assume hoje.',
       },
       ja_paga: { type: 'boolean', description: 'true se a conta já foi paga' },
+      linha_digitavel: {
+        type: 'string',
+        description: 'Linha digitável ou código de barras se visível no documento (apenas dígitos)',
+      },
+      codigo_pix: {
+        type: 'string',
+        description: 'Código Pix Copia e Cola / BR Code se visível no documento',
+      },
     },
     required: ['categoria', 'valor'],
   },
@@ -400,6 +408,8 @@ FERRAMENTAS_ACAO.push({
     const jaPaga = args.ja_paga === true;
     const nome = String(args.nome ?? '').trim() || `Conta de ${categoria}`;
     const valorBR = valor.toFixed(2).replace('.', ',');
+    const linhaDigitavel = args.linha_digitavel ? String(args.linha_digitavel).trim() : undefined;
+    const codigoPix = args.codigo_pix ? String(args.codigo_pix).trim() : undefined;
 
     const itens: ItemResumo[] = [
       { rotulo: 'Conta', valor: nome },
@@ -407,6 +417,8 @@ FERRAMENTAS_ACAO.push({
       { rotulo: 'Valor', valor: `R$ ${valorBR}` },
       { rotulo: 'Vencimento', valor: venc.br },
       { rotulo: 'Situação', valor: jaPaga ? 'Já paga' : 'Em aberto' },
+      ...(linhaDigitavel ? [{ rotulo: 'Linha Digitável', valor: linhaDigitavel }] : []),
+      ...(codigoPix ? [{ rotulo: 'PIX Copia e Cola', valor: 'Disponível' }] : []),
     ];
 
     return {
@@ -422,6 +434,8 @@ FERRAMENTAS_ACAO.push({
           valor,
           data_vencimento: venc.br, // insertMoradorConta espera DD/MM/AAAA
           pago: jaPaga ? 1 : 0,
+          ...(linhaDigitavel ? { linha_digitavel: linhaDigitavel } : {}),
+          ...(codigoPix ? { pix_copia_cola: codigoPix } : {}),
         },
       },
     };

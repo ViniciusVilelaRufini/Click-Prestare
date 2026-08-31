@@ -97,18 +97,44 @@ export class ChatIaService {
   // Fluxo principal
   // =========================================================================
 
+  /**
+   * Monta as partes da mensagem do usuário para o Gemini (suportando texto + imagem/documento).
+   */
+  montarPartesMensagem(
+    texto: string,
+    arquivo?: { nome?: string; mime_type: string; base64: string },
+  ): any[] {
+    const parts: any[] = [];
+    if (arquivo && arquivo.base64 && arquivo.mime_type) {
+      parts.push({
+        inlineData: {
+          mimeType: arquivo.mime_type,
+          data: arquivo.base64,
+        },
+      });
+    }
+    const textoLimpo = (texto ?? '').toString().trim();
+    if (textoLimpo) {
+      parts.push({ text: textoLimpo });
+    } else if (arquivo) {
+      parts.push({ text: 'Por favor, identifique e processe as informações desta conta/fatura.' });
+    }
+    return parts;
+  }
+
   async responder(
     idCondominio: number,
     pergunta: string,
     user: JwtPayload,
     conversaIdPedida?: string,
+    arquivo?: { nome?: string; mime_type: string; base64: string },
   ) {
     if (!idCondominio || Number.isNaN(idCondominio)) {
       throw new BadRequestException('id_condominio é obrigatório.');
     }
     const texto = (pergunta ?? '').toString().trim();
-    if (!texto) {
-      throw new BadRequestException('A pergunta não pode ser vazia.');
+    if (!texto && !arquivo) {
+      throw new BadRequestException('A pergunta ou anexo não pode ser vazio.');
     }
     await this.tenant.assertCondominio(idCondominio, user);
 
@@ -126,7 +152,7 @@ export class ChatIaService {
     const [ctxFerramenta, contextoEstruturado, trechosDocs, historico] = await Promise.all([
       this.montarContextoFerramenta(idCondominio, idUser, papel),
       this.montarContextoEstruturado(idCondominio, user),
-      this.buscarTrechos(idCondominio, texto),
+      this.buscarTrechos(idCondominio, texto || arquivo?.nome || 'fatura'),
       nova
         ? Promise.resolve([])
         : this.getHistoricoRecente(idCondominio, idUser, conversaId),
@@ -138,10 +164,12 @@ export class ChatIaService {
       papel,
     });
 
+    const userParts = this.montarPartesMensagem(texto, arquivo);
+
     // Histórico + pergunta atual no formato de conversa do Gemini.
     const contents: ConteudoGemini[] = [
       ...this.normalizarHistorico(historico),
-      { role: 'user' as const, parts: [{ text: texto }] },
+      { role: 'user' as const, parts: userParts },
     ];
 
     // O laço registra aqui a ação proposta durante o turno, se houver.
@@ -165,6 +193,10 @@ export class ChatIaService {
       );
     }
 
+    const mensagemHistorico = arquivo
+      ? `[Anexo: ${arquivo.nome ?? 'Fatura/Documento'}] ${texto}`.trim()
+      : texto;
+
     // Grava os dois turnos em ORDEM. Antes eram dois inserts disparados com
     // `void` em paralelo: eles corriam entre si e o id saía trocado, deixando
     // a resposta gravada antes da pergunta e embaralhando a memória da conversa.
@@ -172,12 +204,12 @@ export class ChatIaService {
       idCondominio,
       idUser,
       [
-        { papel: 'user', mensagem: texto },
+        { papel: 'user', mensagem: mensagemHistorico },
         { papel: 'assistant', mensagem: resposta },
       ],
       conversaId,
       // O título é a primeira pergunta da conversa, gravado só uma vez.
-      nova ? texto.slice(0, TITULO_MAX) : undefined,
+      nova ? mensagemHistorico.slice(0, TITULO_MAX) : undefined,
     );
 
     // Um card por turno: dois cards de uma vez confundiriam o usuário.
@@ -910,6 +942,12 @@ Hoje é ${hoje}. O usuário atual é ${papelDesc}.
 - Para AGIR (reservar área, abrir ocorrência, publicar comunicado, agendar manutenção programada, cadastrar visitante, agendar mudança, lançar conta) use as ferramentas propor_*. Elas NÃO executam: preparam um card que o usuário confirma na tela. Depois de propor, diga em uma frase o que preparou e peça para ele confirmar no card.
 - Você só enxerga as ferramentas permitidas para este perfil. Se uma consulta não for possível, explique de forma simples e sugira procurar o síndico ou a portaria — nunca afirme que o dado não existe.
 - Não invente dados. Só afirme o que veio do contexto ou do resultado das ferramentas.
+
+LEITURA DE FATURAS E CONTAS PESSOAIS (IMAGEM / PDF):
+- Sempre que o usuário enviar uma foto ou arquivo PDF de conta de consumo (energia/luz, água, gás, internet, aluguel, etc.) ou boleto:
+  1. Identifique o emissor/concessionária (ex: Enel, CPFL, Sabesp, Copasa, Comgás, Claro, Vivo), a categoria (Luz, Água, Internet, Aluguel, Gás, Outros), o valor total em reais, o vencimento (AAAA-MM-DD), a linha digitável/código de barras e o código PIX Copia e Cola (se visíveis).
+  2. Invoque a ferramenta propor_conta_morador com esses dados para preparar o lançamento para o Financeiro.
+  3. Responda em uma ou duas frases curtas e cordiais identificando a conta, o valor e o vencimento, informando que preparou o lançamento para a área de Finanças e convidando o usuário a confirmar no card abaixo.
 
 COMO ESCREVER (importante):
 - Você fala com um morador no celular, não escreve relatório. Tom cordial e direto, frases curtas.
