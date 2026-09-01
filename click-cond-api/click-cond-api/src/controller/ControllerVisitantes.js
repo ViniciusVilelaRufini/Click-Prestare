@@ -220,7 +220,8 @@ module.exports = {
       if (!userAptos.includes(existing.id_apartamento)) {
         return res.status(403).json({ message: "Acesso negado: este visitante não pertence a você." });
       }
-      await db.autorizar(id, user.id);
+      const darEntrada = req.body?.darEntrada === true || req.body?.darEntrada === 1;
+      await db.autorizar(id, user.id, darEntrada);
       return res.json({ ok: true });
     } catch (err) {
       return res.status(500).json({ message: err.message });

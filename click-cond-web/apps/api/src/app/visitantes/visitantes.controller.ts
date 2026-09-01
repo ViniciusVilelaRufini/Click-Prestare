@@ -282,14 +282,15 @@ export class VisitantesGlobalController {
     );
   }
 
-  // Morador autoriza (libera acesso + facial).
+  // Morador autoriza (libera acesso + facial, com opção de registrar entrada direta).
   @SkipAudit()
   @Post(':id/autorizar')
   async autorizar(
     @Param('id', ParseIntPipe) id: number,
+    @Body('darEntrada') darEntrada: boolean | undefined,
     @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.autorizar(id, payload);
+    return this.service.autorizar(id, payload, darEntrada);
   }
 
   // Morador nega (mantém bloqueado).

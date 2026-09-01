@@ -2005,8 +2005,8 @@ export class VisitantesService {
     return { ok: true };
   }
 
-  /** Morador autoriza: libera o acesso (liberado=1) e enrola no facial. */
-  async autorizar(id: number, payload?: JwtPayload) {
+  /** Morador autoriza: libera o acesso (liberado=1), opcionalmente registra entrada imediata, e enrola no facial. */
+  async autorizar(id: number, payload?: JwtPayload, darEntrada?: boolean) {
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Este visitante está bloqueado no condomínio.');
@@ -2017,6 +2017,7 @@ export class VisitantesService {
       data: {
         auth_status: 'autorizado',
         liberado: 1,
+        ...(darEntrada ? { data_entrada: new Date(), data_saida: null } : {}),
         auth_respondido_em: new Date(),
         auth_respondido_por: respondidoPor,
       },
@@ -2025,16 +2026,25 @@ export class VisitantesService {
     this.fireFacialSync(v.id);
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const acaoDesc = darEntrada
+      ? `Visitante autorizado com entrada registrada pelo morador: "${v.nome}" no ${aptoLabel}`
+      : `Visitante autorizado pelo morador: "${v.nome}" no ${aptoLabel}`;
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
       usuario_nome: payload?.nome ?? 'Morador',
-      acao: 'UPDATE',
+      acao: darEntrada ? 'CHECK_IN' : 'UPDATE',
       modulo: 'visitantes',
       entidade_id: v.id,
-      descricao: `Visitante autorizado pelo morador: "${v.nome}" no ${aptoLabel}`,
+      descricao: acaoDesc,
       detalhes: ctx ?? undefined,
     });
-    this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizado', { id: v.id });
+    this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizado', {
+      id: v.id,
+      darEntrada: !!darEntrada,
+    });
+    if (darEntrada) {
+      this.realtime.emitToCondominio(v.id_condominio, 'visitante.checkin', { id: v.id });
+    }
     return { ok: true };
   }
 

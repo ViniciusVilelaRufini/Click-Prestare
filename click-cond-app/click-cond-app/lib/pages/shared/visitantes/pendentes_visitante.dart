@@ -146,23 +146,27 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
     });
   }
 
-  Future<void> _responder(dynamic item, bool autorizar) async {
+  Future<void> _responder(dynamic item, bool autorizar, {bool darEntrada = false}) async {
     final id = item['id'];
     if (id == null) return;
     setState(() => _respondendoId = id as int);
-    final res = await apiResponderAutorizacao(id as int, autorizar);
+    final res = await apiResponderAutorizacao(id as int, autorizar, darEntrada: darEntrada);
     if (!mounted) return;
     setState(() => _respondendoId = null);
     if (res is Map) {
       setState(() => _list.removeWhere((e) => e['id'] == id));
       final nome = (item['nome'] ?? 'Visitante').toString();
-      displayMessage(
-        context,
-        autorizar ? 'Autorizado' : 'Negado',
-        autorizar
-            ? '$nome foi autorizado a entrar.'
-            : '$nome foi negado.',
-      );
+      final msg = !autorizar
+          ? '$nome foi negado.'
+          : darEntrada
+              ? 'Entrada registrada! $nome foi liberado e a entrada foi confirmada.'
+              : '$nome foi autorizado a entrar (facial/acesso liberado).';
+      final titulo = !autorizar
+          ? 'Negado'
+          : darEntrada
+              ? 'Entrada Registrada'
+              : 'Autorizado';
+      displayMessage(context, titulo, msg);
     } else {
       displayMessage(context, 'Erro', res.toString());
     }
@@ -343,71 +347,110 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
               ),
             )
           else
-            Row(
+            Column(
               children: [
-                Expanded(
-                  child: Material(
-                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () => _responder(item, false),
-                      child: Container(
-                        height: 44,
-                        decoration: BoxDecoration(
+                Row(
+                  children: [
+                    Expanded(
+                      child: Material(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(PhosphorIcons.x, size: 16, color: Color(0xFFDC2626)),
-                            SizedBox(width: 6),
-                            Text(
-                              'Negar',
-                              style: TextStyle(
-                                color: Color(0xFFDC2626),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
+                          onTap: () => _responder(item, false),
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                width: 1,
                               ),
                             ),
-                          ],
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(PhosphorIcons.x, size: 16, color: Color(0xFFDC2626)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Negar',
+                                  style: TextStyle(
+                                    color: Color(0xFFDC2626),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Material(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(10),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () => _responder(item, true),
-                      child: Container(
-                        height: 44,
-                        decoration: BoxDecoration(
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Material(
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(PhosphorIcons.check, size: 16, color: Colors.white),
-                            SizedBox(width: 6),
-                            Text(
-                              'Autorizar',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
+                          onTap: () => _responder(item, true, darEntrada: false),
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: AppColors.primary.withOpacity(0.35),
+                                width: 1,
                               ),
                             ),
-                          ],
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(PhosphorIcons.userCheck, size: 17, color: AppColors.primary),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Autorizar',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Material(
+                  color: const Color(0xFF059669),
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _responder(item, true, darEntrada: true),
+                    child: Container(
+                      height: 44,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(PhosphorIcons.signIn, size: 18, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'Autorizar e Dar Entrada',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -419,6 +462,8 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
     );
   }
 }
+
+enum DecisaoAutorizacao { negar, autorizar, autorizarEntrada }
 
 /// Diálogo acionável disparado por um push de autorização (portaria remota em primeiro plano).
 /// Usa o navigatorKey global — pode ser chamado do handler FCM sem context.
@@ -445,7 +490,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
     } catch (_) {}
   }
 
-  final autorizar = await showDialog<bool?>(
+  final decisao = await showDialog<DecisaoAutorizacao?>(
     context: ctx,
     barrierDismissible: true,
     builder: (c) => Dialog(
@@ -543,7 +588,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                     borderRadius: BorderRadius.circular(10),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
-                      onTap: () => Navigator.pop(c, false),
+                      onTap: () => Navigator.pop(c, DecisaoAutorizacao.negar),
                       child: Container(
                         height: 44,
                         decoration: BoxDecoration(
@@ -575,25 +620,29 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 const SizedBox(width: 10),
                 Expanded(
                   child: Material(
-                    color: AppColors.primary,
+                    color: AppColors.primary.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(10),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
-                      onTap: () => Navigator.pop(c, true),
+                      onTap: () => Navigator.pop(c, DecisaoAutorizacao.autorizar),
                       child: Container(
                         height: 44,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.primary.withOpacity(0.35),
+                            width: 1,
+                          ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(PhosphorIcons.check, size: 16, color: Colors.white),
-                            SizedBox(width: 6),
+                          children: [
+                            Icon(PhosphorIcons.userCheck, size: 17, color: AppColors.primary),
+                            const SizedBox(width: 6),
                             Text(
                               'Autorizar',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: AppColors.primary,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
                               ),
@@ -606,18 +655,60 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Material(
+              color: const Color(0xFF059669),
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => Navigator.pop(c, DecisaoAutorizacao.autorizarEntrada),
+                child: Container(
+                  height: 44,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(PhosphorIcons.signIn, size: 18, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Autorizar e Dar Entrada',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     ),
   );
-  if (autorizar == null) return;
-  final res = await apiResponderAutorizacao(id, autorizar);
+  if (decisao == null) return;
+  final bool autorizar = decisao != DecisaoAutorizacao.negar;
+  final bool darEntrada = decisao == DecisaoAutorizacao.autorizarEntrada;
+  final res = await apiResponderAutorizacao(id, autorizar, darEntrada: darEntrada);
   final ctx2 = NavigationService.navigatorKey.currentContext;
   if (ctx2 == null) return;
   if (res is Map) {
-    displayMessage(ctx2, autorizar ? 'Autorizado' : 'Negado',
-        autorizar ? '$nomeLabel foi autorizado a entrar.' : '$nomeLabel foi negado.');
+    final msg = !autorizar
+        ? '$nomeLabel foi negado.'
+        : darEntrada
+            ? 'Entrada registrada! $nomeLabel foi liberado e a entrada foi confirmada.'
+            : '$nomeLabel foi autorizado a entrar (facial/acesso liberado).';
+    final titulo = !autorizar
+        ? 'Negado'
+        : darEntrada
+            ? 'Entrada Registrada'
+            : 'Autorizado';
+    displayMessage(ctx2, titulo, msg);
   } else {
     displayMessage(ctx2, 'Erro', res.toString());
   }

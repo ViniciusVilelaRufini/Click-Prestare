@@ -152,9 +152,10 @@ module.exports = {
     await db.query(query);
   },
 
-  autorizar: async function (id, respondidoPor) {
+  autorizar: async function (id, respondidoPor, darEntrada) {
     const por = Number(respondidoPor) || 'NULL';
-    const query = `update Visitantes set auth_status='autorizado', liberado=1,
+    const entradaClause = darEntrada ? ', data_entrada=NOW(), data_saida=NULL' : '';
+    const query = `update Visitantes set auth_status='autorizado', liberado=1${entradaClause},
                      auth_respondido_em=NOW(), auth_respondido_por=${por} where id=${id}`;
     await db.query(query);
   },

@@ -93,9 +93,11 @@ apiGetPendentes() async {
 }
 
 /// Portaria remota: morador responde a uma solicitação.
-/// autorizar=true → POST /visitantes/:id/autorizar; false → /negar.
+/// autorizar=true, darEntrada=false → POST /visitantes/:id/autorizar (libera acesso e facial)
+/// autorizar=true, darEntrada=true  → POST /visitantes/:id/autorizar { darEntrada: true } (libera e já registra entrada)
+/// autorizar=false                  → POST /visitantes/:id/negar
 /// Retorna {} em sucesso ou a mensagem de erro.
-apiResponderAutorizacao(int idVisitante, bool autorizar) async {
+apiResponderAutorizacao(int idVisitante, bool autorizar, {bool darEntrada = false}) async {
   final acao = autorizar ? 'autorizar' : 'negar';
   final url = ApiConfig.buildUri('/visitantes/$idVisitante/$acao');
   final headers = {
@@ -103,10 +105,11 @@ apiResponderAutorizacao(int idVisitante, bool autorizar) async {
     "Content-Type": "application/json; charset=utf-8"
   };
   try {
+    final body = autorizar ? {'darEntrada': darEntrada} : {};
     final response = await ApiClient.post(
       url,
       headers: headers,
-      body: json.encode({}),
+      body: json.encode(body),
       encoding: utf8,
     ).timeout(ApiConfig.timeout);
     if (response.statusCode >= 200 && response.statusCode < 300) {

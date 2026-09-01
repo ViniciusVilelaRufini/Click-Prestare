@@ -117,6 +117,32 @@ describe('VisitantesService — portaria remota', () => {
     expect(facial.syncVisitante).toHaveBeenCalledWith(5);
   });
 
+  it('autorizar com darEntrada=true → liberado=1, data_entrada preenchida, enrola no facial e emite checkin', async () => {
+    const { svc, prisma, facial, realtime } = build();
+    const res = await svc.autorizar(5, moradorDono, true);
+
+    expect(res).toEqual({ ok: true });
+    expect(prisma.visitantes.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 5 },
+        data: expect.objectContaining({
+          auth_status: 'autorizado',
+          liberado: 1,
+          data_entrada: expect.any(Date),
+          data_saida: null,
+          auth_respondido_por: 20,
+        }),
+      }),
+    );
+    expect(facial.syncVisitante).toHaveBeenCalledWith(5);
+    expect(realtime.emitToCondominio).toHaveBeenCalledWith(
+      1,
+      'visitante.autorizado',
+      expect.objectContaining({ id: 5, darEntrada: true }),
+    );
+    expect(realtime.emitToCondominio).toHaveBeenCalledWith(1, 'visitante.checkin', { id: 5 });
+  });
+
   it('negar (morador dono) → negado, liberado=0', async () => {
     const { svc, prisma } = build();
     await svc.negar(5, moradorDono);
