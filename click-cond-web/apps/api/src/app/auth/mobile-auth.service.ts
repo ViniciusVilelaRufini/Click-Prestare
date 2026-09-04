@@ -1057,7 +1057,14 @@ export class MobileAuthService {
           ...(aptoIds.length ? [{ id_apartamento: { in: aptoIds } }] : []),
         ],
       },
-      select: { id: true },
+      select: {
+        id: true,
+        nome: true,
+        id_condominio: true,
+        is_prestador: true,
+        data_entrada: true,
+        data_saida: true,
+      },
     });
     const visitorIds = visitors.map((v) => v.id);
 
@@ -1091,7 +1098,48 @@ export class MobileAuthService {
         : Promise.resolve([]),
     ]);
 
-    const condIds = [...new Set([...morEv, ...visEv].map((e) => e.id_condominio))];
+    // Entrada/saída registrada na portaria (check-in manual ou PIN) não passa
+    // pelo terminal, então não existe em Acessos_Facial: é montada a partir do
+    // próprio registro do visitante, do mesmo jeito que a linha do tempo do
+    // detalhe. Sem isso o feed do app perdia todo acesso que não fosse facial.
+    const DEDUP_MS = 15_000;
+    const facialBuckets = new Set<string>();
+    for (const a of visEv) {
+      const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b}`);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
+      facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
+    }
+    const jaVeioDoFacial = (idVis: number, evento: 'entrada' | 'saida', ts: Date) =>
+      facialBuckets.has(`${idVis}:${evento}:${Math.floor(ts.getTime() / DEDUP_MS)}`);
+
+    const manualEv = [];
+    for (const v of visitors) {
+      const marcos: [('entrada' | 'saida'), Date | null][] = [
+        ['entrada', v.data_entrada],
+        ['saida', v.data_saida],
+      ];
+      for (const [evento, ts] of marcos) {
+        if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts)) continue;
+        manualEv.push({
+          // Id sintético (negativo) — não colide com o id real do acesso facial,
+          // que o app usa só para destacar o item vindo do push.
+          id: -(v.id * 2 + (evento === 'saida' ? 1 : 0)),
+          id_pessoa: v.id,
+          id_condominio: v.id_condominio,
+          nome_pessoa: v.nome ?? '',
+          evento,
+          tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+          tipo_dispositivo: 'pin',
+          confianca: null,
+          timestamp: ts,
+        });
+      }
+    }
+
+    const condIds = [
+      ...new Set([...morEv, ...visEv, ...manualEv].map((e) => e.id_condominio)),
+    ];
     const conds = condIds.length
       ? await this.prisma.condominios.findMany({
           where: { id: { in: condIds } },
@@ -1103,6 +1151,7 @@ export class MobileAuthService {
     const merged = [
       ...morEv.map((e) => ({ e, categoria: 'voce' })),
       ...visEv.map((e) => ({ e, categoria: 'visitante' })),
+      ...manualEv.map((e) => ({ e, categoria: 'visitante' })),
     ];
     merged.sort((a, b) => b.e.timestamp.getTime() - a.e.timestamp.getTime());
 
