@@ -507,6 +507,21 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Libera o acesso sem registrar entrada: o visitante/prestador passa quando
+   * chegar, pela facial ou pelo código. O evento de entrada é gravado pelo
+   * terminal, não pela portaria.
+   */
+  liberarAcessoEFechar(p: Pessoa) {
+    this.service.liberar(p.id).subscribe({
+      next: () => {
+        this.fecharAuthModal();
+        this.carregar();
+      },
+      error: (e) => this.error.set(`Falha ao liberar acesso: ${e?.message ?? e}`),
+    });
+  }
+
   private stopAuthPolling() {
     if (this.authPollTimer) {
       clearInterval(this.authPollTimer);
