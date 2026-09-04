@@ -1878,46 +1878,40 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <div class="text-emerald-600 dark:text-emerald-400 font-bold text-lg">
-                {{ (ap.data_entrada || ap.statusLabel === 'No condomínio') ? 'Entrada Registrada' : 'Autorizado' }}
-              </div>
+              <div class="text-emerald-600 dark:text-emerald-400 font-bold text-lg">Autorizado</div>
               <div class="text-xs text-slate-500 dark:text-slate-400 -mt-2 text-center">
                 {{ (ap.data_entrada || ap.statusLabel === 'No condomínio')
-                  ? 'O morador liberou e a entrada já foi registrada automaticamente.'
-                  : 'O morador liberou a entrada.' }}
+                  ? 'O morador liberou pelo app e já marcou a entrada. Confirme como ele vai acessar.'
+                  : 'O morador liberou a entrada. Escolha como ele vai acessar.' }}
               </div>
-              @if (!ap.data_entrada && ap.statusLabel !== 'No condomínio') {
-                <div class="mt-2 w-full flex flex-col gap-2">
-                  <button (click)="registrarEntradaEFechar(ap)"
-                    class="w-full py-2.5 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                    </svg>
-                    <span class="text-left leading-tight">
-                      <span class="block text-sm font-semibold">Registrar Entrada</span>
-                      <span class="block text-[11px] font-normal opacity-90">Sobe o evento de acesso agora</span>
-                    </span>
-                  </button>
-                  <button (click)="liberarAcessoEFechar(ap)"
-                    class="w-full py-2.5 px-3 rounded-lg bg-white dark:bg-white/5 border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-white/10 transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-9 4h10a2 2 0 012 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6a2 2 0 012-2z" />
-                    </svg>
-                    <span class="text-left leading-tight">
-                      <span class="block text-sm font-semibold">Liberar Acesso</span>
-                      <span class="block text-[11px] font-normal opacity-80">Entra pela facial ou pelo código</span>
-                    </span>
-                  </button>
-                </div>
-              } @else {
-                <button (click)="fecharAuthModal()"
-                  class="mt-2 w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition flex items-center justify-center gap-2">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              <div class="mt-2 w-full flex flex-col gap-2">
+                <button (click)="registrarEntradaEFechar(ap)"
+                  class="w-full py-2.5 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center justify-center gap-2">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                   </svg>
-                  Concluir
+                  <span class="text-left leading-tight">
+                    <span class="block text-sm font-semibold">Registrar Entrada</span>
+                    <span class="block text-[11px] font-normal opacity-90">Sobe o evento de acesso agora</span>
+                  </span>
                 </button>
-              }
+                <button (click)="liberarAcessoEFechar(ap)"
+                  class="w-full py-2.5 px-3 rounded-lg bg-white dark:bg-white/5 border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-white/10 transition flex items-center justify-center gap-2">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-9 4h10a2 2 0 012 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+                  </svg>
+                  <span class="text-left leading-tight">
+                    <span class="block text-sm font-semibold">Liberar Acesso</span>
+                    <span class="block text-[11px] font-normal opacity-80">Entra pela facial ou pelo código</span>
+                  </span>
+                </button>
+                @if (ap.data_entrada || ap.statusLabel === 'No condomínio') {
+                  <button (click)="fecharAuthModal()"
+                    class="w-full py-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
+                    Manter a entrada que o morador registrou
+                  </button>
+                }
+              </div>
             </div>
           }
 
