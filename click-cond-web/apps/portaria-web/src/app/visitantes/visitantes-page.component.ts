@@ -555,6 +555,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     return Date.now() - new Date(p.auth_solicitado_em).getTime() > AUTH_TIMEOUT_MS;
   }
 
+  formatarApartamentosTooltip(apts?: { id: number; label: string }[]): string {
+    if (!apts || !apts.length) return '';
+    return apts.map((a) => a.label).join(', ');
+  }
+
   /** Abre o modal para escolher o apartamento de destino antes de solicitar. */
   abrirSolicitar(v: Pessoa) {
     this.solicitarModalPessoa.set(v);

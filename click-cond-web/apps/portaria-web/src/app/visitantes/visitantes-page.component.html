@@ -979,65 +979,92 @@
                     {{ v.is_prestador ? 'Prestador' : 'Visitante' }}
                   </span>
                 </div>
-                <div
-                  class="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]"
-                >
-                  @switch (getStatusVisitante(v)) {
-                    @case ('presente') {
-                      <span
-                        class="inline-flex items-center gap-1 text-emerald-400"
-                        ><span
-                          class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"
-                        ></span
-                        >No condomínio</span
+                <div class="mt-2 flex items-center gap-2 flex-wrap">
+                  @if (getStatusVisitante(v) === 'presente') {
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      No condomínio
+                    </span>
+                  } @else if (v.auth_status === 'pendente') {
+                    @if (autorizacaoSemResposta(v)) {
+                      <button
+                        (click)="authModalPessoaId.set(v.id); $event.stopPropagation()"
+                        class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition cursor-pointer dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50"
+                        title="Tempo limite esgotado. Clique para ver o pedido."
                       >
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Sem resposta
+                      </button>
+                    } @else {
+                      <button
+                        (click)="authModalPessoaId.set(v.id); $event.stopPropagation()"
+                        class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition cursor-pointer dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50"
+                        title="Aguardando morador. Clique para acompanhar."
+                      >
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                        Aguardando morador
+                      </button>
                     }
-                    @case ('liberado') {
-                      <span class="inline-flex items-center gap-1 text-cyan-400"
-                        ><span
-                          class="w-1.5 h-1.5 rounded-full bg-cyan-400"
-                        ></span
-                        >Liberado</span
-                      >
-                    }
-                    @case ('autorizado') {
-                      <span class="inline-flex items-center gap-1 text-sky-400"
-                        ><span
-                          class="w-1.5 h-1.5 rounded-full bg-sky-400"
-                        ></span
-                        >Autorizado</span
-                      >
-                    }
-                    @case ('agendado') {
-                      <span
-                        class="inline-flex items-center gap-1 text-amber-400"
-                        ><span
-                          class="w-1.5 h-1.5 rounded-full bg-amber-400"
-                        ></span
-                        >Agendado</span
-                      >
-                    }
-                    @case ('saiu') {
-                      <span
-                        class="inline-flex items-center gap-1 text-slate-500"
-                        ><span
-                          class="w-1.5 h-1.5 rounded-full bg-slate-500"
-                        ></span
-                        >Saiu</span
-                      >
+                  } @else if (v.auth_status === 'autorizado') {
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                      <svg class="w-3 h-3 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                      Autorizado
+                    </span>
+                  } @else if (v.auth_status === 'negado') {
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50">
+                      <svg class="w-3 h-3 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                      Negado
+                    </span>
+                  } @else {
+                    @switch (getStatusVisitante(v)) {
+                      @case ('liberado') {
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
+                          <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                          Liberado
+                        </span>
+                      }
+                      @case ('autorizado') {
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Autorizado
+                        </span>
+                      }
+                      @case ('agendado') {
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/50">
+                          <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                          Agendado
+                        </span>
+                      }
+                      @case ('saiu') {
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200/80 dark:bg-white/5 dark:text-slate-400 dark:border-white/10">
+                          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                          Saiu
+                        </span>
+                      }
                     }
                   }
+
                   @if ($any(v).apartamentosVisitados?.length) {
-                    @for (a of $any(v).apartamentosVisitados; track a.id) {
-                      <span
-                        class="px-1.5 py-0.5 rounded bg-slate-800 border border-white/5 font-mono text-slate-300"
-                        >{{ a.label }}</span
-                      >
-                    }
+                    <div class="flex items-center gap-1">
+                      @for (a of $any(v).apartamentosVisitados.slice(0, 2); track a.id) {
+                        <span
+                          class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 font-mono text-[10px] text-slate-700 dark:text-slate-300"
+                          >{{ a.label }}</span
+                        >
+                      }
+                      @if ($any(v).apartamentosVisitados.length > 2) {
+                        <span
+                          class="px-1 py-0.5 rounded bg-slate-100/80 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 font-mono text-[10px] text-slate-500"
+                          [title]="'Apartamentos visitados: ' + formatarApartamentosTooltip($any(v).apartamentosVisitados)"
+                        >
+                          +{{ $any(v).apartamentosVisitados.length - 2 }}
+                        </span>
+                      }
+                    </div>
                   }
                 </div>
                 <div
-                  class="mt-1 flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap"
+                  class="mt-1 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-mono flex-wrap"
                 >
                   @if (v.doc_identificacao) {
                     <span>Doc: {{ docsRevelados().has(v.id) ? v.doc_identificacao : (v.doc_identificacao | maskDoc) }}</span>
@@ -1048,31 +1075,18 @@
                   @if (v.temPinAtivo || v.codigo_acesso) {
                     <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-sans text-[11px] font-medium" title="PIN de liberação física ativo">
                       <svg class="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                      PIN Ativo
+                      PIN
                     </span>
                   }
                   @if (v.tag_rfid) {
-                    <span class="inline-flex items-center gap-1 text-blue-300">
-                      <svg
-                        class="w-3 h-3 text-blue-400 shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                        />
-                      </svg>
+                    <span class="inline-flex items-center gap-1 text-indigo-500 font-sans text-[11px]">
                       Tag {{ v.tag_rfid }}
                     </span>
                   }
                 </div>
                 @if (v.is_prestador && (v.categorias || v.dias_semana)) {
                   <div
-                    class="mt-1.5 text-[10px] text-amber-400/85 font-medium flex flex-wrap gap-1 items-center"
+                    class="mt-1.5 text-[10px] text-amber-700 dark:text-amber-400/85 font-medium flex flex-wrap gap-1 items-center"
                   >
                     @if (v.categorias) {
                       <span
@@ -1090,16 +1104,13 @@
                   </div>
                 }
                 <div
-                  class="mt-2.5 flex items-center gap-2 flex-wrap"
+                  class="mt-3 flex items-center gap-2 flex-wrap"
                   (click)="$event.stopPropagation()"
                 >
-                  @if (authBadge(v); as ab) {
-                    <span class="px-2 py-0.5 text-[11px] rounded-full font-medium" [class]="ab.cls">{{ ab.label }}</span>
-                  }
                   @if (getStatusVisitante(v) === 'presente') {
                     <button
                       (click)="darBaixa(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-600 hover:!text-white hover:border-rose-600 font-semibold transition dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 dark:hover:bg-rose-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-600 hover:!text-white border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 font-semibold transition shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                       Dar Baixa
@@ -1107,70 +1118,82 @@
                   } @else if (
                     getStatusVisitante(v) === 'liberado' ||
                     getStatusVisitante(v) === 'autorizado' ||
-                    getStatusVisitante(v) === 'agendado'
+                    getStatusVisitante(v) === 'agendado' ||
+                    v.auth_status === 'autorizado'
                   ) {
                     <button
                       (click)="registrarEntradaManual(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:!text-white hover:border-emerald-600 font-semibold transition dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                       Registrar Entrada
                     </button>
-                  }
-                  @if (v.auth_status !== 'pendente' && getStatusVisitante(v) !== 'presente') {
+                  } @else if (v.auth_status === 'pendente') {
                     <button
-                      (click)="abrirSolicitar(v)"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-500 hover:!text-white hover:border-amber-500 font-semibold transition dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 dark:hover:bg-amber-500 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
+                      (click)="authModalPessoaId.set(v.id)"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold transition shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                      Solicitar autorização
+                      Ver Pedido
+                    </button>
+                  } @else {
+                    <button
+                      (click)="abrirSolicitar(v)"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 font-medium transition inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                      Solicitar
                     </button>
                   }
+
                   <button
                     (click)="abrirNovaVisita($any(v))"
-                    class="px-3 py-1.5 text-xs rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-600 hover:!text-white hover:border-blue-600 font-semibold transition dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
+                    class="px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 font-medium transition shadow-2xs inline-flex items-center gap-1 cursor-pointer"
                   >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                     Nova Visita
                   </button>
-                  <button
-                    (click)="abrirEditar(v)"
-                    title="Editar"
-                    class="p-1.5 rounded-lg text-slate-400 hover:text-accent hover:bg-white/5 transition"
-                  >
-                    <svg
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+
+                  <div class="flex items-center gap-0.5 border-l border-slate-200 dark:border-white/10 pl-1.5">
+                    <button
+                      (click)="abrirEditar(v)"
+                      title="Editar"
+                      class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer"
                     >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    (click)="removerPessoa($any(v))"
-                    title="Remover"
-                    class="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-400/5 transition"
-                  >
-                    <svg
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                      <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      (click)="removerPessoa($any(v))"
+                      title="Remover"
+                      class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition cursor-pointer"
                     >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1183,30 +1206,30 @@
       <div class="hidden lg:block overflow-x-auto">
         <table class="w-full text-sm">
           <thead
-            class="bg-white/[0.02] text-slate-400 uppercase text-[11px] tracking-wider border-b border-white/10"
+            class="bg-slate-50/80 dark:bg-white/[0.02] text-slate-500 dark:text-slate-400 uppercase text-[11px] font-semibold tracking-wider border-b border-slate-200/80 dark:border-white/10"
           >
             <tr>
-              <th class="text-left px-5 py-3 font-medium">Pessoa</th>
-              <th class="text-left px-5 py-3 font-medium">Documento</th>
-              <th class="text-left px-5 py-3 font-medium">Tipo</th>
-              <th class="text-left px-5 py-3 font-medium">Última entrada</th>
-              <th class="text-left px-5 py-3 font-medium">Apartamentos</th>
-              <th class="text-left px-5 py-3 font-medium">Status</th>
-              <th class="text-right px-5 py-3 font-medium"></th>
+              <th class="text-left px-5 py-3 font-semibold">Pessoa</th>
+              <th class="text-left px-5 py-3 font-semibold">Documento</th>
+              <th class="text-left px-5 py-3 font-semibold">Tipo</th>
+              <th class="text-left px-5 py-3 font-semibold">Última entrada</th>
+              <th class="text-left px-5 py-3 font-semibold">Apartamentos</th>
+              <th class="text-left px-5 py-3 font-semibold">Status</th>
+              <th class="text-right px-5 py-3 font-semibold">Ações</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="divide-y divide-slate-100 dark:divide-white/5">
             @for (v of visitantesPaginados(); track v.id) {
               <tr
                 (click)="abrirDetalhes(v)"
-                class="border-t border-white/5 hover:bg-white/[0.02] active:bg-white/[0.04] transition group cursor-pointer"
+                class="hover:bg-slate-50/75 dark:hover:bg-white/[0.02] active:bg-slate-100 dark:active:bg-white/[0.04] transition group cursor-pointer"
               >
-                <td class="px-5 py-3">
+                <td class="px-5 py-3.5">
                   <div class="flex items-center gap-3">
                     <div
-                      class="w-8 h-8 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden"
+                      class="w-9 h-9 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs"
                       [class.cursor-pointer]="v.foto_pessoa"
-                      [title]="v.foto_pessoa ? 'Clique para ampliar' : ''"
+                      [title]="v.foto_pessoa ? 'Clique para ampliar foto' : ''"
                       (click)="
                         v.foto_pessoa
                           ? abrirAmpliarFoto(v.foto_pessoa, v.nome, $event)
@@ -1220,140 +1243,73 @@
                           class="w-full h-full object-cover"
                         />
                       } @else {
-                        <span class="text-[11px] font-semibold text-accent">{{
+                        <span class="text-xs font-bold text-accent">{{
                           iniciais(v.nome)
                         }}</span>
                       }
                     </div>
-                    <div class="flex flex-col gap-0.5 justify-center">
+                    <div class="flex flex-col min-w-0">
                       <div class="flex items-center gap-1.5 flex-wrap">
                         <span
-                          class="font-semibold text-slate-800 dark:text-white hover:text-accent transition text-left text-sm"
-                          title="Clique na linha para ver detalhes, histórico de acessos e apartamentos visitados"
+                          class="font-semibold text-slate-900 dark:text-white group-hover:text-accent transition text-sm truncate"
+                          title="Clique na linha para ver detalhes"
                           >{{ v.nome }}</span
                         >
-                        @if (v.face_sync_status === 'synced') {
+                        @if (v.bloqueado === 1) {
                           <span
-                            class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 uppercase tracking-wide"
-                            title="Reconhecimento facial sincronizado"
-                            >Facial</span
+                            class="text-[10px] px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 font-bold uppercase tracking-wider flex items-center gap-1"
                           >
-                        } @else if (v.face_sync_status === 'pending') {
-                          <span
-                            class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 uppercase tracking-wide"
-                            title="Sincronização pendente"
-                            >Sinc.</span
-                          >
-                        } @else if (v.face_sync_status === 'error') {
-                          <span
-                            class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 uppercase tracking-wide"
-                            title="Erro na sincronização facial"
-                            >Erro</span
-                          >
-                        }
-                        @if (v.temVaga) {
-                          <span
-                            class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60 uppercase tracking-wide"
-                            [title]="v.vagaMorador ? 'Vaga vinculada por ' + v.vagaMorador : 'Vaga vinculada'"
-                            >Vaga</span
-                          >
-                        }
-                        @if ($any(v).visitasAnteriores > 0) {
-                          <span
-                            class="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                            [title]="
-                              $any(v).visitasAnteriores +
-                              ' visita(s) anterior(es) — abra os detalhes para ver histórico'
-                            "
-                          >
-                            <svg
-                              class="w-2.5 h-2.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2.5"
-                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                              />
-                            </svg>
-                            +{{ $any(v).visitasAnteriores }}
+                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                            Bloqueado
                           </span>
                         }
                       </div>
-                      <div
-                        class="flex items-center gap-2 flex-wrap text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1.5"
-                      >
+                      <div class="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                         @if (v.temPinAtivo || v.codigo_acesso) {
                           <span
-                            class="inline-flex items-center gap-1 text-[10px] font-sans bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md font-medium"
-                            title="Credencial PIN ativa para este visitante"
+                            class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"
+                            title="PIN de liberação física ativo"
                           >
-                            <svg
-                              class="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                              />
-                            </svg>
-                            <span>PIN Ativo</span>
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                            PIN
+                          </span>
+                        }
+                        @if (v.face_sync_status === 'synced') {
+                          <span
+                            class="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 font-medium"
+                            title="Reconhecimento facial sincronizado"
+                          >
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            Facial
+                          </span>
+                        } @else if (v.face_sync_status === 'pending') {
+                          <span class="text-amber-600 dark:text-amber-400 text-[10px]" title="Sincronização facial pendente">
+                            Facial pend.
                           </span>
                         }
                         @if (v.tag_rfid) {
-                          <span
-                            class="inline-flex items-center gap-1 text-[10px] font-mono bg-blue-500/10 dark:bg-blue-500/[0.08] border border-blue-250 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-md"
-                            title="Tag RFID (credencial)"
-                          >
-                            <svg
-                              class="w-3 h-3 text-blue-550 dark:text-blue-400 shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                              />
-                            </svg>
-                            <span class="text-blue-500/70 dark:text-blue-400/70"
-                              >Tag</span
-                            >
-                            <span class="font-semibold tracking-wide">{{
-                              v.tag_rfid
-                            }}</span>
+                          <span class="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-mono text-[10px]" title="Tag RFID">
+                            Tag {{ v.tag_rfid }}
                           </span>
                         }
-                        @if (
-                          v.is_prestador && (v.categorias || v.dias_semana)
-                        ) {
-                          <span
-                            class="text-slate-300 dark:text-slate-650 select-none"
-                            >·</span
-                          >
+                        @if ($any(v).visitasAnteriores > 0) {
+                          <span class="text-slate-400 dark:text-slate-500 font-normal">
+                            · {{ $any(v).visitasAnteriores }} {{ $any(v).visitasAnteriores === 1 ? 'visita' : 'visitas' }}
+                          </span>
+                        }
+                        @if (v.is_prestador && (v.categorias || v.dias_semana)) {
+                          <span class="text-slate-300 dark:text-slate-650 select-none">·</span>
                           @if (v.categorias) {
                             <span
-                              class="bg-amber-500/10 dark:bg-amber-400/5 px-1.5 py-0.5 rounded border border-amber-250 dark:border-amber-400/20 text-amber-700 dark:text-amber-400 truncate max-w-[150px]"
+                              class="bg-amber-500/10 dark:bg-amber-400/5 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-400/20 text-amber-700 dark:text-amber-400 truncate max-w-[150px] text-[10px]"
                               [title]="v.categorias.split(';').join(', ')"
                               >{{ v.categorias.split(';').join(', ') }}</span
                             >
                           }
                           @if (v.dias_semana) {
-                            <span
-                              class="text-slate-500 dark:text-slate-400 text-[9px]"
-                              >{{
-                                formatarDiasSemanaExtenso(v.dias_semana)
-                              }}</span
-                            >
+                            <span class="text-slate-500 dark:text-slate-400 text-[10px]">{{
+                              formatarDiasSemanaExtenso(v.dias_semana)
+                            }}</span>
                           }
                         }
                       </div>
@@ -1361,76 +1317,51 @@
                   </div>
                 </td>
                 <td
-                  class="px-5 py-3 text-slate-400 font-mono text-xs"
+                  class="px-5 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-xs whitespace-nowrap"
                   (click)="$event.stopPropagation()"
                 >
-                  <div class="flex items-center gap-2">
-                    @if (v.doc_identificacao) {
-                      <div class="flex items-center gap-1.5">
-                        <span>{{ docsRevelados().has(v.id) ? v.doc_identificacao : (v.doc_identificacao | maskDoc) }}</span>
-                        <button
-                          (click)="toggleDoc(v.id, $event)"
-                          [attr.aria-label]="docsRevelados().has(v.id) ? 'Ocultar documento' : 'Ver documento completo'"
-                          class="text-slate-400 hover:text-accent transition p-1 rounded hover:bg-white/5"
-                          [title]="docsRevelados().has(v.id) ? 'Ocultar documento' : 'Ver documento completo (LGPD)'"
-                        >
-                          @if (docsRevelados().has(v.id)) {
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
-                          } @else {
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                          }
-                        </button>
-                        <button
-                          (click)="copiarTexto(v.doc_identificacao, 'Documento')"
-                          class="hover:text-accent transition p-1 rounded hover:bg-white/5 text-slate-500"
-                          title="Clique para copiar o Documento"
-                        >
-                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                        </button>
-                      </div>
-                    } @else {
-                      <span>—</span>
-                    }
-                    @if (v.foto_documento) {
+                  @if (v.doc_identificacao) {
+                    <div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/5">
+                      <span class="tracking-wider">{{ docsRevelados().has(v.id) ? v.doc_identificacao : (v.doc_identificacao | maskDoc) }}</span>
                       <button
-                        (click)="
-                          abrirAmpliarFoto(
-                            v.foto_documento,
-                            'Documento de ' + v.nome,
-                            $event
-                          )
-                        "
-                        class="text-accent hover:text-accent-500 transition focus:outline-none p-0.5"
-                        title="Visualizar foto do documento"
+                        (click)="toggleDoc(v.id, $event)"
+                        [attr.aria-label]="docsRevelados().has(v.id) ? 'Ocultar documento' : 'Ver documento completo'"
+                        class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition p-0.5 rounded cursor-pointer"
+                        [title]="docsRevelados().has(v.id) ? 'Ocultar documento' : 'Ver documento completo (LGPD)'"
                       >
-                        <svg
-                          class="w-4 h-4 text-accent"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                          />
-                        </svg>
+                        @if (docsRevelados().has(v.id)) {
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                        } @else {
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        }
                       </button>
-                    }
-                  </div>
+                      <button
+                        (click)="copiarTexto(v.doc_identificacao, 'Documento')"
+                        class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition p-0.5 rounded cursor-pointer"
+                        title="Copiar documento"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                      </button>
+                      @if (v.foto_documento) {
+                        <button
+                          (click)="abrirAmpliarFoto(v.foto_documento, 'Documento de ' + v.nome, $event)"
+                          class="text-accent hover:opacity-80 transition p-0.5 rounded cursor-pointer"
+                          title="Visualizar foto do documento"
+                        >
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </button>
+                      }
+                    </div>
+                  } @else {
+                    <span class="text-slate-400 dark:text-slate-600">—</span>
+                  }
                 </td>
-                <td class="px-5 py-3">
+                <td class="px-5 py-3.5 whitespace-nowrap">
                   <span
-                    class="text-[11px] px-2.5 py-0.5 rounded-md border font-semibold"
+                    class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"
                     [class.text-blue-700]="!v.is_prestador"
                     [class.bg-blue-50]="!v.is_prestador"
+                    [class.border]="true"
                     [class.border-blue-200]="!v.is_prestador"
                     [class.dark:text-blue-300]="!v.is_prestador"
                     [class.dark:bg-blue-950/40]="!v.is_prestador"
@@ -1445,93 +1376,112 @@
                     {{ v.is_prestador ? 'Prestador' : 'Visitante' }}
                   </span>
                 </td>
-                <td class="px-5 py-3 text-slate-400 text-xs font-mono">
+                <td class="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-xs font-mono whitespace-nowrap">
                   {{
                     $any(v).ultEntrada
                       ? ($any(v).ultEntrada | date: 'dd/MM HH:mm')
                       : '—'
                   }}
                 </td>
-                <td class="px-5 py-3 text-slate-300 text-xs">
+                <td class="px-5 py-3.5 text-xs whitespace-nowrap">
                   @if ($any(v).apartamentosVisitados?.length) {
-                    <div class="flex flex-wrap gap-1">
-                      @for (a of $any(v).apartamentosVisitados; track a.id) {
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      @for (a of $any(v).apartamentosVisitados.slice(0, 2); track a.id) {
                         <span
-                          class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-800 border border-white/5 text-[10px] font-mono text-slate-300"
-                          >{{ a.label }}</span
+                          class="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 font-mono text-[11px] font-medium"
                         >
+                          {{ a.label }}
+                        </span>
+                      }
+                      @if ($any(v).apartamentosVisitados.length > 2) {
+                        <span
+                          class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100/80 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5 text-slate-600 dark:text-slate-400 font-mono text-[10px] font-medium cursor-help"
+                          [title]="'Apartamentos visitados: ' + formatarApartamentosTooltip($any(v).apartamentosVisitados)"
+                        >
+                          +{{ $any(v).apartamentosVisitados.length - 2 }}
+                        </span>
                       }
                     </div>
                   } @else {
-                    <span class="text-slate-500">—</span>
+                    <span class="text-slate-400 dark:text-slate-600">—</span>
                   }
                 </td>
-                <td class="px-5 py-3">
-                  @switch (getStatusVisitante(v)) {
-                    @case ('presente') {
-                      <span
-                        class="inline-flex items-center gap-1.5 text-[11px] text-emerald-400"
+                <td class="px-5 py-3.5 whitespace-nowrap">
+                  @if (getStatusVisitante(v) === 'presente') {
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      No condomínio
+                    </span>
+                  } @else if (v.auth_status === 'pendente') {
+                    @if (autorizacaoSemResposta(v)) {
+                      <button
+                        (click)="authModalPessoaId.set(v.id); $event.stopPropagation()"
+                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition cursor-pointer dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50"
+                        title="Tempo limite esgotado. Clique para ver o pedido."
                       >
-                        <span
-                          class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"
-                        ></span>
-                        No condomínio
-                      </span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Sem resposta
+                      </button>
+                    } @else {
+                      <button
+                        (click)="authModalPessoaId.set(v.id); $event.stopPropagation()"
+                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition cursor-pointer dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50"
+                        title="Aguardando morador. Clique para acompanhar."
+                      >
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                        Aguardando morador
+                      </button>
                     }
-                    @case ('liberado') {
-                      <span
-                        class="inline-flex items-center gap-1.5 text-[11px] text-cyan-400"
-                      >
-                        <span
-                          class="w-1.5 h-1.5 rounded-full bg-cyan-400"
-                        ></span>
-                        Liberado
-                      </span>
-                    }
-                    @case ('autorizado') {
-                      <span
-                        class="inline-flex items-center gap-1.5 text-[11px] text-sky-400"
-                      >
-                        <span
-                          class="w-1.5 h-1.5 rounded-full bg-sky-400"
-                        ></span>
-                        Autorizado
-                      </span>
-                    }
-                    @case ('agendado') {
-                      <span
-                        class="inline-flex items-center gap-1.5 text-[11px] text-amber-400"
-                      >
-                        <span
-                          class="w-1.5 h-1.5 rounded-full bg-amber-400"
-                        ></span>
-                        Agendado
-                      </span>
-                    }
-                    @case ('saiu') {
-                      <span
-                        class="inline-flex items-center gap-1.5 text-[11px] text-slate-500"
-                      >
-                        <span
-                          class="w-1.5 h-1.5 rounded-full bg-slate-500"
-                        ></span>
-                        Saiu
-                      </span>
+                  } @else if (v.auth_status === 'autorizado') {
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                      <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                      Autorizado
+                    </span>
+                  } @else if (v.auth_status === 'negado') {
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50">
+                      <svg class="w-3 h-3 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                      Negado
+                    </span>
+                  } @else {
+                    @switch (getStatusVisitante(v)) {
+                      @case ('liberado') {
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
+                          <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                          Liberado
+                        </span>
+                      }
+                      @case ('autorizado') {
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Autorizado
+                        </span>
+                      }
+                      @case ('agendado') {
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/50">
+                          <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                          Agendado
+                        </span>
+                      }
+                      @case ('saiu') {
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/80 dark:bg-white/5 dark:text-slate-400 dark:border-white/10">
+                          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                          Saiu
+                        </span>
+                      }
                     }
                   }
                 </td>
                 <td
-                  class="px-5 py-3 text-right"
+                  class="px-5 py-3.5 text-right whitespace-nowrap"
                   (click)="$event.stopPropagation()"
                 >
-                  <div class="flex items-center justify-end gap-3 flex-wrap">
-                    @if (authBadge(v); as ab) {
-                      <span class="px-2 py-0.5 text-[11px] rounded-full font-medium" [class]="ab.cls">{{ ab.label }}</span>
-                    }
+                  <div class="flex items-center justify-end gap-2">
+                    <!-- Ação primária contextual -->
                     @if (getStatusVisitante(v) === 'presente') {
                       <button
                         (click)="darBaixa(v)"
-                        class="px-3 py-1.5 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-600 hover:!text-white hover:border-rose-600 font-semibold transition dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 dark:hover:bg-rose-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
+                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-600 hover:!text-white border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60 dark:hover:bg-rose-600 dark:hover:!text-white transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        title="Registrar saída do visitante"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                         Dar Baixa
@@ -1539,88 +1489,66 @@
                     } @else if (
                       getStatusVisitante(v) === 'liberado' ||
                       getStatusVisitante(v) === 'autorizado' ||
-                      getStatusVisitante(v) === 'agendado'
+                      getStatusVisitante(v) === 'agendado' ||
+                      v.auth_status === 'autorizado'
                     ) {
                       <button
                         (click)="registrarEntradaManual(v)"
-                        class="px-3 py-1.5 text-xs rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:!text-white hover:border-emerald-600 font-semibold transition dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
+                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        title="Registrar entrada no sistema agora"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                         Registrar Entrada
                       </button>
-                    }
-
-                    @if (v.auth_status !== 'pendente' && getStatusVisitante(v) !== 'presente') {
+                    } @else if (v.auth_status === 'pendente') {
                       <button
-                        (click)="abrirSolicitar(v)"
-                        class="px-3 py-1.5 text-xs rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-500 hover:!text-white hover:border-amber-500 font-semibold transition dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 dark:hover:bg-amber-500 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
+                        (click)="authModalPessoaId.set(v.id)"
+                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        title="Ver andamento do pedido de autorização"
                       >
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                        Solicitar autorização
+                        Ver Pedido
+                      </button>
+                    } @else {
+                      <button
+                        (click)="abrirSolicitar(v)"
+                        class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 transition inline-flex items-center gap-1.5 cursor-pointer"
+                        title="Pedir autorização ao morador pelo app"
+                      >
+                        <svg class="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        Solicitar
                       </button>
                     }
 
+                    <!-- Ação secundária: Nova Visita -->
                     <button
                       (click)="abrirNovaVisita($any(v))"
                       title="Cadastrar nova visita para esta pessoa em outro apartamento"
-                      class="px-3 py-1.5 text-xs rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-600 hover:!text-white hover:border-blue-600 font-semibold transition dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5"
+                      class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-white/5 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 transition inline-flex items-center gap-1 shadow-2xs cursor-pointer"
                     >
-                      <svg
-                        class="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
+                      <svg class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                       Nova Visita
                     </button>
 
-                    <div class="flex items-center gap-3">
+                    <!-- Ações de ferramentas (Editar / Remover) com divisor sutil -->
+                    <div class="flex items-center gap-0.5 border-l border-slate-200 dark:border-white/10 pl-1.5">
                       <button
                         (click)="abrirEditar(v)"
-                        title="Editar nome, foto e documento desta pessoa"
-                        class="text-xs text-slate-400 hover:text-accent transition flex items-center gap-1"
+                        title="Editar pessoa"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer"
                       >
-                        <svg
-                          class="w-3.5 h-3.5 text-slate-500 group-hover:text-accent transition"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                          />
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                         </svg>
-                        Editar
                       </button>
                       <button
                         (click)="removerPessoa($any(v))"
-                        title="Remover esta pessoa e todas as visitas dela"
-                        class="text-xs text-slate-400 hover:text-red-400 transition flex items-center gap-1"
+                        title="Remover pessoa"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition cursor-pointer"
                       >
-                        <svg
-                          class="w-3.5 h-3.5 text-slate-500 group-hover:text-red-400 transition"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                         </svg>
-                        Remover
                       </button>
                     </div>
                   </div>
@@ -1766,141 +1694,238 @@
 
   <!-- Portaria remota: janela "ao vivo" do pedido de autorização -->
   @if (authModalPessoa(); as ap) {
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 dark:bg-black/80 p-4">
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 dark:bg-black/85 backdrop-blur-xs p-4">
       <div class="w-full max-w-md rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl animate-fade-in">
-        <div class="px-6 py-4 bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-            <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            Autorização de visitante
-          </h3>
-          <button (click)="fecharAuthModal()" aria-label="Fechar modal de autorização" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        
+        <!-- Header do Modal -->
+        <div class="px-6 py-4 bg-slate-50/80 dark:bg-white/[0.02] border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-slate-900 dark:text-white leading-tight">
+                Autorização de Acesso
+              </h3>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400">Portaria em tempo real</p>
+            </div>
+          </div>
+          <button (click)="fecharAuthModal()" aria-label="Fechar modal de autorização"
+                  class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div class="p-6">
-          <!-- Cabeçalho da pessoa -->
-          <div class="flex flex-col items-center gap-2">
-            <div class="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-sm font-bold">
-              {{ iniciais(ap.nome) }}
-            </div>
-            <div class="text-center">
-              <div class="text-base font-semibold text-slate-900 dark:text-white">{{ ap.nome }}</div>
-              @if (ap.apartamentoAtual) {
-                <div class="text-xs text-slate-500 dark:text-slate-400">{{ ap.apartamentoAtual }}</div>
+        <div class="p-6 space-y-4">
+          <!-- Card de identificação da pessoa -->
+          <div class="flex items-center gap-3.5 p-3.5 rounded-xl bg-slate-50/80 dark:bg-white/[0.02] border border-slate-200/70 dark:border-white/5">
+            <div class="w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-sm font-bold shrink-0 overflow-hidden shadow-2xs">
+              @if (ap.foto_pessoa) {
+                <img [src]="ap.foto_pessoa" [alt]="ap.nome" class="w-full h-full object-cover" />
+              } @else {
+                {{ iniciais(ap.nome) }}
               }
             </div>
-          </div>
-
-          <!-- AGUARDANDO -->
-          @if (ap.auth_status === 'pendente' && !autorizacaoSemResposta(ap)) {
-            <div class="mt-5 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 p-6 flex flex-col items-center gap-3 animate-fade-in">
-              <div class="w-14 h-14 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center">
-                <div class="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
-              </div>
-              <div class="text-slate-900 dark:text-white font-semibold text-sm">Aguardando o morador</div>
-              <div class="text-xs text-slate-500 dark:text-slate-400 text-center -mt-1">Notificamos o morador no app. A resposta aparece aqui automaticamente.</div>
-            </div>
-          }
-
-          <!-- SEM RESPOSTA (timeout) -->
-          @if (ap.auth_status === 'pendente' && autorizacaoSemResposta(ap)) {
-            <div class="mt-5 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 p-6 flex flex-col items-center gap-3 animate-fade-in">
-              <div class="w-14 h-14 rounded-full bg-warn/10 border border-warn/30 flex items-center justify-center">
-                <svg class="w-7 h-7 text-warn" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div class="text-warn font-semibold text-sm">Sem resposta do morador</div>
-              <div class="text-xs text-slate-500 dark:text-slate-400 text-center -mt-1">O morador não respondeu a tempo. Você pode liberar manualmente.</div>
-              <div class="mt-1 w-full flex flex-col gap-2">
-                <button (click)="registrarEntradaEFechar(ap)"
-                  class="w-full py-2.5 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center justify-center gap-2">
-                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  <span class="text-left leading-tight">
-                    <span class="block text-sm font-semibold">Registrar Entrada</span>
-                    <span class="block text-[11px] font-normal opacity-90">Sobe o evento de acesso agora</span>
+            <div class="min-w-0 flex-1">
+              <div class="text-sm font-bold text-slate-900 dark:text-white truncate">{{ ap.nome }}</div>
+              <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                @if (ap.apartamentoAtual) {
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-200/70 dark:bg-white/10 text-slate-700 dark:text-slate-300 font-mono">
+                    {{ ap.apartamentoAtual }}
                   </span>
-                </button>
-                <button (click)="liberarAcessoEFechar(ap)"
-                  class="w-full py-2.5 px-3 rounded-lg bg-white dark:bg-white/5 border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-white/10 transition flex items-center justify-center gap-2">
-                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-9 4h10a2 2 0 012 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6a2 2 0 012-2z" />
-                  </svg>
-                  <span class="text-left leading-tight">
-                    <span class="block text-sm font-semibold">Liberar Acesso</span>
-                    <span class="block text-[11px] font-normal opacity-80">Entra pela facial ou pelo código</span>
+                }
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40">
+                  {{ ap.is_prestador ? 'Prestador' : 'Visitante' }}
+                </span>
+                @if (ap.doc_identificacao) {
+                  <span class="text-xs text-slate-400 font-mono">
+                    {{ ap.doc_identificacao | maskDoc }}
                   </span>
-                </button>
-              </div>
-            </div>
-          }
-
-          <!-- AUTORIZADO -->
-          @if (ap.auth_status === 'autorizado') {
-            <div class="mt-5 rounded-xl bg-emerald-50 dark:bg-white/[0.02] border border-emerald-200 dark:border-emerald-500/20 p-6 flex flex-col items-center gap-3 animate-fade-in">
-              <div class="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                <svg class="w-8 h-8 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <div class="text-emerald-600 dark:text-emerald-400 font-bold text-lg">Autorizado</div>
-              <div class="text-xs text-slate-500 dark:text-slate-400 -mt-2 text-center">
-                {{ (ap.data_entrada || ap.statusLabel === 'No condomínio')
-                  ? 'O morador liberou pelo app e já marcou a entrada. Confirme como ele vai acessar.'
-                  : 'O morador liberou a entrada. Escolha como ele vai acessar.' }}
-              </div>
-              <div class="mt-2 w-full flex flex-col gap-2">
-                <button (click)="registrarEntradaEFechar(ap)"
-                  class="w-full py-2.5 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center justify-center gap-2">
-                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  <span class="text-left leading-tight">
-                    <span class="block text-sm font-semibold">Registrar Entrada</span>
-                    <span class="block text-[11px] font-normal opacity-90">Sobe o evento de acesso agora</span>
-                  </span>
-                </button>
-                <button (click)="liberarAcessoEFechar(ap)"
-                  class="w-full py-2.5 px-3 rounded-lg bg-white dark:bg-white/5 border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-white/10 transition flex items-center justify-center gap-2">
-                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-9 4h10a2 2 0 012 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6a2 2 0 012-2z" />
-                  </svg>
-                  <span class="text-left leading-tight">
-                    <span class="block text-sm font-semibold">Liberar Acesso</span>
-                    <span class="block text-[11px] font-normal opacity-80">Entra pela facial ou pelo código</span>
-                  </span>
-                </button>
-                @if (ap.data_entrada || ap.statusLabel === 'No condomínio') {
-                  <button (click)="fecharAuthModal()"
-                    class="w-full py-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
-                    Manter a entrada que o morador registrou
-                  </button>
                 }
               </div>
             </div>
+          </div>
+
+          <!-- ESTADO: AGUARDANDO -->
+          @if (ap.auth_status === 'pendente' && !autorizacaoSemResposta(ap)) {
+            <div class="p-5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col items-center text-center gap-3 animate-fade-in">
+              <div class="w-12 h-12 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                <div class="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <div>
+                <div class="text-sm font-bold text-slate-900 dark:text-white">Aguardando confirmação do morador</div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs leading-relaxed">
+                  O morador foi notificado no aplicativo. A resposta atualizará aqui automaticamente em tempo real.
+                </p>
+              </div>
+            </div>
           }
 
-          <!-- NEGADO -->
+          <!-- ESTADO: SEM RESPOSTA (timeout) -->
+          @if (ap.auth_status === 'pendente' && autorizacaoSemResposta(ap)) {
+            <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 animate-fade-in">
+              <div class="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-bold text-amber-900 dark:text-amber-300">Tempo limite esgotado</div>
+                <p class="text-xs text-amber-800/90 dark:text-amber-400/90 mt-0.5 leading-relaxed">
+                  O morador não respondeu dentro do tempo hábil. Você pode registrar a entrada ou liberar o acesso manualmente.
+                </p>
+              </div>
+            </div>
+
+            <!-- Opções de Ação Manual -->
+            <div class="space-y-2 pt-1">
+              <button (click)="registrarEntradaEFechar(ap)"
+                      class="w-full p-3 rounded-xl border border-emerald-300/80 dark:border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 transition-all text-left flex items-center gap-3 group shadow-2xs cursor-pointer">
+                <div class="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition">
+                    Registrar Entrada Manual
+                  </div>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Marca como presente no condomínio e inicia o registro.
+                  </p>
+                </div>
+                <svg class="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              <button (click)="liberarAcessoEFechar(ap)"
+                      class="w-full p-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.02] hover:bg-slate-50 dark:hover:bg-white/5 hover:border-slate-300 dark:hover:border-white/20 transition-all text-left flex items-center gap-3 group shadow-2xs cursor-pointer">
+                <div class="w-9 h-9 rounded-lg bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-9 4h10a2 2 0 012 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs font-bold text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition">
+                    Liberar Catraca / Portão
+                  </div>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Habilita biometria facial, tag RFID ou PIN.
+                  </p>
+                </div>
+                <svg class="w-4 h-4 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          }
+
+          <!-- ESTADO: AUTORIZADO -->
+          @if (ap.auth_status === 'autorizado') {
+            <!-- Banner de Sucesso Elegante -->
+            <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-3 animate-fade-in">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-bold text-emerald-800 dark:text-emerald-300">
+                  Entrada Autorizada pelo Morador
+                </div>
+                <p class="text-xs text-emerald-700/90 dark:text-emerald-400/90 mt-0.5 leading-relaxed">
+                  {{ (ap.data_entrada || ap.statusLabel === 'No condomínio')
+                    ? 'O morador já liberou pelo aplicativo. Confirme o acesso físico ou o registro abaixo.'
+                    : 'O morador liberou a entrada. Escolha a forma de acesso abaixo.' }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Ações Disponíveis -->
+            <div class="space-y-2.5 pt-1">
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Escolha como proceder
+              </p>
+
+              <!-- Opção 1: Registrar Entrada no Sistema -->
+              <button (click)="registrarEntradaEFechar(ap)"
+                      class="w-full p-3.5 rounded-xl border border-emerald-300/80 dark:border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/30 transition-all text-left flex items-center gap-3.5 group shadow-2xs cursor-pointer">
+                <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition">
+                      Registrar Entrada no Sistema
+                    </span>
+                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-600 text-white">
+                      Recomendado
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Atualiza status para "No condomínio" e gera o evento nos relatórios.
+                  </p>
+                </div>
+                <svg class="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              <!-- Opção 2: Liberar Catraca / Acesso Físico -->
+              <button (click)="liberarAcessoEFechar(ap)"
+                      class="w-full p-3.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.02] hover:bg-slate-50 dark:hover:bg-white/5 hover:border-slate-300 dark:hover:border-white/20 transition-all text-left flex items-center gap-3.5 group shadow-2xs cursor-pointer">
+                <div class="w-10 h-10 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-9 4h10a2 2 0 012 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <span class="text-sm font-bold text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition">
+                    Liberar Catraca ou Portão Físico
+                  </span>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Habilita entrada facial, tag RFID ou PIN nos dispositivos de controle.
+                  </p>
+                </div>
+                <svg class="w-4 h-4 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              @if (ap.data_entrada || ap.statusLabel === 'No condomínio') {
+                <button (click)="fecharAuthModal()"
+                        class="w-full py-2.5 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer">
+                  Manter a entrada já registrada pelo morador
+                </button>
+              }
+            </div>
+          }
+
+          <!-- ESTADO: NEGADO -->
           @if (ap.auth_status === 'negado') {
-            <div class="mt-5 rounded-xl bg-red-50 dark:bg-white/[0.02] border border-red-200 dark:border-red-500/20 p-6 flex flex-col items-center gap-3 animate-fade-in">
-              <div class="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
-                <svg class="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="p-5 rounded-xl bg-rose-500/10 border border-rose-500/20 flex flex-col items-center text-center gap-3 animate-fade-in">
+              <div class="w-12 h-12 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
-              <div class="text-red-600 dark:text-red-400 font-bold text-lg">Negado</div>
-              <div class="text-xs text-slate-500 dark:text-slate-400 -mt-2">O morador não autorizou a entrada.</div>
+              <div>
+                <div class="text-sm font-bold text-rose-700 dark:text-rose-400">Entrada Recusada pelo Morador</div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs leading-relaxed">
+                  O morador recusou a autorização de entrada para este visitante.
+                </p>
+              </div>
               <button (click)="fecharAuthModal()"
-                class="mt-2 w-full py-2.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white text-sm font-medium hover:bg-slate-200 dark:hover:bg-white/10 transition">
-                Fechar
+                      class="mt-2 px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white text-xs font-semibold hover:bg-slate-200 dark:hover:bg-white/10 transition cursor-pointer">
+                Fechar Janela
               </button>
             </div>
           }
