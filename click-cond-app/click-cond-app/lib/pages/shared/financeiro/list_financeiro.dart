@@ -492,6 +492,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
 
   Widget _buildViewToggle() {
     final isSindico = getUserType() == 'sindico';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     // MEU FINANCEIRO aparece sempre — se o síndico também é morador, ele PRECISA
     // ver as próprias dívidas. Síndico ganha também CONDOMÍNIO. A Inadimplência
     // não fica no toggle: é um botão ao lado de "Resumo".
@@ -499,27 +500,34 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.06) : AppColors.border(context).withOpacity(0.5),
+        ),
       ),
       child: Row(
         children: [
           _ToggleItem(
             label: 'MEU FINANCEIRO',
+            icon: PhosphorIcons.user,
             isSelected: _viewMode == FinanceiroViewMode.morador,
             onTap: () {
               setState(() => _viewMode = FinanceiroViewMode.morador);
               _applyFilter();
             },
           ),
-          if (isSindico)
+          if (isSindico) ...[
+            const SizedBox(width: 4),
             _ToggleItem(
               label: 'CONDOMÍNIO',
+              icon: PhosphorIcons.buildings,
               isSelected: _viewMode == FinanceiroViewMode.condominio,
               onTap: () {
                 setState(() => _viewMode = FinanceiroViewMode.condominio);
                 _applyFilter();
               },
             ),
+          ],
         ],
       ),
     );
@@ -539,20 +547,65 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       }
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final moeda = Singleton.instance.getCurrentMoeda();
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))]
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Total Pendente", style: AppTypography.caption(context).copyWith(color: Colors.white70)),
-          const SizedBox(height: 8),
-          Text("${Singleton.instance.getCurrentMoeda()} ${formatMoeda(totalPendente)}", style: AppTypography.display(context).copyWith(color: Colors.white)),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(PhosphorIcons.clock, size: 14, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'TOTAL PENDENTE',
+                style: AppTypography.tiny(context).copyWith(
+                  color: Colors.white.withOpacity(0.85),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '$moeda ${formatMoeda(totalPendente)}',
+              style: AppTypography.title(context).copyWith(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -667,33 +720,42 @@ class ListFinanceiroState extends State<ListFinanceiro> {
 
     int selectedIndex = titlesTabs.indexWhere((t) => tabSelected == t['periodo']);
     if (selectedIndex == -1) selectedIndex = 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surface(context).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.06) : AppColors.border(context).withOpacity(0.5),
+        ),
       ),
       child: Row(
         children: [
-          IconButton(
-            iconSize: 16,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            icon: Icon(
-              PhosphorIcons.caretLeft,
-              color: selectedIndex > 0 
-                  ? AppColors.textPrimary(context) 
-                  : AppColors.textTertiary(context).withOpacity(0.3),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: selectedIndex > 0
+                  ? () {
+                      var prev = titlesTabs[selectedIndex - 1];
+                      changeMonth(prev['periodo'], prev['mes'], prev['ano']);
+                      _scrollToSelectedMonth(selectedIndex - 1);
+                    }
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                  PhosphorIcons.caretLeft,
+                  size: 16,
+                  color: selectedIndex > 0 
+                      ? AppColors.textPrimary(context) 
+                      : AppColors.textTertiary(context).withOpacity(0.3),
+                ),
+              ),
             ),
-            onPressed: selectedIndex > 0
-                ? () {
-                    var prev = titlesTabs[selectedIndex - 1];
-                    changeMonth(prev['periodo'], prev['mes'], prev['ano']);
-                    _scrollToSelectedMonth(selectedIndex - 1);
-                  }
-                : null,
           ),
           Expanded(
             child: SizedBox(
@@ -716,44 +778,62 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       _scrollToSelectedMonth(index);
                     },
                     child: Container(
-                      width: 46,
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            width: 38,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: isSelected ? AppColors.primary : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: Text(
+                      width: 52,
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Center(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          width: 48,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            gradient: isSelected
+                                ? const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [AppColors.primary, AppColors.primaryDark],
+                                  )
+                                : null,
+                            color: isSelected ? null : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.primary.withOpacity(0.30),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
                                 monthName.toUpperCase(),
                                 style: TextStyle(
                                   color: isSelected 
                                       ? Colors.white 
-                                      : AppColors.textSecondary(context),
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                      : AppColors.textPrimary(context),
+                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                                   fontSize: 11,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 1),
+                              Text(
+                                yearShort,
+                                style: TextStyle(
+                                  color: isSelected 
+                                      ? Colors.white.withOpacity(0.85)
+                                      : AppColors.textTertiary(context),
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            yearShort,
-                            style: TextStyle(
-                              color: isSelected 
-                                  ? AppColors.primary 
-                                  : AppColors.textTertiary(context),
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   );
@@ -761,23 +841,28 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               ),
             ),
           ),
-          IconButton(
-            iconSize: 16,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            icon: Icon(
-              PhosphorIcons.caretRight,
-              color: selectedIndex < titlesTabs.length - 1 
-                  ? AppColors.textPrimary(context) 
-                  : AppColors.textTertiary(context).withOpacity(0.3),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: selectedIndex < titlesTabs.length - 1
+                  ? () {
+                      var next = titlesTabs[selectedIndex + 1];
+                      changeMonth(next['periodo'], next['mes'], next['ano']);
+                      _scrollToSelectedMonth(selectedIndex + 1);
+                    }
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                  PhosphorIcons.caretRight,
+                  size: 16,
+                  color: selectedIndex < titlesTabs.length - 1 
+                      ? AppColors.textPrimary(context) 
+                      : AppColors.textTertiary(context).withOpacity(0.3),
+                ),
+              ),
             ),
-            onPressed: selectedIndex < titlesTabs.length - 1
-                ? () {
-                    var next = titlesTabs[selectedIndex + 1];
-                    changeMonth(next['periodo'], next['mes'], next['ano']);
-                    _scrollToSelectedMonth(selectedIndex + 1);
-                  }
-                : null,
           ),
         ],
       ),
@@ -1401,10 +1486,16 @@ class _CategoryItem {
 
 class _ToggleItem extends StatelessWidget {
   final String label;
+  final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _ToggleItem({required this.label, required this.isSelected, required this.onTap});
+  const _ToggleItem({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1413,22 +1504,44 @@ class _ToggleItem extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: isSelected ? [
-              BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
-            ] : null,
+            gradient: isSelected
+                ? const LinearGradient(
+                    colors: [AppColors.primary, AppColors.primaryDark],
+                  )
+                : null,
+            color: isSelected ? null : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.30),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
-          child: Center(
-            child: Text(
-              label,
-              style: AppTypography.tiny(context).copyWith(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 15,
                 color: isSelected ? Colors.white : AppColors.textSecondary(context),
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
-            ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: AppTypography.tiny(context).copyWith(
+                  color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1449,59 +1562,173 @@ class _DashboardHeader extends StatelessWidget {
     required this.data,
   });
 
+  String _cleanMoeda(String val) {
+    final m = Singleton.instance.getCurrentMoeda();
+    var s = val.replaceAll('BRL', m).replaceAll('R\$', m).trim();
+    if (s.startsWith('-')) {
+      var rest = s.substring(1).trim();
+      if (rest.startsWith(m)) {
+        var numPart = rest.substring(m.length).trim();
+        return '- $m $numPart';
+      }
+      return '- $rest';
+    }
+    if (s.startsWith(m)) {
+      var numPart = s.substring(m.length).trim();
+      return '$m $numPart';
+    }
+    return s.isEmpty ? '$m 0,00' : s;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isNeg = saldo.contains('-');
+    final cleanSaldo = _cleanMoeda(saldo);
+    final cleanReceitas = _cleanMoeda(receitas);
+    final cleanDespesas = _cleanMoeda(despesas);
+
+    final statusColor = isNeg ? const Color(0xFFEF4444) : const Color(0xFF10B981);
+    final statusBg = isNeg 
+        ? const Color(0xFFEF4444).withOpacity(isDark ? 0.20 : 0.10)
+        : const Color(0xFF10B981).withOpacity(isDark ? 0.20 : 0.10);
+
     return Column(
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(AppSpacing.xl),
           decoration: BoxDecoration(
             color: AppColors.surface(context),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(
+              color: isDark 
+                  ? Colors.white.withOpacity(0.08) 
+                  : AppColors.border(context).withOpacity(0.6),
+            ),
           ),
-          child: Column(
-            children: [
-              Text('SALDO ATUAL', 
-                style: AppTypography.tiny(context).copyWith(
-                  color: AppColors.textTertiary(context),
-                  letterSpacing: 2
-                )
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withOpacity(isDark ? 0.20 : 0.10),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                PhosphorIcons.wallet,
+                                size: 14,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'SALDO ATUAL',
+                              style: AppTypography.tiny(context).copyWith(
+                                color: AppColors.textTertiary(context),
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusBg,
+                            borderRadius: BorderRadius.circular(AppRadius.full),
+                            border: Border.all(color: statusColor.withOpacity(0.25)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isNeg ? PhosphorIcons.trendDown : PhosphorIcons.trendUp,
+                                size: 12,
+                                color: statusColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                isNeg ? 'Déficit' : 'Superávit',
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        cleanSaldo,
+                        style: AppTypography.title(context).copyWith(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      height: 1,
+                      color: isDark ? Colors.white.withOpacity(0.06) : AppColors.border(context).withOpacity(0.5),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(
+                          PhosphorIcons.clockCounterClockwise,
+                          size: 13,
+                          color: AppColors.textTertiary(context),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Última atualização: $data',
+                          style: AppTypography.tiny(context).copyWith(
+                            color: AppColors.textTertiary(context),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(saldo, 
-                style: AppTypography.title(context).copyWith(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w900,
-                  color: saldo.contains('-') ? AppColors.error : const Color(0xFF22C55E)
-                )
-              ),
-              const SizedBox(height: 4),
-              Text('Última atualização: $data', 
-                style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context))
-              ),
-            ],
-          ),
-        ),
+            ),
         const SizedBox(height: AppSpacing.md),
         Row(
           children: [
             Expanded(
               child: _SmallSummaryCard(
                 label: 'RECEITAS',
-                value: receitas,
-                color: const Color(0xFF22C55E),
-                icon: PhosphorIcons.arrowDown,
+                value: cleanReceitas,
+                color: const Color(0xFF10B981),
+                icon: PhosphorIcons.arrowDownLeft,
+                isDark: isDark,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: _SmallSummaryCard(
                 label: 'DESPESAS',
-                value: despesas,
-                color: AppColors.error,
-                icon: PhosphorIcons.arrowUp,
+                value: cleanDespesas,
+                color: const Color(0xFFEF4444),
+                icon: PhosphorIcons.arrowUpRight,
+                isDark: isDark,
               ),
             ),
           ],
@@ -1516,12 +1743,14 @@ class _SmallSummaryCard extends StatelessWidget {
   final String value;
   final Color color;
   final IconData icon;
+  final bool isDark;
 
   const _SmallSummaryCard({
     required this.label,
     required this.value,
     required this.color,
     required this.icon,
+    required this.isDark,
   });
 
   @override
@@ -1531,31 +1760,48 @@ class _SmallSummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.1)),
+        border: Border.all(
+          color: color.withOpacity(isDark ? 0.28 : 0.18),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 4),
-              Text(label, 
-                style: AppTypography.tiny(context).copyWith(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1
-                )
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(isDark ? 0.20 : 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 14, color: color),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTypography.tiny(context).copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           FittedBox(
-            child: Text(value, 
-              style: AppTypography.bodyMedium(context).copyWith(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: AppTypography.title(context).copyWith(
+                fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary(context)
-              )
+                color: AppColors.textPrimary(context),
+              ),
             ),
           ),
         ],
@@ -1573,18 +1819,27 @@ class _CountChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05), 
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.15))
+        color: color.withOpacity(isDark ? 0.16 : 0.08), 
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        border: Border.all(color: color.withOpacity(isDark ? 0.25 : 0.18)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: 13, color: color),
           const SizedBox(width: 6),
-          Text(label, style: AppTypography.tiny(context).copyWith(color: color, fontWeight: FontWeight.bold)),
+          Text(
+            label,
+            style: AppTypography.tiny(context).copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
         ],
       ),
     );
@@ -1697,31 +1952,39 @@ class _ActionCardButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: AppColors.surface(context),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withOpacity(isDark ? 0.28 : 0.18),
+            ),
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withOpacity(isDark ? 0.20 : 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: color, size: 18),
+                child: Icon(icon, color: color, size: 16),
               ),
               const SizedBox(width: 10),
               Flexible(
                 child: Text(
                   label,
                   style: AppTypography.captionMedium(context).copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary(context),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),

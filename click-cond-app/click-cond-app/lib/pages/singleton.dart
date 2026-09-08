@@ -15,6 +15,8 @@ class Singleton {
   // string vazia; ninguém usa null como sinal de "não definido".
   var apartamento = '';
   var bloco = '';
+  var condominio_nome = '';
+  var condominio_photo = '';
   var apto_tipo; // vínculo do morador no apto: Proprietário/Inquilino/Membro/morador/null
 
   /// O morador logado é o "dono" do apto (pode cadastrar familiares)?

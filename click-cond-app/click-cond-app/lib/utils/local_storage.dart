@@ -101,3 +101,32 @@ getUserPermission(String permission) {
 String getUserId() {
   return _storage.getItem('id')?.toString() ?? "";
 }
+
+bool _isSavingCondCache = false;
+final Map<int, Map<String, dynamic>> _pendingCondCache = {};
+
+void saveCondCachePersistent(int id, Map<String, dynamic> json) {
+  _pendingCondCache[id] = json;
+  if (_isSavingCondCache) return;
+  _isSavingCondCache = true;
+  Future.delayed(const Duration(milliseconds: 100), () async {
+    while (_pendingCondCache.isNotEmpty) {
+      final key = _pendingCondCache.keys.first;
+      final val = _pendingCondCache.remove(key);
+      try {
+        await _storage.setItem('cond_cache_$key', val);
+      } catch (_) {}
+    }
+    _isSavingCondCache = false;
+  });
+}
+
+Map<String, dynamic>? getCondCachePersistent(int id) {
+  try {
+    final item = _storage.getItem('cond_cache_$id');
+    if (item is Map) {
+      return Map<String, dynamic>.from(item);
+    }
+  } catch (_) {}
+  return null;
+}

@@ -406,7 +406,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(PhosphorIcons.userCheck, size: 17, color: AppColors.primary),
+                                Icon(PhosphorIcons.check, size: 17, color: AppColors.primary),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Autorizar',
@@ -637,7 +637,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(PhosphorIcons.userCheck, size: 17, color: AppColors.primary),
+                            Icon(PhosphorIcons.check, size: 17, color: AppColors.primary),
                             const SizedBox(width: 6),
                             Text(
                               'Autorizar',

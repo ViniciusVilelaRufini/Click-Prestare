@@ -46,8 +46,16 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MyCondominium extends StatefulWidget {
-  const MyCondominium({Key? key, required this.id}) : super(key: key);
   final int id;
+  final Map<String, dynamic>? initialCond;
+  final Map<String, dynamic>? initialSummary;
+
+  const MyCondominium({
+    Key? key,
+    required this.id,
+    this.initialCond,
+    this.initialSummary,
+  }) : super(key: key);
 
   @override
   _MyCondominiumState createState() => _MyCondominiumState();
@@ -88,10 +96,19 @@ class _MyCondominiumState extends State<MyCondominium> {
     super.initState();
     Singleton.instance.id_condominio = widget.id;
     _menu = _buildMenu();
-    // Já esteve aberto nesta sessão: pinta com o cache e revalida em segundo
-    // plano, em vez de voltar ao esqueleto a cada retorno para a tela.
+
+    // Carregamento instantâneo via dados prévios ou cache persistente
     final cached = CondCache.get(widget.id);
-    if (cached != null) {
+    if (widget.initialCond != null) {
+      _cond = widget.initialCond;
+      _summary = widget.initialSummary ?? cached?.summary;
+      _saldo = cached?.saldo ??
+          (widget.initialCond!['saldo'] != null ? _formatMoeda(widget.initialCond!['saldo'].toString()) : '');
+      _ocorrenciasAbertas = cached?.ocorrenciasAbertas ?? 0;
+      _temp = cached?.temp;
+      _weatherDesc = cached?.weatherDesc;
+      _weatherIcon = cached?.weatherIcon;
+    } else if (cached != null) {
       _cond = cached.cond;
       _summary = cached.summary;
       _saldo = cached.saldo;
@@ -99,7 +116,16 @@ class _MyCondominiumState extends State<MyCondominium> {
       _temp = cached.temp;
       _weatherDesc = cached.weatherDesc;
       _weatherIcon = cached.weatherIcon;
+    } else if (Singleton.instance.condominio_nome.isNotEmpty) {
+      _cond = {
+        'id': widget.id,
+        'nome': Singleton.instance.condominio_nome,
+        'photo': Singleton.instance.condominio_photo,
+        'apto': Singleton.instance.apartamento,
+        'apto_bloco': Singleton.instance.bloco,
+      };
     }
+
     _loadCond();
   }
 
@@ -364,7 +390,9 @@ class _MyCondominiumState extends State<MyCondominium> {
     } catch (e) {
       print("[Weather] Error: $e");
     } finally {
-      setState(() => _weatherLoading = false);
+      if (mounted) {
+        setState(() => _weatherLoading = false);
+      }
     }
   }
 
@@ -447,12 +475,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                 ),
               ),
             SliverToBoxAdapter(
-              child: _isLoading
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                      child: AppSkeleton(width: double.infinity, height: 160, borderRadius: AppRadius.xxl),
-                    )
-                  : _buildStats(context, saldoNeg),
+              child: _buildStats(context, saldoNeg),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
             SliverPadding(
@@ -972,14 +995,23 @@ class _MyCondominiumState extends State<MyCondominium> {
                   child: Text('${getText('ola')} ${getUsername()}',
                       style: AppTypography.bodySecondary(context)),
                 ),
-                if (_cond != null)
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(_cond!['nome'] ?? '',
-                        style: AppTypography.headline(context),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
+                Builder(
+                  builder: (_) {
+                    final headerNome = (_cond?['nome'] ?? '').toString().isNotEmpty
+                        ? _cond!['nome']
+                        : Singleton.instance.condominio_nome;
+                    if (headerNome.isNotEmpty) {
+                      return FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(headerNome,
+                            style: AppTypography.headline(context),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
               ],
             ),
           ),
@@ -1263,13 +1295,21 @@ class _MyCondominiumState extends State<MyCondominium> {
                         borderRadius: BorderRadius.circular(AppRadius.lg),
                         child: SizedBox(
                           width: 56, height: 56,
-                          child: _cond != null && (_cond!['photo'] ?? '').toString().isNotEmpty
-                              ? Image.network(
-                                  _cond!['photo'],
+                          child: Builder(
+                            builder: (_) {
+                              final photoUrl = (_cond != null && (_cond!['photo'] ?? '').toString().isNotEmpty)
+                                  ? _cond!['photo']
+                                  : Singleton.instance.condominio_photo;
+                              if (photoUrl.isNotEmpty) {
+                                return Image.network(
+                                  photoUrl,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => _condFallback(),
-                                )
-                              : _condFallback(),
+                                );
+                              }
+                              return _condFallback();
+                            },
+                          ),
                         ),
                       ),
                       if (getUserType() == 'sindico')
@@ -1297,14 +1337,18 @@ class _MyCondominiumState extends State<MyCondominium> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (_cond != null)
-                        Text(_cond!['nome'] ?? '',
-                            style: AppTypography.headline(context).copyWith(color: Colors.white),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(
+                          (_cond?['nome'] ?? '').toString().isNotEmpty
+                              ? _cond!['nome']
+                              : (Singleton.instance.condominio_nome.isNotEmpty
+                                  ? Singleton.instance.condominio_nome
+                                  : 'Condomínio'),
+                          style: AppTypography.headline(context).copyWith(color: Colors.white),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                       AppSpacing.gapXs,
                       Text(type == 'morador'
                               ? '${getText('lb_apto')} ${Singleton.instance.apartamento}'
-                              : '${(_cond?['num_aptos'] ?? 0)} ${getText('lb_apartamentos')}',
+                              : '${(_cond?['num_aptos'] ?? '')} ${getText('lb_apartamentos')}',
                           style: AppTypography.caption(context).copyWith(
                               color: Colors.white.withOpacity(0.85))),
                     ],

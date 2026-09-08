@@ -25,6 +25,7 @@ import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
+import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/datas.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
@@ -117,9 +118,32 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             setUserPhoto(fetchedPhoto);
           }
         }
+        final fetchedList = results[0] as List;
+        final fetchedSummary = results[1] as Map<String, dynamic>?;
+
+        // Pré-aquece o cache do condomínio com dados já conhecidos (elimina o skeleton)
+        for (final item in fetchedList) {
+          if (item is Map && item['id'] != null) {
+            final cid = item['id'] as int;
+            final existing = CondCache.get(cid);
+            CondCache.put(
+              cid,
+              CondCacheEntry(
+                cond: Map<String, dynamic>.from(item),
+                summary: fetchedSummary ?? existing?.summary,
+                saldo: item['saldo']?.toString() ?? existing?.saldo ?? '',
+                ocorrenciasAbertas: existing?.ocorrenciasAbertas ?? 0,
+                temp: existing?.temp,
+                weatherDesc: existing?.weatherDesc,
+                weatherIcon: existing?.weatherIcon,
+              ),
+            );
+          }
+        }
+
         setState(() {
-          _list = results[0] as List;
-          _summary = results[1] as Map<String, dynamic>?;
+          _list = fetchedList;
+          _summary = fetchedSummary;
           _eventos = results.length > 3 && results[3] is List
               ? results[3] as List
               : [];
@@ -147,6 +171,9 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     Singleton.instance.vencimento_morador = item["vencimento_morador"] ?? "";
     Singleton.instance.moeda = item["moeda"] ?? "";
 
+    Singleton.instance.condominio_nome = (item["nome"] ?? '').toString();
+    Singleton.instance.condominio_photo = (item["photo"] ?? '').toString();
+
     if (directPage != null) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => directPage))
           .then((_) {
@@ -155,14 +182,36 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       return;
     }
 
-    _push(item["id"]);
+    final condMap = item is Map<String, dynamic> ? item : (item is Map ? Map<String, dynamic>.from(item) : null);
+    final condId = item["id"] is int ? item["id"] as int : int.tryParse(item["id"]?.toString() ?? '') ?? 0;
+    if (condMap != null && condId > 0) {
+      final existing = CondCache.get(condId);
+      CondCache.put(
+        condId,
+        CondCacheEntry(
+          cond: condMap,
+          summary: _summary ?? existing?.summary,
+          saldo: condMap["saldo"]?.toString() ?? existing?.saldo ?? '',
+          ocorrenciasAbertas: existing?.ocorrenciasAbertas ?? 0,
+          temp: existing?.temp,
+          weatherDesc: existing?.weatherDesc,
+          weatherIcon: existing?.weatherIcon,
+        ),
+      );
+    }
+
+    _push(condId, initialCond: condMap, initialSummary: _summary);
   }
 
-  void _push(int id) {
+  void _push(int id, {Map<String, dynamic>? initialCond, Map<String, dynamic>? initialSummary}) {
     Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => MyCondominium(id: id),
+          builder: (_) => MyCondominium(
+            id: id,
+            initialCond: initialCond,
+            initialSummary: initialSummary,
+          ),
         )).then((_) {
       if (mounted) _loadList();
     });
