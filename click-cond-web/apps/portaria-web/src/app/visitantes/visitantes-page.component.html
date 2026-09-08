@@ -250,553 +250,479 @@
 
   <!-- Form -->
   @if (showForm) {
-    <div class="p-6 rounded-2xl bg-graphite-200 border border-accent/30">
-      <div class="flex items-start gap-3 mb-4">
-        <div class="w-1 h-5 rounded-full bg-accent mt-1"></div>
-        <div class="flex-1">
-          <h2 class="text-sm font-semibold text-white">
-            @if (novaVisitaPara(); as p) {
-              Nova visita para {{ p.nome }}
+    <div class="rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200 dark:border-white/10 shadow-sm overflow-hidden mb-6 animate-fade-in">
+      <!-- Cabeçalho do Formulário -->
+      <div class="px-5 py-3.5 bg-slate-50/80 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0">
+            @if (novaVisitaPara()) {
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             } @else if (editingId && editandoIdentidade()) {
-              Editar pessoa
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             } @else {
-              Registrar nova entrada
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
             }
-          </h2>
-          @if (novaVisitaPara()) {
-            <p class="text-xs text-slate-400 mt-1">
-              Foto e documento já cadastrados serão reutilizados — informe
-              apenas o apartamento e a validade.
-            </p>
-          } @else if (editingId && editandoIdentidade()) {
-            <p class="text-xs text-slate-400 mt-1">
-              Alterações em nome, foto e documento serão aplicadas a todas as
-              visitas dessa pessoa.
-            </p>
-          }
-        </div>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
-            >Nome completo *</span
-          >
-          <input
-            [(ngModel)]="novo.nome"
-            placeholder="Ex: João da Silva"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60"
-          />
-        </label>
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
-            >Documento (CPF/CNPJ)</span
-          >
-          <input
-            [(ngModel)]="novo.doc_identificacao"
-            appMask="cpfCnpj"
-            placeholder="000.000.000-00"
-            (blur)="verificarPessoaExistente()"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60"
-          />
-          @if (pessoaEncontrada(); as p) {
-            <div
-              class="mt-2 p-3 rounded-lg bg-accent/5 border border-accent/30 flex items-center gap-3"
-            >
-              @if (p.foto_pessoa) {
-                <img
-                  [src]="p.foto_pessoa"
-                  [alt]="'Foto de ' + p.nome"
-                  class="w-10 h-10 rounded-full object-cover border border-accent/40"
-                />
+          </div>
+          <div class="min-w-0">
+            <h2 class="text-sm md:text-base font-bold text-slate-900 dark:text-white truncate">
+              @if (novaVisitaPara(); as p) {
+                Nova visita para {{ p.nome }}
+              } @else if (editingId && editandoIdentidade()) {
+                Editar pessoa
               } @else {
-                <div
-                  class="w-10 h-10 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold"
-                >
-                  {{ iniciais(p.nome) }}
-                </div>
+                Registrar nova visita
               }
-              <div class="flex-1 min-w-0">
-                <p class="text-xs font-semibold text-accent">
-                  Pessoa já cadastrada
-                </p>
-                <p class="text-[11px] text-slate-700 dark:text-slate-300 truncate">
-                  {{ p.nome }} · {{ p.totalVisitasAnteriores }} cadastro(s)
-                  anterior(es)
-                  @if (p.face_sync_status === 'synced') {
-                    · facial sincronizado
-                  }
-                </p>
-                <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  A foto e o reconhecimento facial serão reutilizados
-                  automaticamente.
-                </p>
-              </div>
-              <button
-                type="button"
-                (click)="reutilizarPessoa(p)"
-                class="px-2.5 py-1 rounded-md text-[11px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 transition shrink-0"
-              >
-                Usar dados
-              </button>
-            </div>
-          }
-        </label>
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
-            >Apartamento de destino *</span
-          >
-          <select
-            [(ngModel)]="novo.id_apartamento"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60"
-          >
-            <option [ngValue]="0">Selecione...</option>
-            @for (a of apartamentos(); track a.id) {
-              <option [ngValue]="a.id">
-                {{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}
-              </option>
-            }
-          </select>
-        </label>
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
-            >Liberado a partir de</span
-          >
-          <input
-            type="datetime-local"
-            [(ngModel)]="novo.data_hora_inicio"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60"
-          />
-        </label>
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
-            >Liberado até</span
-          >
-          <input
-            type="datetime-local"
-            [(ngModel)]="novo.data_hora_termino"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60"
-          />
-          <span class="text-[10px] text-slate-500 mt-1 block"
-            >Em branco = sem prazo. Após o término, o aparelho nega sozinho.</span
-          >
-        </label>
-        @if (!isPrestadorModo()) {
-          <label class="block">
-            <span class="text-xs font-medium text-slate-400 mb-1.5 block"
-              >Tipo</span
-            >
-            <select
-              [ngModel]="novo.is_prestador ? 'prestador' : 'visitante'"
-              (ngModelChange)="
-                novo.is_prestador = $event === 'prestador' ? 1 : 0;
-                novo.is_visitante = $event === 'prestador' ? 0 : 1
-              "
-              class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white focus:outline-none focus:border-accent/60"
-            >
-              <option value="visitante">Visitante</option>
-              <option value="prestador">Prestador de serviço</option>
-            </select>
-          </label>
-        }
-        <label class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
-            >Tag RFID (Credencial)</span
-          >
-          <input
-            [(ngModel)]="novo.tag_rfid"
-            placeholder="Ex: 0010257321"
-            class="w-full px-3 py-2.5 text-sm rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60"
-          />
-        </label>
-        <div class="block">
-          <span class="text-xs font-medium text-slate-400 mb-1.5 block"
-            >Restrição / Bloqueio</span
-          >
-          <label
-            class="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-red-500/10 border border-red-500/20 cursor-pointer select-none transition hover:bg-red-500/15"
-          >
-            <input
-              type="checkbox"
-              [ngModel]="novo.bloqueado === 1"
-              (ngModelChange)="novo.bloqueado = $event ? 1 : 0"
-              class="w-4 h-4 rounded border-red-500/30 bg-graphite text-red-500 focus:ring-red-500 focus:ring-offset-0"
-            />
-            <div class="flex-1">
-              <span class="text-xs font-bold text-red-400">Bloquear esta pessoa</span>
-              <p class="text-[10px] text-slate-400 mt-0.5 leading-tight">
-                Impede qualquer liberação, PIN ou entrada no condomínio.
-              </p>
-            </div>
-          </label>
+            </h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              @if (novaVisitaPara()) {
+                Foto e documento já cadastrados serão reutilizados — informe apenas o apartamento e a validade.
+              } @else if (editingId && editandoIdentidade()) {
+                Alterações de dados serão aplicadas a todas as visitas desta pessoa.
+              } @else {
+                Preencha os dados de identificação, apartamento de destino e biometria para autorizar o acesso.
+              }
+            </p>
+          </div>
         </div>
 
-        <!-- Prestador Specific Fields (Categories & Days of week) -->
-        @if (novo.is_prestador) {
-          <div class="block md:col-span-2 border-t border-white/5 pt-4 mt-2">
-            <span class="text-xs font-medium text-slate-400 mb-2 block"
-              >Categorias</span
-            >
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-              @for (cat of categoriasPredefinidas; track cat) {
-                <label
-                  class="flex items-center gap-2 px-3 py-2 rounded-xl bg-graphite border border-white/10 hover:border-white/20 cursor-pointer select-none transition"
-                >
-                  <input
-                    type="checkbox"
-                    [checked]="categoriasSelecionadas().has(cat)"
-                    (change)="toggleCategoriaSelecionada(cat)"
-                    class="rounded border-white/20 bg-graphite text-accent focus:ring-accent"
-                  />
-                  <span class="text-xs text-slate-300 font-medium">{{
-                    cat
-                  }}</span>
-                </label>
-              }
-            </div>
+        <button
+          type="button"
+          (click)="cancelarForm()"
+          class="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/5 transition cursor-pointer"
+          title="Fechar formulário"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
 
-            <div class="mt-3 flex gap-2 items-center">
+      <div class="p-5 md:p-6 space-y-5">
+        <!-- Painel 1: Identificação e Destino -->
+        <div class="p-4 md:p-5 rounded-xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/5 space-y-4">
+          <div class="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-white/5">
+            <span class="w-2 h-2 rounded-full bg-accent"></span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+              1. Identificação e Destino
+            </h3>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Nome Completo -->
+            <label class="block lg:col-span-2">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                Nome completo <span class="text-rose-500">*</span>
+              </span>
               <input
-                #customCat
-                type="text"
-                placeholder="Outra categoria..."
-                (keyup.enter)="
-                  adicionarCustomCategoria(customCat.value);
-                  customCat.value = ''
-                "
-                class="px-3 py-1.5 text-xs rounded-lg bg-graphite border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-accent/60 transition w-48"
+                [(ngModel)]="novo.nome"
+                placeholder="Ex: João da Silva"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs"
               />
-              <button
-                type="button"
-                (click)="
-                  adicionarCustomCategoria(customCat.value);
-                  customCat.value = ''
-                "
-                class="px-3 py-1.5 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300"
+            </label>
+
+            <!-- Documento (CPF/CNPJ) -->
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                Documento (CPF/CNPJ)
+              </span>
+              <input
+                [(ngModel)]="novo.doc_identificacao"
+                appMask="cpfCnpj"
+                placeholder="000.000.000-00"
+                (blur)="verificarPessoaExistente()"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs font-mono"
+              />
+            </label>
+
+            <!-- Card de Pessoa Já Cadastrada (se encontrada) -->
+            @if (pessoaEncontrada(); as p) {
+              <div class="sm:col-span-2 lg:col-span-3 p-3 rounded-xl bg-accent/[0.04] dark:bg-accent/10 border border-accent/25 flex items-center gap-3">
+                @if (p.foto_pessoa) {
+                  <img
+                    [src]="p.foto_pessoa"
+                    [alt]="'Foto de ' + p.nome"
+                    class="w-10 h-10 rounded-full object-cover border border-accent/40 shrink-0"
+                  />
+                } @else {
+                  <div
+                    class="w-10 h-10 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center text-accent text-xs font-bold shrink-0"
+                  >
+                    {{ iniciais(p.nome) }}
+                  </div>
+                }
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-accent">Pessoa já cadastrada</span>
+                    @if (p.face_sync_status === 'synced') {
+                      <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        Facial sincronizado
+                      </span>
+                    }
+                  </div>
+                  <p class="text-xs text-slate-700 dark:text-slate-300 font-medium truncate mt-0.5">
+                    {{ p.nome }} · {{ p.totalVisitasAnteriores }} visita(s) anterior(es)
+                  </p>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                    A foto e o reconhecimento facial serão reutilizados automaticamente.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  (click)="reutilizarPessoa(p)"
+                  class="px-3 py-1.5 rounded-lg text-xs font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 transition shrink-0 cursor-pointer"
+                >
+                  Usar dados
+                </button>
+              </div>
+            }
+
+            <!-- Apartamento de Destino -->
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                Apartamento de destino <span class="text-rose-500">*</span>
+              </span>
+              <select
+                [(ngModel)]="novo.id_apartamento"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs cursor-pointer font-medium"
               >
-                Adicionar
-              </button>
+                <option [ngValue]="0">Selecione o apartamento...</option>
+                @for (a of apartamentos(); track a.id) {
+                  <option [ngValue]="a.id">
+                    {{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}
+                  </option>
+                }
+              </select>
+            </label>
+
+            <!-- Tipo (Visitante / Prestador) -->
+            @if (!isPrestadorModo()) {
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                  Tipo de acesso
+                </span>
+                <select
+                  [ngModel]="novo.is_prestador ? 'prestador' : 'visitante'"
+                  (ngModelChange)="
+                    novo.is_prestador = $event === 'prestador' ? 1 : 0;
+                    novo.is_visitante = $event === 'prestador' ? 0 : 1
+                  "
+                  class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs cursor-pointer"
+                >
+                  <option value="visitante">Visitante</option>
+                  <option value="prestador">Prestador de serviço</option>
+                </select>
+              </label>
+            }
+
+            <!-- Tag RFID (Credencial física) -->
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                Tag RFID (Credencial)
+              </span>
+              <input
+                [(ngModel)]="novo.tag_rfid"
+                placeholder="Ex: 0010257321"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs font-mono"
+              />
+            </label>
+
+            <!-- Período: Início -->
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                Liberado a partir de
+              </span>
+              <input
+                type="datetime-local"
+                [(ngModel)]="novo.data_hora_inicio"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs"
+              />
+            </label>
+
+            <!-- Período: Fim -->
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                Liberado até (Validade)
+              </span>
+              <input
+                type="datetime-local"
+                [(ngModel)]="novo.data_hora_termino"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs"
+              />
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
+                Em branco = sem prazo (acesso contínuo).
+              </span>
+            </label>
+
+            <!-- Restrição / Bloqueio -->
+            <div class="block">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                Segurança / Restrição
+              </span>
+              <label
+                class="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer select-none transition shadow-2xs"
+                [class.bg-rose-500/10]="novo.bloqueado === 1"
+                [class.border-rose-500/30]="novo.bloqueado === 1"
+                [class.bg-white]="novo.bloqueado !== 1"
+                [class.dark:bg-graphite]="novo.bloqueado !== 1"
+                [class.border-slate-300]="novo.bloqueado !== 1"
+                [class.dark:border-white/10]="novo.bloqueado !== 1"
+              >
+                <input
+                  type="checkbox"
+                  [ngModel]="novo.bloqueado === 1"
+                  (ngModelChange)="novo.bloqueado = $event ? 1 : 0"
+                  class="w-4 h-4 rounded border-rose-500/30 bg-white dark:bg-graphite text-rose-500 focus:ring-rose-500"
+                />
+                <div class="min-w-0">
+                  <span class="text-xs font-bold" [class.text-rose-600]="novo.bloqueado === 1" [class.dark:text-rose-400]="novo.bloqueado === 1" [class.text-slate-700]="novo.bloqueado !== 1" [class.dark:text-slate-300]="novo.bloqueado !== 1">
+                    Bloquear esta pessoa
+                  </span>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                    Nega qualquer liberação facial ou PIN.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Painel Prestador: Categorias e Dias de Acesso (se for prestador) -->
+        @if (novo.is_prestador) {
+          <div class="p-4 md:p-5 rounded-xl bg-amber-500/[0.03] dark:bg-amber-500/[0.05] border border-amber-500/20 space-y-4 animate-fade-in">
+            <div class="flex items-center gap-2 pb-2 border-b border-amber-500/20">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400">
+                Regras de Prestador de Serviço
+              </h3>
             </div>
 
-            @if (categoriasCustomSelecionadas().length > 0) {
-              <div class="mt-2.5 flex flex-wrap gap-1.5">
-                @for (c of categoriasCustomSelecionadas(); track c) {
-                  <span
-                    class="px-2 py-1 text-xs rounded-lg bg-accent/10 border border-accent/25 text-accent flex items-center gap-1.5"
+            <!-- Categorias -->
+            <div>
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 block">
+                Categorias de Atuação
+              </span>
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                @for (cat of categoriasPredefinidas; track cat) {
+                  <label
+                    class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 hover:border-accent/40 cursor-pointer select-none transition shadow-2xs"
                   >
-                    {{ c }}
-                    <button
-                      type="button"
-                      (click)="toggleCategoriaSelecionada(c)"
-                      class="hover:text-red-400 transition"
-                    >
-                      <svg
-                        class="w-3 h-3"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  </span>
+                    <input
+                      type="checkbox"
+                      [checked]="categoriasSelecionadas().has(cat)"
+                      (change)="toggleCategoriaSelecionada(cat)"
+                      class="rounded border-slate-300 dark:border-white/20 bg-white dark:bg-graphite text-accent focus:ring-accent"
+                    />
+                    <span class="text-xs text-slate-700 dark:text-slate-300 font-medium truncate">{{ cat }}</span>
+                  </label>
                 }
               </div>
-            }
-          </div>
 
-          <!-- Dias Autorizados -->
-          <div class="block md:col-span-2 border-t border-white/5 pt-4 mt-2">
-            <span class="text-xs font-medium text-slate-400 mb-2.5 block"
-              >Dias de Acesso Autorizados</span
-            >
-
-            <!-- Presets -->
-            <div class="flex items-center gap-1.5 mb-3 flex-wrap">
-              <span
-                class="text-[10px] text-slate-500 uppercase tracking-wider mr-1"
-                >Presets Rápidos:</span
-              >
-              <button
-                type="button"
-                (click)="aplicarPresetDias('semana')"
-                class="px-2.5 py-1 text-[11px] rounded-lg border border-accent/20 bg-accent/5 hover:bg-accent/10 transition text-accent"
-              >
-                Segunda a Sexta
-              </button>
-              <button
-                type="button"
-                (click)="aplicarPresetDias('fim-semana')"
-                class="px-2.5 py-1 text-[11px] rounded-lg border border-amber-400/20 bg-amber-400/5 hover:bg-amber-400/10 transition text-amber-400"
-              >
-                Fim de Semana
-              </button>
-              <button
-                type="button"
-                (click)="aplicarPresetDias('todos')"
-                class="px-2.5 py-1 text-[11px] rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition text-slate-300"
-              >
-                Todos os dias
-              </button>
-              <button
-                type="button"
-                (click)="aplicarPresetDias('nenhum')"
-                class="px-2.5 py-1 text-[11px] rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition text-red-400"
-              >
-                Limpar
-              </button>
-            </div>
-
-            <!-- Days selector buttons -->
-            <div class="flex flex-wrap gap-2">
-              @for (
-                dia of [
-                  { key: 'seg', label: 'Segunda-feira' },
-                  { key: 'ter', label: 'Terça-feira' },
-                  { key: 'qua', label: 'Quarta-feira' },
-                  { key: 'qui', label: 'Quinta-feira' },
-                  { key: 'sex', label: 'Sexta-feira' },
-                  { key: 'sab', label: 'Sábado' },
-                  { key: 'dom', label: 'Domingo' },
-                ];
-                track dia.key
-              ) {
+              <div class="mt-2.5 flex gap-2 items-center">
+                <input
+                  #customCat
+                  type="text"
+                  placeholder="Outra categoria..."
+                  (keyup.enter)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
+                  class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent w-48 shadow-2xs"
+                />
                 <button
                   type="button"
-                  (click)="toggleDiaSemana(dia.key)"
-                  class="px-3.5 py-2 text-xs rounded-xl font-medium border transition-all flex items-center gap-2 select-none"
-                  [class.bg-accent]="isDiaSelecionado(dia.key)"
-                  [class.text-white]="isDiaSelecionado(dia.key)"
-                  [class.border-accent]="isDiaSelecionado(dia.key)"
-                  [class.shadow-md]="isDiaSelecionado(dia.key)"
-                  [class.bg-graphite]="!isDiaSelecionado(dia.key)"
-                  [class.text-slate-400]="!isDiaSelecionado(dia.key)"
-                  [class.border-white/10]="!isDiaSelecionado(dia.key)"
-                  [class.hover:border-white/20]="!isDiaSelecionado(dia.key)"
+                  (click)="adicionarCustomCategoria(customCat.value); customCat.value = ''"
+                  class="px-3 py-1.5 text-xs rounded-lg font-medium border border-slate-200 dark:border-white/10 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition cursor-pointer"
                 >
-                  <span
-                    class="w-2 h-2 rounded-full transition-all"
-                    [class.bg-white]="isDiaSelecionado(dia.key)"
-                    [class.bg-slate-600]="!isDiaSelecionado(dia.key)"
-                  ></span>
-                  {{ dia.label }}
+                  Adicionar
                 </button>
+              </div>
+
+              @if (categoriasCustomSelecionadas().length > 0) {
+                <div class="mt-2 flex flex-wrap gap-1.5">
+                  @for (c of categoriasCustomSelecionadas(); track c) {
+                    <span class="px-2 py-0.5 text-xs rounded-lg bg-accent/10 border border-accent/25 text-accent flex items-center gap-1.5 font-medium">
+                      {{ c }}
+                      <button
+                        type="button"
+                        (click)="toggleCategoriaSelecionada(c)"
+                        class="hover:text-rose-500 transition cursor-pointer"
+                        title="Remover"
+                      >
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </span>
+                  }
+                </div>
               }
+            </div>
+
+            <!-- Dias da Semana -->
+            <div class="pt-2 border-t border-amber-500/15">
+              <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Dias de Acesso Autorizados
+                </span>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-[10px] text-slate-400 uppercase tracking-wider">Atalhos:</span>
+                  <button type="button" (click)="aplicarPresetDias('semana')" class="px-2 py-0.5 text-[11px] rounded-md border border-accent/20 bg-accent/5 hover:bg-accent/10 text-accent font-medium transition cursor-pointer">
+                    Seg a Sex
+                  </button>
+                  <button type="button" (click)="aplicarPresetDias('fim-semana')" class="px-2 py-0.5 text-[11px] rounded-md border border-amber-400/20 bg-amber-400/5 hover:bg-amber-400/10 text-amber-600 dark:text-amber-400 font-medium transition cursor-pointer">
+                    Fim de Semana
+                  </button>
+                  <button type="button" (click)="aplicarPresetDias('todos')" class="px-2 py-0.5 text-[11px] rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 font-medium transition cursor-pointer">
+                    Todos
+                  </button>
+                  <button type="button" (click)="aplicarPresetDias('nenhum')" class="px-2 py-0.5 text-[11px] rounded-md border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium transition cursor-pointer">
+                    Limpar
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-1.5">
+                @for (dia of [{ key: 'seg', label: 'Seg' }, { key: 'ter', label: 'Ter' }, { key: 'qua', label: 'Qua' }, { key: 'qui', label: 'Qui' }, { key: 'sex', label: 'Sex' }, { key: 'sab', label: 'Sáb' }, { key: 'dom', label: 'Dom' }]; track dia.key) {
+                  <button
+                    type="button"
+                    (click)="toggleDiaSemana(dia.key)"
+                    class="px-3 py-1.5 text-xs rounded-lg font-semibold border transition-all flex items-center gap-1.5 select-none cursor-pointer"
+                    [class.bg-accent]="isDiaSelecionado(dia.key)"
+                    [class.text-white]="isDiaSelecionado(dia.key)"
+                    [class.keep-white]="isDiaSelecionado(dia.key)"
+                    [class.border-accent]="isDiaSelecionado(dia.key)"
+                    [class.bg-white]="!isDiaSelecionado(dia.key)"
+                    [class.dark:bg-graphite]="!isDiaSelecionado(dia.key)"
+                    [class.text-slate-600]="!isDiaSelecionado(dia.key)"
+                    [class.dark:text-slate-400]="!isDiaSelecionado(dia.key)"
+                    [class.border-slate-200]="!isDiaSelecionado(dia.key)"
+                    [class.dark:border-white/10]="!isDiaSelecionado(dia.key)"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full" [class.bg-white]="isDiaSelecionado(dia.key)" [class.bg-slate-400]="!isDiaSelecionado(dia.key)"></span>
+                    {{ dia.label }}
+                  </button>
+                }
+              </div>
             </div>
           </div>
         }
-      </div>
 
-      <!-- Fotos (Pessoa e Documento) -->
-      <div
-        class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-white/5 pt-5"
-      >
-        <!-- Foto do Visitante/Prestador -->
-        <div class="space-y-2">
-          <span class="text-xs font-medium text-slate-400 block"
-            >Foto da Pessoa (Visitante / Prestador)</span
-          >
-          <div class="flex items-center gap-3">
-            <div
-              class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0"
-            >
-              @if (fotoPessoaBase64()) {
-                <img
-                  [src]="fotoPessoaBase64()"
-                  alt="Foto da pessoa"
-                  class="w-full h-full object-cover"
-                />
-              } @else {
-                <svg
-                  class="w-8 h-8 text-slate-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  />
-                </svg>
-              }
-            </div>
-            <div class="flex flex-col gap-2">
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  (click)="iniciarCamera('pessoa')"
-                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition flex items-center gap-1.5"
-                >
-                  <svg
-                    class="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                    />
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                  Tirar Foto
-                </button>
-                <label
-                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <svg
-                    class="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                    />
-                  </svg>
-                  Upload
-                  <input
-                    type="file"
-                    accept="image/*"
-                    class="hidden"
-                    (change)="onFileSelected($event, 'pessoa')"
-                  />
-                </label>
-                <button
-                  type="button"
-                  (click)="facialModalOpen.set(true)"
-                  title="Captura a foto pela câmera do terminal facial"
-                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 transition flex items-center gap-1.5"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
-                  </svg>
-                  Câmera facial
-                </button>
-              </div>
-              @if (fotoPessoaBase64()) {
-                <button
-                  type="button"
-                  (click)="removerFoto('pessoa')"
-                  class="text-left text-[11px] text-red-400 hover:underline"
-                >
-                  Remover foto
-                </button>
-              }
-            </div>
+        <!-- Painel 2: Biometria e Fotos -->
+        <div class="p-4 md:p-5 rounded-xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/5 space-y-4">
+          <div class="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-white/5">
+            <span class="w-2 h-2 rounded-full bg-accent"></span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+              2. Biometria e Fotos
+            </h3>
           </div>
-        </div>
 
-        <!-- Foto do Documento (RG/CPF) -->
-        <div class="space-y-2">
-          <span class="text-xs font-medium text-slate-400 block"
-            >Foto do Documento (RG / CPF)</span
-          >
-          <div class="flex items-center gap-3">
-            <div
-              class="w-20 h-20 rounded-lg border border-white/10 bg-graphite flex items-center justify-center overflow-hidden shrink-0"
-            >
-              @if (fotoDocumentoBase64()) {
-                <img
-                  [src]="fotoDocumentoBase64()"
-                  alt="Foto do documento de identificação"
-                  class="w-full h-full object-cover"
-                />
-              } @else {
-                <svg
-                  class="w-8 h-8 text-slate-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-              }
-            </div>
-            <div class="flex flex-col gap-2">
-              <div class="flex items-center gap-2">
-                <button
-                  type="button"
-                  (click)="iniciarCamera('documento')"
-                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition flex items-center gap-1.5"
-                >
-                  <svg
-                    class="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                    />
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Foto da Pessoa (Rosto / Facial) -->
+            <div class="p-3.5 rounded-xl bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 flex items-center gap-4 shadow-2xs">
+              <div class="w-16 h-16 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-graphite flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                @if (fotoPessoaBase64()) {
+                  <img [src]="fotoPessoaBase64()" alt="Foto da pessoa" class="w-full h-full object-cover" />
+                } @else {
+                  <svg class="w-7 h-7 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                   </svg>
-                  Tirar Foto
-                </button>
-                <label
-                  class="px-3 py-1.5 text-xs rounded-lg font-medium bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <svg
-                    class="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
-                    />
-                  </svg>
-                  Upload
-                  <input
-                    type="file"
-                    accept="image/*"
-                    class="hidden"
-                    (change)="onFileSelected($event, 'documento')"
-                  />
-                </label>
+                }
               </div>
-              @if (fotoDocumentoBase64()) {
-                <button
-                  type="button"
-                  (click)="removerFoto('documento')"
-                  class="text-left text-[11px] text-red-400 hover:underline"
-                >
-                  Remover foto
-                </button>
-              }
+
+              <div class="flex-1 min-w-0 space-y-2">
+                <div>
+                  <span class="text-xs font-bold text-slate-900 dark:text-white block">
+                    Foto do Rosto (Biometria Facial)
+                  </span>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                    Necessária para sincronização com os terminais faciais.
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    (click)="iniciarCamera('pessoa')"
+                    class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-accent/10 hover:bg-accent/15 border border-accent/25 text-accent transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    Tirar Foto
+                  </button>
+
+                  <button
+                    type="button"
+                    (click)="facialModalOpen.set(true)"
+                    title="Capturar foto pelo terminal facial"
+                    class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                    Câmera facial
+                  </button>
+
+                  <label class="px-2.5 py-1.5 text-xs rounded-lg font-medium bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 transition cursor-pointer flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    Upload
+                    <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event, 'pessoa')" />
+                  </label>
+
+                  @if (fotoPessoaBase64()) {
+                    <button
+                      type="button"
+                      (click)="removerFoto('pessoa')"
+                      class="text-[11px] text-rose-500 hover:text-rose-600 hover:underline cursor-pointer ml-auto"
+                    >
+                      Remover foto
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Foto do Documento (RG / CPF) -->
+            <div class="p-3.5 rounded-xl bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 flex items-center gap-4 shadow-2xs">
+              <div class="w-16 h-16 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-graphite flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                @if (fotoDocumentoBase64()) {
+                  <img [src]="fotoDocumentoBase64()" alt="Foto do documento" class="w-full h-full object-cover" />
+                } @else {
+                  <svg class="w-7 h-7 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                }
+              </div>
+
+              <div class="flex-1 min-w-0 space-y-2">
+                <div>
+                  <span class="text-xs font-bold text-slate-900 dark:text-white block">
+                    Foto do Documento (RG / CPF)
+                  </span>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                    Cópia digital para conferência e arquivo de segurança.
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    (click)="iniciarCamera('documento')"
+                    class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-accent/10 hover:bg-accent/15 border border-accent/25 text-accent transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    Tirar Foto
+                  </button>
+
+                  <label class="px-2.5 py-1.5 text-xs rounded-lg font-medium bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 transition cursor-pointer flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    Upload
+                    <input type="file" accept="image/*" class="hidden" (change)="onFileSelected($event, 'documento')" />
+                  </label>
+
+                  @if (fotoDocumentoBase64()) {
+                    <button
+                      type="button"
+                      (click)="removerFoto('documento')"
+                      class="text-[11px] text-rose-500 hover:text-rose-600 hover:underline cursor-pointer ml-auto"
+                    >
+                      Remover foto
+                    </button>
+                  }
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -827,34 +753,35 @@
             <span>O titular foi informado e está ciente da coleta de imagem facial e documento para controle de acesso.</span>
           </label>
         </div>
-      </div>
 
-      <div class="mt-5 flex justify-end gap-2">
-        <button
-          (click)="cancelarForm()"
-          [disabled]="saving()"
-          class="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition disabled:opacity-50"
-        >
-          Cancelar
-        </button>
-        <button
-          (click)="salvar()"
-          [disabled]="saving()"
-          class="px-5 py-2 text-sm rounded-lg font-medium text-white bg-accent hover:bg-accent-600 transition disabled:opacity-50 flex items-center gap-2"
-        >
-          @if (saving()) {
-            <div
-              class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"
-            ></div>
-          }
-          @if (novaVisitaPara()) {
-            Criar visita
-          } @else if (editingId && editandoIdentidade()) {
-            Salvar alterações
-          } @else {
-            Confirmar entrada
-          }
-        </button>
+        <!-- Barra de Ações (Salvar / Cancelar) -->
+        <div class="pt-3 border-t border-slate-200 dark:border-white/10 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            (click)="cancelarForm()"
+            [disabled]="saving()"
+            class="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 transition disabled:opacity-50 cursor-pointer shadow-2xs"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            (click)="salvar()"
+            [disabled]="saving()"
+            class="px-5 py-2 text-xs font-bold rounded-xl text-white keep-white bg-accent hover:bg-accent-600 transition disabled:opacity-50 flex items-center gap-2 shadow-sm shadow-accent/15 cursor-pointer"
+          >
+            @if (saving()) {
+              <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            }
+            @if (novaVisitaPara()) {
+              Criar visita
+            } @else if (editingId && editandoIdentidade()) {
+              Salvar alterações
+            } @else {
+              Confirmar entrada
+            }
+          </button>
+        </div>
       </div>
     </div>
   }
