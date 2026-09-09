@@ -58,9 +58,29 @@ describe('RelatoriosController — só operador/síndico', () => {
     expect(service.generate).toHaveBeenCalled();
   });
 
-  it('PERMITE operador da portaria-web (token sem typeAccess)', async () => {
+  it('PERMITE operador da portaria-web (token sem typeAccess) em eventos operacionais', async () => {
     const { ctrl, service } = build();
     await ctrl.getEventos(1, porteiroWeb);
     expect(service.getEventos).toHaveBeenCalled();
+  });
+
+  it('PERMITE operador da portaria-web baixar relatório operacional (visitantes)', async () => {
+    const { ctrl, service, res } = build();
+    await ctrl.download(1, res, porteiroWeb, 'visitantes', 'xlsx');
+    expect(service.generate).toHaveBeenCalled();
+  });
+
+  it('NEGA operador da portaria-web baixar relatório financeiro (Conformidade LGPD)', async () => {
+    const { ctrl, service, res } = build();
+    await expect(
+      ctrl.download(1, res, porteiroWeb, 'financeiro', 'xlsx'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.generate).not.toHaveBeenCalled();
+  });
+
+  it('NEGA operador da portaria-web exportar a auditoria completa do condomínio', async () => {
+    const { ctrl, service, res } = build();
+    await expect(ctrl.exportAuditoria(1, res, porteiroWeb)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.exportAuditoriaCsv).not.toHaveBeenCalled();
   });
 });

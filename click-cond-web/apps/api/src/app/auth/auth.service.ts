@@ -23,6 +23,7 @@ export class AuthService {
   private readonly maxFailures = Number(process.env.AUTH_MAX_FAILURES ?? 8);
   private readonly failureWindowMs = Number(process.env.AUTH_FAILURE_WINDOW_MS ?? 600_000);
   private readonly lockoutMs = Number(process.env.AUTH_LOCKOUT_MS ?? 900_000);
+  private readonly portariaJwtExpiresIn = (process.env.PORTARIA_JWT_EXPIRES_IN ?? '24h') as any;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -154,7 +155,7 @@ export class AuthService {
         };
 
     return {
-      access_token: this.jwt.sign(payload, { expiresIn: '365d' }),
+      access_token: this.jwt.sign(payload, { expiresIn: this.portariaJwtExpiresIn }),
       id: sindico ? sindico.id : funcionario.id,
       nome: sindico ? sindico.nome : funcionario.nome,
       turno: sindico ? 'Síndico' : funcionario.turno,
@@ -266,7 +267,7 @@ export class AuthService {
     };
 
     return {
-      access_token: this.jwt.sign(sindicoPayload, { expiresIn: '365d' }),
+      access_token: this.jwt.sign(sindicoPayload, { expiresIn: this.portariaJwtExpiresIn }),
       id: user.id,
       nome: sindico.name,
       turno: 'Síndico',
@@ -337,7 +338,7 @@ export class AuthService {
     delete (novoPayload as any).exp;
 
     return {
-      access_token: this.jwt.sign(novoPayload, { expiresIn: '365d' }),
+      access_token: this.jwt.sign(novoPayload, { expiresIn: this.portariaJwtExpiresIn }),
       id: payload.sub,
       nome: payload.nome,
       turno: payload.turno ?? 'Síndico',
@@ -529,7 +530,7 @@ export class AuthService {
       ...(papelReal ? { typeAccess: papelReal } : {}),
     };
 
-    const accessToken = this.jwt.sign(portariaPayload, { expiresIn: '365d' });
+    const accessToken = this.jwt.sign(portariaPayload, { expiresIn: this.portariaJwtExpiresIn });
 
     this.qrStore.confirm(qrToken, {
       idUser: userId,

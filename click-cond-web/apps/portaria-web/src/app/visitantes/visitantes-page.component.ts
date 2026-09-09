@@ -12,6 +12,7 @@ import { FacialCaptureComponent } from '../shared/facial-capture.component';
 import { compressImage } from '../shared/image-compress.util';
 import { RealtimeService } from '../shared/realtime.service';
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
+import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -27,6 +28,12 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private sanitizer = inject(DomSanitizer);
   private realtime = inject(RealtimeService);
+  private auth = inject(AuthService);
+
+  readonly isPorteiro = computed(() => {
+    const info = this.auth.porteiroInfo();
+    return !!info?.turno && info.turno !== 'Síndico';
+  });
 
   constructor() {
     effect(() => {

@@ -3,17 +3,15 @@ import type { Response } from 'express';
 import { RelatoriosService } from './relatorios.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { assertOperador } from '../auth/tenant.util';
+import { assertOperador, assertSindico } from '../auth/tenant.util';
 
 /**
  * Relatórios gerenciais do condomínio.
  *
  * O TenantGuard já garante, pelo :idCondominio da rota, que o solicitante
- * pertence ao condomínio — mas morador também pertence. Sem o assertOperador
- * abaixo, qualquer morador autenticado baixava o relatório FINANCEIRO inteiro
- * (todos os lançamentos, valores e status do prédio), a auditoria e o feed de
- * eventos. No app essas telas só aparecem para o síndico; a API é que estava
- * aberta.
+ * pertence ao condomínio — mas morador também pertence.
+ * Relatórios operacionais (visitantes, encomendas, ocorrências) são permitidos para operadores.
+ * Relatório financeiro e exportação de auditoria são restritos ao Síndico (LGPD e sigilo financeiro).
  */
 @Controller('condominios/:idCondominio/relatorios')
 export class RelatoriosController {
@@ -29,7 +27,11 @@ export class RelatoriosController {
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
   ) {
-    assertOperador(payload, 'baixar relatórios do condomínio');
+    if (tipo === 'financeiro') {
+      assertSindico(payload, 'baixar o relatório financeiro do condomínio');
+    } else {
+      assertOperador(payload, 'baixar relatórios operacionais do condomínio');
+    }
     const { buffer, mime, filename } = await this.service.generate(
       idCondominio,
       tipo,
@@ -69,7 +71,7 @@ export class RelatoriosController {
     @Query('dataInicio') dataInicio?: string,
     @Query('dataFim') dataFim?: string,
   ) {
-    assertOperador(payload, 'exportar a auditoria do condomínio');
+    assertSindico(payload, 'exportar a auditoria do condomínio');
     const { buffer, filename } = await this.service.exportAuditoriaCsv(
       idCondominio,
       modulo,
