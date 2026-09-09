@@ -1882,9 +1882,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const usuarioId = Number(payload?.sub ?? (payload as any)?.id ?? (payload as any)?.user?.id) || undefined;
+    const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
+    const usuarioEmail = payload?.email ?? (payload as any)?.user?.email ?? undefined;
+
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: payload?.nome ?? 'Portaria / Sistema',
+      usuario_id: usuarioId,
+      usuario_nome: usuarioNome,
+      usuario_email: usuarioEmail,
       acao: 'CHECK_IN',
       modulo: 'visitantes',
       entidade_id: v.id,
@@ -1917,9 +1923,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const usuarioId = Number(payload?.sub ?? (payload as any)?.id ?? (payload as any)?.user?.id) || undefined;
+    const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
+    const usuarioEmail = payload?.email ?? (payload as any)?.user?.email ?? undefined;
+
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: payload?.nome ?? 'Portaria / Sistema',
+      usuario_id: usuarioId,
+      usuario_nome: usuarioNome,
+      usuario_email: usuarioEmail,
       acao: 'UPDATE',
       modulo: 'visitantes',
       entidade_id: v.id,
@@ -1949,9 +1961,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const usuarioId = Number(payload?.sub ?? (payload as any)?.id ?? (payload as any)?.user?.id) || undefined;
+    const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
+    const usuarioEmail = payload?.email ?? (payload as any)?.user?.email ?? undefined;
+
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_nome: 'Portaria / Sistema',
+      usuario_id: usuarioId,
+      usuario_nome: usuarioNome,
+      usuario_email: usuarioEmail,
       acao: 'CHECK_OUT',
       modulo: 'visitantes',
       entidade_id: v.id,
