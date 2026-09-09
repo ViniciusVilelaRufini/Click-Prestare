@@ -318,4 +318,36 @@ input:focus, select:focus, textarea:focus {
   height: 6px;
 }
 
-/* Vercel trigger */
+/* ==========================================================================
+   6. Remoção de Background Acinzentado / Escurecido dos Modais em Todas as Áreas
+   ========================================================================== */
+.fixed.inset-0.bg-black\/60,
+.fixed.inset-0.bg-black\/70,
+.fixed.inset-0.bg-black\/80,
+.fixed.inset-0.bg-black\/85,
+.fixed.inset-0.bg-slate-950\/80,
+.fixed.inset-0.bg-slate-900\/50,
+.fixed.inset-0.bg-slate-900\/60,
+.fixed.inset-0.bg-black\/25,
+[class*="fixed"][class*="inset-0"][class*="bg-black/"]:not(.sidebar-drawer):not(.keep-dark-overlay),
+[class*="fixed"][class*="inset-0"][class*="bg-slate-950/"]:not(.sidebar-drawer):not(.keep-dark-overlay),
+[class*="fixed"][class*="inset-0"][class*="bg-slate-900/"]:not(.sidebar-drawer):not(.keep-dark-overlay) {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Realce suave e profundidade nítida para o card do modal sem escurecer a tela */
+[class*="fixed"][class*="inset-0"]:not(.sidebar-drawer):not(.keep-dark-overlay) > div[class*="rounded"] {
+  box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.08) !important;
+}
+.dark [class*="fixed"][class*="inset-0"]:not(.sidebar-drawer):not(.keep-dark-overlay) > div[class*="rounded"] {
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Proteção para visualização de fotos ampliadas (lightbox) e drawer mobile */
+.sidebar-drawer,
+.keep-dark-overlay,
+div[class*="fecharAmpliarFoto"] {
+  background-color: rgba(0, 0, 0, 0.85) !important;
+}

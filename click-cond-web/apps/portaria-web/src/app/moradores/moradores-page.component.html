@@ -586,7 +586,7 @@
 
   <!-- Modal: Vincular síndico como morador -->
   @if (showVincularSindico()) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in">
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent animate-fade-in">
       <div class="w-full max-w-md rounded-2xl bg-graphite border border-white/10 shadow-2xl flex flex-col overflow-hidden">
         <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-graphite-200">
           <div class="flex items-center gap-3">
@@ -662,7 +662,7 @@
   }
 
   @if (showBulkModal) {
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in">
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent animate-fade-in">
       <div class="w-full max-w-3xl rounded-2xl bg-graphite border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
 
         <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-graphite-200">
@@ -788,7 +788,7 @@
 <!-- Painel de Detalhes do Morador -->
 @if (selectedMorador()) {
   <!-- Backdrop -->
-  <div class="fixed inset-0 bg-black/60 z-40" (click)="fecharDetalhes()"></div>
+  <div class="fixed inset-0 bg-transparent z-40" (click)="fecharDetalhes()"></div>
 
   <!-- Slide-in panel — bg adaptativo (branco/grafite) com borda visível em ambos modos. -->
   <div class="fixed inset-y-0 right-0 w-full max-w-lg z-50 flex flex-col bg-white dark:bg-graphite-200 border-l border-slate-200 dark:border-white/10 shadow-2xl animate-slide-in-right">
@@ -1307,7 +1307,7 @@
 
 <!-- Modal da Webcam para Captura -->
 @if (activeCamera()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4">
     <div class="w-full max-w-lg rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden shadow-2xl animate-fade-in flex flex-col">
       <div class="px-6 py-4 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
         <h3 class="text-sm font-semibold text-white">
@@ -1358,7 +1358,7 @@
 
 <!-- Modal de Confirmação de Exportação com Auditoria LGPD -->
 @if (showExportModal()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in" (click)="fecharModalExportar()">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4 animate-fade-in" (click)="fecharModalExportar()">
     <div class="relative w-full max-w-md rounded-2xl border border-white/10 bg-graphite p-6 shadow-2xl space-y-4" (click)="$event.stopPropagation()">
       <div class="flex items-center justify-between pb-3 border-b border-white/10">
         <div class="flex items-center gap-2">
