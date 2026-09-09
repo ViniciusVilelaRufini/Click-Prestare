@@ -16,6 +16,7 @@
   --scrollbar-track: #090D16;
   --scrollbar-thumb: rgba(255, 255, 255, 0.05);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.12);
+  color-scheme: dark;
 }
 
 /* Quando a classe light estiver ativa no html ou body */
@@ -31,6 +32,7 @@ html.light, body.light, .light {
   --scrollbar-track: #F8FAFC;
   --scrollbar-thumb: rgba(15, 23, 42, 0.08);
   --scrollbar-thumb-hover: rgba(15, 23, 42, 0.15);
+  color-scheme: light;
 }
 
 app-root,
@@ -137,10 +139,31 @@ html, body {
   background-color: rgba(10, 22, 40, 0.02) !important;
 }
 
+/* Suporte a formulários e dropdowns nativos (select, option, optgroup) */
+select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-main) !important;
+}
+
 .light input, .light select, .light textarea {
   background-color: var(--bg-elevated) !important;
   color: var(--text-main) !important;
   border-color: var(--border-color) !important;
+}
+
+.light select {
+  color-scheme: light;
+}
+
+.light select option,
+.light select optgroup {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
 }
 
 .light input::placeholder, .light textarea::placeholder {

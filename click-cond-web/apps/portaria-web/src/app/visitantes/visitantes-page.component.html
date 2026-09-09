@@ -384,11 +384,11 @@
               </span>
               <select
                 [(ngModel)]="novo.id_apartamento"
-                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs cursor-pointer font-medium"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs cursor-pointer font-medium"
               >
-                <option [ngValue]="0">Selecione o apartamento...</option>
+                <option [ngValue]="0" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Selecione o apartamento...</option>
                 @for (a of apartamentos(); track a.id) {
-                  <option [ngValue]="a.id">
+                  <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                     {{ a.bloco ? a.bloco + ' / ' : '' }}{{ a.apto }}
                   </option>
                 }
@@ -407,10 +407,10 @@
                     novo.is_prestador = $event === 'prestador' ? 1 : 0;
                     novo.is_visitante = $event === 'prestador' ? 0 : 1
                   "
-                  class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs cursor-pointer"
+                  class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs cursor-pointer"
                 >
-                  <option value="visitante">Visitante</option>
-                  <option value="prestador">Prestador de serviço</option>
+                  <option value="visitante" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Visitante</option>
+                  <option value="prestador" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Prestador de serviço</option>
                 </select>
               </label>
             }
@@ -1594,10 +1594,10 @@
               [ngModel]="solicitarAptoId()"
               (ngModelChange)="solicitarAptoId.set($event)"
               aria-label="Apartamento de destino"
-              class="w-full rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:border-accent"
+              class="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white px-3 py-2.5 text-sm focus:outline-none focus:border-accent"
             >
               @for (a of apartamentos(); track a.id) {
-                <option [ngValue]="a.id">{{ a.bloco ? 'Bloco ' + a.bloco + ' - ' : '' }}Apto {{ a.apto }}</option>
+                <option [ngValue]="a.id" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{{ a.bloco ? 'Bloco ' + a.bloco + ' - ' : '' }}Apto {{ a.apto }}</option>
               }
             </select>
           </label>
