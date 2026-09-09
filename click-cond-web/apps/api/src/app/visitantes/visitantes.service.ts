@@ -98,14 +98,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Ciclo de vida de retenção de dados pessoais (Art. 15 e 16 da LGPD):
-   * Visitas com data_saida anterior a 180 dias têm suas fotos de rosto e fotos de documentos
-   * expurgadas do banco (setadas para null), preservando apenas o registro histórico da visita.
+   * Visitas com data_saida anterior ao prazo de retenção (padrão: 90 dias) têm suas fotos
+   * de rosto e documentos removidas fisicamente do Storage e expurgadas do banco (null),
+   * preservando o registro histórico auditável da passagem.
    */
-  async tickRetencaoDadosVisitantes(): Promise<number> {
+  async tickRetencaoDadosVisitantes(diasRetencao = 90): Promise<number> {
     if (!this.prisma.isConnected) return 0;
     try {
-      const limiteRetencao = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-      const resultado = await this.prisma.visitantes.updateMany({
+      const limiteRetencao = new Date(Date.now() - diasRetencao * 24 * 60 * 60 * 1000);
+      const paraExpurgo = await this.prisma.visitantes.findMany({
         where: {
           data_saida: { lte: limiteRetencao },
           OR: [
@@ -113,6 +114,27 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             { foto_documento: { not: null } },
           ],
         },
+        select: {
+          id: true,
+          foto_pessoa: true,
+          foto_documento: true,
+        },
+        take: 200,
+      });
+
+      if (paraExpurgo.length === 0) return 0;
+
+      // Expurga arquivos físicos no Cloudflare R2 / S3
+      await Promise.all(
+        paraExpurgo.flatMap((v) => [
+          this.storage.deleteUrl(v.foto_pessoa),
+          this.storage.deleteUrl(v.foto_documento),
+        ]),
+      );
+
+      const ids = paraExpurgo.map((v) => v.id);
+      const resultado = await this.prisma.visitantes.updateMany({
+        where: { id: { in: ids } },
         data: {
           foto_pessoa: null,
           foto_documento: null,
@@ -120,14 +142,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (resultado.count > 0) {
-        this.logger.log(`[LGPD Retenção] Expurgadas fotos de ${resultado.count} visitas encerradas há mais de 180 dias.`);
+        this.logger.log(`[LGPD Retenção] Expurgadas fotos e arquivos de ${resultado.count} visitas encerradas há mais de ${diasRetencao} dias.`);
         await this.auditoria.registrar({
           id_condominio: 0,
           usuario_nome: 'Sistema (Rotina LGPD)',
           acao: 'DELETE',
           modulo: 'visitantes',
-          descricao: `Expurgo automático de fotografias e biometria de ${resultado.count} visitas encerradas há mais de 180 dias.`,
-          detalhes: { totalExpurgados: resultado.count, prazoDias: 180 },
+          descricao: `Expurgo automático de fotografias e biometria de ${resultado.count} visitas encerradas há mais de ${diasRetencao} dias.`,
+          detalhes: { totalExpurgados: resultado.count, prazoDias: diasRetencao },
         });
       }
       return resultado.count;

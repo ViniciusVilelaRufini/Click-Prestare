@@ -61,7 +61,7 @@
         </p>
         <div class="space-y-[2px]">
           @for (item of group.items; track item.path) {
-            @if (!isPorteiro() || (item.path !== '/financeiro' && item.path !== '/relatorios')) {
+            @if (!isPorteiro() || (item.path !== '/financeiro' && item.path !== '/relatorios' && item.path !== '/configuracoes')) {
               <a
                 [routerLink]="item.path"
                 (click)="linkClicked.emit()"

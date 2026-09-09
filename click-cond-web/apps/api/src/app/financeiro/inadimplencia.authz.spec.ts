@@ -119,16 +119,23 @@ describe('FinanceiroController — rotas de inadimplência bloqueiam morador', (
     expect(service.notifyInadimplente).toHaveBeenCalled();
   });
 
-  // A aba Inadimplência da portaria-web consome 3 destas rotas; se o
-  // assertOperador virasse assertStaff, essa tela quebraria com 403.
-  it('PERMITE operador da portaria-web nas rotas que o console usa', () => {
+  // Conformidade LGPD (Art. 6º, III) e Código Civil: porteiro não pode ter acesso a dívidas
+  // de condôminos para evitar vazamento de dados pessoais e exposição vexatória.
+  it('NEGA operador da portaria-web (porteiro) nas rotas de inadimplência (Conformidade LGPD)', () => {
     const { controller, service } = buildController();
-    controller.getAllInadimplentes('1', portaria);
-    controller.getInadimplenteDetail('1', '204', 'A', portaria);
-    controller.notifyInadimplente(1, '204', 'A', portaria);
+    expect(() => controller.getAllInadimplentes('1', portaria)).toThrow(ForbiddenException);
+    expect(() => controller.getInadimplenteDetail('1', '204', 'A', portaria)).toThrow(ForbiddenException);
+    expect(() => controller.notifyInadimplente(1, '204', 'A', portaria)).toThrow(ForbiddenException);
 
+    expect(service.getAllInadimplentes).not.toHaveBeenCalled();
+    expect(service.getInadimplenteDetail).not.toHaveBeenCalled();
+    expect(service.notifyInadimplente).not.toHaveBeenCalled();
+  });
+
+  it('PERMITE síndico autenticado pelo console web (com typeAccess Sindico)', () => {
+    const { controller, service } = buildController();
+    const sindicoWeb: JwtPayload = { sub: 1, nome: 'Síndico Web', id_condominio: 1, turno: 'Síndico', typeAccess: 'Sindico' };
+    controller.getAllInadimplentes('1', sindicoWeb);
     expect(service.getAllInadimplentes).toHaveBeenCalled();
-    expect(service.getInadimplenteDetail).toHaveBeenCalled();
-    expect(service.notifyInadimplente).toHaveBeenCalled();
   });
 });

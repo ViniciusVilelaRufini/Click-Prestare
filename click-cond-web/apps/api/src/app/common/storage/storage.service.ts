@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 
 /**
@@ -101,6 +101,40 @@ export class StorageService {
     } catch (err: any) {
       this.logger.error(`Falha ao subir para R2: ${err?.message ?? err}. Usando base64 fallback.`);
       return dataUrl;
+    }
+  }
+
+  /**
+   * Remove um arquivo do R2/S3 a partir de sua URL pública ou key (expurgo LGPD).
+   */
+  async deleteUrl(url: string | null | undefined): Promise<boolean> {
+    if (!url || !this.enabled || !this.client) return false;
+    if (this.isDataUrl(url)) return true; // base64 inline não fica no storage
+
+    try {
+      let key = url;
+      if (this.publicUrl && url.startsWith(this.publicUrl)) {
+        key = url.slice(this.publicUrl.length).replace(/^\/+/, '');
+      } else {
+        try {
+          const parsed = new URL(url);
+          key = parsed.pathname.replace(/^\/+/, '');
+        } catch {
+          // Já é uma key relativa
+        }
+      }
+
+      if (!key) return false;
+
+      await this.client.send(new DeleteObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }));
+
+      return true;
+    } catch (err: any) {
+      this.logger.warn(`Falha ao remover arquivo do R2 (${url}): ${err?.message ?? err}`);
+      return false;
     }
   }
 

@@ -14,7 +14,11 @@ export const authGuard: CanActivateFn = (route, state) => {
 
   if (isPorter) {
     const path = route.routeConfig?.path || '';
-    if (path === 'financeiro' || path === 'relatorios') {
+    const url = (state.url || '').toLowerCase();
+    const rotasRestritas = ['financeiro', 'relatorios', 'configuracoes'];
+    const ehRotaRestrita = rotasRestritas.includes(path) || rotasRestritas.some((r) => url.includes(`/${r}`));
+
+    if (ehRotaRestrita) {
       inject(Router).navigate(['/dashboard']);
       return false;
     }

@@ -138,7 +138,8 @@ export function isOperador(user: JwtPayload | undefined): boolean {
  */
 export function assertSindico(user: JwtPayload | undefined, contexto = 'ação'): void {
   const tipo = user?.typeAccess ?? user?.user?.typeAccess;
-  if (tipo !== 'Sindico') {
+  const turno = user?.turno;
+  if (tipo !== 'Sindico' && turno !== 'Síndico') {
     throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico.`);
   }
 }
