@@ -791,6 +791,10 @@ export class MoradoresService {
       userId = u.id;
     }
 
+    const tipoNorm = dto.tipo
+      ? String(dto.tipo).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+      : 'proprietario';
+
     // Busca dados do apartamento
     let bloco = '';
     let aptoNum = '';
@@ -809,7 +813,7 @@ export class MoradoresService {
           data: {
             id_apto: aptoObj.id,
             id_user: userId,
-            tipo: dto.tipo || 'proprietario',
+            tipo: tipoNorm,
             vencimento: dataVenc,
           },
         });
@@ -824,7 +828,7 @@ export class MoradoresService {
           documento: dto.documento ?? null,
           email: dto.email ?? null,
           data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
-          tipo: dto.tipo ?? 'proprietario',
+          tipo: tipoNorm,
           id_user: userId,
           id_condominio: dto.id_condominio,
           bloco: bloco || null,
@@ -938,6 +942,9 @@ export class MoradoresService {
       result = await this.prisma.$transaction(async (tx) => {
         let bloco: string | undefined = undefined;
         let aptoNum: string | undefined = undefined;
+        const tipoNorm = dto.tipo !== undefined
+          ? String(dto.tipo).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+          : undefined;
 
         if (dto.id_apartamento !== undefined) {
           if (atual.id_user) {
@@ -961,7 +968,7 @@ export class MoradoresService {
                   data: {
                     id_apto: aptoObj.id,
                     id_user: atual.id_user,
-                    tipo: dto.tipo || atual.tipo || 'proprietario',
+                    tipo: tipoNorm || atual.tipo || 'proprietario',
                     vencimento: dataVenc,
                   },
                 });
@@ -971,6 +978,11 @@ export class MoradoresService {
             bloco = '';
             aptoNum = '';
           }
+        } else if (tipoNorm !== undefined && atual.id_user) {
+          await tx.apartamentos_Users.updateMany({
+            where: { id_user: atual.id_user },
+            data: { tipo: tipoNorm },
+          });
         }
 
         // Atualiza moradores
@@ -981,7 +993,7 @@ export class MoradoresService {
             ...(dto.documento !== undefined && { documento: dto.documento }),
             ...(dto.email !== undefined && { email: dto.email }),
             ...(dto.telefone !== undefined && { telefone: dto.telefone }),
-            ...(dto.tipo !== undefined && { tipo: dto.tipo }),
+            ...(tipoNorm !== undefined && { tipo: tipoNorm }),
             ...(dto.data_nascimento !== undefined && {
               data_nascimento: dto.data_nascimento ? this.parseDate(dto.data_nascimento) : null,
             }),

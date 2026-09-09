@@ -156,11 +156,32 @@ export class MoradoresPageComponent implements OnInit {
     return list;
   });
 
+  normalizeTipo(tipo: string | null | undefined): string {
+    if (!tipo) return '';
+    const t = tipo
+      .toLowerCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    if (t.startsWith('proprietari')) return 'proprietario';
+    if (t.startsWith('inquilin')) return 'inquilino';
+    if (t.startsWith('dependent')) return 'dependente';
+    return t;
+  }
+
+  tipoLabel(tipo: string | null | undefined): string {
+    const t = this.normalizeTipo(tipo);
+    if (t === 'proprietario') return 'Proprietário';
+    if (t === 'inquilino') return 'Inquilino';
+    if (t === 'dependente') return 'Dependente';
+    return tipo ? (tipo.charAt(0).toUpperCase() + tipo.slice(1).toLowerCase()) : '—';
+  }
+
   // Filtro por tipo (chip buttons)
   readonly moradoresPorTipo = computed(() => {
     const t = this.filtroTipo();
     if (!t) return this.moradores();
-    return this.moradores().filter((m) => (m.tipo ?? '').toLowerCase() === t);
+    return this.moradores().filter((m) => this.normalizeTipo(m.tipo) === t);
   });
 
   // Filtro combinado: tipo + busca textual (local, sem chamar API)
@@ -183,9 +204,9 @@ export class MoradoresPageComponent implements OnInit {
     const list = this.moradores();
     return {
       total: list.length,
-      proprietarios: list.filter((m) => m.tipo?.toLowerCase() === 'proprietario').length,
-      inquilinos: list.filter((m) => m.tipo?.toLowerCase() === 'inquilino').length,
-      dependentes: list.filter((m) => m.tipo?.toLowerCase() === 'dependente').length,
+      proprietarios: list.filter((m) => this.normalizeTipo(m.tipo) === 'proprietario').length,
+      inquilinos: list.filter((m) => this.normalizeTipo(m.tipo) === 'inquilino').length,
+      dependentes: list.filter((m) => this.normalizeTipo(m.tipo) === 'dependente').length,
     };
   });
 
@@ -600,7 +621,7 @@ export class MoradoresPageComponent implements OnInit {
   }
 
   tipoColor(tipo: string | null): string {
-    const t = (tipo ?? '').toLowerCase();
+    const t = this.normalizeTipo(tipo);
     if (t === 'proprietario') return 'bg-accent/10 border-accent/20 text-accent';
     if (t === 'inquilino') return 'bg-amber-400/10 border-amber-400/20 text-amber-400';
     if (t === 'dependente') return 'bg-slate-400/10 border-slate-400/20 text-slate-300';

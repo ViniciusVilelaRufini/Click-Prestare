@@ -172,7 +172,7 @@ async function main() {
           telefone: user.phone,
           data_nascimento: randomDate(new Date('1970-01-01'), new Date('2000-01-01')),
           id_user: user.id,
-          tipo: i % 5 === 0 ? 'proprietario' : 'morador',
+          tipo: ['proprietario', 'inquilino', 'dependente'][i % 3],
           bloco: apto.bloco,
           apartamento: apto.apto,
           id_condominio: condominio.id,
@@ -190,7 +190,7 @@ async function main() {
           data: {
             id_apto: apto.id,
             id_user: user.id,
-            tipo: 'morador',
+            tipo: ['proprietario', 'inquilino', 'dependente'][i % 3],
             vencimento: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
           },
         });

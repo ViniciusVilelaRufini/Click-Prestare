@@ -566,7 +566,7 @@
                   } @else if (m.face_sync_status === 'error') {
                     <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-400 uppercase" [title]="m.face_sync_error || 'Erro na sincronização facial'">Erro</span>
                   }
-                  <span class="text-[11px] px-2 py-0.5 rounded-md border capitalize {{ tipoColor(m.tipo) }}">{{ m.tipo || '—' }}</span>
+                  <span class="text-[11px] px-2 py-0.5 rounded-md border font-medium {{ tipoColor(m.tipo) }}">{{ tipoLabel(m.tipo) }}</span>
                 </div>
                 @if (m.email) { <p class="text-[11px] text-slate-500 truncate mt-0.5">{{ m.email }}</p> }
                 <div class="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
@@ -667,8 +667,8 @@
                 </span>
               </td>
               <td class="px-5 py-3">
-                <span class="text-[11px] px-2 py-0.5 rounded-md border capitalize {{ tipoColor(m.tipo) }}">
-                  {{ m.tipo || '\u2014' }}
+                <span class="text-[11px] px-2 py-0.5 rounded-md border font-medium {{ tipoColor(m.tipo) }}">
+                  {{ tipoLabel(m.tipo) }}
                 </span>
               </td>
               <td class="px-5 py-3 text-slate-400 text-xs font-mono">{{ m.telefone || '\u2014' }}</td>
