@@ -2,30 +2,36 @@
   <!-- Cabeçalho -->
   <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold text-white tracking-tight">Central de Relatórios e Auditoria</h1>
-      <p class="text-sm text-slate-400 mt-1">Busque dados consolidados, exporte relatórios premium e monitore a auditoria de segurança.</p>
+      <h1 class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Central de Relatórios e Auditoria</h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Busque dados consolidados, exporte relatórios premium e monitore a auditoria de segurança.</p>
     </div>
   </div>
 
   <!-- Navegação de Abas -->
-  <div class="flex gap-2 border-b border-white/10 pb-px">
+  <div class="flex gap-2 border-b border-slate-200 dark:border-white/10 pb-px">
     <button
       (click)="setSubTab('gerador')"
-      [class.text-emerald-400]="activeSubTab() === 'gerador'"
-      [class.border-emerald-400]="activeSubTab() === 'gerador'"
-      [class.text-slate-400]="activeSubTab() !== 'gerador'"
+      [class.text-emerald-600]="activeSubTab() === 'gerador'"
+      [class.dark:text-emerald-400]="activeSubTab() === 'gerador'"
+      [class.border-emerald-600]="activeSubTab() === 'gerador'"
+      [class.dark:border-emerald-400]="activeSubTab() === 'gerador'"
+      [class.text-slate-500]="activeSubTab() !== 'gerador'"
+      [class.dark:text-slate-400]="activeSubTab() !== 'gerador'"
       [class.border-transparent]="activeSubTab() !== 'gerador'"
-      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none"
+      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none cursor-pointer"
     >
       Relatórios Gerais
     </button>
     <button
       (click)="setSubTab('auditoria')"
-      [class.text-emerald-400]="activeSubTab() === 'auditoria'"
-      [class.border-emerald-400]="activeSubTab() === 'auditoria'"
-      [class.text-slate-400]="activeSubTab() !== 'auditoria'"
+      [class.text-emerald-600]="activeSubTab() === 'auditoria'"
+      [class.dark:text-emerald-400]="activeSubTab() === 'auditoria'"
+      [class.border-emerald-600]="activeSubTab() === 'auditoria'"
+      [class.dark:border-emerald-400]="activeSubTab() === 'auditoria'"
+      [class.text-slate-500]="activeSubTab() !== 'auditoria'"
+      [class.dark:text-slate-400]="activeSubTab() !== 'auditoria'"
       [class.border-transparent]="activeSubTab() !== 'auditoria'"
-      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none flex items-center gap-1.5"
+      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none flex items-center gap-1.5 cursor-pointer"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -34,11 +40,14 @@
     </button>
     <button
       (click)="setSubTab('eventos')"
-      [class.text-emerald-400]="activeSubTab() === 'eventos'"
-      [class.border-emerald-400]="activeSubTab() === 'eventos'"
-      [class.text-slate-400]="activeSubTab() !== 'eventos'"
+      [class.text-emerald-600]="activeSubTab() === 'eventos'"
+      [class.dark:text-emerald-400]="activeSubTab() === 'eventos'"
+      [class.border-emerald-600]="activeSubTab() === 'eventos'"
+      [class.dark:border-emerald-400]="activeSubTab() === 'eventos'"
+      [class.text-slate-500]="activeSubTab() !== 'eventos'"
+      [class.dark:text-slate-400]="activeSubTab() !== 'eventos'"
       [class.border-transparent]="activeSubTab() !== 'eventos'"
-      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none flex items-center gap-1.5"
+      class="px-4 py-2 border-b-2 font-semibold text-sm transition-all focus:outline-none flex items-center gap-1.5 cursor-pointer"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -218,22 +227,22 @@
 
   @if (activeSubTab() === 'auditoria') {
     <!-- Log de Auditoria -->
-    <div class="rounded-2xl bg-graphite-200 border border-white/10 p-6 space-y-5 animate-fade-in">
+    <div class="rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/80 dark:border-white/10 shadow-sm p-6 space-y-5 animate-fade-in">
       <!-- Cabeçalho -->
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 class="text-lg font-semibold text-white">Linha do Tempo de Segurança</h2>
-          <p class="text-xs text-slate-400 mt-0.5">Rastreabilidade completa de todas as alterações feitas no condomínio.</p>
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Linha do Tempo de Segurança</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Rastreabilidade completa de todas as alterações feitas no condomínio.</p>
         </div>
         <div class="flex gap-2">
           <button (click)="exportarCsv()" [disabled]="exportandoCsv() || loadingAudit() || auditLogs().length === 0"
-                  class="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition flex items-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none">
+                  class="px-3.5 py-2 bg-emerald-500/10 border border-emerald-500/25 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition flex items-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
             <svg class="w-3.5 h-3.5" [class.animate-spin]="exportandoCsv()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
             </svg>
             {{ exportandoCsv() ? 'Exportando...' : 'Exportar CSV' }}
           </button>
-          <button (click)="carregarAuditoria()" [disabled]="loadingAudit()" class="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white hover:bg-white/10 transition flex items-center gap-1.5">
+          <button (click)="carregarAuditoria()" [disabled]="loadingAudit()" class="px-3.5 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer">
             <svg class="w-3.5 h-3.5" [class.animate-spin]="loadingAudit()" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18"/></svg>
             Atualizar
           </button>
@@ -241,38 +250,38 @@
       </div>
 
       <!-- Filtros -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white/[0.02] rounded-xl border border-white/5">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50/70 dark:bg-white/[0.02] rounded-xl border border-slate-200/80 dark:border-white/5">
         <div>
-          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Módulo</label>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Módulo</label>
           <select [ngModel]="filtroModulo()" (ngModelChange)="filtroModulo.set($event)"
-                  class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition">
+                  class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition shadow-2xs cursor-pointer">
             @for (m of modulosDisponiveis; track m.value) {
-              <option [value]="m.value" class="bg-slate-900">{{ m.label }}</option>
+              <option [value]="m.value" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{{ m.label }}</option>
             }
           </select>
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Data Início</label>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Data Início</label>
           <input type="date" [ngModel]="filtroDataInicio()" (ngModelChange)="filtroDataInicio.set($event)"
-                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition" />
+                 class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition shadow-2xs" />
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Data Fim</label>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Data Fim</label>
           <input type="date" [ngModel]="filtroDataFim()" (ngModelChange)="filtroDataFim.set($event)"
-                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition" />
+                 class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition shadow-2xs" />
         </div>
-        <div class="md:col-span-3 flex gap-3 justify-end">
-          <button (click)="limparFiltros()" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition">
+        <div class="md:col-span-3 flex gap-3 justify-end pt-1">
+          <button (click)="limparFiltros()" class="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/10 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer">
             Limpar filtros
           </button>
-          <button (click)="aplicarFiltros()" class="px-4 py-2 text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition">
+          <button (click)="aplicarFiltros()" class="px-4 py-2 text-xs font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition cursor-pointer">
             Aplicar Filtros
           </button>
         </div>
       </div>
 
       @if (errorAudit()) {
-        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm">
+        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-500 dark:text-red-400 text-sm">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
@@ -282,14 +291,14 @@
 
       @if (loadingAudit()) {
         <div class="flex flex-col items-center justify-center py-16 space-y-3">
-          <div class="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
-          <p class="text-sm text-slate-400">Carregando logs do sistema...</p>
+          <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-sm text-slate-500 dark:text-slate-400">Carregando logs do sistema...</p>
         </div>
       } @else {
-        <div class="overflow-x-auto rounded-xl border border-white/5">
+        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10 shadow-2xs">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-white/[0.02] border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400 font-mono">
+              <tr class="bg-slate-50/80 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
                 <th class="px-4 py-3 font-semibold whitespace-nowrap">Data / Hora</th>
                 <th class="px-4 py-3 font-semibold">Usuário</th>
                 <th class="px-4 py-3 font-semibold text-center">Ação</th>
@@ -298,27 +307,27 @@
                 <th class="px-4 py-3 font-semibold">IP</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-white/5 text-xs text-white">
+            <tbody class="divide-y divide-slate-200/80 dark:divide-white/5 text-xs text-slate-800 dark:text-white">
               @for (log of auditLogs(); track log.id) {
-                <tr class="hover:bg-white/[0.02] transition-colors"
+                <tr class="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors"
                     [class.cursor-pointer]="log.detalhes"
                     (click)="log.detalhes && toggleDetalhes(log.id)">
-                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
                     <div class="flex items-center gap-1.5">
                       @if (log.detalhes) {
-                        <svg class="w-3 h-3 transition-transform" [class.rotate-90]="expandidos()[log.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 transition-transform" [class.rotate-90]="expandidos()[log.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                         </svg>
                       } @else {
-                        <span class="w-3 h-3 inline-block"></span>
+                        <span class="w-3.5 h-3.5 inline-block"></span>
                       }
                       {{ formatarData(log.created_at) }}
                     </div>
                   </td>
                   <td class="px-4 py-3.5">
-                    <p class="font-medium text-white">{{ log.usuario_nome || 'Sistema' }}</p>
+                    <p class="font-bold text-slate-900 dark:text-white">{{ log.usuario_nome || 'Sistema' }}</p>
                     @if (log.usuario_email) {
-                      <p class="text-[10px] text-slate-500">{{ log.usuario_email }}</p>
+                      <p class="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{{ log.usuario_email }}</p>
                     }
                   </td>
                   <td class="px-4 py-3.5 text-center">
@@ -328,173 +337,177 @@
                     </span>
                   </td>
                   <td class="px-4 py-3.5 whitespace-nowrap">
-                    <span class="font-medium text-slate-300">{{ getModuloLabel(log.modulo) }}</span>
+                    <span class="font-semibold text-slate-700 dark:text-slate-300">{{ getModuloLabel(log.modulo) }}</span>
                     @if (log.entidade_id) {
-                      <span class="text-slate-500 font-mono text-[10px] ml-1">#{{ log.entidade_id }}</span>
+                      <span class="text-slate-400 dark:text-slate-500 font-mono text-[10px] ml-1">#{{ log.entidade_id }}</span>
                     }
                   </td>
-                  <td class="px-4 py-3.5 text-slate-300 max-w-xs">
+                  <td class="px-4 py-3.5 text-slate-700 dark:text-slate-300 max-w-xs">
                     <div class="truncate" [title]="log.descricao">{{ log.descricao || '-' }}</div>
                   </td>
-                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
                     {{ log.ip || '-' }}
                   </td>
                 </tr>
                 @if (expandidos()[log.id] && log.detalhes) {
-                  <tr class="bg-black/30">
-                    <td colspan="6" class="px-4 py-3">
+                  <tr class="bg-slate-100/70 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10">
+                    <td colspan="6" class="px-5 py-4">
                       @let dt = parseDetalhes(log.detalhes);
                       @let tipo = tipoDetalhes(dt);
 
                       @if (tipo === 'visitante' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <!-- Pessoa -->
-                          <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-blue-400 font-bold mb-2">
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-blue-200/80 dark:border-blue-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-bold mb-1.5">
                               {{ dt.visitante.tipo }}
                             </div>
-                            <div class="text-sm font-semibold text-white">{{ dt.visitante.nome }}</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.visitante.nome }}</div>
                             @if (dt.visitante.documento) {
-                              <div class="text-[11px] text-slate-400 mt-0.5 font-mono">Doc: {{ dt.visitante.documento }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">Doc: {{ dt.visitante.documento }}</div>
                             }
                           </div>
 
                           <!-- Apartamento -->
-                          <div class="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-2">Apartamento</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-emerald-200/80 dark:border-emerald-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold mb-1.5">Apartamento</div>
                             @if (dt.apartamento) {
-                              <div class="text-sm font-semibold text-white">{{ dt.apartamento.label }}</div>
-                              <div class="text-[11px] text-slate-400 mt-0.5">ID #{{ dt.apartamento.id }}</div>
+                              <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.apartamento.label }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">ID #{{ dt.apartamento.id }}</div>
                             } @else {
-                              <div class="text-sm text-slate-500">Não vinculado</div>
+                              <div class="text-sm text-slate-400">Não vinculado</div>
                             }
                           </div>
 
                           <!-- Convidado por -->
-                          <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Convidado por</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-purple-200/80 dark:border-purple-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-bold mb-1.5">Convidado por</div>
                             @if (dt.convidadoPor) {
-                              <div class="text-sm font-semibold text-white">{{ dt.convidadoPor.nome || '—' }}</div>
-                              <div class="text-[11px] text-slate-400 mt-0.5">Morador #{{ dt.convidadoPor.id }}</div>
+                              <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.convidadoPor.nome || '—' }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Morador #{{ dt.convidadoPor.id }}</div>
                             } @else {
-                              <div class="text-sm text-slate-500">Sem convite registrado</div>
+                              <div class="text-sm text-slate-400">Sem convite registrado</div>
                             }
                           </div>
 
                           <!-- Janela de validade -->
                           @if (dt.janela?.inicio || dt.janela?.termino) {
-                            <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 md:col-span-2">
-                              <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold mb-2">Janela autorizada</div>
-                              <div class="text-xs text-white">
+                            <div class="rounded-xl bg-white dark:bg-graphite border border-amber-200/80 dark:border-amber-500/30 p-3.5 shadow-2xs md:col-span-2">
+                              <div class="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-bold mb-1.5">Janela autorizada</div>
+                              <div class="text-xs font-semibold text-slate-800 dark:text-slate-200">
                                 {{ dt.janela.inicio || 'sem início' }} → {{ dt.janela.termino || 'sem fim' }}
                               </div>
                             </div>
                           }
 
                           <!-- Status -->
-                          <div class="rounded-lg bg-slate-500/5 border border-slate-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Status</div>
-                            <div class="text-xs space-y-0.5 text-slate-300">
-                              <div>Liberado: <span [class.text-emerald-400]="dt.status?.liberado" [class.text-slate-500]="!dt.status?.liberado">{{ dt.status?.liberado ? 'Sim' : 'Não' }}</span></div>
-                              @if (dt.status?.dataEntrada) { <div>Entrada: {{ dt.status.dataEntrada }}</div> }
-                              @if (dt.status?.dataSaida) { <div>Saída: {{ dt.status.dataSaida }}</div> }
-                              @if (dt.status?.codigoAcesso) { <div class="font-mono">QR: {{ dt.status.codigoAcesso }}</div> }
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1.5">Status</div>
+                            <div class="text-xs space-y-1 text-slate-700 dark:text-slate-300">
+                              <div>Liberado: <span [class.text-emerald-600]="dt.status?.liberado" [class.dark:text-emerald-400]="dt.status?.liberado" [class.text-slate-400]="!dt.status?.liberado" class="font-bold">{{ dt.status?.liberado ? 'Sim' : 'Não' }}</span></div>
+                              @if (dt.status?.dataEntrada) { <div>Entrada: <span class="font-medium text-slate-900 dark:text-white">{{ dt.status.dataEntrada }}</span></div> }
+                              @if (dt.status?.dataSaida) { <div>Saída: <span class="font-medium text-slate-900 dark:text-white">{{ dt.status.dataSaida }}</span></div> }
+                              @if (dt.status?.codigoAcesso) { <div class="font-mono text-[11px]">QR: <span class="text-slate-900 dark:text-white font-bold">{{ dt.status.codigoAcesso }}</span></div> }
                             </div>
                           </div>
                         </div>
                       } @else if (tipo === 'encomenda' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <!-- Pacote -->
-                          <div class="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3 md:col-span-2">
-                            <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-2">Encomenda</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.encomenda.descricao }}</div>
-                            <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-                              <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold"
-                                    [class.bg-amber-500/15]="dt.encomenda.status === 'Aguardando'"
-                                    [class.text-amber-300]="dt.encomenda.status === 'Aguardando'"
-                                    [class.bg-emerald-500/15]="dt.encomenda.status === 'Retirada'"
-                                    [class.text-emerald-300]="dt.encomenda.status === 'Retirada'">
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-emerald-200/80 dark:border-emerald-500/30 p-3.5 shadow-2xs md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold mb-1.5">Encomenda</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.encomenda.descricao }}</div>
+                            <div class="flex items-center gap-2 mt-2 flex-wrap">
+                              <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold"
+                                    [class.bg-amber-100]="dt.encomenda.status === 'Aguardando'"
+                                    [class.text-amber-700]="dt.encomenda.status === 'Aguardando'"
+                                    [class.dark:bg-amber-500/20]="dt.encomenda.status === 'Aguardando'"
+                                    [class.dark:text-amber-300]="dt.encomenda.status === 'Aguardando'"
+                                    [class.bg-emerald-100]="dt.encomenda.status === 'Retirada'"
+                                    [class.text-emerald-700]="dt.encomenda.status === 'Retirada'"
+                                    [class.dark:bg-emerald-500/20]="dt.encomenda.status === 'Retirada'"
+                                    [class.dark:text-emerald-300]="dt.encomenda.status === 'Retirada'">
                                 {{ dt.encomenda.status }}
                               </span>
                               @if (dt.encomenda.remetente) {
-                                <span class="text-[11px] text-slate-400">de {{ dt.encomenda.remetente }}</span>
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400">de {{ dt.encomenda.remetente }}</span>
                               }
                               @if (dt.encomenda.temFoto) {
-                                <span class="text-[11px] text-slate-500">📷 com foto</span>
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400">📷 com foto</span>
                               }
                             </div>
                           </div>
 
                           <!-- Destinatário -->
-                          <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-blue-400 font-bold mb-2">Destinatário</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.destinatario.label }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-blue-200/80 dark:border-blue-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-bold mb-1.5">Destinatário</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.destinatario.label }}</div>
                           </div>
 
                           <!-- Recebimento -->
-                          <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Recebido</div>
-                            <div class="text-xs text-slate-300">{{ dt.recebimento.em || '—' }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-purple-200/80 dark:border-purple-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-bold mb-1.5">Recebido</div>
+                            <div class="text-xs font-semibold text-slate-800 dark:text-slate-200">{{ dt.recebimento.em || '—' }}</div>
                             @if (dt.recebimento.por) {
-                              <div class="text-[11px] text-slate-400 mt-0.5">por {{ dt.recebimento.por.nome }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">por {{ dt.recebimento.por.nome }}</div>
                             }
                           </div>
 
                           <!-- Retirada -->
                           @if (dt.retirada) {
-                            <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 md:col-span-2">
-                              <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold mb-2">Retirada</div>
-                              <div class="text-sm font-semibold text-white">{{ dt.retirada.por }}</div>
-                              <div class="flex items-center gap-3 mt-1 text-[11px] text-slate-400 flex-wrap">
+                            <div class="rounded-xl bg-white dark:bg-graphite border border-amber-200/80 dark:border-amber-500/30 p-3.5 shadow-2xs md:col-span-2">
+                              <div class="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-bold mb-1.5">Retirada</div>
+                              <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.retirada.por }}</div>
+                              <div class="flex items-center gap-3 mt-1.5 text-[11px] text-slate-600 dark:text-slate-400 flex-wrap">
                                 <span>{{ dt.retirada.em }}</span>
                                 @if (dt.retirada.documento) { <span class="font-mono">Doc: {{ dt.retirada.documento }}</span> }
                                 @if (dt.retirada.entreguePor) { <span>entregue por {{ dt.retirada.entreguePor.nome }}</span> }
-                                @if (dt.retirada.comAssinatura) { <span class="text-emerald-400">✍ assinou</span> }
-                                @if (dt.retirada.comFoto) { <span class="text-emerald-400">📷 foto</span> }
+                                @if (dt.retirada.comAssinatura) { <span class="text-emerald-600 dark:text-emerald-400 font-semibold">✍ assinou</span> }
+                                @if (dt.retirada.comFoto) { <span class="text-emerald-600 dark:text-emerald-400 font-semibold">📷 foto</span> }
                               </div>
                             </div>
                           } @else {
-                            <div class="rounded-lg bg-slate-500/5 border border-slate-500/20 p-3 md:col-span-2">
-                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Retirada</div>
-                              <div class="text-sm text-slate-500">Pendente</div>
+                            <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs md:col-span-2">
+                              <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1.5">Retirada</div>
+                              <div class="text-sm font-semibold text-slate-400">Pendente</div>
                             </div>
                           }
                         </div>
                       } @else if (tipo === 'morador' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-3 md:col-span-2">
-                            <div class="text-[10px] uppercase tracking-wider text-blue-400 font-bold mb-2">Morador</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.morador.nome }}</div>
-                            <div class="flex items-center gap-3 mt-1 text-[11px] text-slate-400 flex-wrap">
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-blue-200/80 dark:border-blue-500/30 p-3.5 shadow-2xs md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-bold mb-1.5">Morador</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.morador.nome }}</div>
+                            <div class="flex items-center gap-3 mt-1.5 text-[11px] text-slate-600 dark:text-slate-400 flex-wrap">
                               @if (dt.morador.tipo) {
-                                <span class="capitalize">{{ dt.morador.tipo }}</span>
+                                <span class="capitalize font-semibold text-slate-700 dark:text-slate-300">{{ dt.morador.tipo }}</span>
                               }
                               @if (dt.morador.documento) { <span class="font-mono">Doc: {{ dt.morador.documento }}</span> }
                               @if (dt.morador.email) { <span>{{ dt.morador.email }}</span> }
                               @if (dt.morador.telefone) { <span>{{ dt.morador.telefone }}</span> }
                             </div>
                           </div>
-                          <div class="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-2">Apartamento</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-emerald-200/80 dark:border-emerald-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold mb-1.5">Apartamento</div>
                             @if (dt.apartamento) {
-                              <div class="text-sm font-semibold text-white">{{ dt.apartamento.label }}</div>
+                              <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.apartamento.label }}</div>
                             } @else {
-                              <div class="text-sm text-slate-500">Sem apto vinculado</div>
+                              <div class="text-sm text-slate-400">Sem apto vinculado</div>
                             }
                           </div>
-                          <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3 md:col-span-3">
-                            <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Credenciais habilitadas</div>
-                            <div class="flex items-center gap-4 text-xs flex-wrap">
-                              <span [class.text-emerald-400]="dt.credenciais.temFacial" [class.text-slate-500]="!dt.credenciais.temFacial">
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-purple-200/80 dark:border-purple-500/30 p-3.5 shadow-2xs md:col-span-3">
+                            <div class="text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-bold mb-1.5">Credenciais habilitadas</div>
+                            <div class="flex items-center gap-4 text-xs font-semibold flex-wrap">
+                              <span [class.text-emerald-600]="dt.credenciais.temFacial" [class.dark:text-emerald-400]="dt.credenciais.temFacial" [class.text-slate-400]="!dt.credenciais.temFacial">
                                 {{ dt.credenciais.temFacial ? '✓' : '○' }} Reconhecimento facial
                                 @if (dt.credenciais.statusFacial) {
-                                  <span class="text-[10px] text-slate-500 ml-1">({{ dt.credenciais.statusFacial }})</span>
+                                  <span class="text-[10px] text-slate-400 ml-1">({{ dt.credenciais.statusFacial }})</span>
                                 }
                               </span>
-                              <span [class.text-emerald-400]="dt.credenciais.temTagRfid" [class.text-slate-500]="!dt.credenciais.temTagRfid">
+                              <span [class.text-emerald-600]="dt.credenciais.temTagRfid" [class.dark:text-emerald-400]="dt.credenciais.temTagRfid" [class.text-slate-400]="!dt.credenciais.temTagRfid">
                                 {{ dt.credenciais.temTagRfid ? '✓' : '○' }} Tag RFID
                               </span>
-                              <span [class.text-emerald-400]="dt.credenciais.temQrCode" [class.text-slate-500]="!dt.credenciais.temQrCode">
+                              <span [class.text-emerald-600]="dt.credenciais.temQrCode" [class.dark:text-emerald-400]="dt.credenciais.temQrCode" [class.text-slate-400]="!dt.credenciais.temQrCode">
                                 {{ dt.credenciais.temQrCode ? '✓' : '○' }} QR Code
                               </span>
                             </div>
@@ -502,132 +515,138 @@
                         </div>
                       } @else if (tipo === 'morador-update' && dt) {
                         <div class="space-y-3">
-                          <div class="rounded-lg bg-blue-500/5 border border-blue-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-blue-400 font-bold mb-2">Morador</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.contexto.morador.nome }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-blue-200/80 dark:border-blue-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-bold mb-1.5">Morador</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.contexto.morador.nome }}</div>
                             @if (dt.contexto.apartamento) {
-                              <div class="text-[11px] text-slate-400 mt-0.5">{{ dt.contexto.apartamento.label }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{{ dt.contexto.apartamento.label }}</div>
                             }
                           </div>
                           @if (dt.changes && temChanges(dt.changes)) {
-                            <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Campos alterados</div>
+                            <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                              <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-2">Campos alterados</div>
                               <div class="space-y-1.5">
                                 @for (key of dt.changes | keyvalue; track key.key) {
                                   <div class="flex items-center gap-2 text-xs">
-                                    <span class="text-slate-500 font-mono w-32 shrink-0">{{ key.key }}</span>
-                                    <span class="text-red-300 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
-                                    <span class="text-slate-600">→</span>
-                                    <span class="text-emerald-300 font-mono truncate">{{ key.value?.para ?? '—' }}</span>
+                                    <span class="text-slate-500 dark:text-slate-400 font-mono w-32 shrink-0">{{ key.key }}</span>
+                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
+                                    <span class="text-slate-400">→</span>
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ key.value?.para ?? '—' }}</span>
                                   </div>
                                 }
                               </div>
                             </div>
                           } @else {
-                            <div class="text-xs text-slate-500 italic">Nenhum campo sensível foi alterado.</div>
+                            <div class="text-xs text-slate-400 italic">Nenhum campo sensível foi alterado.</div>
                           }
                         </div>
                       } @else if (tipo === 'comunicado' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div class="rounded-lg bg-sky-500/5 border border-sky-500/20 p-3 md:col-span-2">
-                            <div class="text-[10px] uppercase tracking-wider text-sky-400 font-bold mb-2">Comunicado</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.comunicado.titulo }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-sky-200/80 dark:border-sky-500/30 p-3.5 shadow-2xs md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold mb-1.5">Comunicado</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.comunicado.titulo }}</div>
                             @if (dt.comunicado.descricao) {
-                              <div class="text-[11px] text-slate-300 mt-2 line-clamp-4 whitespace-pre-wrap">{{ dt.comunicado.descricao }}</div>
-                              <div class="text-[10px] text-slate-500 mt-1">{{ dt.comunicado.tamanhoConteudo }} caracteres</div>
+                              <div class="text-xs text-slate-700 dark:text-slate-300 mt-2 line-clamp-4 whitespace-pre-wrap leading-relaxed">{{ dt.comunicado.descricao }}</div>
+                              <div class="text-[10px] text-slate-400 mt-1.5">{{ dt.comunicado.tamanhoConteudo }} caracteres</div>
                             }
                           </div>
                           <div class="space-y-3">
-                            <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
-                              <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Autor</div>
+                            <div class="rounded-xl bg-white dark:bg-graphite border border-purple-200/80 dark:border-purple-500/30 p-3.5 shadow-2xs">
+                              <div class="text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-bold mb-1.5">Autor</div>
                               @if (dt.autor) {
-                                <div class="text-sm font-semibold text-white">{{ dt.autor.nome }}</div>
+                                <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.autor.nome }}</div>
                                 @if (dt.autor.email) {
-                                  <div class="text-[11px] text-slate-400 mt-0.5">{{ dt.autor.email }}</div>
+                                  <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ dt.autor.email }}</div>
                                 }
                               } @else {
-                                <div class="text-sm text-slate-500">Não identificado</div>
+                                <div class="text-sm text-slate-400">Não identificado</div>
                               }
                             </div>
-                            <div class="rounded-lg bg-slate-500/5 border border-slate-500/20 p-3">
-                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Publicação</div>
-                              <div class="text-xs text-slate-300">{{ dt.publicado.em }}</div>
+                            <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                              <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1.5">Publicação</div>
+                              <div class="text-xs font-semibold text-slate-800 dark:text-slate-200">{{ dt.publicado.em }}</div>
                               @if (dt.publicado.atualizadoEm && dt.publicado.atualizadoEm !== dt.publicado.em) {
-                                <div class="text-[11px] text-slate-500 mt-0.5">editado em {{ dt.publicado.atualizadoEm }}</div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">editado em {{ dt.publicado.atualizadoEm }}</div>
                               }
                             </div>
                           </div>
                         </div>
                       } @else if (tipo === 'comunicado-update' && dt) {
                         <div class="space-y-3">
-                          <div class="rounded-lg bg-sky-500/5 border border-sky-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-sky-400 font-bold mb-2">Comunicado</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.contexto.comunicado.titulo }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-sky-200/80 dark:border-sky-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold mb-1.5">Comunicado</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.contexto.comunicado.titulo }}</div>
                             @if (dt.contexto.autor) {
-                              <div class="text-[11px] text-slate-400 mt-0.5">por {{ dt.contexto.autor.nome }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">por {{ dt.contexto.autor.nome }}</div>
                             }
                           </div>
                           @if (dt.changes && temChanges(dt.changes)) {
-                            <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Campos alterados</div>
+                            <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                              <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-2">Campos alterados</div>
                               <div class="space-y-1.5">
                                 @for (key of dt.changes | keyvalue; track key.key) {
                                   <div class="flex items-center gap-2 text-xs">
-                                    <span class="text-slate-500 font-mono w-40 shrink-0">{{ key.key }}</span>
-                                    <span class="text-red-300 line-through font-mono truncate max-w-xs">{{ key.value?.de ?? '—' }}</span>
-                                    <span class="text-slate-600">→</span>
-                                    <span class="text-emerald-300 font-mono truncate max-w-xs">{{ key.value?.para ?? '—' }}</span>
+                                    <span class="text-slate-500 dark:text-slate-400 font-mono w-40 shrink-0">{{ key.key }}</span>
+                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate max-w-xs">{{ key.value?.de ?? '—' }}</span>
+                                    <span class="text-slate-400">→</span>
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate max-w-xs">{{ key.value?.para ?? '—' }}</span>
                                   </div>
                                 }
                               </div>
                             </div>
                           } @else {
-                            <div class="text-xs text-slate-500 italic">Nenhuma alteração relevante registrada.</div>
+                            <div class="text-xs text-slate-400 italic">Nenhuma alteração relevante registrada.</div>
                           }
                         </div>
                       } @else if (tipo === 'financeiro' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <!-- Lançamento -->
-                          <div class="rounded-lg p-3 border md:col-span-2"
-                               [class.bg-emerald-500/5]="dt.lancamento.tipo === 'Receita'"
-                               [class.border-emerald-500/20]="dt.lancamento.tipo === 'Receita'"
-                               [class.bg-red-500/5]="dt.lancamento.tipo === 'Despesa'"
-                               [class.border-red-500/20]="dt.lancamento.tipo === 'Despesa'">
-                            <div class="text-[10px] uppercase tracking-wider font-bold mb-2"
-                                 [class.text-emerald-400]="dt.lancamento.tipo === 'Receita'"
-                                 [class.text-red-400]="dt.lancamento.tipo === 'Despesa'">
+                          <div class="rounded-xl bg-white dark:bg-graphite p-3.5 border shadow-2xs md:col-span-2"
+                               [class.border-emerald-200]="dt.lancamento.tipo === 'Receita'"
+                               [class.dark:border-emerald-500/30]="dt.lancamento.tipo === 'Receita'"
+                               [class.border-rose-200]="dt.lancamento.tipo === 'Despesa'"
+                               [class.dark:border-rose-500/30]="dt.lancamento.tipo === 'Despesa'">
+                            <div class="text-[10px] uppercase tracking-wider font-bold mb-1.5"
+                                 [class.text-emerald-600]="dt.lancamento.tipo === 'Receita'"
+                                 [class.dark:text-emerald-400]="dt.lancamento.tipo === 'Receita'"
+                                 [class.text-rose-600]="dt.lancamento.tipo === 'Despesa'"
+                                 [class.dark:text-rose-400]="dt.lancamento.tipo === 'Despesa'">
                               {{ dt.lancamento.tipo }}
                             </div>
-                            <div class="text-sm font-semibold text-white">{{ dt.lancamento.nome }}</div>
-                            <div class="text-xl font-bold mt-1"
-                                 [class.text-emerald-300]="dt.lancamento.tipo === 'Receita'"
-                                 [class.text-red-300]="dt.lancamento.tipo === 'Despesa'">
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.lancamento.nome }}</div>
+                            <div class="text-xl font-extrabold mt-1"
+                                 [class.text-emerald-600]="dt.lancamento.tipo === 'Receita'"
+                                 [class.dark:text-emerald-300]="dt.lancamento.tipo === 'Receita'"
+                                 [class.text-rose-600]="dt.lancamento.tipo === 'Despesa'"
+                                 [class.dark:text-rose-300]="dt.lancamento.tipo === 'Despesa'">
                               {{ dt.lancamento.valorFormatado }}
                             </div>
-                            <div class="flex items-center gap-2 mt-2 flex-wrap text-[11px] text-slate-400">
+                            <div class="flex items-center gap-2 mt-2 flex-wrap text-[11px] text-slate-600 dark:text-slate-400">
                               @if (dt.lancamento.categoria) {
-                                <span class="px-1.5 py-0.5 rounded bg-white/5 border border-white/10">{{ dt.lancamento.categoria }}</span>
+                                <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 font-medium">{{ dt.lancamento.categoria }}</span>
                               }
                               @if (dt.lancamento.formaPagamento) { <span>via {{ dt.lancamento.formaPagamento }}</span> }
                               @if (dt.lancamento.conta) { <span>conta: {{ dt.lancamento.conta }}</span> }
                             </div>
                             @if (dt.lancamento.descricao) {
-                              <div class="text-[11px] text-slate-300 mt-2 line-clamp-2">{{ dt.lancamento.descricao }}</div>
+                              <div class="text-xs text-slate-600 dark:text-slate-300 mt-2 line-clamp-2">{{ dt.lancamento.descricao }}</div>
                             }
                           </div>
 
                           <!-- Status -->
-                          <div class="rounded-lg p-3 border"
-                               [class.bg-emerald-500/5]="dt.status.pago"
-                               [class.border-emerald-500/20]="dt.status.pago"
-                               [class.bg-amber-500/5]="!dt.status.pago"
-                               [class.border-amber-500/20]="!dt.status.pago">
-                            <div class="text-[10px] uppercase tracking-wider font-bold mb-2"
-                                 [class.text-emerald-400]="dt.status.pago"
-                                 [class.text-amber-400]="!dt.status.pago">
+                          <div class="rounded-xl bg-white dark:bg-graphite p-3.5 border shadow-2xs"
+                               [class.border-emerald-200]="dt.status.pago"
+                               [class.dark:border-emerald-500/30]="dt.status.pago"
+                               [class.border-amber-200]="!dt.status.pago"
+                               [class.dark:border-amber-500/30]="!dt.status.pago">
+                            <div class="text-[10px] uppercase tracking-wider font-bold mb-1.5"
+                                 [class.text-emerald-600]="dt.status.pago"
+                                 [class.dark:text-emerald-400]="dt.status.pago"
+                                 [class.text-amber-600]="!dt.status.pago"
+                                 [class.dark:text-amber-400]="!dt.status.pago">
                               {{ dt.status.pago ? 'Pago' : 'Em aberto' }}
                             </div>
-                            <div class="flex items-center gap-3 mt-1 text-[11px] text-slate-400 flex-wrap">
+                            <div class="flex items-center gap-2.5 mt-1.5 text-[11px] text-slate-600 dark:text-slate-400 flex-wrap">
                               @if (dt.status.temBoleto) { <span>📄 boleto</span> }
                               @if (dt.status.temComprovante) { <span>📷 comprovante</span> }
                               @if (dt.status.temLinhaDigitavel) { <span>🔢 linha digitável</span> }
@@ -636,101 +655,100 @@
                           </div>
 
                           <!-- Datas -->
-                          <div class="rounded-lg bg-slate-500/5 border border-slate-500/20 p-3 md:col-span-2">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Datas</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1.5">Datas</div>
                             <div class="grid grid-cols-2 gap-2 text-xs">
                               <div>
                                 <span class="text-slate-500">Vencimento:</span>
-                                <span class="text-white ml-1">{{ dt.datas.vencimento || '—' }}</span>
+                                <span class="text-slate-900 dark:text-white font-semibold ml-1">{{ dt.datas.vencimento || '—' }}</span>
                               </div>
                               <div>
                                 <span class="text-slate-500">Lançado em:</span>
-                                <span class="text-white ml-1">{{ dt.datas.lancamento || '—' }}</span>
+                                <span class="text-slate-900 dark:text-white font-semibold ml-1">{{ dt.datas.lancamento || '—' }}</span>
                               </div>
                             </div>
                           </div>
 
                           <!-- Vínculo -->
-                          <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Vínculo</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-purple-200/80 dark:border-purple-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-bold mb-1.5">Vínculo</div>
                             @if (dt.vinculo.idUsuario) {
-                              <div class="text-[11px] text-white">Morador #{{ dt.vinculo.idUsuario }}</div>
+                              <div class="text-xs font-bold text-slate-900 dark:text-white">Morador #{{ dt.vinculo.idUsuario }}</div>
                             } @else if (dt.vinculo.cliente) {
-                              <div class="text-[11px] text-white">{{ dt.vinculo.cliente }}</div>
+                              <div class="text-xs font-bold text-slate-900 dark:text-white">{{ dt.vinculo.cliente }}</div>
                             } @else {
-                              <div class="text-[11px] text-slate-500">Sem vínculo direto</div>
+                              <div class="text-xs text-slate-400">Sem vínculo direto</div>
                             }
                             @if (dt.vinculo.operadorRegistro) {
-                              <div class="text-[10px] text-slate-500 mt-1">por {{ dt.vinculo.operadorRegistro }}</div>
+                              <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">por {{ dt.vinculo.operadorRegistro }}</div>
                             }
                           </div>
                         </div>
                       } @else if (tipo === 'financeiro-update' && dt) {
                         <div class="space-y-3">
-                          <div class="rounded-lg p-3 border"
-                               [class.bg-emerald-500/5]="dt.contexto.lancamento.tipo === 'Receita'"
-                               [class.border-emerald-500/20]="dt.contexto.lancamento.tipo === 'Receita'"
-                               [class.bg-red-500/5]="dt.contexto.lancamento.tipo === 'Despesa'"
-                               [class.border-red-500/20]="dt.contexto.lancamento.tipo === 'Despesa'">
-                            <div class="text-[10px] uppercase tracking-wider font-bold mb-2"
-                                 [class.text-emerald-400]="dt.contexto.lancamento.tipo === 'Receita'"
-                                 [class.text-red-400]="dt.contexto.lancamento.tipo === 'Despesa'">
+                          <div class="rounded-xl bg-white dark:bg-graphite p-3.5 border shadow-2xs"
+                               [class.border-emerald-200]="dt.contexto.lancamento.tipo === 'Receita'"
+                               [class.dark:border-emerald-500/30]="dt.contexto.lancamento.tipo === 'Receita'"
+                               [class.border-rose-200]="dt.contexto.lancamento.tipo === 'Despesa'"
+                               [class.dark:border-rose-500/30]="dt.contexto.lancamento.tipo === 'Despesa'">
+                            <div class="text-[10px] uppercase tracking-wider font-bold mb-1"
+                                 [class.text-emerald-600]="dt.contexto.lancamento.tipo === 'Receita'"
+                                 [class.dark:text-emerald-400]="dt.contexto.lancamento.tipo === 'Receita'"
+                                 [class.text-rose-600]="dt.contexto.lancamento.tipo === 'Despesa'"
+                                 [class.dark:text-rose-400]="dt.contexto.lancamento.tipo === 'Despesa'">
                               {{ dt.contexto.lancamento.tipo }} — {{ dt.contexto.lancamento.valorFormatado }}
                             </div>
-                            <div class="text-sm font-semibold text-white">{{ dt.contexto.lancamento.nome }}</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.contexto.lancamento.nome }}</div>
                           </div>
                           @if (dt.changes && temChanges(dt.changes)) {
-                            <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Campos alterados</div>
+                            <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                              <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-2">Campos alterados</div>
                               <div class="space-y-1.5">
                                 @for (key of dt.changes | keyvalue; track key.key) {
                                   <div class="flex items-center gap-2 text-xs">
-                                    <span class="text-slate-500 font-mono w-32 shrink-0">{{ key.key }}</span>
-                                    <span class="text-red-300 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
-                                    <span class="text-slate-600">→</span>
-                                    <span class="text-emerald-300 font-mono truncate">{{ key.value?.para ?? '—' }}</span>
+                                    <span class="text-slate-500 dark:text-slate-400 font-mono w-32 shrink-0">{{ key.key }}</span>
+                                    <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
+                                    <span class="text-slate-400">→</span>
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ key.value?.para ?? '—' }}</span>
                                   </div>
                                 }
                               </div>
                             </div>
                           } @else {
-                            <div class="text-xs text-slate-500 italic">Nenhum campo sensível alterado.</div>
+                            <div class="text-xs text-slate-400 italic">Nenhum campo sensível alterado.</div>
                           }
 
-                          <!-- Justificativa de auto-aprovação (segregação soft de funções).
-                               Aparece quando o operador marca como pago um lançamento que ele
-                               mesmo criou — precisa registrar como o pagamento foi recebido. -->
                           @if (dt.justificativa) {
-                            <div class="rounded-lg bg-amber-500/5 border border-amber-500/30 p-3">
+                            <div class="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3.5 shadow-2xs">
                               <div class="flex items-center gap-2 mb-2">
-                                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
-                                <span class="text-[10px] uppercase tracking-wider text-amber-400 font-bold">
+                                <span class="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400 font-bold">
                                   {{ dt.justificativa.autoAprovacao ? 'Auto-aprovação justificada' : 'Pagamento com justificativa' }}
                                 </span>
                               </div>
                               @if (dt.justificativa.formaPagamento) {
                                 <div class="text-xs mb-1">
                                   <span class="text-slate-500">Forma:</span>
-                                  <span class="text-white ml-1 font-medium">{{ dt.justificativa.formaPagamento }}</span>
+                                  <span class="text-slate-900 dark:text-white ml-1 font-semibold">{{ dt.justificativa.formaPagamento }}</span>
                                 </div>
                               }
                               @if (dt.justificativa.motivo) {
                                 <div class="text-xs">
                                   <span class="text-slate-500">Motivo:</span>
-                                  <span class="text-slate-200 ml-1 italic">"{{ dt.justificativa.motivo }}"</span>
+                                  <span class="text-slate-700 dark:text-slate-200 ml-1 italic">"{{ dt.justificativa.motivo }}"</span>
                                 </div>
                               }
                               @if (dt.justificativa.identificadorComprovante) {
                                 <div class="text-[11px] mt-1 font-mono">
                                   <span class="text-slate-500">Comprovante:</span>
-                                  <span class="text-slate-300 ml-1">{{ dt.justificativa.identificadorComprovante }}</span>
+                                  <span class="text-slate-700 dark:text-slate-300 ml-1">{{ dt.justificativa.identificadorComprovante }}</span>
                                 </div>
                               }
                               @if (dt.justificativa.autoAprovacao && dt.justificativa.autorOriginal && dt.justificativa.aprovadoPor) {
-                                <div class="text-[10px] mt-2 pt-2 border-t border-amber-500/20 text-slate-500">
-                                  Mesmo operador criou e marcou como pago: <span class="text-amber-300">{{ dt.justificativa.autorOriginal }}</span>
+                                <div class="text-[10px] mt-2 pt-2 border-t border-amber-200 dark:border-amber-500/20 text-slate-500">
+                                  Mesmo operador criou e marcou como pago: <span class="text-amber-700 dark:text-amber-300 font-semibold">{{ dt.justificativa.autorOriginal }}</span>
                                 </div>
                               }
                             </div>
@@ -738,96 +756,98 @@
                         </div>
                       } @else if (tipo === 'rateio' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div class="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3 md:col-span-2">
-                            <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-2">Rateio Extraordinário</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.rateio.nome }}</div>
-                            <div class="text-xs text-slate-400 mt-0.5">Categoria: {{ dt.rateio.categoria || 'Geral' }}</div>
-                            <div class="text-xs text-slate-400 mt-0.5">Vencimento: {{ dt.rateio.dataVencimento }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-emerald-200/80 dark:border-emerald-500/30 p-3.5 shadow-2xs md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold mb-1.5">Rateio Extraordinário</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.rateio.nome }}</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">Categoria: {{ dt.rateio.categoria || 'Geral' }}</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Vencimento: {{ dt.rateio.dataVencimento }}</div>
                           </div>
-                          <div class="rounded-lg bg-purple-500/5 border border-purple-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-2">Valor</div>
-                            <div class="text-sm font-bold text-white">{{ dt.rateio.valorTotalFormatado }} total</div>
-                            <div class="text-[11px] text-emerald-300 mt-0.5">{{ dt.rateio.valorPorAptoFormatado }} / apto</div>
-                            <div class="text-[11px] text-slate-400 mt-0.5">{{ dt.rateio.quantidadeAptos }} apartamentos</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-purple-200/80 dark:border-purple-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 font-bold mb-1.5">Valor</div>
+                            <div class="text-sm font-extrabold text-slate-900 dark:text-white">{{ dt.rateio.valorTotalFormatado }} total</div>
+                            <div class="text-xs font-bold text-emerald-600 dark:text-emerald-300 mt-1">{{ dt.rateio.valorPorAptoFormatado }} / apto</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ dt.rateio.quantidadeAptos }} apartamentos</div>
                           </div>
-                          <div class="rounded-lg bg-slate-500/5 border border-slate-500/20 p-3 md:col-span-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Apartamentos incluídos (primeiros 20)</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs md:col-span-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1.5">Apartamentos incluídos (primeiros 20)</div>
                             <div class="flex flex-wrap gap-1.5">
                               @for (a of dt.rateio.aptos; track a) {
-                                <span class="px-2 py-0.5 rounded text-[11px] bg-white/5 border border-white/10 font-mono">{{ a }}</span>
+                                <span class="px-2 py-0.5 rounded text-[11px] bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 font-mono text-slate-700 dark:text-slate-300">{{ a }}</span>
                               }
                               @if (dt.rateio.quantidadeAptos > 20) {
-                                <span class="px-2 py-0.5 text-[11px] text-slate-500">+ {{ dt.rateio.quantidadeAptos - 20 }} outros</span>
+                                <span class="px-2 py-0.5 text-[11px] text-slate-400">+ {{ dt.rateio.quantidadeAptos - 20 }} outros</span>
                               }
                             </div>
                           </div>
                         </div>
                       } @else if (tipo === 'acordo' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div class="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold mb-2">Acordo de Inadimplência</div>
-                            <div class="text-sm font-semibold text-white">Bloco {{ dt.acordo.bloco }}, Apto {{ dt.acordo.apto }}</div>
-                            <div class="text-xs text-slate-400 mt-1">
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-emerald-200/80 dark:border-emerald-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold mb-1.5">Acordo de Inadimplência</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">Bloco {{ dt.acordo.bloco }}, Apto {{ dt.acordo.apto }}</div>
+                            <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-1">
                               {{ dt.acordo.parcelas }}× {{ dt.acordo.valorParcelaFormatado }} = {{ dt.acordo.valorTotalFormatado }}
                             </div>
                           </div>
-                          <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold mb-2">Débitos renegociados</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.acordo.debitosOriginaisRenegociados }} cobrança(s)</div>
-                            <div class="text-[11px] text-slate-400 mt-1">marcadas como "Renegociado" (status 3)</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-amber-200/80 dark:border-amber-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-bold mb-1.5">Débitos renegociados</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.acordo.debitosOriginaisRenegociados }} cobrança(s)</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">marcadas como "Renegociado" (status 3)</div>
                           </div>
                         </div>
                       } @else if (tipo === 'conciliacao' && dt) {
-                        <div class="rounded-lg bg-sky-500/5 border border-sky-500/20 p-3">
-                          <div class="text-[10px] uppercase tracking-wider text-sky-400 font-bold mb-2">Conciliação Bancária (OFX)</div>
-                          <div class="text-sm font-semibold text-white">
+                        <div class="rounded-xl bg-white dark:bg-graphite border border-sky-200/80 dark:border-sky-500/30 p-3.5 shadow-2xs">
+                          <div class="text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 font-bold mb-1.5">Conciliação Bancária (OFX)</div>
+                          <div class="text-sm font-bold text-slate-900 dark:text-white">
                             {{ dt.conciliacao.quantidade }} lançamento(s) confirmado(s) como pagos
                           </div>
-                          <div class="text-[11px] text-slate-400 mt-1 font-mono">
+                          <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
                             IDs: {{ dt.conciliacao.ids.join(', ') }}
                           </div>
                         </div>
                       } @else if (tipo === 'manual-override' && dt) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div class="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-amber-400 font-bold mb-2">Dispositivo</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.device_nome }}</div>
-                            <div class="text-[11px] text-slate-400 mt-0.5">{{ dt.device_tipo }} · {{ dt.device_ip }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-amber-200/80 dark:border-amber-500/30 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-bold mb-1.5">Dispositivo</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.device_nome }}</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ dt.device_tipo }} · {{ dt.device_ip }}</div>
                           </div>
-                          <div class="rounded-lg p-3 border"
-                               [class.bg-emerald-500/5]="dt.success"
-                               [class.border-emerald-500/20]="dt.success"
-                               [class.bg-red-500/5]="!dt.success"
-                               [class.border-red-500/20]="!dt.success">
-                            <div class="text-[10px] uppercase tracking-wider font-bold mb-2"
-                                 [class.text-emerald-400]="dt.success"
-                                 [class.text-red-400]="!dt.success">Resultado</div>
-                            <div class="text-sm font-semibold text-white">{{ dt.success ? 'Sucesso' : 'Falha' }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite p-3.5 border shadow-2xs"
+                               [class.border-emerald-200]="dt.success"
+                               [class.dark:border-emerald-500/30]="dt.success"
+                               [class.border-rose-200]="!dt.success"
+                               [class.dark:border-rose-500/30]="!dt.success">
+                            <div class="text-[10px] uppercase tracking-wider font-bold mb-1.5"
+                                 [class.text-emerald-600]="dt.success"
+                                 [class.dark:text-emerald-400]="dt.success"
+                                 [class.text-rose-600]="!dt.success"
+                                 [class.dark:text-rose-400]="!dt.success">Resultado</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ dt.success ? 'Sucesso' : 'Falha' }}</div>
                             @if (dt.statusCode) {
-                              <div class="text-[11px] text-slate-400 mt-0.5 font-mono">HTTP {{ dt.statusCode }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">HTTP {{ dt.statusCode }}</div>
                             }
                             @if (dt.error) {
-                              <div class="text-[11px] text-red-300 mt-0.5">{{ dt.error }}</div>
+                              <div class="text-[11px] text-rose-600 dark:text-rose-300 mt-0.5">{{ dt.error }}</div>
                             }
                           </div>
                         </div>
                       } @else if ((tipo === 'device-change' || tipo === 'rule-change') && dt?.changes) {
-                        <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-2">Campos alterados</div>
+                        <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                          <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-2">Campos alterados</div>
                           <div class="space-y-1.5">
                             @for (key of dt.changes | keyvalue; track key.key) {
                               <div class="flex items-center gap-2 text-xs">
-                                <span class="text-slate-500 font-mono w-32 shrink-0">{{ key.key }}</span>
-                                <span class="text-red-300 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
-                                <span class="text-slate-600">→</span>
-                                <span class="text-emerald-300 font-mono truncate">{{ key.value?.para ?? '—' }}</span>
+                                <span class="text-slate-500 dark:text-slate-400 font-mono w-32 shrink-0">{{ key.key }}</span>
+                                <span class="text-rose-600 dark:text-rose-400 line-through font-mono truncate">{{ key.value?.de ?? '—' }}</span>
+                                <span class="text-slate-400">→</span>
+                                <span class="text-emerald-600 dark:text-emerald-400 font-mono font-bold truncate">{{ key.value?.para ?? '—' }}</span>
                               </div>
                             }
                           </div>
                         </div>
                       } @else {
-                        <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Detalhes</div>
-                        <pre class="text-[11px] font-mono text-slate-300 bg-black/40 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words">{{ formatarDetalhes(log.detalhes) }}</pre>
+                        <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1.5">Detalhes</div>
+                        <pre class="text-[11px] font-mono text-slate-800 dark:text-slate-200 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap break-words">{{ formatarDetalhes(log.detalhes) }}</pre>
                       }
                     </td>
                   </tr>
@@ -841,7 +861,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                       </svg>
                       <p class="text-sm">Nenhum log encontrado para os filtros selecionados.</p>
-                      <p class="text-xs text-slate-600">Os logs serão gravados automaticamente a partir de agora.</p>
+                      <p class="text-xs text-slate-400">Os logs serão gravados automaticamente a partir de agora.</p>
                     </div>
                   </td>
                 </tr>
@@ -852,30 +872,30 @@
 
         @if (total() > 0) {
           <div class="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
-            <div class="flex items-center gap-2 text-xs text-slate-400">
+            <div class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
               <span>Por página:</span>
               <select [ngModel]="tamanhoPagina()" (ngModelChange)="mudarTamanhoPagina(+$event)"
-                      class="bg-white/5 border border-white/10 rounded px-2 py-1 text-white text-xs focus:border-emerald-400 outline-none">
-                <option [ngValue]="25" class="bg-slate-900">25</option>
-                <option [ngValue]="50" class="bg-slate-900">50</option>
-                <option [ngValue]="100" class="bg-slate-900">100</option>
-                <option [ngValue]="200" class="bg-slate-900">200</option>
+                      class="bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 rounded-lg px-2.5 py-1 text-slate-800 dark:text-white text-xs font-semibold focus:border-emerald-500 outline-none shadow-2xs cursor-pointer">
+                <option [ngValue]="25" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">25</option>
+                <option [ngValue]="50" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">50</option>
+                <option [ngValue]="100" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">100</option>
+                <option [ngValue]="200" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">200</option>
               </select>
-              <span class="ml-2">
+              <span class="ml-2 font-medium">
                 {{ ((pagina() - 1) * tamanhoPagina()) + 1 }}–{{ ((pagina() - 1) * tamanhoPagina()) + auditLogs().length }}
                 de {{ total() }}
               </span>
             </div>
             <div class="flex items-center gap-1">
               <button (click)="paginaAnterior()" [disabled]="pagina() <= 1 || loadingAudit()"
-                      class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
+                      class="px-3 py-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
                 ‹ Anterior
               </button>
-              <span class="px-3 py-1.5 text-xs text-slate-400 font-mono">
+              <span class="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
                 {{ pagina() }} / {{ totalPaginas() }}
               </span>
               <button (click)="proximaPagina()" [disabled]="pagina() >= totalPaginas() || loadingAudit()"
-                      class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
+                      class="px-3 py-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
                 Próxima ›
               </button>
             </div>
@@ -887,15 +907,15 @@
 
   @if (activeSubTab() === 'eventos') {
     <!-- Log de Eventos -->
-    <div class="rounded-2xl bg-graphite-200 border border-white/10 p-6 space-y-5 animate-fade-in">
+    <div class="rounded-2xl bg-white dark:bg-graphite-200 border border-slate-200/80 dark:border-white/10 shadow-sm p-6 space-y-5 animate-fade-in">
       <!-- Cabeçalho -->
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 class="text-lg font-semibold text-white">Linha do Tempo do Condomínio</h2>
-          <p class="text-xs text-slate-400 mt-0.5">Histórico completo de todos os eventos e acessos registrados.</p>
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white">Linha do Tempo do Condomínio</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Histórico completo de todos os eventos e acessos registrados.</p>
         </div>
         <div class="flex gap-2">
-          <button (click)="carregarEventos()" [disabled]="loadingEvents()" class="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white hover:bg-white/10 transition flex items-center gap-1.5">
+          <button (click)="carregarEventos()" [disabled]="loadingEvents()" class="px-3.5 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer">
             <svg class="w-3.5 h-3.5" [class.animate-spin]="loadingEvents()" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18"/></svg>
             Atualizar
           </button>
@@ -903,34 +923,34 @@
       </div>
 
       <!-- Filtros -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white/[0.02] rounded-xl border border-white/5">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50/70 dark:bg-white/[0.02] rounded-xl border border-slate-200/80 dark:border-white/5">
         <div>
-          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Buscar por nome/descrição</label>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Buscar por nome/descrição</label>
           <input type="text" [ngModel]="filtroEventosSearch()" (ngModelChange)="filtroEventosSearch.set($event)" placeholder="Digite para filtrar..."
-                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition placeholder-slate-500" />
+                 class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition placeholder-slate-400 shadow-2xs" />
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Data Início</label>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Data Início</label>
           <input type="date" [ngModel]="filtroEventosDataInicio()" (ngModelChange)="filtroEventosDataInicio.set($event)"
-                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition" />
+                 class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition shadow-2xs" />
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Data Fim</label>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wide">Data Fim</label>
           <input type="date" [ngModel]="filtroEventosDataFim()" (ngModelChange)="filtroEventosDataFim.set($event)"
-                 class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-emerald-400 outline-none transition" />
+                 class="w-full bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none transition shadow-2xs" />
         </div>
-        <div class="md:col-span-3 flex gap-3 justify-end">
-          <button (click)="limparFiltros()" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition">
+        <div class="md:col-span-3 flex gap-3 justify-end pt-1">
+          <button (click)="limparFiltros()" class="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/10 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer">
             Limpar filtros
           </button>
-          <button (click)="aplicarFiltros()" class="px-4 py-2 text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition">
+          <button (click)="aplicarFiltros()" class="px-4 py-2 text-xs font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition cursor-pointer">
             Aplicar Filtros
           </button>
         </div>
       </div>
 
       @if (errorEvents()) {
-        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm">
+        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-500 dark:text-red-400 text-sm">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
@@ -940,97 +960,97 @@
 
       @if (loadingEvents()) {
         <div class="flex flex-col items-center justify-center py-16 space-y-3">
-          <div class="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
-          <p class="text-sm text-slate-400">Carregando logs de eventos...</p>
+          <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-sm text-slate-500 dark:text-slate-400">Carregando logs de eventos...</p>
         </div>
       } @else {
-        <div class="overflow-x-auto rounded-xl border border-white/5">
+        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10 shadow-2xs">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-white/[0.02] border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400 font-mono">
+              <tr class="bg-slate-50/80 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
                 <th class="px-4 py-3 font-semibold whitespace-nowrap">Data / Hora</th>
                 <th class="px-4 py-3 font-semibold">Tipo</th>
                 <th class="px-4 py-3 font-semibold text-center">Direção</th>
                 <th class="px-4 py-3 font-semibold">Descrição</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-white/5 text-xs text-white">
+            <tbody class="divide-y divide-slate-200/80 dark:divide-white/5 text-xs text-slate-800 dark:text-white">
               @for (ev of eventLogs(); track ev.id) {
-                <tr class="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                <tr class="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
                     (click)="toggleDetalhes(ev.id)">
-                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                  <td class="px-4 py-3.5 font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
                     <div class="flex items-center gap-1.5">
-                      <svg class="w-3 h-3 transition-transform" [class.rotate-90]="expandidos()[ev.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 transition-transform" [class.rotate-90]="expandidos()[ev.id]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                       </svg>
                       {{ formatarData(ev.quando) }}
                     </div>
                   </td>
                   <td class="px-4 py-3.5 whitespace-nowrap">
-                    <span class="inline-block text-[9px] uppercase font-bold px-2 py-0.5 rounded border font-mono"
+                    <span class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded border font-mono"
                           [ngClass]="{
-                            'bg-blue-500/10 text-blue-400 border-blue-500/20': ev.tipo === 'Acesso Facial',
-                            'bg-emerald-500/10 text-emerald-450 border-emerald-500/20': ev.tipo === 'Visitante',
-                            'bg-amber-500/10 text-amber-450 border-amber-500/20': ev.tipo === 'Prestador',
-                            'bg-indigo-500/10 text-indigo-400 border-indigo-500/20': ev.tipo === 'Encomenda',
-                            'bg-purple-500/10 text-purple-400 border-purple-500/20': ev.tipo === 'Ocorrência'
+                            'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25': ev.tipo === 'Acesso Facial',
+                            'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25': ev.tipo === 'Visitante',
+                            'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25': ev.tipo === 'Prestador',
+                            'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/25': ev.tipo === 'Encomenda',
+                            'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25': ev.tipo === 'Ocorrência'
                           }">
                       {{ ev.tipo }}
                     </span>
                   </td>
                   <td class="px-4 py-3.5 text-center whitespace-nowrap">
                     @if (ev.direcao) {
-                      <span class="inline-block text-[9px] uppercase font-bold px-2 py-0.5 rounded border"
+                      <span class="inline-block text-[10px] uppercase font-bold px-2 py-0.5 rounded border"
                             [ngClass]="{
-                              'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': ev.direcao === 'entrada',
-                              'bg-rose-500/10 text-rose-450 border-rose-500/20': ev.direcao === 'saida',
-                              'bg-amber-500/10 text-amber-400 border-amber-500/20': ev.direcao === 'bloqueado'
+                              'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25': ev.direcao === 'entrada',
+                              'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25': ev.direcao === 'saida',
+                              'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25': ev.direcao === 'bloqueado'
                             }">
                         {{ ev.direcao === 'entrada' ? 'Entrada' : ev.direcao === 'saida' ? 'Saída' : 'Bloqueado' }}
                       </span>
                     } @else {
-                      <span class="text-slate-500">—</span>
+                      <span class="text-slate-400">—</span>
                     }
                   </td>
-                  <td class="px-4 py-3.5 text-slate-300">
+                  <td class="px-4 py-3.5 text-slate-700 dark:text-slate-300">
                     <div [title]="ev.descricao">{{ ev.descricao }}</div>
                   </td>
                 </tr>
                 @if (expandidos()[ev.id]) {
-                  <tr class="bg-black/30">
-                    <td colspan="4" class="px-4 py-3">
+                  <tr class="bg-slate-100/70 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/10">
+                    <td colspan="4" class="px-5 py-4">
                       <!-- Renderizar card com base no tipo de evento -->
                       @if (ev.tipo === 'Acesso Facial' && ev.detalhes) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div class="flex items-center gap-3 bg-white/[0.02] border border-white/10 p-3 rounded-lg">
+                          <div class="flex items-center gap-3 bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 rounded-xl shadow-2xs">
                             @if (ev.detalhes.fotoPessoa) {
-                              <img [src]="ev.detalhes.fotoPessoa" class="w-10 h-10 rounded-full object-cover border border-white/10" />
+                              <img [src]="ev.detalhes.fotoPessoa" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10" />
                             } @else {
-                              <div class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
+                              <div class="w-10 h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
                                 {{ (ev.detalhes.nome || 'P').substring(0,1).toUpperCase() }}
                               </div>
                             }
                             <div>
-                              <div class="text-sm font-semibold text-white">{{ ev.detalhes.nome }}</div>
-                              <div class="text-[10px] uppercase text-slate-400 tracking-wider mt-0.5">{{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' : ev.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : ev.detalhes.tipoPessoa }}</div>
+                              <div class="text-sm font-bold text-slate-900 dark:text-white">{{ ev.detalhes.nome }}</div>
+                              <div class="text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-wider mt-0.5">{{ ev.detalhes.tipoPessoa === 'morador' ? 'Morador' : ev.detalhes.tipoPessoa === 'funcionario' ? 'Funcionário' : ev.detalhes.tipoPessoa }}</div>
                             </div>
                           </div>
 
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3 flex flex-col justify-between">
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 flex flex-col justify-between shadow-2xs">
                             <div>
-                              <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Método de Acesso</div>
-                              <div class="text-xs text-white">{{ ev.detalhes.metodoLabel || 'Terminal Facial' }}</div>
+                              <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Método de Acesso</div>
+                              <div class="text-xs font-semibold text-slate-800 dark:text-white">{{ ev.detalhes.metodoLabel || 'Terminal Facial' }}</div>
                             </div>
                             @if (ev.detalhes.confianca != null) {
-                              <div class="text-[10px] text-emerald-400 font-semibold mt-1">{{ (ev.detalhes.confianca * 100).toFixed(0) }}% Confiança</div>
+                              <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">{{ (ev.detalhes.confianca * 100).toFixed(0) }}% Confiança</div>
                             }
                           </div>
 
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Local / Destino</div>
-                            <div class="text-xs text-white">Dispositivo: {{ ev.detalhes.terminalNome }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Local / Destino</div>
+                            <div class="text-xs font-semibold text-slate-800 dark:text-white">Dispositivo: {{ ev.detalhes.terminalNome }}</div>
                             @if (ev.detalhes.blocoApto) {
-                              <div class="text-[11px] text-slate-400 mt-1">{{ ev.detalhes.blocoApto }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{{ ev.detalhes.blocoApto }}</div>
                             }
                           </div>
                         </div>
@@ -1038,78 +1058,78 @@
 
                       @if ((ev.tipo === 'Visitante' || ev.tipo === 'Prestador') && ev.detalhes) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div class="flex items-center gap-3 bg-white/[0.02] border border-white/10 p-3 rounded-lg">
+                          <div class="flex items-center gap-3 bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 rounded-xl shadow-2xs">
                             @if (ev.detalhes.fotoPessoa) {
-                              <img [src]="ev.detalhes.fotoPessoa" class="w-10 h-10 rounded-full object-cover border border-white/10" />
+                              <img [src]="ev.detalhes.fotoPessoa" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-white/10" />
                             } @else {
-                              <div class="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-accent font-bold text-sm">
+                              <div class="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-sm">
                                 {{ (ev.detalhes.nome || 'V').substring(0,1).toUpperCase() }}
                               </div>
                             }
                             <div>
-                              <div class="text-sm font-semibold text-white">{{ ev.detalhes.nome }}</div>
-                              <div class="text-[10px] uppercase text-slate-400 tracking-wider mt-0.5">Doc: {{ ev.detalhes.documento }}</div>
+                              <div class="text-sm font-bold text-slate-900 dark:text-white">{{ ev.detalhes.nome }}</div>
+                              <div class="text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-wider mt-0.5">Doc: {{ ev.detalhes.documento }}</div>
                             </div>
                           </div>
 
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Destino & Autorização</div>
-                            <div class="text-xs text-white">Apartamento: {{ ev.detalhes.blocoApto }}</div>
-                            <div class="text-[11px] text-slate-400 mt-1">Autorizado por: {{ ev.detalhes.autorizadoPor || 'Não informado' }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Destino & Autorização</div>
+                            <div class="text-xs font-semibold text-slate-800 dark:text-white">Apartamento: {{ ev.detalhes.blocoApto }}</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Autorizado por: {{ ev.detalhes.autorizadoPor || 'Não informado' }}</div>
                           </div>
 
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Entrada / Saída</div>
-                            <div class="text-xs text-white">Entrada: {{ ev.detalhes.dataEntrada ? formatarData(ev.detalhes.dataEntrada) : 'Pendente' }}</div>
-                            <div class="text-xs text-white mt-0.5">Saída: {{ ev.detalhes.dataSaida ? formatarData(ev.detalhes.dataSaida) : 'No local' }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Entrada / Saída</div>
+                            <div class="text-xs font-semibold text-slate-800 dark:text-white">Entrada: {{ ev.detalhes.dataEntrada ? formatarData(ev.detalhes.dataEntrada) : 'Pendente' }}</div>
+                            <div class="text-xs font-semibold text-slate-800 dark:text-white mt-0.5">Saída: {{ ev.detalhes.dataSaida ? formatarData(ev.detalhes.dataSaida) : 'No local' }}</div>
                           </div>
                         </div>
                       }
 
                       @if (ev.tipo === 'Encomenda' && ev.detalhes) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Encomenda</div>
-                            <div class="text-sm font-semibold text-white">{{ ev.detalhes.nome }}</div>
-                            <div class="text-xs text-slate-300 mt-1">{{ ev.descricao }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Encomenda</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ ev.detalhes.nome }}</div>
+                            <div class="text-xs text-slate-600 dark:text-slate-300 mt-1">{{ ev.descricao }}</div>
                           </div>
 
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Status & Recebimento</div>
-                            <div class="text-xs text-white">Status: {{ ev.detalhes.status }}</div>
-                            <div class="text-[11px] text-slate-400 mt-1">Recebido por: {{ ev.detalhes.recebidoPor }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Status & Recebimento</div>
+                            <div class="text-xs font-semibold text-slate-800 dark:text-white">Status: {{ ev.detalhes.status }}</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Recebido por: {{ ev.detalhes.recebidoPor }}</div>
                             @if (ev.detalhes.retiradoPor) {
-                              <div class="text-[11px] text-slate-400 mt-0.5">Retirado por: {{ ev.detalhes.retiradoPor }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Retirado por: {{ ev.detalhes.retiradoPor }}</div>
                             }
                           </div>
 
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Data / Hora</div>
-                            <div class="text-xs text-white">Recebimento: {{ formatarData(ev.detalhes.dataEntrada) }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Data / Hora</div>
+                            <div class="text-xs font-semibold text-slate-800 dark:text-white">Recebimento: {{ formatarData(ev.detalhes.dataEntrada) }}</div>
                           </div>
                         </div>
                       }
 
                       @if (ev.tipo === 'Ocorrência' && ev.detalhes) {
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3 md:col-span-2">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Ocorrência</div>
-                            <div class="text-sm font-semibold text-white">{{ ev.detalhes.nome }}</div>
-                            <div class="text-xs text-slate-300 mt-1 whitespace-pre-line leading-relaxed">{{ ev.detalhes.descricao }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs md:col-span-2">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Ocorrência</div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">{{ ev.detalhes.nome }}</div>
+                            <div class="text-xs text-slate-700 dark:text-slate-300 mt-1.5 whitespace-pre-line leading-relaxed">{{ ev.detalhes.descricao }}</div>
                             @if (ev.detalhes.resposta) {
-                              <div class="mt-2.5 pt-2.5 border-t border-white/5">
+                              <div class="mt-2.5 pt-2.5 border-t border-slate-200 dark:border-white/5">
                                 <span class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Resposta da Administração</span>
-                                <p class="text-xs text-emerald-350 mt-1 whitespace-pre-line leading-relaxed">{{ ev.detalhes.resposta }}</p>
+                                <p class="text-xs text-emerald-600 dark:text-emerald-350 mt-1 whitespace-pre-line leading-relaxed font-medium">{{ ev.detalhes.resposta }}</p>
                               </div>
                             }
                           </div>
 
-                          <div class="rounded-lg bg-white/[0.02] border border-white/10 p-3">
-                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Histórico & Status</div>
-                            <div class="text-xs text-white">Status: {{ ev.detalhes.status }}</div>
-                            <div class="text-[11px] text-slate-400 mt-1">Registrado em: {{ formatarData(ev.detalhes.dataEntrada) }}</div>
+                          <div class="rounded-xl bg-white dark:bg-graphite border border-slate-200/80 dark:border-white/10 p-3.5 shadow-2xs">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold mb-1">Histórico & Status</div>
+                            <div class="text-xs font-semibold text-slate-800 dark:text-white">Status: {{ ev.detalhes.status }}</div>
+                            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Registrado em: {{ formatarData(ev.detalhes.dataEntrada) }}</div>
                             @if (ev.detalhes.dataSaida) {
-                              <div class="text-[11px] text-slate-400 mt-0.5">Resolvido em: {{ formatarData(ev.detalhes.dataSaida) }}</div>
+                              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Resolvido em: {{ formatarData(ev.detalhes.dataSaida) }}</div>
                             }
                           </div>
                         </div>
@@ -1136,30 +1156,30 @@
 
         @if (total() > 0) {
           <div class="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
-            <div class="flex items-center gap-2 text-xs text-slate-400">
+            <div class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
               <span>Por página:</span>
               <select [ngModel]="tamanhoPagina()" (ngModelChange)="mudarTamanhoPagina(+$event)"
-                      class="bg-white/5 border border-white/10 rounded px-2 py-1 text-white text-xs focus:border-emerald-400 outline-none">
-                <option [ngValue]="25" class="bg-slate-900">25</option>
-                <option [ngValue]="50" class="bg-slate-900">50</option>
-                <option [ngValue]="100" class="bg-slate-900">100</option>
-                <option [ngValue]="200" class="bg-slate-900">200</option>
+                      class="bg-white dark:bg-graphite border border-slate-200 dark:border-white/10 rounded-lg px-2.5 py-1 text-slate-800 dark:text-white text-xs font-semibold focus:border-emerald-500 outline-none shadow-2xs cursor-pointer">
+                <option [ngValue]="25" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">25</option>
+                <option [ngValue]="50" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">50</option>
+                <option [ngValue]="100" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">100</option>
+                <option [ngValue]="200" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">200</option>
               </select>
-              <span class="ml-2">
+              <span class="ml-2 font-medium">
                 {{ ((pagina() - 1) * tamanhoPagina()) + 1 }}–{{ ((pagina() - 1) * tamanhoPagina()) + eventLogs().length }}
                 de {{ total() }}
               </span>
             </div>
             <div class="flex items-center gap-1">
               <button (click)="paginaAnterior()" [disabled]="pagina() <= 1 || loadingEvents()"
-                      class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
+                      class="px-3 py-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
                 ‹ Anterior
               </button>
-              <span class="px-3 py-1.5 text-xs text-slate-400 font-mono">
+              <span class="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
                 {{ pagina() }} / {{ totalPaginas() }}
               </span>
               <button (click)="proximaPagina()" [disabled]="pagina() >= totalPaginas() || loadingEvents()"
-                      class="px-2.5 py-1.5 bg-white/5 border border-white/10 rounded text-xs text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none">
+                      class="px-3 py-1.5 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
                 Próxima ›
               </button>
             </div>
