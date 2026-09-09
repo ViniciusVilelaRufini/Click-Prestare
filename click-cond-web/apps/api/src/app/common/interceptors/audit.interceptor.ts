@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SKIP_AUDIT_KEY } from './skip-audit.decorator';
+import { extractClientIp } from '../context/request-context';
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -38,10 +39,7 @@ export class AuditInterceptor implements NestInterceptor {
           try {
             if (!this.prisma.isConnected) return;
 
-            const clientIp =
-              (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-              request.ip ||
-              '';
+            const clientIp = extractClientIp(request);
 
             // Extrair info do usuário do JWT payload
             const jwtPayload = user?.user ?? user ?? {};
@@ -67,7 +65,7 @@ export class AuditInterceptor implements NestInterceptor {
                 entidade_id: auditInfo.entityId,
                 descricao: auditInfo.descricao,
                 detalhes: auditInfo.details,
-                ip: typeof clientIp === 'string' ? clientIp.substring(0, 45) : '',
+                ip: clientIp || null,
               },
             });
           } catch (err) {

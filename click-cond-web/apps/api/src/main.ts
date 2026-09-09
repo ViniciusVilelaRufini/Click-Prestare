@@ -12,9 +12,21 @@ import { join } from 'path';
 import { AppModule } from './app/app.module';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
 import { json, text, urlencoded } from 'express';
+import { requestContext, extractClientIp } from './app/common/context/request-context';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+
+  // Habilita trust proxy para ler IP correto através de proxies/load balancers (Railway, Cloudflare, etc.)
+  app.set('trust proxy', true);
+
+  // Armazena o IP da máquina do cliente no AsyncLocalStorage para logs de auditoria automáticos
+  app.use((req: any, _res: any, next: any) => {
+    const ip = extractClientIp(req);
+    requestContext.run({ ip, userAgent: req.headers?.['user-agent'] }, () => {
+      next();
+    });
+  });
 
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ limit: '50mb', extended: true }));

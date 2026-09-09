@@ -730,11 +730,12 @@ export class RelatoriosService {
       }),
       this.prisma.facial_Devices.findMany({
         where: { id_condominio: idCondominio },
-        select: { id: true, nome: true },
+        select: { id: true, nome: true, ip: true },
       }),
     ]);
 
     const deviceById = new Map(devicesInfo.map((d) => [d.id, d.nome]));
+    const deviceIpById = new Map(devicesInfo.map((d) => [d.id, d.ip]));
 
     const ultimosEventos: any[] = [];
 
@@ -873,6 +874,7 @@ export class RelatoriosService {
           status: isOffline ? 'Offline' : 'Resolvido',
           dataEntrada: a.created_at.toISOString(),
           autorizadoPor: 'Monitor de Dispositivos',
+          ip: a.ip || undefined,
         },
       });
     }
@@ -973,6 +975,7 @@ export class RelatoriosService {
         }
 
         const terminalNome = deviceById.get(a.id_device) ?? `Terminal #${a.id_device}`;
+        const terminalIp = deviceIpById.get(a.id_device) ?? undefined;
 
         ultimosEventos.push({
           id: `facial-access-${a.id}`,
@@ -990,6 +993,7 @@ export class RelatoriosService {
             metodoLiberacao: a.tipo_dispositivo,
             metodoLabel: dispMetodoLabel,
             terminalNome,
+            terminalIp,
             confianca: a.confianca ?? undefined,
             dataEntrada: a.timestamp.toISOString(),
           },

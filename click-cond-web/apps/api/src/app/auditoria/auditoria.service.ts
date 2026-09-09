@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { requestContext, normalizeIp } from '../common/context/request-context';
 
 export type AuditoriaAcao =
   | 'CREATE'
@@ -43,6 +44,10 @@ export class AuditoriaService {
 
   async registrar(data: RegistrarAuditoriaDto): Promise<void> {
     try {
+      const ctx = requestContext.getStore();
+      const rawIp = data.ip || ctx?.ip || null;
+      const resolvedIp = rawIp ? normalizeIp(rawIp) : null;
+
       await this.prisma.auditLog.create({
         data: {
           id_condominio: data.id_condominio,
@@ -53,7 +58,7 @@ export class AuditoriaService {
           entidade_id: data.entidade_id ?? null,
           descricao: data.descricao,
           detalhes: data.detalhes ? JSON.stringify(data.detalhes) : null,
-          ip: data.ip ?? null,
+          ip: resolvedIp || null,
         },
       });
     } catch (e) {
