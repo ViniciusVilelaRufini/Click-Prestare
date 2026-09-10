@@ -63,6 +63,11 @@ export interface ResultadoSync {
   descartadas: number;
   /** Quantos meses para trás esta passada olhou. */
   mesesAtras: number;
+  /**
+   * Unidades do ERP vinculadas a mais de um apartamento. Cobrança delas não é
+   * gravada — seria entregue ao morador errado. Exige correção manual.
+   */
+  unidadesAmbiguas: number[];
 }
 
 @Injectable()
@@ -236,7 +241,34 @@ export class SuperlogicaSyncService implements OnModuleInit {
       where: { id_condominio: idCondominioClique, id_superlogica_uni: { not: null } },
       select: { id_superlogica_uni: true, apto: true, bloco: true },
     });
-    const porUnidade = new Map(apartamentos.map((a) => [a.id_superlogica_uni, a]));
+
+    // `new Map(...)` guardava só o último apartamento de cada unidade. Dois
+    // apartamentos com o mesmo `id_superlogica_uni` faziam as cobranças caírem
+    // em quem viesse por último na consulta — em silêncio, boleto de um morador
+    // aparecendo na tela de outro.
+    //
+    // O índice único `un_apto_superlogica` existiria para impedir isso, mas
+    // NÃO está aplicado em produção (ver §6 do INTEGRACAO_SUPERLOGICA.md), e
+    // uma proteção que depende de um índice ausente não é proteção. Aqui a
+    // ambiguidade é detectada e as duas pontas são descartadas: melhor a
+    // cobrança não aparecer para ninguém do que aparecer para o morador errado.
+    const porUnidade = new Map<number | null, { apto: string | null; bloco: string | null }>();
+    const unidadesAmbiguas = new Set<number>();
+    for (const a of apartamentos) {
+      const uni = Number(a.id_superlogica_uni);
+      if (porUnidade.has(uni)) {
+        unidadesAmbiguas.add(uni);
+        continue;
+      }
+      porUnidade.set(uni, a);
+    }
+    for (const uni of unidadesAmbiguas) {
+      porUnidade.delete(uni);
+      this.logger.error(
+        `Condomínio ${idCondominioClique}: unidade ${uni} da Superlógica está vinculada a mais de um apartamento. ` +
+          'As cobranças dela NÃO serão gravadas — corrija o vínculo e aplique o índice un_apto_superlogica.',
+      );
+    }
 
     // O que já está gravado deste condomínio. Serve a duas coisas que o upsert
     // sozinho não sabe fazer: preservar o status de comprovante em auditoria e
@@ -336,6 +368,7 @@ export class SuperlogicaSyncService implements OnModuleInit {
       semApartamento,
       descartadas,
       mesesAtras,
+      unidadesAmbiguas: [...unidadesAmbiguas],
     };
   }
 

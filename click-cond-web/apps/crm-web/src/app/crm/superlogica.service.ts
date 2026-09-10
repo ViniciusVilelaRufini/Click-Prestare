@@ -40,6 +40,14 @@ export interface ResultadoSync {
   /** Cobranças de unidade que não foi importada. */
   semApartamento: number;
   descartadas: number;
+  /** Quantos meses para trás a passada olhou (1 na horária, 12 na profunda). */
+  mesesAtras?: number;
+  /**
+   * Unidades do ERP vinculadas a mais de um apartamento. As cobranças delas
+   * não são gravadas: entregá-las significaria mostrar o boleto de um morador
+   * para outro. Exige correção manual do vínculo.
+   */
+  unidadesAmbiguas?: number[];
 }
 
 export interface ResultadoReenvio {

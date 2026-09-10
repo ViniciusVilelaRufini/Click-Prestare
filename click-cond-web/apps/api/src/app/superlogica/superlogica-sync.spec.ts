@@ -332,6 +332,25 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
     raspar.mockRestore();
   });
 
+  it('não entrega cobrança quando a unidade está vinculada a dois apartamentos', async () => {
+    // `new Map(...)` guardava só o último apartamento da unidade e as cobranças
+    // caíam nele — boleto de um morador na tela de outro, em silêncio. O índice
+    // un_apto_superlogica impediria, mas não está aplicado em produção.
+    const { service, upsert } = montar(
+      [cobranca('91515', '837')],
+      [
+        { id_superlogica_uni: 837, apto: '408', bloco: '4' },
+        { id_superlogica_uni: 837, apto: '409', bloco: '4' },
+      ],
+    );
+
+    const r = await service.sincronizarCondominio(7);
+
+    expect(upsert).not.toHaveBeenCalled();
+    expect(r.unidadesAmbiguas).toEqual([837]);
+    expect(r.semApartamento).toBe(1);
+  });
+
   it('não raspa linha digitável de cobrança já paga', async () => {
     // Ninguém paga um boleto duas vezes. Sem esse corte, a varredura profunda
     // dispararia um fetch para cada cobrança de doze meses, uma a uma.

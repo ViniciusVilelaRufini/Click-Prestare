@@ -340,10 +340,20 @@ aparecendo na tela de outro.
 
 > **⚠️ PENDENTE DE APLICAÇÃO.** Definido no `schema.prisma` e no script manual
 > `prisma/manual_2026-08_superlogica_unidade_unica.sql`, mas **não foi rodado em
-> produção** — ao contrário do índice acima, este ainda não existe no banco. Enquanto
-> não for aplicado, a proteção que ele dá não existe de fato: dois apartamentos do
-> mesmo condomínio podem carregar o mesmo `id_superlogica_uni` sem que nada acuse. O
+> produção** — ao contrário do índice acima, este ainda não existe no banco. O
 > script inclui uma consulta de diagnóstico de duplicatas para rodar antes.
+
+**O sync não depende mais desse índice para não errar de morador.** Uma proteção que
+mora num índice ausente não é proteção. `sincronizarCondominio` monta o mapa de unidades
+detectando colisão: `id_superlogica_uni` repetido em dois apartamentos faz as **duas**
+pontas saírem do mapa, as cobranças daquela unidade não serem gravadas
+(`unidadesAmbiguas` no resultado), um `logger.error` sair e a tela do CRM avisar o
+operador. Fail-closed pelo mesmo motivo de sempre: melhor a cobrança não aparecer para
+ninguém do que aparecer para o morador errado. Antes, `new Map(...)` guardava
+silenciosamente o último apartamento e entregava as cobranças a ele.
+
+Aplicar o índice continua valendo — ele impede a duplicata de nascer, enquanto o código
+apenas se recusa a agir sobre ela.
 
 ### De-para dos campos
 

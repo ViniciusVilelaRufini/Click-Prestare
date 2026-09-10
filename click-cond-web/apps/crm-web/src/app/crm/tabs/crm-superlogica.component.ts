@@ -314,6 +314,19 @@ export class CrmSuperlogicaComponent implements OnInit {
             : `${r.lancamentosGravados} lançamento(s) gravado(s) de ${r.cobrancasLidas} cobrança(s).`,
           r.cobrancasLidas === 0 ? 'info' : 'success',
         );
+
+        // Unidade vinculada a dois apartamentos não é detalhe de log: as
+        // cobranças dela ficaram de fora de propósito, porque entregá-las
+        // mostraria o boleto de um morador para outro. Só uma correção manual
+        // do vínculo resolve, então o operador precisa ver isso na tela.
+        if (r.unidadesAmbiguas?.length) {
+          this.toast.trigger(
+            `${r.unidadesAmbiguas.length} unidade(s) do ERP estão vinculadas a mais de um apartamento ` +
+              `(${r.unidadesAmbiguas.join(', ')}). As cobranças delas não foram gravadas — corrija o vínculo.`,
+            'error',
+          );
+        }
+
         this.sincronizando.set(null);
         this.carregarDados();
       },
