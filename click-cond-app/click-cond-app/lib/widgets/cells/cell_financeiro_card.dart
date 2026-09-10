@@ -342,6 +342,33 @@ class FinanceiroCard extends StatelessWidget {
                         onTap: () => _abrirSheetChavePix(context),
                       ),
 
+                    // A escolha do botão principal acima é um if/else: quando há
+                    // Pix, o código de barras nunca aparecia. E a taxa vinda da
+                    // Superlógica traz SEMPRE as duas coisas — Pix e boleto —,
+                    // então quem prefere pagar por código de barras ficava só
+                    // com "Ver boleto", que abre o documento mas não dá o número
+                    // para colar no app do banco.
+                    //
+                    // Vale a pena consertar porque o número existe e custa caro:
+                    // a linha digitável não vem na listagem do ERP, ela é raspada
+                    // do HTML da 2ª via a cada sincronização.
+                    if (temPix && temBoletoOuCodigo) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _botaoSecundario(
+                              context,
+                              icone: PhosphorIcons.barcode,
+                              texto: "Copiar código de barras",
+                              corIcone: AppColors.primary,
+                              onTap: () => copiarLinhaDigitavelOuExtrair(context, item),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
                     // LINHA DE AÇÕES SECUNDÁRIAS (VER BOLETO, ENVIAR COMPROVANTE, EDITAR/EXCLUIR)
                     if (temUrlBoleto || onEnviarComprovante != null || onEditar != null || onExcluir != null) ...[
                       const SizedBox(height: 10),
