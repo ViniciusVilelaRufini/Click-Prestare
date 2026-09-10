@@ -1357,10 +1357,22 @@ export class FinanceiroService implements OnModuleInit {
     const aptosDevendo = new Set<string>();
     // Listas detalhadas (drill-down dos cards).
     const fmt0 = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const extrair0 = (nome: string | null) => {
-      const m = /\bApto\s+(\S+)/i.exec(nome || '');
-      const b = /\bBloco\s+(\S+)/i.exec(nome || '');
-      return { apto: m ? m[1] : '', bloco: b ? b[1] : '' };
+    // A identificação da unidade sai do APARTAMENTO real, não de um regex
+    // próprio sobre o nome da fatura.
+    //
+    // O regex anterior era `/\bApto\s+(\S+)/` + `/\bBloco\s+(\S+)/`, e `\S+`
+    // para no primeiro espaço: em "Apto 10 A Bloco A - Ref. 08/2026" ele
+    // devolvia apto "10" (a unidade é "10 A") e, em "Bloco A B", bloco "A".
+    // Esse par volta na resposta e é o que o app manda de volta ao pedir o
+    // detalhe e ao notificar o morador — com o valor truncado, o drill-down
+    // não achava fatura nenhuma e a cobrança não chegava a ninguém.
+    //
+    // `cobrancas` já foi filtrada por `nomeFaturaDeApto`, então todo item aqui
+    // tem um apartamento correspondente; usar o cadastro elimina o terceiro
+    // dialeto de parsing do módulo.
+    const unidadeDaCobranca = (nome: string | null) => {
+      const a = aptosDoCondominio.find((x) => this.nomeFaturaDeApto(nome, x.apto, x.bloco));
+      return { apto: a?.apto ?? '', bloco: a?.bloco ?? '' };
     };
     const pagas: any[] = [];
     const pendentes: any[] = [];
@@ -1368,7 +1380,7 @@ export class FinanceiroService implements OnModuleInit {
 
     for (const c of cobrancas) {
       const v = c.valor ? Math.abs(Number(c.valor)) : 0;
-      const { apto, bloco } = extrair0(c.nome);
+      const { apto, bloco } = unidadeDaCobranca(c.nome);
       const item = {
         id: c.id,
         nome: c.nome,
