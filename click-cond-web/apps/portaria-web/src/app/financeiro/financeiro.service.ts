@@ -17,6 +17,12 @@ export interface Lancamento {
   status?: string;
   url_boleto?: string;
   url_comprovante?: string;
+  /**
+   * Procedência do lançamento. `'superlogica'` significa espelho do ERP:
+   * somente leitura no Clique, então a tela troca os botões de baixa/remoção
+   * por um selo — o backend recusaria a ação.
+   */
+  origem?: string | null;
 }
 
 export interface GraficoCategoria {

@@ -182,14 +182,14 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
     link_segundavia: 'https://prestare.superlogica.net/x',
   });
 
-  function montar(cobrancas: any[], apartamentos: any[]) {
+  function montar(cobrancas: any[], apartamentos: any[], jaGravados: any[] = []) {
     const upsert = jest.fn(async () => ({}));
     const prisma: any = {
       condominios: {
         findUnique: jest.fn(async () => ({ id: 7, nome: 'Meu Prédio', id_superlogica_cond: 24 })),
       },
       apartamentos: { findMany: jest.fn(async () => apartamentos) },
-      financeiro: { upsert },
+      financeiro: { upsert, findMany: jest.fn(async () => jaGravados) },
     };
 
     const real = new SuperlogicaService(new SuperlogicaClient());
@@ -264,5 +264,86 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
     const [, inicio, fim] = superlogica.listarCobrancas.mock.calls[0] as any[];
     expect(inicio.getMonth()).toBe(6); // julho
     expect(fim.getMonth()).toBe(8); // setembro
+  });
+
+  it('varredura profunda olha doze meses para trás', async () => {
+    // Sem isso, o morador que quitava um boleto de três meses atrás ficava
+    // "pendente" para sempre: a janela horária nunca mais lia aquela cobrança,
+    // e a baixa manual é bloqueada em origem='superlogica'.
+    const { service, superlogica } = montar([], []);
+
+    await service.sincronizarCondominio(7, new Date(2026, 7, 15), { profunda: true });
+
+    const [, inicio, fim] = superlogica.listarCobrancas.mock.calls[0] as any[];
+    expect(inicio.getFullYear()).toBe(2025);
+    expect(inicio.getMonth()).toBe(7); // agosto/2025
+    expect(fim.getMonth()).toBe(8); // setembro/2026, igual à passada normal
+  });
+
+  it('preserva o status de comprovante em auditoria enquanto o ERP não confirma', async () => {
+    // O morador anexa comprovante → status '2'. O sync sobrescrevia com
+    // 'pendente' na passada seguinte e o síndico perdia o aviso de que havia
+    // comprovante para conferir.
+    const { service, upsert } = montar(
+      [cobranca('91515', '837')], // fl_status_recb '0' = pendente
+      [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }],
+      [{ id_externo: '91515', status: '2', linha_digitavel: null }],
+    );
+
+    await service.sincronizarCondominio(7);
+
+    const arg = upsert.mock.calls[0][0] as any;
+    expect(arg.update.status).toBe('2');
+    expect(arg.update.pago).toBe(0);
+  });
+
+  it('o pago do ERP vence sobre o comprovante em auditoria', async () => {
+    // Confirmado o pagamento, a auditoria perdeu o objeto.
+    const paga = { ...cobranca('91515', '837'), fl_status_recb: '3', dt_liquidacao_recb: '08/12/2026 00:00:00' };
+    const { service, upsert } = montar(
+      [paga],
+      [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }],
+      [{ id_externo: '91515', status: '2', linha_digitavel: null }],
+    );
+
+    await service.sincronizarCondominio(7);
+
+    const arg = upsert.mock.calls[0][0] as any;
+    expect(arg.update.status).toBe('pago');
+    expect(arg.update.pago).toBe(1);
+  });
+
+  it('reaproveita a linha digitável já gravada em vez de raspar de novo', async () => {
+    // A linha digitável não vem na listagem: é raspada do HTML da 2ª via, um
+    // fetch por cobrança. Repetir isso a cada passada — e apagar com null
+    // quando a raspagem falha — é o que se quer evitar.
+    const raspar = jest.spyOn(SuperlogicaService, 'extrairLinhaDigitavel');
+    const { service, upsert } = montar(
+      [cobranca('91515', '837')],
+      [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }],
+      [{ id_externo: '91515', status: 'pendente', linha_digitavel: '34191.79001 01043.510047 91020.150008 1 99999999999999' }],
+    );
+
+    await service.sincronizarCondominio(7);
+
+    expect(raspar).not.toHaveBeenCalled();
+    const arg = upsert.mock.calls[0][0] as any;
+    expect(arg.update.linha_digitavel).toContain('34191.79001');
+    raspar.mockRestore();
+  });
+
+  it('não raspa linha digitável de cobrança já paga', async () => {
+    // Ninguém paga um boleto duas vezes. Sem esse corte, a varredura profunda
+    // dispararia um fetch para cada cobrança de doze meses, uma a uma.
+    const raspar = jest
+      .spyOn(SuperlogicaService, 'extrairLinhaDigitavel')
+      .mockResolvedValue(null);
+    const paga = { ...cobranca('91515', '837'), fl_status_recb: '3', dt_liquidacao_recb: '08/12/2026 00:00:00' };
+    const { service } = montar([paga], [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }]);
+
+    await service.sincronizarCondominio(7);
+
+    expect(raspar).not.toHaveBeenCalled();
+    raspar.mockRestore();
   });
 });

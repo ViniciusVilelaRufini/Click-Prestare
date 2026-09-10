@@ -990,6 +990,10 @@ export class FinanceiroService implements OnModuleInit {
         url_comprovante: item.url_comprovante ?? item.photo,
         linha_digitavel: item.linha_digitavel,
         pix_copia_cola: item.pix_copia_cola,
+        // A tela precisa saber a procedência para esconder editar/remover/dar
+        // baixa: `assertLancamentoEditavel` recusa lançamento da Superlógica,
+        // e sem este campo o botão aparecia habilitado e só falhava no clique.
+        origem: item.origem ?? null,
         // Mesma regra da visão do morador: a chave do condomínio é para
         // RECEBER cobrança (tipo 'C'). Em despesa não faz sentido.
         chave_pix: item.tipo === 'C' ? condChavePix : '',
@@ -1335,6 +1339,10 @@ export class FinanceiroService implements OnModuleInit {
         data_vencimento: c.data_vencimento ? new Date(c.data_vencimento).toLocaleDateString('pt-BR') : '',
         pago: c.pago,
         status: c.status,
+        // Cobrança da Superlógica não aceita baixa manual (quem dá baixa é o
+        // arquivo de retorno do banco, no ERP). A lista precisa disso para não
+        // oferecer um botão que o backend vai recusar.
+        origem: c.origem ?? null,
       };
       if (c.pago === 1) {
         totalArrecadado += v;
@@ -1505,6 +1513,13 @@ export class FinanceiroService implements OnModuleInit {
         pix_copia_cola: f.pix_copia_cola ?? '',
         status: f.status,
         url_comprovante: f.url_comprovante ?? f.photo ?? '',
+        origem: f.origem ?? null,
+        // O síndico abre o histórico de pendências justamente para conferir a
+        // cobrança com o morador ao telefone — e o boleto não vinha aqui, só
+        // na visão do próprio morador. Sem ele a tela mostra que existe dívida
+        // mas não como pagá-la.
+        url_boleto: f.url_boleto ?? '',
+        linha_digitavel: f.linha_digitavel ?? '',
       };
     });
 
@@ -1817,6 +1832,9 @@ export class FinanceiroService implements OnModuleInit {
       pix_copia_cola: item.pix_copia_cola ?? '',
       id_usuario: item.id_usuario,
       categoria: item.categoria ?? 'Outros',
+      // Taxa vinda do ERP: o app usa para não oferecer edição nem exclusão
+      // numa cobrança que o Clique não é dono.
+      origem: item.origem ?? null,
       // A chave Pix do condomínio só vale para o que o morador deve AO
       // condomínio (tipo 'C'). Numa conta pessoal — água, luz, internet, que
       // ele mesmo lançou — ela não tem relação nenhuma com o pagamento, e o

@@ -672,6 +672,55 @@ export class FinanceiroPageComponent implements OnInit {
     return `Bloco ${clean}`;
   }
 
+  /**
+   * Resumo do histórico de pendências da unidade aberta.
+   *
+   * O modal listava as faturas sem nunca dizer quanto a unidade deve no total
+   * — a conta ficava com o síndico, que abre essa tela justamente para falar
+   * um número com o morador.
+   */
+  readonly resumoDetalhe = computed(() => {
+    const faturas = this.faturasSelected();
+    const total = faturas.reduce((soma, f) => soma + (Number(f?.valor) || 0), 0);
+    return {
+      quantidade: faturas.length,
+      atrasadas: faturas.filter((f) => f?.atrasado).length,
+      totalString: total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+    };
+  });
+
+  /**
+   * Dias de atraso a partir do vencimento em `dd/mm/aaaa`.
+   *
+   * "Venc. 01/08/2026" obriga quem lê a fazer a conta de cabeça; "há 40 dias" é
+   * a informação que ele queria. Devolve 0 para o que ainda não venceu.
+   */
+  diasAtraso(dataVencimento: string): number {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((dataVencimento ?? '').trim());
+    if (!m) return 0;
+    const venc = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dias = Math.floor((hoje.getTime() - venc.getTime()) / 86400000);
+    return dias > 0 ? dias : 0;
+  }
+
+  /**
+   * Copia código de barras ou Pix. É o caminho pelo qual o síndico repassa a
+   * cobrança para o morador no WhatsApp, sem precisar abrir o PDF.
+   */
+  copiarCobranca(texto: string | null | undefined, rotulo: string) {
+    const valor = (texto ?? '').trim();
+    if (!valor) {
+      this.toast.info(`Esta cobrança não tem ${rotulo}.`);
+      return;
+    }
+    navigator.clipboard?.writeText(valor).then(
+      () => this.toast.success(`${rotulo} copiado.`),
+      () => this.toast.error(`Não foi possível copiar o ${rotulo}.`),
+    );
+  }
+
   aprovarPagamento(id: number) {
     // Localiza o item nos lançamentos para detectar auto-aprovação.
     const item = this.findLancamentoById(id);

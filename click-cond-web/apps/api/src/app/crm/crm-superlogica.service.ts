@@ -395,7 +395,13 @@ export class CrmSuperlogicaService {
 
   /** Dispara a sincronização de cobranças na hora, sem esperar o ciclo. */
   async sincronizarAgora(idCondominioClique: number, operador: string) {
-    const resultado = await this.sync.sincronizarCondominio(idCondominioClique);
+    // Profunda: quem aperta este botão está corrigindo alguma coisa que a
+    // passada horária não trouxe — tipicamente baixa de cobrança antiga. Um
+    // sync manual que olhasse só o mês corrente não resolveria o problema que
+    // motivou o clique.
+    const resultado = await this.sync.sincronizarCondominio(idCondominioClique, new Date(), {
+      profunda: true,
+    });
 
     await this.auditoria.registrar({
       id_condominio: idCondominioClique,

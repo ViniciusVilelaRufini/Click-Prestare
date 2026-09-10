@@ -2376,6 +2376,7 @@ class _InadimplenciaListaPageState extends State<InadimplenciaListaPage> {
                 final apto = (item['apto'] ?? '').toString();
                 final bloco = (item['bloco'] ?? '').toString();
                 final pago = item['pago'] == 1;
+                final ehSuperlogica = item['origem'] == 'superlogica';
                 return Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
@@ -2401,7 +2402,16 @@ class _InadimplenciaListaPageState extends State<InadimplenciaListaPage> {
                       Text((item['valorString'] ?? '').toString(),
                         style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w800,
                           color: pago ? const Color(0xFF22C55E) : AppColors.error)),
-                      if (widget.permitirBaixa && !pago) ...[
+                      // Cobrança vinda da Superlógica não aceita baixa pelo
+                      // Clique: quem dá baixa é o arquivo de retorno do banco,
+                      // no ERP. O backend recusa, e o botão só produzia um erro
+                      // com o motivo errado ("competência fechada").
+                      if (ehSuperlogica && !pago) ...[
+                        const SizedBox(height: 6),
+                        Text('Baixa pelo ERP',
+                          style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context))),
+                      ],
+                      if (widget.permitirBaixa && !pago && !ehSuperlogica) ...[
                         const SizedBox(height: 6),
                         GestureDetector(
                           onTap: () => _darBaixa(item),

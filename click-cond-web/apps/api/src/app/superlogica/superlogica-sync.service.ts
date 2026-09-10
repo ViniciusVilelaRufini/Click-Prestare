@@ -17,6 +17,30 @@ const INTERVALO_SYNC_MS = 60 * 60 * 1000;
 /** Espera antes da primeira execução, para não competir com o boot. */
 const ATRASO_INICIAL_MS = 5 * 60 * 1000;
 
+/**
+ * Meses para trás na varredura horária. Cobre o boleto do mês corrente e a
+ * virada de mês, que é onde quase toda mudança de status acontece.
+ */
+const MESES_ATRAS_PADRAO = 1;
+
+/**
+ * Meses para trás na varredura profunda.
+ *
+ * Sem ela, cobrança fora da janela horária NUNCA mais era relida: o morador
+ * inadimplente quitava um boleto de três meses atrás, a Superlógica marcava
+ * pago, e o Clique seguia mostrando "pendente" para sempre — sem que o síndico
+ * pudesse corrigir, já que baixa manual em `origem='superlogica'` é bloqueada.
+ * Doze meses cobrem o horizonte de cobrança que a administradora persegue.
+ */
+const MESES_ATRAS_PROFUNDA = 12;
+
+/**
+ * Espaçamento entre varreduras profundas. Uma vez por dia: dívida antiga muda
+ * raramente, e varrer 13 meses de todos os condomínios de hora em hora seria
+ * dezenas de páginas por prédio sem nada de novo para trazer.
+ */
+const INTERVALO_PROFUNDA_MS = 24 * 60 * 60 * 1000;
+
 export interface ResultadoImportacao {
   unidadesNoErp: number;
   apartamentosCriados: number;
@@ -37,12 +61,21 @@ export interface ResultadoSync {
   lancamentosGravados: number;
   semApartamento: number;
   descartadas: number;
+  /** Quantos meses para trás esta passada olhou. */
+  mesesAtras: number;
 }
 
 @Injectable()
 export class SuperlogicaSyncService implements OnModuleInit {
   private readonly logger = new Logger(SuperlogicaSyncService.name);
   private syncRodando = false;
+
+  /**
+   * Quando a última varredura profunda rodou. Fica em memória de propósito:
+   * o Railway roda uma réplica só, e um restart forçar uma varredura profunda
+   * logo no primeiro tick é o comportamento desejado, não um efeito colateral.
+   */
+  private ultimaProfundaEm: number | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -168,9 +201,9 @@ export class SuperlogicaSyncService implements OnModuleInit {
     };
   }
 
-  /** Primeiro dia do mês anterior — início da janela sincronizada. */
-  private inicioJanela(hoje = new Date()): Date {
-    return new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+  /** Primeiro dia do mês que abre a janela sincronizada. */
+  private inicioJanela(hoje = new Date(), mesesAtras = MESES_ATRAS_PADRAO): Date {
+    return new Date(hoje.getFullYear(), hoje.getMonth() - mesesAtras, 1);
   }
 
   /** Último dia do mês seguinte — cobre boleto já emitido para o próximo mês. */
@@ -184,12 +217,17 @@ export class SuperlogicaSyncService implements OnModuleInit {
    * Faz upsert por (origem, id_condominio, id_externo): reprocessar o mesmo
    * período atualiza o que mudou (pagamento, valor) sem duplicar.
    */
-  async sincronizarCondominio(idCondominioClique: number, hoje = new Date()): Promise<ResultadoSync> {
+  async sincronizarCondominio(
+    idCondominioClique: number,
+    hoje = new Date(),
+    opcoes: { profunda?: boolean } = {},
+  ): Promise<ResultadoSync> {
     const condominio = await this.condominioVinculado(idCondominioClique);
+    const mesesAtras = opcoes.profunda ? MESES_ATRAS_PROFUNDA : MESES_ATRAS_PADRAO;
 
     const cobrancas = await this.superlogica.listarCobrancas(
       condominio.id_superlogica_cond,
-      this.inicioJanela(hoje),
+      this.inicioJanela(hoje, mesesAtras),
       this.fimJanela(hoje),
     );
 
@@ -199,6 +237,15 @@ export class SuperlogicaSyncService implements OnModuleInit {
       select: { id_superlogica_uni: true, apto: true, bloco: true },
     });
     const porUnidade = new Map(apartamentos.map((a) => [a.id_superlogica_uni, a]));
+
+    // O que já está gravado deste condomínio. Serve a duas coisas que o upsert
+    // sozinho não sabe fazer: preservar o status de comprovante em auditoria e
+    // não perder a linha digitável já extraída.
+    const jaGravados = await this.prisma.financeiro.findMany({
+      where: { id_condominio: idCondominioClique, origem: 'superlogica' },
+      select: { id_externo: true, status: true, linha_digitavel: true },
+    });
+    const porExterno = new Map(jaGravados.map((f) => [f.id_externo, f]));
 
     let gravados = 0;
     let semApartamento = 0;
@@ -225,8 +272,31 @@ export class SuperlogicaSyncService implements OnModuleInit {
         continue;
       }
 
-      if (dados.url_boleto && !dados.linha_digitavel) {
+      const existente = porExterno.get(dados.id_externo);
+
+      // A linha digitável não vem na listagem do ERP: é raspada do HTML da 2ª
+      // via, um fetch por cobrança. Reaproveitar a que já está gravada evita
+      // repetir isso a cada passada — e, sobretudo, evita que uma raspagem que
+      // falhou sobrescreva com null a linha que já funcionava.
+      if (!dados.linha_digitavel) {
+        dados.linha_digitavel = existente?.linha_digitavel ?? null;
+      }
+      // Boleto já pago não precisa de linha digitável: ninguém vai pagar de
+      // novo. Sem esse corte, a varredura profunda dispararia um fetch para
+      // cada cobrança de doze meses, uma a uma.
+      if (!dados.linha_digitavel && dados.url_boleto && !dados.pago) {
         dados.linha_digitavel = await SuperlogicaService.extrairLinhaDigitavel(dados.url_boleto);
+      }
+
+      // O morador anexa o comprovante e o lançamento vai para status '2'
+      // (aguardando auditoria do síndico). O sync sobrescrevia isso com
+      // 'pendente' no tick seguinte, e o síndico perdia o aviso de que havia
+      // comprovante para conferir — o arquivo ficava, o sinal sumia.
+      //
+      // Quando o ERP confirma o pagamento, aí sim 'pago' vence: a auditoria
+      // perdeu o objeto.
+      if (!dados.pago && existente?.status === '2') {
+        dados.status = '2';
       }
 
       await this.prisma.financeiro.upsert({
@@ -257,7 +327,7 @@ export class SuperlogicaSyncService implements OnModuleInit {
     }
 
     this.logger.log(
-      `Sync do condomínio ${idCondominioClique}: ${gravados} lançamento(s), ${semApartamento} sem apartamento, ${descartadas} descartada(s).`,
+      `Sync do condomínio ${idCondominioClique} (${mesesAtras}m atrás): ${gravados} lançamento(s), ${semApartamento} sem apartamento, ${descartadas} descartada(s).`,
     );
 
     return {
@@ -265,11 +335,12 @@ export class SuperlogicaSyncService implements OnModuleInit {
       lancamentosGravados: gravados,
       semApartamento,
       descartadas,
+      mesesAtras,
     };
   }
 
   /** Sincroniza todos os condomínios vinculados. Usado pelo tick horário. */
-  async sincronizarTodos(): Promise<Record<number, ResultadoSync | string>> {
+  async sincronizarTodos(opcoes: { profunda?: boolean } = {}): Promise<Record<number, ResultadoSync | string>> {
     const vinculados = await this.prisma.condominios.findMany({
       where: { id_superlogica_cond: { not: null } },
       select: { id: true, nome: true },
@@ -279,7 +350,7 @@ export class SuperlogicaSyncService implements OnModuleInit {
 
     for (const c of vinculados) {
       try {
-        resultado[c.id] = await this.sincronizarCondominio(c.id);
+        resultado[c.id] = await this.sincronizarCondominio(c.id, new Date(), opcoes);
       } catch (err: any) {
         // Um condomínio com problema não pode parar a sincronização dos outros.
         this.logger.error(`Sync do condomínio ${c.id} (${c.nome}) falhou: ${err?.message ?? err}`);
@@ -300,7 +371,17 @@ export class SuperlogicaSyncService implements OnModuleInit {
       // Nenhum condomínio ativado: nem chega a falar com o ERP.
       if (vinculados === 0) return;
 
-      await this.sincronizarTodos();
+      // Uma vez por dia a passada olha doze meses para trás, para pegar baixa
+      // em cobrança antiga que a janela horária não alcança.
+      const agora = Date.now();
+      const profunda =
+        this.ultimaProfundaEm === null || agora - this.ultimaProfundaEm >= INTERVALO_PROFUNDA_MS;
+
+      await this.sincronizarTodos({ profunda });
+
+      // Só marca depois de concluir: falha no meio deixa a próxima passada
+      // tentar de novo em vez de esperar mais 24h.
+      if (profunda) this.ultimaProfundaEm = agora;
     } catch (err: any) {
       this.logger.error(`Tick de sincronização Superlógica falhou: ${err?.message ?? err}`);
     } finally {

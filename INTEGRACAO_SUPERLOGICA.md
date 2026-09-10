@@ -233,13 +233,36 @@ não duplique lançamento.
 Implementado em `superlogica-sync.service.ts`, no padrão de tarefa periódica do projeto
 (`OnModuleInit` + `setInterval`, com flag anti-reentrância). Detalhes que importam:
 
-- **Janela**: do início do mês anterior ao fim do mês seguinte. Pega boleto já emitido
-  para o mês que vem e mudança de status em cobrança antiga.
+- **Duas janelas.** A passada horária vai do início do mês anterior ao fim do mês
+  seguinte — pega boleto já emitido para o mês que vem e a virada de mês, que é onde
+  quase toda mudança de status acontece. Uma vez por dia (e no primeiro tick após um
+  restart) a passada é **profunda**: doze meses para trás, mesmo fim.
+
+  A janela estreita sozinha tinha um furo que só aparecia na inadimplência: cobrança
+  fora dela nunca mais era relida. O morador quitava um boleto de três meses atrás, a
+  Superlógica marcava pago, e o Clique seguia mostrando "pendente" **para sempre** — e
+  o síndico não podia corrigir na mão, porque baixa manual em `origem='superlogica'` é
+  bloqueada (§5.3.2). O botão "Sincronizar agora" do CRM também roda profundo: quem o
+  aperta está corrigindo justamente esse tipo de coisa.
+
+- **A linha digitável não é raspada duas vezes.** Ela não vem na listagem do ERP — sai
+  de um fetch no HTML da 2ª via, um por cobrança. O sync reaproveita a que já está
+  gravada e só raspa cobrança **em aberto**; boleto pago não precisa de linha digitável,
+  e sem esse corte a varredura profunda dispararia um fetch para cada cobrança de doze
+  meses. Como efeito colateral, uma raspagem que falha não sobrescreve mais com `null` a
+  linha que já funcionava.
 - **Sem condomínio vinculado, o tick nem fala com o ERP** — conta antes de sair.
 - **Falha em um condomínio não interrompe os outros.**
 - **O upsert só atualiza o que a Superlógica conhece** (valor, vencimento, pago, Pix,
   boleto). `url_comprovante` e `photo`, que o operador pode ter anexado no Clique, não
   são tocados.
+
+- **O status `'2'` (comprovante aguardando auditoria) sobrevive à sincronização.**
+  Quando o morador anexa comprovante, o lançamento vai para `'2'` e o síndico ganha o
+  botão "Aprovar". O sync sobrescrevia isso com `'pendente'` no tick seguinte: o
+  arquivo continuava salvo, mas o sinal de que havia algo para conferir sumia em até
+  uma hora. Agora `'2'` só é substituído quando o **ERP** confirma o pagamento — aí a
+  auditoria perdeu o objeto e `'pago'` vence.
 - **Cobrança de unidade não importada não é gravada.** Sem apartamento não há a quem
   mostrar, e adivinhar o vínculo é como cobrança aparece para o morador errado.
 
@@ -260,6 +283,15 @@ Lançamento com `origem='superlogica'` não pode ser editado, removido, baixado 
 conciliado pelo Clique (`assertLancamentoEditavel` em `financeiro.service.ts`). A fonte
 da verdade é o ERP: marcar pago aqui duraria até o próximo sync e sumiria sozinho, o que
 é pior que recusar. Anexar comprovante continua permitido — o sync não toca nesse campo.
+
+**E a tela sabe disso.** A recusa é do backend, mas `origem` viaja no payload de
+`get-all`, `get-by-user`, do dashboard de inadimplência e do detalhe do inadimplente —
+para que dar baixa, aprovar e remover **não sejam oferecidos** em cobrança do ERP. Antes
+o botão aparecia habilitado, o síndico clicava, e o app do morador ainda traduzia o 400
+para "verifique se a competência não está fechada": motivo errado para uma regra que não
+tem nada a ver com fechamento. No lugar do botão vai um selo (`ERP` na portaria-web,
+"Baixa pelo ERP" no app), porque a ausência silenciosa de um botão que existe nas outras
+linhas parece defeito.
 
 ### 5.4 O morador
 
