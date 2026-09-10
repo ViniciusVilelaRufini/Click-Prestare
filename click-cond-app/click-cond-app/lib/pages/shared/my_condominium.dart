@@ -12,9 +12,6 @@ import 'package:click/pages/shared/configuracoes/configuracoes_view.dart';
 import 'package:click/pages/shared/docs/list_docs.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
-import 'package:click/pages/shared/financeiro/new_financeiro_despesa.dart';
-import 'package:click/pages/shared/financeiro/new_financeiro_receita.dart';
-import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 import 'package:click/pages/shared/morador/list_moradores.dart';
 import 'package:click/pages/shared/morador/list_moradores_geral.dart';
 import 'package:click/pages/shared/morador/my_apartamento_view.dart';
@@ -646,7 +643,11 @@ class _MyCondominiumState extends State<MyCondominium> {
   }
 
   List<Widget> _buildNavItems(BuildContext context) {
-    final showFinanceActions = _currentTab == 3 && getUserType() == 'sindico';
+    // O síndico tinha, na aba Financeiro, três atalhos de ação na ilha
+    // (Despesa, Receita, Cobrança). O financeiro do condomínio virou somente
+    // leitura — os lançamentos vêm do ERP Superlógica —, então a ilha dele
+    // mantém a navegação normal. A "Nova Conta" do morador continua: conta
+    // pessoal não faz parte dessa restrição.
     final showMoradorFinanceAction = _currentTab == 3 && getUserType() == 'morador';
     final showEncomendasAction = _currentTab == 1;
 
@@ -669,142 +670,88 @@ class _MyCondominiumState extends State<MyCondominium> {
           });
         },
       ),
-      showFinanceActions
+      showEncomendasAction
           ? _buildAnimatedNavItem(
-              key: const ValueKey('nav_despesa'),
+              key: const ValueKey('nav_encomendas_action'),
               index: -1,
-              icon: PhosphorIcons.arrowUp,
-              activeIcon: PhosphorIcons.arrowUp,
-              label: 'Despesa',
+              icon: PhosphorIcons.plus,
+              activeIcon: PhosphorIcons.plus,
+              label: 'Registrar',
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const NewFinanceiroDespesa()),
-                ).then((_) {
-                  _financeiroKey.currentState?.loadList();
-                  _loadCond();
-                });
+                _encomendasKey.currentState?.openAddEncomenda(context);
               },
               isAction: true,
             )
-          : (showEncomendasAction
-              ? _buildAnimatedNavItem(
-                  key: const ValueKey('nav_encomendas_action'),
-                  index: -1,
-                  icon: PhosphorIcons.plus,
-                  activeIcon: PhosphorIcons.plus,
-                  label: 'Registrar',
-                  onTap: () {
-                    _encomendasKey.currentState?.openAddEncomenda(context);
-                  },
-                  isAction: true,
-                )
-              : _buildAnimatedNavItem(
-                  key: const ValueKey('nav_encomendas'),
-                  index: 1,
-                  icon: PhosphorIcons.package,
-                  activeIcon: PhosphorIcons.packageFill,
-                  label: 'Encomendas',
-                  onTap: () {
-                    setState(() {
-                      _currentTab = 1;
-                      _isNavBarVisible = true;
-                    });
-                  },
-                )),
+          : _buildAnimatedNavItem(
+              key: const ValueKey('nav_encomendas'),
+              index: 1,
+              icon: PhosphorIcons.package,
+              activeIcon: PhosphorIcons.packageFill,
+              label: 'Encomendas',
+              onTap: () {
+                setState(() {
+                  _currentTab = 1;
+                  _isNavBarVisible = true;
+                });
+              },
+            ),
       // Botão circular central: abre o PRESTARE IA.
       _buildAiNavButton(context),
-      showFinanceActions
+      showVisitantesAction
           ? _buildAnimatedNavItem(
-              key: const ValueKey('nav_receita'),
-              index: -1,
-              icon: PhosphorIcons.arrowDown,
-              activeIcon: PhosphorIcons.arrowDown,
-              label: 'Receita',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const NewFinanceiroReceita()),
-                ).then((_) {
-                  _financeiroKey.currentState?.loadList();
-                  _loadCond();
-                });
-              },
-              isAction: true,
-            )
-          : (showVisitantesAction
-              ? _buildAnimatedNavItem(
-                  key: const ValueKey('nav_visitantes_action'),
-                  index: -1,
-                  icon: PhosphorIcons.userPlus,
-                  activeIcon: PhosphorIcons.userPlus,
-                  label: 'Cadastrar',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)),
-                    ).then((_) {
-                      _visitantesKey.currentState?.loadList();
-                    });
-                  },
-                  isAction: true,
-                )
-              : _buildAnimatedNavItem(
-                  key: const ValueKey('nav_visitantes'),
-                  index: 2,
-                  icon: PhosphorIcons.userList,
-                  activeIcon: PhosphorIcons.userListFill,
-                  label: 'Visitantes',
-                  onTap: () {
-                    setState(() {
-                      _currentTab = 2;
-                      _isNavBarVisible = true;
-                    });
-                  },
-                )),
-      showFinanceActions
-          ? _buildAnimatedNavItem(
-              key: const ValueKey('nav_cobranca'),
+              key: const ValueKey('nav_visitantes_action'),
               index: -1,
               icon: PhosphorIcons.userPlus,
               activeIcon: PhosphorIcons.userPlus,
-              label: 'Cobrança',
+              label: 'Cadastrar',
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const NewFinanceiroMorador(apto: null)),
+                  MaterialPageRoute(builder: (_) => NewVisitante(isEdit: false)),
                 ).then((_) {
-                  _financeiroKey.currentState?.loadList();
-                  _loadCond();
+                  _visitantesKey.currentState?.loadList();
                 });
               },
               isAction: true,
             )
-          : (showMoradorFinanceAction
-              ? _buildAnimatedNavItem(
-                  key: const ValueKey('nav_morador_financeiro_action'),
-                  index: -1,
-                  icon: PhosphorIcons.plus,
-                  activeIcon: PhosphorIcons.plus,
-                  label: 'Nova Conta',
-                  onTap: () {
-                    _moradorFinanceiroKey.currentState?.showContaFormModal();
-                  },
-                  isAction: true,
-                )
-              : _buildAnimatedNavItem(
-                  key: const ValueKey('nav_financeiro'),
-                  index: 3,
-                  icon: PhosphorIcons.wallet,
-                  activeIcon: PhosphorIcons.walletFill,
-                  label: 'Financeiro',
-                  onTap: () {
-                    setState(() {
-                      _currentTab = 3;
-                      _isNavBarVisible = true;
-                    });
-                  },
-                )),
+          : _buildAnimatedNavItem(
+              key: const ValueKey('nav_visitantes'),
+              index: 2,
+              icon: PhosphorIcons.userList,
+              activeIcon: PhosphorIcons.userListFill,
+              label: 'Visitantes',
+              onTap: () {
+                setState(() {
+                  _currentTab = 2;
+                  _isNavBarVisible = true;
+                });
+              },
+            ),
+      showMoradorFinanceAction
+          ? _buildAnimatedNavItem(
+              key: const ValueKey('nav_morador_financeiro_action'),
+              index: -1,
+              icon: PhosphorIcons.plus,
+              activeIcon: PhosphorIcons.plus,
+              label: 'Nova Conta',
+              onTap: () {
+                _moradorFinanceiroKey.currentState?.showContaFormModal();
+              },
+              isAction: true,
+            )
+          : _buildAnimatedNavItem(
+              key: const ValueKey('nav_financeiro'),
+              index: 3,
+              icon: PhosphorIcons.wallet,
+              activeIcon: PhosphorIcons.walletFill,
+              label: 'Financeiro',
+              onTap: () {
+                setState(() {
+                  _currentTab = 3;
+                  _isNavBarVisible = true;
+                });
+              },
+            ),
     ];
   }
 

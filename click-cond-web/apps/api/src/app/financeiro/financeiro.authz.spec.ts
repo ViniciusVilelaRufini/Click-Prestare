@@ -39,7 +39,19 @@ describe('assertStaff', () => {
   });
 });
 
-describe('FinanceiroController — rotas administrativas exigem síndico/funcionário', () => {
+/**
+ * O financeiro do condomínio virou somente leitura: quem escreve é o ERP
+ * Superlógica (e os webhooks de pagamento), não mais o síndico pelo app ou
+ * pela portaria-web. Antes disso, estas rotas aceitavam síndico e
+ * funcionário via `assertStaff`.
+ *
+ * O caso que estes testes protegem é o síndico, não o morador: morador já
+ * era barrado. O síndico é quem tinha o botão na tela — e é o app já
+ * instalado no celular dele que vai continuar chamando estas rotas depois
+ * do deploy, até ele atualizar. Se a trava vivesse só na tela, essas
+ * chamadas passariam.
+ */
+describe('FinanceiroController — financeiro do condomínio é somente leitura', () => {
   function buildController() {
     const service: any = {
       insert: jest.fn(), update: jest.fn(), remove: jest.fn(), updateStatus: jest.fn(),
@@ -52,38 +64,46 @@ describe('FinanceiroController — rotas administrativas exigem síndico/funcion
     return { controller, service, fechamento };
   }
 
-  const morador: JwtPayload = { sub: 1, nome: 'Morador', typeAccess: 'Morador' };
+  // Cada rota de mutação, o método que a atende e o mock que NÃO pode ser
+  // chamado. Tabela em vez de um `it` por rota para que acrescentar uma
+  // mutação nova ao controller sem trancá-la fique visível aqui.
+  const rotasDeEscrita: Array<[string, (c: FinanceiroController) => unknown, (m: any) => jest.Mock]> = [
+    ['POST insert', (c) => c.insert(), (m) => m.service.insert],
+    ['POST update', (c) => c.update(), (m) => m.service.update],
+    ['POST remove', (c) => c.remove(), (m) => m.service.remove],
+    ['POST update-status', (c) => c.updateStatus(), (m) => m.service.updateStatus],
+    ['POST rateio', (c) => c.createRateio(), (m) => m.service.createRateio],
+    ['POST inadimplente/acordo', (c) => c.createAcordoInadimplente(), (m) => m.service.createAcordoInadimplente],
+    ['POST conciliacao/importar', (c) => c.importarOfx(), (m) => m.service.parseOfxContent],
+    ['POST conciliacao/confirmar', (c) => c.confirmarConciliacao(), (m) => m.service.confirmarConciliacao],
+    ['POST config-auto', (c) => c.updateConfigAuto(), (m) => m.service.updateConfigAuto],
+    ['POST apartamento-recorrencia', (c) => c.updateApartamentoRecorrencia(), (m) => m.service.updateApartamentoRecorrencia],
+    ['POST fechamentos/fechar', (c) => c.fecharMes(), (m) => m.fechamento.fechar],
+    ['POST fechamentos/reabrir', (c) => c.reabrirMes(), (m) => m.fechamento.reabrir],
+  ];
 
-  it('remove(): bloqueia morador antes de chamar o service', () => {
-    const { controller, service } = buildController();
-    expect(() => controller.remove({ id: 10 }, morador)).toThrow(ForbiddenException);
-    expect(service.remove).not.toHaveBeenCalled();
+  it.each(rotasDeEscrita)('%s recusa e não toca no service', (_rota, chamar, mockAlvo) => {
+    const mocks = buildController();
+    expect(() => chamar(mocks.controller)).toThrow(ForbiddenException);
+    expect(mockAlvo(mocks)).not.toHaveBeenCalled();
   });
 
-  it('updateStatus(): bloqueia morador marcar lançamento como pago', () => {
-    const { controller, service } = buildController();
-    expect(() => controller.updateStatus({ id: 10, status: '1' }, morador)).toThrow(ForbiddenException);
-    expect(service.updateStatus).not.toHaveBeenCalled();
+  it('a recusa explica que a origem dos lançamentos é o ERP', () => {
+    const { controller } = buildController();
+    expect(() => controller.insert()).toThrow(/somente leitura/i);
+    expect(() => controller.insert()).toThrow(/Superlógica/);
   });
 
-  it('insert(): bloqueia morador lançar movimento', () => {
+  // A leitura não pode ter ido junto: o síndico continua abrindo o livro
+  // caixa, o gráfico e a inadimplência. É o ponto inteiro da mudança —
+  // tirar a escrita, manter a visualização.
+  it('as leituras do síndico continuam de pé', () => {
     const { controller, service } = buildController();
-    expect(() => controller.insert({ id_condominio: 2, financeiro: {} }, morador)).toThrow(ForbiddenException);
-    expect(service.insert).not.toHaveBeenCalled();
-  });
-
-  it('fecharMes(): bloqueia morador fechar competência', () => {
-    const { controller, fechamento } = buildController();
-    expect(() => controller.fecharMes({ id_condominio: 2, mes: 1, ano: 2026 }, morador)).toThrow(ForbiddenException);
-    expect(fechamento.fechar).not.toHaveBeenCalled();
-  });
-
-  it('confirmarConciliacao(): bloqueia morador confirmar conciliação bancária', () => {
-    const { controller, service } = buildController();
-    expect(() => controller.confirmarConciliacao({ id_condominio: 2, reconciliations: [] }, morador)).toThrow(
-      ForbiddenException,
-    );
-    expect(service.confirmarConciliacao).not.toHaveBeenCalled();
+    const sindico: JwtPayload = { sub: 1, nome: 'Síndico', typeAccess: 'Sindico' };
+    controller.getAll('2', '7', '2026', sindico);
+    expect(service.getAll).toHaveBeenCalled();
+    controller.get('2', '10', sindico);
+    expect(service.get).toHaveBeenCalled();
   });
 });
 

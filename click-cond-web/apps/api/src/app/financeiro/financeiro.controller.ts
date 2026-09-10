@@ -5,9 +5,23 @@ import { FechamentoService } from './fechamento.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { Public } from '../auth/public.decorator';
-import { assertStaff, assertOperador, assertSindico } from '../auth/tenant.util';
+import { assertStaff, assertSindico, assertFinanceiroSomenteLeitura } from '../auth/tenant.util';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
+/**
+ * O financeiro do condomínio é SOMENTE LEITURA dentro do Clique.
+ *
+ * A taxa condominial e o resto do que aparece nas telas vêm do ERP
+ * Superlógica; o Clique espelha. Síndico e funcionário são leitores — as
+ * rotas de mutação abaixo respondem 403 via `assertFinanceiroSomenteLeitura`.
+ * Elas continuam existindo (em vez de sumir) porque o app já instalado no
+ * celular do síndico segue chamando-as até ele atualizar, e um 403 com texto
+ * explicativo é melhor que um 404 disfarçado de erro de conexão.
+ *
+ * Continuam escrevendo, e de propósito: as contas pessoais do morador
+ * (`morador/*`), os webhooks de pagamento, o job de recorrência e o sync da
+ * Superlógica.
+ */
 @Controller('financeiro')
 export class FinanceiroController {
   constructor(
@@ -18,33 +32,22 @@ export class FinanceiroController {
   @SkipAudit()
   @Post('insert')
   @HttpCode(200)
-  insert(
-    @Body() body: { id_condominio: string | number; financeiro: any },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'lançar movimento financeiro');
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
-    return this.service.insert(Number(body.id_condominio), body.financeiro, operatorName, payload);
+  insert() {
+    assertFinanceiroSomenteLeitura('lançar movimento financeiro');
   }
 
   @SkipAudit()
   @Post('update')
   @HttpCode(200)
-  update(
-    @Body() body: { id_condominio: string | number; financeiro: any },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'editar movimento financeiro');
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
-    return this.service.update(Number(body.id_condominio), body.financeiro, operatorName, payload);
+  update() {
+    assertFinanceiroSomenteLeitura('editar movimento financeiro');
   }
 
   @SkipAudit()
   @Post('remove')
   @HttpCode(200)
-  remove(@Body() body: { id: string | number }, @ReqUser() payload: JwtPayload) {
-    assertStaff(payload, 'remover movimento financeiro');
-    return this.service.remove(Number(body.id), payload);
+  remove() {
+    assertFinanceiroSomenteLeitura('remover movimento financeiro');
   }
 
   @Get('get-all')
@@ -176,13 +179,8 @@ export class FinanceiroController {
 
   @Post('config-auto')
   @HttpCode(200)
-  updateConfigAuto(
-    @Body() body: { id_condominio: string | number; config: any },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'configurar cobrança automática');
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
-    return this.service.updateConfigAuto(Number(body.id_condominio), body.config, operatorName, payload);
+  updateConfigAuto() {
+    assertFinanceiroSomenteLeitura('configurar cobrança automática');
   }
 
   @Get('apartamentos-config')
@@ -194,12 +192,8 @@ export class FinanceiroController {
 
   @Post('apartamento-recorrencia')
   @HttpCode(200)
-  updateApartamentoRecorrencia(
-    @Body() body: { id_condominio: string | number; aptoId: string | number; ignorar: boolean },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'configurar recorrência de apartamento');
-    return this.service.updateApartamentoRecorrencia(Number(body.id_condominio), Number(body.aptoId), body.ignorar, payload);
+  updateApartamentoRecorrencia() {
+    assertFinanceiroSomenteLeitura('configurar recorrência de apartamento');
   }
 
   @Get('get-by-user')
@@ -259,23 +253,11 @@ export class FinanceiroController {
   @SkipAudit()
   @Post('update-status')
   @HttpCode(200)
-  updateStatus(
-    @Body() body: {
-      id: string | number;
-      status: string | number;
-      // Campos opcionais — só obrigatórios quando autor=operador (segregação soft).
-      motivo?: string;
-      formaPagamento?: string;
-      identificadorComprovante?: string;
-    },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'alterar status de pagamento');
-    return this.service.updateStatus(Number(body.id), body.status, payload, {
-      motivo: body.motivo,
-      formaPagamento: body.formaPagamento,
-      identificadorComprovante: body.identificadorComprovante,
-    });
+  updateStatus() {
+    // Some com a "segregação soft" (motivo + forma de pagamento quando o
+    // operador dá baixa no que ele mesmo lançou): não há mais baixa manual.
+    // Quem marca como pago agora é o webhook de pagamento ou o sync do ERP.
+    assertFinanceiroSomenteLeitura('dar baixa em um lançamento');
   }
 
   @Public()
@@ -343,11 +325,12 @@ export class FinanceiroController {
     @Body() body: { id_condominio: string | number },
     @ReqUser() payload: JwtPayload,
   ) {
-    // Limpeza destrutiva de dados — só síndico (o tenant check no service
-    // garante que é o síndico DESTE condomínio) ou admin.
+    // Limpeza destrutiva de dados — só o administrador da operadora. O
+    // síndico saiu da lista junto com o resto da escrita: com o financeiro
+    // somente leitura, apagar cobrança em massa virou operação de suporte.
     const typeAccess = payload?.typeAccess ?? payload?.user?.typeAccess;
-    if (typeAccess !== 'Sindico' && typeAccess !== 'Admin') {
-      throw new ForbiddenException('Apenas síndico ou administrador pode executar a limpeza de dados.');
+    if (typeAccess !== 'Admin') {
+      throw new ForbiddenException('Apenas o administrador pode executar a limpeza de dados.');
     }
     const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
     return this.service.adminLimparCobrancasZeradas(Number(body.id_condominio), operatorName, payload);
@@ -356,46 +339,28 @@ export class FinanceiroController {
   @SkipAudit()
   @Post('rateio')
   @HttpCode(200)
-  createRateio(
-    @Body() body: { id_condominio: string | number; rateioData: any },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'criar rateio');
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
-    return this.service.createRateio(Number(body.id_condominio), body.rateioData, operatorName, payload);
+  createRateio() {
+    assertFinanceiroSomenteLeitura('criar rateio');
   }
 
   @SkipAudit()
   @Post('inadimplente/acordo')
   @HttpCode(200)
-  createAcordoInadimplente(
-    @Body() body: { id_condominio: string | number; acordoData: any },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'criar acordo de inadimplência');
-    const operatorName = payload?.user?.name ?? payload?.user?.nome ?? payload?.nome ?? 'Administrador';
-    return this.service.createAcordoInadimplente(Number(body.id_condominio), body.acordoData, operatorName, payload);
+  createAcordoInadimplente() {
+    assertFinanceiroSomenteLeitura('firmar acordo de inadimplência');
   }
 
   @Post('conciliacao/importar')
   @HttpCode(200)
-  importarOfx(
-    @Body() body: { id_condominio: string | number; ofxContent: string },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'importar conciliação bancária');
-    return this.service.parseOfxContent(Number(body.id_condominio), body.ofxContent, payload);
+  importarOfx() {
+    assertFinanceiroSomenteLeitura('importar conciliação bancária');
   }
 
   @SkipAudit()
   @Post('conciliacao/confirmar')
   @HttpCode(200)
-  confirmarConciliacao(
-    @Body() body: { id_condominio: string | number; reconciliations: { databaseId: number; dataPagamento: string }[] },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'confirmar conciliação bancária');
-    return this.service.confirmarConciliacao(Number(body.id_condominio), body.reconciliations, payload);
+  confirmarConciliacao() {
+    assertFinanceiroSomenteLeitura('confirmar conciliação bancária');
   }
 
   // ============== Fechamento Mensal ==============
@@ -413,34 +378,14 @@ export class FinanceiroController {
   @SkipAudit()
   @Post('fechamentos/fechar')
   @HttpCode(200)
-  fecharMes(
-    @Body() body: { id_condominio: string | number; mes: number; ano: number; observacao?: string },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'fechar competência');
-    return this.fechamento.fechar(
-      Number(body.id_condominio),
-      Number(body.mes),
-      Number(body.ano),
-      payload,
-      body.observacao,
-    );
+  fecharMes() {
+    assertFinanceiroSomenteLeitura('fechar competência');
   }
 
   @SkipAudit()
   @Post('fechamentos/reabrir')
   @HttpCode(200)
-  reabrirMes(
-    @Body() body: { id_condominio: string | number; mes: number; ano: number; motivo: string },
-    @ReqUser() payload: JwtPayload,
-  ) {
-    assertStaff(payload, 'reabrir competência');
-    return this.fechamento.reabrir(
-      Number(body.id_condominio),
-      Number(body.mes),
-      Number(body.ano),
-      body.motivo,
-      payload,
-    );
+  reabrirMes() {
+    assertFinanceiroSomenteLeitura('reabrir competência');
   }
 }

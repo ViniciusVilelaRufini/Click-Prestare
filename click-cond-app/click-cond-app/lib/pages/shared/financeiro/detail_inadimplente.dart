@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:click/pages/singleton.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
 
 class DetailInadimplente extends StatefulWidget {
   const DetailInadimplente({Key? key, required this.bloco, required this.apto}) : super(key: key);
@@ -47,83 +46,6 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
     }
   }
 
-  double get _totalDivida {
-    double total = 0;
-    for (var item in list) {
-      total += parseValorMoeda(item['valor']);
-    }
-    return total;
-  }
-
-  /// Acordo de parcelamento: o backend marca os débitos atuais como
-  /// renegociados (status 3) e cria as parcelas novas com Pix.
-  Future<void> _abrirAcordo() async {
-    final txtValor = TextEditingController(text: valorParaInput(_totalDivida));
-    final txtParcelas = TextEditingController(text: '3');
-
-    final confirmou = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: AppColors.surface(c),
-        title: Text('Acordo de Parcelamento', style: AppTypography.title(c)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Os débitos em aberto serão marcados como renegociados e substituídos '
-              'por novas parcelas mensais (vencimento todo dia 10).',
-              style: AppTypography.caption(c),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: txtValor,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Valor total do acordo'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextField(
-              controller: txtParcelas,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Número de parcelas'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('Firmar Acordo'),
-          ),
-        ],
-      ),
-    );
-    if (confirmou != true || !mounted) return;
-
-    final valor = parseValorMoeda(txtValor.text);
-    final parcelas = int.tryParse(txtParcelas.text) ?? 0;
-    if (valor <= 0 || parcelas <= 0) {
-      displayMessage(context, getText('alert'), 'Informe valor e número de parcelas válidos.');
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    final res = await apiCreateAcordoInadimplente({
-      'apto': widget.apto,
-      'bloco': widget.bloco,
-      'parcelas': parcelas,
-      'valorTotal': valor,
-    });
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    if (res['ok'] == true) {
-      await displayMessage(context, getText('alert'), res['message'].toString());
-      load();
-    } else {
-      displayMessage(context, getText('alert_error'), res['message'].toString());
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,21 +66,6 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  if (list.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-                      child: OutlinedButton.icon(
-                        onPressed: _abrirAcordo,
-                        icon: const Icon(PhosphorIcons.handshake, color: AppColors.primary),
-                        label: const Text('Firmar Acordo de Parcelamento',
-                            style: TextStyle(color: AppColors.primary)),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 44),
-                          side: const BorderSide(color: AppColors.primary),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
                   _section(getText('financeiro_meses_aberto')),
                   if (list.isEmpty)
                     Center(
@@ -210,7 +117,6 @@ class _MonthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasRecord = item['id'] != null;
     final valorStr = _formatValor(item['valor']);
 
     return Container(
@@ -222,37 +128,10 @@ class _MonthCard extends StatelessWidget {
           color: Colors.orange.withOpacity(0.3),
         ),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          Widget page;
-          if (hasRecord) {
-            page = NewFinanceiroMorador(id: item['id'], apto: null);
-          } else {
-            page = NewFinanceiroMorador(
-              id: null,
-              apto: {
-                "bloco": bloco,
-                "apto": apto,
-                "mes": item['mes'],
-                "ano": item['ano'],
-                "pago": 0,
-                "financeiro_id": -1,
-                "valor": item['valor'].toString(),
-                "data_vencimento": item['data_vencimento'] ?? '',
-                "descricao": "",
-                "conta": "",
-                "linha_digitavel": "",
-                "pix_copia_cola": "",
-                "categoria": "Condomínio"
-              },
-            );
-          }
-          Navigator.push(context, MaterialPageRoute(builder: (_) => page)).then((value) {
-            onRefresh();
-          });
-        },
-        child: Padding(
+      // Tocar no mes abria o formulario de cobranca do morador. O financeiro
+      // do condominio e somente leitura (os lancamentos vem do ERP
+      // Superlogica), entao o card so exibe a divida.
+      child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -350,16 +229,9 @@ class _MonthCard extends StatelessWidget {
                   },
                 ),
               ],
-              const SizedBox(width: AppSpacing.sm),
-              Icon(
-                PhosphorIcons.caretRight,
-                size: 16,
-                color: AppColors.textTertiary(context),
-              ),
             ],
           ),
         ),
-      ),
     );
   }
 }

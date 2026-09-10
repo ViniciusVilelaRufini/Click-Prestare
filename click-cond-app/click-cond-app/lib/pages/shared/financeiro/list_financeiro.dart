@@ -8,11 +8,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:click/controllers/controller_financeiro.dart';
 import 'package:click/pages/shared/financeiro/finan_relatorio.dart';
 import 'package:click/pages/shared/financeiro/detail_inadimplente.dart';
-import 'package:click/pages/shared/financeiro/new_financeiro_despesa.dart';
-import 'package:click/pages/shared/financeiro/new_financeiro_morador.dart';
-import 'package:click/pages/shared/financeiro/new_financeiro_receita.dart';
-import 'package:click/pages/shared/financeiro/new_rateio.dart';
-import 'package:click/pages/shared/financeiro/config_recorrencia.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart' show MoradorFinanceiroCategoryDetailPage;
 import 'package:click/pages/shared/financeiro/morador_relatorio_page.dart';
 import 'package:click/pages/singleton.dart';
@@ -30,7 +25,6 @@ import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 enum FinanceiroViewMode { morador, condominio }
 
@@ -196,18 +190,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return count;
   }
 
-  void _openLancamento(dynamic item) {
-    if (getUserType() != 'sindico') return;
-    Widget page;
-    if (item['tipo'] == 'C') {
-      page = item['categoria'] == 'Arrecadação'
-          ? NewFinanceiroMorador(id: item['id'], apto: null)
-          : NewFinanceiroReceita(id: item['id']);
-    } else {
-      page = NewFinanceiroDespesa(id: item['id']);
-    }
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page)).then((_) => loadList());
-  }
+  // Tocar num lançamento abria o formulário de edição. Com o financeiro
+  // somente leitura não há o que editar — o toque deixou de fazer nada em
+  // vez de abrir uma tela que só levaria a um 403 no salvar.
+  void _openLancamento(dynamic item) {}
   @override
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
@@ -442,51 +428,17 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     );
   }
 
+  // O financeiro do condomínio é somente leitura: os lançamentos vêm do ERP
+  // Superlógica. O síndico não cria mais cobrança, receita, despesa, rateio
+  // nem configura recorrência — o SpeedDial com essas cinco ações saiu, e
+  // sobrou o mesmo botão de atualizar que o morador já tinha.
   Widget _buildFab(bool isSindico) {
-    if (_viewMode == FinanceiroViewMode.morador) {
-      return FloatingActionButton(
-        heroTag: null,
-        onPressed: loadList,
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        child: const Icon(PhosphorIcons.arrowsClockwise),
-      );
-    }
-    if (!isSindico) return FloatingActionButton(heroTag: null, onPressed: loadList, child: const Icon(PhosphorIcons.arrowsClockwise));
-
-    return SpeedDial(
+    return FloatingActionButton(
       heroTag: null,
-      icon: PhosphorIcons.plus,
-      activeIcon: PhosphorIcons.x,
+      onPressed: loadList,
       backgroundColor: AppColors.primary,
       foregroundColor: Colors.white,
-      children: [
-        SpeedDialChild(
-          child: const Icon(PhosphorIcons.userPlus),
-          label: 'Cobrança Morador',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewFinanceiroMorador(apto: null))).then((_) => loadList()),
-        ),
-        SpeedDialChild(
-          child: const Icon(PhosphorIcons.arrowDown),
-          label: 'Nova Receita',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewFinanceiroReceita())).then((_) => loadList()),
-        ),
-        SpeedDialChild(
-          child: const Icon(PhosphorIcons.arrowUp),
-          label: 'Nova Despesa',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewFinanceiroDespesa())).then((_) => loadList()),
-        ),
-        SpeedDialChild(
-          child: const Icon(PhosphorIcons.usersThree),
-          label: 'Rateio Extraordinário',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewRateio())).then((_) => loadList()),
-        ),
-        SpeedDialChild(
-          child: const Icon(PhosphorIcons.arrowsClockwise),
-          label: 'Cobrança Automática',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfigRecorrencia())).then((_) => loadList()),
-        ),
-      ],
+      child: const Icon(PhosphorIcons.arrowsClockwise),
     );
   }
 
@@ -2112,13 +2064,13 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                     Expanded(child: _InadKpiCard(label: 'Arrecadado', value: money(r['totalArrecadado']),
                       icon: PhosphorIcons.checkCircle, color: const Color(0xFF22C55E),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                        InadimplenciaListaPage(titulo: 'Arrecadado', itens: _pagas, permitirBaixa: false)))
+                        InadimplenciaListaPage(titulo: 'Arrecadado', itens: _pagas)))
                         .then((_) => _load()))),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(child: _InadKpiCard(label: 'Pendente', value: money(r['totalPendente']),
                       icon: PhosphorIcons.clock, color: const Color(0xFFF59E0B),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                        InadimplenciaListaPage(titulo: 'Pendente', itens: _pendentes, permitirBaixa: true)))
+                        InadimplenciaListaPage(titulo: 'Pendente', itens: _pendentes)))
                         .then((_) => _load()))),
                   ]),
                   const SizedBox(height: AppSpacing.md),
@@ -2322,41 +2274,20 @@ class _InadBlocoTile extends StatelessWidget {
 }
 
 // ===== Tela: lista de cobranças (Arrecadado / Pendente) =====
-class InadimplenciaListaPage extends StatefulWidget {
+//
+// Era uma StatefulWidget porque a baixa manual removia o item da lista. A
+// baixa saiu — quem marca uma cobrança como paga agora é o ERP Superlógica
+// (ou o webhook de pagamento), então a lista só exibe.
+class InadimplenciaListaPage extends StatelessWidget {
   final String titulo;
   final List<dynamic> itens;
-  final bool permitirBaixa;
-  const InadimplenciaListaPage({Key? key, required this.titulo, required this.itens, this.permitirBaixa = false}) : super(key: key);
-  @override
-  State<InadimplenciaListaPage> createState() => _InadimplenciaListaPageState();
-}
-
-class _InadimplenciaListaPageState extends State<InadimplenciaListaPage> {
-  late List<dynamic> _itens;
-
-  @override
-  void initState() {
-    super.initState();
-    _itens = List<dynamic>.from(widget.itens);
-  }
-
-  Future<void> _darBaixa(dynamic item) async {
-    final ok = await showConfirmDialog(context, text: 'Confirmar baixa (marcar como PAGO) da cobrança do Apto ${item['apto']}${(item['bloco'] ?? '').toString().isNotEmpty ? ' · Bloco ${item['bloco']}' : ''}?');
-    if (ok != true) return;
-    final res = await apiUpdateFinanceiroStatus(item['id'] is int ? item['id'] : int.tryParse('${item['id']}') ?? 0, 1);
-    if (!mounted) return;
-    if (res == true) {
-      setState(() => _itens.remove(item));
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Baixa registrada.'), backgroundColor: Color(0xFF22C55E)));
-    } else {
-      displayMessage(context, 'Ops', 'Não foi possível dar baixa. (Verifique se a competência não está fechada.)');
-    }
-  }
+  const InadimplenciaListaPage({Key? key, required this.titulo, required this.itens}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final _itens = itens;
     return AppScaffold(
-      title: widget.titulo,
+      title: titulo,
       showBackButton: true,
       body: _itens.isEmpty
           ? Center(child: Padding(
@@ -2376,7 +2307,6 @@ class _InadimplenciaListaPageState extends State<InadimplenciaListaPage> {
                 final apto = (item['apto'] ?? '').toString();
                 final bloco = (item['bloco'] ?? '').toString();
                 final pago = item['pago'] == 1;
-                final ehSuperlogica = item['origem'] == 'superlogica';
                 return Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(14)),
@@ -2402,29 +2332,14 @@ class _InadimplenciaListaPageState extends State<InadimplenciaListaPage> {
                       Text((item['valorString'] ?? '').toString(),
                         style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w800,
                           color: pago ? const Color(0xFF22C55E) : AppColors.error)),
-                      // Cobrança vinda da Superlógica não aceita baixa pelo
-                      // Clique: quem dá baixa é o arquivo de retorno do banco,
-                      // no ERP. O backend recusa, e o botão só produzia um erro
-                      // com o motivo errado ("competência fechada").
-                      if (ehSuperlogica && !pago) ...[
+                      // Nenhuma cobrança aceita baixa pelo Clique: quem marca
+                      // como paga é o arquivo de retorno do banco, no ERP.
+                      // O selo diz onde a baixa acontece, em vez de oferecer
+                      // um botão que o backend recusaria.
+                      if (!pago) ...[
                         const SizedBox(height: 6),
                         Text('Baixa pelo ERP',
                           style: AppTypography.tiny(context).copyWith(color: AppColors.textTertiary(context))),
-                      ],
-                      if (widget.permitirBaixa && !pago && !ehSuperlogica) ...[
-                        const SizedBox(height: 6),
-                        GestureDetector(
-                          onTap: () => _darBaixa(item),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF22C55E).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFF22C55E).withOpacity(0.3))),
-                            child: Text('Dar baixa', style: AppTypography.tiny(context).copyWith(
-                              color: const Color(0xFF16A34A), fontWeight: FontWeight.bold)),
-                          ),
-                        ),
                       ],
                     ]),
                   ]),

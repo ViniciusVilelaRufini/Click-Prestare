@@ -143,3 +143,29 @@ export function assertSindico(user: JwtPayload | undefined, contexto = 'ação')
     throw new ForbiddenException(`Acesso negado: ${contexto} exige síndico.`);
   }
 }
+
+/**
+ * Recusa QUALQUER escrita no financeiro do condomínio, para todo mundo.
+ *
+ * O financeiro do condomínio deixou de ser operado dentro do Clique: a taxa
+ * condominial e tudo mais que aparece nas telas passa a vir do ERP
+ * Superlógica, e o Clique só espelha. Síndico e funcionário viram leitores.
+ *
+ * Isto substitui `assertStaff` nas rotas de mutação. Não é redundante com
+ * esconder o botão na tela: o app instalado no celular do síndico continua
+ * chamando essas rotas até ele atualizar, e a autorização mora aqui, não na
+ * tela — a mesma lição de `financeiro.authz.spec.ts`.
+ *
+ * As rotas continuam existindo de propósito, devolvendo 403 com este texto:
+ * um app antigo mostra a mensagem, enquanto um 404 viraria "erro de conexão".
+ *
+ * Não se aplica a: contas pessoais do morador (`morador/*`), aos webhooks de
+ * pagamento, ao job de recorrência nem ao sync da Superlógica — nenhum deles
+ * passa por aqui.
+ */
+export function assertFinanceiroSomenteLeitura(contexto = 'esta ação'): never {
+  throw new ForbiddenException(
+    `O financeiro do condomínio é somente leitura: ${contexto} não é mais feita pelo Clique. ` +
+      'Os lançamentos vêm do ERP Superlógica.',
+  );
+}
