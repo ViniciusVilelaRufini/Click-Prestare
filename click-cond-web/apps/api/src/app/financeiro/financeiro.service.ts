@@ -1538,20 +1538,71 @@ export class FinanceiroService implements OnModuleInit {
       return { success: false, message: 'Nenhuma fatura em atraso encontrada.' };
     }
 
+    // Quem recebe a cobrança tem de ser exatamente quem VÊ a cobrança no app.
+    //
+    // Antes esta consulta olhava só `Moradores` com igualdade estrita em
+    // bloco/apartamento, enquanto a leitura do morador (`getByUser`) considera
+    // TAMBÉM o vínculo em `Apartamentos_Users`. Duas divergências saíam disso:
+    //
+    // - condomínio sem bloco: a tela manda `bloco=""` e o cadastro guarda
+    //   `null`, então `bloco: ''` não casava com ninguém;
+    // - morador ligado à unidade só por `Apartamentos_Users` ficava invisível
+    //   para a notificação, embora enxergasse a dívida no app.
+    //
+    // Nos dois casos ninguém era notificado e a tela dizia que deu certo.
+    const blocoNorm = (bloco ?? '').trim();
+    const blocoFiltro = blocoNorm
+      ? { equals: blocoNorm }
+      : { in: ['', null] as any };
+
     const moradores = await this.prisma.users.findMany({
       where: {
-        moradores: {
-          some: {
-            id_condominio: idCondominio,
-            apartamento: apto,
-            bloco: bloco,
+        OR: [
+          {
+            moradores: {
+              some: {
+                id_condominio: idCondominio,
+                apartamento: apto,
+                bloco: blocoFiltro,
+              },
+            },
           },
-        },
+          {
+            apartamentosUsers: {
+              some: {
+                apartamento: {
+                  id_condominio: idCondominio,
+                  apto,
+                  bloco: blocoFiltro,
+                },
+              },
+            },
+          },
+        ],
       },
     });
 
     const totalDivida = pendingFaturas.reduce((acc, f) => acc + f.valor, 0);
     const totalFormatted = totalDivida.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    // Sem ninguém para avisar, dizer "enviada com sucesso" é pior que falhar:
+    // o síndico risca o apartamento da lista achando que cobrou, e o morador
+    // nunca soube. A unidade pode existir sem morador cadastrado — é uma
+    // situação real, e o que ela pede é cadastro, não reenvio.
+    if (moradores.length === 0) {
+      return {
+        success: false,
+        message:
+          `Nenhum morador cadastrado no Apto ${apto}${blocoNorm ? ` Bloco ${blocoNorm}` : ''} para notificar. ` +
+          'Cadastre o morador da unidade e tente de novo.',
+        totalFaturas: pendingFaturas.length,
+        totalDivida,
+        totalFormatted,
+        moradoresNotificados: 0,
+        pushEnviados: 0,
+        emailsEnviados: 0,
+      };
+    }
 
     let sentPushCount = 0;
     let sentEmailCount = 0;
@@ -1589,6 +1640,24 @@ export class FinanceiroService implements OnModuleInit {
           this.logger.error(`Erro ao enviar email para ${morador.email}: ${err}`);
         }
       }
+    }
+
+    // Morador cadastrado mas sem canal (nem app instalado, nem e-mail), ou os
+    // dois envios falharam: nada saiu. Mesmo raciocínio do bloco acima — o
+    // síndico precisa saber que a cobrança não chegou.
+    if (sentPushCount === 0 && sentEmailCount === 0) {
+      return {
+        success: false,
+        message:
+          `Nenhuma notificação pôde ser entregue ao Apto ${apto}${blocoNorm ? ` Bloco ${blocoNorm}` : ''}. ` +
+          'O morador não tem e-mail cadastrado nem o app instalado.',
+        totalFaturas: pendingFaturas.length,
+        totalDivida,
+        totalFormatted,
+        moradoresNotificados: moradores.length,
+        pushEnviados: 0,
+        emailsEnviados: 0,
+      };
     }
 
     return {
