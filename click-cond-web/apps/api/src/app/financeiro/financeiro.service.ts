@@ -168,6 +168,46 @@ export class FinanceiroService implements OnModuleInit {
     );
   }
 
+  /**
+   * `where` dos usuários ligados a uma unidade, pelos DOIS vínculos que o
+   * sistema reconhece: a linha em `Moradores` e o vínculo em
+   * `Apartamentos_Users`.
+   *
+   * Existe como helper porque quem cobra tem de alcançar exatamente quem vê a
+   * cobrança. `getByUser` sempre olhou os dois vínculos; os dois pontos que
+   * NOTIFICAM olhavam só `Moradores`, com igualdade estrita — e cada um
+   * divergia à sua maneira, em silêncio. Um único lugar impede que voltem a
+   * discordar.
+   *
+   * Bloco vazio e bloco nulo são a mesma coisa: a tela manda `""`, o cadastro
+   * guarda `null`, e condomínio sem blocos é comum.
+   */
+  private whereUsuariosDaUnidade(
+    idCondominio: number,
+    apto: string,
+    bloco: string | null | undefined,
+  ) {
+    const blocoNorm = (bloco ?? '').trim();
+    const blocoFiltro = blocoNorm ? { equals: blocoNorm } : ({ in: ['', null] } as any);
+
+    return {
+      OR: [
+        {
+          moradores: {
+            some: { id_condominio: idCondominio, apartamento: apto, bloco: blocoFiltro },
+          },
+        },
+        {
+          apartamentosUsers: {
+            some: {
+              apartamento: { id_condominio: idCondominio, apto, bloco: blocoFiltro },
+            },
+          },
+        },
+      ],
+    };
+  }
+
   private nomeFaturaDeApto(nome: string | null | undefined, apto: string | null | undefined, bloco: string | null | undefined): boolean {
     if (!nome || !apto) return false;
     // Escapa caracteres regex no apto/bloco (defensivo — apto pode ter
@@ -1551,35 +1591,9 @@ export class FinanceiroService implements OnModuleInit {
     //
     // Nos dois casos ninguém era notificado e a tela dizia que deu certo.
     const blocoNorm = (bloco ?? '').trim();
-    const blocoFiltro = blocoNorm
-      ? { equals: blocoNorm }
-      : { in: ['', null] as any };
 
     const moradores = await this.prisma.users.findMany({
-      where: {
-        OR: [
-          {
-            moradores: {
-              some: {
-                id_condominio: idCondominio,
-                apartamento: apto,
-                bloco: blocoFiltro,
-              },
-            },
-          },
-          {
-            apartamentosUsers: {
-              some: {
-                apartamento: {
-                  id_condominio: idCondominio,
-                  apto,
-                  bloco: blocoFiltro,
-                },
-              },
-            },
-          },
-        ],
-      },
+      where: this.whereUsuariosDaUnidade(idCondominio, apto, blocoNorm),
     });
 
     const totalDivida = pendingFaturas.reduce((acc, f) => acc + f.valor, 0);
@@ -2639,6 +2653,10 @@ export class FinanceiroService implements OnModuleInit {
 
     let stats = { faturasProcessadas: 0, pushEnviados: 0, emailsEnviados: 0, deduplicados: 0 };
 
+    // As faturas da janela atravessam vários condomínios; carregar os
+    // apartamentos de cada um uma única vez evita repetir a consulta por fatura.
+    const aptosPorCondominio = new Map<number, { apto: string | null; bloco: string | null }[]>();
+
     for (const fat of faturas) {
       if (!fat.data_vencimento) continue;
 
@@ -2671,9 +2689,31 @@ export class FinanceiroService implements OnModuleInit {
         continue;
       }
 
-      const aptoMatch = fat.nome?.match(/Apto\s+(\S+)\s+Bloco\s+(\S+)/i);
-      if (!aptoMatch) continue;
-      const [, apto, bloco] = aptoMatch;
+      // A unidade da fatura sai do MESMO casador que decide quem vê a cobrança
+      // no app (`nomeFaturaDeApto`), e não de um regex próprio.
+      //
+      // O regex anterior era `/Apto\s+(\S+)\s+Bloco\s+(\S+)/` — exigia o trecho
+      // " Bloco X". Fatura de condomínio SEM bloco ("Apto 5 - Ref. 08/2026",
+      // que é o que `montarNomeLancamento` gera quando o apartamento não tem
+      // bloco) nunca casava, e o `continue` pulava calado: esses condomínios
+      // não recebiam lembrete NENHUM — nem os 5 dias antes, nem no dia, nem o
+      // de vencido. Apto com espaço no nome ("Apto 10 A Bloco A") caía no mesmo
+      // buraco.
+      if (fat.id_condominio == null) continue;
+
+      let aptosDoCondominio = aptosPorCondominio.get(fat.id_condominio);
+      if (!aptosDoCondominio) {
+        aptosDoCondominio = await this.prisma.apartamentos.findMany({
+          where: { id_condominio: fat.id_condominio },
+          select: { apto: true, bloco: true },
+        });
+        aptosPorCondominio.set(fat.id_condominio, aptosDoCondominio);
+      }
+
+      const unidade = aptosDoCondominio.find((a) =>
+        this.nomeFaturaDeApto(fat.nome, a.apto, a.bloco),
+      );
+      if (!unidade || !unidade.apto) continue;
 
       // TODO: filtrar por preferência `notif_financeiro` quando a coluna for
       // adicionada ao schema Users. Hoje só existem notif_encomendas e
@@ -2681,11 +2721,7 @@ export class FinanceiroService implements OnModuleInit {
       // semântica é diferente (morador pode querer push de encomenda mas não
       // de cobrança, ou vice-versa).
       const moradores = await this.prisma.users.findMany({
-        where: {
-          moradores: {
-            some: { id_condominio: fat.id_condominio, apartamento: apto, bloco: bloco },
-          },
-        },
+        where: this.whereUsuariosDaUnidade(fat.id_condominio, unidade.apto, unidade.bloco),
         select: { fcm_token: true, email: true, name: true },
       });
 
@@ -2735,6 +2771,10 @@ export class FinanceiroService implements OnModuleInit {
       `${stats.pushEnviados} push, ${stats.emailsEnviados} emails, ` +
       `${stats.deduplicados} já enviados hoje (skip).`,
     );
+
+    // Devolve o que já era logado: é assim que o teste verifica que o lembrete
+    // saiu, sem depender de ler linha de log.
+    return stats;
   }
 
   // ==========================================
