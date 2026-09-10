@@ -114,6 +114,18 @@ class FinanceiroCard extends StatelessWidget {
     final bool temChavePix = _temValor(item['chave_pix']);
     final bool temBoletoOuCodigo = _temValor(item['linha_digitavel']) || _temValor(item['url_boleto']);
     final bool temUrlBoleto = _temValor(item['url_boleto']);
+
+    // `url_boleto` guarda duas coisas diferentes, e a origem é o que decide
+    // qual delas:
+    //
+    //  - vinda da Superlógica, é o `link_segundavia` do ERP: uma PÁGINA de
+    //    pagamento, que aceita boleto, Pix e cartão de crédito.
+    //  - vinda do Clique, é um arquivo (PDF/imagem) que alguém anexou.
+    //
+    // Só a primeira paga. Oferecer "pagar com cartão" em cima de um PDF
+    // manda o morador para um documento e promete o que o link não faz.
+    final bool ehSuperlogica = (item['origem']?.toString() ?? '') == 'superlogica';
+    final bool pagaOnline = ehSuperlogica && temUrlBoleto;
     final bool temComprovante = _temValor(item['url_comprovante']) || _temValor(item['photo']);
 
     return Container(
@@ -369,6 +381,41 @@ class FinanceiroCard extends StatelessWidget {
                       ),
                     ],
 
+                    // Cartão de crédito. Fica abaixo do Pix de propósito: o Pix
+                    // é instantâneo e não cobra taxa de cartão do condomínio,
+                    // então é ele quem merece o destaque. O cartão é a
+                    // alternativa de quem precisa parcelar.
+                    if (pagaOnline) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _botaoSecundario(
+                              context,
+                              icone: PhosphorIcons.creditCard,
+                              texto: "Pagar com cartão",
+                              corIcone: const Color(0xFF7C3AED),
+                              onTap: () => launchUrl(
+                                Uri.parse(item['url_boleto'].toString()),
+                                mode: LaunchMode.externalApplication,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // O pagamento acontece fora do app e a baixa só chega na
+                      // próxima sincronização. Sem este aviso, o morador paga,
+                      // volta, vê "Pendente" e acha que não funcionou — no
+                      // cartão isso é ainda mais provável que no Pix.
+                      const SizedBox(height: 6),
+                      Text(
+                        'O pagamento abre no navegador. A baixa pode levar alguns minutos para aparecer aqui.',
+                        style: AppTypography.tiny(context).copyWith(
+                          color: AppColors.textTertiary(context),
+                        ),
+                      ),
+                    ],
+
                     // LINHA DE AÇÕES SECUNDÁRIAS (VER BOLETO, ENVIAR COMPROVANTE, EDITAR/EXCLUIR)
                     if (temUrlBoleto || onEnviarComprovante != null || onEditar != null || onExcluir != null) ...[
                       const SizedBox(height: 10),
@@ -378,9 +425,13 @@ class FinanceiroCard extends StatelessWidget {
                             Expanded(
                               child: _botaoSecundario(
                                 context,
-                                icone: PhosphorIcons.filePdf,
-                                texto: "Ver boleto",
-                                corIcone: Colors.redAccent,
+                                // Da Superlógica o link é a página de 2ª via do
+                                // ERP, não um PDF. Ícone de documento e o
+                                // rótulo "Ver boleto" descreviam errado o que
+                                // está do outro lado.
+                                icone: pagaOnline ? PhosphorIcons.arrowSquareOut : PhosphorIcons.filePdf,
+                                texto: pagaOnline ? "Abrir 2ª via" : "Ver boleto",
+                                corIcone: pagaOnline ? AppColors.primary : Colors.redAccent,
                                 onTap: () => launchUrl(Uri.parse(item['url_boleto'].toString())),
                               ),
                             ),
