@@ -1540,10 +1540,9 @@ class _DashboardHeader extends StatelessWidget {
     final cleanReceitas = _cleanMoeda(receitas);
     final cleanDespesas = _cleanMoeda(despesas);
 
+    // Ainda colore o valor do saldo. O fundo do selo (`statusBg`) saiu junto
+    // com o selo.
     final statusColor = isNeg ? const Color(0xFFEF4444) : const Color(0xFF10B981);
-    final statusBg = isNeg 
-        ? const Color(0xFFEF4444).withOpacity(isDark ? 0.20 : 0.10)
-        : const Color(0xFF10B981).withOpacity(isDark ? 0.20 : 0.10);
 
     return Column(
       children: [
@@ -1563,63 +1562,35 @@ class _DashboardHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // O selo "Déficit/Superávit" saiu daqui: o próprio valor
+                // abaixo já diz isso, pelo sinal e pela cor. O selo repetia a
+                // informação e ainda dava ao saldo de um mês o tom de
+                // veredito sobre a saúde do condomínio.
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(isDark ? 0.20 : 0.10),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                PhosphorIcons.wallet,
-                                size: 14,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'SALDO ATUAL',
-                              style: AppTypography.tiny(context).copyWith(
-                                color: AppColors.textTertiary(context),
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: statusBg,
-                            borderRadius: BorderRadius.circular(AppRadius.full),
-                            border: Border.all(color: statusColor.withOpacity(0.25)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isNeg ? PhosphorIcons.trendDown : PhosphorIcons.trendUp,
-                                size: 12,
-                                color: statusColor,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                isNeg ? 'Déficit' : 'Superávit',
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(isDark ? 0.20 : 0.10),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        PhosphorIcons.wallet,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
                     ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'SALDO ATUAL',
+                      style: AppTypography.tiny(context).copyWith(
+                        color: AppColors.textTertiary(context),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
                     const SizedBox(height: 16),
                     FittedBox(
                       fit: BoxFit.scaleDown,

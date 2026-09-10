@@ -23,6 +23,7 @@ class DetailInadimplente extends StatefulWidget {
 class _DetailInadimplentePageState extends State<DetailInadimplente> {
   List<dynamic> list = [];
   var _isLoading = false;
+  var _notificando = false;
 
   @override
   void initState() {
@@ -46,11 +47,73 @@ class _DetailInadimplentePageState extends State<DetailInadimplente> {
     }
   }
 
+  /// Dispara a cobrança para os moradores da unidade (push + e-mail).
+  ///
+  /// O botão vivia só na linha de UMA das três listas que levam a esta tela.
+  /// Pelos outros dois caminhos — o dashboard POR BLOCO e a
+  /// `list_inadimplentes` — não havia como cobrar, e o síndico teria que
+  /// voltar e lembrar de usar a listagem certa. Aqui é onde ele vê os meses
+  /// em aberto e decide, então é aqui que a ação pertence — mesmo lugar que
+  /// o modal de detalhe da portaria-web já usa.
+  Future<void> _notificar() async {
+    if (_notificando) return;
+    setState(() => _notificando = true);
+
+    final res = await apiNotificarInadimplente(widget.bloco, widget.apto);
+    if (!mounted) return;
+    setState(() => _notificando = false);
+
+    final ok = res is Map && res['success'] == true;
+
+    // Quem explica a falha é o servidor, não esta tela. Ele já distingue
+    // "unidade sem morador cadastrado" de "morador sem e-mail nem app" e
+    // manda o texto pronto em `message` — repetir a lógica aqui só criaria
+    // duas versões da mesma frase para divergirem depois.
+    //
+    // No sucesso vale mostrar a contagem: "enviado" sozinho não diz se
+    // chegou a três moradores ou a um.
+    final String mensagem;
+    if (ok) {
+      final pessoas = int.tryParse('${res['moradoresNotificados'] ?? 0}') ?? 0;
+      mensagem = 'Cobrança enviada para $pessoas '
+          '${pessoas == 1 ? 'morador' : 'moradores'} do apto ${widget.apto}.';
+    } else {
+      mensagem = (res is Map ? res['message'] : null)?.toString() ?? 'Falha ao notificar.';
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(mensagem),
+      backgroundColor: ok ? AppColors.primary : AppColors.error,
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
       title: getText('financeiro_inadimplente'),
+      // No rodapé, e não dentro do corpo, por dois motivos: fica alcançável
+      // sem rolar uma lista longa de meses em aberto, e não desaparece
+      // enquanto a lista carrega.
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+        child: ElevatedButton.icon(
+          onPressed: _notificando ? null : _notificar,
+          icon: _notificando
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(PhosphorIcons.bell, size: 18),
+          label: Text(_notificando ? 'Enviando...' : 'Notificar cobrança'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
