@@ -759,23 +759,38 @@
 
 <!-- Modal Detalhe de Inadimplência -->
 @if (modalDetalhe()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/25 animate-fade-in text-white">
-    <div class="w-full max-w-lg rounded-3xl bg-graphite-200 border border-white/10 shadow-2xl shadow-black/40 overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300">
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-xs animate-fade-in">
+    <div class="w-full max-w-xl rounded-3xl bg-white dark:bg-graphite-200 border border-slate-200/90 dark:border-white/10 shadow-2xl shadow-slate-900/20 dark:shadow-black/70 overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300">
       <!-- Header -->
-      <div class="px-6 py-5 border-b border-white/[0.07] flex items-center justify-between bg-white/[0.02]">
+      <div class="px-6 py-5 border-b border-slate-100 dark:border-white/[0.08] flex items-center justify-between bg-slate-50/60 dark:bg-white/[0.02]">
         <div class="flex items-center gap-3.5">
-          <div class="w-11 h-11 rounded-2xl bg-slate-500/10 flex items-center justify-center shrink-0 border border-slate-500/20 text-slate-400">
+          <div class="w-11 h-11 rounded-2xl bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/20 dark:border-rose-500/30 flex items-center justify-center shrink-0 text-rose-600 dark:text-rose-400 shadow-xs">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-white uppercase tracking-[0.12em]">Histórico de Pendências</h3>
-            <p class="text-[11px] text-slate-400 mt-1 font-medium">{{ formatBlocoNome(selectedApto()?.bloco) }} • Apartamento {{ selectedApto()?.apto }}</p>
+            <h3 class="text-base font-bold text-slate-900 dark:text-white tracking-tight">Histórico de Pendências</h3>
+            <div class="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <span class="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
+                {{ formatBlocoNome(selectedApto()?.bloco) }}
+              </span>
+              <span class="text-slate-300 dark:text-white/20">•</span>
+              <span class="font-semibold text-slate-700 dark:text-slate-300">
+                Apartamento {{ selectedApto()?.apto }}
+              </span>
+            </div>
           </div>
         </div>
-        <button (click)="modalDetalhe.set(false)" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all active:scale-90">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        <button (click)="modalDetalhe.set(false)"
+                title="Fechar modal"
+                class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white flex items-center justify-center transition-all active:scale-90 border border-slate-200/80 dark:border-white/10 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
         </button>
       </div>
 
@@ -783,94 +798,111 @@
       <div class="p-6 flex-1 overflow-y-auto space-y-4">
         @if (loadingDetalhe()) {
           <div class="flex flex-col items-center justify-center py-12 gap-3">
-            <div class="w-7 h-7 border-2 border-slate-600 border-t-rose-500 rounded-full animate-spin"></div>
-            <span class="text-xs text-slate-400 font-medium">Carregando faturas pendentes...</span>
+            <div class="w-8 h-8 border-3 border-slate-200 dark:border-slate-700 border-t-rose-500 rounded-full animate-spin"></div>
+            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Carregando faturas pendentes...</span>
           </div>
         } @else {
-          <!--
-            Resumo da unidade. O modal listava as faturas sem nunca dizer
-            quanto a unidade deve no total — e é esse número que o síndico
-            precisa falar quando liga para o morador.
-          -->
+          <!-- Resumo da unidade -->
           @if (faturasSelected().length) {
-            <div class="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.025] border border-white/[0.07]">
+            <div class="flex items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-br from-slate-50 via-rose-50/40 to-amber-50/20 dark:from-slate-800/60 dark:via-slate-800/30 dark:to-rose-950/20 border border-slate-200/80 dark:border-white/10 shadow-xs">
               <div class="min-w-0">
-                <span class="block text-[10px] uppercase tracking-[0.14em] text-slate-500 font-semibold">Total em aberto</span>
-                <span class="block mt-1 text-xl font-extrabold font-mono tracking-tight text-slate-100">{{ resumoDetalhe().totalString }}</span>
-              </div>
-              <div class="text-right shrink-0">
-                <span class="block text-[11px] text-slate-400 font-semibold">
-                  {{ resumoDetalhe().quantidade }} {{ resumoDetalhe().quantidade === 1 ? 'cobrança' : 'cobranças' }}
+                <span class="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
+                  <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  Total em aberto
                 </span>
-                @if (resumoDetalhe().atrasadas) {
-                  <span class="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 font-semibold text-[9px] uppercase tracking-wider">
-                    <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                    {{ resumoDetalhe().atrasadas }} atrasada{{ resumoDetalhe().atrasadas === 1 ? '' : 's' }}
+                <span class="block mt-1 text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
+                  {{ resumoDetalhe().totalString }}
+                </span>
+              </div>
+              <div class="text-right shrink-0 space-y-1.5">
+                <div>
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-white/80 dark:bg-white/10 border border-slate-200/80 dark:border-white/10 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs">
+                    {{ resumoDetalhe().quantidade }} {{ resumoDetalhe().quantidade === 1 ? 'cobrança' : 'cobranças' }}
                   </span>
+                </div>
+                @if (resumoDetalhe().atrasadas) {
+                  <div>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 dark:bg-rose-500/15 border border-rose-500/25 text-rose-600 dark:text-rose-400 font-bold text-xs shadow-2xs">
+                      <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                      {{ resumoDetalhe().atrasadas }} atrasada{{ resumoDetalhe().atrasadas === 1 ? '' : 's' }}
+                    </span>
+                  </div>
                 }
               </div>
             </div>
           }
 
-          <div class="space-y-2.5">
+          <div class="space-y-3">
             @for (fat of faturasSelected(); track fat.id) {
-              <div class="group relative rounded-2xl bg-white/[0.025] border border-white/[0.07] hover:border-white/15 hover:bg-white/[0.04] transition-all duration-200 overflow-hidden">
-                <!-- Barra de status -->
-                <span class="absolute left-0 top-3 bottom-3 w-1 rounded-full"
-                      [class.bg-rose-400]="fat.status === '2' || fat.atrasado"
-                      [class.bg-slate-300]="fat.status !== '2' && !fat.atrasado"></span>
+              <div class="group relative rounded-2xl bg-slate-50/60 hover:bg-slate-50 dark:bg-white/[0.03] dark:hover:bg-white/[0.05] border border-slate-200/90 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 transition-all duration-200 overflow-hidden shadow-2xs hover:shadow-xs">
+                <!-- Barra de status lateral -->
+                <span class="absolute left-0 top-0 bottom-0 w-1.5 transition-colors"
+                      [class.bg-rose-500]="fat.status === '2' || fat.atrasado"
+                      [class.bg-blue-500]="fat.status !== '2' && !fat.atrasado"></span>
 
                 <!-- Identificação e valor -->
-                <div class="flex items-start justify-between gap-4 p-4 pl-6">
+                <div class="flex items-start justify-between gap-4 p-4 pl-5.5">
                   <div class="space-y-2 min-w-0">
-                    <h4 class="text-[13px] font-bold text-slate-100 tracking-tight truncate">{{ formatFaturaNome(fat.nome) }}</h4>
-                    <div class="flex items-center gap-2.5 flex-wrap">
+                    <h4 class="text-sm font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                      {{ formatFaturaNome(fat.nome) }}
+                    </h4>
+
+                    <div class="flex items-center gap-2 flex-wrap">
                       @if (fat.status === '2') {
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-500/10 border border-slate-500/20 text-slate-400 font-semibold text-[9px] uppercase tracking-wider">
-                          <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>Auditoria
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 font-bold text-[10px] uppercase tracking-wider">
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Auditoria
                         </span>
                       } @else if (fat.atrasado) {
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 font-semibold text-[9px] uppercase tracking-wider">
-                          <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>Atrasada
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-[10px] uppercase tracking-wider">
+                          <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>Atrasada
                         </span>
                       } @else {
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-500/10 border border-slate-500/20 text-slate-400 font-semibold text-[9px] uppercase tracking-wider">
-                          <span class="w-1 h-1 rounded-full bg-slate-400"></span>A Vencer
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-[10px] uppercase tracking-wider">
+                          <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>A Vencer
                         </span>
                       }
+
                       @if (fat.origem === 'superlogica') {
                         <span title="Cobrança espelhada da Superlógica: baixa e exclusão acontecem no ERP"
-                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-semibold text-[9px] uppercase tracking-wider">
+                              class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] uppercase tracking-wider">
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"/>
+                          </svg>
                           ERP
                         </span>
                       }
                     </div>
-                    <div class="flex items-center gap-2 flex-wrap text-[10px] text-slate-500 font-medium">
-                      <span>Venc. <strong class="font-mono text-slate-300 font-semibold">{{ fat.data_vencimento }}</strong></span>
-                      <!-- "Venc. 01/08/2026" obriga a fazer a conta de cabeça. -->
+
+                    <div class="flex items-center gap-2 flex-wrap text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      <span class="flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        Venc. <strong class="font-mono text-slate-800 dark:text-slate-200 font-bold">{{ fat.data_vencimento }}</strong>
+                      </span>
                       @if (diasAtraso(fat.data_vencimento); as dias) {
-                        <span class="text-rose-500 font-semibold">· há {{ dias }} {{ dias === 1 ? 'dia' : 'dias' }}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold text-[11px] border border-rose-200/60 dark:border-rose-500/20">
+                          há {{ dias }} {{ dias === 1 ? 'dia' : 'dias' }}
+                        </span>
                       }
                     </div>
                   </div>
 
-                  <span class="font-extrabold text-[15px] font-mono tracking-tight text-slate-100 shrink-0">
+                  <span class="font-black text-base font-mono tracking-tight text-slate-900 dark:text-white shrink-0">
                     {{ fat.valorString }}
                   </span>
                 </div>
 
-                <!--
-                  Barra de ações. Antes existiam só dois ícones (baixa e
-                  remoção) e nenhuma forma de CHEGAR à cobrança: o síndico via
-                  que havia dívida, mas não o boleto para mandar ao morador.
-                -->
-                <div class="flex items-center justify-between gap-3 px-4 pl-6 py-2.5 border-t border-white/[0.07] bg-white/[0.015] flex-wrap">
+                <!-- Barra de ações -->
+                <div class="flex items-center justify-between gap-3 px-4 pl-5.5 py-2.5 border-t border-slate-200/70 dark:border-white/5 bg-white/70 dark:bg-white/[0.015] flex-wrap">
                   <div class="flex items-center gap-1.5 flex-wrap">
                     @if (fat.url_boleto) {
                       <a [href]="fat.url_boleto" target="_blank" rel="noopener"
                          title="Abrir a 2ª via do boleto"
-                         class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-semibold text-slate-300 transition-all active:scale-95">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all shadow-2xs hover:shadow-xs active:scale-95">
+                        <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                         </svg>
                         Ver boleto
@@ -879,8 +911,8 @@
                     @if (fat.linha_digitavel) {
                       <button (click)="copiarCobranca(fat.linha_digitavel, 'Código de barras')"
                               title="Copiar a linha digitável do boleto"
-                              class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-semibold text-slate-300 transition-all active:scale-95 cursor-pointer">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer">
+                        <svg class="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5v14M8 5v14M12 5v10M16 5v14M20 5v14"/>
                         </svg>
                         Código de barras
@@ -889,7 +921,7 @@
                     @if (fat.pix_copia_cola) {
                       <button (click)="copiarCobranca(fat.pix_copia_cola, 'Pix copia e cola')"
                               title="Copiar o Pix copia e cola"
-                              class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-[10px] font-semibold text-emerald-400 transition-all active:scale-95 cursor-pointer">
+                              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/20 text-xs font-semibold text-emerald-700 dark:text-emerald-400 transition-all shadow-2xs active:scale-95 cursor-pointer">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                         </svg>
@@ -899,45 +931,38 @@
                     @if (fat.url_comprovante) {
                       <a [href]="fat.url_comprovante" target="_blank" rel="noopener"
                          title="Ver o comprovante enviado pelo morador"
-                         class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-semibold text-slate-300 transition-all active:scale-95">
+                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/20 text-xs font-semibold text-indigo-700 dark:text-indigo-300 transition-all shadow-2xs active:scale-95">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
                         </svg>
                         Comprovante
                       </a>
                     }
-                    <!--
-                      Cobrança sem boleto nem Pix não é erro de tela: é
-                      lançamento manual do síndico, que nunca teve documento.
-                      Dizer isso evita procurar um botão que não existe.
-                    -->
                     @if (!fat.url_boleto && !fat.linha_digitavel && !fat.pix_copia_cola) {
-                      <span class="text-[10px] text-slate-500 font-medium italic">Cobrança sem boleto ou Pix registrado</span>
+                      <span class="text-xs text-slate-400 dark:text-slate-500 font-medium italic">Cobrança sem boleto ou Pix registrado</span>
                     }
                   </div>
 
-                  <!--
-                    Cobrança da Superlógica é somente leitura no Clique: a baixa
-                    vem do arquivo de retorno do banco, no ERP, e o backend
-                    recusa dar baixa ou remover. Mostrar os botões só rendia um
-                    erro no clique.
-                  -->
                   <div class="flex items-center gap-1.5 shrink-0">
                     @if (fat.origem === 'superlogica') {
-                      <span class="text-[10px] text-slate-500 font-medium">Baixa pelo ERP</span>
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-[11px] font-semibold text-slate-500 dark:text-slate-400"
+                            title="Baixa sincronizada automaticamente pelo ERP">
+                        <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        Baixa pelo ERP
+                      </span>
                     } @else {
-                      <!-- Baixar (Pago) -->
                       <button (click)="alterarStatusFatura(fat)"
                               [title]="fat.status === '2' ? 'Aprovar Pagamento' : 'Dar Baixa (Pago)'"
-                              class="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 border border-emerald-500/15 transition-all active:scale-90 cursor-pointer">
+                              class="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-600 hover:text-white dark:bg-emerald-500/10 dark:hover:bg-emerald-500 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 transition-all active:scale-90 shadow-2xs cursor-pointer">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
                         </svg>
                       </button>
-                      <!-- Remover -->
                       <button (click)="removerFatura(fat)"
                               title="Remover Cobrança"
-                              class="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 border border-rose-500/15 transition-all active:scale-90 cursor-pointer">
+                              class="p-2 rounded-xl bg-rose-50 hover:bg-rose-600 hover:text-white dark:bg-rose-500/10 dark:hover:bg-rose-500 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 transition-all active:scale-90 shadow-2xs cursor-pointer">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                         </svg>
@@ -948,50 +973,50 @@
               </div>
             } @empty {
               <div class="text-center py-12 space-y-3">
-                <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto">
-                  <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto shadow-xs">
+                  <svg class="w-7 h-7 text-emerald-500 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </div>
-                <p class="text-slate-300 text-xs font-semibold">Nenhuma pendência financeira</p>
-                <p class="text-slate-500 text-[11px]">Este apartamento está em dia com o condomínio.</p>
+                <p class="text-slate-800 dark:text-slate-200 text-sm font-bold">Nenhuma pendência financeira</p>
+                <p class="text-slate-500 dark:text-slate-400 text-xs">Este apartamento está em dia com o condomínio.</p>
               </div>
             }
           </div>
 
           <!-- Resultado do Envio de Cobrança -->
           @if (cobrancaResultado()) {
-            <div class="p-4 rounded-2xl border text-xs text-left transition-all duration-300 animate-fade-in"
-                 [ngClass]="cobrancaResultado().success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'">
+            <div class="p-4 rounded-2xl border text-xs text-left transition-all duration-300 animate-fade-in shadow-xs"
+                 [ngClass]="cobrancaResultado().success ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-900 dark:text-emerald-200' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 text-rose-900 dark:text-rose-200'">
               <div class="flex gap-3">
                 <div class="shrink-0 mt-0.5">
                   @if (cobrancaResultado().success) {
-                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                   } @else {
-                    <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-5 h-5 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                   }
                 </div>
                 <div class="flex-1">
-                  <p class="font-bold text-sm" [class.text-emerald-400]="cobrancaResultado().success" [class.text-rose-400]="!cobrancaResultado().success">
+                  <p class="font-bold text-sm" [class.text-emerald-700]="cobrancaResultado().success" [class.dark:text-emerald-400]="cobrancaResultado().success" [class.text-rose-700]="!cobrancaResultado().success" [class.dark:text-rose-400]="!cobrancaResultado().success">
                     {{ cobrancaResultado().message }}
                   </p>
                   @if (cobrancaResultado().success && cobrancaResultado().moradoresNotificados > 0) {
-                    <div class="mt-2.5 pt-2.5 border-t border-emerald-500/10 grid grid-cols-3 gap-2 text-center text-[10px]">
-                      <div class="bg-emerald-500/5 p-2 rounded-xl border border-emerald-500/10">
-                        <span class="block text-lg font-extrabold text-emerald-400 leading-none">{{ cobrancaResultado().moradoresNotificados }}</span>
-                        <span class="text-slate-400 block mt-1 font-medium">Moradores</span>
+                    <div class="mt-2.5 pt-2.5 border-t border-emerald-200/60 dark:border-emerald-500/20 grid grid-cols-3 gap-2 text-center text-[10px]">
+                      <div class="bg-white/80 dark:bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-200/80 dark:border-emerald-500/20 shadow-2xs">
+                        <span class="block text-lg font-black text-emerald-600 dark:text-emerald-400 leading-none">{{ cobrancaResultado().moradoresNotificados }}</span>
+                        <span class="text-slate-600 dark:text-slate-400 block mt-1 font-semibold">Moradores</span>
                       </div>
-                      <div class="bg-emerald-500/5 p-2 rounded-xl border border-emerald-500/10">
-                        <span class="block text-lg font-extrabold text-emerald-400 leading-none">{{ cobrancaResultado().pushEnviados }}</span>
-                        <span class="text-slate-400 block mt-1 font-medium">Notif. Push</span>
+                      <div class="bg-white/80 dark:bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-200/80 dark:border-emerald-500/20 shadow-2xs">
+                        <span class="block text-lg font-black text-emerald-600 dark:text-emerald-400 leading-none">{{ cobrancaResultado().pushEnviados }}</span>
+                        <span class="text-slate-600 dark:text-slate-400 block mt-1 font-semibold">Notif. Push</span>
                       </div>
-                      <div class="bg-emerald-500/5 p-2 rounded-xl border border-emerald-500/10">
-                        <span class="block text-lg font-extrabold text-emerald-400 leading-none">{{ cobrancaResultado().emailsEnviados }}</span>
-                        <span class="text-slate-400 block mt-1 font-medium">E-mails</span>
+                      <div class="bg-white/80 dark:bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-200/80 dark:border-emerald-500/20 shadow-2xs">
+                        <span class="block text-lg font-black text-emerald-600 dark:text-emerald-400 leading-none">{{ cobrancaResultado().emailsEnviados }}</span>
+                        <span class="text-slate-600 dark:text-slate-400 block mt-1 font-semibold">E-mails</span>
                       </div>
                     </div>
                   }
@@ -1003,22 +1028,22 @@
       </div>
 
       <!-- Footer -->
-      <div class="px-6 py-4 border-t border-white/[0.07] bg-white/[0.02] flex items-center justify-between gap-3">
+      <div class="px-6 py-4 border-t border-slate-100 dark:border-white/[0.08] bg-slate-50/70 dark:bg-white/[0.02] flex items-center justify-between gap-3">
         <button (click)="modalDetalhe.set(false)"
-                class="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-all active:scale-95">
+                class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 dark:bg-white/5 dark:hover:bg-white/10 dark:text-slate-300 dark:hover:text-white dark:border-white/10 shadow-2xs transition-all active:scale-95 cursor-pointer">
           Fechar
         </button>
 
         <button
           (click)="enviarNotificacaoCobranca()"
           [disabled]="loadingDetalhe() || enviandoCobranca() || faturasSelected().length === 0"
-          class="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent/90 text-white text-xs font-semibold transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2"
+          class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2 cursor-pointer"
         >
           @if (enviandoCobranca()) {
             <div class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             <span>Enviando...</span>
           } @else {
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
             <span>Notificar Morador</span>
           }
         </button>
