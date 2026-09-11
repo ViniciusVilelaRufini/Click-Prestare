@@ -536,39 +536,6 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return [];
     }
 
-    // Expira automaticamente solicitações pendentes e autorizações que ultrapassaram 10 minutos
-    const dezMinAtras = new Date(Date.now() - 10 * 60 * 1000);
-    try {
-      await this.prisma.visitantes.updateMany({
-        where: {
-          id_condominio: Number(idCondominio),
-          auth_status: 'pendente',
-          auth_solicitado_em: { lt: dezMinAtras },
-        },
-        data: {
-          auth_status: null,
-        },
-      });
-      await this.prisma.visitantes.updateMany({
-        where: {
-          id_condominio: Number(idCondominio),
-          auth_status: 'autorizado',
-          is_prestador: 0,
-          OR: [
-            { data_entrada: null, auth_respondido_em: { lt: dezMinAtras } },
-            { data_entrada: null, auth_solicitado_em: { lt: dezMinAtras } },
-            { data_saida: { not: null } },
-          ],
-        },
-        data: {
-          auth_status: null,
-          liberado: 0,
-        },
-      });
-    } catch {
-      // Ignora falha eventual no cleanup para não afetar listagem
-    }
-
     const todas = await this.prisma.visitantes.findMany({
       where: {
         id_condominio: Number(idCondominio),
@@ -653,6 +620,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // Score do registro principal (qual representa a pessoa na lista)
     const score = (v: Reg) => {
       if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
+      if ((v as any).auth_status === 'autorizado') return 900; // Autorizado pelo morador!
+      if ((v as any).auth_status === 'pendente') return 850;   // Aguardando morador!
       if (v.codigo_acesso && v.liberado === 1) return 800; // PIN ativo e liberado!
       if (v.codigo_acesso) return 500;                  // PIN ativo / agendado
       const created = v.created_at ? new Date(v.created_at).getTime() : 0;
@@ -729,7 +698,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         const isAutorizado = regs.some((r) => {
           if ((r as any).auth_status !== 'autorizado') return false;
           if (r.data_entrada && !r.data_saida) return true;
-          if (r.data_saida) return false;
+          if (r.data_saida) {
+            const saida = new Date(r.data_saida).getTime();
+            const resp = (r as any).auth_respondido_em ? new Date((r as any).auth_respondido_em).getTime() : 0;
+            const sol = (r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0;
+            if (saida >= Math.max(resp, sol)) return false;
+          }
           const respEm = (r as any).auth_respondido_em
             ? new Date((r as any).auth_respondido_em).getTime()
             : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
@@ -739,7 +713,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         const isLiberado = regs.some((r) => {
           if (vagaPorVisitante.has(r.id)) return true;
           if (r.is_prestador === 1) return r.liberado === 1;
-          if (r.data_saida) return false;
+          if (r.data_saida) {
+            const saida = new Date(r.data_saida).getTime();
+            const resp = (r as any).auth_respondido_em ? new Date((r as any).auth_respondido_em).getTime() : 0;
+            const sol = (r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0;
+            if (saida >= Math.max(resp, sol)) return false;
+          }
           if (r.liberado === 1 && r.data_entrada && !r.data_saida) return true;
           if (r.liberado === 1) {
             const respEm = (r as any).auth_respondido_em
@@ -754,14 +733,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         const authStatus = isAutorizado ? 'autorizado' : isPendente ? 'pendente' : null;
         const noLocalApto = regs.some((r) => r.data_entrada && !r.data_saida);
 
+        const regAtivoApto = regs.find((r) => (r as any).auth_status === 'autorizado')
+          || regs.find((r) => (r as any).auth_status === 'pendente')
+          || best;
+
         return {
           id: aptoId,
           label,
-          visitanteId: best.id,
+          visitanteId: regAtivoApto.id,
           liberado: isLiberado,
           auth_status: authStatus,
-          auth_solicitado_em: (best as any).auth_solicitado_em ? new Date((best as any).auth_solicitado_em).toISOString() : null,
-          auth_respondido_em: (best as any).auth_respondido_em ? new Date((best as any).auth_respondido_em).toISOString() : null,
+          auth_solicitado_em: (regAtivoApto as any).auth_solicitado_em ? new Date((regAtivoApto as any).auth_solicitado_em).toISOString() : null,
+          auth_respondido_em: (regAtivoApto as any).auth_respondido_em ? new Date((regAtivoApto as any).auth_respondido_em).toISOString() : null,
           temPinAtivo: regs.some((r) => Boolean(r.codigo_acesso && !r.data_saida)),
           noLocal: noLocalApto,
           data_entrada: best.data_entrada?.toISOString() ?? null,
@@ -803,7 +786,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           if (r.is_prestador === 1) {
             return r.liberado === 1;
           }
-          if (r.data_saida) return false;
+          if (r.data_saida) {
+            const saida = new Date(r.data_saida).getTime();
+            const resp = (r as any).auth_respondido_em ? new Date((r as any).auth_respondido_em).getTime() : 0;
+            const sol = (r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0;
+            if (saida >= Math.max(resp, sol)) return false;
+          }
           if (r.liberado === 1 && r.data_entrada && !r.data_saida) return true;
           if (r.liberado === 1) {
             const respEm = (r as any).auth_respondido_em
@@ -2222,6 +2210,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         auth_respondido_em: null,
         auth_respondido_por: null,
         liberado: 0,
+        data_entrada: null,
+        data_saida: null,
       },
     });
     await this.notificarMoradoresAutorizacao(v);
@@ -2248,7 +2238,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
     if (ref.auth_solicitado_em) {
       const ms = Date.now() - new Date(ref.auth_solicitado_em).getTime();
-      if (ms > 10 * 60 * 1000) {
+      if (ms > 15 * 60 * 1000) {
         throw new BadRequestException('Esta solicitação de autorização expirou (limite de 10 minutos).');
       }
     }
@@ -2258,7 +2248,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       data: {
         auth_status: 'autorizado',
         liberado: 1,
-        ...(darEntrada ? { data_entrada: new Date(), data_saida: null } : {}),
+        ...(darEntrada ? { data_entrada: new Date(), data_saida: null } : { data_saida: null }),
         auth_respondido_em: new Date(),
         auth_respondido_por: respondidoPor,
       },

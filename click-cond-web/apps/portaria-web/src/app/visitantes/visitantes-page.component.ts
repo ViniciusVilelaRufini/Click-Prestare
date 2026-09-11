@@ -490,8 +490,12 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.authPollTimer = setInterval(() => {
       const temPendente = this.pessoas().some((p) => p.auth_status === 'pendente');
       const modalAberto = this.authModalPessoaId() != null;
-      if (temPendente || modalAberto) this.carregar(true);
-    }, 3000);
+      if (temPendente || modalAberto) {
+        this.carregar(true);
+      } else {
+        this.stopAuthPolling();
+      }
+    }, 4000);
   }
 
   /**
@@ -622,14 +626,20 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const pessoa = this.solicitarModalPessoa();
     const idApto = this.solicitarAptoId();
     if (!pessoa || !idApto) return;
+    pessoa.auth_status = 'pendente';
+    pessoa.auth_solicitado_em = new Date().toISOString();
+    this.fecharSolicitar();
+    this.authModalPessoaId.set(pessoa.id); // abre a janela "ao vivo" do pedido
+    this.startAuthPolling();
+
     this.service.solicitarAutorizacao(pessoa.id, idApto).subscribe({
       next: () => {
-        this.fecharSolicitar();
-        this.authModalPessoaId.set(pessoa.id); // abre a janela "ao vivo" do pedido
-        this.carregar();
-        this.startAuthPolling();
+        this.carregar(true);
       },
-      error: (e) => this.error.set(`Falha ao solicitar autorização: ${e?.error?.message ?? e?.message ?? e}`),
+      error: (e) => {
+        pessoa.auth_status = null;
+        this.error.set(`Falha ao solicitar autorização: ${e?.error?.message ?? e?.message ?? e}`);
+      },
     });
   }
 
