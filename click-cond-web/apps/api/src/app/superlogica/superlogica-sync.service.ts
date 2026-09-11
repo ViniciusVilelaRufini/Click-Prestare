@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaService } from './superlogica.service';
-import { SuperlogicaContato, SuperlogicaUnidade } from './superlogica.types';
+import { SuperlogicaContato } from './superlogica.types';
 
 /**
  * Importação de unidades e sincronização das cobranças da Superlógica.

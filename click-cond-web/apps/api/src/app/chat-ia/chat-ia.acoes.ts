@@ -512,7 +512,7 @@ FERRAMENTAS_ACAO.push({
   descricao:
     'Prepara a publicação de um comunicado oficial do condomínio para o síndico ou funcionário confirmar. NÃO publica sozinho: devolve uma proposta que aparece como card com o título e texto para confirmação. Use quando o usuário pedir para criar, redigir ou publicar um aviso/comunicado/comunicação para o condomínio.',
   parametros: {
-    type: 'OBJECT',
+    type: 'object',
     properties: {
       titulo: {
         type: 'STRING',
@@ -559,7 +559,7 @@ FERRAMENTAS_ACAO.push({
   descricao:
     'Prepara o agendamento de uma manutenção programada do condomínio (ex: limpeza da caixa d\'água, manutenção de elevadores, dedetização, corte de grama, reforma) para o síndico ou funcionário confirmar. NÃO cadastra sozinha: devolve uma proposta que aparece como card com os detalhes para confirmação. Converta datas relativas para AAAA-MM-DD e horários para HH:MM.',
   parametros: {
-    type: 'OBJECT',
+    type: 'object',
     properties: {
       titulo: {
         type: 'STRING',

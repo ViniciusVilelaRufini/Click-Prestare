@@ -50,7 +50,7 @@ export class MoradoresController {
       mascarar: deveMascarar,
       finalidade,
       usuarioNome: user.nome || 'Operador',
-      usuarioEmail: user.email,
+      usuarioEmail: (user as any)?.email,
     });
   }
 

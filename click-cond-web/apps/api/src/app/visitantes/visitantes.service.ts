@@ -859,6 +859,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * linha atingia a outra. Duas visitantes homônimas, uma identificada por
    * documento e outra não, eram tratadas como a mesma pessoa.
    */
+  // @ts-expect-error helper interno
   private static chavePessoa(v: { doc_identificacao?: string | null; nome?: string | null }): string {
     const doc = (v.doc_identificacao ?? '').trim().toLowerCase();
     return doc || `nome:${(v.nome ?? '').trim().toLowerCase()}`;
@@ -888,7 +889,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const photo = (ref.foto_pessoa ?? '').trim();
     const hasPhoto = photo.startsWith('http');
     const face = (ref.face_id ?? '').trim();
-    const nome = ref.nome?.trim();
+    const nomeClean = (ref.nome ?? '').trim().toLowerCase();
 
     const orConditions: any[] = [];
     if (docClean.length >= 4) {
@@ -1944,15 +1945,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
-    const usuarioId = Number(payload?.sub ?? (payload as any)?.id ?? (payload as any)?.user?.id) || undefined;
     const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
-    const usuarioEmail = payload?.email ?? (payload as any)?.user?.email ?? undefined;
+    const usuarioEmail = (payload as any)?.email ?? (payload as any)?.user?.email ?? undefined;
 
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_id: usuarioId,
       usuario_nome: usuarioNome,
-      usuario_email: usuarioEmail,
+      ...(usuarioEmail ? { usuario_email: usuarioEmail } : {}),
       acao: 'CHECK_IN',
       modulo: 'visitantes',
       entidade_id: v.id,
@@ -1990,15 +1989,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
-    const usuarioId = Number(payload?.sub ?? (payload as any)?.id ?? (payload as any)?.user?.id) || undefined;
     const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
-    const usuarioEmail = payload?.email ?? (payload as any)?.user?.email ?? undefined;
+    const usuarioEmail = (payload as any)?.email ?? (payload as any)?.user?.email ?? undefined;
 
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_id: usuarioId,
       usuario_nome: usuarioNome,
-      usuario_email: usuarioEmail,
+      ...(usuarioEmail ? { usuario_email: usuarioEmail } : {}),
       acao: 'UPDATE',
       modulo: 'visitantes',
       entidade_id: v.id,
@@ -2028,15 +2025,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctx = await this.carregarContextoVisitante(v.id);
     const aptoLabel = ctx?.apartamento?.label ?? '—';
-    const usuarioId = Number(payload?.sub ?? (payload as any)?.id ?? (payload as any)?.user?.id) || undefined;
     const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
-    const usuarioEmail = payload?.email ?? (payload as any)?.user?.email ?? undefined;
+    const usuarioEmail = (payload as any)?.email ?? (payload as any)?.user?.email ?? undefined;
 
     await this.auditoria.registrar({
       id_condominio: v.id_condominio,
-      usuario_id: usuarioId,
       usuario_nome: usuarioNome,
-      usuario_email: usuarioEmail,
+      ...(usuarioEmail ? { usuario_email: usuarioEmail } : {}),
       acao: 'CHECK_OUT',
       modulo: 'visitantes',
       entidade_id: v.id,

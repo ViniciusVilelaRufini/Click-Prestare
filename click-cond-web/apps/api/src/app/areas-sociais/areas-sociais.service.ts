@@ -1162,9 +1162,9 @@ export class AreasSociaisService {
 
     let aprovadorNome: string | null = null;
     if (novoStatus === 'aprovado' || novoStatus === 'recusado') {
-      aprovadorNome = user?.name ?? user?.user?.name ?? (typeAccess === 'sindico' ? 'Síndico' : 'Administração');
+      aprovadorNome = (user as any)?.name ?? user?.nome ?? (user as any)?.user?.name ?? (typeAccess === 'sindico' ? 'Síndico' : 'Administração');
     } else if (novoStatus === 'cancelado') {
-      aprovadorNome = typeAccess === 'Morador' ? 'Cancelado pelo Morador' : (user?.name ?? 'Cancelado pelo Síndico');
+      aprovadorNome = typeAccess === 'Morador' ? 'Cancelado pelo Morador' : ((user as any)?.name ?? user?.nome ?? 'Cancelado pelo Síndico');
     }
 
     const agendamento = await this.prisma.areas_Sociais_Agendamentos.update({

@@ -3529,7 +3529,7 @@ export class MobileAuthService {
       throw new ServiceUnavailableException('Banco de dados indisponível.');
     }
 
-    const email = payload?.email ?? payload?.user?.email;
+    const email = (payload as any)?.email ?? payload?.user?.email;
     let idCondominio = dto.id_condominio ? Number(dto.id_condominio) : payload?.id_condominio;
     let apto = dto.destinatario_apto ? String(dto.destinatario_apto).trim() : '';
     let bloco = dto.destinatario_bloco ? String(dto.destinatario_bloco).trim() : null;
@@ -3560,7 +3560,7 @@ export class MobileAuthService {
     // Se ainda não tiver condomínio, tenta pelo usuário / sindico
     if (!idCondominio) {
       const sc = await this.prisma.sindicos_Condominios.findFirst({
-        where: { sindico: { id_user: idUser } },
+        where: { id_user: idUser },
       });
       if (sc) idCondominio = sc.id_condominio;
     }

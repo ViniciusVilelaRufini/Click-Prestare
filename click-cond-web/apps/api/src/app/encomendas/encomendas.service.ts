@@ -547,7 +547,7 @@ export class EncomendasService implements OnModuleInit {
 
     let fotoUrl = dto.foto_volume;
     if (fotoUrl && this.storage.isDataUrl(fotoUrl)) {
-      fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? null;
+      fotoUrl = (await this.storage.uploadDataUrl(fotoUrl, 'encomendas')) ?? undefined;
     }
 
     const updated = await this.prisma.encomendas.update({
