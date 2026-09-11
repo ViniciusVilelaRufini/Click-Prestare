@@ -7,6 +7,7 @@ import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/shared/visitantes/convites_visita.dart';
 import 'package:click/pages/singleton.dart';
+import 'package:click/utils/visitantes_presenca.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -819,31 +820,12 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                 : e['is_prestador'] != 1)
             .toList();
 
-    // Filtrar quem está no condomínio atualmente OU possui liberação ativa/agendada para hoje
+    // A regra mora em utils/visitantes_presenca.dart, em funções puras, para
+    // ser testável e para as duas superfícies contarem igual.
     final now = DateTime.now();
-    final listInside = visitorsOnlyList.where((e) {
-      // 1. Está no local fisicamente
-      final isInside = e['data_entrada'] != null && e['data_saida'] == null;
-      if (isInside) return true;
-
-      // 2. Liberação ativa (ex: vaga liberada ou liberado = 1) sem saída registrada
-      final isLiberado = e['liberado'] == 1 || e['liberado'] == '1' || e['vaga'] != null;
-      if (isLiberado && e['data_saida'] == null) return true;
-
-      // 3. Liberação ativa/agendada para hoje ou período atual
-      final startStr = e['data_hora_inicio'];
-      if (startStr != null && e['data_saida'] == null) {
-        final start = DateTime.tryParse(startStr);
-        if (start != null) {
-          final endStr = e['data_hora_termino'];
-          final end = endStr != null ? DateTime.tryParse(endStr) : null;
-          final isToday = start.year == now.year && start.month == now.month && start.day == now.day;
-          if (isToday && (end == null || now.isBefore(end))) return true;
-          if (end != null && now.isAfter(start) && now.isBefore(end)) return true;
-        }
-      }
-      return false;
-    }).toList();
+    final listInside = visitorsOnlyList.where((e) => estaNoLocal(e as Map)).toList();
+    final listAguardando =
+        visitorsOnlyList.where((e) => aguardandoChegada(e as Map, now)).toList();
 
     // Filtrar visitantes cadastrados únicos para histórico e liberação rápida
     final List<Map<String, dynamic>> listCadastrados = [];
@@ -889,7 +871,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
       }
     }
     return DefaultTabController(
-      length: 2,
+      // Três: no local, aguardando e cadastrados.
+      length: 3,
       child: AppScaffold(
         title: 'Visitantes e Prestadores',
         showBackButton: !widget.hideAppBar,
@@ -1125,10 +1108,20 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           children: [
                             const Icon(PhosphorIcons.houseLine, size: 16),
                             const SizedBox(width: 6),
-                            Builder(builder: (ctx) {
-                              final w = MediaQuery.of(ctx).size.width;
-                              return Text(w < 370 ? 'Ativos (${listInside.length})' : 'No Local / Ativos (${listInside.length})');
-                            }),
+                            Text('No local (${listInside.length})'),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Tab(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(PhosphorIcons.clock, size: 16),
+                            const SizedBox(width: 6),
+                            Text('Aguardando (${listAguardando.length})'),
                           ],
                         ),
                       ),
@@ -1191,7 +1184,29 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                   ),
                                 ),
                         ),
-                        // ABA 2: Cadastrados (Histórico / Liberar Novamente)
+                        // ABA 2: Autorizados que ainda não chegaram.
+                        RefreshIndicator(
+                          onRefresh: loadList,
+                          child: listAguardando.isEmpty
+                              ? _EmptyState(
+                                  'Ninguém autorizado aguardando chegada.',
+                                  PhosphorIcons.clock)
+                              : ListView.separated(
+                                  padding: const EdgeInsets.only(
+                                    left: AppSpacing.lg,
+                                    right: AppSpacing.lg,
+                                    top: AppSpacing.lg,
+                                    bottom: 120,
+                                  ),
+                                  itemCount: listAguardando.length,
+                                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                                  itemBuilder: (_, i) => _VisitanteCard(
+                                    item: listAguardando[i],
+                                    onTap: () => _showVisitanteDetails(context, listAguardando[i]),
+                                  ),
+                                ),
+                        ),
+                        // ABA 3: Cadastrados (Histórico / Liberar Novamente)
                         RefreshIndicator(
                           onRefresh: loadList,
                           child: listCadastrados.isEmpty
