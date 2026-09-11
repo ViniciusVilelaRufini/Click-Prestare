@@ -309,6 +309,67 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     return `${dias}d ${restoHoras}h`;
   }
 
+  /** Formata data ISO para exibição amigável ("Hoje às 14:11", "Amanhã às 14:11" ou "11 de Set às 14:11") */
+  formatarDataExtensoAmigavel(dataIso: string | null | undefined): string {
+    if (!dataIso) return '—';
+    const d = new Date(dataIso);
+    if (isNaN(d.getTime())) return '—';
+
+    const hoje = new Date();
+    const amanha = new Date();
+    amanha.setDate(hoje.getDate() + 1);
+    const ontem = new Date();
+    ontem.setDate(hoje.getDate() - 1);
+
+    const mesmoDia = (d1: Date, d2: Date) =>
+      d1.getDate() === d2.getDate() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getFullYear() === d2.getFullYear();
+
+    const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    if (mesmoDia(d, hoje)) {
+      return `Hoje às ${hora}`;
+    }
+    if (mesmoDia(d, amanha)) {
+      return `Amanhã às ${hora}`;
+    }
+    if (mesmoDia(d, ontem)) {
+      return `Ontem às ${hora}`;
+    }
+
+    const dia = String(d.getDate()).padStart(2, '0');
+    const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const mes = meses[d.getMonth()];
+    const ano = d.getFullYear() !== hoje.getFullYear() ? `/${d.getFullYear()}` : '';
+    return `${dia} de ${mes}${ano} às ${hora}`;
+  }
+
+  /** Retorna o status de validade da janela de acesso com rótulo e classes Tailwind */
+  statusJanelaAcesso(inicioIso?: string | null, fimIso?: string | null): {
+    status: 'valido' | 'agendado' | 'expirado' | 'aberto' | 'sem_janela';
+    label: string;
+    cls: string;
+  } {
+    if (!inicioIso && !fimIso) {
+      return { status: 'sem_janela', label: 'Sem restrição de data', cls: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300' };
+    }
+    const now = Date.now();
+    const inicio = inicioIso ? new Date(inicioIso).getTime() : null;
+    const fim = fimIso ? new Date(fimIso).getTime() : null;
+
+    if (inicio && now < inicio) {
+      return { status: 'agendado', label: 'Agendado para o futuro', cls: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40' };
+    }
+    if (fim && now > fim) {
+      return { status: 'expirado', label: 'Janela Expirada', cls: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800/40' };
+    }
+    if (inicio && fim) {
+      return { status: 'valido', label: 'Janela Válida Agora', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40' };
+    }
+    return { status: 'aberto', label: 'Acesso Liberado', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40' };
+  }
+
   readonly pagina = signal(1);
   readonly itensPorPagina = 20;
 
