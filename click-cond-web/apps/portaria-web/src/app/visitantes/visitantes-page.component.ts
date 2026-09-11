@@ -552,8 +552,33 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Pedido pendente ou autorizado há mais que 10 minutos (expirado). */
+  autorizacaoExpirada(p: Pessoa | Visitante): boolean {
+    if (!p) return false;
+    const AUTH_EXPIRATION_MS = 10 * 60 * 1000; // 10 min
+    const now = Date.now();
+
+    // Se estiver pendente há mais de 10 min
+    if ((p as Pessoa).auth_status === 'pendente') {
+      const sol = (p as Pessoa).auth_solicitado_em;
+      if (!sol) return false;
+      return now - new Date(sol).getTime() > AUTH_EXPIRATION_MS;
+    }
+
+    // Se estiver autorizado há mais de 10 min e o visitante não estiver dentro do condomínio
+    if ((p as Pessoa).auth_status === 'autorizado') {
+      if (p.data_entrada && !p.data_saida) return false; // presente no condomínio
+      const refTime = (p as Pessoa).auth_respondido_em || (p as Pessoa).auth_solicitado_em;
+      if (!refTime) return false;
+      return now - new Date(refTime).getTime() > AUTH_EXPIRATION_MS;
+    }
+
+    return false;
+  }
+
   /** Rótulo + classes Tailwind do status de autorização para o badge na lista. */
   authBadge(p: Pessoa): { label: string; cls: string } | null {
+    if (this.autorizacaoExpirada(p)) return null;
     switch (p.auth_status) {
       case 'pendente':
         return this.autorizacaoSemResposta(p)
@@ -568,11 +593,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Pedido pendente há mais que o TIMEOUT (morador não respondeu). */
+  /** Pedido pendente há mais que o TIMEOUT (3 min) e dentro do limite de 10 min. */
   autorizacaoSemResposta(p: Pessoa): boolean {
     if (p.auth_status !== 'pendente' || !p.auth_solicitado_em) return false;
+    const diff = Date.now() - new Date(p.auth_solicitado_em).getTime();
     const AUTH_TIMEOUT_MS = 3 * 60 * 1000; // 3 min
-    return Date.now() - new Date(p.auth_solicitado_em).getTime() > AUTH_TIMEOUT_MS;
+    const AUTH_EXPIRATION_MS = 10 * 60 * 1000; // 10 min
+    return diff > AUTH_TIMEOUT_MS && diff <= AUTH_EXPIRATION_MS;
   }
 
   formatarApartamentosTooltip(apts?: { id: number; label: string }[]): string {
@@ -1010,9 +1037,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     // 1. Entrou e ainda está dentro (saida não registrada)
     if (v.data_entrada && !v.data_saida) return 'presente';
     // 2. Saída real registrada
-    if (v.data_saida) return 'saiu';
-    // 3. Pré-autorizado manualmente/app (liberado === 1)
-    if ((v as any).liberado === 1) return 'liberado';
+    if (v.data_saida || (v as Pessoa).ultSaida) return 'saiu';
+    // 3. Pré-autorizado manualmente/app (liberado === 1 e não expirado)
+    if ((v as any).liberado === 1 && !this.autorizacaoExpirada(v)) return 'liberado';
     
     const now = Date.now();
     // 4. Dentro do período de liberação (ainda não entrou)
@@ -1020,9 +1047,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       const inicio = new Date(v.data_hora_inicio).getTime();
       const fim = new Date(v.data_hora_termino).getTime();
       if (now >= inicio && now <= fim) return 'autorizado';
+      if (now < inicio) return 'agendado';
     }
-    // 5. Agendado (ainda não chegou o horário)
-    return 'agendado';
+    // 5. Default
+    return 'saiu';
   }
 
   abrirValidador() {

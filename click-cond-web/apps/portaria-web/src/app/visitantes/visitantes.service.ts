@@ -106,6 +106,8 @@ export interface ApartamentoVisitado {
   visitanteId?: number;
   liberado?: boolean;
   auth_status?: 'pendente' | 'autorizado' | 'negado' | null;
+  auth_solicitado_em?: string | null;
+  auth_respondido_em?: string | null;
   temPinAtivo?: boolean;
   noLocal?: boolean;
   data_entrada?: string | null;
@@ -155,6 +157,7 @@ export interface Pessoa {
   // Portaria remota: estado da autorização em tempo real.
   auth_status?: 'pendente' | 'autorizado' | 'negado' | null;
   auth_solicitado_em?: string | null;
+  auth_respondido_em?: string | null;
 
   // Vaga vinculada (morador reservou vaga p/ o carro do visitante).
   temVaga?: boolean;
