@@ -1681,66 +1681,99 @@
           </div>
 
           <!-- SEÇÃO DE APARTAMENTOS / ABAS -->
-          <div class="space-y-2.5">
+          <div class="space-y-3">
             <div class="flex items-center justify-between">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Unidade de Destino
-              </label>
+              <div class="flex items-center gap-2">
+                <span class="w-1 h-3.5 rounded-full bg-accent"></span>
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                  Unidade de Destino
+                </label>
+              </div>
               @if (p.apartamentosVisitados && p.apartamentosVisitados.length > 1) {
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">
-                  {{ p.apartamentosVisitados.length }} unidades registradas
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-white/10">
+                  <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  {{ p.apartamentosVisitados.length }} cadastradas
                 </span>
               }
             </div>
 
-            <!-- Abas / Chips interativos de apartamentos -->
+            <!-- Abas / Cards interativos de apartamentos -->
             @if (p.apartamentosVisitados && p.apartamentosVisitados.length > 0) {
-              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-52 overflow-y-auto pr-1">
                 @for (apto of p.apartamentosVisitados; track apto.id) {
                   <button type="button"
                           (click)="entradaModalAptoSelecionado.set(apto)"
-                          [class.border-accent]="entradaModalAptoSelecionado()?.id === apto.id"
-                          [class.bg-accent/10]="entradaModalAptoSelecionado()?.id === apto.id"
-                          [class.ring-2]="entradaModalAptoSelecionado()?.id === apto.id"
-                          [class.ring-accent/40]="entradaModalAptoSelecionado()?.id === apto.id"
-                          class="p-2.5 rounded-xl border text-left transition-all relative flex flex-col justify-between gap-1.5 cursor-pointer bg-white dark:bg-white/[0.03] border-slate-200 dark:border-white/10 hover:border-accent/60">
-                    <div class="flex items-center justify-between gap-1">
-                      <span class="font-mono text-xs font-bold text-slate-900 dark:text-white">
-                        {{ apto.label }}
-                      </span>
-                      @if (entradaModalAptoSelecionado()?.id === apto.id) {
-                        <span class="w-4 h-4 rounded-full bg-accent text-white flex items-center justify-center shrink-0 text-[10px]">
-                          ✓
+                          class="group p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between gap-2.5 cursor-pointer"
+                          [ngClass]="entradaModalAptoSelecionado()?.id === apto.id
+                            ? 'bg-accent/[0.04] dark:bg-accent/[0.08] border-accent dark:border-accent shadow-xs ring-2 ring-accent/20'
+                            : 'bg-white dark:bg-white/[0.02] border-slate-200/80 dark:border-white/10 hover:border-accent/40 hover:bg-slate-50/50 dark:hover:bg-white/[0.04]'">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors"
+                             [ngClass]="entradaModalAptoSelecionado()?.id === apto.id
+                               ? 'bg-accent text-white shadow-2xs'
+                               : 'bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 group-hover:bg-accent/10 group-hover:text-accent'">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                        </div>
+                        <span class="font-mono text-xs font-black tracking-tight text-slate-900 dark:text-white truncate">
+                          {{ apto.label }}
                         </span>
+                      </div>
+
+                      <!-- Radio / Check selector -->
+                      @if (entradaModalAptoSelecionado()?.id === apto.id) {
+                        <span class="w-4.5 h-4.5 rounded-full bg-accent text-white flex items-center justify-center shrink-0 shadow-2xs">
+                          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                          </svg>
+                        </span>
+                      } @else {
+                        <span class="w-4.5 h-4.5 rounded-full border-2 border-slate-300/80 dark:border-white/20 shrink-0 group-hover:border-accent/60 transition-colors"></span>
                       }
                     </div>
 
-                    <!-- Badge de liberação deste apartamento -->
-                    @if (apto.liberado || apto.auth_status === 'autorizado') {
-                      <span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/40">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        Liberado
-                      </span>
-                    } @else if (apto.auth_status === 'pendente') {
-                      <span class="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800/40">
-                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        Pendente
-                      </span>
-                    } @else if (apto.noLocal) {
-                      <span class="inline-flex items-center gap-1 text-[10px] font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/40">
-                        No local
-                      </span>
-                    } @else {
-                      <span class="text-[10px] text-slate-400 dark:text-slate-500">
-                        Visita anterior
-                      </span>
-                    }
+                    <!-- Status badge -->
+                    <div class="pt-0.5">
+                      @if (apto.liberado || apto.auth_status === 'autorizado') {
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-200/80 dark:border-emerald-500/20 shadow-2xs">
+                          <span class="relative flex h-1.5 w-1.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                          </span>
+                          Liberado
+                        </span>
+                      } @else if (apto.auth_status === 'pendente') {
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-200/80 dark:border-amber-500/20 shadow-2xs">
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          Pendente
+                        </span>
+                      } @else if (apto.noLocal) {
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-200/80 dark:border-blue-500/20 shadow-2xs">
+                          <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                          No local
+                        </span>
+                      } @else {
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-white/5 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-white/10">
+                          <svg class="w-2.5 h-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                          </svg>
+                          Visita anterior
+                        </span>
+                      }
+                    </div>
                   </button>
                 }
               </div>
             } @else {
               <!-- Fallback se não tiver lista de visitados -->
-              <div class="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 font-mono text-sm font-bold text-slate-900 dark:text-white">
+              <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 font-mono text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
                 {{ p.apartamentoAtual || 'Nenhum apartamento especificado' }}
               </div>
             }
@@ -1748,30 +1781,66 @@
             <!-- Banner com o status da unidade selecionada -->
             @if (entradaModalAptoSelecionado(); as sel) {
               @if (sel.liberado || sel.auth_status === 'autorizado') {
-                <div class="p-3 rounded-xl bg-emerald-500/[0.08] dark:bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2.5 animate-fade-in text-xs text-emerald-800 dark:text-emerald-200">
-                  <div class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <div class="p-3.5 rounded-xl bg-gradient-to-r from-emerald-500/[0.12] via-emerald-500/[0.05] to-transparent border border-emerald-500/25 flex items-start gap-3 shadow-xs animate-fade-in">
+                  <div class="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                    </svg>
                   </div>
-                  <div>
-                    <span class="font-bold">Acesso Liberado:</span> O morador da unidade <span class="font-mono font-bold">{{ sel.label }}</span> liberou o acesso deste visitante.
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                        Acesso Liberado pelo Morador
+                      </span>
+                      <span class="font-mono text-[11px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30">
+                        {{ sel.label }}
+                      </span>
+                    </div>
+                    <p class="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 mt-0.5 leading-relaxed">
+                      O morador desta unidade já liberou a entrada. O registro de acesso pode ser confirmado com segurança.
+                    </p>
                   </div>
                 </div>
               } @else if (sel.auth_status === 'pendente') {
-                <div class="p-3 rounded-xl bg-amber-500/[0.08] dark:bg-amber-500/10 border border-amber-500/20 flex items-center gap-2.5 animate-fade-in text-xs text-amber-800 dark:text-amber-200">
-                  <div class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <div class="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/[0.12] via-amber-500/[0.05] to-transparent border border-amber-500/25 flex items-start gap-3 shadow-xs animate-fade-in">
+                  <div class="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
                   </div>
-                  <div>
-                    <span class="font-bold">Atenção:</span> A autorização para a unidade <span class="font-mono font-bold">{{ sel.label }}</span> ainda está aguardando confirmação do morador.
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="text-xs font-bold text-amber-900 dark:text-amber-200">
+                        Aguardando Confirmação
+                      </span>
+                      <span class="font-mono text-[11px] font-black px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
+                        {{ sel.label }}
+                      </span>
+                    </div>
+                    <p class="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-0.5 leading-relaxed">
+                      A solicitação ainda está aguardando resposta do morador. Verifique antes de confirmar a entrada.
+                    </p>
                   </div>
                 </div>
               } @else {
-                <div class="p-3 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
-                  <div class="w-6 h-6 rounded-full bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400 flex items-center justify-center shrink-0">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <div class="p-3.5 rounded-xl bg-slate-100/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 flex items-start gap-3 shadow-xs animate-fade-in">
+                  <div class="w-7 h-7 rounded-lg bg-slate-200/70 dark:bg-white/10 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 mt-0.5 border border-slate-300/50 dark:border-white/10 shadow-2xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
                   </div>
-                  <div>
-                    A entrada será registrada para o destino <span class="font-mono font-bold text-slate-900 dark:text-white">{{ sel.label }}</span>.
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Destino Selecionado
+                      </span>
+                      <span class="font-mono text-[11px] font-black px-1.5 py-0.5 rounded bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white border border-slate-300/60 dark:border-white/10">
+                        {{ sel.label }}
+                      </span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                      A entrada deste visitante será associada a esta unidade no registro de acessos.
+                    </p>
                   </div>
                 </div>
               }
