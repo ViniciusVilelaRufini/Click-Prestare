@@ -98,7 +98,9 @@ export class ConvitesService {
 
     const vinculo = await this.prisma.apartamentos_Users.findFirst({
       where: { id_user: idUsuario },
-      select: { id_apartamento: true, apartamento: { select: { id_condominio: true } } },
+      // `id_apto`, não `id_apartamento` — é o nome real da coluna em
+      // Apartamentos_Users. Pedir coluna inexistente faz o Prisma lançar.
+      select: { id_apto: true, apartamento: { select: { id_condominio: true } } },
     });
     if (!vinculo?.apartamento) {
       throw new ForbiddenException(
@@ -128,7 +130,7 @@ export class ConvitesService {
       data: {
         token_hash: this.hash(token),
         id_condominio: vinculo.apartamento.id_condominio,
-        id_apartamento: vinculo.id_apartamento,
+        id_apartamento: vinculo.id_apto,
         id_usuario: idUsuario,
         is_prestador: isPrestador ? 1 : 0,
         status: 'aguardando',
@@ -253,10 +255,24 @@ export class ConvitesService {
 
   private async avisarMorador(idUsuario: number, nome: string, ehPrestador: boolean) {
     try {
+      // `sendPushNotification` recebe o TOKEN FCM do aparelho, não o id do
+      // usuário — é preciso buscar. Mesmo padrão de areas-sociais.service.ts.
+      const morador = await this.prisma.users.findUnique({
+        where: { id: idUsuario },
+        select: { fcm_token: true },
+      });
+      if (!morador?.fcm_token) {
+        // Sem token o morador nunca instalou/abriu o app neste aparelho. O
+        // convite continua esperando na tela dele; só não há como avisar.
+        this.logger.log(`Convite preenchido, mas o morador ${idUsuario} não tem fcm_token.`);
+        return;
+      }
+
       await this.notifications.sendPushNotification(
-        idUsuario,
+        morador.fcm_token,
         ehPrestador ? 'Prestador preencheu o convite' : 'Visitante preencheu o convite',
         `${nome} enviou os dados. Confirme para liberar a entrada.`,
+        { type: 'convite_visita' },
       );
     } catch (err: any) {
       // Push é aviso, não o canal de verdade: o convite continua esperando na

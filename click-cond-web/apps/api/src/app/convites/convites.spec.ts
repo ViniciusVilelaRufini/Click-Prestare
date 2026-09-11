@@ -31,9 +31,13 @@ describe('ConvitesService', () => {
         findFirst: jest.fn(async () =>
           'vinculo' in overrides
             ? overrides.vinculo
-            : { id_apartamento: 5, apartamento: { id_condominio: 2 } },
+            // Nomes REAIS das colunas de Apartamentos_Users. A versão
+            // anterior deste mock dizia `id_apartamento`, repetindo o
+            // engano do service: o teste passava e a produção dava 500.
+            : { id_apto: 5, apartamento: { id_condominio: 2 } },
         ),
       },
+      users: { findUnique: jest.fn(async () => ({ fcm_token: 'fcm-abc' })) },
       convites_Visita: {
         count: jest.fn(async () => overrides.ativos ?? 0),
         create: jest.fn(async ({ data }: any) => ({ id: 1, ...data })),
@@ -174,6 +178,30 @@ describe('ConvitesService', () => {
       expect(convites[0].cpf).toBe('39053344705');
       expect(convites[0].aceite_em).toBeInstanceOf(Date);
       expect(notifications.sendPushNotification).toHaveBeenCalled();
+    });
+
+    it('manda o push com o TOKEN FCM, não com o id do morador', async () => {
+      const { svc, notifications } = build({ convite: conviteAberto() });
+      await svc.responder('tok', payloadValido);
+
+      // `sendPushNotification` recebe o token do aparelho. Passar o id do
+      // usuário compila (o build da API é transpile-only) e o push nunca
+      // chega — falha silenciosa. Quem pegou foi `nx typecheck api`.
+      expect(notifications.sendPushNotification).toHaveBeenCalledWith(
+        'fcm-abc',
+        expect.any(String),
+        expect.any(String),
+        expect.anything(),
+      );
+    });
+
+    it('morador sem fcm_token não quebra o preenchimento', async () => {
+      const { svc, prisma, convites, notifications } = build({ convite: conviteAberto() });
+      prisma.users.findUnique.mockResolvedValueOnce({ fcm_token: null });
+
+      await expect(svc.responder('tok', payloadValido)).resolves.toEqual({ ok: true });
+      expect(notifications.sendPushNotification).not.toHaveBeenCalled();
+      expect(convites[0].status).toBe('preenchido');
     });
 
     it('recusa sem aceite', async () => {
