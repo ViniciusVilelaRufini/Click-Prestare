@@ -2,8 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
+  type OnModuleDestroy,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -35,8 +38,22 @@ export interface ConfirmarExtras {
   dias_semana?: string;
 }
 
-/** 5 MB, o mesmo teto já usado nos uploads do financeiro. */
+/**
+ * 5 MB em BASE64 (não no arquivo original — base64 cresce ~33%). O cliente
+ * redimensiona antes de enviar; este é o teto final.
+ */
 const MAX_FOTO_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Só imagem, e só estes formatos.
+ *
+ * `StorageService.uploadDataUrl` tira o Content-Type da própria string e o
+ * usa no objeto salvo. Sem esta trava, um token válido permite gravar
+ * `data:text/html;base64,...` ou um SVG com script e obter uma URL
+ * permanente, servida como HTML, no domínio público do storage — XSS
+ * armazenado e hospedagem arbitrária em domínio do produto.
+ */
+const FOTO_MIME_PERMITIDO = /^data:image\/(jpeg|jpg|png|webp);base64,/i;
 
 /**
  * Convite de visita preenchido pelo próprio visitante, por link.
@@ -53,9 +70,14 @@ const MAX_FOTO_BYTES = 5 * 1024 * 1024;
  *  3. Nada disso escreve em `Visitantes`. Só a confirmação do morador escreve,
  *     e pelo `VisitantesService.create()`.
  */
+/** Dias que um convite morto sobrevive antes do expurgo. */
+export const DIAS_RETENCAO_CONVITE = 7;
+
 @Injectable()
-export class ConvitesService {
+export class ConvitesService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ConvitesService.name);
+  private retencaoTimer?: NodeJS.Timeout;
+  private retencaoInterval?: NodeJS.Timeout;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -63,6 +85,68 @@ export class ConvitesService {
     private readonly notifications: NotificationsService,
     private readonly visitantes: VisitantesService,
   ) {}
+
+  onModuleInit() {
+    if (process.env['NODE_ENV'] === 'test') return;
+    // Mesmo formato do tickRetencaoDadosVisitantes: um disparo após o boot
+    // assentar e depois uma vez por dia.
+    this.retencaoTimer = setTimeout(() => void this.tickRetencaoConvites(), 6 * 60 * 1000);
+    this.retencaoInterval = setInterval(() => void this.tickRetencaoConvites(), 24 * 60 * 60 * 1000);
+  }
+
+  onModuleDestroy() {
+    if (this.retencaoTimer) clearTimeout(this.retencaoTimer);
+    if (this.retencaoInterval) clearInterval(this.retencaoInterval);
+  }
+
+  /**
+   * Expurgo dos convites mortos (Art. 15 e 16 da LGPD).
+   *
+   * Sem isto, um convite preenchido que o morador nunca decidiu guardava
+   * nome, CPF e foto PARA SEMPRE — e como `lerPublico` só serve convite com
+   * status `aguardando`, ninguém mais olharia para aquela linha. Dado
+   * esquecido não deixa de ser dado pessoal.
+   *
+   * Alvos: convites expirados (nunca preenchidos ou preenchidos e
+   * abandonados) e recusados, passados [dias] do fim da validade. Convite
+   * confirmado NÃO é apagado: ele virou `Visitantes`, e a linha guarda o
+   * vínculo (`id_visitante`) que explica a origem daquele cadastro.
+   */
+  async tickRetencaoConvites(dias = DIAS_RETENCAO_CONVITE): Promise<number> {
+    if (!this.prisma.isConnected) return 0;
+    try {
+      const limite = new Date(Date.now() - dias * 24 * 60 * 60 * 1000);
+      const mortos = await this.prisma.convites_Visita.findMany({
+        where: {
+          expira_em: { lte: limite },
+          status: { in: ['aguardando', 'preenchido', 'recusado'] },
+        },
+        select: { id: true, foto_url: true },
+        take: 500,
+      });
+      if (mortos.length === 0) return 0;
+
+      for (const c of mortos) {
+        if (c.foto_url && this.storage.enabled) {
+          try {
+            await this.storage.deleteUrl(c.foto_url);
+          } catch (err: any) {
+            this.logger.warn(`Retenção: falha ao apagar foto do convite ${c.id}: ${err?.message ?? err}`);
+          }
+        }
+      }
+
+      await this.prisma.convites_Visita.deleteMany({
+        where: { id: { in: mortos.map((c) => c.id) } },
+      });
+
+      this.logger.log(`Retenção de convites: ${mortos.length} expurgado(s).`);
+      return mortos.length;
+    } catch (err: any) {
+      this.logger.error(`Retenção de convites falhou: ${err?.message ?? err}`);
+      return 0;
+    }
+  }
 
   private hash(token: string): string {
     return createHash('sha256').update(token).digest('hex');
@@ -112,6 +196,11 @@ export class ConvitesService {
 
     const vinculo = await this.prisma.apartamentos_Users.findFirst({
       where: { id_user: idUsuario },
+      // Ordenado: sem isso, quem tem mais de uma unidade recebia um
+      // apartamento escolhido pelo plano de execução do MySQL — e a tela não
+      // diz para qual unidade o link foi gerado. Este módulo já teve
+      // vazamento entre apartamentos; aqui o destino tem de ser previsível.
+      orderBy: { id: 'asc' },
       // `id_apto`, não `id_apartamento` — é o nome real da coluna em
       // Apartamentos_Users. Pedir coluna inexistente faz o Prisma lançar.
       select: { id_apto: true, apartamento: { select: { id_condominio: true } } },
@@ -135,6 +224,12 @@ export class ConvitesService {
           'Aguarde eles serem usados ou expirarem para gerar outro.',
       );
     }
+
+    // Falha ANTES de criar a linha. Sem a base, o convite nasceria consumindo
+    // uma das vagas ativas e o morador mandaria pelo WhatsApp um link
+    // relativo que não abre — erro descoberto pelo visitante, não por quem
+    // configurou.
+    this.exigirBaseUrl();
 
     const token = randomBytes(32).toString('base64url');
     const expira = new Date();
@@ -163,14 +258,19 @@ export class ConvitesService {
    * enviados por WhatsApp continuariam quebrados. Aqui é uma variável de
    * ambiente.
    */
-  private montarUrl(token: string): string {
+  private exigirBaseUrl(): string {
     const base = (process.env.CONVITE_BASE_URL ?? '').replace(/\/+$/, '');
     if (!base) {
-      this.logger.error(
-        'CONVITE_BASE_URL não configurada — o link do convite sai sem domínio e não abre.',
+      this.logger.error('CONVITE_BASE_URL não configurada — convite não pode ser gerado.');
+      throw new InternalServerErrorException(
+        'Convite por link indisponível: o servidor não está configurado. Avise o suporte.',
       );
     }
-    return `${base}/convite/${token}`;
+    return base;
+  }
+
+  private montarUrl(token: string): string {
+    return `${this.exigirBaseUrl()}/convite/${token}`;
   }
 
   // ===================== Visitante preenche (público) =====================
@@ -236,8 +336,11 @@ export class ConvitesService {
     if (!foto) {
       throw new BadRequestException('Envie uma foto do seu rosto.');
     }
+    if (!FOTO_MIME_PERMITIDO.test(foto)) {
+      throw new BadRequestException('Envie uma foto em JPEG, PNG ou WebP.');
+    }
     if (Buffer.byteLength(foto, 'utf8') > MAX_FOTO_BYTES) {
-      throw new BadRequestException('Foto maior que 5MB. Tente novamente com uma foto menor.');
+      throw new BadRequestException('Foto muito grande. Tente novamente com uma foto menor.');
     }
 
     const url = this.storage.enabled
@@ -337,12 +440,38 @@ export class ConvitesService {
       throw new BadRequestException('Este convite não está aguardando confirmação.');
     }
 
+    // Preenchido há muito tempo e nunca decidido: CPF e foto antigos não
+    // viram autorização válida meses depois.
+    if (convite.expira_em < new Date()) {
+      throw new BadRequestException(
+        'Este convite expirou. Peça à pessoa para preencher um link novo.',
+      );
+    }
+
     // Saída antes da entrada gera uma autorização que nasce vencida: o
     // visitante chega e o acesso é negado sem ninguém entender por quê.
     const inicio = extras.data_hora_inicio ? new Date(extras.data_hora_inicio) : null;
     const termino = extras.data_hora_termino ? new Date(extras.data_hora_termino) : null;
     if (inicio && termino && termino < inicio) {
       throw new BadRequestException('A saída não pode ser antes da entrada.');
+    }
+
+    // Marca ANTES de criar o visitante. `create()` faz upload, consultas,
+    // push e WhatsApp — centenas de milissegundos em que um segundo toque
+    // (ou um confirmar e um recusar simultâneos) entraria também.
+    //
+    // Sem esta trava: dois `create()` podem gerar DUAS autorizações e dois
+    // PINs para a mesma visita; e um `recusar` concorrente apaga a foto do
+    // storage enquanto a confirmação já leu a URL, criando um visitante que
+    // aponta para um objeto deletado.
+    //
+    // Mesmo padrão que `responder` já usa.
+    const marcado = await this.prisma.convites_Visita.updateMany({
+      where: { id: convite.id, status: 'preenchido' },
+      data: { status: 'confirmado', respondido_em: new Date() },
+    });
+    if (marcado.count === 0) {
+      throw new BadRequestException('Este convite já foi respondido.');
     }
 
     const visitante = await this.visitantes.create(
@@ -360,17 +489,22 @@ export class ConvitesService {
         data_hora_inicio: extras.data_hora_inicio,
         data_hora_termino: extras.data_hora_termino,
         dias_semana: convite.is_prestador === 1 ? extras.dias_semana : undefined,
+        // NÃO enrola no terminal facial. A foto veio pela página pública, e o
+        // aceite que o visitante marcou fala em "autorizar minha entrada" —
+        // não menciona reconhecimento facial. Biometria é dado sensível e o
+        // Art. 11 da LGPD exige consentimento específico e destacado.
+        //
+        // Sem esta linha o `create()` dispara `fireFacialSync` sempre que há
+        // foto, e o rosto de um terceiro que nunca usou o app entra no
+        // aparelho. Coberto por teste.
+        sem_facial: true,
       } as any,
       user,
     );
 
     await this.prisma.convites_Visita.update({
       where: { id: convite.id },
-      data: {
-        status: 'confirmado',
-        respondido_em: new Date(),
-        id_visitante: (visitante as any)?.id ?? null,
-      },
+      data: { id_visitante: (visitante as any)?.id ?? null },
     });
 
     return visitante;
@@ -388,18 +522,29 @@ export class ConvitesService {
       throw new BadRequestException('Este convite não está aguardando confirmação.');
     }
 
-    if (convite.foto_url && this.storage.enabled) {
+    // Guarda a URL ANTES: o updateMany abaixo zera `foto_url`, e ler o campo
+    // depois passa a depender de o objeto em memória não ser o mesmo que o
+    // do banco — detalhe do driver, não garantia.
+    const fotoParaApagar = convite.foto_url;
+
+    // Ganha a corrida primeiro; só então apaga a foto. Apagar antes deixaria
+    // uma confirmação simultânea com um visitante apontando para um objeto
+    // que não existe mais.
+    const marcado = await this.prisma.convites_Visita.updateMany({
+      where: { id: convite.id, status: 'preenchido' },
+      data: { status: 'recusado', respondido_em: new Date(), foto_url: null },
+    });
+    if (marcado.count === 0) {
+      throw new BadRequestException('Este convite já foi respondido.');
+    }
+
+    if (fotoParaApagar && this.storage.enabled) {
       try {
-        await this.storage.deleteUrl(convite.foto_url);
+        await this.storage.deleteUrl(fotoParaApagar);
       } catch (err: any) {
         this.logger.warn(`Falha ao apagar foto de convite recusado: ${err?.message ?? err}`);
       }
     }
-
-    await this.prisma.convites_Visita.update({
-      where: { id: convite.id },
-      data: { status: 'recusado', respondido_em: new Date(), foto_url: null },
-    });
 
     return { ok: true };
   }

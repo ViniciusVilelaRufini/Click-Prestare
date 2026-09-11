@@ -1,3 +1,4 @@
+import 'package:click/pages/shared/aceite_privacidade.dart';
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/pages/sindico/forgot_password.dart';
 import 'package:click/pages/sindico/list_condominiums.dart';
@@ -76,7 +77,10 @@ class _LoginSindicoPageState extends State<LoginSindico> {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const ListCondomiums()),
+        // Passa pela PortaDeEntrada, não direto: é ela que decide entre a
+        // tela de aceite de privacidade e o app. Os dois caminhos de entrada
+        // (login e auto-login) precisam do mesmo gate.
+        MaterialPageRoute(builder: (_) => const PortaDeEntrada()),
       );
     } else {
       showAppDialog(

@@ -222,18 +222,48 @@ export class ConvitePageComponent implements OnInit {
       .replace(/\.(\d{3})(\d{1,2})$/, '.$1-$2');
   }
 
+  /**
+   * Lê a foto e REDIMENSIONA antes de enviar.
+   *
+   * Sem isso, o teto de 5 MB do cliente (bytes do arquivo) e o do servidor
+   * (bytes do base64, ~33% maiores) discordam: uma foto de 4,5 MB — comum em
+   * celular recente — passava aqui e era recusada lá, sem a página oferecer
+   * nenhuma saída. O visitante ficava travado no meio do cadastro.
+   *
+   * Reduzir também é o certo pelo uso: a foto serve ao porteiro conferir um
+   * rosto na tela, não a impressão. 1280px de lado maior sobra.
+   */
   selecionarFoto(evento: Event) {
     const arquivo = (evento.target as HTMLInputElement).files?.[0];
     if (!arquivo) return;
-    if (arquivo.size > 5 * 1024 * 1024) {
-      this.erro.set('Foto maior que 5MB. Tente outra.');
+    if (!arquivo.type.startsWith('image/')) {
+      this.erro.set('Escolha uma imagem.');
       return;
     }
+
     const reader = new FileReader();
     reader.onerror = () => this.erro.set('Não consegui ler a foto.');
     reader.onload = () => {
-      this.fotoPreview.set(String(reader.result ?? ''));
-      this.erro.set(null);
+      const img = new Image();
+      img.onerror = () => this.erro.set('Não consegui abrir essa imagem.');
+      img.onload = () => {
+        const LADO_MAX = 1280;
+        const escala = Math.min(1, LADO_MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * escala);
+        canvas.height = Math.round(img.height * escala);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          this.erro.set('Não consegui preparar a foto neste navegador.');
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // JPEG sempre: o servidor só aceita jpeg/png/webp, e converter aqui
+        // elimina HEIC do iPhone e qualquer formato exótico da galeria.
+        this.fotoPreview.set(canvas.toDataURL('image/jpeg', 0.85));
+        this.erro.set(null);
+      };
+      img.src = String(reader.result ?? '');
     };
     reader.readAsDataURL(arquivo);
   }

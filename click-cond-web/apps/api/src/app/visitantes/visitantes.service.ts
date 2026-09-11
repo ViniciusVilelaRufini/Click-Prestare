@@ -32,6 +32,20 @@ export interface CreateVisitanteDto {
   categorias?: string;
   id_anterior?: number;
   nome_anterior?: string;
+  /**
+   * Suprime o enrolamento no terminal facial mesmo havendo foto.
+   *
+   * Existe para o convite de visita por link: a foto que o visitante envia
+   * pela página pública serve ao porteiro conferir na chegada, e o texto de
+   * aceite que ele marca fala em "autorizar minha entrada" — não menciona
+   * reconhecimento facial. Enrolar biometria de terceiro com base naquele
+   * aceite trataria dado sensível sem o consentimento específico que o
+   * Art. 11 da LGPD exige.
+   *
+   * Default (undefined) mantém o comportamento de sempre: quem tem foto,
+   * sincroniza.
+   */
+  sem_facial?: boolean;
 }
 
 export interface UpdateVisitanteDto extends Partial<CreateVisitanteDto> {
@@ -1420,7 +1434,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     // Sync sempre que há foto — mesmo herdada. A nova visita pode ter
     // ValidFrom/ValidTo diferentes; sem re-sync o aparelho usa datas antigas.
-    if (fotoPes) {
+    //
+    // `sem_facial` corta isso para a foto vinda do convite por link, cujo
+    // consentimento não cobre biometria. Ver o DTO.
+    if (fotoPes && dto.sem_facial !== true) {
       this.fireFacialSync(visitante.id);
     }
 
@@ -2481,4 +2498,4 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
     return pin;
   }
-}
+}

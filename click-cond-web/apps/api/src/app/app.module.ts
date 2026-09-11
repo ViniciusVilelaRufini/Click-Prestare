@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { TenantGuard } from './auth/tenant.guard';
 import { VisitantesModule } from './visitantes/visitantes.module';
 import { ConvitesModule } from './convites/convites.module';
+import { ConsentimentosModule } from './consentimentos/consentimentos.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MoradoresModule } from './moradores/moradores.module';
 import { ApartamentosModule } from './apartamentos/apartamentos.module';
@@ -64,6 +65,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
     DashboardModule,
     VisitantesModule,
     ConvitesModule,
+    ConsentimentosModule,
     MoradoresModule,
     ApartamentosModule,
     PrestadoresModule,

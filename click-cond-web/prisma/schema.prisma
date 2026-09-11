@@ -119,6 +119,7 @@ model Users {
   endereco            Addresses?                   @relation(fields: [address], references: [id], map: "fk_users_address")
   visitantes          Visitantes[]                 @relation("VisitanteUser")
   convites            Convites_Visita[]            @relation("ConviteMorador")
+  consentimentos      Consentimentos[]             @relation("ConsentimentoUser")
   votacoesUsuarios    Votacoes_Usuarios[]
   financeiros         Financeiro[]
   devices             Users_Devices[]
@@ -1363,4 +1364,31 @@ model Convites_Visita {
 
   @@index([id_condominio, status], map: "idx_convite_cond_status")
   @@index([id_usuario, status], map: "idx_convite_user_status")
+}
+
+/// Consentimento do titular para tratamento de dados pessoais (LGPD).
+///
+/// APPEND-ONLY de propósito. O que se precisa provar é o HISTÓRICO: o que a
+/// pessoa aceitou, em que versão do texto, quando — e, se revogar depois,
+/// isso também é um fato a registrar (Art. 8º, §5º). Sobrescrever um campo em
+/// `Users` apagaria exatamente a informação que sustenta juridicamente o
+/// tratamento.
+///
+/// O estado atual é a linha mais recente por (id_user, tipo).
+model Consentimentos {
+  id            Int      @id @default(autoincrement())
+  id_user       Int
+  /// 'privacidade' (obrigatório para usar o app) | 'biometria' (opcional,
+  /// dado sensível pelo Art. 11 — consentimento específico e destacado).
+  tipo          String   @db.VarChar(20)
+  /// Versão do texto vigente no momento. Sem isto, "aceitei" é uma afirmação
+  /// sobre um texto que ninguém sabe mais qual era.
+  versao        String   @db.VarChar(20)
+  /// 1 aceitou, 0 recusou. A recusa também é fato a registrar.
+  aceito        Int      @db.TinyInt
+  registrado_em DateTime @default(now()) @db.DateTime(0)
+
+  user Users @relation("ConsentimentoUser", fields: [id_user], references: [id], onDelete: Cascade, map: "fk_consent_user")
+
+  @@index([id_user, tipo, registrado_em], map: "idx_consent_user_tipo")
 }

@@ -16,6 +16,7 @@ import {
 import { EnrollSessionService } from './enroll-session.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
+import { ConsentimentosService } from '../consentimentos/consentimentos.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AccessStateService } from './access-state.service';
 import { AgentBridgeService } from './agent-bridge.service';
@@ -141,6 +142,7 @@ export class FacialService {
     private readonly accessState: AccessStateService,
     private readonly agent: AgentBridgeService,
     private readonly tenant: TenantAccessService,
+    private readonly consentimentos: ConsentimentosService,
   ) {
     // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
@@ -1211,6 +1213,21 @@ export class FacialService {
     });
     if (!morador)
       throw new NotFoundException(`Morador ${idMorador} não encontrado`);
+
+    // Biometria é dado sensível (Art. 11 da LGPD) e exige consentimento
+    // específico e destacado. O app pede numa caixa separada, opcional.
+    //
+    // Esta checagem é o que faz aquela caixa valer: sem ela, o titular
+    // recusaria e o rosto entraria no aparelho do mesmo jeito — aparência de
+    // conformidade sem a substância, que é pior que não ter a caixa.
+    //
+    // Ausência de registro conta como NÃO autorizado.
+    if (!(await this.consentimentos.autorizouBiometria(morador.id_user))) {
+      this.logger.log(
+        `Morador ${idMorador} sem consentimento de biometria: enrolamento facial não realizado.`,
+      );
+      return { skipped: true, reason: 'sem_consentimento_biometria' };
+    }
     if (!morador.foto_pessoa) {
       // Foto removida do cadastro: se a pessoa já tinha rosto no aparelho,
       // REMOVE de todos os terminais — senão o morador continuaria abrindo com

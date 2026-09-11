@@ -22,6 +22,11 @@ describe('ConvitesService', () => {
 
   const hash = (t: string) => createHash('sha256').update(t).digest('hex');
 
+  // `gerar` recusa sem a base configurada — o link sairia relativo e o
+  // visitante descobriria o erro, não quem configurou.
+  beforeEach(() => { process.env.CONVITE_BASE_URL = 'https://exemplo.test'; });
+  afterEach(() => { delete process.env.CONVITE_BASE_URL; });
+
   function build(overrides: { convite?: any; ativos?: number; vinculo?: any } = {}) {
     const convites: any[] = overrides.convite ? [overrides.convite] : [];
 
@@ -58,6 +63,7 @@ describe('ConvitesService', () => {
           return c;
         }),
         findMany: jest.fn(async () => convites.filter((c) => c.status === 'preenchido')),
+        deleteMany: jest.fn(async () => ({ count: convites.length })),
       },
     };
 
@@ -334,6 +340,113 @@ describe('ConvitesService', () => {
       const { svc, visitantes } = build({ convite: conviteAberto() });
       await expect(svc.confirmar(1, MORADOR)).rejects.toThrow(BadRequestException);
       expect(visitantes.create).not.toHaveBeenCalled();
+    });
+  });
+
+
+  describe('biometria e LGPD', () => {
+    const preenchidoBio = () =>
+      conviteAberto({ status: 'preenchido', nome: 'Rodrigo', cpf: '39053344705', foto_url: 'https://cdn/foto.jpg' });
+
+    it('NÃO enrola o rosto do visitante no terminal facial', async () => {
+      const { svc, visitantes } = build({ convite: preenchidoBio() });
+      await svc.confirmar(1, MORADOR);
+
+      // O aceite que o visitante marca na página pública fala em "autorizar
+      // minha entrada" e não menciona reconhecimento facial. Biometria é dado
+      // sensível: o Art. 11 da LGPD exige consentimento específico e
+      // destacado. Sem esta flag, `create()` dispara fireFacialSync sempre
+      // que há foto.
+      expect(visitantes.create.mock.calls[0][0].sem_facial).toBe(true);
+    });
+  });
+
+  describe('foto — o que o servidor aceita', () => {
+    it('recusa data URL que não é imagem', async () => {
+      // `uploadDataUrl` tira o Content-Type da própria string: um
+      // `text/html` viraria URL permanente servida como HTML no domínio do
+      // storage — XSS armazenado e hospedagem arbitrária.
+      const { svc } = build({ convite: conviteAberto() });
+      await expect(
+        svc.responder('tok', { ...payloadValido, foto: 'data:text/html;base64,PHNjcmlwdD4=' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('recusa SVG, que carrega script', async () => {
+      const { svc } = build({ convite: conviteAberto() });
+      await expect(
+        svc.responder('tok', { ...payloadValido, foto: 'data:image/svg+xml;base64,PHN2Zz4=' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('aceita JPEG, PNG e WebP', async () => {
+      for (const mime of ['image/jpeg', 'image/png', 'image/webp']) {
+        const { svc, convites } = build({ convite: conviteAberto() });
+        await svc.responder('tok', { ...payloadValido, foto: `data:${mime};base64,AAAA` });
+        expect(convites[0].status).toBe('preenchido');
+      }
+    });
+  });
+
+  describe('corrida', () => {
+    it('confirmar duas vezes cria UM visitante só', async () => {
+      const { svc, visitantes } = build({
+        convite: conviteAberto({ status: 'preenchido', nome: 'R', cpf: '39053344705', foto_url: 'u' }),
+      });
+
+      const [a, b] = await Promise.allSettled([
+        svc.confirmar(1, MORADOR),
+        svc.confirmar(1, MORADOR),
+      ]);
+
+      // Duas autorizações significam dois PINs válidos para a mesma visita.
+      expect(visitantes.create).toHaveBeenCalledTimes(1);
+      expect([a.status, b.status].sort()).toEqual(['fulfilled', 'rejected']);
+    });
+
+    it('recusar só apaga a foto depois de ganhar a corrida', async () => {
+      const { svc, storage } = build({
+        convite: conviteAberto({ status: 'confirmado', foto_url: 'https://cdn/foto.jpg' }),
+      });
+
+      await expect(svc.recusar(1, MORADOR)).rejects.toThrow(BadRequestException);
+      // Apagar antes do updateMany deixaria o visitante já criado apontando
+      // para um objeto inexistente.
+      expect(storage.deleteUrl).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('retenção (Art. 15 e 16)', () => {
+    it('apaga a foto e expurga convites mortos', async () => {
+      const velho = new Date(Date.now() - 30 * 24 * 3600_000);
+      const { svc, storage, prisma } = build({
+        convite: conviteAberto({ status: 'preenchido', expira_em: velho, foto_url: 'https://cdn/f.jpg' }),
+      });
+
+      const n = await svc.tickRetencaoConvites();
+
+      expect(storage.deleteUrl).toHaveBeenCalledWith('https://cdn/f.jpg');
+      expect(prisma.convites_Visita.deleteMany).toHaveBeenCalled();
+      expect(n).toBe(1);
+    });
+
+    it('não expurga convite confirmado — ele explica a origem do visitante', async () => {
+      const { svc, prisma } = build();
+      await svc.tickRetencaoConvites();
+
+      const where = prisma.convites_Visita.findMany.mock.calls[0][0].where;
+      expect(where.status.in).not.toContain('confirmado');
+    });
+  });
+
+  describe('configuração', () => {
+    it('não gera convite sem CONVITE_BASE_URL', async () => {
+      delete process.env.CONVITE_BASE_URL;
+      const { svc, prisma } = build();
+
+      await expect(svc.gerar(MORADOR, false)).rejects.toThrow();
+      // E falha ANTES de gravar, para não consumir uma das 5 vagas ativas.
+      expect(prisma.convites_Visita.create).not.toHaveBeenCalled();
     });
   });
 });

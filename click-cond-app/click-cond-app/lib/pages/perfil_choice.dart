@@ -1,3 +1,4 @@
+import 'package:click/pages/shared/aceite_privacidade.dart';
 import 'package:click/pages/sindico/hello.dart';
 import 'package:click/pages/sindico/list_condominiums.dart';
 import 'package:click/pages/sindico/login.dart';
@@ -59,7 +60,10 @@ class _HomePageState extends State<HomePage> {
       _didAutoLogin = true;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const ListCondomiums()),
+        // Passa pela PortaDeEntrada, não direto: é ela que decide entre a
+        // tela de aceite de privacidade e o app. Os dois caminhos de entrada
+        // (login e auto-login) precisam do mesmo gate.
+        MaterialPageRoute(builder: (_) => const PortaDeEntrada()),
       );
     }
   }
