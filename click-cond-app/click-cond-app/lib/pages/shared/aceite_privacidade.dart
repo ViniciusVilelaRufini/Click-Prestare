@@ -138,27 +138,62 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
               child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
-                  const SizedBox(height: AppSpacing.md),
+                  // Cabeçalho com o gradiente azul do app — mesmo tratamento
+                  // do cartão de saudação em Meus Condomínios (cantos 20,
+                  // sombra do primário). Antes era um ícone solto num
+                  // retângulo que o ListView esticava pela largura toda.
                   Container(
-                    width: 56,
-                    height: 56,
+                    padding: const EdgeInsets.all(AppSpacing.lg),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(16),
+                      gradient: const LinearGradient(
+                        colors: [
+                          AppColors.primaryGradientStart,
+                          AppColors.primaryGradientEnd,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.35),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
-                    child: Icon(PhosphorIcons.shieldCheck, color: AppColors.primary, size: 28),
+                    child: Row(children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white.withOpacity(0.30)),
+                        ),
+                        child: const Icon(PhosphorIcons.shieldCheck,
+                            color: Colors.white, size: 26),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Sua privacidade',
+                                style: AppTypography.title(context).copyWith(
+                                    color: Colors.white, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Precisamos do seu consentimento para tratar alguns dados.',
+                              style: AppTypography.caption(context)
+                                  .copyWith(color: Colors.white.withOpacity(0.85)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text('Sua privacidade',
-                      style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Para usar o Prestare Portaria, precisamos do seu consentimento para '
-                    'tratar alguns dados pessoais.',
-                    style: AppTypography.body(context)
-                        .copyWith(color: AppColors.textSecondary(context)),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.lg),
 
                   _bloco(
                     icone: PhosphorIcons.identificationCard,
@@ -183,7 +218,6 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                     texto: 'Você pode pedir acesso, correção ou exclusão dos seus dados a '
                         'qualquer momento, e revogar este consentimento.',
                   ),
-
                   const SizedBox(height: AppSpacing.sm),
                   GestureDetector(
                     onTap: () => launchUrl(Uri.parse(_urlPolitica),
@@ -259,12 +293,26 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
     );
   }
 
+  /// Cartão, e não texto solto: é o formato que o resto do app usa para
+  /// agrupar informação (superfície, cantos 16, ícone em caixa colorida).
   Widget _bloco({required IconData icone, required String titulo, required String texto}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icone, size: 18, color: AppColors.primary),
-        const SizedBox(width: AppSpacing.sm),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icone, size: 16, color: AppColors.primary),
+        ),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(titulo,
