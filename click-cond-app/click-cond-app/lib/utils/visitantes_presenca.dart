@@ -10,8 +10,11 @@
 /// prédio. Ela precisa significar exatamente o que diz.
 ///
 /// A portaria-web já separava assim ("Ativos no local" x "Liberados
-/// aguardando"). Estas funções existem para as duas superfícies contarem
-/// igual — e por serem puras, a regra pode ser testada.
+/// aguardando"). Esta função existe para as duas superfícies contarem igual
+/// — e por ser pura, a regra pode ser testada.
+///
+/// Quem está autorizado e ainda não chegou aparece na aba "Cadastrados" do
+/// app; não há contador próprio para isso.
 
 /// Fisicamente dentro: registrou entrada e não registrou saída.
 ///
@@ -19,33 +22,4 @@
 /// portaria, não consequência de ter permissão.
 bool estaNoLocal(Map<dynamic, dynamic> item) {
   return item['data_entrada'] != null && item['data_saida'] == null;
-}
-
-/// Autorizado a entrar, mas ainda não chegou.
-///
-/// [agora] é injetável porque a regra depende de "hoje" — sem isso, o teste
-/// da liberação agendada dependeria da data em que roda.
-bool aguardandoChegada(Map<dynamic, dynamic> item, DateTime agora) {
-  // Quem já entrou (ou já saiu) não está aguardando.
-  if (item['data_entrada'] != null || item['data_saida'] != null) return false;
-
-  final liberado =
-      item['liberado'] == 1 || item['liberado'] == '1' || item['vaga'] != null;
-  if (liberado) return true;
-
-  // Liberação agendada para hoje, ou período que engloba agora.
-  final inicioStr = item['data_hora_inicio'];
-  if (inicioStr != null) {
-    final inicio = DateTime.tryParse(inicioStr.toString());
-    if (inicio != null) {
-      final fimStr = item['data_hora_termino'];
-      final fim = fimStr != null ? DateTime.tryParse(fimStr.toString()) : null;
-      final ehHoje = inicio.year == agora.year &&
-          inicio.month == agora.month &&
-          inicio.day == agora.day;
-      if (ehHoje && (fim == null || agora.isBefore(fim))) return true;
-      if (fim != null && agora.isAfter(inicio) && agora.isBefore(fim)) return true;
-    }
-  }
-  return false;
 }

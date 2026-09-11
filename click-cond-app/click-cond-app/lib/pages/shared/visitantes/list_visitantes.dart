@@ -822,10 +822,13 @@ class ListVisitantesPageState extends State<ListVisitantes> {
 
     // A regra mora em utils/visitantes_presenca.dart, em funções puras, para
     // ser testável e para as duas superfícies contarem igual.
-    final now = DateTime.now();
+    // "No local" conta só quem REGISTROU ENTRADA e não saiu. Antes somava
+    // também quem tinha liberação ativa — e como todo visitante nasce com
+    // `liberado = 1` (default da tabela, por causa do PIN), o contador nunca
+    // chegava a zero e a aba dizia que havia gente no prédio com ele vazio.
+    //
+    // Quem está autorizado e ainda não chegou aparece em "Cadastrados".
     final listInside = visitorsOnlyList.where((e) => estaNoLocal(e as Map)).toList();
-    final listAguardando =
-        visitorsOnlyList.where((e) => aguardandoChegada(e as Map, now)).toList();
 
     // Filtrar visitantes cadastrados únicos para histórico e liberação rápida
     final List<Map<String, dynamic>> listCadastrados = [];
@@ -871,8 +874,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
       }
     }
     return DefaultTabController(
-      // Três: no local, aguardando e cadastrados.
-      length: 3,
+      length: 2,
       child: AppScaffold(
         title: 'Visitantes e Prestadores',
         showBackButton: !widget.hideAppBar,
@@ -1119,19 +1121,6 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(PhosphorIcons.clock, size: 16),
-                            const SizedBox(width: 6),
-                            Text('Aguardando (${listAguardando.length})'),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Tab(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
                             const Icon(PhosphorIcons.identificationCard, size: 16),
                             const SizedBox(width: 6),
                             Text('Cadastrados (${listCadastrados.length})'),
@@ -1184,29 +1173,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                   ),
                                 ),
                         ),
-                        // ABA 2: Autorizados que ainda não chegaram.
-                        RefreshIndicator(
-                          onRefresh: loadList,
-                          child: listAguardando.isEmpty
-                              ? _EmptyState(
-                                  'Ninguém autorizado aguardando chegada.',
-                                  PhosphorIcons.clock)
-                              : ListView.separated(
-                                  padding: const EdgeInsets.only(
-                                    left: AppSpacing.lg,
-                                    right: AppSpacing.lg,
-                                    top: AppSpacing.lg,
-                                    bottom: 120,
-                                  ),
-                                  itemCount: listAguardando.length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-                                  itemBuilder: (_, i) => _VisitanteCard(
-                                    item: listAguardando[i],
-                                    onTap: () => _showVisitanteDetails(context, listAguardando[i]),
-                                  ),
-                                ),
-                        ),
-                        // ABA 3: Cadastrados (Histórico / Liberar Novamente)
+                        // ABA 2: Cadastrados (Histórico / Liberar Novamente)
                         RefreshIndicator(
                           onRefresh: loadList,
                           child: listCadastrados.isEmpty
