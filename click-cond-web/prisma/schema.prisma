@@ -118,6 +118,7 @@ model Users {
   sindicosCondominios Sindicos_Condominios[]
   endereco            Addresses?                   @relation(fields: [address], references: [id], map: "fk_users_address")
   visitantes          Visitantes[]                 @relation("VisitanteUser")
+  convites            Convites_Visita[]            @relation("ConviteMorador")
   votacoesUsuarios    Votacoes_Usuarios[]
   financeiros         Financeiro[]
   devices             Users_Devices[]
@@ -185,6 +186,7 @@ model Condominios {
   prestadores          Prestadores_servico[]
   sindicosCondominios  Sindicos_Condominios[]
   visitantes           Visitantes[]
+  convites             Convites_Visita[]
   vagas                Vagas[]
   votacoes             Votacoes[]
   facialDevices        Facial_Devices[]
@@ -244,6 +246,7 @@ model Apartamentos {
   agendamentos        Areas_Sociais_Agendamentos[]
   mudancas            Mudancas[]
   visitantes          Visitantes[]
+  convites            Convites_Visita[]
   prestadores         Prestadores_servico[]
   vagas               Vagas[]
 
@@ -1309,4 +1312,55 @@ model Chat_Ia_Historico {
 
   @@index([id_condominio, id_user], map: "idx_chatia_cond_user")
   @@index([id_condominio, id_user, conversa_id], map: "idx_chatia_conversa")
+}
+
+/// Convite de visita gerado pelo morador e preenchido pelo próprio visitante
+/// por um link (WhatsApp).
+///
+/// Tabela SEPARADA de `Visitantes` de propósito. Esta é a primeira superfície
+/// do sistema em que alguém SEM CONTA grava dado, e `Visitantes` é a tabela
+/// que alimenta a listagem da portaria, o facial e as vagas. Se o preenchimento
+/// público caísse lá com um status "pendente", toda consulta existente passaria
+/// a depender de lembrar do filtro — e esquecer um filtro exibiria um estranho
+/// não confirmado como visitante autorizado.
+///
+/// Aqui o pior caso de um filtro esquecido é não aparecer nada.
+///
+/// `Visitantes` só é tocada quando o morador CONFIRMA, e pelo
+/// `VisitantesService.create()` — que herda foto e face_id de um CPF já
+/// conhecido, evitando rosto duplicado no terminal facial.
+model Convites_Visita {
+  id             Int       @id @default(autoincrement())
+  /// SHA-256 do token. O token em si nunca é gravado: se o banco vazar, os
+  /// links não são utilizáveis. Mesma lógica de senha.
+  token_hash     String    @unique(map: "un_convite_token") @db.Char(64)
+  id_condominio  Int
+  id_apartamento Int
+  /// Morador que gerou. Recebe o push quando o visitante preenche.
+  id_usuario     Int
+  is_prestador   Int       @default(0) @db.TinyInt
+  /// aguardando → preenchido → confirmado | recusado. Expirado é derivado de
+  /// `expira_em`, não gravado — evita depender de um job para a validade valer.
+  status         String    @default("aguardando") @db.VarChar(20)
+  expira_em      DateTime  @db.DateTime(0)
+  created_at     DateTime  @default(now()) @db.DateTime(0)
+  /// Preenchidos pelo visitante. `cpf` só com dígitos: é a chave de
+  /// agrupamento por pessoa, e "123.456.789-00" precisa ser o mesmo Rodrigo
+  /// que "12345678900".
+  nome           String?   @db.VarChar(255)
+  cpf            String?   @db.VarChar(11)
+  foto_url       String?   @db.LongText
+  /// Prova de consentimento: quando o visitante marcou o aceite.
+  aceite_em      DateTime? @db.DateTime(0)
+  preenchido_em  DateTime? @db.DateTime(0)
+  respondido_em  DateTime? @db.DateTime(0)
+  /// Preenchido na confirmação; liga ao registro criado em Visitantes.
+  id_visitante   Int?
+
+  condominio  Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_convite_cond")
+  apartamento Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_convite_apto")
+  morador     Users        @relation("ConviteMorador", fields: [id_usuario], references: [id], onDelete: Cascade, map: "fk_convite_user")
+
+  @@index([id_condominio, status], map: "idx_convite_cond_status")
+  @@index([id_usuario, status], map: "idx_convite_user_status")
 }

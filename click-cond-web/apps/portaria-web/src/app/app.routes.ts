@@ -17,6 +17,14 @@ export const appRoutes: Route[] = [
       ),
   },
   {
+    // Pública de propósito: é o link que o visitante abre pelo WhatsApp, sem
+    // ter conta. A trava não é guard, é o token — 32 bytes aleatórios, de uso
+    // único e validade de 24h.
+    path: 'convite/:token',
+    loadComponent: () =>
+      import('./convite/convite-page.component').then((m) => m.ConvitePageComponent),
+  },
+  {
     path: 'politica-de-privacidade',
     loadComponent: () =>
       import('./legal/politica-privacidade.component').then((m) => m.PoliticaPrivacidadeComponent),

@@ -173,3 +173,74 @@ apiCheckOutVisitante(int idVisitante) async {
     return "Falha de comunicação com o servidor.";
   }
 }
+
+// ===================== Convite de visita por link =====================
+//
+// O morador gera um link, manda pelo WhatsApp, e o visitante preenche nome,
+// CPF e foto pelo próprio celular. O que volta é um RASCUNHO: nada entra na
+// portaria antes de o morador confirmar.
+
+/// Gera o convite. O backend decide condomínio e apartamento pelo vínculo do
+/// morador — o app não manda (nem poderia: aceitaria convidar para a unidade
+/// dos outros).
+apiGerarConvite({bool isPrestador = false}) async {
+  var url = ApiConfig.buildUri('/convites');
+  try {
+    var response = await ApiClient.post(
+      url,
+      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
+      body: jsonEncode({ "is_prestador": isPrestador }),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return _mensagemDeErro(response, 'Não foi possível gerar o convite.');
+  } catch (e) {
+    return { "erro": "Falha de comunicação." };
+  }
+}
+
+/// Convites já preenchidos, esperando a decisão deste morador.
+apiGetConvitesPendentes() async {
+  var url = ApiConfig.buildUri('/convites/pendentes');
+  try {
+    var response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    if (response.statusCode == 200) {
+      var parsed = jsonDecode(response.body);
+      return parsed is List ? parsed : [];
+    }
+    return [];
+  } catch (e) {
+    return [];
+  }
+}
+
+apiResponderConvite(int id, {required bool confirmar}) async {
+  final acao = confirmar ? 'confirmar' : 'recusar';
+  var url = ApiConfig.buildUri('/convites/$id/$acao');
+  try {
+    var response = await ApiClient.post(
+      url,
+      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
+      body: jsonEncode({}),
+    );
+    if (response.statusCode == 200) return { "ok": true };
+    return _mensagemDeErro(response, 'Não foi possível responder ao convite.');
+  } catch (e) {
+    return { "erro": "Falha de comunicação." };
+  }
+}
+
+/// Extrai a mensagem que o NestJS manda em `message`. O servidor explica
+/// melhor que um texto genérico — ele sabe se o teto de convites estourou ou
+/// se a unidade não está vinculada.
+Map<String, dynamic> _mensagemDeErro(dynamic response, String padrao) {
+  try {
+    final body = jsonDecode(response.body);
+    final msg = body is Map ? body['message'] : null;
+    if (msg != null && msg.toString().trim().isNotEmpty) {
+      return { "erro": msg is List ? msg.join(', ') : msg.toString() };
+    }
+  } catch (_) {}
+  return { "erro": padrao };
+}

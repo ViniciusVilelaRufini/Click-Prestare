@@ -5,6 +5,7 @@ import 'package:click/controllers/controller_visitantes.dart';
 import 'package:click/pages/shared/visitantes/acessos_facial_list.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
+import 'package:click/pages/shared/visitantes/convites_visita.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -887,6 +888,18 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         showBackButton: !widget.hideAppBar,
         safeAreaBottom: !widget.hideAppBar,
         actions: [
+          // Convidar por link: o morador manda o link no WhatsApp e o
+          // visitante preenche os próprios dados. Só para morador — porteiro
+          // e síndico seguem no cadastro manual.
+          if (getUserType() == 'morador')
+            IconButton(
+              tooltip: 'Convidar por link',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ConvitesVisitaPage()),
+              ).then((_) => loadList()),
+              icon: Icon(PhosphorIcons.link, color: AppColors.textPrimary(context)),
+            ),
           IconButton(
             tooltip: 'Solicitações pendentes',
             onPressed: _abrirPendentes,
