@@ -55,8 +55,9 @@ export class FinanceiroPageComponent implements OnInit {
   readonly cobrancaResultado = signal<any>(null);
 
   /**
-   * Erro das ações que não têm modal próprio para exibi-lo (salvar
-   * lançamento, dar baixa, carregar a tela).
+   * Erro das ações que não têm modal próprio para exibi-lo. Com o financeiro
+   * somente leitura, sobraram três: carregar a tela, carregar a
+   * inadimplência e exportar o CSV.
    *
    * Esses `subscribe` não tinham callback de erro: quando o backend recusava
    * — competência fechada, valor zerado, 403 de permissão — o botão

@@ -15,6 +15,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 
 class FinanceiroRelatorio extends StatefulWidget {
   const FinanceiroRelatorio({Key? key}) : super(key: key);
+
   @override
   _FinanceiroRelatorioPageState createState() => _FinanceiroRelatorioPageState();
 }
@@ -100,80 +101,7 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
       }
     }
   }
-
-  /// Fecha ou reabre a competência do mês selecionado. Mês fechado bloqueia
-  /// lançamentos/edições no backend (FechamentoService).
-  Future<void> _gerenciarFechamento() async {
-    if (mes.isEmpty || ano.isEmpty) return;
-    List<dynamic> fechamentos = [];
-    try {
-      fechamentos = await apiListarFechamentos() as List<dynamic>;
-    } catch (e) {
-      displayMessage(context, getText('alert_error'),
-          e.toString().replaceFirst('Exception: ', ''));
-      return;
-    }
-    if (!mounted) return;
-
-    final mesInt = int.tryParse(mes) ?? 0;
-    final anoInt = int.tryParse(ano) ?? 0;
-    final fechado = fechamentos.any((f) =>
-        f['mes'] == mesInt && f['ano'] == anoInt && (f['ativo'] == 1 || f['ativo'] == true));
-
-    final txtMotivo = TextEditingController();
-    final confirmou = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: AppColors.surface(c),
-        title: Text(fechado ? 'Reabrir competência' : 'Fechar competência',
-            style: AppTypography.title(c)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              fechado
-                  ? 'O mês $mes/$ano está FECHADO. Reabrir permite lançamentos e edições novamente (exige motivo).'
-                  : 'Fechar o mês $mes/$ano bloqueia novos lançamentos e edições na competência.',
-              style: AppTypography.caption(c),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: txtMotivo,
-              decoration: InputDecoration(
-                  labelText: fechado ? 'Motivo da reabertura (obrigatório)' : 'Observação (opcional)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(c, true),
-            child: Text(fechado ? 'Reabrir' : 'Fechar Mês'),
-          ),
-        ],
-      ),
-    );
-    if (confirmou != true || !mounted) return;
-
-    if (fechado && txtMotivo.text.trim().isEmpty) {
-      displayMessage(context, getText('alert'), 'Informe o motivo da reabertura.');
-      return;
-    }
-
-    final res = fechado
-        ? await apiReabrirMes(mesInt, anoInt, txtMotivo.text.trim())
-        : await apiFecharMes(mesInt, anoInt, txtMotivo.text.trim().isEmpty ? null : txtMotivo.text.trim());
-    if (!mounted) return;
-    if (res['ok'] == true) {
-      displayMessage(context, getText('alert'),
-          fechado ? 'Competência reaberta.' : 'Competência fechada.');
-    } else {
-      displayMessage(context, getText('alert_error'), res['message'].toString());
-    }
-  }
-
+  /// Troca o "R$" do backend pela moeda configurada no condomínio.
   String _moeda(String v) => v.replaceAll("R\$", Singleton.instance.getCurrentMoeda());
 
   @override
@@ -251,18 +179,6 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                                 : const Icon(PhosphorIcons.fileCsv, size: 18, color: AppColors.primary),
                             label: const Text('Exportar CSV', style: TextStyle(color: AppColors.primary)),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: AppColors.primary),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _gerenciarFechamento,
-                            icon: const Icon(PhosphorIcons.lockKey, size: 18, color: AppColors.primary),
-                            label: const Text('Fechamento', style: TextStyle(color: AppColors.primary)),
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(color: AppColors.primary),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

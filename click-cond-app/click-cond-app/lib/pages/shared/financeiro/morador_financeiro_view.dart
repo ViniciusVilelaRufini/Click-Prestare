@@ -651,7 +651,15 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   Widget _buildFinanceiroCard(dynamic item, {VoidCallback? onChanged}) {
     return FinanceiroCard(
       item: item,
-      onEnviarComprovante: () => _uploadComprovante(item['id']),
+      // Só conta PESSOAL aceita comprovante. Numa cobrança do condomínio o
+      // upload grava status '2' ("aguardando auditoria do síndico") e o
+      // síndico não tem mais como aprovar — o financeiro virou somente
+      // leitura. Continuar convidando o morador a anexar seria pedir um
+      // arquivo que ninguém no mundo pode resolver. Quem dá a baixa da taxa
+      // agora é o ERP, pelo retorno do banco.
+      onEnviarComprovante: (item['id_usuario'] != null && item['tipo'] == 'D')
+          ? () => _uploadComprovante(item['id'])
+          : null,
       onEditar: (item['id_usuario'] != null && item['tipo'] == 'D')
           ? () => showContaFormModal(item: item)
           : null,
@@ -667,8 +675,11 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
   /// Há algo para o morador fazer no rodapé deste lançamento?
   bool _temAcoesDeRodape(dynamic item, bool isPago, bool isVerifying) {
-    final podeEnviarComprovante = !isPago && !isVerifying;
     final ehContaPessoal = item['id_usuario'] != null && item['tipo'] == 'D';
+    // Enviar comprovante passou a existir só na conta pessoal — acompanha a
+    // condição usada em `_buildFinanceiroCard`, senão o rodapé reserva espaço
+    // para um botão que não vem.
+    final podeEnviarComprovante = ehContaPessoal && !isPago && !isVerifying;
     return podeEnviarComprovante || ehContaPessoal;
   }
 

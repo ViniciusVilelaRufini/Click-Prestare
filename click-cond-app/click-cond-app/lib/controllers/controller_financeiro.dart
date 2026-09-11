@@ -74,6 +74,18 @@ apiNotificarInadimplente(String bloco, String apto) async {
       final body = jsonDecode(response.body);
       return body is Map ? body : { "success": true };
     }
+    // Não-200 (403 de permissão, 500) também traz {message} em português do
+    // NestJS. Descartá-lo e mostrar "Falha ao notificar." apagava justamente
+    // a explicação — a tela promete exibir o motivo que o servidor deu.
+    try {
+      final body = jsonDecode(response.body);
+      final msg = body is Map ? body['message'] : null;
+      if (msg != null && msg.toString().trim().isNotEmpty) {
+        return { "success": false, "message": msg is List ? msg.join(', ') : msg.toString() };
+      }
+    } catch (_) {
+      // Corpo não-JSON (HTML de proxy, resposta vazia): cai no texto genérico.
+    }
     return { "success": false, "message": "Falha ao notificar." };
   } catch (e) {
     return { "success": false, "message": "Falha de comunicação." };
@@ -93,75 +105,6 @@ apiGetDetailsInadimplente(String route, String bloco, String apto) async {
     return jsonDecode(response.body) as List<dynamic>;
   }
   _throwHttpError(response);
-}
-
-apiUpdateFinanceiroStatus(int id, int status) async {
-  var url = ApiConfig.buildUri('/financeiro/update-status');
-  try {
-    var response = await ApiClient.post(
-      url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
-      body: jsonEncode({ "id": id, "status": status })
-    );
-    return response.statusCode == 200;
-  } catch(e) {
-    return false;
-  }
-}
-
-/// Salva um lançamento financeiro e devolve também o id criado pelo backend —
-/// necessário para anexar boleto/comprovante logo após o insert
-/// (o /financeiro/upload-shared-file exige o id do lançamento).
-/// Retorna {'ok': bool, 'message': String, 'id': int?}.
-apiSaveFinanceiroComId(dynamic financeiro, bool isEdit) async {
-  var url = ApiConfig.buildUri(isEdit ? '/financeiro/update' : '/financeiro/insert');
-  try {
-    var response = await ApiClient.post(
-      url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json; charset=utf-8" },
-      body: jsonEncode({
-        "id_condominio": Singleton.instance.id_condominio.toString(),
-        "financeiro": financeiro is Map ? financeiro : financeiro.toJson(),
-      }),
-      encoding: utf8,
-    );
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      int? idCriado;
-      try {
-        final parsed = jsonDecode(response.body);
-        if (parsed is Map && parsed['id'] != null) {
-          idCriado = int.tryParse(parsed['id'].toString());
-        }
-      } catch (_) {}
-      return { 'ok': true, 'message': '', 'id': idCriado };
-    }
-    String msg = 'Erro HTTP ${response.statusCode}';
-    try {
-      final parsed = jsonDecode(response.body);
-      if (parsed is Map && parsed['message'] != null) {
-        msg = parsed['message'] is List
-            ? (parsed['message'] as List).join(', ')
-            : parsed['message'].toString();
-      }
-    } catch (_) {}
-    return { 'ok': false, 'message': msg, 'id': null };
-  } catch (e) {
-    return { 'ok': false, 'message': 'Falha de comunicação com o servidor. Verifique sua conexão.', 'id': null };
-  }
-}
-
-apiUploadBoleto(int id, String fileBase64) async {
-  var url = ApiConfig.buildUri('/financeiro/upload-shared-file');
-  try {
-    var response = await ApiClient.post(
-      url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
-      body: jsonEncode({ "id": id, "file": fileBase64, "type": "boleto" })
-    );
-    return response.statusCode == 200;
-  } catch(e) {
-    return false;
-  }
 }
 
 apiUploadComprovante(int id, String fileBase64) async {
@@ -262,86 +205,6 @@ Future<Map<String, dynamic>> _postFinanceiro(String path, Map<String, dynamic> b
   } catch (_) {}
   return { 'ok': false, 'message': msg };
 }
-
-apiGetConfigAuto() async {
-  var url = ApiConfig.buildUri('/financeiro/config-auto',
-      {'id_condominio': Singleton.instance.id_condominio.toString()});
-  dynamic response;
-  try {
-    response = await ApiClient.get(url, headers: { "Authorization": getToken() });
-  } catch (e) {
-    throw Exception('Falha de comunicação com o servidor. Verifique sua conexão.');
-  }
-  if (response.statusCode == 200) return jsonDecode(response.body);
-  _throwHttpError(response);
-}
-
-apiUpdateConfigAuto(Map<String, dynamic> config) =>
-    _postFinanceiro('/financeiro/config-auto', {
-      "id_condominio": Singleton.instance.id_condominio.toString(),
-      "config": config,
-    });
-
-apiGetApartamentosConfig() async {
-  var url = ApiConfig.buildUri('/financeiro/apartamentos-config',
-      {'id_condominio': Singleton.instance.id_condominio.toString()});
-  dynamic response;
-  try {
-    response = await ApiClient.get(url, headers: { "Authorization": getToken() });
-  } catch (e) {
-    throw Exception('Falha de comunicação com o servidor. Verifique sua conexão.');
-  }
-  if (response.statusCode == 200) return jsonDecode(response.body);
-  _throwHttpError(response);
-}
-
-apiUpdateApartamentoRecorrencia(int aptoId, bool ignorar) =>
-    _postFinanceiro('/financeiro/apartamento-recorrencia', {
-      "id_condominio": Singleton.instance.id_condominio.toString(),
-      "aptoId": aptoId,
-      "ignorar": ignorar,
-    });
-
-apiCreateRateio(Map<String, dynamic> rateioData) =>
-    _postFinanceiro('/financeiro/rateio', {
-      "id_condominio": Singleton.instance.id_condominio.toString(),
-      "rateioData": rateioData,
-    });
-
-apiCreateAcordoInadimplente(Map<String, dynamic> acordoData) =>
-    _postFinanceiro('/financeiro/inadimplente/acordo', {
-      "id_condominio": Singleton.instance.id_condominio.toString(),
-      "acordoData": acordoData,
-    });
-
-apiListarFechamentos() async {
-  var url = ApiConfig.buildUri('/financeiro/fechamentos',
-      {'id_condominio': Singleton.instance.id_condominio.toString()});
-  dynamic response;
-  try {
-    response = await ApiClient.get(url, headers: { "Authorization": getToken() });
-  } catch (e) {
-    throw Exception('Falha de comunicação com o servidor. Verifique sua conexão.');
-  }
-  if (response.statusCode == 200) return jsonDecode(response.body);
-  _throwHttpError(response);
-}
-
-apiFecharMes(int mes, int ano, String? observacao) =>
-    _postFinanceiro('/financeiro/fechamentos/fechar', {
-      "id_condominio": Singleton.instance.id_condominio.toString(),
-      "mes": mes,
-      "ano": ano,
-      "observacao": observacao,
-    });
-
-apiReabrirMes(int mes, int ano, String motivo) =>
-    _postFinanceiro('/financeiro/fechamentos/reabrir', {
-      "id_condominio": Singleton.instance.id_condominio.toString(),
-      "mes": mes,
-      "ano": ano,
-      "motivo": motivo,
-    });
 
 /// Baixa o livro caixa CSV (bytes) — o caller salva em temp e abre.
 apiExportLivroCaixaCsv(String mes, String ano) async {

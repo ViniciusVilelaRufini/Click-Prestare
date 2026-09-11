@@ -5,7 +5,7 @@ import { MailService } from '../common/mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
-import { isOperador } from '../auth/tenant.util';
+import { isOperador, assertFinanceiroSomenteLeitura } from '../auth/tenant.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FechamentoService } from './fechamento.service';
 import { OpenPixService } from './openpix.service';
@@ -1941,12 +1941,36 @@ export class FinanceiroService implements OnModuleInit {
   async uploadSharedFile(id: number, fileBase64: string, type: string, user?: JwtPayload) {
     if (!this.prisma.isConnected) return { url: '' };
 
-    // Sem essa checagem, qualquer um anexa boleto/comprovante a lançamento alheio.
+    // Anexar boleto é escrita no financeiro do condomínio, e o financeiro é
+    // somente leitura. Some-se a isso que `url_boleto` de uma linha vinda da
+    // Superlógica é o `link_segundavia` — a MESMA URL que o botão "Pagar com
+    // cartão" abre no navegador do morador. Sem esta recusa, quem tivesse
+    // sessão de staff trocaria aquele link por um endereço arbitrário e o app
+    // ofereceria essa URL ao morador rotulada como pagamento.
+    //
+    // Nenhum cliente chama mais este ramo: o botão "Anexar Boleto" saiu da
+    // portaria-web e `apiUploadBoleto` ficou órfã no app.
+    if (type === 'boleto') {
+      assertFinanceiroSomenteLeitura('anexar boleto a um lançamento');
+    }
+
+    // Sem essa checagem, qualquer um anexa comprovante a lançamento alheio.
     const lanc = await this.getLancamentoForTenant(id, user);
 
-    // Morador só pode anexar comprovante a lançamento dele próprio (id_usuario).
-    const isMorador = user?.typeAccess === 'Morador';
-    if (isMorador) {
+    // A checagem de dono vale para TODO MUNDO, não só para Morador.
+    //
+    // Antes, síndico e funcionário passavam direto — a regra presumia que
+    // staff anexando comprovante de terceiro era operação legítima de
+    // gestão. Com a baixa manual removida, não existe mais gestão a fazer
+    // aqui: o único fluxo que sobra é a pessoa comprovando o próprio
+    // pagamento. E deixar staff gravar em lançamento alheio era o que
+    // abria o buraco descrito acima.
+    //
+    // Não dá para trocar isto por "só Morador": o síndico que TAMBÉM é
+    // morador usa a aba MEU FINANCEIRO para as contas dele, e barrá-lo por
+    // papel quebraria um fluxo legítimo. Quem manda é a posse do
+    // lançamento, não o cargo.
+    {
       const userId = Number(user?.sub ?? user?.user?.id);
       if (lanc.id_usuario) {
         if (Number(lanc.id_usuario) !== userId) {
@@ -3521,14 +3545,38 @@ export class FinanceiroService implements OnModuleInit {
     const mesAtual = hoje.getMonth() + 1;
     const anoAtual = hoje.getFullYear();
 
-    // Busca todos os condomínios com recorrência ativa
-    const condominios = await this.prisma.condominios.findMany({
+    // Condomínio espelhado da Superlógica NÃO entra no faturamento
+    // recorrente: quem emite a taxa dele é o ERP, e o sync traz a cobrança
+    // pronta. Gerar aqui também produziria DUAS cobranças do mesmo mês para
+    // o mesmo morador — a do ERP e a do Clique.
+    //
+    // A trava vive aqui, e não numa tela, porque o interruptor
+    // (`config-auto`) virou somente leitura junto com o resto do financeiro:
+    // um condomínio que migrar para o ERP com `recorrencia_ativa = true`
+    // não teria como ser desligado a não ser por SQL em produção.
+    const ativos = await this.prisma.condominios.findMany({
       where: { recorrencia_ativa: true },
       select: {
         id: true,
         dia_geracao: true,
+        id_superlogica_cond: true,
       },
     });
+
+    // Partição em memória, numa consulta só. Filtrar no banco exigiria uma
+    // segunda query só para contar os pulados — e o log importa: um
+    // condomínio deixar de faturar em silêncio é indistinguível de defeito.
+    //
+    // `== null` de propósito: pega null e undefined. Condomínio sem vínculo
+    // com o ERP é o caso normal.
+    const condominios = ativos.filter((c) => c.id_superlogica_cond == null);
+    const espelhados = ativos.length - condominios.length;
+    if (espelhados > 0) {
+      this.logger.log(
+        `[runRecurringBillingJob] ${espelhados} condomínio(s) com recorrência ativa foram pulados por ` +
+          'estarem vinculados à Superlógica — a taxa deles é emitida pelo ERP.',
+      );
+    }
 
     for (const cond of condominios) {
       // `dia_geracao === diaAtual` era um fio de navalha: o job só tenta uma

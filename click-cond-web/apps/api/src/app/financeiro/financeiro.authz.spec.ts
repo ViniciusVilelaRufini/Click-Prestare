@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, RequestMethod } from '@nestjs/common';
 import { FinanceiroController } from './financeiro.controller';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -64,28 +64,81 @@ describe('FinanceiroController — financeiro do condomínio é somente leitura'
     return { controller, service, fechamento };
   }
 
-  // Cada rota de mutação, o método que a atende e o mock que NÃO pode ser
-  // chamado. Tabela em vez de um `it` por rota para que acrescentar uma
-  // mutação nova ao controller sem trancá-la fique visível aqui.
-  const rotasDeEscrita: Array<[string, (c: FinanceiroController) => unknown, (m: any) => jest.Mock]> = [
-    ['POST insert', (c) => c.insert(), (m) => m.service.insert],
-    ['POST update', (c) => c.update(), (m) => m.service.update],
-    ['POST remove', (c) => c.remove(), (m) => m.service.remove],
-    ['POST update-status', (c) => c.updateStatus(), (m) => m.service.updateStatus],
-    ['POST rateio', (c) => c.createRateio(), (m) => m.service.createRateio],
-    ['POST inadimplente/acordo', (c) => c.createAcordoInadimplente(), (m) => m.service.createAcordoInadimplente],
-    ['POST conciliacao/importar', (c) => c.importarOfx(), (m) => m.service.parseOfxContent],
-    ['POST conciliacao/confirmar', (c) => c.confirmarConciliacao(), (m) => m.service.confirmarConciliacao],
-    ['POST config-auto', (c) => c.updateConfigAuto(), (m) => m.service.updateConfigAuto],
-    ['POST apartamento-recorrencia', (c) => c.updateApartamentoRecorrencia(), (m) => m.service.updateApartamentoRecorrencia],
-    ['POST fechamentos/fechar', (c) => c.fecharMes(), (m) => m.fechamento.fechar],
-    ['POST fechamentos/reabrir', (c) => c.reabrirMes(), (m) => m.fechamento.reabrir],
-  ];
+  /**
+   * Varre o controller pelos metadados do Nest em vez de conferir uma lista
+   * escrita à mão.
+   *
+   * A versão anterior deste teste era uma tabela manual com um comentário
+   * afirmando que ela tornaria visível "uma mutação nova sem trava". Não
+   * tornava: nada comparava a tabela com o controller real, e por isso
+   * `upload-shared-file` — um @Post que grava `url_boleto` — passou por ela
+   * sem falhar nada. A lista documentava a decisão; não a defendia.
+   *
+   * Agora cada @Post precisa estar numa das categorias abaixo, explicitamente.
+   * Rota de escrita nova que ninguém classificar quebra o build.
+   */
+  describe('todo @Post do controller está classificado', () => {
+    // Escritas legítimas que sobrevivem ao financeiro somente leitura, com o
+    // motivo de cada uma. Acrescentar algo aqui é uma decisão, não um
+    // detalhe.
+    const ESCRITAS_PERMITIDAS: Record<string, string> = {
+      'morador/insert': 'conta pessoal do morador — fora do escopo da restrição',
+      'morador/update': 'conta pessoal do morador',
+      'morador/remove': 'conta pessoal do morador',
+      'upload-shared-file': 'comprovante da própria conta; boleto é recusado dentro do service',
+      'inadimplente/notificar': 'comunicação, não altera dado financeiro',
+      'webhook/asaas': 'gateway de pagamento (@Public, valida token)',
+      'webhook/openpix': 'gateway de pagamento (@Public, valida token)',
+      'admin/limpar-cobrancas-zeradas': 'operação de suporte, exige Admin',
+    };
 
-  it.each(rotasDeEscrita)('%s recusa e não toca no service', (_rota, chamar, mockAlvo) => {
-    const mocks = buildController();
-    expect(() => chamar(mocks.controller)).toThrow(ForbiddenException);
-    expect(mockAlvo(mocks)).not.toHaveBeenCalled();
+    function rotasPost(): string[] {
+      const proto = FinanceiroController.prototype as any;
+      return Object.getOwnPropertyNames(proto)
+        .filter((m) => m !== 'constructor')
+        .filter((m) => Reflect.getMetadata('method', proto[m]) === RequestMethod.POST)
+        .map((m) => Reflect.getMetadata('path', proto[m]) as string);
+    }
+
+    // Guarda contra o teste passar a vazio. Se o Nest renomear as chaves de
+    // metadado ('method'/'path'), `rotasPost()` devolve [] e os dois testes
+    // abaixo ficam verdes sem checar nada — que é pior do que não existirem,
+    // porque dão a impressão de cobertura.
+    it('a varredura enxerga os @Post de verdade', () => {
+      const rotas = rotasPost();
+      expect(rotas.length).toBeGreaterThanOrEqual(10);
+      expect(rotas).toContain('insert');
+      expect(rotas).toContain('upload-shared-file');
+    });
+
+    it('nenhuma rota de escrita ficou sem classificação', () => {
+      const semClassificacao = rotasPost().filter((rota) => {
+        if (rota in ESCRITAS_PERMITIDAS) return false;
+        // Não está na allowlist? Então tem de recusar.
+        const metodo = Object.getOwnPropertyNames(FinanceiroController.prototype).find(
+          (m) =>
+            m !== 'constructor' &&
+            Reflect.getMetadata('path', (FinanceiroController.prototype as any)[m]) === rota,
+        )!;
+        const controller = new FinanceiroController({} as any, {} as any);
+        try {
+          (controller as any)[metodo]();
+          return true; // não lançou: escapou da trava
+        } catch (e) {
+          return !(e instanceof ForbiddenException);
+        }
+      });
+
+      expect(semClassificacao).toEqual([]);
+    });
+
+    it('a lista de escritas permitidas não tem entrada morta', () => {
+      // Entrada que sobra depois de uma rota ser removida vira permissão
+      // fantasma: a próxima rota com aquele nome nasce liberada em silêncio.
+      const existentes = new Set(rotasPost());
+      const orfas = Object.keys(ESCRITAS_PERMITIDAS).filter((r) => !existentes.has(r));
+      expect(orfas).toEqual([]);
+    });
   });
 
   it('a recusa explica que a origem dos lançamentos é o ERP', () => {

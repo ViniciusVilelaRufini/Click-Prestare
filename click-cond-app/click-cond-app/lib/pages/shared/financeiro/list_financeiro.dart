@@ -190,10 +190,6 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return count;
   }
 
-  // Tocar num lançamento abria o formulário de edição. Com o financeiro
-  // somente leitura não há o que editar — o toque deixou de fazer nada em
-  // vez de abrir uma tela que só levaria a um 403 no salvar.
-  void _openLancamento(dynamic item) {}
   @override
   Widget build(BuildContext context) {
     final isSindico = getUserType() == 'sindico';
@@ -354,7 +350,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               ),
                               const SizedBox(height: AppSpacing.sm),
                               for (var item in _filteredLancamentos[data])
-                                _LancamentoCard(item: item, onTap: () => _openLancamento(item)),
+                                _LancamentoCard(item: item),
                             ],
                           ),
                         ),
@@ -388,10 +384,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
           // FAB simples (morador) sobe acima da ilha flutuante quando embutido.
           // SpeedDial (sindico) gerencia seu proprio overlay; nao envolver.
           ? (isSindico
-              ? _buildFab(isSindico)
+              ? _buildFab()
               : Container(
                   margin: EdgeInsets.only(bottom: widget.hideAppBar ? 96 : 0),
-                  child: _buildFab(isSindico),
+                  child: _buildFab(),
                 ))
           : null,
     );
@@ -432,7 +428,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   // Superlógica. O síndico não cria mais cobrança, receita, despesa, rateio
   // nem configura recorrência — o SpeedDial com essas cinco ações saiu, e
   // sobrou o mesmo botão de atualizar que o morador já tinha.
-  Widget _buildFab(bool isSindico) {
+  Widget _buildFab() {
     return FloatingActionButton(
       heroTag: null,
       onPressed: loadList,
@@ -605,7 +601,15 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     // e os dois já tinham divergido: mexer num não mudava o outro.
     return FinanceiroCard(
       item: item,
-      onEnviarComprovante: () => _uploadComprovante(item['id']),
+      // Só conta PESSOAL aceita comprovante. Numa cobrança do condomínio o
+      // upload grava status '2' ("aguardando auditoria do síndico") e o
+      // síndico não tem mais como aprovar — o financeiro virou somente
+      // leitura. Continuar convidando o morador a anexar seria pedir um
+      // arquivo que ninguém no mundo pode resolver. Quem dá a baixa da taxa
+      // agora é o ERP, pelo retorno do banco.
+      onEnviarComprovante: (item['id_usuario'] != null && item['tipo'] == 'D')
+          ? () => _uploadComprovante(item['id'])
+          : null,
     );
   }
 
@@ -1771,8 +1775,10 @@ class _CountChip extends StatelessWidget {
 
 class _LancamentoCard extends StatelessWidget {
   final dynamic item;
-  final VoidCallback onTap;
-  const _LancamentoCard({required this.item, required this.onTap});
+  // Sem `onTap`: o financeiro é somente leitura, e o toque abria o formulário
+  // de edição. Um GestureDetector sem ação dá o ripple e promete o que não
+  // acontece.
+  const _LancamentoCard({required this.item});
 
   IconData _getIcon(String categoria) {
     switch (categoria.toLowerCase()) {
@@ -1796,9 +1802,7 @@ class _LancamentoCard extends StatelessWidget {
     final color = isCredito ? const Color(0xFF22C55E) : AppColors.error;
     final statusColor = isPago ? Colors.green : (isVerifying ? Colors.blue : Colors.orange);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
+    return Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
@@ -1855,7 +1859,6 @@ class _LancamentoCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

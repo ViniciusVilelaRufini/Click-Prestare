@@ -33,6 +33,48 @@ Continuam escrevendo, e isso é intencional: contas pessoais do morador
 Superlógica. O síndico continua podendo ver tudo, exportar CSV e notificar
 inadimplente.
 
+### Correções vindas da revisão de código (10/09/2026)
+
+A primeira rodada deixou furos no invariante. O que a revisão achou e como
+foi fechado:
+
+- **Sobrou uma tela de escrita no app.** `finan_relatorio.dart` tinha um
+  botão "Fechamento" chamando `fechamentos/fechar` — que já respondia 403. A
+  varredura original procurou por nomes de tela (`new_*`, `rateio`), não por
+  endpoints, e por isso não achou. Removido.
+- **`upload-shared-file` era a única mutação sem checagem de papel nenhuma.**
+  `type='boleto'` passou a ser recusado de vez: `url_boleto` de uma linha da
+  Superlógica é o `link_segundavia`, a MESMA URL que o botão "Pagar com
+  cartão" abre no navegador do morador — quem tivesse sessão de staff
+  trocaria aquele link por um endereço arbitrário. Para `comprovante`, a
+  checagem de dono passou a valer para todos, e não só para Morador: o
+  síndico que também é morador usa a aba MEU FINANCEIRO, então a regra certa
+  é posse do lançamento, não cargo.
+- **`admin/limpar-cobrancas-zeradas`** deixou de aceitar síndico; exige
+  `Admin`.
+- **O job de recorrência pula condomínio vinculado à Superlógica**
+  (`id_superlogica_cond` preenchido). Sem isso, um condomínio que migrasse
+  com `recorrencia_ativa = true` geraria duas cobranças do mesmo mês — a do
+  ERP e a do Clique — e o interruptor (`config-auto`) virou 403 junto com o
+  resto, ou seja, só dava para desligar por SQL em produção.
+- **Enviar comprovante deixou de ser oferecido em cobrança do condomínio:** o
+  upload grava `status='2'` ("aguardando auditoria") e ninguém mais pode
+  aprovar. Continua nas contas pessoais.
+- **A trava de rotas passou a ser defendida, não só documentada.** A tabela
+  manual de `financeiro.authz.spec.ts` foi trocada por varredura dos
+  metadados do Nest: todo `@Post` precisa estar numa allowlist explícita ou
+  recusar, e há um teste que impede a varredura de passar a vazio.
+
+**Pendência de dados:** linhas que já estão em `status='2'` de antes da
+mudança ficam nesse estado para sempre, porque o aprovador não existe mais.
+Decidir se são resolvidas por SQL.
+
+**Dívida conhecida:** o módulo de fechamento (`fechamento.service.ts`, `GET
+fechamentos`, `assertPodeAlterar`) virou código sem efeito — nenhuma escrita
+restante o consulta e ninguém consegue fechar ou reabrir competência.
+Competências já fechadas ficam fechadas para sempre. Não é bug ativo, mas
+custa uma tarde para a próxima pessoa entender por que a trava não tranca.
+
 **Consequência assumida:** sem `update-status` não existe baixa manual.
 Cobrança que não venha da Superlógica e não seja paga por Pix fica em aberto
 indefinidamente. Enquanto nenhum condomínio estiver ativo na integração, o
