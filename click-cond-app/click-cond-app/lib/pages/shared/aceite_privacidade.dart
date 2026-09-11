@@ -197,31 +197,39 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                     ]),
                   ),
 
-                  const SizedBox(height: AppSpacing.xl),
-                  _caixa(
-                    valor: _privacidade,
-                    onChanged: (v) => setState(() => _privacidade = v),
-                    obrigatorio: true,
-                    texto: 'Li e concordo com a Política de Privacidade e com o tratamento '
-                        'dos meus dados pessoais descrito acima.',
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _caixa(
-                    valor: _biometria,
-                    onChanged: (v) => setState(() => _biometria = v),
-                    obrigatorio: false,
-                    texto: 'Autorizo o uso da minha biometria facial para abrir a portaria '
-                        'pelo reconhecimento do rosto. Você pode recusar sem perder o acesso '
-                        'ao aplicativo — continuará entrando por PIN ou interfone.',
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.md),
                 ],
               ),
             ),
-            Padding(
+            // As caixas ficam FIXAS, junto da ação — não dentro da lista que
+            // rola. Numa tela de celular elas caíam abaixo da dobra, e a da
+            // biometria sequer aparecia: dava para aceitar sem nunca ter visto
+            // a opção. O Art. 11 exige consentimento DESTACADO, e caixa que
+            // se precisa procurar rolando não é destaque.
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.bg(context),
+                border: Border(top: BorderSide(color: AppColors.border(context))),
+              ),
               padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+                  AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
               child: Column(children: [
+                _caixa(
+                  valor: _privacidade,
+                  onChanged: (v) => setState(() => _privacidade = v),
+                  obrigatorio: true,
+                  texto: 'Li e concordo com a Política de Privacidade e com o '
+                      'tratamento dos meus dados pessoais.',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _caixa(
+                  valor: _biometria,
+                  onChanged: (v) => setState(() => _biometria = v),
+                  obrigatorio: false,
+                  texto: 'Autorizo o uso da minha biometria facial para abrir a '
+                      'portaria pelo rosto. Recusar não tira seu acesso ao app.',
+                ),
+                const SizedBox(height: AppSpacing.md),
                 ElevatedButton(
                   onPressed: (!_privacidade || _enviando) ? null : _aceitar,
                   style: ElevatedButton.styleFrom(
