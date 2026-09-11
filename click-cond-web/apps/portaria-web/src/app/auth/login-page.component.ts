@@ -95,7 +95,7 @@ import { ThemeService } from '../shared/theme.service';
               class="text-sm leading-relaxed font-light transition-colors duration-300"
               [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
             >
-              Acesse a plataforma corporativa oficial da Click Portaria e gerencie fluxos de correspondências, visitantes, prestadores de serviços e ocorrências com rastreabilidade absoluta e conformidade corporativa.
+              Acesse a plataforma corporativa oficial da Prestare Portaria e gerencie fluxos de correspondências, visitantes, prestadores de serviços e ocorrências com rastreabilidade absoluta e conformidade corporativa.
             </p>
 
             <div class="grid grid-cols-2 gap-4 pt-4">
