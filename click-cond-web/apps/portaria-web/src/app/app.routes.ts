@@ -25,6 +25,15 @@ export const appRoutes: Route[] = [
       import('./convite/convite-page.component').then((m) => m.ConvitePageComponent),
   },
   {
+    // `/convite` sem token. Não é um caminho que o app gere, mas é o que
+    // sobra quando alguém corta o link ao copiar do WhatsApp — e o app não
+    // tem rota curinga, então sem isto a tela fica BRANCA, que é a pior
+    // resposta possível: parece defeito e não diz nada.
+    path: 'convite',
+    loadComponent: () =>
+      import('./convite/convite-page.component').then((m) => m.ConvitePageComponent),
+  },
+  {
     path: 'politica-de-privacidade',
     loadComponent: () =>
       import('./legal/politica-privacidade.component').then((m) => m.PoliticaPrivacidadeComponent),

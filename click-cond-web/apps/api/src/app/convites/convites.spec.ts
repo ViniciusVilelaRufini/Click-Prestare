@@ -270,6 +270,50 @@ describe('ConvitesService', () => {
       expect(dto.is_visitante).toBe(0);
     });
 
+    it('repassa período e dias ao create()', async () => {
+      const { svc, visitantes } = build({ convite: preenchido({ is_prestador: 1 }) });
+      await svc.confirmar(1, MORADOR, {
+        data_hora_inicio: '2026-09-12T08:00:00',
+        data_hora_termino: '2026-09-12T18:00:00',
+        dias_semana: '1,2,3',
+      });
+
+      const dto = visitantes.create.mock.calls[0][0];
+      expect(dto.data_hora_inicio).toBe('2026-09-12T08:00:00');
+      expect(dto.data_hora_termino).toBe('2026-09-12T18:00:00');
+      expect(dto.dias_semana).toBe('1,2,3');
+    });
+
+    it('ignora dias_semana quando não é prestador', async () => {
+      const { svc, visitantes } = build({ convite: preenchido() });
+      await svc.confirmar(1, MORADOR, { dias_semana: '1,2,3' });
+
+      expect(visitantes.create.mock.calls[0][0].dias_semana).toBeUndefined();
+    });
+
+    it('confirmar sem corpo continua funcionando', async () => {
+      // A versão do app já publicada manda corpo vazio. Se a API passasse a
+      // exigir os campos, quem não atualizou perderia a confirmação.
+      const { svc, visitantes, convites } = build({ convite: preenchido() });
+      await svc.confirmar(1, MORADOR);
+
+      expect(visitantes.create).toHaveBeenCalledTimes(1);
+      expect(convites[0].status).toBe('confirmado');
+    });
+
+    it('recusa saída antes da entrada', async () => {
+      // Autorização que nasce vencida: o visitante chega, o acesso é negado e
+      // ninguém entende por quê.
+      const { svc, visitantes } = build({ convite: preenchido() });
+      await expect(
+        svc.confirmar(1, MORADOR, {
+          data_hora_inicio: '2026-09-12T18:00:00',
+          data_hora_termino: '2026-09-12T08:00:00',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(visitantes.create).not.toHaveBeenCalled();
+    });
+
     it('morador não decide convite de outro morador', async () => {
       const { svc, visitantes } = build({ convite: preenchido() });
       await expect(svc.confirmar(1, OUTRO)).rejects.toThrow(NotFoundException);

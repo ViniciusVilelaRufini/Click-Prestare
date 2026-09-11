@@ -215,14 +215,29 @@ apiGetConvitesPendentes() async {
   }
 }
 
-apiResponderConvite(int id, {required bool confirmar}) async {
+/// Confirma ou recusa. Os extras (período e dias) só existem na confirmação
+/// e são OPCIONAIS no servidor — a versão do app publicada antes deles manda
+/// corpo vazio e continua funcionando.
+apiResponderConvite(
+  int id, {
+  required bool confirmar,
+  String? dataInicio,
+  String? dataTermino,
+  String? diasSemana,
+}) async {
   final acao = confirmar ? 'confirmar' : 'recusar';
   var url = ApiConfig.buildUri('/convites/$id/$acao');
   try {
+    final Map<String, dynamic> corpo = {};
+    if (confirmar) {
+      if (dataInicio != null) corpo['data_hora_inicio'] = dataInicio;
+      if (dataTermino != null) corpo['data_hora_termino'] = dataTermino;
+      if (diasSemana != null) corpo['dias_semana'] = diasSemana;
+    }
     var response = await ApiClient.post(
       url,
       headers: { "Authorization": getToken(), "Content-Type": "application/json" },
-      body: jsonEncode({}),
+      body: jsonEncode(corpo),
     );
     if (response.statusCode == 200) return { "ok": true };
     return _mensagemDeErro(response, 'Não foi possível responder ao convite.');

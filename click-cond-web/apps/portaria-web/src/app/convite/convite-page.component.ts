@@ -155,6 +155,16 @@ export class ConvitePageComponent implements OnInit {
 
   ngOnInit() {
     this.token = this.route.snapshot.paramMap.get('token') ?? '';
+
+    // Link sem token (cortado ao copiar do WhatsApp, por exemplo) é um
+    // convite inválido como qualquer outro. Mostra a mesma tela em vez de
+    // gastar uma chamada — e, principalmente, em vez de ficar em branco.
+    if (!this.token.trim()) {
+      this.indisponivel.set(true);
+      this.carregando.set(false);
+      return;
+    }
+
     this.http.get<any>(`${API_BASE}/convites/publico/${this.token}`).subscribe({
       next: (dados) => {
         this.convite.set(dados);

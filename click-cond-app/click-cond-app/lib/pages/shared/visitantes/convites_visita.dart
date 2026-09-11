@@ -1,4 +1,5 @@
 import 'package:click/controllers/controller_visitantes.dart';
+import 'package:click/pages/shared/visitantes/confirmar_convite.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -28,7 +29,8 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
   List<dynamic> _pendentes = [];
   bool _carregando = true;
   bool _gerando = false;
-  int? _respondendo;
+  /// Tipo escolhido no seletor. Antes eram dois botões, que pareciam filtro.
+  bool _prestador = false;
 
   @override
   void initState() {
@@ -87,34 +89,15 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
     }
   }
 
-  Future<void> _responder(dynamic convite, {required bool confirmar}) async {
-    final id = convite['id'] is int ? convite['id'] : int.tryParse('${convite['id']}') ?? 0;
-    if (_respondendo != null) return;
-
-    if (!confirmar) {
-      final ok = await showConfirmDialog(
-        context,
-        text: 'Recusar o cadastro de ${convite['nome']}? A foto enviada será apagada.',
-      );
-      if (ok != true) return;
-    }
-
-    setState(() => _respondendo = id);
-    final res = await apiResponderConvite(id, confirmar: confirmar);
-    if (!mounted) return;
-    setState(() => _respondendo = null);
-
-    if (res is Map && res['ok'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(confirmar
-            ? '${convite['nome']} liberado. O porteiro já pode ver na chegada.'
-            : 'Cadastro recusado.'),
-        backgroundColor: confirmar ? AppColors.primary : AppColors.error,
-      ));
-      _carregar();
-    } else {
-      displayMessage(context, 'Ops', (res is Map ? res['erro'] : null)?.toString() ?? 'Não foi possível responder.');
-    }
+  /// Abre a tela onde o morador confere o que o visitante mandou e completa
+  /// o que só ele sabe: quando a pessoa entra, até quando fica e, para
+  /// prestador, em que dias volta. A decisão (confirmar/recusar) acontece lá.
+  Future<void> _abrirConfirmacao(dynamic convite) async {
+    final mudou = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ConfirmarConvitePage(convite: convite)),
+    );
+    if (mudou == true) _carregar();
   }
 
   String _cpfFormatado(dynamic cpf) {
@@ -180,37 +163,71 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
     );
   }
 
+  /// Seletor de tipo + UMA ação.
+  ///
+  /// Antes eram dois botões lado a lado ("Visitante" e "Prestador"), que a
+  /// esta altura da tela parecem filtro de listagem, não o gatilho que gera o
+  /// link e abre o WhatsApp. Agora o tipo é escolha, e o botão diz o que faz.
   Widget _botoesGerar() {
-    return Row(children: [
-      Expanded(
-        child: ElevatedButton.icon(
-          onPressed: _gerando ? null : () => _gerar(isPrestador: false),
-          icon: _gerando
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(PhosphorIcons.userPlus, size: 18),
-          label: const Text('Visitante'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(0, 46),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(
+        'TIPO DE CONVITE',
+        style: AppTypography.tiny(context).copyWith(
+          color: AppColors.textTertiary(context),
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
         ),
       ),
-      const SizedBox(width: AppSpacing.sm),
-      Expanded(
-        child: OutlinedButton.icon(
-          onPressed: _gerando ? null : () => _gerar(isPrestador: true),
-          icon: const Icon(PhosphorIcons.wrench, size: 18, color: AppColors.primary),
-          label: const Text('Prestador', style: TextStyle(color: AppColors.primary)),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 46),
-            side: const BorderSide(color: AppColors.primary),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+      const SizedBox(height: AppSpacing.sm),
+      Row(children: [
+        Expanded(child: _opcaoTipo(rotulo: 'Visitante', icone: PhosphorIcons.userPlus, prestador: false)),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(child: _opcaoTipo(rotulo: 'Prestador', icone: PhosphorIcons.wrench, prestador: true)),
+      ]),
+      const SizedBox(height: AppSpacing.lg),
+      ElevatedButton.icon(
+        onPressed: _gerando ? null : () => _gerar(isPrestador: _prestador),
+        icon: _gerando
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(PhosphorIcons.whatsappLogo, size: 20),
+        label: Text(_gerando ? 'Gerando...' : 'Gerar e enviar no WhatsApp'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 50),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     ]);
+  }
+
+  Widget _opcaoTipo({required String rotulo, required IconData icone, required bool prestador}) {
+    final marcado = _prestador == prestador;
+    return GestureDetector(
+      onTap: () => setState(() => _prestador = prestador),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: marcado ? AppColors.primary.withOpacity(0.10) : AppColors.surface(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: marcado ? AppColors.primary : AppColors.border(context),
+            width: marcado ? 1.6 : 1,
+          ),
+        ),
+        child: Column(children: [
+          Icon(icone, size: 22, color: marcado ? AppColors.primary : AppColors.textSecondary(context)),
+          const SizedBox(height: 6),
+          Text(
+            rotulo,
+            style: AppTypography.bodyMedium(context).copyWith(
+              color: marcado ? AppColors.primary : AppColors.textSecondary(context),
+              fontWeight: marcado ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 
   Widget _vazio() {
@@ -228,18 +245,18 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
   }
 
   Widget _cardPendente(dynamic c) {
-    final respondendo = _respondendo == (c['id'] is int ? c['id'] : int.tryParse('${c['id']}'));
     final foto = (c['foto_url'] ?? '').toString();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(children: [
-        Row(children: [
+    return GestureDetector(
+      onTap: () => _abrirConfirmacao(c),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: foto.isNotEmpty
@@ -255,44 +272,17 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
               const SizedBox(height: 2),
               Text(_cpfFormatado(c['cpf']),
                   style: AppTypography.tiny(context).copyWith(color: AppColors.textSecondary(context))),
-              if (c['is_prestador'] == 1)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text('Prestador',
-                      style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                ),
+              const SizedBox(height: 4),
+              Text(
+                c['is_prestador'] == 1 ? 'Prestador · toque para revisar' : 'Toque para revisar',
+                style: AppTypography.tiny(context).copyWith(
+                    color: AppColors.primary, fontWeight: FontWeight.bold),
+              ),
             ]),
           ),
+          Icon(PhosphorIcons.caretRight, size: 18, color: AppColors.textTertiary(context)),
         ]),
-        const SizedBox(height: AppSpacing.md),
-        if (respondendo)
-          const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
-        else
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => _responder(c, confirmar: false),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.error.withOpacity(0.5)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: Text('Recusar', style: TextStyle(color: AppColors.error)),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _responder(c, confirmar: true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('Confirmar'),
-              ),
-            ),
-          ]),
-      ]),
+      ),
     );
   }
 

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
-import { ConvitesService } from './convites.service';
+import { ConvitesService, type ConfirmarExtras } from './convites.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { Public } from '../auth/public.decorator';
@@ -33,8 +33,12 @@ export class ConvitesController {
 
   @Post(':id/confirmar')
   @HttpCode(200)
-  confirmar(@Param('id') id: string, @ReqUser() user: JwtPayload) {
-    return this.service.confirmar(Number(id), user);
+  confirmar(
+    @Param('id') id: string,
+    @Body() body: ConfirmarExtras,
+    @ReqUser() user: JwtPayload,
+  ) {
+    return this.service.confirmar(Number(id), user, body ?? {});
   }
 
   @Post(':id/recusar')

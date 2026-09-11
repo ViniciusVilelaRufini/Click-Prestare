@@ -21,6 +21,20 @@ export const HORAS_DE_VALIDADE = 24;
  */
 export const MAX_CONVITES_ATIVOS = 5;
 
+/**
+ * Campos que o MORADOR completa ao confirmar — o visitante não tem como
+ * saber o período da visita nem os dias em que um prestador volta.
+ *
+ * Todos opcionais por compatibilidade: a versão do app já publicada confirma
+ * mandando corpo vazio.
+ */
+export interface ConfirmarExtras {
+  data_hora_inicio?: string;
+  data_hora_termino?: string;
+  /** Só faz sentido para prestador; ignorado em visitante. */
+  dias_semana?: string;
+}
+
 /** 5 MB, o mesmo teto já usado nos uploads do financeiro. */
 const MAX_FOTO_BYTES = 5 * 1024 * 1024;
 
@@ -317,10 +331,18 @@ export class ConvitesService {
    * já é conhecido no condomínio. Sem ele, o mesmo visitante vira dois rostos
    * no terminal facial — defeito que só apareceria no prédio.
    */
-  async confirmar(id: number, user: JwtPayload) {
+  async confirmar(id: number, user: JwtPayload, extras: ConfirmarExtras = {}) {
     const convite = await this.exigirConviteDoMorador(id, user);
     if (convite.status !== 'preenchido') {
       throw new BadRequestException('Este convite não está aguardando confirmação.');
+    }
+
+    // Saída antes da entrada gera uma autorização que nasce vencida: o
+    // visitante chega e o acesso é negado sem ninguém entender por quê.
+    const inicio = extras.data_hora_inicio ? new Date(extras.data_hora_inicio) : null;
+    const termino = extras.data_hora_termino ? new Date(extras.data_hora_termino) : null;
+    if (inicio && termino && termino < inicio) {
+      throw new BadRequestException('A saída não pode ser antes da entrada.');
     }
 
     const visitante = await this.visitantes.create(
@@ -332,6 +354,12 @@ export class ConvitesService {
         id_condominio: convite.id_condominio,
         is_visitante: convite.is_prestador === 1 ? 0 : 1,
         is_prestador: convite.is_prestador,
+        // Campos que o visitante não tem como saber — período da visita e,
+        // para prestador, os dias em que ele volta. Todos OPCIONAIS: o app já
+        // publicado manda o corpo vazio, e a API não pode quebrar para ele.
+        data_hora_inicio: extras.data_hora_inicio,
+        data_hora_termino: extras.data_hora_termino,
+        dias_semana: convite.is_prestador === 1 ? extras.dias_semana : undefined,
       } as any,
       user,
     );

@@ -6,6 +6,7 @@ import 'package:click/pages/shared/visitantes/acessos_facial_list.dart';
 import 'package:click/pages/shared/visitantes/new_visitante.dart';
 import 'package:click/pages/shared/visitantes/pendentes_visitante.dart';
 import 'package:click/pages/shared/visitantes/convites_visita.dart';
+import 'package:click/pages/singleton.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -796,6 +797,12 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
   }
 
+  /// Mesma checagem de `_temApto` em my_condominium.dart.
+  bool get _temUnidadeVinculada {
+    final id = Singleton.instance.id_apartamento;
+    return id != null && id is int && id > 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final canAdd = (getUserType() != 'funcionario') || getUserPermission('cadastrar_visitante') == 1;
@@ -888,10 +895,16 @@ class ListVisitantesPageState extends State<ListVisitantes> {
         showBackButton: !widget.hideAppBar,
         safeAreaBottom: !widget.hideAppBar,
         actions: [
-          // Convidar por link: o morador manda o link no WhatsApp e o
-          // visitante preenche os próprios dados. Só para morador — porteiro
-          // e síndico seguem no cadastro manual.
-          if (getUserType() == 'morador')
+          // Convidar por link: manda o link no WhatsApp e a pessoa preenche
+          // os próprios dados.
+          //
+          // O critério é TER UNIDADE VINCULADA, não o papel. O servidor já
+          // exige exatamente isso (`gerar()` recusa quem não tem vínculo), e
+          // uma tela com regra própria mais apertada só cria divergência: o
+          // síndico quase sempre mora no prédio e não conseguiria convidar
+          // ninguém para o próprio apartamento. O repositório já tem o
+          // conceito — `_sindicoEhMorador` em my_condominium.dart.
+          if (_temUnidadeVinculada)
             IconButton(
               tooltip: 'Convidar por link',
               onPressed: () => Navigator.push(
