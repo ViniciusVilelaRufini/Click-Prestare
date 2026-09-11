@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { VisitantesService, VisitanteDetalhes, PessoaEncontrada, Pessoa } from './visitantes.service';
+import { VisitantesService, VisitanteDetalhes, PessoaEncontrada, Pessoa, ApartamentoVisitado } from './visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { CreateVisitante, Visitante } from './visitante.model';
 import { ConfirmService } from '../shared/confirm.service';
@@ -73,6 +73,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     if (id == null) return null;
     return this.pessoas().find((p) => p.id === id) ?? null;
   });
+
+  // Modal de registro de entrada com abas/seleção de apartamento liberado
+  readonly entradaModalPessoa = signal<Pessoa | null>(null);
+  readonly entradaModalAptoSelecionado = signal<ApartamentoVisitado | null>(null);
+  readonly entradaSalvando = signal(false);
   readonly pinCode = signal('');
   readonly validationResult = signal<any | null>(null);
   readonly validationError = signal<string | null>(null);
@@ -508,7 +513,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   /** Registra a entrada direto da janela de autorização e fecha. */
   registrarEntradaEFechar(p: Pessoa) {
-    this.service.checkIn(p.id).subscribe({
+    const aptos = p.apartamentosVisitados ?? [];
+    const apto = aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ?? aptos[0];
+    const targetId = apto?.visitanteId ?? p.id;
+    const targetAptoId = apto?.id ?? p.id_apartamento;
+    this.service.checkIn(targetId, targetAptoId).subscribe({
       next: () => {
         this.fecharAuthModal();
         this.carregar();
@@ -523,7 +532,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    * terminal, não pela portaria.
    */
   liberarAcessoEFechar(p: Pessoa) {
-    this.service.liberar(p.id).subscribe({
+    const aptos = p.apartamentosVisitados ?? [];
+    const apto = aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ?? aptos[0];
+    const targetId = apto?.visitanteId ?? p.id;
+    const targetAptoId = apto?.id ?? p.id_apartamento;
+    this.service.liberar(targetId, targetAptoId).subscribe({
       next: () => {
         this.fecharAuthModal();
         this.carregar();
@@ -907,17 +920,47 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  async registrarEntradaManual(v: Visitante | Pessoa) {
-    const ok = await this.confirm.ask({
-      title: 'Registrar Entrada',
-      message: `Confirmar a entrada de ${v.nome}?`,
-      confirmLabel: 'Confirmar Entrada',
-      variant: 'primary',
-    });
-    if (!ok) return;
-    this.service.checkIn(v.id).subscribe({
-      next: () => this.carregar(),
-      error: (e) => this.error.set(`Falha ao registrar entrada: ${e?.message ?? e}`),
+  registrarEntradaManual(v: Visitante | Pessoa) {
+    const p: Pessoa = (v as Pessoa).apartamentosVisitados
+      ? (v as Pessoa)
+      : (this.pessoas().find((item) => item.id === v.id) ?? (v as any));
+
+    const aptos = p.apartamentosVisitados ?? [];
+    const aptoPadrao =
+      aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ??
+      aptos.find((a) => a.id === p.id_apartamento) ??
+      aptos[0] ??
+      null;
+
+    this.entradaModalPessoa.set(p);
+    this.entradaModalAptoSelecionado.set(aptoPadrao);
+  }
+
+  fecharEntradaModal() {
+    this.entradaModalPessoa.set(null);
+    this.entradaModalAptoSelecionado.set(null);
+    this.entradaSalvando.set(false);
+  }
+
+  confirmarEntradaModal() {
+    const p = this.entradaModalPessoa();
+    if (!p) return;
+
+    const apto = this.entradaModalAptoSelecionado();
+    const idParaCheckIn = apto?.visitanteId ?? p.id;
+    const idApartamento = apto?.id ?? p.id_apartamento;
+
+    this.entradaSalvando.set(true);
+    this.service.checkIn(idParaCheckIn, idApartamento).subscribe({
+      next: () => {
+        this.entradaSalvando.set(false);
+        this.fecharEntradaModal();
+        this.carregar();
+      },
+      error: (e) => {
+        this.entradaSalvando.set(false);
+        this.error.set(`Falha ao registrar entrada: ${e?.message ?? e}`);
+      },
     });
   }
 

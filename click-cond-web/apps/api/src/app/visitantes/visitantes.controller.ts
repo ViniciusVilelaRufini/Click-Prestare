@@ -242,18 +242,20 @@ export class VisitantesGlobalController {
   @Post('check-in')
   async checkIn(
     @Body('id', ParseIntPipe) id: number,
+    @Body('id_apartamento') idApartamento?: number,
     @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.checkIn(id, payload);
+    return this.service.checkIn(id, payload, idApartamento ? Number(idApartamento) : undefined);
   }
 
   @SkipAudit()
   @Post('liberar')
   async liberarAcesso(
     @Body('id', ParseIntPipe) id: number,
+    @Body('id_apartamento') idApartamento?: number,
     @ReqUser() payload: JwtPayload,
   ) {
-    return this.service.liberarAcesso(id, payload);
+    return this.service.liberarAcesso(id, payload, idApartamento ? Number(idApartamento) : undefined);
   }
 
   @SkipAudit()

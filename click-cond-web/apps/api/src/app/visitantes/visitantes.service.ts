@@ -666,16 +666,53 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       const categoriasPessoa =
         porRecencia.map((r) => r.categorias).find((c) => c && String(c).trim()) ?? null;
 
-      // Apartamentos únicos visitados
-      const aptosVisitados = new Map<number, string>();
+      // Apartamentos únicos visitados com detalhes da visita mais relevante de cada apto
+      const aptosMap = new Map<number, typeof arr>();
       for (const r of arr) {
         if (r.apartamento) {
-          aptosVisitados.set(
-            r.apartamento.id,
-            `${r.apartamento.apto ?? ''}${r.apartamento.bloco ? '/' + r.apartamento.bloco : ''}`,
-          );
+          const lista = aptosMap.get(r.apartamento.id) ?? [];
+          lista.push(r);
+          aptosMap.set(r.apartamento.id, lista);
         }
       }
+
+      const apartamentosVisitados = Array.from(aptosMap.entries()).map(([aptoId, regs]) => {
+        regs.sort((a, b) => score(b) - score(a));
+        const best = regs[0];
+        const apto = best.apartamento!;
+        const label = `${apto.apto ?? ''}${apto.bloco ? '/' + apto.bloco : ''}`.replace(/^\/|\/$/g, '');
+        const isLiberado = regs.some((r) => {
+          if (vagaPorVisitante.has(r.id)) return true;
+          if (r.is_prestador === 1) return r.liberado === 1;
+          return r.liberado === 1 && !r.data_saida;
+        });
+        const isPendente = regs.some((r) => (r as any).auth_status === 'pendente');
+        const isAutorizado = regs.some((r) => (r as any).auth_status === 'autorizado');
+        const authStatus = isAutorizado ? 'autorizado' : isPendente ? 'pendente' : (best as any).auth_status ?? null;
+        const noLocalApto = regs.some((r) => r.data_entrada && !r.data_saida);
+
+        return {
+          id: aptoId,
+          label,
+          visitanteId: best.id,
+          liberado: isLiberado,
+          auth_status: authStatus,
+          temPinAtivo: regs.some((r) => Boolean(r.codigo_acesso && !r.data_saida)),
+          noLocal: noLocalApto,
+          data_entrada: best.data_entrada?.toISOString() ?? null,
+          data_saida: best.data_saida?.toISOString() ?? null,
+        };
+      });
+
+      apartamentosVisitados.sort((a, b) => {
+        const scoreApto = (x: typeof a) => {
+          if (x.liberado || x.auth_status === 'autorizado') return 100;
+          if (x.noLocal) return 80;
+          if (x.auth_status === 'pendente') return 60;
+          return 0;
+        };
+        return scoreApto(b) - scoreApto(a);
+      });
 
       // Vaga vinculada ativa (qualquer registro dessa pessoa) + quem vinculou.
       const idVisComVaga = arr.map((r) => r.id).find((id) => vagaPorVisitante.has(id));
@@ -730,9 +767,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         // Resumo
         totalVisitas,
         visitasAnteriores: Math.max(0, totalVisitas - 1),
-        apartamentosVisitados: Array.from(aptosVisitados.entries()).map(
-          ([id, label]) => ({ id, label }),
-        ),
+        apartamentosVisitados,
 
         // Visita atual (registro principal)
         id_apartamento: principal.id_apartamento,
@@ -1878,10 +1913,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async checkIn(id: number, payload?: JwtPayload) {
+  async checkIn(id: number, payload?: JwtPayload, idApartamento?: number) {
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+    const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
+    if (idApartamento && targetAptoId !== ref.id_apartamento) {
+      await this.assertPodeUsarApartamento(targetAptoId, payload);
     }
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
@@ -1889,6 +1928,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         data_entrada: new Date(),
         data_saida: null,
         liberado: 1,
+        ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
         ...(payload?.sub !== undefined && { user: payload.sub }),
         // Override do porteiro: se havia pedido pendente, marca como resolvido.
         ...(ref.auth_status === 'pendente' && {
@@ -1922,10 +1962,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true };
   }
 
-  async liberarAcesso(id: number, payload?: JwtPayload) {
+  async liberarAcesso(id: number, payload?: JwtPayload, idApartamento?: number) {
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+    const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
+    if (idApartamento && targetAptoId !== ref.id_apartamento) {
+      await this.assertPodeUsarApartamento(targetAptoId, payload);
     }
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
@@ -1933,6 +1977,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         liberado: 1,
         data_entrada: null,
         data_saida: null,
+        ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
         ...(payload?.sub !== undefined && { user: payload.sub }),
         // Override do porteiro: se havia pedido pendente, marca como resolvido.
         ...(ref.auth_status === 'pendente' && {

@@ -100,6 +100,18 @@ export interface PessoaEncontrada {
   bloqueado?: number;
 }
 
+export interface ApartamentoVisitado {
+  id: number;
+  label: string;
+  visitanteId?: number;
+  liberado?: boolean;
+  auth_status?: 'pendente' | 'autorizado' | 'negado' | null;
+  temPinAtivo?: boolean;
+  noLocal?: boolean;
+  data_entrada?: string | null;
+  data_saida?: string | null;
+}
+
 /** 1 pessoa = 1 linha. Substitui Visitante[] na página /visitantes. */
 export interface Pessoa {
   id: number; // id do registro principal (compatível com endpoints antigos)
@@ -119,7 +131,7 @@ export interface Pessoa {
 
   totalVisitas: number;
   visitasAnteriores: number;
-  apartamentosVisitados: { id: number; label: string }[];
+  apartamentosVisitados: ApartamentoVisitado[];
 
   id_apartamento: number;
   apartamentoAtual: string | null;
@@ -247,12 +259,12 @@ export class VisitantesService {
     });
   }
 
-  checkIn(id: number): Observable<any> {
-    return this.http.post<any>(`${API_BASE}/visitantes/check-in`, { id });
+  checkIn(id: number, idApartamento?: number): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/visitantes/check-in`, { id, id_apartamento: idApartamento });
   }
 
-  liberar(id: number): Observable<any> {
-    return this.http.post<any>(`${API_BASE}/visitantes/liberar`, { id });
+  liberar(id: number, idApartamento?: number): Observable<any> {
+    return this.http.post<any>(`${API_BASE}/visitantes/liberar`, { id, id_apartamento: idApartamento });
   }
 
   checkOut(id: number): Observable<any> {
