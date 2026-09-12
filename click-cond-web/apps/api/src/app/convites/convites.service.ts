@@ -11,6 +11,7 @@ import {
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   VisitantesService,
   parseLocalTimeToUTC,
