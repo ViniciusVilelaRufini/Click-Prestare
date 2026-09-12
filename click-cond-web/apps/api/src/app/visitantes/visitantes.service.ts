@@ -54,27 +54,45 @@ export interface UpdateVisitanteDto extends Partial<CreateVisitanteDto> {
 
 export function parseLocalTimeToUTC(dateValue: string | Date | undefined | null): Date {
   if (!dateValue) return new Date();
-  if (dateValue instanceof Date) return dateValue;
+  if (dateValue instanceof Date) {
+    return isNaN(dateValue.getTime()) ? new Date() : dateValue;
+  }
   
   if (typeof dateValue === 'string') {
     if (dateValue.includes('Z') || /[+-]\d{2}:?\d{2}$/.test(dateValue)) {
-      return new Date(dateValue);
+      const d = new Date(dateValue);
+      if (!isNaN(d.getTime())) return d;
     }
-    const normalized = dateValue.replace('T', ' ');
-    const parts = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+    const normalized = dateValue.replace('T', ' ').trim();
+    // Formato ISO: YYYY-MM-DD HH:mm(:ss)
+    let parts = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
     if (parts) {
       const year = parseInt(parts[1], 10);
       const month = parseInt(parts[2], 10) - 1;
       const day = parseInt(parts[3], 10);
-      const hour = parseInt(parts[4], 10);
-      const minute = parseInt(parts[5], 10);
+      const hour = parts[4] ? parseInt(parts[4], 10) : 0;
+      const minute = parts[5] ? parseInt(parts[5], 10) : 0;
       const second = parts[6] ? parseInt(parts[6], 10) : 0;
       
       const localAsUtcMs = Date.UTC(year, month, day, hour, minute, second);
       return new Date(localAsUtcMs + 3 * 3600 * 1000); // UTC = Brasília + 3 horas
     }
+    // Formato brasileiro: DD/MM/YYYY HH:mm(:ss)
+    parts = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (parts) {
+      const day = parseInt(parts[1], 10);
+      const month = parseInt(parts[2], 10) - 1;
+      const year = parseInt(parts[3], 10);
+      const hour = parts[4] ? parseInt(parts[4], 10) : 0;
+      const minute = parts[5] ? parseInt(parts[5], 10) : 0;
+      const second = parts[6] ? parseInt(parts[6], 10) : 0;
+
+      const localAsUtcMs = Date.UTC(year, month, day, hour, minute, second);
+      return new Date(localAsUtcMs + 3 * 3600 * 1000); // UTC = Brasília + 3 horas
+    }
   }
-  return new Date(dateValue);
+  const fallback = new Date(dateValue);
+  return isNaN(fallback.getTime()) ? new Date() : fallback;
 }
 
 export function parseLocalTimeToUTCNullable(dateValue: string | Date | undefined | null): Date | null {

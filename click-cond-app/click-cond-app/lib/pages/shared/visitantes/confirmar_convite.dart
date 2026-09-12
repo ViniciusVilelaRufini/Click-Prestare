@@ -64,14 +64,32 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
       return;
     }
 
+    String? dataInicioFormatada;
+    if (txtInicio.text.trim().isNotEmpty) {
+      try {
+        dataInicioFormatada = convertStringToDateTime(txtInicio.text.trim());
+      } catch (_) {
+        dataInicioFormatada = txtInicio.text.trim();
+      }
+    }
+
+    String? dataTerminoFormatada;
+    if (txtTermino.text.trim().isNotEmpty) {
+      try {
+        dataTerminoFormatada = convertStringToDateTime(txtTermino.text.trim());
+      } catch (_) {
+        dataTerminoFormatada = txtTermino.text.trim();
+      }
+    }
+
     setState(() => _enviando = true);
     final res = await apiResponderConvite(
       widget.convite['id'] is int
           ? widget.convite['id']
           : int.tryParse('${widget.convite['id']}') ?? 0,
       confirmar: true,
-      dataInicio: txtInicio.text.trim().isEmpty ? null : txtInicio.text.trim(),
-      dataTermino: txtTermino.text.trim().isEmpty ? null : txtTermino.text.trim(),
+      dataInicio: dataInicioFormatada,
+      dataTermino: dataTerminoFormatada,
       diasSemana: _ehPrestador && _dias.isNotEmpty ? (_dias.toList()..sort()).join(',') : null,
     );
     if (!mounted) return;

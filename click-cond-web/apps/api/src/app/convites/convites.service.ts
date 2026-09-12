@@ -11,8 +11,11 @@ import {
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { VisitantesService } from '../visitantes/visitantes.service';
+import {
+  VisitantesService,
+  parseLocalTimeToUTC,
+  parseLocalTimeToUTCNullable,
+} from '../visitantes/visitantes.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 /** Horas de validade do link. Depois disso ele não serve para mais nada. */
@@ -436,7 +439,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
    */
   async confirmar(id: number, user: JwtPayload, extras: ConfirmarExtras = {}) {
     const convite = await this.exigirConviteDoMorador(id, user);
-    if (convite.status !== 'preenchido') {
+    if (convite.status !== 'preenchido' && !(convite.status === 'confirmado' && !convite.id_visitante)) {
       throw new BadRequestException('Este convite não está aguardando confirmação.');
     }
 
@@ -450,62 +453,58 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
 
     // Saída antes da entrada gera uma autorização que nasce vencida: o
     // visitante chega e o acesso é negado sem ninguém entender por quê.
-    const inicio = extras.data_hora_inicio ? new Date(extras.data_hora_inicio) : null;
-    const termino = extras.data_hora_termino ? new Date(extras.data_hora_termino) : null;
+    const inicio = extras.data_hora_inicio ? parseLocalTimeToUTC(extras.data_hora_inicio) : null;
+    const termino = extras.data_hora_termino ? parseLocalTimeToUTCNullable(extras.data_hora_termino) : null;
     if (inicio && termino && termino < inicio) {
       throw new BadRequestException('A saída não pode ser antes da entrada.');
     }
 
-    // Marca ANTES de criar o visitante. `create()` faz upload, consultas,
-    // push e WhatsApp — centenas de milissegundos em que um segundo toque
-    // (ou um confirmar e um recusar simultâneos) entraria também.
-    //
-    // Sem esta trava: dois `create()` podem gerar DUAS autorizações e dois
-    // PINs para a mesma visita; e um `recusar` concorrente apaga a foto do
-    // storage enquanto a confirmação já leu a URL, criando um visitante que
-    // aponta para um objeto deletado.
-    //
-    // Mesmo padrão que `responder` já usa.
+    // Marca ANTES de criar o visitante para evitar concorrência.
     const marcado = await this.prisma.convites_Visita.updateMany({
-      where: { id: convite.id, status: 'preenchido' },
+      where: {
+        id: convite.id,
+        OR: [
+          { status: 'preenchido' },
+          { status: 'confirmado', id_visitante: null },
+        ],
+      },
       data: { status: 'confirmado', respondido_em: new Date() },
     });
     if (marcado.count === 0) {
       throw new BadRequestException('Este convite já foi respondido.');
     }
 
-    const visitante = await this.visitantes.create(
-      {
-        nome: convite.nome ?? '',
-        doc_identificacao: convite.cpf ?? undefined,
-        foto_pessoa: convite.foto_url ?? undefined,
-        id_apartamento: convite.id_apartamento,
-        id_condominio: convite.id_condominio,
-        is_visitante: convite.is_prestador === 1 ? 0 : 1,
-        is_prestador: convite.is_prestador,
-        // Campos que o visitante não tem como saber — período da visita e,
-        // para prestador, os dias em que ele volta. Todos OPCIONAIS: o app já
-        // publicado manda o corpo vazio, e a API não pode quebrar para ele.
-        data_hora_inicio: extras.data_hora_inicio,
-        data_hora_termino: extras.data_hora_termino,
-        dias_semana: convite.is_prestador === 1 ? extras.dias_semana : undefined,
-        // NÃO enrola no terminal facial. A foto veio pela página pública, e o
-        // aceite que o visitante marcou fala em "autorizar minha entrada" —
-        // não menciona reconhecimento facial. Biometria é dado sensível e o
-        // Art. 11 da LGPD exige consentimento específico e destacado.
-        //
-        // Sem esta linha o `create()` dispara `fireFacialSync` sempre que há
-        // foto, e o rosto de um terceiro que nunca usou o app entra no
-        // aparelho. Coberto por teste.
-        sem_facial: true,
-      } as any,
-      user,
-    );
+    let visitante: any;
+    try {
+      visitante = await this.visitantes.create(
+        {
+          nome: convite.nome ?? '',
+          doc_identificacao: convite.cpf ?? undefined,
+          foto_pessoa: convite.foto_url ?? undefined,
+          id_apartamento: convite.id_apartamento,
+          id_condominio: convite.id_condominio,
+          is_visitante: convite.is_prestador === 1 ? 0 : 1,
+          is_prestador: convite.is_prestador,
+          data_hora_inicio: extras.data_hora_inicio,
+          data_hora_termino: extras.data_hora_termino,
+          dias_semana: convite.is_prestador === 1 ? extras.dias_semana : undefined,
+          sem_facial: true,
+        } as any,
+        user,
+      );
 
-    await this.prisma.convites_Visita.update({
-      where: { id: convite.id },
-      data: { id_visitante: (visitante as any)?.id ?? null },
-    });
+      await this.prisma.convites_Visita.update({
+        where: { id: convite.id },
+        data: { id_visitante: visitante?.id ?? null },
+      });
+    } catch (err) {
+      // Se a criação falhar, reverte para 'preenchido' para não orfanar o convite
+      await this.prisma.convites_Visita.update({
+        where: { id: convite.id },
+        data: { status: 'preenchido', respondido_em: null },
+      }).catch(() => {});
+      throw err;
+    }
 
     return visitante;
   }
