@@ -126,247 +126,392 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return PopScope(
-      // Sem saída pelo botão voltar: consentimento que dá para pular não é
-      // consentimento.
       canPop: false,
       child: Scaffold(
         backgroundColor: AppColors.bg(context),
         body: SafeArea(
-          child: Column(children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                children: [
-                  // Cabeçalho com o gradiente azul do app — mesmo tratamento
-                  // do cartão de saudação em Meus Condomínios (cantos 20,
-                  // sombra do primário). Antes era um ícone solto num
-                  // retângulo que o ListView esticava pela largura toda.
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          AppColors.primaryGradientStart,
-                          AppColors.primaryGradientEnd,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.md,
+                  ),
+                  children: [
+                    // Cabeçalho azul moderno
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: 18,
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withOpacity(0.35),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Row(children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white.withOpacity(0.30)),
-                        ),
-                        child: const Icon(PhosphorIcons.shieldCheck,
-                            color: Colors.white, size: 26),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Sua privacidade',
-                                style: AppTypography.title(context).copyWith(
-                                    color: Colors.white, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Precisamos do seu consentimento para tratar alguns dados.',
-                              style: AppTypography.caption(context)
-                                  .copyWith(color: Colors.white.withOpacity(0.85)),
-                            ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            AppColors.primaryGradientStart,
+                            AppColors.primaryGradientEnd,
                           ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.28),
+                            blurRadius: 14,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.20),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: const Icon(
+                              PhosphorIcons.shieldCheck,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Sua privacidade',
+                                  style: AppTypography.headline(context).copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 19,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Precisamos do seu consentimento para tratar alguns dados.',
+                                  style: AppTypography.caption(context).copyWith(
+                                    color: Colors.white.withValues(alpha: 0.90),
+                                    fontSize: 12.5,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // Card 1: O que tratamos e para quê
+                    _cardInformativo(
+                      context,
+                      icone: PhosphorIcons.identificationCard,
+                      titulo: 'O que tratamos e para quê',
+                      descricao:
+                          'Nome, e-mail, telefone, CPF e sua unidade — para identificar você, controlar o acesso ao condomínio e enviar comunicados oficiais.',
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Card 2: Com quem compartilhamos
+                    _cardInformativo(
+                      context,
+                      icone: PhosphorIcons.usersThree,
+                      titulo: 'Com quem compartilhamos',
+                      descricao:
+                          'Com a administração do seu condomínio. Não vendemos seus dados nem os usamos para publicidade.',
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Card 3: Por quanto tempo
+                    _cardInformativo(
+                      context,
+                      icone: PhosphorIcons.clock,
+                      titulo: 'Por quanto tempo',
+                      descricao:
+                          'Enquanto você for morador, e pelo prazo legal aplicável depois disso.',
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // Link sutil para ler a política completa
+                    Center(
+                      child: GestureDetector(
+                        onTap: () => launchUrl(
+                          Uri.parse(_urlPolitica),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                PhosphorIcons.arrowSquareOut,
+                                size: 14,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Ler a Política de Privacidade completa',
+                                style: AppTypography.caption(context).copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ]),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  _bloco(
-                    icone: PhosphorIcons.identificationCard,
-                    titulo: 'O que tratamos e para quê',
-                    texto: 'Nome, e-mail, telefone, CPF e sua unidade — para identificar '
-                        'você, controlar o acesso ao condomínio e enviar comunicados oficiais.',
-                  ),
-                  _bloco(
-                    icone: PhosphorIcons.usersThree,
-                    titulo: 'Com quem compartilhamos',
-                    texto: 'Com a administração do seu condomínio. Não vendemos seus dados '
-                        'nem os usamos para publicidade.',
-                  ),
-                  _bloco(
-                    icone: PhosphorIcons.clock,
-                    titulo: 'Por quanto tempo',
-                    texto: 'Enquanto você for morador, e pelo prazo legal aplicável depois disso.',
-                  ),
-                  _bloco(
-                    icone: PhosphorIcons.scales,
-                    titulo: 'Seus direitos',
-                    texto: 'Você pode pedir acesso, correção ou exclusão dos seus dados a '
-                        'qualquer momento, e revogar este consentimento.',
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  GestureDetector(
-                    onTap: () => launchUrl(Uri.parse(_urlPolitica),
-                        mode: LaunchMode.externalApplication),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(PhosphorIcons.arrowSquareOut, size: 15, color: AppColors.primary),
-                      const SizedBox(width: 6),
-                      Text('Ler a Política de Privacidade completa',
-                          style: AppTypography.caption(context).copyWith(
-                              color: AppColors.primary, fontWeight: FontWeight.bold)),
-                    ]),
-                  ),
-
-                  const SizedBox(height: AppSpacing.md),
-                ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                ),
               ),
-            ),
-            // As caixas ficam FIXAS, junto da ação — não dentro da lista que
-            // rola. Numa tela de celular elas caíam abaixo da dobra, e a da
-            // biometria sequer aparecia: dava para aceitar sem nunca ter visto
-            // a opção. O Art. 11 exige consentimento DESTACADO, e caixa que
-            // se precisa procurar rolando não é destaque.
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.bg(context),
-                border: Border(top: BorderSide(color: AppColors.border(context))),
-              ),
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
-              child: Column(children: [
-                _caixa(
-                  valor: _privacidade,
-                  onChanged: (v) => setState(() => _privacidade = v),
-                  obrigatorio: true,
-                  texto: 'Li e concordo com a Política de Privacidade e com o '
-                      'tratamento dos meus dados pessoais.',
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                _caixa(
-                  valor: _biometria,
-                  onChanged: (v) => setState(() => _biometria = v),
-                  obrigatorio: false,
-                  texto: 'Autorizo o uso da minha biometria facial para abrir a '
-                      'portaria pelo rosto. Recusar não tira seu acesso ao app.',
-                ),
-                const SizedBox(height: AppSpacing.md),
-                ElevatedButton(
-                  onPressed: (!_privacidade || _enviando) ? null : _aceitar,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _enviando
-                      ? const SizedBox(
-                          width: 20, height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Aceitar e continuar'),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                TextButton(
-                  onPressed: _enviando ? null : _recusar,
-                  child: Text('Recusar e sair',
-                      style: AppTypography.body(context)
-                          .copyWith(color: AppColors.textSecondary(context))),
-                ),
-              ]),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
 
-  /// Cartão, e não texto solto: é o formato que o resto do app usa para
-  /// agrupar informação (superfície, cantos 16, ícone em caixa colorida).
-  Widget _bloco({required IconData icone, required String titulo, required String texto}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.10),
-            borderRadius: BorderRadius.circular(10),
+              // Área de Aceite e Ações fixa no rodapé
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.bg(context),
+                  border: Border(
+                    top: BorderSide(
+                      color: isDark
+                          ? Colors.white10
+                          : const Color(0xFFE2E8F0).withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                ),
+                child: Column(
+                  children: [
+                    // Checkbox Obrigatório
+                    _caixaConsentimento(
+                      context,
+                      valor: _privacidade,
+                      onChanged: (v) => setState(() => _privacidade = v),
+                      obrigatorio: true,
+                      texto:
+                          'Li e concordo com a Política de Privacidade e com o tratamento dos meus dados pessoais.',
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Checkbox Opcional
+                    _caixaConsentimento(
+                      context,
+                      valor: _biometria,
+                      onChanged: (v) => setState(() => _biometria = v),
+                      obrigatorio: false,
+                      texto:
+                          'Autorizo o uso da minha biometria facial para abrir a portaria pelo rosto. Recusar não tira seu acesso ao app.',
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // Botão Aceitar e continuar
+                    ElevatedButton(
+                      onPressed: (!_privacidade || _enviando) ? null : _aceitar,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        disabledBackgroundColor:
+                            AppColors.primary.withValues(alpha: 0.45),
+                        foregroundColor: Colors.white,
+                        disabledForegroundColor: Colors.white70,
+                        elevation: 0,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: _enviando
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Aceitar e continuar',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Botão Recusar e sair
+                    TextButton(
+                      onPressed: _enviando ? null : _recusar,
+                      child: Text(
+                        'Recusar e sair',
+                        style: AppTypography.body(context).copyWith(
+                          color: AppColors.textSecondary(context),
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          child: Icon(icone, size: 16, color: AppColors.primary),
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(titulo,
-                style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            Text(texto,
-                style: AppTypography.caption(context)
-                    .copyWith(color: AppColors.textSecondary(context))),
-          ]),
-        ),
-      ]),
+      ),
     );
   }
 
-  Widget _caixa({
+  /// Card informativo individual com ícone em container suave, título e descrição
+  Widget _cardInformativo(
+    BuildContext context, {
+    required IconData icone,
+    required String titulo,
+    required String descricao,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF131D2E) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white10 : const Color(0xFFEDF2F7),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF1E3A8A).withValues(alpha: 0.4)
+                  : const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icone,
+              size: 20,
+              color: const Color(0xFF2563EB),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: AppTypography.caption(context).copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                    color: AppColors.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  descricao,
+                  style: AppTypography.caption(context).copyWith(
+                    color: AppColors.textSecondary(context),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Caixa de consentimento estilizada com destaque no estado marcado/desmarcado
+  Widget _caixaConsentimento(
+    BuildContext context, {
     required bool valor,
     required ValueChanged<bool> onChanged,
     required bool obrigatorio,
     required String texto,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: () => onChanged(!valor),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(14),
+          color: isDark ? const Color(0xFF131D2E) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: valor ? AppColors.primary : AppColors.border(context),
-            width: valor ? 1.6 : 1,
+            color: valor
+                ? AppColors.primary
+                : (isDark ? Colors.white24 : const Color(0xFFCBD5E1)),
+            width: valor ? 1.5 : 1,
           ),
         ),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(
-            valor ? PhosphorIcons.checkSquare : PhosphorIcons.square,
-            color: valor ? AppColors.primary : AppColors.textTertiary(context),
-            size: 22,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(
-                obrigatorio ? 'Obrigatório' : 'Opcional',
-                style: AppTypography.tiny(context).copyWith(
-                  color: obrigatorio ? AppColors.error : AppColors.textTertiary(context),
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.8,
-                ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                valor ? PhosphorIcons.checkSquare : PhosphorIcons.square,
+                color: valor
+                    ? AppColors.primary
+                    : AppColors.textTertiary(context),
+                size: 20,
               ),
-              const SizedBox(height: 2),
-              Text(texto, style: AppTypography.caption(context)),
-            ]),
-          ),
-        ]),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    obrigatorio ? 'Obrigatório' : 'Opcional',
+                    style: TextStyle(
+                      color: obrigatorio
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFF64748B),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.5,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    texto,
+                    style: AppTypography.caption(context).copyWith(
+                      color: AppColors.textSecondary(context),
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
