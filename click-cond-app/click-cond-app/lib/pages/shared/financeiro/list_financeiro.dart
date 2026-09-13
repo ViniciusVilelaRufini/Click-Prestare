@@ -1365,8 +1365,24 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       height: 54,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+                        gradient: isSelected
+                            ? const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0xFF3B82F6),
+                                  Color(0xFF1D4ED8),
+                                ],
+                              )
+                            : null,
+                        color: isSelected ? null : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
+                        border: isSelected
+                            ? Border.all(
+                                color: const Color(0xFF60A5FA).withOpacity(0.4),
+                                width: 1,
+                              )
+                            : null,
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
@@ -2076,8 +2092,24 @@ class _ToggleItem extends StatelessWidget {
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+            gradient: isSelected
+                ? const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF3B82F6),
+                      Color(0xFF1D4ED8),
+                    ],
+                  )
+                : null,
+            color: isSelected ? null : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
+            border: isSelected
+                ? Border.all(
+                    color: const Color(0xFF60A5FA).withOpacity(0.35),
+                    width: 1,
+                  )
+                : null,
             boxShadow: isSelected
                 ? [
                     BoxShadow(
