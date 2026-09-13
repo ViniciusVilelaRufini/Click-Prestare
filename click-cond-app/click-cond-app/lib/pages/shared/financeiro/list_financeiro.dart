@@ -250,7 +250,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                   child: _ActionCardButton(
                                     label: getText('financeiro_nav_relatorio'),
                                     icon: PhosphorIcons.filePdf,
-                                    color: AppColors.primary,
+                                    color: const Color(0xFF2563EB),
+                                    iconBg: const Color(0xFFEFF6FF),
                                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinanceiroRelatorio())),
                                   ),
                                 ),
@@ -259,7 +260,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                   child: _ActionCardButton(
                                     label: getText('financeiro_inadimplentes'),
                                     icon: PhosphorIcons.userList,
-                                    color: AppColors.error,
+                                    color: const Color(0xFFEF4444),
+                                    iconBg: const Color(0xFFFEE2E2),
                                     onTap: () => Navigator.push(context, MaterialPageRoute(
                                       builder: (_) => InadimplenciaDashboardPage(mes: mes, ano: ano),
                                     )).then((_) => loadList()),
@@ -282,31 +284,67 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                           ],
                           if (_viewMode == FinanceiroViewMode.condominio) ...[
                             const SizedBox(height: AppSpacing.lg),
-                            AppInput(
-                              label: 'Pesquisar',
-                              hint: 'Buscar por morador ou categoria...',
-                              controller: _searchController,
-                              prefixIcon: PhosphorIcons.magnifyingGlass,
-                              onChanged: (v) {
-                                _searchQuery = v;
-                                _applyFilter();
-                              },
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Theme.of(context).brightness == Brightness.dark
+                                        ? Colors.black.withOpacity(0.15)
+                                        : const Color(0xFF64748B).withOpacity(0.04),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: TextField(
+                                controller: _searchController,
+                                onChanged: (v) {
+                                  _searchQuery = v;
+                                  _applyFilter();
+                                },
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Pesquisar lançamentos...',
+                                  hintStyle: TextStyle(
+                                    fontSize: 14,
+                                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                  ),
+                                  prefixIcon: Icon(
+                                    PhosphorIcons.magnifyingGlass,
+                                    size: 18,
+                                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                  ),
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                ),
+                              ),
                             ),
                             const SizedBox(height: AppSpacing.md),
                             Row(
                               children: [
                                 _CountChip(
                                   icon: PhosphorIcons.checkCircle,
-                                  color: const Color(0xFF22C55E),
+                                  color: const Color(0xFF16A34A),
+                                  bgColor: const Color(0xFFDCFCE7),
+                                  borderColor: const Color(0xFFBBF7D0),
                                   label: '${getCountStatus(1)} ${getText('pagos')}',
-                                  context: context,
                                 ),
-                                const SizedBox(width: AppSpacing.md),
+                                const SizedBox(width: AppSpacing.sm),
                                 _CountChip(
                                   icon: PhosphorIcons.clock,
-                                  color: const Color(0xFFF59E0B),
+                                  color: const Color(0xFFD97706),
+                                  bgColor: const Color(0xFFFEF3C7),
+                                  borderColor: const Color(0xFFFDE68A),
                                   label: '${getCountStatus(0)} ${getText('lb_pendentes')}',
-                                  context: context,
                                 ),
                               ],
                             ),
@@ -344,10 +382,11 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(data.toUpperCase(), 
-                                style: AppTypography.captionMedium(context).copyWith(
-                                  color: AppColors.textTertiary(context),
+                                style: TextStyle(
+                                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                  fontWeight: FontWeight.w700,
                                   letterSpacing: 1.1,
-                                  fontSize: 10
+                                  fontSize: 11,
                                 )
                               ),
                               const SizedBox(height: AppSpacing.sm),
@@ -434,26 +473,35 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return FloatingActionButton(
       heroTag: null,
       onPressed: loadList,
-      backgroundColor: AppColors.primary,
+      backgroundColor: const Color(0xFF2563EB),
       foregroundColor: Colors.white,
-      child: const Icon(PhosphorIcons.arrowsClockwise),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 4,
+      child: const Icon(PhosphorIcons.arrowsClockwise, size: 22),
     );
   }
 
   Widget _buildViewToggle() {
     final isSindico = getUserType() == 'sindico';
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // MEU FINANCEIRO aparece sempre — se o síndico também é morador, ele PRECISA
-    // ver as próprias dívidas. Síndico ganha também CONDOMÍNIO. A Inadimplência
-    // não fica no toggle: é um botão ao lado de "Resumo".
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.06) : AppColors.border(context).withOpacity(0.5),
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark 
+                ? Colors.black.withOpacity(0.2) 
+                : const Color(0xFF64748B).withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -2019,6 +2067,7 @@ class _ToggleItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -2027,17 +2076,12 @@ class _ToggleItem extends StatelessWidget {
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            gradient: isSelected
-                ? const LinearGradient(
-                    colors: [AppColors.primary, AppColors.primaryDark],
-                  )
-                : null,
-            color: isSelected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.30),
+                      color: const Color(0xFF2563EB).withOpacity(0.30),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -2050,15 +2094,16 @@ class _ToggleItem extends StatelessWidget {
               Icon(
                 icon,
                 size: 15,
-                color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                color: isSelected ? Colors.white : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
               ),
               const SizedBox(width: 6),
               Text(
                 label,
-                style: AppTypography.tiny(context).copyWith(
-                  color: isSelected ? Colors.white : AppColors.textSecondary(context),
+                style: TextStyle(
+                  color: isSelected ? Colors.white : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  letterSpacing: 0.8,
+                  letterSpacing: 0.6,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -2083,21 +2128,20 @@ class _DashboardHeader extends StatelessWidget {
   });
 
   String _cleanMoeda(String val) {
-    final m = Singleton.instance.getCurrentMoeda();
-    var s = val.replaceAll('BRL', m).replaceAll('R\$', m).trim();
+    var s = val.replaceAll('BRL', 'R\$').trim();
     if (s.startsWith('-')) {
       var rest = s.substring(1).trim();
-      if (rest.startsWith(m)) {
-        var numPart = rest.substring(m.length).trim();
-        return '- $m $numPart';
+      if (rest.startsWith('R\$')) {
+        var numPart = rest.substring(2).trim();
+        return '- R\$ $numPart';
       }
       return '- $rest';
     }
-    if (s.startsWith(m)) {
-      var numPart = s.substring(m.length).trim();
-      return '$m $numPart';
+    if (s.startsWith('R\$')) {
+      var numPart = s.substring(2).trim();
+      return 'R\$ $numPart';
     }
-    return s.isEmpty ? '$m 0,00' : s;
+    return s.isEmpty ? 'R\$ 0,00' : s;
   }
 
   @override
@@ -2108,98 +2152,102 @@ class _DashboardHeader extends StatelessWidget {
     final cleanReceitas = _cleanMoeda(receitas);
     final cleanDespesas = _cleanMoeda(despesas);
 
-    // Ainda colore o valor do saldo. O fundo do selo (`statusBg`) saiu junto
-    // com o selo.
-    final statusColor = isNeg ? const Color(0xFFEF4444) : const Color(0xFF10B981);
+    final statusColor = isNeg ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
 
     return Column(
       children: [
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            borderRadius: BorderRadius.circular(24),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isDark 
-                  ? Colors.white.withOpacity(0.08) 
-                  : AppColors.border(context).withOpacity(0.6),
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              width: 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark 
+                    ? Colors.black.withOpacity(0.20) 
+                    : const Color(0xFF64748B).withOpacity(0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // O selo "Déficit/Superávit" saiu daqui: o próprio valor
-                // abaixo já diz isso, pelo sinal e pela cor. O selo repetia a
-                // informação e ainda dava ao saldo de um mês o tom de
-                // veredito sobre a saúde do condomínio.
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
+                      padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(isDark ? 0.20 : 0.10),
-                        borderRadius: BorderRadius.circular(8),
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
                         PhosphorIcons.wallet,
-                        size: 14,
-                        color: AppColors.primary,
+                        size: 16,
+                        color: Color(0xFF2563EB),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Text(
                       'SALDO ATUAL',
-                      style: AppTypography.tiny(context).copyWith(
-                        color: AppColors.textTertiary(context),
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.5,
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        fontSize: 12,
                       ),
                     ),
                   ],
                 ),
-                    const SizedBox(height: 16),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        cleanSaldo,
-                        style: AppTypography.title(context).copyWith(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                          color: statusColor,
-                        ),
+                const SizedBox(height: 16),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    cleanSaldo,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  height: 1,
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      PhosphorIcons.clockCounterClockwise,
+                      size: 14,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Última atualização: $data',
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      height: 1,
-                      color: isDark ? Colors.white.withOpacity(0.06) : AppColors.border(context).withOpacity(0.5),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Icon(
-                          PhosphorIcons.clockCounterClockwise,
-                          size: 13,
-                          color: AppColors.textTertiary(context),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Última atualização: $data',
-                          style: AppTypography.tiny(context).copyWith(
-                            color: AppColors.textTertiary(context),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
+          ),
+        ),
         const SizedBox(height: AppSpacing.md),
         Row(
           children: [
@@ -2207,8 +2255,9 @@ class _DashboardHeader extends StatelessWidget {
               child: _SmallSummaryCard(
                 label: 'RECEITAS',
                 value: cleanReceitas,
-                color: const Color(0xFF10B981),
+                color: const Color(0xFF16A34A),
                 icon: PhosphorIcons.arrowDownLeft,
+                iconBg: const Color(0xFFDCFCE7),
                 isDark: isDark,
               ),
             ),
@@ -2217,8 +2266,9 @@ class _DashboardHeader extends StatelessWidget {
               child: _SmallSummaryCard(
                 label: 'DESPESAS',
                 value: cleanDespesas,
-                color: const Color(0xFFEF4444),
+                color: const Color(0xFFDC2626),
                 icon: PhosphorIcons.arrowUpRight,
+                iconBg: const Color(0xFFFEE2E2),
                 isDark: isDark,
               ),
             ),
@@ -2233,6 +2283,7 @@ class _SmallSummaryCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final Color iconBg;
   final IconData icon;
   final bool isDark;
 
@@ -2240,6 +2291,7 @@ class _SmallSummaryCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    required this.iconBg,
     required this.icon,
     required this.isDark,
   });
@@ -2249,11 +2301,19 @@ class _SmallSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(20),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: color.withOpacity(isDark ? 0.28 : 0.18),
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withOpacity(0.15) : const Color(0xFF64748B).withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2263,7 +2323,7 @@ class _SmallSummaryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(isDark ? 0.20 : 0.12),
+                  color: isDark ? color.withOpacity(0.20) : iconBg,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, size: 14, color: color),
@@ -2272,10 +2332,11 @@ class _SmallSummaryCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: AppTypography.tiny(context).copyWith(
+                  style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 1,
+                    letterSpacing: 0.8,
+                    fontSize: 11,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -2288,10 +2349,10 @@ class _SmallSummaryCard extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: AppTypography.title(context).copyWith(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary(context),
+                color: label == 'DESPESAS' ? const Color(0xFFDC2626) : (isDark ? Colors.white : const Color(0xFF0F172A)),
               ),
             ),
           ),
@@ -2304,9 +2365,17 @@ class _SmallSummaryCard extends StatelessWidget {
 class _CountChip extends StatelessWidget {
   final IconData icon;
   final Color color;
+  final Color? bgColor;
+  final Color? borderColor;
   final String label;
-  final BuildContext context;
-  const _CountChip({required this.icon, required this.color, required this.label, required this.context});
+
+  const _CountChip({
+    required this.icon,
+    required this.color,
+    this.bgColor,
+    this.borderColor,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2314,9 +2383,12 @@ class _CountChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.16 : 0.08), 
-        borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(color: color.withOpacity(isDark ? 0.25 : 0.18)),
+        color: isDark ? color.withOpacity(0.15) : (bgColor ?? color.withOpacity(0.08)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? color.withOpacity(0.3) : (borderColor ?? color.withOpacity(0.2)),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2325,10 +2397,11 @@ class _CountChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: AppTypography.tiny(context).copyWith(
+            style: TextStyle(
               color: color,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
+              fontSize: 12,
+              letterSpacing: 0.3,
             ),
           ),
         ],
@@ -2339,9 +2412,7 @@ class _CountChip extends StatelessWidget {
 
 class _LancamentoCard extends StatelessWidget {
   final dynamic item;
-  // Sem `onTap`: o financeiro é somente leitura, e o toque abria o formulário
-  // de edição. Um GestureDetector sem ação dá o ripple e promete o que não
-  // acontece.
+
   const _LancamentoCard({required this.item});
 
   IconData _getIcon(String categoria) {
@@ -2351,78 +2422,125 @@ class _LancamentoCard extends StatelessWidget {
       case 'internet': return PhosphorIcons.wifiHigh;
       case 'aluguel': return PhosphorIcons.house;
       case 'condomínio': return PhosphorIcons.buildings;
+      case 'manutenção': return PhosphorIcons.wrench;
       default: return PhosphorIcons.currencyDollar;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCredito = item['tipo'] == 'C';
     final isPago = item['pago'] is num ? item['pago'] == 1 : item['pago']?.toString() == '1';
-    // status vem como String do backend (coluna varchar): comparar com o int 2
-    // dava sempre falso e o selo "em verificação" nunca aparecia depois que o
-    // morador mandava o comprovante.
     final isVerifying = item['status']?.toString() == '2';
-    final color = isCredito ? const Color(0xFF22C55E) : AppColors.error;
-    final statusColor = isPago ? Colors.green : (isVerifying ? Colors.blue : Colors.orange);
+
+    final valueColor = isCredito ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final statusColor = isPago 
+        ? const Color(0xFF16A34A) 
+        : (isVerifying ? const Color(0xFF2563EB) : const Color(0xFFD97706));
+    final statusBg = isPago 
+        ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7))
+        : (isVerifying 
+            ? (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE))
+            : (isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7)));
+
+    String valorFormatted = (item['valorString'] ?? '').toString().replaceAll('BRL', 'R\$').trim();
 
     return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.surface(context), 
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05))
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          width: 1,
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.bg(context), 
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(_getIcon(item['categoria'] ?? ''), color: AppColors.primary, size: 22),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withOpacity(0.15) : const Color(0xFF64748B).withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isCredito 
+                  ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7)) 
+                  : (isDark ? const Color(0xFF1E3A8A).withOpacity(0.4) : const Color(0xFFEFF6FF)),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item['nome'] ?? '', 
-                    style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold), 
-                    maxLines: 1, 
-                    overflow: TextOverflow.ellipsis
-                  ),
-                  Text(item['categoria'] ?? 'Geral', 
-                    style: AppTypography.caption(context).copyWith(color: AppColors.textTertiary(context))
-                  ),
-                ],
-              ),
+            child: Icon(
+              _getIcon(item['categoria'] ?? ''),
+              color: isCredito ? const Color(0xFF16A34A) : const Color(0xFF2563EB),
+              size: 22,
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item['valorString'] ?? '', 
-                  style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.w800, color: color)
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
+                Text(
+                  item['nome'] ?? '',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
-                  child: Text(
-                    isPago ? "PAGO" : (isVerifying ? "ANÁLISE" : "PENDENTE"),
-                    style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  item['categoria'] ?? 'Geral',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                valorFormatted,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: valueColor,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isPago ? "PAGO" : (isVerifying ? "ANÁLISE" : "PENDENTE"),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2431,12 +2549,14 @@ class _ActionCardButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
+  final Color? iconBg;
   final VoidCallback onTap;
 
   const _ActionCardButton({
     required this.label,
     required this.icon,
     required this.color,
+    this.iconBg,
     required this.onTap,
   });
 
@@ -2444,7 +2564,7 @@ class _ActionCardButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
-      color: AppColors.surface(context),
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -2454,8 +2574,16 @@ class _ActionCardButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: color.withOpacity(isDark ? 0.28 : 0.18),
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              width: 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.black.withOpacity(0.15) : const Color(0xFF64748B).withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -2463,7 +2591,7 @@ class _ActionCardButton extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(isDark ? 0.20 : 0.12),
+                  color: isDark ? color.withOpacity(0.20) : (iconBg ?? color.withOpacity(0.12)),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 16),
@@ -2472,9 +2600,10 @@ class _ActionCardButton extends StatelessWidget {
               Flexible(
                 child: Text(
                   label,
-                  style: AppTypography.captionMedium(context).copyWith(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary(context),
+                    fontSize: 14,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
