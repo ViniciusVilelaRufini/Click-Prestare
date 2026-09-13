@@ -444,6 +444,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                         itemBuilder: (_, i) => _CondominioCard(
                           item: _list[i],
                           onTap: () => _goToNext(_list[i]),
+                          summary: _summary,
+                          isFirst: i == 0,
                         ),
                       ),
                     ),
@@ -686,6 +688,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final sw = MediaQuery.of(context).size.width;
     final avatarRadius = sw < 360 ? 22.0 : 26.0;
     final iconSize = sw < 360 ? 18.0 : 20.0;
@@ -840,18 +843,28 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(getText('meus_condominios'),
-                        style: AppTypography.title(context)),
-                    AppSpacing.gapXs,
-                    Text(
-                        '${_list.length} ${_list.length == 1 ? "condomínio" : "condomínios"}',
-                        style: AppTypography.bodySecondary(context)),
-                  ],
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    'Meus condomínios',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_list.length}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
               ),
               if (getUserType() == 'sindico')
                 FilledButton.icon(
@@ -864,12 +877,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       if (mounted) _loadList();
                     });
                   },
-                  icon: const Icon(PhosphorIcons.plus, size: 16),
+                  icon: const Icon(PhosphorIcons.plus, size: 15),
                   label: const Text('Novo'),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: RoundedRectangleBorder(
@@ -879,7 +892,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 ),
             ],
           ),
-          AppSpacing.gapXl,
+          AppSpacing.gapLg,
         ],
       ),
     );
@@ -1279,46 +1292,70 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: AppSpacing.xxl),
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                'Meus Eventos',
-                style: AppTypography.bodyMedium(context).copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              'Meus eventos',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                letterSpacing: -0.2,
+              ),
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _abrirHistoricoAcessos(),
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Ver todos',
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(
+                        PhosphorIcons.caretRightBold,
+                        color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                        size: 12,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _abrirHistoricoAcessos(),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Ver todos',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 3),
-                        const Icon(
-                          PhosphorIcons.caretRightBold,
-                          color: AppColors.primary,
-                          size: 12,
-                        ),
-                      ],
-                    ),
-                  ),
+            ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'HOJE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                ),
+              ),
+              Text(
+                _formatDateToday(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                 ),
               ),
             ],
@@ -1326,19 +1363,19 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         ),
         Container(
           decoration: BoxDecoration(
-            color: AppColors.surface(context),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppColors.border(context),
-              width: 1.0,
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
                 color: isDark
                     ? Colors.black.withOpacity(0.20)
-                    : const Color(0xFF64748B).withOpacity(0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
+                    : const Color(0xFF64748B).withOpacity(0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -1350,7 +1387,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   Divider(
                     height: 1,
                     thickness: 1,
-                    color: AppColors.border(context),
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
                   ),
                 _buildEventoRow(context, mostrar[i]),
               ],
@@ -1358,7 +1395,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 Divider(
                   height: 1,
                   thickness: 1,
-                  color: AppColors.border(context),
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
                 ),
                 Material(
                   color: isDark
@@ -1375,7 +1412,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                             Text(
                               '+ $restantes ${restantes == 1 ? 'evento recente' : 'eventos recentes'}',
                               style: TextStyle(
-                                color: isDark ? const Color(0xFF60A5FA) : AppColors.primary,
+                                color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1384,7 +1421,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                             Icon(
                               PhosphorIcons.arrowRightBold,
                               size: 13,
-                              color: isDark ? const Color(0xFF60A5FA) : AppColors.primary,
+                              color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
                             ),
                           ],
                         ),
@@ -1408,18 +1445,17 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     final tipoPessoa = (e['tipo_pessoa'] ?? '').toString();
     final nome = (e['nome'] ?? '').toString();
 
-    // Paleta de status no padrão visual do app (sem tons esverdeados no dark)
-    final Color iconBg = isDark
+    final Color arrowBg = isDark
         ? (isEntrada
-            ? const Color(0xFF1E293B)
-            : const Color(0xFF1E293B))
+            ? const Color(0xFF1E3A8A).withOpacity(0.35)
+            : const Color(0xFF581C87).withOpacity(0.35))
         : (isEntrada
-            ? AppColors.primary.withOpacity(0.10)
-            : const Color(0xFFF1F5F9));
+            ? const Color(0xFFDBEAFE).withOpacity(0.6)
+            : const Color(0xFFF3E8FF));
 
-    final Color iconColor = isDark
-        ? (isEntrada ? const Color(0xFF38BDF8) : const Color(0xFF818CF8))
-        : (isEntrada ? AppColors.primary : const Color(0xFF4F46E5));
+    final Color arrowColor = isDark
+        ? (isEntrada ? const Color(0xFF60A5FA) : const Color(0xFFC084FC))
+        : (isEntrada ? const Color(0xFF2563EB) : const Color(0xFF9333EA));
 
     final IconData icon = isEntrada
         ? PhosphorIcons.arrowDownLeftBold
@@ -1427,32 +1463,20 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
     final String statusLabel = isEntrada ? 'Entrou' : 'Saiu';
 
-    // Tags com visual neutro e consistente
     final String tag;
-    final Color tagBg;
-    final Color tagBorder;
-    final Color tagTextColor;
-
     if (isVoce) {
       tag = 'Você';
-      tagBg = isDark ? const Color(0xFF1E3A8A).withOpacity(0.3) : const Color(0xFFEFF6FF);
-      tagBorder = isDark ? const Color(0xFF2563EB).withOpacity(0.4) : const Color(0xFFBFDBFE);
-      tagTextColor = isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8);
     } else if (tipoPessoa == 'prestador') {
       tag = 'Prestador';
-      tagBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
-      tagBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-      tagTextColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
     } else {
       tag = 'Visitante';
-      tagBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
-      tagBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-      tagTextColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
     }
 
     final String displayName = nome.isNotEmpty
         ? nome
         : (isVoce ? 'Você' : (tipoPessoa == 'prestador' ? 'Prestador' : 'Visitante'));
+
+    final horaStr = _formatHora(e['timestamp']);
 
     return Material(
       color: Colors.transparent,
@@ -1460,34 +1484,47 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         onTap: () => _abrirHistoricoAcessos(destacarId: id),
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 12,
+            horizontal: 16,
+            vertical: 14,
           ),
           child: Row(
             children: [
+              SizedBox(
+                width: 44,
+                child: Text(
+                  horaStr,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(11),
+                  color: arrowBg,
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   icon,
-                  color: iconColor,
-                  size: 17,
+                  color: arrowColor,
+                  size: 15,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       displayName,
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white : const Color(0xFF0F172A),
                         letterSpacing: -0.1,
                       ),
@@ -1495,67 +1532,48 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: iconColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 4.5),
-                        Text(
-                          statusLabel,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: iconColor,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '•  ${_formatDataHora(e['timestamp'])}',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      '$statusLabel · $tag',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: arrowColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              // Tag pill
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: tagBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: tagBorder, width: 1),
-                ),
-                child: Text(
-                  tag,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: tagTextColor,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
               Icon(
                 PhosphorIcons.caretRight,
                 color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                size: 14,
+                size: 16,
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Formata a hora como "HH:mm" no fuso local do aparelho.
+  String _formatHora(dynamic ts) {
+    final d = parseDataApi(ts);
+    if (d == null) return '--:--';
+    final pad = (int n) => n.toString().padLeft(2, '0');
+    return '${pad(d.hour)}:${pad(d.minute)}';
+  }
+
+  /// Formata a data de hoje como "12 de setembro".
+  String _formatDateToday() {
+    final now = DateTime.now();
+    const meses = [
+      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+    ];
+    return '${now.day} de ${meses[now.month - 1]}';
   }
 
   /// Formata o timestamp como "15/07/2026 às 18:24" no fuso local do aparelho.
@@ -1708,97 +1726,289 @@ class _DashboardCard extends StatelessWidget {
 class _CondominioCard extends StatelessWidget {
   final dynamic item;
   final VoidCallback onTap;
-  const _CondominioCard({required this.item, required this.onTap});
+  final Map<String, dynamic>? summary;
+  final bool isFirst;
+
+  const _CondominioCard({
+    required this.item,
+    required this.onTap,
+    this.summary,
+    this.isFirst = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMorador = getUserType() == 'morador';
-    Widget subtitleWidget;
+    final String subtitleText;
 
     if (isMorador) {
       final apto = item['apto']?.toString() ?? '';
       final bloco = item['apto_bloco']?.toString() ?? '';
-      String details = '';
       if (apto.isNotEmpty) {
-        details = bloco.isNotEmpty ? 'Bloco $bloco - Apto $apto' : 'Apto $apto';
+        subtitleText = bloco.isNotEmpty ? 'Bloco $bloco · Apto $apto' : 'Apto $apto';
       } else {
-        details = 'Morador';
+        subtitleText = 'Morador';
       }
-      subtitleWidget = Text(
-        details,
-        style: AppTypography.caption(context).copyWith(
-          color: AppColors.textSecondary(context),
-          fontWeight: FontWeight.normal,
-        ),
-      );
     } else {
       final numBlocos = item['num_blocos'] ?? 0;
       final numAptos = item['num_aptos'] ?? 0;
       final blocoText = numBlocos == 1 ? 'bloco' : 'blocos';
       final aptoText = numAptos == 1 ? 'unidade' : 'unidades';
-
-      subtitleWidget = Text(
-        '$numBlocos $blocoText · $numAptos $aptoText',
-        style: AppTypography.caption(context).copyWith(
-          color: AppColors.textSecondary(context),
-          fontWeight: FontWeight.normal,
-        ),
-      );
+      subtitleText = '$numBlocos $blocoText · $numAptos $aptoText';
     }
 
-    return Material(
-      color: AppColors.surface(context),
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                child: SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: item['photo'] != null &&
-                          item['photo'].toString().isNotEmpty
-                      ? Image.network(
-                          item['photo'],
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _placeholder(),
-                        )
-                      : _placeholder(),
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.20)
+                : const Color(0xFF64748B).withOpacity(0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: item['photo'] != null &&
+                            item['photo'].toString().trim().isNotEmpty &&
+                            item['photo'].toString() != 'null'
+                        ? Image.network(
+                            item['photo'].toString().trim(),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _placeholder(context),
+                          )
+                        : _placeholder(context),
+                  ),
                 ),
-              ),
-              AppSpacing.gapLg,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item['nome'] ?? '',
-                        style: AppTypography.bodyMedium(context),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        item['nome'] ?? '',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          letterSpacing: -0.2,
+                        ),
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                    AppSpacing.gapXs,
-                    subtitleWidget,
-                  ],
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitleText,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFF64748B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      _buildBadges(context),
+                    ],
+                  ),
                 ),
-              ),
-              Icon(PhosphorIcons.caretRight,
-                  color: AppColors.textTertiary(context), size: 20),
-            ],
+                const SizedBox(width: 8),
+                Icon(
+                  PhosphorIcons.caretRight,
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  size: 18,
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _placeholder() {
+  Widget _buildBadges(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    int noLocalCount = 0;
+    if (item['no_local'] != null) {
+      noLocalCount = int.tryParse(item['no_local'].toString()) ?? 0;
+    } else if (item['inside_condo'] != null) {
+      noLocalCount = int.tryParse(item['inside_condo'].toString()) ?? 0;
+    } else if (item['visitantes_ativos'] != null) {
+      noLocalCount = int.tryParse(item['visitantes_ativos'].toString()) ?? 0;
+    } else if (item['moradores_no_local'] != null) {
+      noLocalCount = int.tryParse(item['moradores_no_local'].toString()) ?? 0;
+    } else if (isFirst && summary != null) {
+      noLocalCount = int.tryParse((summary?['inside_condo'] ?? summary?['visitantesAtivos'] ?? summary?['visits_today'] ?? summary?['visits'])?.toString() ?? '0') ?? 0;
+    }
+
+    int packageCount = 0;
+    if (item['packages'] != null) {
+      packageCount = int.tryParse(item['packages'].toString()) ?? 0;
+    } else if (item['encomendas'] != null) {
+      packageCount = int.tryParse(item['encomendas'].toString()) ?? 0;
+    } else if (item['encomendas_aguardando'] != null) {
+      packageCount = int.tryParse(item['encomendas_aguardando'].toString()) ?? 0;
+    } else if (isFirst && summary != null) {
+      packageCount = int.tryParse((summary?['packages'] ?? summary?['encomendasAguardando'] ?? summary?['encomendas'])?.toString() ?? '0') ?? 0;
+    }
+
+    final hasBadges = noLocalCount > 0 || packageCount > 0;
+
+    if (!hasBadges) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          'Sem novidades',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (noLocalCount > 0) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF064E3B).withOpacity(0.45)
+                  : const Color(0xFFDCFCE7),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF059669).withOpacity(0.4)
+                    : const Color(0xFFBBF7D0),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF16A34A),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '$noLocalCount no local',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? const Color(0xFF4ADE80)
+                        : const Color(0xFF16A34A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        if (packageCount > 0) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF1E1B4B).withOpacity(0.45)
+                  : const Color(0xFFEEF2FF),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF4338CA).withOpacity(0.4)
+                    : const Color(0xFFE0E7FF),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  PhosphorIcons.package,
+                  size: 14,
+                  color: isDark
+                      ? const Color(0xFF818CF8)
+                      : const Color(0xFF4F46E5),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '$packageCount',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? const Color(0xFF818CF8)
+                        : const Color(0xFF4F46E5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _placeholder(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: AppColors.primaryLight,
-      child:
-          Icon(PhosphorIcons.buildingsFill, color: AppColors.primary, size: 32),
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE),
+          width: 1.2,
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          PhosphorIcons.buildingsBold,
+          color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+          size: 28,
+        ),
+      ),
     );
   }
 }
