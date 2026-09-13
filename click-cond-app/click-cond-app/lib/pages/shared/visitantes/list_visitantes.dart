@@ -125,6 +125,36 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     }
   }
 
+  void _confirmarSaida(dynamic item) {
+    final nome = item['nome'] ?? 'visitante';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Encerrar Visita'),
+        content: Text('Deseja registrar a saída de $nome?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancelar', style: TextStyle(color: AppColors.textSecondary(context))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _registrarSaida(item);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            child: const Text('Encerrar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> loadList() async {
     try {
       // Stale-while-revalidate: skeleton só sem cache; ao voltar, mantém a lista.
@@ -225,11 +255,18 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          item['nome'] ?? '',
-                          style: AppTypography.headline(context),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                item['nome'] ?? '',
+                                style: AppTypography.headline(context),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            _buildFaceBadge(context, item['face_sync_status']?.toString()),
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Row(
@@ -1166,10 +1203,11 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     bottom: 120,
                                   ),
                                   itemCount: listInside.length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                                  separatorBuilder: (_, __) => const SizedBox(height: 12),
                                   itemBuilder: (_, i) => _VisitanteCard(
                                     item: listInside[i],
                                     onTap: () => _showVisitanteDetails(context, listInside[i]),
+                                    onEncerrar: () => _confirmarSaida(listInside[i]),
                                   ),
                                 ),
                         ),
@@ -1192,10 +1230,13 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     bottom: 120,
                                   ),
                                   itemCount: listCadastrados.length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                                  separatorBuilder: (_, __) => const SizedBox(height: 12),
                                   itemBuilder: (_, i) => _VisitanteCard(
                                     item: listCadastrados[i],
                                     onTap: () => _showVisitanteDetails(context, listCadastrados[i]),
+                                    onEncerrar: estaNoLocal(listCadastrados[i])
+                                        ? () => _confirmarSaida(listCadastrados[i])
+                                        : null,
                                     onQuickRelease: _canManage(listCadastrados[i])
                                         ? () => Navigator.push(
                                               context,
@@ -1224,11 +1265,18 @@ class ListVisitantesPageState extends State<ListVisitantes> {
 class _VisitanteCard extends StatelessWidget {
   final dynamic item;
   final VoidCallback? onTap;
+  final VoidCallback? onEncerrar;
   final VoidCallback? onQuickRelease;
-  const _VisitanteCard({required this.item, this.onTap, this.onQuickRelease});
+  const _VisitanteCard({
+    required this.item,
+    this.onTap,
+    this.onEncerrar,
+    this.onQuickRelease,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isInside = item['data_entrada'] != null && item['data_saida'] == null;
     
     bool isExpired = false;
@@ -1240,7 +1288,6 @@ class _VisitanteCard extends StatelessWidget {
       }
     }
 
-    // Verificar se é agendado (está ativo no período, mas não entrou ainda)
     bool isAuthorized = false;
     if (!isInside && item['data_saida'] == null && !isExpired) {
       final startStr = item['data_hora_inicio'];
@@ -1252,151 +1299,376 @@ class _VisitanteCard extends StatelessWidget {
         }
       }
     }
+
+    // Subtítulo no formato "Visitante · A · 101"
+    final tipo = (item['is_prestador'] == 1) ? 'Prestador' : 'Visitante';
+    final bloco = (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim();
+    final apto = (item['apto'] ?? '').toString().trim();
+    final List<String> subtitleParts = [tipo];
+    if (bloco.isNotEmpty && bloco != 'null') {
+      subtitleParts.add(bloco);
+    }
+    if (apto.isNotEmpty && apto != 'null') {
+      subtitleParts.add(apto);
+    }
+    final subtitle = subtitleParts.join(' · ');
+
+    // Tempo decorrido desde a entrada
+    final tempoDecorrido = _formatTempoDecorrido(
+      item['data_entrada'] ?? item['created_at'],
+      item['hora_entrada'],
+    );
+
+    // Código PIN
+    final hasPin = item['codigo_acesso'] != null &&
+        item['data_saida'] == null &&
+        !isExpired &&
+        item['codigo_acesso'].toString().trim().isNotEmpty;
+    final pinStr = item['codigo_acesso']?.toString().trim() ?? '';
+    final formattedPin = pinStr.length == 6
+        ? '${pinStr.substring(0, 3)}-${pinStr.substring(3, 6)}'
+        : pinStr;
+
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                _buildVisitanteAvatar(context, item),
-                if (isInside)
-                  Positioned(
-                    right: 0, bottom: 0,
-                    child: Container(
-                      width: 12, height: 12,
-                      decoration: BoxDecoration(
-                        color: AppColors.success,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.surface(context), width: 2),
-                      ),
-                    ),
-                  ),
-              ],
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.25)
+                  : const Color(0xFF64748B).withOpacity(0.06),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
             ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (item['condominio_nome'] != null && item['condominio_nome'].toString().isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2.0),
-                      child: Text(
-                        item['condominio_nome'].toString().toUpperCase(),
-                        style: AppTypography.tiny(context).copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Linha Superior: Avatar + Nome/Subtítulo + Badge de Status
+            Row(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _buildVisitanteAvatar(context, item, radius: 24),
+                    if (isInside)
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                              width: 2,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  Column(
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          ),
-                          _buildFaceBadge(context, item['face_sync_status']?.toString()),
-                        ],
+                      Text(
+                        item['nome'] ?? '',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 2,
-                        children: [
-                          if (item['apto'] != null)
-                            Text(
-                              '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto']}',
-                              style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
-                            ),
-                          if (item['is_prestador'] == 1)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
-                              child: Text('PRESTADOR', style: AppTypography.tiny(context).copyWith(color: AppColors.warning, fontWeight: FontWeight.bold)),
-                            ),
-                          if (isInside)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                              child: Text('NO LOCAL', style: AppTypography.tiny(context).copyWith(color: AppColors.success, fontWeight: FontWeight.bold)),
-                            )
-                          else if (isAuthorized)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                              child: Text('AUTORIZADO', style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                            ),
-                        ],
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                  if (item['codigo_acesso'] != null && item['data_saida'] == null && !isExpired) ...[
-                    const SizedBox(height: 2),
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        const Icon(PhosphorIcons.key, size: 12, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Text(
-                          'PIN: ${item['codigo_acesso'].toString().length == 6 ? "${item['codigo_acesso'].toString().substring(0, 3)}-${item['codigo_acesso'].toString().substring(3, 6)}" : item['codigo_acesso']}',
-                          style: AppTypography.tiny(context).copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                ),
+                const SizedBox(width: 8),
+                _buildStatusBadge(isInside, isAuthorized, isExpired),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+            ),
+            const SizedBox(height: 12),
+            // Linha Inferior: Horário + PIN + Ação
+            Row(
+              children: [
+                // Esquerda: Horário de entrada
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      PhosphorIcons.clock,
+                      size: 16,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isInside ? 'Entrou ' : (item['data_saida'] != null ? 'Saiu ' : ''),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                    Text(
+                      tempoDecorrido,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
                     ),
                   ],
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 4,
-                    runSpacing: 2,
-                    children: [
-                      if (item['data_hora'] != null)
-                        Text(item['data_hora'], style: AppTypography.caption(context)),
-                      if (item['hora_entrada'] != null) ...[
-                        Text(' • ', style: AppTypography.caption(context)),
-                        Icon(PhosphorIcons.signIn, size: 12, color: AppColors.textTertiary(context)),
-                        Text(item['hora_entrada'], style: AppTypography.caption(context)),
-                      ],
-                      if (item['hora_saida'] != null) ...[
-                        Text(' • ', style: AppTypography.caption(context)),
-                        Icon(PhosphorIcons.signOut, size: 12, color: AppColors.textTertiary(context)),
-                        Text(item['hora_saida'], style: AppTypography.caption(context)),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (onQuickRelease != null) ...[
-              const SizedBox(width: AppSpacing.sm),
-              Material(
-                color: Colors.transparent,
-                child: IconButton(
-                  icon: const Icon(PhosphorIcons.paperPlaneTilt, size: 20),
-                  color: AppColors.primary,
-                  onPressed: onQuickRelease,
-                  splashRadius: 20,
-                  tooltip: 'Liberar Novamente',
                 ),
-              ),
-            ],
-            if (onTap != null) ...[
-              const SizedBox(width: 4),
-              Icon(PhosphorIcons.caretRight, size: 16, color: AppColors.textTertiary(context)),
-            ],
+                const Spacer(),
+                // Centro: PIN ou Sem PIN
+                if (hasPin)
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: item['codigo_acesso'].toString()));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('PIN copiado!'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(PhosphorIcons.key, size: 14, color: Color(0xFF2563EB)),
+                          const SizedBox(width: 5),
+                          Text(
+                            formattedPin,
+                            style: const TextStyle(
+                              color: Color(0xFF2563EB),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    'Sem PIN',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                const Spacer(),
+                // Direita: Botão Encerrar ou Liberar
+                if (isInside && onEncerrar != null)
+                  InkWell(
+                    onTap: onEncerrar,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            PhosphorIcons.x,
+                            size: 13,
+                            color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Encerrar',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (!isInside && onQuickRelease != null)
+                  InkWell(
+                    onTap: onQuickRelease,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFFDBEAFE),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(
+                            PhosphorIcons.paperPlaneTilt,
+                            size: 13,
+                            color: Color(0xFF2563EB),
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Liberar',
+                            style: TextStyle(
+                              color: Color(0xFF2563EB),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 24),
+              ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildStatusBadge(bool isInside, bool isAuthorized, bool isExpired) {
+    Color bgColor;
+    Color textColor;
+    String text;
+    bool showDot = true;
+
+    if (isInside) {
+      bgColor = const Color(0xFFDCFCE7);
+      textColor = const Color(0xFF16A34A);
+      text = 'NO LOCAL';
+    } else if (isAuthorized) {
+      bgColor = const Color(0xFFEFF6FF);
+      textColor = const Color(0xFF2563EB);
+      text = 'AUTORIZADO';
+    } else if (isExpired) {
+      bgColor = const Color(0xFFF1F5F9);
+      textColor = const Color(0xFF64748B);
+      text = 'FINALIZADO';
+      showDot = false;
+    } else {
+      bgColor = const Color(0xFFFEF3C7);
+      textColor = const Color(0xFFD97706);
+      text = 'AGENDADO';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showDot) ...[
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: textColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTempoDecorrido(dynamic dataEntradaRaw, dynamic horaEntradaRaw) {
+    DateTime? entrada = parseDataApi(dataEntradaRaw);
+    if (entrada == null && horaEntradaRaw != null) {
+      final str = horaEntradaRaw.toString().trim();
+      final parts = str.split(':');
+      if (parts.length >= 2) {
+        final now = DateTime.now();
+        final h = int.tryParse(parts[0]);
+        final m = int.tryParse(parts[1]);
+        if (h != null && m != null) {
+          entrada = DateTime(now.year, now.month, now.day, h, m);
+        }
+      }
+    }
+
+    if (entrada == null) {
+      if (horaEntradaRaw != null && horaEntradaRaw.toString().isNotEmpty) {
+        return horaEntradaRaw.toString();
+      }
+      return '';
+    }
+
+    final diff = DateTime.now().difference(entrada);
+    if (diff.isNegative || diff.inMinutes < 1) {
+      return 'agora';
+    }
+    if (diff.inMinutes < 60) {
+      return 'há ${diff.inMinutes}min';
+    }
+    final h = diff.inHours;
+    final m = diff.inMinutes % 60;
+    if (h < 24) {
+      return m > 0 ? 'há ${h}h${m.toString().padLeft(2, '0')}' : 'há ${h}h';
+    }
+    return 'há ${diff.inDays}d';
   }
 }
 
@@ -1471,9 +1743,9 @@ String? _getFotoVisitante(dynamic item) {
 
 /// Decide entre exibir a foto (NetworkImage ou MemoryImage de base64)
 /// ou um fallback com a inicial do nome.
-Widget _buildVisitanteAvatar(BuildContext context, dynamic item, {double radius = 22}) {
+Widget _buildVisitanteAvatar(BuildContext context, dynamic item, {double radius = 24}) {
   final foto = _getFotoVisitante(item);
-  final nome = (item['nome'] ?? 'V').toString();
+  final nome = (item['nome'] ?? 'V').toString().trim();
 
   if (foto != null) {
     ImageProvider? provider;
@@ -1496,18 +1768,31 @@ Widget _buildVisitanteAvatar(BuildContext context, dynamic item, {double radius 
     if (provider != null) {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: AppColors.primary.withOpacity(0.1),
+        backgroundColor: const Color(0xFFEFF6FF),
         backgroundImage: provider,
       );
     }
   }
 
+  // Fallback com as iniciais (ex: Rodrigo Rufini -> RR)
+  final words = nome.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  String initials = 'V';
+  if (words.length >= 2) {
+    initials = '${words[0][0]}${words[1][0]}'.toUpperCase();
+  } else if (words.isNotEmpty && words[0].isNotEmpty) {
+    initials = words[0][0].toUpperCase();
+  }
+
   return CircleAvatar(
     radius: radius,
-    backgroundColor: AppColors.primary.withOpacity(0.1),
+    backgroundColor: const Color(0xFFDBEAFE),
     child: Text(
-      nome.substring(0, 1).toUpperCase(),
-      style: AppTypography.bodyMedium(context).copyWith(color: AppColors.primary),
+      initials,
+      style: TextStyle(
+        color: const Color(0xFF2563EB),
+        fontWeight: FontWeight.bold,
+        fontSize: radius * 0.72,
+      ),
     ),
   );
 }
