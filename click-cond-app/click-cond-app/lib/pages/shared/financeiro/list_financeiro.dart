@@ -1014,36 +1014,26 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       }
     }
 
-    dynamic pixItem;
-    for (var item in activeItems) {
-      if (_isPago(item['pago'])) continue;
-      final cat = (item['categoria'] ?? '').toString();
-      final tipo = (item['tipo'] ?? '').toString();
-      bool isCondo = tipo == 'C' || cat == 'Condomínio' || cat == 'Taxa Condominial';
-      if (isCondo && (_temValor(item['pix_copia_cola']) || _temValor(item['chave_pix']))) {
-        pixItem = item;
-        break;
-      }
-    }
-    if (pixItem == null) {
-      for (var item in activeItems) {
-        if (_isPago(item['pago'])) continue;
-        if (_temValor(item['pix_copia_cola']) || _temValor(item['chave_pix'])) {
-          pixItem = item;
-          break;
-        }
-      }
-    }
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: const Color(0xFF2563EB),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF3B82F6),
+            Color(0xFF1D4ED8),
+          ],
+        ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFF60A5FA).withOpacity(0.35),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2563EB).withOpacity(0.35),
+            color: const Color(0xFF2563EB).withOpacity(0.30),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -1099,7 +1089,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             textBaseline: TextBaseline.alphabetic,
             children: [
               const Text(
-                "BRL ",
+                "R\$ ",
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -1149,48 +1139,6 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               color: Colors.white.withOpacity(0.88),
               fontSize: 12,
               fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            shadowColor: Colors.black.withOpacity(0.08),
-            elevation: 1,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => _onPagarComPix(
-                activeItems: activeItems,
-                pixItem: pixItem,
-                totalPendente: totalPendente,
-                totalContas: totalContas,
-                contasPendentes: contasPendentes,
-              ),
-              child: Container(
-                width: double.infinity,
-                height: 48,
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(
-                      PhosphorIcons.qrCode,
-                      size: 19,
-                      color: Color(0xFF2563EB),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      "Pagar com Pix",
-                      style: TextStyle(
-                        color: Color(0xFF2563EB),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
         ],
