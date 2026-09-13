@@ -12,7 +12,6 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -76,8 +75,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     // mas está órfã (sem id_usuario), podemos tentar associar pelo apartamento e bloco do Singleton.
     if (_isFaturaDeApto(nome)) {
       final cleanNome = nome.toLowerCase();
-      final myApto = Singleton.instance.apartamento?.toString().toLowerCase() ?? '';
-      final myBloco = Singleton.instance.bloco?.toString().toLowerCase() ?? '';
+      final myApto = Singleton.instance.apartamento.toString().toLowerCase();
+      final myBloco = Singleton.instance.bloco.toString().toLowerCase();
       
       if (myApto.isNotEmpty && myBloco.isNotEmpty) {
         final aptoPat = 'apto $myApto';
@@ -379,34 +378,701 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
+  String? _getProximoVencimento(List<dynamic> activeItems) {
+    DateTime? menorData;
+    String? menorDataStr;
+
+    for (var item in activeItems) {
+      int pago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+      if (pago == 1) continue;
+
+      String raw = (item['data_vencimento'] ?? item['vencimento'] ?? item['data'] ?? '').toString().trim();
+      if (raw.isEmpty) continue;
+
+      DateTime? parsed;
+      String formatted = '';
+
+      if (raw.contains('/')) {
+        var parts = raw.split('/');
+        if (parts.length >= 2) {
+          int d = int.tryParse(parts[0]) ?? 1;
+          int m = int.tryParse(parts[1]) ?? 1;
+          int y = parts.length >= 3 ? (int.tryParse(parts[2]) ?? DateTime.now().year) : DateTime.now().year;
+          if (y < 100) y += 2000;
+          parsed = DateTime(y, m, d);
+          formatted = "${parts[0].padLeft(2, '0')}/${parts[1].padLeft(2, '0')}";
+        }
+      } else if (raw.contains('-')) {
+        var parts = raw.split('-');
+        if (parts.length >= 3) {
+          int y = int.tryParse(parts[0]) ?? DateTime.now().year;
+          int m = int.tryParse(parts[1]) ?? 1;
+          String dayPart = parts[2].split('T').first.trim();
+          int d = int.tryParse(dayPart) ?? 1;
+          parsed = DateTime(y, m, d);
+          formatted = "${d.toString().padLeft(2, '0')}/${m.toString().padLeft(2, '0')}";
+        }
+      }
+
+      if (formatted.isNotEmpty) {
+        if (parsed != null) {
+          if (menorData == null || parsed.isBefore(menorData)) {
+            menorData = parsed;
+            menorDataStr = formatted;
+          }
+        } else {
+          menorDataStr ??= formatted;
+        }
+      }
+    }
+
+    return menorDataStr;
+  }
+
+  void _abrirPixSheet({
+    required BuildContext context,
+    required String payload,
+    String? titulo,
+    double? valor,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  titulo ?? "Pague com Pix",
+                  style: AppTypography.title(sheetContext).copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 19,
+                  ),
+                ),
+                if (valor != null && valor > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    "BRL ${formatMoeda(valor)}",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  "Escaneie o QR Code abaixo ou copie o código:",
+                  style: AppTypography.caption(sheetContext),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: 200,
+                  height: 200,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: Colors.grey.shade200),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: QrImageView(
+                      data: payload,
+                      size: 200,
+                      backgroundColor: Colors.white,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: payload));
+                      Navigator.pop(sheetContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Código Pix Copia e Cola copiado com sucesso!"),
+                          backgroundColor: Color(0xFF10B981),
+                        ),
+                      );
+                    },
+                    icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
+                    label: const Text(
+                      "Copiar Código Pix",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _abrirChavePixSheet({
+    required BuildContext context,
+    required String chave,
+    double? valor,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  "Chave Pix do Condomínio",
+                  style: AppTypography.title(sheetContext).copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                if (valor != null && valor > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    "BRL ${formatMoeda(valor)}",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  "Utilize a chave Pix abaixo para realizar o pagamento:",
+                  style: AppTypography.caption(sheetContext),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border(context)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(PhosphorIcons.key, color: Color(0xFF2563EB), size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SelectableText(
+                          chave,
+                          style: AppTypography.body(context).copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: chave));
+                      Navigator.pop(sheetContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Chave Pix copiada com sucesso!"),
+                          backgroundColor: Color(0xFF10B981),
+                        ),
+                      );
+                    },
+                    icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
+                    label: const Text(
+                      "Copiar Chave Pix",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _abrirSelecaoContasPix(BuildContext context, List<dynamic> pendingItems) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border(context),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  "Contas pendentes",
+                  style: AppTypography.title(sheetContext).copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "Selecione uma conta para ver os detalhes ou pagar:",
+                  style: AppTypography.caption(sheetContext),
+                ),
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: pendingItems.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (c, idx) {
+                      final it = pendingItems[idx];
+                      final cat = (it['categoria'] ?? it['nome'] ?? 'Conta').toString();
+                      double val = 0;
+                      if (it['valor'] is num) {
+                        val = (it['valor'] as num).toDouble();
+                      } else if (it['valor'] != null) {
+                        val = double.tryParse(it['valor'].toString()) ?? 0;
+                      }
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF2563EB).withOpacity(0.12),
+                          child: const Icon(PhosphorIcons.receipt, color: Color(0xFF2563EB), size: 20),
+                        ),
+                        title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        subtitle: Text(it['data_vencimento'] != null ? "Vencimento: ${it['data_vencimento']}" : "Pendente"),
+                        trailing: Text(
+                          "BRL ${formatMoeda(val)}",
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF2563EB)),
+                        ),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          if (_temValor(it['pix_copia_cola'])) {
+                            _abrirPixSheet(
+                              context: context,
+                              payload: it['pix_copia_cola'].toString(),
+                              titulo: cat,
+                              valor: val,
+                            );
+                          } else if (_temValor(it['chave_pix'])) {
+                            _abrirChavePixSheet(
+                              context: context,
+                              chave: it['chave_pix'].toString(),
+                              valor: val,
+                            );
+                          } else {
+                            displayMessage(
+                              context,
+                              cat,
+                              "Dados de Pix automático não cadastrados para este lançamento. Use a chave Pix ou anexe o comprovante na categoria.",
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _onPagarComPix({
+    required List<dynamic> activeItems,
+    required dynamic pixItem,
+    required double totalPendente,
+    required int totalContas,
+    required int contasPendentes,
+  }) {
+    if (totalContas == 0) {
+      displayMessage(context, "Financeiro", "Nenhuma conta cadastrada neste mês.");
+      return;
+    }
+    if (contasPendentes == 0) {
+      displayMessage(context, "Tudo em dia", "Parabéns! Todas as contas deste mês já foram quitadas.");
+      return;
+    }
+    if (pixItem != null) {
+      if (_temValor(pixItem['pix_copia_cola'])) {
+        double val = 0;
+        if (pixItem['valor'] is num) {
+          val = (pixItem['valor'] as num).toDouble();
+        } else if (pixItem['valor'] != null) {
+          val = double.tryParse(pixItem['valor'].toString()) ?? 0;
+        }
+        _abrirPixSheet(
+          context: context,
+          payload: pixItem['pix_copia_cola'].toString(),
+          titulo: pixItem['categoria']?.toString() ?? "Pague com Pix",
+          valor: val > 0 ? val : totalPendente,
+        );
+        return;
+      } else if (_temValor(pixItem['chave_pix'])) {
+        double val = 0;
+        if (pixItem['valor'] is num) {
+          val = (pixItem['valor'] as num).toDouble();
+        } else if (pixItem['valor'] != null) {
+          val = double.tryParse(pixItem['valor'].toString()) ?? 0;
+        }
+        _abrirChavePixSheet(
+          context: context,
+          chave: pixItem['chave_pix'].toString(),
+          valor: val > 0 ? val : totalPendente,
+        );
+        return;
+      }
+    }
+
+    var pendingList = activeItems.where((it) {
+      int p = it['pago'] is int ? it['pago'] : (int.tryParse(it['pago']?.toString() ?? '') ?? 0);
+      return p != 1;
+    }).toList();
+
+    _abrirSelecaoContasPix(context, pendingList);
+  }
+
   Widget _buildSummaryCard(List<dynamic> activeItems) {
     double totalPendente = 0;
-    for(var item in activeItems) {
+    double totalPago = 0;
+    int contasPagas = 0;
+    final int totalContas = activeItems.length;
+
+    for (var item in activeItems) {
       int intPago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
-      if(intPago == 0) {
-        double val = 0;
-        if (item['valor'] is num) {
-          val = (item['valor'] as num).toDouble();
-        } else if (item['valor'] != null) {
-          val = double.tryParse(item['valor'].toString()) ?? 0;
-        }
+      double val = 0;
+      if (item['valor'] is num) {
+        val = (item['valor'] as num).toDouble();
+      } else if (item['valor'] != null) {
+        val = double.tryParse(item['valor'].toString()) ?? 0;
+      }
+
+      if (intPago == 1) {
+        totalPago += val;
+        contasPagas++;
+      } else {
         totalPendente += val;
       }
     }
 
+    final int contasPendentes = totalContas - contasPagas;
+
+    // Cálculo do progresso pago
+    double totalGeral = totalPendente + totalPago;
+    double progressRatio = 0.0;
+    int percentual = 0;
+
+    if (totalGeral > 0) {
+      progressRatio = (totalPago / totalGeral).clamp(0.0, 1.0);
+      percentual = (progressRatio * 100).round();
+    } else if (totalContas > 0) {
+      progressRatio = (contasPagas / totalContas).clamp(0.0, 1.0);
+      percentual = (progressRatio * 100).round();
+    }
+
+    // Texto de progresso
+    String progressText;
+    if (totalContas == 0) {
+      progressText = "Nenhuma conta lançada neste mês";
+    } else if (contasPendentes == 0) {
+      progressText = "100% do mês quitado · Todas as contas pagas";
+    } else {
+      progressText = "$percentual% do mês já quitado · $contasPagas de $totalContas contas pagas";
+    }
+
+    // Badge de vencimento / status
+    String badgeText = "Tudo em dia";
+    IconData badgeIcon = PhosphorIcons.checkCircleFill;
+    if (contasPendentes > 0) {
+      String? proxVenc = _getProximoVencimento(activeItems);
+      if (proxVenc != null && proxVenc.isNotEmpty) {
+        badgeText = "Vence $proxVenc";
+        badgeIcon = PhosphorIcons.clock;
+      } else {
+        badgeText = "Pendente";
+        badgeIcon = PhosphorIcons.clock;
+      }
+    }
+
+    // Identifica item para pagamento Pix prioritário
+    dynamic pixItem;
+    for (var item in activeItems) {
+      int p = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+      if (p == 1) continue;
+      final cat = (item['categoria'] ?? '').toString();
+      final tipo = (item['tipo'] ?? '').toString();
+      bool isCondo = tipo == 'C' || cat == 'Condomínio' || cat == 'Taxa Condominial';
+      if (isCondo && (_temValor(item['pix_copia_cola']) || _temValor(item['chave_pix']))) {
+        pixItem = item;
+        break;
+      }
+    }
+    if (pixItem == null) {
+      for (var item in activeItems) {
+        int p = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
+        if (p == 1) continue;
+        if (_temValor(item['pix_copia_cola']) || _temValor(item['chave_pix'])) {
+          pixItem = item;
+          break;
+        }
+      }
+    }
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))]
+        color: const Color(0xFF2563EB),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2563EB).withOpacity(0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Total Pendente", style: AppTypography.caption(context).copyWith(color: Colors.white70)),
+          // Linha Superior: Total pendente + Badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                "Total pendente",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.92),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.1,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      badgeIcon,
+                      size: 13,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      badgeText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Valor em destaque: BRL 1.258,19
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              const Text(
+                "BRL ",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              Text(
+                formatMoeda(totalPendente),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.8,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Barra de progresso horizontal
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Stack(
+              children: [
+                Container(
+                  height: 6,
+                  width: double.infinity,
+                  color: Colors.white.withOpacity(0.25),
+                ),
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: progressRatio.clamp(0.0, 1.0),
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 8),
-          Text("${Singleton.instance.getCurrentMoeda()} ${formatMoeda(totalPendente)}", style: AppTypography.display(context).copyWith(color: Colors.white)),
+
+          // Legenda do progresso
+          Text(
+            progressText,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.88),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Botão Pagar com Pix
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            shadowColor: Colors.black.withOpacity(0.08),
+            elevation: 1,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _onPagarComPix(
+                activeItems: activeItems,
+                pixItem: pixItem,
+                totalPendente: totalPendente,
+                totalContas: totalContas,
+                contasPendentes: contasPendentes,
+              ),
+              child: Container(
+                width: double.infinity,
+                height: 48,
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(
+                      PhosphorIcons.qrCode,
+                      size: 19,
+                      color: Color(0xFF2563EB),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      "Pagar com Pix",
+                      style: TextStyle(
+                        color: Color(0xFF2563EB),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -640,23 +1306,12 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
-  /// Conta sem nenhum código de pagamento (nem PIX, nem boleto).
-  bool _semCodigoPagamento(dynamic item) {
-    bool vazio(dynamic v) => v == null || v.toString().trim().isEmpty;
-    return vazio(item['pix_copia_cola']) &&
-        vazio(item['linha_digitavel']) &&
-        vazio(item['url_boleto']);
-  }
+  /// Campo preenchido de verdade (nulo, vazio ou só espaços não conta).
+  bool _temValor(dynamic v) => v != null && v.toString().trim().isNotEmpty;
 
   Widget _buildFinanceiroCard(dynamic item, {VoidCallback? onChanged}) {
     return FinanceiroCard(
       item: item,
-      // Só conta PESSOAL aceita comprovante. Numa cobrança do condomínio o
-      // upload grava status '2' ("aguardando auditoria do síndico") e o
-      // síndico não tem mais como aprovar — o financeiro virou somente
-      // leitura. Continuar convidando o morador a anexar seria pedir um
-      // arquivo que ninguém no mundo pode resolver. Quem dá a baixa da taxa
-      // agora é o ERP, pelo retorno do banco.
       onEnviarComprovante: (item['id_usuario'] != null && item['tipo'] == 'D')
           ? () => _uploadComprovante(item['id'])
           : null,
@@ -667,80 +1322,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           ? () => _confirmarExclusaoContaPessoal(item)
           : null,
       mostrarSeloPessoal: item['id_usuario'] != null && item['tipo'] == 'D',
-    );
-  }
-
-  /// Campo preenchido de verdade (nulo, vazio ou só espaços não conta).
-  bool _temValor(dynamic v) => v != null && v.toString().trim().isNotEmpty;
-
-  /// Há algo para o morador fazer no rodapé deste lançamento?
-  bool _temAcoesDeRodape(dynamic item, bool isPago, bool isVerifying) {
-    final ehContaPessoal = item['id_usuario'] != null && item['tipo'] == 'D';
-    // Enviar comprovante passou a existir só na conta pessoal — acompanha a
-    // condição usada em `_buildFinanceiroCard`, senão o rodapé reserva espaço
-    // para um botão que não vem.
-    final podeEnviarComprovante = ehContaPessoal && !isPago && !isVerifying;
-    return podeEnviarComprovante || ehContaPessoal;
-  }
-
-  /// Chip de meio de pagamento. `destaque` é o meio principal (Pix).
-  Widget _acaoPagamento({
-    required IconData icone,
-    required String texto,
-    required VoidCallback onTap,
-    bool destaque = false,
-    Color? cor,
-  }) {
-    final Color base = cor ?? AppColors.primary;
-    return Material(
-      color: destaque ? base : base.withOpacity(0.08),
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icone, size: 15, color: destaque ? Colors.white : base),
-              const SizedBox(width: 6),
-              Text(
-                texto,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: destaque ? Colors.white : base,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Botão de ícone do rodapé (editar/excluir conta pessoal).
-  Widget _acaoIcone({
-    required IconData icone,
-    required Color cor,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: cor.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(icone, size: 18, color: cor),
-          ),
-        ),
-      ),
     );
   }
 
@@ -765,167 +1346,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         const SnackBar(content: Text("Erro ao remover conta pessoal.")),
       );
     }
-  }
-
-  /// Pix copia-e-cola da cobrança: QR gerado localmente (qr_flutter), sem
-  /// depender de serviço externo.
-  void _abrirSheetPixQrCode(dynamic item) {
-    final String payload = item['pix_copia_cola'].toString();
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Pague com o Pix",
-                style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Escaneie o QR Code abaixo para pagar",
-                style: AppTypography.caption(context),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: QrImageView(
-                    data: payload,
-                    size: 200,
-                    backgroundColor: Colors.white,
-                    padding: const EdgeInsets.all(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: payload));
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Pix Copia e Cola copiado!"),
-                      backgroundColor: AppColors.primary,
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 44),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text("Copiar Código Pix"),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  /// Chave Pix do condomínio (pagamento manual), quando a cobrança não tem
-  /// copia-e-cola próprio.
-  void _abrirSheetChavePix(dynamic item) {
-    final String chave = item['chave_pix'].toString();
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Chave Pix do Condomínio",
-                style: AppTypography.title(context).copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Utilize a chave Pix abaixo para realizar o pagamento manual:",
-                textAlign: TextAlign.center,
-                style: AppTypography.bodyMedium(context),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border(context)),
-                ),
-                child: SelectableText(
-                  chave,
-                  style: AppTypography.bodyMedium(context).copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'monospace',
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: chave));
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Chave Pix copiada com sucesso!"),
-                      backgroundColor: AppColors.primary,
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 44),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text("Copiar Chave Pix"),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-
-  Widget _buildStatusBadge(dynamic status, dynamic pago) {
-    Color color = Colors.orange;
-    String text = "Pendente";
-
-    int intStatus = status is int ? status : (int.tryParse(status?.toString() ?? '') ?? 0);
-    int intPago = pago is int ? pago : (int.tryParse(pago?.toString() ?? '') ?? 0);
-
-    if (intPago == 1) {
-      color = Colors.green;
-      text = "Pago";
-    } else if (intStatus == 2) {
-      color = Colors.blue;
-      text = "Verificando";
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.5))),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
-    );
   }
 
   showContaFormModal({dynamic item, String? initialCategory, BuildContext? customContext, VoidCallback? onSuccess}) {
@@ -1416,7 +1836,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   void _scrollToSelectedMonth(int index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_monthScrollController.hasClients) {
-        double itemWidth = 52.0; // 46 container width + 6 horizontal margin (3 on each side)
+        double itemWidth = 58.0; // 50 container width + 8 horizontal margin (4 on each side)
         double viewportWidth = _monthScrollController.position.viewportDimension;
         double offset = (index * itemWidth) - (viewportWidth / 2) + (itemWidth / 2);
         
@@ -1441,23 +1861,19 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     if (selectedIndex == -1) selectedIndex = 0;
 
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      margin: const EdgeInsets.only(top: 8, bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
         children: [
           IconButton(
-            iconSize: 16,
-            padding: EdgeInsets.zero,
+            iconSize: 18,
+            padding: const EdgeInsets.all(4),
             constraints: const BoxConstraints(),
             icon: Icon(
               PhosphorIcons.caretLeft,
               color: selectedIndex > 0 
-                  ? AppColors.textPrimary(context) 
-                  : AppColors.textTertiary(context).withOpacity(0.3),
+                  ? const Color(0xFF94A3B8) 
+                  : const Color(0xFFCBD5E1).withOpacity(0.4),
             ),
             onPressed: selectedIndex > 0
                 ? () {
@@ -1473,7 +1889,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
           ),
           Expanded(
             child: SizedBox(
-              height: 44,
+              height: 58,
               child: ListView.builder(
                 controller: _monthScrollController,
                 scrollDirection: Axis.horizontal,
@@ -1495,31 +1911,38 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       _loadData();
                       _scrollToSelectedMonth(index);
                     },
-                    child: Container(
-                      width: 46,
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: 50,
+                      height: 54,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF2563EB).withOpacity(0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ]
+                            : null,
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            width: 38,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: isSelected ? AppColors.primary : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Center(
-                              child: Text(
-                                monthName.toUpperCase(),
-                                style: TextStyle(
-                                  color: isSelected 
-                                      ? Colors.white 
-                                      : AppColors.textSecondary(context),
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                  fontSize: 11,
-                                ),
-                              ),
+                          Text(
+                            monthName.toUpperCase(),
+                            style: TextStyle(
+                              color: isSelected 
+                                  ? Colors.white 
+                                  : (Theme.of(context).brightness == Brightness.dark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B)),
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                              fontSize: 12.5,
+                              letterSpacing: 0.4,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -1527,10 +1950,12 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                             yearShort,
                             style: TextStyle(
                               color: isSelected 
-                                  ? AppColors.primary 
-                                  : AppColors.textTertiary(context),
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 9,
+                                  ? Colors.white.withOpacity(0.9)
+                                  : (Theme.of(context).brightness == Brightness.dark
+                                      ? const Color(0xFF64748B)
+                                      : const Color(0xFF94A3B8)),
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 10,
                             ),
                           ),
                         ],
@@ -1542,14 +1967,14 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
             ),
           ),
           IconButton(
-            iconSize: 16,
-            padding: EdgeInsets.zero,
+            iconSize: 18,
+            padding: const EdgeInsets.all(4),
             constraints: const BoxConstraints(),
             icon: Icon(
               PhosphorIcons.caretRight,
               color: selectedIndex < months.length - 1 
-                  ? AppColors.textPrimary(context) 
-                  : AppColors.textTertiary(context).withOpacity(0.3),
+                  ? const Color(0xFF94A3B8) 
+                  : const Color(0xFFCBD5E1).withOpacity(0.4),
             ),
             onPressed: selectedIndex < months.length - 1
                 ? () {

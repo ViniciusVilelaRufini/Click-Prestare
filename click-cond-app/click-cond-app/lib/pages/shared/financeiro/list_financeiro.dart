@@ -25,6 +25,7 @@ import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 enum FinanceiroViewMode { morador, condominio }
 
@@ -238,8 +239,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildMonthSelector(),
                           _buildViewToggle(),
+                          const SizedBox(height: AppSpacing.sm),
+                          _buildMonthSelector(),
                           if (isSindico && _viewMode == FinanceiroViewMode.condominio) ...[
                             const SizedBox(height: AppSpacing.md),
                             Row(
@@ -487,31 +489,514 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     return value?.toString() == '1';
   }
 
-  Widget _buildPersonalSummaryCard(List<dynamic> activeItems) {
-    double totalPendente = 0;
+  bool _temValor(dynamic v) => v != null && v.toString().trim().isNotEmpty;
+
+  String? _getProximoVencimento(List<dynamic> activeItems) {
+    DateTime? menorData;
+    String? menorDataStr;
+
     for (var item in activeItems) {
-      if (!_isPago(item['pago'])) {
-        totalPendente += parseValorMoeda(item['valor']);
+      if (_isPago(item['pago'])) continue;
+
+      String raw = (item['data_vencimento'] ?? item['vencimento'] ?? item['data'] ?? '').toString().trim();
+      if (raw.isEmpty) continue;
+
+      DateTime? parsed;
+      String formatted = '';
+
+      if (raw.contains('/')) {
+        var parts = raw.split('/');
+        if (parts.length >= 2) {
+          int d = int.tryParse(parts[0]) ?? 1;
+          int m = int.tryParse(parts[1]) ?? 1;
+          int y = parts.length >= 3 ? (int.tryParse(parts[2]) ?? DateTime.now().year) : DateTime.now().year;
+          if (y < 100) y += 2000;
+          parsed = DateTime(y, m, d);
+          formatted = "${parts[0].padLeft(2, '0')}/${parts[1].padLeft(2, '0')}";
+        }
+      } else if (raw.contains('-')) {
+        var parts = raw.split('-');
+        if (parts.length >= 3) {
+          int y = int.tryParse(parts[0]) ?? DateTime.now().year;
+          int m = int.tryParse(parts[1]) ?? 1;
+          String dayPart = parts[2].split('T').first.trim();
+          int d = int.tryParse(dayPart) ?? 1;
+          parsed = DateTime(y, m, d);
+          formatted = "${d.toString().padLeft(2, '0')}/${m.toString().padLeft(2, '0')}";
+        }
+      }
+
+      if (formatted.isNotEmpty) {
+        if (parsed != null) {
+          if (menorData == null || parsed.isBefore(menorData)) {
+            menorData = parsed;
+            menorDataStr = formatted;
+          }
+        } else {
+          menorDataStr ??= formatted;
+        }
       }
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final moeda = Singleton.instance.getCurrentMoeda();
+    return menorDataStr;
+  }
+
+  void _abrirPixSheet({
+    required BuildContext context,
+    required String payload,
+    String? titulo,
+    double? valor,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  titulo ?? "Pague com Pix",
+                  style: AppTypography.title(sheetContext).copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 19,
+                  ),
+                ),
+                if (valor != null && valor > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    "BRL ${formatMoeda(valor)}",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  "Escaneie o QR Code abaixo ou copie o código:",
+                  style: AppTypography.caption(sheetContext),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: 200,
+                  height: 200,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: Colors.grey.shade200),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: QrImageView(
+                      data: payload,
+                      size: 200,
+                      backgroundColor: Colors.white,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: payload));
+                      Navigator.pop(sheetContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Código Pix Copia e Cola copiado com sucesso!"),
+                          backgroundColor: Color(0xFF10B981),
+                        ),
+                      );
+                    },
+                    icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
+                    label: const Text(
+                      "Copiar Código Pix",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _abrirChavePixSheet({
+    required BuildContext context,
+    required String chave,
+    double? valor,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  "Chave Pix do Condomínio",
+                  style: AppTypography.title(sheetContext).copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                if (valor != null && valor > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    "BRL ${formatMoeda(valor)}",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  "Utilize a chave Pix abaixo para realizar o pagamento:",
+                  style: AppTypography.caption(sheetContext),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border(context)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(PhosphorIcons.key, color: Color(0xFF2563EB), size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SelectableText(
+                          chave,
+                          style: AppTypography.body(context).copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: chave));
+                      Navigator.pop(sheetContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Chave Pix copiada com sucesso!"),
+                          backgroundColor: Color(0xFF10B981),
+                        ),
+                      );
+                    },
+                    icon: const Icon(PhosphorIcons.copy, size: 18, color: Colors.white),
+                    label: const Text(
+                      "Copiar Chave Pix",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _abrirSelecaoContasPix(BuildContext context, List<dynamic> pendingItems) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border(context),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  "Contas pendentes",
+                  style: AppTypography.title(sheetContext).copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "Selecione uma conta para ver os detalhes ou pagar:",
+                  style: AppTypography.caption(sheetContext),
+                ),
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.45,
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: pendingItems.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (c, idx) {
+                      final it = pendingItems[idx];
+                      final cat = (it['categoria'] ?? it['nome'] ?? 'Conta').toString();
+                      double val = parseValorMoeda(it['valor']);
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF2563EB).withOpacity(0.12),
+                          child: const Icon(PhosphorIcons.receipt, color: Color(0xFF2563EB), size: 20),
+                        ),
+                        title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        subtitle: Text(it['data_vencimento'] != null ? "Vencimento: ${it['data_vencimento']}" : "Pendente"),
+                        trailing: Text(
+                          "BRL ${formatMoeda(val)}",
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF2563EB)),
+                        ),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          if (_temValor(it['pix_copia_cola'])) {
+                            _abrirPixSheet(
+                              context: context,
+                              payload: it['pix_copia_cola'].toString(),
+                              titulo: cat,
+                              valor: val,
+                            );
+                          } else if (_temValor(it['chave_pix'])) {
+                            _abrirChavePixSheet(
+                              context: context,
+                              chave: it['chave_pix'].toString(),
+                              valor: val,
+                            );
+                          } else {
+                            displayMessage(
+                              context,
+                              cat,
+                              "Dados de Pix automático não cadastrados para este lançamento. Use a chave Pix ou anexe o comprovante na categoria.",
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _onPagarComPix({
+    required List<dynamic> activeItems,
+    required dynamic pixItem,
+    required double totalPendente,
+    required int totalContas,
+    required int contasPendentes,
+  }) {
+    if (totalContas == 0) {
+      displayMessage(context, "Financeiro", "Nenhuma conta cadastrada neste mês.");
+      return;
+    }
+    if (contasPendentes == 0) {
+      displayMessage(context, "Tudo em dia", "Parabéns! Todas as contas deste mês já foram quitadas.");
+      return;
+    }
+    if (pixItem != null) {
+      if (_temValor(pixItem['pix_copia_cola'])) {
+        double val = parseValorMoeda(pixItem['valor']);
+        _abrirPixSheet(
+          context: context,
+          payload: pixItem['pix_copia_cola'].toString(),
+          titulo: pixItem['categoria']?.toString() ?? "Pague com Pix",
+          valor: val > 0 ? val : totalPendente,
+        );
+        return;
+      } else if (_temValor(pixItem['chave_pix'])) {
+        double val = parseValorMoeda(pixItem['valor']);
+        _abrirChavePixSheet(
+          context: context,
+          chave: pixItem['chave_pix'].toString(),
+          valor: val > 0 ? val : totalPendente,
+        );
+        return;
+      }
+    }
+
+    var pendingList = activeItems.where((it) => !_isPago(it['pago'])).toList();
+    _abrirSelecaoContasPix(context, pendingList);
+  }
+
+  Widget _buildPersonalSummaryCard(List<dynamic> activeItems) {
+    double totalPendente = 0;
+    double totalPago = 0;
+    int contasPagas = 0;
+    final int totalContas = activeItems.length;
+
+    for (var item in activeItems) {
+      double val = parseValorMoeda(item['valor']);
+      if (_isPago(item['pago'])) {
+        totalPago += val;
+        contasPagas++;
+      } else {
+        totalPendente += val;
+      }
+    }
+
+    final int contasPendentes = totalContas - contasPagas;
+
+    double totalGeral = totalPendente + totalPago;
+    double progressRatio = 0.0;
+    int percentual = 0;
+
+    if (totalGeral > 0) {
+      progressRatio = (totalPago / totalGeral).clamp(0.0, 1.0);
+      percentual = (progressRatio * 100).round();
+    } else if (totalContas > 0) {
+      progressRatio = (contasPagas / totalContas).clamp(0.0, 1.0);
+      percentual = (progressRatio * 100).round();
+    }
+
+    String progressText;
+    if (totalContas == 0) {
+      progressText = "Nenhuma conta lançada neste mês";
+    } else if (contasPendentes == 0) {
+      progressText = "100% do mês quitado · Todas as contas pagas";
+    } else {
+      progressText = "$percentual% do mês já quitado · $contasPagas de $totalContas contas pagas";
+    }
+
+    String badgeText = "Tudo em dia";
+    IconData badgeIcon = PhosphorIcons.checkCircleFill;
+    if (contasPendentes > 0) {
+      String? proxVenc = _getProximoVencimento(activeItems);
+      if (proxVenc != null && proxVenc.isNotEmpty) {
+        badgeText = "Vence $proxVenc";
+        badgeIcon = PhosphorIcons.clock;
+      } else {
+        badgeText = "Pendente";
+        badgeIcon = PhosphorIcons.clock;
+      }
+    }
+
+    dynamic pixItem;
+    for (var item in activeItems) {
+      if (_isPago(item['pago'])) continue;
+      final cat = (item['categoria'] ?? '').toString();
+      final tipo = (item['tipo'] ?? '').toString();
+      bool isCondo = tipo == 'C' || cat == 'Condomínio' || cat == 'Taxa Condominial';
+      if (isCondo && (_temValor(item['pix_copia_cola']) || _temValor(item['chave_pix']))) {
+        pixItem = item;
+        break;
+      }
+    }
+    if (pixItem == null) {
+      for (var item in activeItems) {
+        if (_isPago(item['pago'])) continue;
+        if (_temValor(item['pix_copia_cola']) || _temValor(item['chave_pix'])) {
+          pixItem = item;
+          break;
+        }
+      }
+    }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.xl),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
-        ),
+        color: const Color(0xFF2563EB),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.25),
-            blurRadius: 20,
+            color: const Color(0xFF2563EB).withOpacity(0.35),
+            blurRadius: 18,
             offset: const Offset(0, 8),
           ),
         ],
@@ -520,37 +1005,143 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Text(
+                "Total pendente",
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.92),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.1,
+                ),
+              ),
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(PhosphorIcons.clock, size: 14, color: Colors.white),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'TOTAL PENDENTE',
-                style: AppTypography.tiny(context).copyWith(
-                  color: Colors.white.withOpacity(0.85),
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      badgeIcon,
+                      size: 13,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      badgeText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '$moeda ${formatMoeda(totalPendente)}',
-              style: AppTypography.title(context).copyWith(
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: -0.5,
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              const Text(
+                "BRL ",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              Text(
+                formatMoeda(totalPendente),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.8,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Stack(
+              children: [
+                Container(
+                  height: 6,
+                  width: double.infinity,
+                  color: Colors.white.withOpacity(0.25),
+                ),
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: progressRatio.clamp(0.0, 1.0),
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            progressText,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.88),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            shadowColor: Colors.black.withOpacity(0.08),
+            elevation: 1,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _onPagarComPix(
+                activeItems: activeItems,
+                pixItem: pixItem,
+                totalPendente: totalPendente,
+                totalContas: totalContas,
+                contasPendentes: contasPendentes,
+              ),
+              child: Container(
+                width: double.infinity,
+                height: 48,
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(
+                      PhosphorIcons.qrCode,
+                      size: 19,
+                      color: Color(0xFF2563EB),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      "Pagar com Pix",
+                      style: TextStyle(
+                        color: Color(0xFF2563EB),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -654,7 +1245,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   void _scrollToSelectedMonth(int index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        double itemWidth = 52.0; // 46 container width + 6 horizontal margin (3 on each side)
+        double itemWidth = 58.0; // 50 container width + 8 horizontal margin (4 on each side)
         double viewportWidth = _scrollController.position.viewportDimension;
         double offset = (index * itemWidth) - (viewportWidth / 2) + (itemWidth / 2);
         
@@ -676,46 +1267,33 @@ class ListFinanceiroState extends State<ListFinanceiro> {
 
     int selectedIndex = titlesTabs.indexWhere((t) => tabSelected == t['periodo']);
     if (selectedIndex == -1) selectedIndex = 0;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white.withOpacity(0.06) : AppColors.border(context).withOpacity(0.5),
-        ),
-      ),
+      margin: const EdgeInsets.only(top: 8, bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
         children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: selectedIndex > 0
-                  ? () {
-                      var prev = titlesTabs[selectedIndex - 1];
-                      changeMonth(prev['periodo'], prev['mes'], prev['ano']);
-                      _scrollToSelectedMonth(selectedIndex - 1);
-                    }
-                  : null,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  PhosphorIcons.caretLeft,
-                  size: 16,
-                  color: selectedIndex > 0 
-                      ? AppColors.textPrimary(context) 
-                      : AppColors.textTertiary(context).withOpacity(0.3),
-                ),
-              ),
+          IconButton(
+            iconSize: 18,
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(),
+            icon: Icon(
+              PhosphorIcons.caretLeft,
+              color: selectedIndex > 0 
+                  ? const Color(0xFF94A3B8) 
+                  : const Color(0xFFCBD5E1).withOpacity(0.4),
             ),
+            onPressed: selectedIndex > 0
+                ? () {
+                    var prev = titlesTabs[selectedIndex - 1];
+                    changeMonth(prev['periodo'], prev['mes'], prev['ano']);
+                    _scrollToSelectedMonth(selectedIndex - 1);
+                  }
+                : null,
           ),
           Expanded(
             child: SizedBox(
-              height: 44,
+              height: 58,
               child: ListView.builder(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
@@ -733,63 +1311,54 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       changeMonth(t['periodo'], t['mes'], t['ano']);
                       _scrollToSelectedMonth(index);
                     },
-                    child: Container(
-                      width: 52,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Center(
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          width: 48,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            gradient: isSelected
-                                ? const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [AppColors.primary, AppColors.primaryDark],
-                                  )
-                                : null,
-                            color: isSelected ? null : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: AppColors.primary.withOpacity(0.30),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    )
-                                  ]
-                                : null,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                monthName.toUpperCase(),
-                                style: TextStyle(
-                                  color: isSelected 
-                                      ? Colors.white 
-                                      : AppColors.textPrimary(context),
-                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                  fontSize: 11,
-                                  letterSpacing: 0.5,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: 50,
+                      height: 54,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF2563EB).withOpacity(0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
                                 ),
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                yearShort,
-                                style: TextStyle(
-                                  color: isSelected 
-                                      ? Colors.white.withOpacity(0.85)
-                                      : AppColors.textTertiary(context),
-                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ],
+                              ]
+                            : null,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            monthName.toUpperCase(),
+                            style: TextStyle(
+                              color: isSelected 
+                                  ? Colors.white 
+                                  : (Theme.of(context).brightness == Brightness.dark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B)),
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                              fontSize: 12.5,
+                              letterSpacing: 0.4,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 2),
+                          Text(
+                            yearShort,
+                            style: TextStyle(
+                              color: isSelected 
+                                  ? Colors.white.withOpacity(0.9)
+                                  : (Theme.of(context).brightness == Brightness.dark
+                                      ? const Color(0xFF64748B)
+                                      : const Color(0xFF94A3B8)),
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -797,28 +1366,23 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               ),
             ),
           ),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: selectedIndex < titlesTabs.length - 1
-                  ? () {
-                      var next = titlesTabs[selectedIndex + 1];
-                      changeMonth(next['periodo'], next['mes'], next['ano']);
-                      _scrollToSelectedMonth(selectedIndex + 1);
-                    }
-                  : null,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Icon(
-                  PhosphorIcons.caretRight,
-                  size: 16,
-                  color: selectedIndex < titlesTabs.length - 1 
-                      ? AppColors.textPrimary(context) 
-                      : AppColors.textTertiary(context).withOpacity(0.3),
-                ),
-              ),
+          IconButton(
+            iconSize: 18,
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(),
+            icon: Icon(
+              PhosphorIcons.caretRight,
+              color: selectedIndex < titlesTabs.length - 1 
+                  ? const Color(0xFF94A3B8) 
+                  : const Color(0xFFCBD5E1).withOpacity(0.4),
             ),
+            onPressed: selectedIndex < titlesTabs.length - 1
+                ? () {
+                    var next = titlesTabs[selectedIndex + 1];
+                    changeMonth(next['periodo'], next['mes'], next['ano']);
+                    _scrollToSelectedMonth(selectedIndex + 1);
+                  }
+                : null,
           ),
         ],
       ),
