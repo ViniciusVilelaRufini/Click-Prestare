@@ -1370,33 +1370,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       height: 54,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? const LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Color(0xFF3B82F6),
-                                  Color(0xFF1D4ED8),
-                                ],
-                              )
-                            : null,
-                        color: isSelected ? null : Colors.transparent,
+                        color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
-                        border: isSelected
-                            ? Border.all(
-                                color: const Color(0xFF60A5FA).withOpacity(0.4),
-                                width: 1,
-                              )
-                            : null,
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: const Color(0xFF2563EB).withOpacity(0.35),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : null,
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -2098,33 +2073,8 @@ class _ToggleItem extends StatelessWidget {
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            gradient: isSelected
-                ? const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF3B82F6),
-                      Color(0xFF1D4ED8),
-                    ],
-                  )
-                : null,
-            color: isSelected ? null : Colors.transparent,
+            color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
-            border: isSelected
-                ? Border.all(
-                    color: const Color(0xFF60A5FA).withOpacity(0.35),
-                    width: 1,
-                  )
-                : null,
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF2563EB).withOpacity(0.30),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
