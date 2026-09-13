@@ -61,6 +61,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   String ano = '';
   String _searchQuery = '';
   FinanceiroViewMode _viewMode = FinanceiroViewMode.condominio;
+  bool _isChangingMonth = false;
 
   @override
   void initState() {
@@ -69,6 +70,17 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     saldoAtual = '${Singleton.instance.getCurrentMoeda()} 0,00';
     totalReceita = '${Singleton.instance.getCurrentMoeda()} 0,00';
     totalDespesa = '${Singleton.instance.getCurrentMoeda()} 0,00';
+
+    titlesTabs = _getGeneratedMonths();
+    var now = DateTime.now();
+    String mStr = now.month.toString().padLeft(2, '0');
+    String yStr = now.year.toString();
+    String monthAbbr = _getMonthAbbr(mStr);
+    String yearShort = yStr.substring(2);
+    tabSelected = "${monthAbbr.toUpperCase()}/$yearShort";
+    mes = mStr;
+    ano = yStr;
+
     loadList();
   }
 
@@ -79,11 +91,17 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     super.dispose();
   }
 
-  Future<void> loadList() async {
+  Future<void> loadList({bool isMonthChange = false}) async {
     try {
-      setState(() => _isLoading = true);
+      if (isMonthChange) {
+        setState(() => _isChangingMonth = true);
+      } else {
+        setState(() => _isLoading = true);
+      }
 
-      titlesTabs = _getGeneratedMonths();
+      if (titlesTabs.isEmpty) {
+        titlesTabs = _getGeneratedMonths();
+      }
       if (tabSelected.isEmpty) {
         var now = DateTime.now();
         String mStr = now.month.toString().padLeft(2, '0');
@@ -97,7 +115,6 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         // Ensure mes/ano are populated from tabSelected if they are empty
         var parts = tabSelected.split('/');
         if (parts.length == 2 && (mes.isEmpty || ano.isEmpty)) {
-          // Find in titlesTabs
           var found = titlesTabs.firstWhere((t) => t['periodo'] == tabSelected, orElse: () => <String, dynamic>{});
           if (found.isNotEmpty) {
             mes = found['mes'] ?? '';
@@ -106,15 +123,17 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         }
       }
       
-      // Carrega dados pessoais caso o síndico seja morador também
-      final dynamic personalData = await apiGetFinanceiroByUser();
-      if (personalData is List) {
-        _personalLancamentos = personalData;
-      } else {
-        _personalLancamentos = [];
+      // Carrega dados pessoais apenas na primeira vez ou em pull-to-refresh
+      if (!isMonthChange || _personalLancamentos.isEmpty) {
+        final dynamic personalData = await apiGetFinanceiroByUser();
+        if (personalData is List) {
+          _personalLancamentos = personalData;
+        } else {
+          _personalLancamentos = [];
+        }
       }
 
-      // Carrega dados gerais do condomínio
+      // Carrega dados gerais do condomínio para o mês selecionado
       final dynamic locals = await apiGetAllFinanceiro("financeiro", mes, ano);
       
       if (locals is Map) {
@@ -137,11 +156,13 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             e.toString().replaceFirst('Exception: ', ''));
       }
     } finally {
-      // No finally, não no try: a tela lê a lista já filtrada, e se a segunda
-      // chamada de API falhasse os lançamentos pessoais que já tinham chegado
-      // ficariam invisíveis — erro parcial virava tela vazia.
       _applyFilter();
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isChangingMonth = false;
+        });
+      }
     }
   }
 
@@ -179,8 +200,14 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   }
 
   void changeMonth(String month, String newMes, String newAno) {
-    setState(() { tabSelected = month; mes = newMes; ano = newAno; });
-    loadList();
+    setState(() {
+      tabSelected = month;
+      mes = newMes;
+      ano = newAno;
+      _isChangingMonth = true;
+    });
+    _applyFilter();
+    loadList(isMonthChange: true);
   }
 
   int getCountStatus(int pago) {
@@ -242,114 +269,140 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                           _buildViewToggle(),
                           const SizedBox(height: AppSpacing.sm),
                           _buildMonthSelector(),
-                          if (isSindico && _viewMode == FinanceiroViewMode.condominio) ...[
-                            const SizedBox(height: AppSpacing.md),
-                            Row(
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            height: _isChangingMonth ? 3.0 : 0.0,
+                            margin: EdgeInsets.only(
+                              top: 2.0,
+                              bottom: _isChangingMonth ? 8.0 : 0.0,
+                            ),
+                            child: _isChangingMonth
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(2),
+                                    child: const LinearProgressIndicator(
+                                      backgroundColor: Colors.transparent,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+                          AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: _isChangingMonth ? 0.6 : 1.0,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: _ActionCardButton(
-                                    label: getText('financeiro_nav_relatorio'),
-                                    icon: PhosphorIcons.filePdf,
-                                    color: const Color(0xFF2563EB),
-                                    iconBg: const Color(0xFFEFF6FF),
-                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinanceiroRelatorio())),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.md),
-                                Expanded(
-                                  child: _ActionCardButton(
-                                    label: getText('financeiro_inadimplentes'),
-                                    icon: PhosphorIcons.userList,
-                                    color: const Color(0xFFEF4444),
-                                    iconBg: const Color(0xFFFEE2E2),
-                                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                                      builder: (_) => InadimplenciaDashboardPage(mes: mes, ano: ano),
-                                    )).then((_) => loadList()),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                          if (_viewMode == FinanceiroViewMode.condominio) ...[
-                            const SizedBox(height: AppSpacing.lg),
-                            _DashboardHeader(
-                              saldo: saldoAtual,
-                              receitas: totalReceita,
-                              despesas: totalDespesa,
-                              data: dia,
-                            ),
-                          ] else ...[
-                            const SizedBox(height: AppSpacing.lg),
-                            _buildPersonalSummaryCard(activeItems),
-                          ],
-                          if (_viewMode == FinanceiroViewMode.condominio) ...[
-                            const SizedBox(height: AppSpacing.lg),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Theme.of(context).brightness == Brightness.dark
-                                        ? Colors.black.withOpacity(0.15)
-                                        : const Color(0xFF64748B).withOpacity(0.04),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
+                                if (isSindico && _viewMode == FinanceiroViewMode.condominio) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _ActionCardButton(
+                                          label: getText('financeiro_nav_relatorio'),
+                                          icon: PhosphorIcons.filePdf,
+                                          color: const Color(0xFF2563EB),
+                                          iconBg: const Color(0xFFEFF6FF),
+                                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FinanceiroRelatorio())),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.md),
+                                      Expanded(
+                                        child: _ActionCardButton(
+                                          label: getText('financeiro_inadimplentes'),
+                                          icon: PhosphorIcons.userList,
+                                          color: const Color(0xFFEF4444),
+                                          iconBg: const Color(0xFFFEE2E2),
+                                          onTap: () => Navigator.push(context, MaterialPageRoute(
+                                            builder: (_) => InadimplenciaDashboardPage(mes: mes, ano: ano),
+                                          )).then((_) => loadList()),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
-                              ),
-                              child: TextField(
-                                controller: _searchController,
-                                onChanged: (v) {
-                                  _searchQuery = v;
-                                  _applyFilter();
-                                },
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF0F172A),
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: 'Pesquisar lançamentos...',
-                                  hintStyle: TextStyle(
-                                    fontSize: 14,
-                                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                if (_viewMode == FinanceiroViewMode.condominio) ...[
+                                  const SizedBox(height: AppSpacing.lg),
+                                  _DashboardHeader(
+                                    saldo: saldoAtual,
+                                    receitas: totalReceita,
+                                    despesas: totalDespesa,
+                                    data: dia,
                                   ),
-                                  prefixIcon: Icon(
-                                    PhosphorIcons.magnifyingGlass,
-                                    size: 18,
-                                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                ] else ...[
+                                  const SizedBox(height: AppSpacing.lg),
+                                  _buildPersonalSummaryCard(activeItems),
+                                ],
+                                if (_viewMode == FinanceiroViewMode.condominio) ...[
+                                  const SizedBox(height: AppSpacing.lg),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Theme.of(context).brightness == Brightness.dark
+                                              ? Colors.black.withOpacity(0.15)
+                                              : const Color(0xFF64748B).withOpacity(0.04),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: TextField(
+                                      controller: _searchController,
+                                      onChanged: (v) {
+                                        _searchQuery = v;
+                                        _applyFilter();
+                                      },
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF0F172A),
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText: 'Pesquisar lançamentos...',
+                                        hintStyle: TextStyle(
+                                          fontSize: 14,
+                                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                        ),
+                                        prefixIcon: Icon(
+                                          PhosphorIcons.magnifyingGlass,
+                                          size: 18,
+                                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                        ),
+                                        border: InputBorder.none,
+                                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                      ),
+                                    ),
                                   ),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            Row(
-                              children: [
-                                _CountChip(
-                                  icon: PhosphorIcons.checkCircle,
-                                  color: const Color(0xFF16A34A),
-                                  bgColor: const Color(0xFFDCFCE7),
-                                  borderColor: const Color(0xFFBBF7D0),
-                                  label: '${getCountStatus(1)} ${getText('pagos')}',
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                _CountChip(
-                                  icon: PhosphorIcons.clock,
-                                  color: const Color(0xFFD97706),
-                                  bgColor: const Color(0xFFFEF3C7),
-                                  borderColor: const Color(0xFFFDE68A),
-                                  label: '${getCountStatus(0)} ${getText('lb_pendentes')}',
-                                ),
+                                  const SizedBox(height: AppSpacing.md),
+                                  Row(
+                                    children: [
+                                      _CountChip(
+                                        icon: PhosphorIcons.checkCircle,
+                                        color: const Color(0xFF16A34A),
+                                        bgColor: const Color(0xFFDCFCE7),
+                                        borderColor: const Color(0xFFBBF7D0),
+                                        label: '${getCountStatus(1)} ${getText('pagos')}',
+                                      ),
+                                      const SizedBox(width: AppSpacing.sm),
+                                      _CountChip(
+                                        icon: PhosphorIcons.clock,
+                                        color: const Color(0xFFD97706),
+                                        bgColor: const Color(0xFFFEF3C7),
+                                        borderColor: const Color(0xFFFDE68A),
+                                        label: '${getCountStatus(0)} ${getText('lb_pendentes')}',
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: AppSpacing.lg),
+                                ],
                               ],
                             ),
-                            const SizedBox(height: AppSpacing.lg),
-                          ],
+                          ),
                         ],
                       ),
                     ),
@@ -357,62 +410,74 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   if (_viewMode == FinanceiroViewMode.condominio) ...[
                     if (_filteredLancamentos.isEmpty)
                       SliverToBoxAdapter(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                          padding: const EdgeInsets.all(AppSpacing.xl),
-                          decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
-                          child: Column(
-                            children: [
-                              Icon(PhosphorIcons.magnifyingGlass, size: 48, color: AppColors.textTertiary(context)),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                _searchQuery.isEmpty ? getText('financeiro_sem_lancamentos') : 'Nenhum resultado para a busca',
-                                style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context)),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: _isChangingMonth ? 0.6 : 1.0,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                            padding: const EdgeInsets.all(AppSpacing.xl),
+                            decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
+                            child: Column(
+                              children: [
+                                Icon(PhosphorIcons.magnifyingGlass, size: 48, color: AppColors.textTertiary(context)),
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  _searchQuery.isEmpty ? getText('financeiro_sem_lancamentos') : 'Nenhum resultado para a busca',
+                                  style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context)),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     for (final data in _filteredLancamentos.keys)
                       SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(data.toUpperCase(), 
-                                style: TextStyle(
-                                  color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.1,
-                                  fontSize: 11,
-                                )
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              for (var item in _filteredLancamentos[data])
-                                _LancamentoCard(item: item),
-                            ],
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: _isChangingMonth ? 0.6 : 1.0,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(data.toUpperCase(), 
+                                  style: TextStyle(
+                                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.1,
+                                    fontSize: 11,
+                                  )
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                for (var item in _filteredLancamentos[data])
+                                  _LancamentoCard(item: item),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                   ] else ...[
                     SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.lg),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Contas",
-                              style: AppTypography.headline(context).copyWith(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _isChangingMonth ? 0.6 : 1.0,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.lg),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Contas",
+                                style: AppTypography.headline(context).copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: AppSpacing.xl),
-                            _buildCategoriesGrid(activeItems, personalCategories),
-                          ],
+                              const SizedBox(height: AppSpacing.xl),
+                              _buildCategoriesGrid(activeItems, personalCategories),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1303,6 +1368,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                   String yearShort = t['periodo'].toString().split('/').last;
 
                   return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () {
                       changeMonth(t['periodo'], t['mes'], t['ano']);
                       _scrollToSelectedMonth(index);
@@ -2034,6 +2100,7 @@ class _ToggleItem extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
