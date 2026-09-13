@@ -1074,26 +1074,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF3B82F6),
-            Color(0xFF1D4ED8),
-          ],
-        ),
+        color: const Color(0xFF2563EB),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFF60A5FA).withOpacity(0.35),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF2563EB).withOpacity(0.30),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

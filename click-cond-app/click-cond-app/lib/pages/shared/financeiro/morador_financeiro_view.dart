@@ -90,9 +90,11 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     return false;
   }
 
-  _loadData() async {
+  _loadData({bool showLoading = true}) async {
     try {
-      setState(() => _isLoading = true);
+      if (showLoading) {
+        setState(() => _isLoading = true);
+      }
       final dynamic data = await apiGetFinanceiroByUser();
       final dynamic condoData = await apiGetAllFinanceiro("financeiro", mes ?? "", ano ?? ""); 
       
@@ -912,13 +914,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       decoration: BoxDecoration(
         color: const Color(0xFF2563EB),
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF2563EB).withOpacity(0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1027,50 +1022,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
               color: Colors.white.withOpacity(0.88),
               fontSize: 12,
               fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Botão Pagar com Pix
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            shadowColor: Colors.black.withOpacity(0.08),
-            elevation: 1,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => _onPagarComPix(
-                activeItems: activeItems,
-                pixItem: pixItem,
-                totalPendente: totalPendente,
-                totalContas: totalContas,
-                contasPendentes: contasPendentes,
-              ),
-              child: Container(
-                width: double.infinity,
-                height: 48,
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(
-                      PhosphorIcons.qrCode,
-                      size: 19,
-                      color: Color(0xFF2563EB),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      "Pagar com Pix",
-                      style: TextStyle(
-                        color: Color(0xFF2563EB),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
         ],
@@ -1882,7 +1833,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       mes = prev['mes'];
                       ano = prev['ano'];
                     });
-                    _loadData();
+                    _loadData(showLoading: false);
                     _scrollToSelectedMonth(selectedIndex - 1);
                   }
                 : null,
@@ -1903,12 +1854,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                   String yearShort = m['ano']?.substring(2) ?? '';
 
                   return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () {
                       setState(() {
                         mes = m['mes'];
                         ano = m['ano'];
                       });
-                      _loadData();
+                      _loadData(showLoading: false);
                       _scrollToSelectedMonth(index);
                     },
                     child: AnimatedContainer(
@@ -1919,15 +1871,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       decoration: BoxDecoration(
                         color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: const Color(0xFF2563EB).withOpacity(0.35),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : null,
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1983,7 +1926,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                       mes = next['mes'];
                       ano = next['ano'];
                     });
-                    _loadData();
+                    _loadData(showLoading: false);
                     _scrollToSelectedMonth(selectedIndex + 1);
                   }
                 : null,
@@ -2005,6 +1948,7 @@ class _ToggleItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -2012,9 +1956,6 @@ class _ToggleItem extends StatelessWidget {
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
-            boxShadow: isSelected ? [
-              BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
-            ] : null,
           ),
           child: Center(
             child: Text(
