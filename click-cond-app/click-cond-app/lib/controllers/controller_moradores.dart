@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart';
 import 'package:click/pages/singleton.dart';
@@ -131,22 +132,22 @@ updateMoradorApi(dynamic morador) async {
   }
 }
 
-updatePasswordMoradorApi(String senha) async {
+updatePasswordMoradorApi(String senhaAtual, String senha) async {
   final url = _buildUri('/moradores/new-password');
-  final body = json.encode({"senha": senha});
+  final body = json.encode({"senha_atual": senhaAtual, "senha": senha});
+  http.Response response;
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
         .timeout(_kTimeout);
-    if (response.statusCode == 200) {
-      final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-      storageMorador(parsed);
-      return "";
-    }
-    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-    throw parsed["message"] ?? "Houve um erro, tente novamente!";
   } catch (e) {
     throw "Houve um erro, tente novamente!";
   }
+  if (response.statusCode == 200) {
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    atualizarTokenSessao(parsed);
+    return "";
+  }
+  throw mensagemDeErroApi(response.body);
 }
 
 updateAsinaturaMoradorApi(

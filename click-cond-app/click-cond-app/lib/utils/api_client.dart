@@ -1,4 +1,4 @@
-import 'dart:convert' show Encoding;
+import 'dart:convert' show Encoding, jsonDecode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:click/utils/local_storage.dart';
@@ -17,6 +17,30 @@ import 'package:click/utils/navigation_service.dart';
 /// Como usar: substituir `http.get/post(...)` por `ApiClient.get/post(...)`
 /// nos controllers. A API é igual à do package `http`, então a migração
 /// é mecânica.
+/// Extrai a mensagem de erro que o NestJS mandou no corpo da resposta.
+///
+/// Sem isto, os `catch` dos controllers trocam a explicação do servidor por um
+/// "Houve um erro, tente novamente!" genérico — e o usuário fica sem saber que
+/// o problema foi, por exemplo, a senha atual estar errada.
+String mensagemDeErroApi(String body, {String fallback = 'Houve um erro, tente novamente!'}) {
+  try {
+    final parsed = jsonDecode(body);
+    if (parsed is Map) {
+      final message = parsed['message'];
+      // O ValidationPipe do NestJS manda lista quando reprova vários campos.
+      if (message is List) {
+        final texto = message.map((m) => m.toString().trim()).where((m) => m.isNotEmpty).join('\n');
+        if (texto.isNotEmpty) return texto;
+      } else if (message != null && message.toString().trim().isNotEmpty) {
+        return message.toString().trim();
+      }
+    }
+  } catch (_) {
+    // Corpo não-JSON (HTML de proxy, resposta vazia): cai no fallback.
+  }
+  return fallback;
+}
+
 class ApiClient {
   /// Flag para impedir múltiplos handles de 401 simultâneos (vários requests
   /// podem voltar 401 ao mesmo tempo após expiração — quero logout uma vez só).

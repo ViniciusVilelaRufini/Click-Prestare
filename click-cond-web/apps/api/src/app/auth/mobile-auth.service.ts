@@ -1760,7 +1760,10 @@ export class MobileAuthService {
     return isNaN(d.getTime()) ? null : d;
   }
 
-  async getInfosCondominio(id: number) {
+  // O assert vem ANTES do fallback de demo: senão a rota voltaria a responder
+  // 200 para forasteiro toda vez que o banco caísse.
+  async getInfosCondominio(id: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(id, user);
     if (!this.prisma.isConnected) {
       return {
         nome: 'Condomínio Demo - Click Prestare',
@@ -1793,7 +1796,8 @@ export class MobileAuthService {
     };
   }
 
-  async getAddressCondominio(idCondominio: number) {
+  async getAddressCondominio(idCondominio: number, user?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) {
       return {
         cep: '01001-000',
@@ -3448,10 +3452,21 @@ export class MobileAuthService {
     });
   }
 
-  async updatePassword(idUser: number, newPasswordPlana: string, typeAccess: string) {
+  async updatePassword(idUser: number, newPasswordPlana: string, typeAccess: string, senhaAtual?: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
+
+    // Prova de posse. Sem isto, o JWT (365 dias) é suficiente para trocar a
+    // senha e tomar a conta — celular destravado por meio minuto bastava.
+    // verifyPassword cobre o hash bcrypt e o MD5 legado, então quem nunca
+    // fez login depois da migração continua conseguindo trocar a senha.
+    const atual = await this.prisma.users.findUnique({ where: { id: idUser } });
+    const confere = !!senhaAtual && (await this.verifyPassword(senhaAtual, atual?.password, idUser));
+    if (!confere) {
+      throw new UnauthorizedException('Senha atual incorreta.');
+    }
+
     const hash = await bcrypt.hash(newPasswordPlana, 10);
     const user = await this.prisma.users.update({
       where: { id: idUser },

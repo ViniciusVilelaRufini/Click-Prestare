@@ -317,6 +317,8 @@ class Localizable_EnUs {
           LocalizableModel(key: 'config_alt_senha', text: 'Change password'), 
           LocalizableModel(key: 'config_delete_cond', text: 'Delete condominium'), 
           LocalizableModel(key: 'config_delete_account', text: 'Delete my account'), 
+          LocalizableModel(key: 'config_senha_atual', text: 'Current password'), 
+          LocalizableModel(key: 'config_senha_atual_obrigatoria', text: 'Enter your current password.'), 
           LocalizableModel(key: 'config_nova_senha', text: 'New password'), 
           LocalizableModel(key: 'config_confirm_nova_senha', text: 'Confirm new password'), 
           LocalizableModel(key: 'config_alt_senha_sucesso', text: 'Password changed successfully!'), 

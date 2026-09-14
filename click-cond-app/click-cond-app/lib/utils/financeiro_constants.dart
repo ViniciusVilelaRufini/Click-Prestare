@@ -14,6 +14,17 @@ const kCategoriasPessoais = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
 /// Categorias disponíveis na cobrança criada pelo síndico.
 const kCategoriasCobranca = ["Condomínio", "Aluguel", "Água", "Luz", "Internet", "Outros"];
 
+/// Interpreta o campo `pago`, que a API devolve ora como int (1), ora como
+/// String ("1").
+///
+/// Comparar `item['pago'] == 1` direto faz uma conta quitada parecer pendente
+/// sempre que o valor vier como texto — e, nos modais de edição, salvar em
+/// seguida gravava `pago: 0` por cima. Só o 1 conta como pago.
+bool isPagoValor(dynamic valor) {
+  if (valor is num) return valor == 1;
+  return valor?.toString().trim() == '1';
+}
+
 /// Lê um valor monetário digitado no app, aceitando BR e US.
 ///
 /// O ponto só é separador de MILHAR quando existe uma vírgula na string

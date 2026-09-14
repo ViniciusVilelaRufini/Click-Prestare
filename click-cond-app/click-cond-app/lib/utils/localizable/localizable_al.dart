@@ -317,6 +317,8 @@ class Localizable_Al {
     LocalizableModel(key: 'config_alt_senha', text: 'Kennwort ändern'), 
     LocalizableModel(key: 'config_delete_cond', text: 'Eigentumswohnung ausschließen'), 
     LocalizableModel(key: 'config_delete_account', text: 'Mein Konto löschen'), 
+    LocalizableModel(key: 'config_senha_atual', text: 'Aktuelles Passwort'), 
+    LocalizableModel(key: 'config_senha_atual_obrigatoria', text: 'Geben Sie Ihr aktuelles Passwort ein.'), 
     LocalizableModel(key: 'config_nova_senha', text: 'Neues Passwort'), 
     LocalizableModel(key: 'config_confirm_nova_senha', text: 'Neues Passwort bestätigen'), 
     LocalizableModel(key: 'config_alt_senha_sucesso', text: 'Passwort erfolgreich geändert!'), 

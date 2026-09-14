@@ -317,6 +317,8 @@ class Localizable_PtBr {
     LocalizableModel(key: 'config_alt_senha', text: 'Alterar senha'), 
     LocalizableModel(key: 'config_delete_cond', text: 'Excluir condomínio'), 
     LocalizableModel(key: 'config_delete_account', text: 'Excluir minha conta'), 
+    LocalizableModel(key: 'config_senha_atual', text: 'Senha atual'), 
+    LocalizableModel(key: 'config_senha_atual_obrigatoria', text: 'Informe sua senha atual.'), 
     LocalizableModel(key: 'config_nova_senha', text: 'Nova senha'), 
     LocalizableModel(key: 'config_confirm_nova_senha', text: 'Confirme a nova senha'), 
     LocalizableModel(key: 'config_alt_senha_sucesso', text: 'Senha alterada com sucesso!'), 

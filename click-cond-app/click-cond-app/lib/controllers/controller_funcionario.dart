@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:click/utils/local_storage.dart';
 
 import 'package:click/utils/api_config.dart';
@@ -66,23 +67,25 @@ updateFuncionarioApi(dynamic funcionario) async {
   }
 }
 
-updatePasswordFuncionarioApi(String senha) async {
+updatePasswordFuncionarioApi(String senhaAtual, String senha) async {
   var url = ApiConfig.buildUri('/funcionarios/new-password');
-  Map data = {
-    "senha": senha,
-  };
-  var body = json.encode(data);
-  try{
-    var response = await ApiClient.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
-    if (response.statusCode == 200) {
-      var parsed = jsonDecode(response.body) as Map<String, dynamic>;
-      storageMorador(parsed);
-      return "";
-    } else {
-      var parsed = jsonDecode(response.body) as Map<String, dynamic>;
-      throw(parsed["message"]);
-    }
-  }catch(e){
-    throw("Houve um erro, tente novamente!");
+  var body = json.encode({"senha_atual": senhaAtual, "senha": senha});
+  http.Response response;
+  try {
+    response = await ApiClient.post(
+      url,
+      headers: {"Content-Type": "application/json", "Authorization": getToken()},
+      body: body,
+    ).timeout(ApiConfig.timeout);
+  } catch (e) {
+    throw "Houve um erro, tente novamente!";
   }
+  if (response.statusCode == 200) {
+    var parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    // Era storageMorador(): gravava loginType='morador' e apagava as 8 flags
+    // de permissão — o porteiro perdia a portaria ao trocar a própria senha.
+    atualizarTokenSessao(parsed);
+    return "";
+  }
+  throw mensagemDeErroApi(response.body);
 }

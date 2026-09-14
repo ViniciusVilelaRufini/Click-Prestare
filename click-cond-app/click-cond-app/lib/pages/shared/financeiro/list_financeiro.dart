@@ -588,10 +588,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
   }
 
   /// Interpreta o campo "pago", que pode vir como int (0/1) ou String ("0"/"1").
-  bool _isPago(dynamic value) {
-    if (value is num) return value == 1;
-    return value?.toString() == '1';
-  }
+  /// Delega para a fonte única em financeiro_constants.dart.
+  bool _isPago(dynamic value) => isPagoValor(value);
 
   bool _temValor(dynamic v) => v != null && v.toString().trim().isNotEmpty;
 
@@ -1629,7 +1627,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         orElse: () => allowedCategories.contains(cat) ? cat : 'Outros',
       );
     }
-    bool isPago = isEditing ? item['pago'] == 1 : false;
+    // isPagoValor, não `== 1`: com "1" (String) o switch abria desmarcado e
+    // salvar sem tocar nele despagava a conta.
+    bool isPago = isEditing ? isPagoValor(item['pago']) : false;
     String? scannedLinha = isEditing ? item['linha_digitavel']?.toString() : null;
     String? scannedPix = isEditing ? item['pix_copia_cola']?.toString() : null;
 

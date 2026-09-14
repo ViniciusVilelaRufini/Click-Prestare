@@ -21,6 +21,7 @@ class ModalNewPassword extends StatefulWidget {
 }
 
 class _ModalNewPasswordState extends State<ModalNewPassword> {
+  final txtCurrentPassword = TextEditingController();
   final txtNewPassword = TextEditingController();
   final txtConfirmPassword = TextEditingController();
   var _isSaving = false;
@@ -33,6 +34,7 @@ class _ModalNewPasswordState extends State<ModalNewPassword> {
 
   @override
   void dispose() {
+    txtCurrentPassword.dispose();
     txtNewPassword.dispose();
     txtConfirmPassword.dispose();
     super.dispose();
@@ -41,15 +43,24 @@ class _ModalNewPasswordState extends State<ModalNewPassword> {
   Future<void> save() async {
     try {
       setState(() => _isSaving = true);
+      // A senha atual é a prova de posse: sem ela, um aparelho destravado por
+      // meio minuto trocava a senha e tomava a conta. Quem valida de verdade
+      // é o servidor; aqui só evitamos a ida à rede com o campo em branco.
+      final senhaAtual = txtCurrentPassword.text;
+      if (senhaAtual.isEmpty) {
+        throw getText('config_senha_atual_obrigatoria');
+      }
       if (txtNewPassword.text != txtConfirmPassword.text) {
         throw getText('senhas_nao_conferem');
       }
       if (txtNewPassword.text.length < 6) {
         throw getText('senha_minimo_caracteres');
       }
-      if (getUserType() == 'sindico') await updatePasswordSindicoApi(txtNewPassword.text);
-      if (getUserType() == 'morador') await updatePasswordMoradorApi(txtNewPassword.text);
-      if (getUserType() == 'funcionario') await updatePasswordFuncionarioApi(txtNewPassword.text);
+      final tipo = getUserType();
+      if (tipo == 'sindico') await updatePasswordSindicoApi(senhaAtual, txtNewPassword.text);
+      if (tipo == 'morador') await updatePasswordMoradorApi(senhaAtual, txtNewPassword.text);
+      if (tipo == 'funcionario') await updatePasswordFuncionarioApi(senhaAtual, txtNewPassword.text);
+      if (!mounted) return;
       await displayMessage(context, getText('alert_success'), getText('config_alt_senha_sucesso'));
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -84,6 +95,13 @@ class _ModalNewPasswordState extends State<ModalNewPassword> {
               ],
             ),
             const SizedBox(height: AppSpacing.lg),
+            AppInput(
+              label: getText('config_senha_atual'),
+              controller: txtCurrentPassword,
+              prefixIcon: PhosphorIcons.lockKeyOpen,
+              isPassword: true,
+            ),
+            const SizedBox(height: AppSpacing.md),
             AppInput(
               label: getText('config_nova_senha'),
               controller: txtNewPassword,

@@ -1327,7 +1327,9 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         orElse: () => allowedCategories.contains(cat) ? cat : 'Outros',
       );
     }
-    bool isPago = isEditing ? item['pago'] == 1 : false;
+    // isPagoValor, não `== 1`: com "1" (String) o switch abria desmarcado e
+    // salvar sem tocar nele despagava a conta.
+    bool isPago = isEditing ? isPagoValor(item['pago']) : false;
     // Código escaneado do boleto (opcional): fica salvo junto com a conta.
     String? scannedLinha = isEditing ? item['linha_digitavel']?.toString() : null;
     String? scannedPix = isEditing ? item['pix_copia_cola']?.toString() : null;

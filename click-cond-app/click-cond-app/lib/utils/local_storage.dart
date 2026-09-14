@@ -10,6 +10,29 @@ Future<void> ensureStorageReady() async {
   await _storage.ready;
 }
 
+/// Token de uma resposta de autenticação.
+///
+/// O login devolve em `token`; `/new-password` devolve em `access_token`.
+/// Ler só um dos dois gravava null por cima do token bom.
+String? tokenDaResposta(Map<String, dynamic> parsed) {
+  for (final chave in const ['token', 'access_token']) {
+    final valor = parsed[chave]?.toString().trim() ?? '';
+    if (valor.isNotEmpty && valor != 'null') return valor;
+  }
+  return null;
+}
+
+/// Renova só o token, mantendo identidade e permissões da sessão atual.
+///
+/// Usado depois da troca de senha: a resposta de `/new-password` traz o
+/// funcionário ANINHADO (`user.funcionario`) e sem as flags de permissão, ao
+/// contrário do login. Reaproveitar storageMorador/storageFuncionario ali
+/// zerava as 8 permissões e ainda trocava o loginType do porteiro.
+void atualizarTokenSessao(Map<String, dynamic> parsed) {
+  final token = tokenDaResposta(parsed);
+  if (token != null) _storage.setItem('token', token);
+}
+
 storageLogin(Map<String, dynamic> parsed) {
   _storage.setItem('token', parsed["token"]);
   _storage.setItem('id', parsed["user"]["id"]);

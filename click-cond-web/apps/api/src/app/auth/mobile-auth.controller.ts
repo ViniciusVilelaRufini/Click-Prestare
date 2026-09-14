@@ -56,10 +56,13 @@ export class SindicoMobileController {
 
   @Post('new-password')
   @HttpCode(200)
-  newPassword(@ReqUser() payload: JwtPayload, @Body() body: { senha?: string; password?: string }) {
+  newPassword(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { senha?: string; password?: string; senha_atual?: string },
+  ) {
     const idUser = payload.user?.id ?? payload.sub;
     const pwd = body.password ?? body.senha ?? '';
-    return this.service.updatePassword(Number(idUser), pwd, 'Sindico');
+    return this.service.updatePassword(Number(idUser), pwd, 'Sindico', body.senha_atual);
   }
 
   // Vincula o próprio síndico logado como morador de um apartamento (auto-vínculo).
@@ -146,10 +149,13 @@ export class MoradoresMobileController {
 
   @Post('new-password')
   @HttpCode(200)
-  newPassword(@ReqUser() payload: JwtPayload, @Body() body: { senha?: string; password?: string }) {
+  newPassword(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { senha?: string; password?: string; senha_atual?: string },
+  ) {
     const idUser = payload.user?.id ?? payload.sub;
     const pwd = body.password ?? body.senha ?? '';
-    return this.service.updatePassword(Number(idUser), pwd, 'Morador');
+    return this.service.updatePassword(Number(idUser), pwd, 'Morador', body.senha_atual);
   }
 }
 
@@ -218,10 +224,13 @@ export class FuncionariosMobileController {
 
   @Post('new-password')
   @HttpCode(200)
-  newPassword(@ReqUser() payload: JwtPayload, @Body() body: { senha?: string; password?: string }) {
+  newPassword(
+    @ReqUser() payload: JwtPayload,
+    @Body() body: { senha?: string; password?: string; senha_atual?: string },
+  ) {
     const idUser = payload.user?.id ?? payload.sub;
     const pwd = body.password ?? body.senha ?? '';
-    return this.service.updatePassword(Number(idUser), pwd, 'Funcionario');
+    return this.service.updatePassword(Number(idUser), pwd, 'Funcionario', body.senha_atual);
   }
 }
 
@@ -282,14 +291,17 @@ export class CondominioMobileController {
     return this.service.registerCondominio(body, Number(idUser));
   }
 
+  // Mesmo motivo do get-condominio acima: sem @ReqUser o assertCondominio do
+  // service passa direto e estas duas rotas entregavam CNPJ, subsíndico e
+  // endereço de qualquer condomínio a qualquer usuário logado.
   @Get('infos/get')
-  getInfos(@Query('id_condominio') idCond: string) {
-    return this.service.getInfosCondominio(Number(idCond));
+  getInfos(@Query('id_condominio') idCond: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getInfosCondominio(Number(idCond), payload);
   }
 
   @Get('address/get')
-  getAddress(@Query('id_condominio') idCond: string) {
-    return this.service.getAddressCondominio(Number(idCond));
+  getAddress(@Query('id_condominio') idCond: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getAddressCondominio(Number(idCond), payload);
   }
 
   @Post('update')

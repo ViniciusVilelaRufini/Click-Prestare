@@ -317,6 +317,8 @@ class Localizable_PtPt {
     LocalizableModel(key: 'config_alt_senha', text: 'Alterar palavra-passe'), 
     LocalizableModel(key: 'config_delete_cond', text: 'Excluir condomínio'), 
     LocalizableModel(key: 'config_delete_account', text: 'Apagar a minha conta'), 
+    LocalizableModel(key: 'config_senha_atual', text: 'Palavra-passe atual'), 
+    LocalizableModel(key: 'config_senha_atual_obrigatoria', text: 'Introduza a sua palavra-passe atual.'), 
     LocalizableModel(key: 'config_nova_senha', text: 'Nova senha'), 
     LocalizableModel(key: 'config_confirm_nova_senha', text: 'Confirme para nova palavra-passe'), 
     LocalizableModel(key: 'config_alt_senha_sucesso', text: 'Palavra-passe alterada com sucesso!'), 
