@@ -558,6 +558,7 @@ class ListEncomendasState extends State<ListEncomendas> {
                             codigoRastreio: isDelivery ? null : (txtCodigo.text.trim().isEmpty ? null : txtCodigo.text.trim()),
                             codigoValidacao: isDelivery ? (txtValidacao.text.trim().isEmpty ? null : txtValidacao.text.trim()) : null,
                           );
+                          if (!context.mounted) return;
                           if (success) {
                             Navigator.pop(context);
                             _loadList();

@@ -451,7 +451,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                 await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
                               } else {
                                 await Clipboard.setData(ClipboardData(text: shareText));
-                                if (mounted) {
+                                if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: const Text('Texto de compartilhamento copiado!'),
@@ -574,7 +574,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               label: const Text('Copiar código'),
                               onPressed: () {
                                 Clipboard.setData(ClipboardData(text: item['codigo_acesso'].toString())).then((_) {
-                                  if (mounted) {
+                                  if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: const Text('Código PIN copiado!'),

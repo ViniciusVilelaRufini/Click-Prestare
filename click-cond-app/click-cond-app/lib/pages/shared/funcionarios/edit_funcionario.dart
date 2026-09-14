@@ -85,6 +85,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
         email: txtEmail.text, telefone: txtTelefone.text, photo: base64,
       );
       var res = await updateFuncionarioApi(funcionario);
+      if (!mounted) return;
       if (res.toString().isEmpty) {
         await displayMessage(context, getText('alert_success'), getText('alert_dados_alterados'));
         if (mounted) Navigator.of(context).pop(true);

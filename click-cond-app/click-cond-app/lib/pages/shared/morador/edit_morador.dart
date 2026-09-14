@@ -101,6 +101,7 @@ class _EditMoradorPageState extends State<EditMorador> {
         extra3: txtExtra3.text, extra4: txtExtra4.text, photo: base64,
       );
       var res = await updateMoradorApi(morador);
+      if (!mounted) return;
       if (res.toString().isEmpty) {
         await displayMessage(context, getText('alert_success'), getText('alert_dados_alterados'));
         if (mounted) Navigator.of(context).pop(true);

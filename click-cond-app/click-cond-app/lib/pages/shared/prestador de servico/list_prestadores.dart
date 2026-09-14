@@ -334,7 +334,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                               label: const Text('Copiar código'),
                               onPressed: () {
                                 Clipboard.setData(ClipboardData(text: item['codigo_acesso'].toString())).then((_) {
-                                  if (mounted) {
+                                  if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: const Text('Código PIN copiado!'),

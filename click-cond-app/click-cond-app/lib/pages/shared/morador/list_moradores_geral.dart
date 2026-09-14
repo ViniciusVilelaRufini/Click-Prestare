@@ -39,8 +39,10 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
     }
     try {
       await apiSendCredentialsGeral(int.parse(item['id'].toString()));
+      if (!mounted) return;
       displayMessage(context, 'Sucesso', 'Credenciais e link de acesso enviados para $email com sucesso!');
     } catch (e) {
+      if (!mounted) return;
       displayMessage(context, 'Erro', 'Não foi possível enviar as credenciais.');
     }
   }

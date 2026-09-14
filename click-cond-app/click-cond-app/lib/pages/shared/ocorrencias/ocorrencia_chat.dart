@@ -24,7 +24,8 @@ class OcorrenciaChatPage extends StatefulWidget {
   State<OcorrenciaChatPage> createState() => _OcorrenciaChatPageState();
 }
 
-class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
+class _OcorrenciaChatPageState extends State<OcorrenciaChatPage>
+    with WidgetsBindingObserver {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   
@@ -34,18 +35,43 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
   Timer? _timer;
   late final String _myId;
 
+  /// 1,5s dava ~2.400 requisicoes por hora com o chat aberto — e o timer nao
+  /// parava com o app em segundo plano. 5s e imperceptivel num chat de
+  /// ocorrencia e corta o volume em 70%.
+  static const _intervaloBase = Duration(seconds: 5);
+
+  /// Backoff em falha de rede: sem ele, uma queda de conexao vira uma rajada
+  /// de requisicoes falhando a cada 5s ate o usuario sair da tela.
+  Duration _intervaloAtual = _intervaloBase;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _myId = getUserId();
     _loadMessages();
-    
-    // Auto-refresh chat every 1.5 seconds
-    _timer = Timer.periodic(const Duration(milliseconds: 1500), (_) => _loadMessages(showLoading: false));
+    _iniciarPoll();
+  }
+
+  void _iniciarPoll() {
+    _timer?.cancel();
+    _timer = Timer.periodic(_intervaloAtual, (_) => _loadMessages(showLoading: false));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _intervaloAtual = _intervaloBase;
+      _loadMessages(showLoading: false);
+      _iniciarPoll();
+    } else {
+      _timer?.cancel();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _msgController.dispose();
     _scrollController.dispose();
@@ -58,6 +84,10 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
         setState(() => _isLoading = true);
       }
       final list = await apiGetOcorrenciaMessages(widget.idOcorrencia);
+      if (_intervaloAtual != _intervaloBase) {
+        _intervaloAtual = _intervaloBase;
+        _iniciarPoll();
+      }
       if (mounted) {
         final hasNewMessage = list.length != _mensagens.length;
         setState(() {
@@ -70,6 +100,10 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
       }
     } catch (e) {
       logDebug('[OcorrenciaChat] Erro ao carregar mensagens: $e');
+      // Dobra o intervalo ate 1 min enquanto a rede nao volta.
+      final proximo = _intervaloAtual * 2;
+      _intervaloAtual = proximo > const Duration(minutes: 1) ? const Duration(minutes: 1) : proximo;
+      _iniciarPoll();
       if (mounted) {
         setState(() => _isLoading = false);
       }

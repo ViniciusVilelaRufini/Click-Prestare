@@ -120,6 +120,8 @@ class _EditSindicoPageState extends State<EditSindico> {
       
       if (mounted) {
         await displayMessage(context, getText('alert_success'), getText('alert_dados_alterados'));
+        // O displayMessage tambem e await: o mounted acima nao cobre o pop.
+        if (!mounted) return;
         Navigator.pop(context);
       }
     } catch (e) {

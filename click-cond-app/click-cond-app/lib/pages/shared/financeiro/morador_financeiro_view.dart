@@ -88,13 +88,21 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     return false;
   }
 
+  /// Mesma corrida do financeiro do sindico: tocar dois meses em sequencia
+  /// disparava duas requisicoes e a mais antiga podia chegar por ultimo,
+  /// gravando os lancamentos de um mes sob o rotulo de outro.
+  int _requisicaoAtual = 0;
+
   _loadData({bool showLoading = true}) async {
+    final int minhaRequisicao = ++_requisicaoAtual;
     try {
       if (showLoading) {
         setState(() => _isLoading = true);
       }
       final dynamic data = await apiGetFinanceiroByUser();
       final dynamic condoData = await apiGetAllFinanceiro("financeiro", mes ?? "", ano ?? ""); 
+      // Chegou tarde: outro mes ja foi pedido depois deste.
+      if (minhaRequisicao != _requisicaoAtual || !mounted) return;
       
       List<dynamic> condoItems = [];
       if (condoData is Map) {
@@ -156,7 +164,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (minhaRequisicao == _requisicaoAtual && mounted) {
         setState(() => _isLoading = false);
         displayMessage(context, getText('alert_error'),
             e.toString().replaceFirst('Exception: ', ''));
@@ -181,14 +189,19 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
         base64File = base64Encode(await file.readAsBytes());
       }
       
+      // readAsBytes e await: a tela pode ter sido fechada nesse meio tempo.
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (c) => const Center(child: CircularProgressIndicator()),
       );
       bool success = await apiUploadComprovante(id, base64File);
+      // O upload de um PDF em base64 demora: se o morador sair da tela nesse
+      // meio tempo, este pop fechava a rota errada.
+      if (!mounted) return;
       Navigator.pop(context);
-      
+
       if(success) {
         _loadData();
         displayMessage(context, "Sucesso", "Comprovante enviado para análise!");
@@ -1260,6 +1273,8 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       text: "Tem certeza que deseja excluir esta conta pessoal?",
     );
     if (confirm != true) return;
+    // O dialogo de confirmacao e await: revalida antes de tocar no context.
+    if (!mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isLoading = true);
@@ -1669,7 +1684,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                           }
 
                           if (success) {
-                            if (mounted) Navigator.pop(context);
+                            if (context.mounted) Navigator.pop(context);
                             _loadData();
                             if (onSuccess != null) onSuccess();
                             messenger.showSnackBar(

@@ -84,6 +84,7 @@ class _NewAptoPageState extends State<NewApto> {
       setState(() => _isSaving = true);
       var obj = AptoModel(id: idObj, bloco: txtBloco.text, apto: txtApto.text, fracao: txtFracao.text, qtdVagas: int.tryParse(txtVagas.text.trim()) ?? 0);
       var res = await apiSaveApto('apartamentos', getText('lb_apartamento'), obj, isEdit);
+      if (!mounted) return;
       await displayMessage(context, getText('alert_success'), 'Apartamento salvo com sucesso!');
       idObj = res['id'];
       isEdit = true;

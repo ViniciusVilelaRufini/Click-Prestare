@@ -39,15 +39,18 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
         doc: base64,
       );
       var res = await apiSaveObject("assembleias/finish", "assembleia", obj, false);
+      if (!mounted) return;
       changeLoading(false);
       if(res.toString().isEmpty){
         await displayMessageWithReturn(context, getText('alert_success'), getText('assembleia_encerrada'));
+        if (!mounted) return;
         Navigator.of(context).pop();
         Navigator.of(context).pop();
       }else{
         displayMessage(context, getText('alert_error'), res.toString());
       }
     }catch(e){
+      if (!mounted) return;
       changeLoading(false);
       displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
     }

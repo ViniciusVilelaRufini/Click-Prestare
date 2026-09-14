@@ -90,7 +90,15 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     super.dispose();
   }
 
+  /// Identifica cada carregamento. Tocar dois meses em sequencia disparava
+  /// duas requisicoes sem cancelar a anterior: a resposta de Marco podia
+  /// chegar DEPOIS da de Abril e ser gravada com a aba "ABR" selecionada —
+  /// saldo, receitas e despesas de um mes exibidos sob o rotulo de outro,
+  /// sem nenhuma pista visual. So a requisicao mais recente pode escrever.
+  int _requisicaoAtual = 0;
+
   Future<void> loadList({bool isMonthChange = false}) async {
+    final int minhaRequisicao = ++_requisicaoAtual;
     try {
       if (isMonthChange) {
         setState(() => _isChangingMonth = true);
@@ -134,7 +142,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
 
       // Carrega dados gerais do condomínio para o mês selecionado
       final dynamic locals = await apiGetAllFinanceiro("financeiro", mes, ano);
-      
+      // Chegou tarde: outro mes ja foi pedido depois deste.
+      if (minhaRequisicao != _requisicaoAtual) return;
+
       if (locals is Map) {
         _allLancamentos = locals['lancamentos'] ?? {};
         saldoAtual = (locals['saldo'] ?? '${Singleton.instance.getCurrentMoeda()} 0,00').toString().replaceAll("R\$", Singleton.instance.getCurrentMoeda());
@@ -155,8 +165,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
             e.toString().replaceFirst('Exception: ', ''));
       }
     } finally {
-      _applyFilter();
-      if (mounted) {
+      // Sem esta guarda, a requisicao obsoleta apagava o indicador de
+      // carregamento da requisicao que ainda estava em voo.
+      if (minhaRequisicao == _requisicaoAtual && mounted) {
+        _applyFilter();
         setState(() {
           _isLoading = false;
           _isChangingMonth = false;
@@ -165,7 +177,10 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     }
   }
 
+  /// Chamado depois de await: precisa da guarda, senao e setState apos dispose
+  /// quando o usuario sai da tela durante o carregamento.
   void _applyFilter() {
+    if (!mounted) return;
     final Map<String, dynamic> filtered = {};
     final query = _searchQuery.toLowerCase();
     
@@ -1201,6 +1216,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
       
       // Loading + diálogo padrão do app (o rflutter_alert antigo vinha com
       // botão "CANCEL" em inglês num alerta de sucesso).
+      // readAsBytes e await: a tela pode ter sido fechada nesse meio tempo.
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -1961,7 +1978,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                           }
 
                           if (success) {
-                            if (mounted) Navigator.pop(context);
+                            if (context.mounted) Navigator.pop(context);
                             loadList();
                             if (onSuccess != null) onSuccess();
                             messenger.showSnackBar(

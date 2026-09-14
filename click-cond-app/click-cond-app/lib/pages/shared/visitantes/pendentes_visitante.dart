@@ -1,3 +1,4 @@
+import 'package:click/utils/autorizacoes_controle.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:click/controllers/controller_visitantes.dart';
@@ -117,7 +118,8 @@ class PendentesVisitantePage extends StatefulWidget {
   State<PendentesVisitantePage> createState() => _PendentesVisitantePageState();
 }
 
-class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
+class _PendentesVisitantePageState extends State<PendentesVisitantePage>
+    with WidgetsBindingObserver {
   List<dynamic> _list = [];
   bool _isLoading = true;
   int? _respondendoId;
@@ -126,12 +128,32 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+    _iniciarPoll();
+  }
+
+  void _iniciarPoll() {
+    _poll?.cancel();
     _poll = Timer.periodic(const Duration(seconds: 10), (_) => _load(silent: true));
+  }
+
+  /// O timer rodava mesmo com o app em segundo plano: seis requisicoes por
+  /// minuto, indefinidamente, gastando bateria e dados para atualizar uma tela
+  /// que ninguem esta vendo.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _load(silent: true);
+      _iniciarPoll();
+    } else {
+      _poll?.cancel();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     super.dispose();
   }
@@ -141,16 +163,35 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
     final data = await apiGetPendentes();
     if (!mounted) return;
     setState(() {
-      _list = data is List ? data : [];
+      // Filtra o que ja foi decidido: a resposta pode ter saido do servidor
+      // ANTES da decisao e, sem isto, o card ressuscita e o morador autoriza
+      // de novo o mesmo visitante.
+      _list = data is List
+          ? data.where((e) => !ControleAutorizacoes.instance.jaDecidido(_idDe(e))).toList()
+          : [];
       _isLoading = false;
     });
+  }
+
+  int _idDe(dynamic item) {
+    final id = item is Map ? item['id'] : null;
+    if (id is int) return id;
+    return int.tryParse(id?.toString() ?? '') ?? -1;
   }
 
   Future<void> _responder(dynamic item, bool autorizar, {bool darEntrada = false}) async {
     final id = item['id'];
     if (id == null) return;
-    setState(() => _respondendoId = id as int);
-    final res = await apiResponderAutorizacao(id as int, autorizar, darEntrada: darEntrada);
+    // O diálogo do push pode estar decidindo este mesmo id neste instante:
+    // quem assume primeiro responde, o outro desiste em silêncio.
+    if (!ControleAutorizacoes.instance.assumirDecisao(id as int)) return;
+    setState(() => _respondendoId = id);
+    final res = await apiResponderAutorizacao(id, autorizar, darEntrada: darEntrada);
+    if (res is Map) {
+      ControleAutorizacoes.instance.decidiu(id);
+    } else {
+      ControleAutorizacoes.instance.desistiuDaDecisao(id);
+    }
     if (!mounted) return;
     setState(() => _respondendoId = null);
     if (res is Map) {
@@ -472,8 +513,13 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
   String? nome,
   String? photo,
 }) async {
+  // O FCM reentrega mensagens e dois visitantes podem chegar juntos: sem esta
+  // guarda, os dialogos se empilham sobre o mesmo navigator.
+  if (!ControleAutorizacoes.instance.podeAbrirDialogo(id)) return;
+
   final ctx = NavigationService.navigatorKey.currentContext;
   if (ctx == null) return;
+  ControleAutorizacoes.instance.abriu(id);
   final isDark = Theme.of(ctx).brightness == Brightness.dark;
   final nomeLabel = (nome != null && nome.isNotEmpty) ? nome : 'Um visitante';
 
@@ -490,9 +536,17 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
     } catch (_) {}
   }
 
+  // barrierDismissible false de proposito: com true, encostar na tela fechava
+  // o dialogo sem enviar nada e sem avisar ninguem — o porteiro seguia
+  // esperando com o visitante no portao. Quem quer adiar usa "Decidir depois".
+  // O ctx foi capturado antes do await que busca a foto: revalida.
+  if (!ctx.mounted) {
+    ControleAutorizacoes.instance.fechou(id);
+    return;
+  }
   final decisao = await showDialog<DecisaoAutorizacao?>(
     context: ctx,
-    barrierDismissible: true,
+    barrierDismissible: false,
     builder: (c) => Dialog(
       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -686,17 +740,47 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 ),
               ),
             ),
+            const SizedBox(height: 4),
+            // Saída explícita, já que o toque fora não fecha mais. Sem ela, o
+            // morador que não quer decidir agora ficaria preso no diálogo.
+            TextButton(
+              onPressed: () => Navigator.pop(c, null),
+              child: Text(
+                'Decidir depois',
+                style: TextStyle(
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  fontSize: 13,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     ),
   );
-  if (decisao == null) return;
+  if (decisao == null) {
+    // "Decidir depois": segue pendente e reabrivel pela tela de pendentes.
+    ControleAutorizacoes.instance.fechou(id);
+    return;
+  }
+  // A tela de pendentes faz poll a cada 10s e pode estar aberta ao mesmo
+  // tempo: quem assume primeiro decide, o outro desiste.
+  if (!ControleAutorizacoes.instance.assumirDecisao(id)) {
+    ControleAutorizacoes.instance.fechou(id);
+    return;
+  }
   final bool autorizar = decisao != DecisaoAutorizacao.negar;
   final bool darEntrada = decisao == DecisaoAutorizacao.autorizarEntrada;
   final res = await apiResponderAutorizacao(id, autorizar, darEntrada: darEntrada);
+  if (res is Map) {
+    ControleAutorizacoes.instance.decidiu(id);
+  } else {
+    // Falhou: devolve o id para o morador poder tentar de novo.
+    ControleAutorizacoes.instance.desistiuDaDecisao(id);
+    ControleAutorizacoes.instance.fechou(id);
+  }
   final ctx2 = NavigationService.navigatorKey.currentContext;
-  if (ctx2 == null) return;
+  if (ctx2 == null || !ctx2.mounted) return;
   if (res is Map) {
     final msg = !autorizar
         ? '$nomeLabel foi negado.'

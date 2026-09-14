@@ -50,6 +50,17 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
 
     // Mostrar loader de autorização
     _showProcessingDialog();
+    // Sem esta flag, o jsonDecode lancando (corpo nao-JSON, HTML de proxy)
+    // levava o fluxo ao catch, que dava um SEGUNDO pop: o primeiro fechou o
+    // loader, o segundo desempilhava a propria tela do scanner. O usuario via
+    // a tela sumir sem explicacao — numa tela de autorizacao de sessao web.
+    var loaderAberto = true;
+    void fecharLoader() {
+      if (loaderAberto && mounted) {
+        loaderAberto = false;
+        Navigator.of(context).pop();
+      }
+    }
 
     try {
       final response = await ApiClient.post(
@@ -64,8 +75,8 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
         }),
       );
 
-      // Fecha o dialog de processamento
-      Navigator.of(context).pop();
+      if (!mounted) return;
+      fecharLoader();
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -87,7 +98,8 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
       final errorMsg = _getErrorMessage(response);
       await _showErrorAndResume(errorMsg);
     } catch (e) {
-      Navigator.of(context).pop(); // Fecha loader se der exceção
+      fecharLoader();
+      if (!mounted) return;
       await _showErrorAndResume('Não foi possível conectar ao servidor. Verifique sua conexão.');
     }
   }
