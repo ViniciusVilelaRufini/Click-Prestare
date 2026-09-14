@@ -151,7 +151,11 @@
                   <span class="text-[11px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300">{{ o.tipoNome }}</span>
                 }
                 <!-- Badge de Publicidade / Visibilidade -->
-                <span class="text-[11px] px-2 py-0.5 rounded-md border flex items-center gap-1 cursor-pointer hover:opacity-80 transition"
+                <span
+                     role="button"
+                     tabindex="0"
+                     (keydown.enter)="alternarPublica(o)"
+                     (keydown.space)="$event.preventDefault(); alternarPublica(o)" class="text-[11px] px-2 py-0.5 rounded-md border flex items-center gap-1 cursor-pointer hover:opacity-80 transition"
                       [class.bg-emerald-400/10]="o.publica" [class.border-emerald-400/20]="o.publica" [class.text-emerald-400]="o.publica"
                       [class.bg-slate-400/10]="!o.publica" [class.border-slate-400/20]="!o.publica" [class.text-slate-400]="!o.publica"
                       (click)="alternarPublica(o)"

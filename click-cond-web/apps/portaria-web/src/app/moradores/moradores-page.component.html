@@ -547,7 +547,11 @@
       <!-- MOBILE / janela estreita: cards (a tabela vira lista) -->
       <div class="lg:hidden divide-y divide-white/5">
         @for (m of moradoresPaginados(); track m.id) {
-          <div (click)="abrirDetalhes(m)" class="p-4 hover:bg-white/[0.03] transition cursor-pointer">
+          <div
+               role="button"
+               tabindex="0"
+               (keydown.enter)="abrirDetalhes(m)"
+               (keydown.space)="$event.preventDefault(); abrirDetalhes(m)" (click)="abrirDetalhes(m)" class="p-4 hover:bg-white/[0.03] transition cursor-pointer">
             <div class="flex items-start gap-3">
               <div class="w-10 h-10 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center shrink-0 overflow-hidden">
                 @if (m.foto_pessoa || m.photo) {
@@ -609,7 +613,11 @@
         </thead>
         <tbody>
           @for (m of moradoresPaginados(); track m.id) {
-            <tr (click)="abrirDetalhes(m)"
+            <tr
+                 role="button"
+                 tabindex="0"
+                 (keydown.enter)="abrirDetalhes(m)"
+                 (keydown.space)="$event.preventDefault(); abrirDetalhes(m)" (click)="abrirDetalhes(m)"
                 class="border-t border-white/5 hover:bg-white/[0.03] transition cursor-pointer group">
               <td class="px-5 py-3">
                 <div class="flex items-center gap-3">
@@ -767,7 +775,7 @@
 
         <div class="px-6 py-5 space-y-4">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Síndico</label>
+            <span class="block text-xs font-medium text-slate-400 mb-1.5">Síndico</span>
             @if (sindicosLoading()) {
               <p class="text-sm text-slate-500">Carregando síndicos…</p>
             } @else if (sindicos().length === 0) {
@@ -784,8 +792,8 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Apartamento</label>
-            <select [(ngModel)]="vincAptoId"
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="moradores-page-apartamento">Apartamento</label>
+            <select id="moradores-page-apartamento" [(ngModel)]="vincAptoId"
                     class="w-full px-3 py-2.5 rounded-xl bg-graphite-200 border border-white/10 text-sm text-white focus:border-accent outline-none">
               <option [ngValue]="null" disabled>Selecione o apartamento</option>
               @for (a of apartamentos(); track a.id) {
@@ -795,7 +803,7 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Vínculo</label>
+            <span class="block text-xs font-medium text-slate-400 mb-1.5">Vínculo</span>
             <div class="flex gap-2">
               <button type="button" (click)="vincTipo = 'proprietario'"
                       [class]="vincTipo === 'proprietario' ? 'flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-accent text-white' : 'flex-1 px-3 py-2 rounded-xl text-sm font-medium bg-graphite-200 text-slate-300 border border-white/10'">
@@ -970,7 +978,11 @@
 
       <div class="relative px-6 pt-6 pb-5 flex items-start gap-4">
         <!-- Avatar grande -->
-        <div class="w-16 h-16 rounded-2xl bg-accent/15 border-2 border-accent/40 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:scale-105 hover:border-accent transition duration-200 shadow-lg shadow-accent/10"
+        <div
+             role="button"
+             tabindex="0"
+             (keydown.enter)="(selectedMorador()!.foto_pessoa || selectedMorador()!.photo) && abrirAmpliarFoto(selectedMorador()!.foto_pessoa || selectedMorador()!.photo!, selectedMorador()!.nome)"
+             (keydown.space)="$event.preventDefault(); (selectedMorador()!.foto_pessoa || selectedMorador()!.photo) && abrirAmpliarFoto(selectedMorador()!.foto_pessoa || selectedMorador()!.photo!, selectedMorador()!.nome)" class="w-16 h-16 rounded-2xl bg-accent/15 border-2 border-accent/40 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:scale-105 hover:border-accent transition duration-200 shadow-lg shadow-accent/10"
              (click)="(selectedMorador()!.foto_pessoa || selectedMorador()!.photo) && abrirAmpliarFoto(selectedMorador()!.foto_pessoa || selectedMorador()!.photo!, selectedMorador()!.nome)"
              title="Clique para ampliar">
           @if (selectedMorador()!.foto_pessoa || selectedMorador()!.photo) {

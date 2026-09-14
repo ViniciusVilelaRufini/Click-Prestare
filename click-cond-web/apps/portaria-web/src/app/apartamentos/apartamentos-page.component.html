@@ -155,7 +155,11 @@
     <div class="space-y-5">
       @for (b of blocos(); track b.nome) {
         <div class="rounded-2xl bg-graphite-200 border border-white/10 overflow-hidden">
-          <div class="px-5 py-3 border-b border-white/10 flex items-center justify-between bg-white/[0.02]
+          <div
+               role="button"
+               tabindex="0"
+               (keydown.enter)="abrirMoradoresBloco(b.nome)"
+               (keydown.space)="$event.preventDefault(); abrirMoradoresBloco(b.nome)" class="px-5 py-3 border-b border-white/10 flex items-center justify-between bg-white/[0.02]
                       hover:bg-accent/5 cursor-pointer transition group"
                (click)="abrirMoradoresBloco(b.nome)">
             <div class="flex items-center gap-2">
@@ -172,7 +176,11 @@
           </div>
           <div class="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
             @for (a of b.aptos; track a.id) {
-              <div class="group relative p-3.5 rounded-xl bg-graphite border border-white/10
+              <div
+                   role="button"
+                   tabindex="0"
+                   (keydown.enter)="abrirMoradoresApto(a)"
+                   (keydown.space)="$event.preventDefault(); abrirMoradoresApto(a)" class="group relative p-3.5 rounded-xl bg-graphite border border-white/10
                           hover:border-accent/50 hover:shadow-md transition cursor-pointer min-h-[76px] flex flex-col justify-center items-center"
                    (click)="abrirMoradoresApto(a)"
                    title="Clique para ver moradores e gerenciar o apartamento {{ a.apto }}">
@@ -698,8 +706,8 @@
 
         <div class="p-6 overflow-y-auto space-y-4 flex-1">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Morador titular da vaga</label>
-            <select [(ngModel)]="novaVaga.id_morador_titular"
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="apartamentos-page-morador-titular-da-vaga">Morador titular da vaga</label>
+            <select id="apartamentos-page-morador-titular-da-vaga" [(ngModel)]="novaVaga.id_morador_titular"
                     class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition">
               @for (m of vagasResumo()?.moradores; track m.id) {
                 <option [ngValue]="m.id">{{ m.nome }}</option>
@@ -708,7 +716,7 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Ceder para</label>
+            <span class="block text-xs font-medium text-slate-400 mb-1.5">Ceder para</span>
             <div class="flex gap-2">
               <button type="button" (click)="novaVaga.tipo = 'visitante'"
                       [class.bg-accent]="novaVaga.tipo === 'visitante'" [class.text-slate-950]="novaVaga.tipo === 'visitante'"
@@ -739,8 +747,8 @@
             </div>
           } @else {
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Inquilino do apartamento</label>
-              <select [(ngModel)]="novaVaga.id_morador_beneficiario"
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="apartamentos-page-inquilino-do-apartamento">Inquilino do apartamento</label>
+              <select id="apartamentos-page-inquilino-do-apartamento" [(ngModel)]="novaVaga.id_morador_beneficiario"
                       class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition">
                 <option [ngValue]="null">Selecione...</option>
                 @for (i of beneficiariosVaga()?.inquilinos; track i.id) {

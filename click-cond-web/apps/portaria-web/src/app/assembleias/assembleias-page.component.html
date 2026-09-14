@@ -303,8 +303,8 @@
 
         <div class="p-6 overflow-y-auto space-y-4 flex-1">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Título Oficial</label>
-            <input
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-titulo-oficial">Título Oficial</label>
+            <input id="assembleias-page-titulo-oficial"
               [(ngModel)]="novaAssembleia.titulo"
               type="text"
               placeholder="Ex: Assembleia Geral Extraordinária"
@@ -313,8 +313,8 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Pauta Principal / Descrição</label>
-            <textarea
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-pauta-principal-descricao">Pauta Principal / Descrição</label>
+            <textarea id="assembleias-page-pauta-principal-descricao"
               [(ngModel)]="novaAssembleia.descricao"
               rows="3"
               placeholder="Itens a serem deliberados..."
@@ -324,8 +324,8 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Data (DD/MM/YYYY)</label>
-              <input
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-data-dd-mm-yyyy">Data (DD/MM/YYYY)</label>
+              <input id="assembleias-page-data-dd-mm-yyyy"
                 [(ngModel)]="novaAssembleia.data"
                 type="text"
                 placeholder="25/05/2026"
@@ -333,8 +333,8 @@
               />
             </div>
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Horário</label>
-              <input
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-horario">Horário</label>
+              <input id="assembleias-page-horario"
                 [(ngModel)]="novaAssembleia.hora"
                 type="text"
                 placeholder="19:30"
@@ -345,8 +345,8 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Local Físico</label>
-              <input
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-local-fisico">Local Físico</label>
+              <input id="assembleias-page-local-fisico"
                 [(ngModel)]="novaAssembleia.local"
                 type="text"
                 placeholder="Salão Principal"
@@ -354,8 +354,8 @@
               />
             </div>
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Link Videoconferência</label>
-              <input
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-link-videoconferencia">Link Videoconferência</label>
+              <input id="assembleias-page-link-videoconferencia"
                 [(ngModel)]="novaAssembleia.link"
                 type="text"
                 placeholder="https://meet..."
@@ -392,8 +392,8 @@
 
         <div class="p-6 overflow-y-auto space-y-4 flex-1">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Pergunta / Título</label>
-            <input
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-pergunta-titulo">Pergunta / Título</label>
+            <input id="assembleias-page-pergunta-titulo"
               [(ngModel)]="novaVotacao.titulo"
               type="text"
               placeholder="Ex: Aprovação do orçamento para fachada"
@@ -403,8 +403,8 @@
 
           @if (!novaVotacao.id_assembleia) {
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Contexto / Detalhes</label>
-              <textarea
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-contexto-detalhes">Contexto / Detalhes</label>
+              <textarea id="assembleias-page-contexto-detalhes"
                 [(ngModel)]="novaVotacao.descricao"
                 rows="2"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-accent transition resize-none"
@@ -414,8 +414,8 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Início (DD/MM/YYYY)</label>
-              <input
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-inicio-dd-mm-yyyy">Início (DD/MM/YYYY)</label>
+              <input id="assembleias-page-inicio-dd-mm-yyyy"
                 [(ngModel)]="novaVotacao.data_inicio"
                 type="text"
                 placeholder="10/05/2026"
@@ -423,8 +423,8 @@
               />
             </div>
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Término (DD/MM/YYYY)</label>
-              <input
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="assembleias-page-termino-dd-mm-yyyy">Término (DD/MM/YYYY)</label>
+              <input id="assembleias-page-termino-dd-mm-yyyy"
                 [(ngModel)]="novaVotacao.data_termino"
                 type="text"
                 placeholder="30/05/2026"
@@ -434,7 +434,7 @@
           </div>
 
           <div class="space-y-2 pt-2 border-t border-white/5">
-            <label class="block text-xs font-semibold text-slate-300">Opções de Voto</label>
+            <span class="block text-xs font-semibold text-slate-300">Opções de Voto</span>
 
             @for (opt of novaVotacao.opcoes; track $index; let idx = $index) {
               <div class="flex items-center gap-2">

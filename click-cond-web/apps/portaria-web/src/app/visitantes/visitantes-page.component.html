@@ -856,6 +856,10 @@
       <div class="lg:hidden divide-y divide-white/5">
         @for (v of visitantesPaginados(); track v.id) {
           <div
+               role="button"
+               tabindex="0"
+               (keydown.enter)="abrirDetalhes(v)"
+               (keydown.space)="$event.preventDefault(); abrirDetalhes(v)"
             (click)="abrirDetalhes(v)"
             class="p-4 hover:bg-white/[0.03] transition cursor-pointer"
           >
@@ -1147,12 +1151,24 @@
           <tbody class="divide-y divide-slate-100 dark:divide-white/5">
             @for (v of visitantesPaginados(); track v.id) {
               <tr
+                   role="button"
+                   tabindex="0"
+                   (keydown.enter)="abrirDetalhes(v)"
+                   (keydown.space)="$event.preventDefault(); abrirDetalhes(v)"
                 (click)="abrirDetalhes(v)"
                 class="hover:bg-slate-50/75 dark:hover:bg-white/[0.02] active:bg-slate-100 dark:active:bg-white/[0.04] transition group cursor-pointer"
               >
                 <td class="px-5 py-3.5">
                   <div class="flex items-center gap-3">
                     <div
+                         role="button"
+                         tabindex="0"
+                         (keydown.enter)="v.foto_pessoa
+                          ? abrirAmpliarFoto(v.foto_pessoa, v.nome, $event)
+                          : $event.stopPropagation()"
+                         (keydown.space)="$event.preventDefault(); v.foto_pessoa
+                          ? abrirAmpliarFoto(v.foto_pessoa, v.nome, $event)
+                          : $event.stopPropagation()"
                       class="w-9 h-9 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs"
                       [class.cursor-pointer]="v.foto_pessoa"
                       [title]="v.foto_pessoa ? 'Clique para ampliar foto' : ''"
@@ -1683,9 +1699,9 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="w-1 h-3.5 rounded-full bg-accent"></span>
-                <label class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
                   Unidade de Destino
-                </label>
+                </span>
               </div>
               @if (p.apartamentosVisitados && p.apartamentosVisitados.length > 1) {
                 <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-white/10">
@@ -2654,6 +2670,12 @@
             class="px-6 py-5 bg-slate-50/50 dark:bg-white/[0.02] border-b border-slate-100 dark:border-white/5 flex items-start gap-4"
           >
             <div
+                 role="button"
+                 tabindex="0"
+                 (keydown.enter)="d.visitante.foto_pessoa &&
+                  abrirAmpliarFoto(d.visitante.foto_pessoa, d.visitante.nome)"
+                 (keydown.space)="$event.preventDefault(); d.visitante.foto_pessoa &&
+                  abrirAmpliarFoto(d.visitante.foto_pessoa, d.visitante.nome)"
               class="w-14 h-14 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition"
               (click)="
                 d.visitante.foto_pessoa &&
@@ -2675,6 +2697,10 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <div
+                     role="button"
+                     tabindex="0"
+                     (keydown.enter)="copiarTexto(d.visitante.nome, 'Nome')"
+                     (keydown.space)="$event.preventDefault(); copiarTexto(d.visitante.nome, 'Nome')"
                   class="flex items-center gap-1.5 group cursor-pointer hover:bg-slate-200/50 dark:hover:bg-white/5 px-2 py-0.5 -mx-2 rounded-lg transition"
                   (click)="copiarTexto(d.visitante.nome, 'Nome')"
                   title="Clique para copiar o Nome"

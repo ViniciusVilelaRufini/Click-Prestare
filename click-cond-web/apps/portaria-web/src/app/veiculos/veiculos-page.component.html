@@ -199,7 +199,7 @@
         <div class="p-6 overflow-y-auto space-y-4 flex-1">
           @if (!editandoVeiculo()) {
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Morador titular</label>
+              <span class="block text-xs font-medium text-slate-400 mb-1.5">Morador titular</span>
               @if (moradorSelecionado()) {
                 <div class="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-accent/30 text-sm">
                   <span class="text-white">{{ moradorSelecionado()?.nome }} <span class="text-slate-500">· Apto {{ moradorSelecionado()?.apartamento }}{{ moradorSelecionado()?.bloco ? ' ' + moradorSelecionado()?.bloco : '' }}</span></span>
@@ -247,8 +247,8 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Marca / Modelo</label>
-              <input
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="veiculos-page-marca-modelo">Marca / Modelo</label>
+              <input id="veiculos-page-marca-modelo"
                 [(ngModel)]="novoVeiculo.marca_modelo"
                 type="text"
                 placeholder="Ex: Honda Civic"
@@ -257,8 +257,8 @@
               />
             </div>
             <div>
-              <label class="block text-xs font-medium text-slate-400 mb-1.5">Cor</label>
-              <input
+              <label class="block text-xs font-medium text-slate-400 mb-1.5" for="veiculos-page-cor">Cor</label>
+              <input id="veiculos-page-cor"
                 [(ngModel)]="novoVeiculo.cor"
                 type="text"
                 placeholder="Ex: Prata"
@@ -269,8 +269,8 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Tag RFID vinculada</label>
-            <select
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="veiculos-page-tag-rfid-vinculada">Tag RFID vinculada</label>
+            <select id="veiculos-page-tag-rfid-vinculada"
               [(ngModel)]="novoVeiculo.id_tag"
               aria-label="Tag RFID vinculada"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm
@@ -335,8 +335,8 @@
             />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Descrição (opcional)</label>
-            <input
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="veiculos-page-descricao-opcional">Descrição (opcional)</label>
+            <input id="veiculos-page-descricao-opcional"
               [(ngModel)]="novaTag.descricao"
               type="text"
               placeholder="Ex: Tag reserva do Bloco A"

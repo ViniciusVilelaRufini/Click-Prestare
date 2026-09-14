@@ -109,8 +109,8 @@
 
         <div class="p-6 space-y-4">
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Título do Documento</label>
-            <input
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="documentos-page-titulo-do-documento">Título do Documento</label>
+            <input id="documentos-page-titulo-do-documento"
               [(ngModel)]="novoDoc.nome"
               type="text"
               placeholder="Ex: Balancete Financeiro - Abril/2026"
@@ -119,8 +119,8 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Classificação</label>
-            <select
+            <label class="block text-xs font-medium text-slate-400 mb-1.5" for="documentos-page-classificacao">Classificação</label>
+            <select id="documentos-page-classificacao"
               [(ngModel)]="novoDoc.isAta"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-indigo-400 cursor-pointer"
             >
@@ -131,7 +131,7 @@
 
           <!-- Área de Drop Simulado -->
           <div>
-            <label class="block text-xs font-medium text-slate-400 mb-1.5">Arquivo PDF</label>
+            <span class="block text-xs font-medium text-slate-400 mb-1.5">Arquivo PDF</span>
             <div class="border-2 border-dashed border-white/10 rounded-xl p-6 text-center space-y-2 bg-slate-900/50 hover:border-indigo-500/30 transition cursor-pointer relative">
               <input
                 type="file"

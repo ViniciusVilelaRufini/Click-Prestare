@@ -404,7 +404,11 @@
           } @else {
             <ul class="space-y-0">
               @for (e of eventosFiltrados(); track $index) {
-                <li (click)="abrirDetalhes(e)"
+                <li
+                     role="button"
+                     tabindex="0"
+                     (keydown.enter)="abrirDetalhes(e)"
+                     (keydown.space)="$event.preventDefault(); abrirDetalhes(e)" (click)="abrirDetalhes(e)"
                     [title]="e.descricao + ' - Clique para ver detalhes'"
                     [class]="modoCompacto() && eventosMaximizados()
                              ? 'flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/[0.03] active:bg-slate-100 dark:active:bg-white/[0.06] transition-all p-1.5 rounded-lg border-b border-slate-200/40 dark:border-white/5 last:border-b-0 group'
@@ -1094,7 +1098,7 @@
           <!-- ETAPA 1: Pesquisa de Visitante -->
           @if (!pessoaSelecionada()) {
             <div>
-              <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Buscar Visitante Cadastrado</label>
+              <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Buscar Visitante Cadastrado</span>
               <div class="relative">
                 <input type="text" 
                        [(ngModel)]="buscaPessoa" 
@@ -1115,7 +1119,11 @@
                   </div>
                 } @else if (pessoasEncontradas().length > 0) {
                   @for (p of pessoasEncontradas(); track p.id) {
-                    <div (click)="selecionarPessoa(p)"
+                    <div
+                         role="button"
+                         tabindex="0"
+                         (keydown.enter)="selecionarPessoa(p)"
+                         (keydown.space)="$event.preventDefault(); selecionarPessoa(p)" (click)="selecionarPessoa(p)"
                          class="flex items-center justify-between p-3 rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-50 hover:bg-accent/5 dark:bg-white/5 dark:hover:bg-accent/10 cursor-pointer transition-all active:scale-98">
                       <div class="flex items-center gap-3">
                         <!-- Avatar -->
@@ -1187,8 +1195,8 @@
 
               <!-- Seleção do Apartamento -->
               <div>
-                <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Apartamento de Destino</label>
-                <select [(ngModel)]="idApartamentoSelecionado"
+                <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider" for="dashboard-page-apartamento-de-destino">Apartamento de Destino</label>
+                <select id="dashboard-page-apartamento-de-destino" [(ngModel)]="idApartamentoSelecionado"
                         aria-label="Apartamento de destino"
                         class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white">
                   <option [value]="null" disabled selected>-- Selecione o Apartamento --</option>
@@ -1203,13 +1211,13 @@
               <!-- Janela de validade -->
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Liberado a partir de</label>
-                  <input type="datetime-local" [(ngModel)]="liberarInicio"
+                  <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider" for="dashboard-page-liberado-a-partir-de">Liberado a partir de</label>
+                  <input id="dashboard-page-liberado-a-partir-de" type="datetime-local" [(ngModel)]="liberarInicio"
                     class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white" />
                 </div>
                 <div>
-                  <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider">Liberado até</label>
-                  <input type="datetime-local" [(ngModel)]="liberarTermino"
+                  <label class="text-[10px] font-bold text-slate-400 dark:text-slate-500 block mb-1.5 uppercase tracking-wider" for="dashboard-page-liberado-ate">Liberado até</label>
+                  <input id="dashboard-page-liberado-ate" type="datetime-local" [(ngModel)]="liberarTermino"
                     class="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-white/5 border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none focus:border-accent text-slate-800 dark:text-white" />
                 </div>
               </div>
@@ -1344,7 +1352,11 @@
                     }
                   </div>
                   <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-1.5 group cursor-pointer hover:bg-slate-200/50 dark:hover:bg-white/5 px-2 py-1 -mx-2 rounded-lg transition"
+                    <div
+                         role="button"
+                         tabindex="0"
+                         (keydown.enter)="copiarTexto(validationResult().nome, 'Nome')"
+                         (keydown.space)="$event.preventDefault(); copiarTexto(validationResult().nome, 'Nome')" class="flex items-center gap-1.5 group cursor-pointer hover:bg-slate-200/50 dark:hover:bg-white/5 px-2 py-1 -mx-2 rounded-lg transition"
                          (click)="copiarTexto(validationResult().nome, 'Nome')"
                          title="Clique para copiar o Nome">
                       <h4 class="font-bold text-slate-800 dark:text-white text-base leading-tight truncate">{{ validationResult().nome }}</h4>
