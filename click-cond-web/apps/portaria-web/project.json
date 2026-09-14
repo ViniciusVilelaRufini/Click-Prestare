@@ -8,7 +8,9 @@
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "options": {
         "outputPath": "dist/apps/portaria-web",
         "browser": "apps/portaria-web/src/main.ts",
@@ -19,7 +21,9 @@
             "input": "apps/portaria-web/public"
           }
         ],
-        "styles": ["apps/portaria-web/src/styles.css"]
+        "styles": [
+          "apps/portaria-web/src/styles.css"
+        ]
       },
       "configurations": {
         "production": {
@@ -66,7 +70,9 @@
     },
     "test": {
       "executor": "@nx/jest:jest",
-      "outputs": ["{projectRoot}/test-output/jest/coverage"],
+      "outputs": [
+        "{projectRoot}/test-output/jest/coverage"
+      ],
       "options": {
         "jestConfig": "apps/portaria-web/jest.config.cts",
         "tsConfig": "apps/portaria-web/tsconfig.spec.json"
@@ -79,6 +85,13 @@
         "buildTarget": "portaria-web:build",
         "staticFilePath": "dist/apps/portaria-web/browser",
         "spa": true
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/portaria-web",
+        "command": "tsc -p tsconfig.app.json --noEmit"
       }
     }
   }

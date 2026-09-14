@@ -461,12 +461,24 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Marca ANTES de criar o visitante para evitar concorrência.
+    //
+    // A segunda condição destrava convite órfão: se `visitantes.create` falhar
+    // E o rollback do catch abaixo também falhar, o convite fica 'confirmado'
+    // com id_visitante nulo para sempre, e o morador não consegue mais
+    // autorizar. Mas esse é exatamente o estado da JANELA entre marcar e
+    // anexar — sem o corte de tempo, duas confirmações simultâneas passavam as
+    // duas e geravam DOIS PINs válidos para a mesma visita.
+    //
+    // Um minuto separa as duas situações com folga: a janela real é de
+    // milissegundos, e um convite parado há um minuto não tem ninguém no meio
+    // da operação.
+    const limiteOrfao = new Date(Date.now() - 60_000);
     const marcado = await this.prisma.convites_Visita.updateMany({
       where: {
         id: convite.id,
         OR: [
           { status: 'preenchido' },
-          { status: 'confirmado', id_visitante: null },
+          { status: 'confirmado', id_visitante: null, respondido_em: { lt: limiteOrfao } },
         ],
       },
       data: { status: 'confirmado', respondido_em: new Date() },

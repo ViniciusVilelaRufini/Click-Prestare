@@ -51,11 +51,36 @@ describe('ConvitesService', () => {
             (c) => c.id === where.id || c.token_hash === where.token_hash,
           ) ?? null,
         ),
+        // Emula o updateMany do Prisma de verdade, inclusive `OR` e `null`.
+        //
+        // A versão anterior casava por `where.status`, e o service passou a
+        // mandar `OR: [{status:'preenchido'}, {status:'confirmado',
+        // id_visitante:null}]` — sem `status` no topo. O mock então nunca
+        // encontrava o convite, devolvia count 0, e o service concluía "já foi
+        // respondido". Sete testes quebrados por causa do dublê, não do código.
+        //
+        // `null` no Prisma significa IS NULL, e campo ausente na fixture chega
+        // como undefined: os dois precisam casar.
         updateMany: jest.fn(async ({ where, data }: any) => {
-          const c = convites.find((x) => x.id === where.id && x.status === where.status);
-          if (!c) return { count: 0 };
-          Object.assign(c, data);
-          return { count: 1 };
+          const { OR, ...base } = where;
+          const casaValor = (atual: any, esperado: any) => {
+            if (esperado === null) return atual == null;
+            // Operadores de comparação do Prisma (`{ lt: data }`).
+            if (esperado && typeof esperado === 'object' && !(esperado instanceof Date)) {
+              if ('lt' in esperado) return atual != null && atual < esperado.lt;
+              if ('gt' in esperado) return atual != null && atual > esperado.gt;
+              if ('lte' in esperado) return atual != null && atual <= esperado.lte;
+              if ('gte' in esperado) return atual != null && atual >= esperado.gte;
+            }
+            return atual === esperado;
+          };
+          const casa = (c: any, cond: any) =>
+            Object.entries(cond).every(([k, v]) => casaValor(c[k], v));
+          const alvos = convites.filter(
+            (c) => casa(c, base) && (!OR || OR.some((cond: any) => casa(c, cond))),
+          );
+          alvos.forEach((c) => Object.assign(c, data));
+          return { count: alvos.length };
         }),
         update: jest.fn(async ({ where, data }: any) => {
           const c = convites.find((x) => x.id === where.id);
@@ -402,6 +427,50 @@ describe('ConvitesService', () => {
       // Duas autorizações significam dois PINs válidos para a mesma visita.
       expect(visitantes.create).toHaveBeenCalledTimes(1);
       expect([a.status, b.status].sort()).toEqual(['fulfilled', 'rejected']);
+    });
+
+    /**
+     * A marcação e a criação do visitante não são atômicas: entre uma e outra
+     * o convite fica 'confirmado' com `id_visitante` nulo. Havia uma condição
+     * que aceitava justamente esse estado (para destravar convite que ficou
+     * órfão quando o rollback do catch também falhou) — mas ela é indistinguível
+     * da janela da corrida, e por isso as duas confirmações passavam.
+     *
+     * A rede de segurança continua existindo; só não vale para um estado que
+     * acabou de ser criado.
+     */
+    it('não retoma um convite marcado agora — isso é a corrida, não convite órfão', async () => {
+      const { svc, visitantes } = build({
+        convite: conviteAberto({
+          status: 'confirmado',
+          id_visitante: null,
+          respondido_em: new Date(),
+          nome: 'R',
+          cpf: '39053344705',
+          foto_url: 'u',
+        }),
+      });
+
+      await expect(svc.confirmar(1, MORADOR)).rejects.toThrow(BadRequestException);
+      expect(visitantes.create).not.toHaveBeenCalled();
+    });
+
+    it('retoma convite orfanado ha tempo suficiente', async () => {
+      const { svc, visitantes } = build({
+        convite: conviteAberto({
+          status: 'confirmado',
+          id_visitante: null,
+          // Marcado ha 10 minutos e nunca virou visitante: ninguem esta no
+          // meio da operacao, alguem precisa conseguir destravar.
+          respondido_em: new Date(Date.now() - 10 * 60_000),
+          nome: 'R',
+          cpf: '39053344705',
+          foto_url: 'u',
+        }),
+      });
+
+      await svc.confirmar(1, MORADOR);
+      expect(visitantes.create).toHaveBeenCalledTimes(1);
     });
 
     it('recusar só apaga a foto depois de ganhar a corrida', async () => {

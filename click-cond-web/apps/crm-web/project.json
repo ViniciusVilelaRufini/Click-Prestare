@@ -8,7 +8,9 @@
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "options": {
         "outputPath": "dist/apps/crm-web",
         "browser": "apps/crm-web/src/main.ts",
@@ -19,7 +21,9 @@
             "input": "apps/crm-web/public"
           }
         ],
-        "styles": ["apps/crm-web/src/styles.css"]
+        "styles": [
+          "apps/crm-web/src/styles.css"
+        ]
       },
       "configurations": {
         "production": {
@@ -61,6 +65,13 @@
         }
       },
       "defaultConfiguration": "development"
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/crm-web",
+        "command": "tsc -p tsconfig.app.json --noEmit"
+      }
     }
   }
 }
