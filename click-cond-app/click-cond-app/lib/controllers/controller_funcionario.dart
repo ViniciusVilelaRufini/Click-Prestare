@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:click/utils/local_storage.dart';
@@ -21,7 +22,7 @@ loginFuncionario(String login, String password) async {
       return parsed["message"];
     }
   }catch(e){
-    print(e);
+    logDebug(e);
     return "Houve um erro, tente novamente!";
   }
 }
@@ -41,7 +42,7 @@ getCondominiosFuncionario() async {
       return [];
     }
   }catch(e){
-    print(e);
+    logDebug(e);
     return "Houve um erro, tente novamente!";
   }
 }

@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/alerts/modal_recusa_mudanca.dart';
@@ -106,7 +107,7 @@ class CellMudanca extends StatelessWidget {
                                 return ModalRecusaMudanca();
                                 }
                               );
-                              print(res);
+                              logDebug(res);
                             if(res != null ){
                               changeStatus(item['id'], false, res);
                             }

@@ -223,9 +223,13 @@ class _MudancaCard extends StatelessWidget {
     final data = item['data']?.toString() ?? '';
     final hora = item['hora_inicio']?.toString() ?? '';
 
-    // Síndico/funcionário podem aprovar/recusar mudanças pendentes.
-    final isManager = getUserType() != 'morador';
-    final canDecide = isManager && rawStatus.toLowerCase() == 'pendente';
+    // Aprovar/recusar libera elevador e portaria, então exige a MESMA permissão
+    // que o botão de agendar (linha 59) — não basta "não ser morador". O
+    // servidor revalida em updateStatus; isto aqui só evita oferecer o que vai
+    // ser recusado.
+    final isSindico = getUserType() == 'sindico';
+    final podeGerenciarMudanca = isSindico || getUserPermission('agendar_mudanca') == 1;
+    final canDecide = podeGerenciarMudanca && rawStatus.toLowerCase() == 'pendente';
 
     return Container(
       decoration: BoxDecoration(

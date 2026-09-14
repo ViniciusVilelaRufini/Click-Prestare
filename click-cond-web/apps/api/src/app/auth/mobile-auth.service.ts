@@ -3279,10 +3279,21 @@ export class MobileAuthService {
     if (!o) return null;
     await this.tenant.assertEntidade(o.id_condominio, requester, `ocorrência #${id}`);
     const typeAccess = requester?.typeAccess ?? requester?.user?.typeAccess;
-    const isPrivileged = typeAccess === 'Sindico' || typeAccess === 'Funcionario';
     const callerId = requester?.user?.id ?? requester?.sub;
-    if (!isPrivileged && !o.publica && o.user !== callerId) {
-      throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
+
+    // Ocorrência privada é onde o morador relata briga de vizinho, saúde,
+    // dívida. Todo Funcionario era tratado como privilegiado aqui, ignorando
+    // a flag `ocorrencias` — que existe justamente para o síndico definir quem
+    // da equipe pode ler isso. A flag só é cobrada no conteúdo restrito:
+    // ocorrência pública é mural do condomínio.
+    if (!o.publica && o.user !== callerId) {
+      if (typeAccess === 'Sindico') {
+        // segue
+      } else if (typeAccess === 'Funcionario') {
+        await this.tenant.assertPermissaoFuncionario(o.id_condominio, 'ocorrencias', requester);
+      } else {
+        throw new ForbiddenException('Acesso negado: ocorrência não pertence a você');
+      }
     }
     let respNome: string | null = null;
     if (o.id_responsavel) {

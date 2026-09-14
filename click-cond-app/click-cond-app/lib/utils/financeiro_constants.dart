@@ -14,6 +14,74 @@ const kCategoriasPessoais = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
 /// Categorias disponíveis na cobrança criada pelo síndico.
 const kCategoriasCobranca = ["Condomínio", "Aluguel", "Água", "Luz", "Internet", "Outros"];
 
+/// "Apto 10 - Bloco A" → ('10', 'A'). Devolve null se o nome não é fatura de
+/// apartamento. O bloco pode ter espaços ("Torre Norte").
+final _padraoFaturaApto = RegExp(
+  r'^\s*apto\s+(\S+)\s*[-–—]?\s*bloco\s+(.+?)\s*$',
+  caseSensitive: false,
+);
+
+/// Decide se uma cobrança órfã (sem `id_usuario`) é da unidade do morador,
+/// comparando apartamento e bloco extraídos do nome do lançamento.
+///
+/// Antes isto era `nome.contains('apto $meuApto')`, que casa por prefixo: para
+/// quem mora no Apto 10, "Apto 101" e "Apto 1050" também batiam, e a dívida do
+/// vizinho entrava no total do morador. Comparação exata, campo a campo.
+bool faturaDeAptoCorresponde(String nome, String meuApto, String meuBloco) {
+  final apto = meuApto.trim().toLowerCase();
+  final bloco = meuBloco.trim().toLowerCase();
+  if (apto.isEmpty || bloco.isEmpty) return false;
+
+  final m = _padraoFaturaApto.firstMatch(nome);
+  if (m == null) return false;
+
+  return m.group(1)!.trim().toLowerCase() == apto && m.group(2)!.trim().toLowerCase() == bloco;
+}
+
+/// Totais de uma lista de lançamentos do financeiro.
+class TotaisFinanceiro {
+  final double pago;
+  final double pendente;
+  final int contasPagas;
+  final int totalContas;
+
+  const TotaisFinanceiro({
+    required this.pago,
+    required this.pendente,
+    required this.contasPagas,
+    required this.totalContas,
+  });
+}
+
+/// Soma os lançamentos usando [parseValorMoeda] e [isPagoValor].
+///
+/// As telas faziam esta conta inline, cada uma com o seu parse: a do morador
+/// usava `double.tryParse` cru, que devolve null para "1.250,75" — o `?? 0`
+/// engolia a parcela e o "Total pendente" aparecia menor do que a dívida real,
+/// sem nenhum aviso. Uma conta só, no mesmo lugar.
+TotaisFinanceiro totaisFinanceiro(List<dynamic> itens) {
+  double pago = 0;
+  double pendente = 0;
+  int contasPagas = 0;
+
+  for (final item in itens) {
+    final valor = parseValorMoeda(item['valor']);
+    if (isPagoValor(item['pago'])) {
+      pago += valor;
+      contasPagas++;
+    } else {
+      pendente += valor;
+    }
+  }
+
+  return TotaisFinanceiro(
+    pago: pago,
+    pendente: pendente,
+    contasPagas: contasPagas,
+    totalContas: itens.length,
+  );
+}
+
 /// Interpreta o campo `pago`, que a API devolve ora como int (1), ora como
 /// String ("1").
 ///

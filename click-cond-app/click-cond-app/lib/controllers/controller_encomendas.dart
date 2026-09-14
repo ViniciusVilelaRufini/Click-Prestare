@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
@@ -28,7 +29,7 @@ apiGetAllEncomendas({String? status, bool allCondos = false}) async {
       return [];
     }
   } catch (e) {
-    print(e);
+    logDebug(e);
     return [];
   }
 }
@@ -89,7 +90,7 @@ apiGetApartamentosEncomendas({int? idCondominio}) async {
       return parsed is List ? parsed : [];
     }
   } catch (e) {
-    print(e);
+    logDebug(e);
   }
   return [];
 }

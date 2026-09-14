@@ -72,19 +72,17 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     }
     
     // Se for uma fatura de apartamento (inicia com "Apto" e contém "Bloco"),
-    // mas está órfã (sem id_usuario), podemos tentar associar pelo apartamento e bloco do Singleton.
+    // mas está órfã (sem id_usuario), associamos pelo apartamento e bloco do
+    // Singleton — com comparação EXATA: o `contains` de antes casava por
+    // prefixo e trazia "Apto 101" para o morador do "Apto 10".
     if (_isFaturaDeApto(nome)) {
-      final cleanNome = nome.toLowerCase();
-      final myApto = Singleton.instance.apartamento.toString().toLowerCase();
-      final myBloco = Singleton.instance.bloco.toString().toLowerCase();
-      
-      if (myApto.isNotEmpty && myBloco.isNotEmpty) {
-        final aptoPat = 'apto $myApto';
-        final blocoPat = 'bloco $myBloco';
-        return cleanNome.contains(aptoPat) && cleanNome.contains(blocoPat);
-      }
+      return faturaDeAptoCorresponde(
+        nome,
+        Singleton.instance.apartamento.toString(),
+        Singleton.instance.bloco.toString(),
+      );
     }
-    
+
     // Se idUsuario for nulo e NÃO for fatura de apartamento, então é uma despesa/receita global do condomínio.
     // Essas despesas globais NÃO devem aparecer no "Meu Financeiro", apenas na aba "Condomínio".
     return false;
@@ -716,12 +714,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
                     itemBuilder: (c, idx) {
                       final it = pendingItems[idx];
                       final cat = (it['categoria'] ?? it['nome'] ?? 'Conta').toString();
-                      double val = 0;
-                      if (it['valor'] is num) {
-                        val = (it['valor'] as num).toDouble();
-                      } else if (it['valor'] != null) {
-                        val = double.tryParse(it['valor'].toString()) ?? 0;
-                      }
+                      final double val = parseValorMoeda(it['valor']);
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                         leading: CircleAvatar(
@@ -824,27 +817,13 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
   }
 
   Widget _buildSummaryCard(List<dynamic> activeItems) {
-    double totalPendente = 0;
-    double totalPago = 0;
-    int contasPagas = 0;
-    final int totalContas = activeItems.length;
-
-    for (var item in activeItems) {
-      int intPago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
-      double val = 0;
-      if (item['valor'] is num) {
-        val = (item['valor'] as num).toDouble();
-      } else if (item['valor'] != null) {
-        val = double.tryParse(item['valor'].toString()) ?? 0;
-      }
-
-      if (intPago == 1) {
-        totalPago += val;
-        contasPagas++;
-      } else {
-        totalPendente += val;
-      }
-    }
+    // parseValorMoeda via totaisFinanceiro: o double.tryParse cru devolvia
+    // null para "1.250,75" e a parcela sumia do Total pendente em silêncio.
+    final totais = totaisFinanceiro(activeItems);
+    final double totalPendente = totais.pendente;
+    final double totalPago = totais.pago;
+    final int contasPagas = totais.contasPagas;
+    final int totalContas = totais.totalContas;
 
     final int contasPendentes = totalContas - contasPagas;
 
@@ -2063,16 +2042,11 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
 
     // Calculate total pending for this category
     double totalPendente = 0;
+    // isPagoValor (não `== 0`): um item com pago=2 sumia deste total mas
+    // contava como pendente no badge do grid, e os dois números discordavam.
     for (var item in mergedItems) {
-      int intPago = item['pago'] is int ? item['pago'] : (int.tryParse(item['pago']?.toString() ?? '') ?? 0);
-      if (intPago == 0) {
-        double val = 0;
-        if (item['valor'] is num) {
-          val = (item['valor'] as num).toDouble();
-        } else if (item['valor'] != null) {
-          val = double.tryParse(item['valor'].toString()) ?? 0;
-        }
-        totalPendente += val;
+      if (!isPagoValor(item['pago'])) {
+        totalPendente += parseValorMoeda(item['valor']);
       }
     }
 

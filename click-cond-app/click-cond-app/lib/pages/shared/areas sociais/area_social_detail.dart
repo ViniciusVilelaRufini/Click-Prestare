@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:click/controllers/controller_condominio.dart';
@@ -123,7 +124,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
         }
       }
     } catch (e) {
-      print("[Weather Detail] Error: $e");
+      logDebug("[Weather Detail] Error: $e");
     } finally {
       if (mounted) {
         setState(() => _weatherLoading = false);

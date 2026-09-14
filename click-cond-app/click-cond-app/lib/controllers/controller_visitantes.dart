@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
@@ -16,12 +17,13 @@ apiGetAllVisitantes(String search, {bool allCondos = false}) async {
   }
   var url = ApiConfig.buildUri('/visitantes/get-all', params);
   try{
-      print('[apiGetAllVisitantes] URL: $url, allCondos: $allCondos, id_condominio: ${Singleton.instance.id_condominio}');
+      logDebug('[apiGetAllVisitantes] allCondos: $allCondos');
       var response = await ApiClient.get(
         url,
         headers: { "Authorization": getToken() }
       );
-      print('[apiGetAllVisitantes] Status: ${response.statusCode}, Body: ${response.body}');
+      // O body traz CPF, PIN de portaria e foto de rosto: nunca logar.
+      logDebug('[apiGetAllVisitantes] status ${response.statusCode}');
 
     if (response.statusCode == 200) {
       var parsed = jsonDecode(response.body);
@@ -30,7 +32,7 @@ apiGetAllVisitantes(String search, {bool allCondos = false}) async {
       return [];
     }
   }catch(e){
-    print('[apiGetAllVisitantes] Error: $e');
+    logDebug('[apiGetAllVisitantes] Error: $e');
     return "Houve um erro, tente novamente!";
   }
 }
@@ -87,7 +89,7 @@ apiGetPendentes() async {
     }
     return [];
   } catch (e) {
-    print('[apiGetPendentes] Error: $e');
+    logDebug('[apiGetPendentes] Error: $e');
     return [];
   }
 }

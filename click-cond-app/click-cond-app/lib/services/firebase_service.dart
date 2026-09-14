@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 
 import 'package:click/pages/shared/encomendas/list_encomendas.dart';
@@ -26,7 +27,7 @@ class FirebaseService {
       await _init();
     } catch (e) {
       // Sem push, mas com app funcionando.
-      if (kDebugMode) print('Firebase indisponível, seguindo sem push: $e');
+      logDebug('Firebase indisponível, seguindo sem push: $e');
     }
   }
 
@@ -44,7 +45,7 @@ class FirebaseService {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       if (kDebugMode) {
-        print('User granted permission');
+        logDebug('User granted permission');
       }
     }
 
@@ -59,7 +60,7 @@ class FirebaseService {
       onTimeout: () => null,
     );
     if (kDebugMode) {
-      print('FCM Token: $token');
+      logDebug('FCM Token: $token');
     }
 
     await _registrarNoServidor(token);
@@ -71,7 +72,7 @@ class FirebaseService {
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (kDebugMode) {
-        print('Got a message whilst in the foreground! Data: ${message.data}');
+        logDebug('Got a message whilst in the foreground! Data: ${message.data}');
       }
 
       final type = message.data['type']?.toString();
@@ -92,7 +93,7 @@ class FirebaseService {
     final initialMessage = await messaging.getInitialMessage();
     if (initialMessage != null) {
       if (kDebugMode) {
-        print('App opened from terminated state via notification: ${initialMessage.data}');
+        logDebug('App opened from terminated state via notification: ${initialMessage.data}');
       }
       handleNotificationNavigation(initialMessage);
     }
@@ -100,7 +101,7 @@ class FirebaseService {
     // Handle when the app is opened from a notification (background → foreground)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       if (kDebugMode) {
-        print('Notification opened the app from background. Data: ${message.data}');
+        logDebug('Notification opened the app from background. Data: ${message.data}');
       }
       handleNotificationNavigation(message);
     });
@@ -113,7 +114,7 @@ class FirebaseService {
     if (type == null || type.isEmpty) return;
 
     if (kDebugMode) {
-      print('[FCM] handleNotificationNavigation: type=$type, data=${message.data}');
+      logDebug('[FCM] handleNotificationNavigation: type=$type, data=${message.data}');
     }
 
     _navigateByType(type, message.data);
@@ -200,7 +201,7 @@ class FirebaseService {
         }),
       );
     } catch (e) {
-      if (kDebugMode) print('Falha ao registrar token de push: $e');
+      logDebug('Falha ao registrar token de push: $e');
     }
   }
 
@@ -223,14 +224,14 @@ class FirebaseService {
           }),
         );
       } catch (e) {
-        if (kDebugMode) print('Erro ao desregistrar FCM token no backend: $e');
+        logDebug('Erro ao desregistrar FCM token no backend: $e');
       }
     }
 
     try {
       await FirebaseMessaging.instance.deleteToken();
     } catch (e) {
-      if (kDebugMode) print('Erro ao deletar FCM token local: $e');
+      logDebug('Erro ao deletar FCM token local: $e');
     }
   }
 }
@@ -239,6 +240,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (kIsWeb) return;
   await Firebase.initializeApp();
   if (kDebugMode) {
-    print("Handling a background message: ${message.messageId}");
+    logDebug("Handling a background message: ${message.messageId}");
   }
 }

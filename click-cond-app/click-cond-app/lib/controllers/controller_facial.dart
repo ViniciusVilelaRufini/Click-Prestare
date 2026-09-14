@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/api_config.dart';
@@ -24,7 +25,7 @@ Future<List<dynamic>> apiGetAcessosVisitante(int idVisitante, {int limit = 30}) 
     }
     return [];
   } catch (e) {
-    print('[apiGetAcessosVisitante] Error: $e');
+    logDebug('[apiGetAcessosVisitante] Error: $e');
     return [];
   }
 }
@@ -48,7 +49,7 @@ Future<List<dynamic>> apiGetAcessosMorador(int idMorador, {int limit = 30}) asyn
     }
     return [];
   } catch (e) {
-    print('[apiGetAcessosMorador] Error: $e');
+    logDebug('[apiGetAcessosMorador] Error: $e');
     return [];
   }
 }

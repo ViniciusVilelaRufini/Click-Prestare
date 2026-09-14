@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 
 import 'package:click/utils/api_client.dart';
@@ -27,7 +28,7 @@ Future<List<dynamic>> apiGetNotificacoes() async {
     }
     return [];
   } catch (e) {
-    print('[apiGetNotificacoes] Erro: $e');
+    logDebug('[apiGetNotificacoes] Erro: $e');
     return [];
   }
 }

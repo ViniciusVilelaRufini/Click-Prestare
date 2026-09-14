@@ -3,6 +3,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from './jwt-payload.interface';
 
 /**
+ * Uma das oito colunas de permissão da tabela `Funcionarios` — as mesmas que
+ * o app lê com `getUserPermission(...)` para decidir o que mostrar na tela.
+ */
+export type PermissaoFuncionario =
+  | 'areas_sociais'
+  | 'comunicados'
+  | 'ocorrencias'
+  | 'manutencoes_programadas'
+  | 'prestadores_servico'
+  | 'agendar_mudanca'
+  | 'cadastrar_visitante'
+  | 'apartamentos';
+
+/**
  * Autorização de tenant "mobile-aware".
  *
  * Diferente do helper `assertSameTenant` (tenant.util.ts), que se auto-desliga
@@ -126,6 +140,21 @@ export class TenantAccessService {
   }
 
   /**
+   * As oito flags de permissão da tabela `Funcionarios`. São exatamente as
+   * que o app grava na sessão e consulta com `getUserPermission(...)`.
+   */
+  static readonly PERMISSOES: readonly PermissaoFuncionario[] = [
+    'areas_sociais',
+    'comunicados',
+    'ocorrencias',
+    'manutencoes_programadas',
+    'prestadores_servico',
+    'agendar_mudanca',
+    'cadastrar_visitante',
+    'apartamentos',
+  ];
+
+  /**
    * Exige que o FUNCIONÁRIO tenha a permissão do módulo ligada.
    *
    * A tabela `Funcionarios` tem um flag por área (`cadastrar_visitante`,
@@ -145,7 +174,7 @@ export class TenantAccessService {
    */
   async assertPermissaoFuncionario(
     idCondominio: number,
-    permissao: 'cadastrar_visitante' | 'prestadores_servico',
+    permissao: PermissaoFuncionario,
     payload?: JwtPayload,
   ): Promise<void> {
     if (!payload) return;
@@ -159,12 +188,16 @@ export class TenantAccessService {
 
     const func = await this.prisma.funcionarios.findFirst({
       where: { id_user: userId, id_condominio: Number(idCondominio) },
-      select: { cadastrar_visitante: true, prestadores_servico: true },
+      // Só a flag pedida: buscar um conjunto fixo era o bug — as seis colunas
+      // de fora vinham undefined e caíam no `?? 0`, negando quem tinha acesso.
+      select: { [permissao]: true } as Record<PermissaoFuncionario, true>,
     });
     if (!func) {
       throw new ForbiddenException('Acesso negado: você não trabalha neste condomínio.');
     }
-    if (Number(func[permissao] ?? 0) !== 1) {
+    // A flag pode chegar como 1, "1" ou true conforme o driver.
+    const valor = (func as Record<string, unknown>)[permissao];
+    if (valor !== true && Number(valor ?? 0) !== 1) {
       throw new ForbiddenException(
         'Acesso negado: seu perfil não tem permissão para esta área. Fale com o síndico.',
       );

@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:click/models/vaga_model.dart';
 import 'package:click/pages/singleton.dart';
@@ -25,7 +26,7 @@ Future<VagasResumo> apiGetVagas() async {
     }
     return VagasResumo.empty();
   } catch (e) {
-    print('[apiGetVagas] Erro: $e');
+    logDebug('[apiGetVagas] Erro: $e');
     return VagasResumo.empty();
   }
 }
@@ -50,7 +51,7 @@ Future<Map<String, List<BeneficiarioItem>>> apiGetBeneficiarios() async {
     }
     return {'visitantes': [], 'inquilinos': []};
   } catch (e) {
-    print('[apiGetBeneficiarios] Erro: $e');
+    logDebug('[apiGetBeneficiarios] Erro: $e');
     return {'visitantes': [], 'inquilinos': []};
   }
 }
@@ -88,7 +89,7 @@ Future<String> apiLiberarVaga({
       return 'Não foi possível liberar a vaga.';
     }
   } catch (e) {
-    print('[apiLiberarVaga] Erro: $e');
+    logDebug('[apiLiberarVaga] Erro: $e');
     return 'Falha de comunicação com o servidor. Verifique sua conexão.';
   }
 }
@@ -106,7 +107,7 @@ Future<bool> apiRevogarVaga(int id) async {
         .timeout(ApiConfig.timeout);
     return response.statusCode >= 200 && response.statusCode < 300;
   } catch (e) {
-    print('[apiRevogarVaga] Erro: $e');
+    logDebug('[apiRevogarVaga] Erro: $e');
     return false;
   }
 }

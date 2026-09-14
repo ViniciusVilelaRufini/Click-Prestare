@@ -8,6 +8,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
+import 'package:click/utils/visitantes_presenca.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_aptos.dart';
 import 'package:click/widgets/alerts/modal_cupertino.dart';
@@ -150,14 +151,25 @@ class _NewVisitantePageState extends State<NewVisitante> {
 
   Future<void> save() async {
     try {
+      // Sem janela de validade, o PIN/QR da portaria nunca expira: isExpired
+      // na lista depende de data_termino, e nulo ali vira crachá permanente.
+      final inicio = convertStringToDateTime(txtDataInicio.text);
+      final termino = convertStringToDateTime(txtDataTermino.text);
+      final erro = validarCadastroVisitante(
+        nome: txtNome.text,
+        inicio: inicio,
+        termino: termino,
+      );
+      if (erro != null) throw getText(erro);
+
       var visitante = VisitanteModel(
         id: widget.myId ?? -1,
         id_anterior: widget.reUseData?['id'] is int ? widget.reUseData!['id'] : int.tryParse(widget.reUseData?['id']?.toString() ?? ''),
         nome_anterior: widget.reUseData?['nome']?.toString(),
         nome: txtNome.text,
         doc_identificacao: txtDocumento.text,
-        data_inicio: convertStringToDateTime(txtDataInicio.text),
-        data_termino: convertStringToDateTime(txtDataTermino.text),
+        data_inicio: inicio,
+        data_termino: termino,
         avisar: true,
         observacoes: txtObs.text,
         id_apartamento: idMyApartment ?? getIdApto(),

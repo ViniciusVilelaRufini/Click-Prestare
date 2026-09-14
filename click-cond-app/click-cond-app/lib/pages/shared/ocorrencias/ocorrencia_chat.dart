@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:async';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/theme/app_colors.dart';
@@ -68,7 +69,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
         }
       }
     } catch (e) {
-      print('[OcorrenciaChat] Erro ao carregar mensagens: $e');
+      logDebug('[OcorrenciaChat] Erro ao carregar mensagens: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -102,7 +103,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
         await _loadMessages(showLoading: false);
       }
     } catch (e) {
-      print('[OcorrenciaChat] Erro ao enviar mensagem: $e');
+      logDebug('[OcorrenciaChat] Erro ao enviar mensagem: $e');
     } finally {
       if (mounted) {
         setState(() => _isSending = false);

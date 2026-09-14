@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart';
@@ -184,7 +185,7 @@ Future<bool> apiDeleteAccount() async {
         .timeout(_kTimeout);
     return response.statusCode == 200;
   } catch (e) {
-    print('[apiDeleteAccount] Error: $e');
+    logDebug('[apiDeleteAccount] Error: $e');
     return false;
   }
 }
@@ -199,7 +200,7 @@ getMeusEventos({int limit = 15}) async {
     }
     return [];
   } catch (e) {
-    print('[getMeusEventos] Error: $e');
+    logDebug('[getMeusEventos] Error: $e');
     return [];
   }
 }
@@ -216,7 +217,7 @@ getDashboardSummary([dynamic idCondominio]) async {
     }
     return null;
   } catch (e) {
-    print('[getDashboardSummary] Error: $e');
+    logDebug('[getDashboardSummary] Error: $e');
     return null;
   }
 }

@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
@@ -385,7 +386,7 @@ class _MyCondominiumState extends State<MyCondominium> {
         }
       }
     } catch (e) {
-      print("[Weather] Error: $e");
+      logDebug("[Weather] Error: $e");
     } finally {
       if (mounted) {
         setState(() => _weatherLoading = false);

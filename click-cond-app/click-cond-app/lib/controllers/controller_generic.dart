@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
@@ -47,8 +48,9 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
   if (response.statusCode >= 200 && response.statusCode < 300) return "";
 
   // Erro — tenta extrair message do body
-  // ignore: avoid_print
-  print('[apiSaveObject] HTTP ${response.statusCode} body=${response.body}');
+  // Sem o body: ele carrega nome, email, documento e telefone das rotas
+  // de morador/funcionario/prestador, e print vai pro logcat em release.
+  logDebug('[apiSaveObject] HTTP ${response.statusCode}');
   // Bodyzinho cru pra debug visivel ao usuario quando algo eh estranho
   // (vai pra dialog quando dev mode).
   final shortBody = response.body.length > 200
@@ -71,8 +73,7 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
           msgStr.contains('Cannot read prop') ||
           msgStr.startsWith('TypeError:') ||
           msgStr.startsWith('RangeError:')) {
-        // ignore: avoid_print
-        print('[apiSaveObject] backend devolveu erro JS interno: $msgStr');
+              logDebug('[apiSaveObject] backend devolveu erro JS interno: $msgStr');
         // Inclui inicio do body no proprio erro pra dar pista ao usuario,
         // que vai poder mandar print pra mim em vez de precisar de F12.
         return 'Erro interno no servidor (HTTP ${response.statusCode}). Detalhes: $shortBody';
@@ -126,8 +127,7 @@ Future<Map<String, dynamic>> apiSaveManutencaoAreaSocial(dynamic obj, bool isEdi
     } catch (_) {}
   }
 
-  // ignore: avoid_print
-  print('[apiSaveManutencaoAreaSocial] HTTP ${response.statusCode} body=${response.body}');
+  logDebug('[apiSaveManutencaoAreaSocial] HTTP ${response.statusCode}');
   try {
     final parsed = jsonDecode(response.body);
     if (parsed is Map && parsed["message"] != null) {
@@ -165,7 +165,7 @@ apiGetAll(String route) async {
     }
     return [];
   } catch (e) {
-    print('[apiGetAll] Erro: $e');
+    logDebug('[apiGetAll] Erro: $e');
     return [];
   }
 }
@@ -201,7 +201,7 @@ apiGetAllDocs(String route, int isAta) async {
     }
     return [];
   } catch (e) {
-    print('[apiGetAllDocs] Erro: $e');
+    logDebug('[apiGetAllDocs] Erro: $e');
     return [];
   }
 }
@@ -295,7 +295,7 @@ apiGetOcorrenciaMessages(int idOcorrencia) async {
     }
     return [];
   } catch (e) {
-    print('[apiGetOcorrenciaMessages] Erro: $e');
+    logDebug('[apiGetOcorrenciaMessages] Erro: $e');
     return [];
   }
 }
@@ -314,7 +314,7 @@ apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
     }
     return null;
   } catch (e) {
-    print('[apiSendOcorrenciaMessage] Erro: $e');
+    logDebug('[apiSendOcorrenciaMessage] Erro: $e');
     return null;
   }
 }
@@ -527,7 +527,7 @@ Future<RespostaIa> apiPerguntarChatIa(
       return RespostaIa("Não consegui responder agora. Tente novamente.");
     }
   } catch (e) {
-    print('[apiPerguntarChatIa] Erro: $e');
+    logDebug('[apiPerguntarChatIa] Erro: $e');
     return RespostaIa("Falha de comunicação com o servidor. Verifique sua conexão.");
   }
 }
@@ -555,7 +555,7 @@ Future<String> apiConfirmarAcaoChatIa(String idAcao) async {
         "Não foi possível concluir.";
   } catch (e) {
     if (e is String) rethrow;
-    print('[apiConfirmarAcaoChatIa] Erro: $e');
+    logDebug('[apiConfirmarAcaoChatIa] Erro: $e');
     throw "Falha de comunicação com o servidor.";
   }
 }

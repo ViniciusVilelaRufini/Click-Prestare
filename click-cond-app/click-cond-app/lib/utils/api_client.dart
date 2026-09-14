@@ -1,6 +1,7 @@
 import 'dart:convert' show Encoding, jsonDecode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:click/utils/api_config.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/navigation_service.dart';
 
@@ -46,6 +47,25 @@ class ApiClient {
   /// podem voltar 401 ao mesmo tempo após expiração — quero logout uma vez só).
   static bool _handlingExpiration = false;
 
+  /// Cliente HTTP de todos os verbos. Existe como campo para poder ser
+  /// trocado por um MockClient no teste — em produção é o cliente padrão.
+  static http.Client client = http.Client();
+
+  /// Teto de espera de TODA chamada.
+  ///
+  /// O package `http` não tem timeout padrão: numa rede que aceita a conexão e
+  /// não responde, o Future nunca completa e a tela fica girando para sempre.
+  /// Ficava a cargo de cada call site aplicar `.timeout(...)` — e controllers
+  /// inteiros esqueceram (financeiro, encomendas, consentimento, login de
+  /// funcionário). Aqui dentro, ninguém pode esquecer.
+  static Duration timeout = ApiConfig.timeout;
+
+  /// Devolve cliente e timeout ao padrão de produção (usado no tearDown).
+  static void restaurarPadroes() {
+    client = http.Client();
+    timeout = ApiConfig.timeout;
+  }
+
   /// Define se [_checkAuth] deve agir em 401 desta chamada.
   ///
   /// Use `skip401Handling: true` em endpoints de LOGIN — onde 401 significa
@@ -56,7 +76,7 @@ class ApiClient {
     Map<String, String>? headers,
     bool skip401Handling = false,
   }) async {
-    final res = await http.get(url, headers: headers);
+    final res = await client.get(url, headers: headers).timeout(timeout);
     if (!skip401Handling) _checkAuth(res);
     return res;
   }
@@ -68,7 +88,7 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
-    final res = await http.post(url, headers: headers, body: body, encoding: encoding);
+    final res = await client.post(url, headers: headers, body: body, encoding: encoding).timeout(timeout);
     if (!skip401Handling) _checkAuth(res);
     return res;
   }
@@ -80,7 +100,7 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
-    final res = await http.put(url, headers: headers, body: body, encoding: encoding);
+    final res = await client.put(url, headers: headers, body: body, encoding: encoding).timeout(timeout);
     if (!skip401Handling) _checkAuth(res);
     return res;
   }
@@ -92,7 +112,7 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
-    final res = await http.delete(url, headers: headers, body: body, encoding: encoding);
+    final res = await client.delete(url, headers: headers, body: body, encoding: encoding).timeout(timeout);
     if (!skip401Handling) _checkAuth(res);
     return res;
   }

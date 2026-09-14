@@ -98,6 +98,9 @@ export class MudancasService {
     const atual = await this.prisma.mudancas.findUnique({ where: { id: Number(id) }, select: { id_condominio: true } });
     if (!atual) throw new NotFoundException(`Mudança ${id} não encontrada`);
     await this.tenant.assertEntidade(atual.id_condominio, user, `mudança #${id}`);
+    // assertStaff só garante "não é morador": sem isto, funcionário com a flag
+    // desligada pelo síndico ainda liberava elevador e portaria.
+    await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'agendar_mudanca', user);
     try {
       return await this.prisma.mudancas.update({
         where: { id: Number(id) },

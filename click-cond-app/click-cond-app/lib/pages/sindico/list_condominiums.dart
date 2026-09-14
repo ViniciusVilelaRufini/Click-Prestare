@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:ui';
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
@@ -152,7 +153,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         setState(() => _errorMessage = getText('alert_generic_error'));
       }
     } catch (e) {
-      print('[ListCondomiums] Error: $e');
+      logDebug('[ListCondomiums] Error: $e');
       if (mounted)
         setState(() => _errorMessage = getText('alert_generic_error'));
     } finally {
@@ -741,7 +742,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                               fit: BoxFit.cover,
                               gaplessPlayback: true,
                               errorBuilder: (context, error, stackTrace) {
-                                print(
+                                logDebug(
                                     "[ListCondomiums] Error loading photo: $error");
                                 return Icon(
                                   PhosphorIcons.user,

@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -184,8 +185,7 @@ class _NewMoradorPageState extends State<NewMorador> {
       }
     } catch (e, st) {
       // Loga o stack no console para diagnóstico de erros web
-      // ignore: avoid_print
-      print('Erro ao salvar morador: $e\n$st');
+          logDebug('Erro ao salvar morador: $e\n$st');
       if (mounted) {
         displayMessage(
           context,

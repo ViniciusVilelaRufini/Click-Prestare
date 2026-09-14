@@ -1,3 +1,4 @@
+import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
@@ -24,7 +25,7 @@ apiGetAllVeiculos() async {
     }
     return [];
   } catch (e) {
-    print('[apiGetAllVeiculos] Erro: $e');
+    logDebug('[apiGetAllVeiculos] Erro: $e');
     return [];
   }
 }
@@ -49,7 +50,7 @@ Future<String> apiSaveVeiculo(Map<String, dynamic> obj, bool isEdit) async {
       return 'Não foi possível salvar o veículo.';
     }
   } catch (e) {
-    print('[apiSaveVeiculo] Erro: $e');
+    logDebug('[apiSaveVeiculo] Erro: $e');
     return 'Falha de comunicação com o servidor. Verifique sua conexão.';
   }
 }
@@ -66,7 +67,7 @@ apiRemoverVeiculo(int id) async {
         .timeout(ApiConfig.timeout);
     return response.statusCode >= 200 && response.statusCode < 300;
   } catch (e) {
-    print('[apiRemoverVeiculo] Erro: $e');
+    logDebug('[apiRemoverVeiculo] Erro: $e');
     return false;
   }
 }

@@ -104,16 +104,14 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
             final idUsuario = item['id_usuario'];
             if (idUsuario != null && idUsuario.toString() == loggedUserId) {
               filtered.add(item);
-            } else {
-              // Também aceita se for fatura de apto deste morador
-              final nome = (item['nome'] ?? '').toString().toLowerCase();
-              final myApto = Singleton.instance.apartamento?.toString().toLowerCase() ?? '';
-              final myBloco = Singleton.instance.bloco?.toString().toLowerCase() ?? '';
-              if (myApto.isNotEmpty && myBloco.isNotEmpty) {
-                if (nome.contains('apto $myApto') && nome.contains('bloco $myBloco')) {
-                  filtered.add(item);
-                }
-              }
+            } else if (faturaDeAptoCorresponde(
+              (item['nome'] ?? '').toString(),
+              Singleton.instance.apartamento.toString(),
+              Singleton.instance.bloco.toString(),
+            )) {
+              // Fatura de apto órfã (sem id_usuario) desta unidade. Comparação
+              // exata: o `contains` trazia "Apto 101" para o morador do "10".
+              filtered.add(item);
             }
           }
         }
@@ -228,15 +226,8 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
     }).toList();
   }
 
-  double _getValor(dynamic item) {
-    if (item['valor'] is num) {
-      return (item['valor'] as num).toDouble();
-    }
-    if (item['valor'] != null) {
-      return double.tryParse(item['valor'].toString()) ?? 0.0;
-    }
-    return 0.0;
-  }
+  /// Fonte única: o double.tryParse cru zerava "1.250,75" no CSV exportado.
+  double _getValor(dynamic item) => parseValorMoeda(item['valor']);
 
   Future<void> _exportarRelatorio() async {
     final filtered = _getFilteredItems();
