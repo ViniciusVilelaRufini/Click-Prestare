@@ -19,7 +19,6 @@ Future<List<dynamic>> apiGetNotificacoes() async {
   try {
     final response = await ApiClient.get(
       url,
-      headers: {'Authorization': getToken()},
     ).timeout(ApiConfig.timeout);
 
     if (response.statusCode == 200) {

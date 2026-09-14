@@ -11,7 +11,7 @@ apiFinishEnquete(String id) async {
     var url = ApiConfig.buildUri('/assembleias/votacoes/finish');
     Map data = {'id': id};
     var body = json.encode(data);
-    var response = await ApiClient.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
+    var response = await ApiClient.post(url,body: body,);
     if (response.statusCode == 200) {
       return;
     } else {

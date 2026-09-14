@@ -19,7 +19,6 @@ apiGetAllEncomendas({String? status, bool allCondos = false}) async {
   try {
     var response = await ApiClient.get(
       url,
-      headers: {"Authorization": getToken()}
     );
 
     if (response.statusCode == 200) {
@@ -83,7 +82,6 @@ apiGetApartamentosEncomendas({int? idCondominio}) async {
   try {
     final response = await ApiClient.get(
       url,
-      headers: {"Authorization": getToken()},
     );
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);

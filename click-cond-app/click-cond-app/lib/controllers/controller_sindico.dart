@@ -8,12 +8,6 @@ final _kTimeout = ApiConfig.timeout;
 
 Uri _buildUri(String path) => ApiConfig.buildUri(path);
 
-Map<String, String> _authHeaders({bool withContentType = false}) {
-  final headers = <String, String>{"Authorization": getToken()};
-  if (withContentType) headers["Content-Type"] = "application/json";
-  return headers;
-}
-
 loginSindico(String login, String password) async {
   try {
     final url = _buildUri('/sindico/login');
@@ -98,7 +92,7 @@ updateSindico(String nome, String documento, String dn, String email,
   });
   try {
     final response = await ApiClient
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+        .post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -118,7 +112,7 @@ updatePasswordSindicoApi(String senhaAtual, String senha) async {
   http.Response response;
   try {
     response = await ApiClient
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+        .post(url, body: body)
         .timeout(_kTimeout);
   } catch (e) {
     throw "Houve um erro, tente novamente!";
@@ -143,7 +137,7 @@ apiLinkSindicoMorador(dynamic idApartamento, String tipo) async {
   final body = json.encode({'id_apartamento': idApartamento.toString(), 'tipo': tipo});
   try {
     final response = await ApiClient
-        .post(url, headers: _authHeaders(withContentType: true), body: body)
+        .post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;

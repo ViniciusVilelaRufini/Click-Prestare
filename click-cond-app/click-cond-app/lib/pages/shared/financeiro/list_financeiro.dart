@@ -226,8 +226,9 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     // `_filteredPersonalLancamentos` e ninguém lia — digitar na busca não
     // mexia em nada na aba MEU FINANCEIRO, só na do condomínio.
     final activeItems = _filteredPersonalLancamentos.where((item) {
-      final info = _getMesAno(item);
-      return info['mes'] == mes && info['ano'] == ano;
+      // Esta copia nao fazia padLeft no mes: "5/9/2026" virava "9" e nunca
+      // casava com o seletor "09" — o lancamento sumia da tela.
+      return competenciaDe(item).pertenceAo(mes, ano);
     }).toList();
 
     return AppScaffold(
@@ -1413,35 +1414,6 @@ class ListFinanceiroState extends State<ListFinanceiro> {
     );
   }
 
-  Map<String, String> _getMesAno(dynamic item) {
-    String v = item['data_vencimento']?.toString() ?? '';
-    if (v.isEmpty) {
-      v = item['data']?.toString() ?? '';
-    }
-    if (v.isNotEmpty && v.contains('/')) {
-      var parts = v.split('/');
-      if (parts.length >= 3) {
-        return {'mes': parts[1], 'ano': parts[2]};
-      }
-    }
-    
-    String nome = item['nome']?.toString() ?? '';
-    if (nome.contains('Ref.')) {
-      var refPart = nome.split('Ref.').last.trim();
-      if (refPart.contains('/')) {
-        var parts = refPart.split('/');
-        return {'mes': parts[0].padLeft(2, '0'), 'ano': parts[1]};
-      } else {
-        return {'mes': refPart.padLeft(2, '0'), 'ano': DateTime.now().year.toString()};
-      }
-    }
-    
-    var now = DateTime.now();
-    return {
-      'mes': now.month.toString().padLeft(2, '0'),
-      'ano': now.year.toString()
-    };
-  }
 
   Widget _buildCategoriesGrid(List<dynamic> activeItems, List<String> personalCategories) {
     var condoCharges = activeItems.where((i) {

@@ -20,7 +20,6 @@ apiGetAllVisitantes(String search, {bool allCondos = false}) async {
       logDebug('[apiGetAllVisitantes] allCondos: $allCondos');
       var response = await ApiClient.get(
         url,
-        headers: { "Authorization": getToken() }
       );
       // O body traz CPF, PIN de portaria e foto de rosto: nunca logar.
       logDebug('[apiGetAllVisitantes] status ${response.statusCode}');
@@ -81,7 +80,6 @@ apiGetPendentes() async {
   try {
     final response = await ApiClient.get(
       url,
-      headers: {"Authorization": getToken()},
     ).timeout(ApiConfig.timeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -190,7 +188,6 @@ apiGerarConvite({bool isPrestador = false}) async {
   try {
     var response = await ApiClient.post(
       url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({ "is_prestador": isPrestador }),
     );
     if (response.statusCode == 200) {
@@ -206,7 +203,7 @@ apiGerarConvite({bool isPrestador = false}) async {
 apiGetConvitesPendentes() async {
   var url = ApiConfig.buildUri('/convites/pendentes');
   try {
-    var response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    var response = await ApiClient.get(url);
     if (response.statusCode == 200) {
       var parsed = jsonDecode(response.body);
       return parsed is List ? parsed : [];
@@ -238,7 +235,6 @@ apiResponderConvite(
     }
     var response = await ApiClient.post(
       url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode(corpo),
     );
     if (response.statusCode == 200) return { "ok": true };

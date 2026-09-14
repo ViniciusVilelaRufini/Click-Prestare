@@ -11,12 +11,6 @@ final _kTimeout = ApiConfig.timeout;
 Uri _buildUri(String path, [Map<String, String>? params]) =>
     ApiConfig.buildUri(path, params);
 
-Map<String, String> _authHeaders({bool withContentType = false}) {
-  final headers = <String, String>{"Authorization": getToken()};
-  if (withContentType) headers["Content-Type"] = "application/json; charset=utf-8";
-  return headers;
-}
-
 apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
   http.Response? response;
   try {
@@ -35,7 +29,6 @@ apiSaveObject(String route, String nameObj, dynamic obj, bool isEdit) async {
 
     response = await ApiClient.post(
           url,
-          headers: _authHeaders(withContentType: true),
           body: body,
           encoding: utf8,
         ).timeout(_kTimeout);
@@ -105,7 +98,6 @@ Future<Map<String, dynamic>> apiSaveManutencaoAreaSocial(dynamic obj, bool isEdi
 
     response = await ApiClient.post(
           url,
-          headers: _authHeaders(withContentType: true),
           body: body,
           encoding: utf8,
         ).timeout(_kTimeout);
@@ -142,7 +134,7 @@ apiDeleteObject(String route, int idObj) async {
   final url = _buildUri('/$route/remove');
   final body = json.encode({"id": idObj});
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     return response.statusCode == 200;
   } catch (e) {
@@ -157,7 +149,7 @@ apiGetAll(String route) async {
     'id_apto': Singleton.instance.getIdApartamento(),
   });
   try {
-    final response = await ApiClient.get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -176,7 +168,7 @@ apiGetDetails(String route, int idItem) async {
     'id': idItem.toString(),
   });
   try {
-    final response = await ApiClient.get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -193,7 +185,7 @@ apiGetAllDocs(String route, int isAta) async {
     'is_ata': isAta.toString(),
   });
   try {
-    final response = await ApiClient.get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -215,7 +207,7 @@ apiUpdateStatus(String route, int idItem, bool status, String motivo) async {
     "id_condominio": Singleton.instance.id_condominio.toString(),
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return "";
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -234,7 +226,7 @@ Future<String> apiUpdateStatusAgendamento(int idItem, String status, {String mot
     "id_condominio": Singleton.instance.id_condominio.toString(),
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return "";
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -252,7 +244,7 @@ apiUpdateStatusOcorrManut(String route, int idItem, String status) async {
     "id_condominio": Singleton.instance.id_condominio.toString(),
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return "";
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -272,7 +264,7 @@ apiUpdateResponsavel(int idOcorrencia, int? idResponsavel) async {
     "id_condominio": Singleton.instance.id_condominio.toString(),
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode >= 200 && response.statusCode < 300) return "";
     final parsed = jsonDecode(response.body);
@@ -287,7 +279,7 @@ apiGetOcorrenciaMessages(int idOcorrencia) async {
     'id': idOcorrencia.toString(),
   });
   try {
-    final response = await ApiClient.get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
@@ -307,7 +299,7 @@ apiSendOcorrenciaMessage(int idOcorrencia, String mensagem) async {
     "mensagem": mensagem,
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -443,7 +435,7 @@ Future<List<ConversaIa>> apiListarConversasIa() async {
   final url = _buildUri('/chat-ia/conversas', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
   });
-  final response = await ApiClient.get(url, headers: _authHeaders())
+  final response = await ApiClient.get(url)
       .timeout(const Duration(seconds: 20));
   if (response.statusCode != 200) {
     throw 'Não foi possível carregar suas conversas.';
@@ -461,7 +453,7 @@ Future<List<MensagemIa>> apiAbrirConversaIa(String conversaId) async {
   final url = _buildUri('/chat-ia/conversas/$conversaId', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
   });
-  final response = await ApiClient.get(url, headers: _authHeaders())
+  final response = await ApiClient.get(url)
       .timeout(const Duration(seconds: 20));
   if (response.statusCode != 200) {
     throw 'Não foi possível abrir essa conversa.';
@@ -482,7 +474,7 @@ Future<void> apiApagarConversaIa(String conversaId) async {
   final url = _buildUri('/chat-ia/conversas/$conversaId', {
     'id_condominio': Singleton.instance.id_condominio.toString(),
   });
-  final response = await ApiClient.delete(url, headers: _authHeaders())
+  final response = await ApiClient.delete(url)
       .timeout(const Duration(seconds: 20));
   if (response.statusCode < 200 || response.statusCode >= 300) {
     throw 'Não foi possível apagar essa conversa.';
@@ -508,7 +500,6 @@ Future<RespostaIa> apiPerguntarChatIa(
   try {
     final response = await ApiClient.post(
       url,
-      headers: _authHeaders(withContentType: true),
       body: body,
     ).timeout(const Duration(seconds: 60));
     if (response.statusCode == 200) {
@@ -543,7 +534,6 @@ Future<String> apiConfirmarAcaoChatIa(String idAcao) async {
   try {
     final response = await ApiClient.post(
       url,
-      headers: _authHeaders(withContentType: true),
       body: body,
     ).timeout(const Duration(seconds: 30));
     final parsed = jsonDecode(response.body);

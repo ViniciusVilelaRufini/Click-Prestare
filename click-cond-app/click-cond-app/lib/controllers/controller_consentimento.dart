@@ -12,7 +12,7 @@ import 'package:click/utils/api_client.dart';
 apiConsentimentoPendente() async {
   var url = ApiConfig.buildUri('/consentimentos/pendentes');
   try {
-    var response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    var response = await ApiClient.get(url);
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body);
       return body is Map ? body : null;
@@ -31,7 +31,6 @@ apiRegistrarConsentimento({required bool privacidade, required bool biometria}) 
   try {
     var response = await ApiClient.post(
       url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({ "privacidade": privacidade, "biometria": biometria }),
     );
     return response.statusCode == 200;

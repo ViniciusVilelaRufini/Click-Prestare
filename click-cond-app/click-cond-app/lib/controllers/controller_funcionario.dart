@@ -32,7 +32,6 @@ getCondominiosFuncionario() async {
   try{
       var response = await ApiClient.get(
         url,
-        headers: { "Authorization": getToken() }
       );
 
     if (response.statusCode == 200) {
@@ -54,7 +53,7 @@ updateFuncionarioApi(dynamic funcionario) async {
   };
   var body = json.encode(data);
   try{
-    var response = await ApiClient.post(url,headers: {"Content-Type": "application/json", "Authorization": getToken()},body: body,);
+    var response = await ApiClient.post(url,body: body,);
     if (response.statusCode == 200) {
       var parsed = jsonDecode(response.body) as Map<String, dynamic>;
       storageFuncionario(parsed);
@@ -75,7 +74,6 @@ updatePasswordFuncionarioApi(String senhaAtual, String senha) async {
   try {
     response = await ApiClient.post(
       url,
-      headers: {"Content-Type": "application/json", "Authorization": getToken()},
       body: body,
     ).timeout(ApiConfig.timeout);
   } catch (e) {

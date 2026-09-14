@@ -210,8 +210,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     const personalCategories = kCategoriasPessoais;
 
     List<dynamic> activeItems = _items.where((item) {
-      var info = _getMesAno(item);
-      return info['mes'] == mes && info['ano'] == ano;
+      return competenciaDe(item).pertenceAo(mes ?? '', ano ?? '');
     }).toList();
 
     return Scaffold(
@@ -1702,36 +1701,6 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
     );
   }
 
-  Map<String, String> _getMesAno(dynamic item) {
-    String v = item['data_vencimento']?.toString() ?? '';
-    if (v.isEmpty) {
-      v = item['data']?.toString() ?? '';
-    }
-    if (v.isNotEmpty && v.contains('/')) {
-      var parts = v.split('/');
-      if (parts.length >= 3) {
-        return {'mes': parts[1], 'ano': parts[2]};
-      }
-    }
-    
-    String nome = item['nome']?.toString() ?? '';
-    if (nome.contains('Ref.')) {
-      var refPart = nome.split('Ref.').last.trim();
-      if (refPart.contains('/')) {
-        var parts = refPart.split('/');
-        return {'mes': parts[0].padLeft(2, '0'), 'ano': parts[1]};
-      } else {
-        return {'mes': refPart.padLeft(2, '0'), 'ano': DateTime.now().year.toString()};
-      }
-    }
-    
-    var now = DateTime.now();
-    return {
-      'mes': now.month.toString().padLeft(2, '0'),
-      'ano': now.year.toString()
-    };
-  }
-
   List<Map<String, String>> _getAvailableMonths() {
     var now = DateTime.now();
     var list = <Map<String, String>>[];
@@ -1999,25 +1968,9 @@ class _MoradorFinanceiroCategoryDetailPageState extends State<MoradorFinanceiroC
       // For Condo charges, we always show unpaid items, OR items matching the month.
       // But to be consistent with the month selector, we filter by mes and ano.
       // In the original, the month selector is global, so we use widget.mes and widget.ano
-      String v = item['data_vencimento']?.toString() ?? '';
-      if (v.isEmpty) {
-        v = item['data']?.toString() ?? '';
-      }
-      if (v.isNotEmpty && v.contains('/')) {
-        var parts = v.split('/');
-        if (parts.length >= 3) {
-          return parts[1] == widget.mes && parts[2] == widget.ano;
-        }
-      }
-      
-      String nome = item['nome']?.toString() ?? '';
-      if (nome.contains('Ref.')) {
-        var refPart = nome.split('Ref.').last.trim();
-        if (refPart.contains('/')) {
-          var parts = refPart.split('/');
-          return parts[0].padLeft(2, '0') == widget.mes && parts[1] == widget.ano;
-        }
-      }
+      // Esta copia devolvia false para data ISO, enquanto as outras jogavam o
+      // item no mes corrente: o card dizia "1 pendente" e o detalhe abria vazio.
+      return competenciaDe(item).pertenceAo(widget.mes, widget.ano);
       return false;
     }).toList();
 

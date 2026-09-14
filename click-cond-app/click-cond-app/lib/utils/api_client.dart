@@ -60,10 +60,34 @@ class ApiClient {
   /// funcionário). Aqui dentro, ninguém pode esquecer.
   static Duration timeout = ApiConfig.timeout;
 
-  /// Devolve cliente e timeout ao padrão de produção (usado no tearDown).
+  /// De onde sai o token da sessão. Campo para poder ser trocado no teste.
+  static String Function() tokenProvider = getToken;
+
+  /// Devolve cliente, timeout e token ao padrão de produção (usado no tearDown).
   static void restaurarPadroes() {
     client = http.Client();
     timeout = ApiConfig.timeout;
+    tokenProvider = getToken;
+  }
+
+  /// Completa os headers do call site com o que toda chamada precisa.
+  ///
+  /// O `Authorization` era montado à mão em ~50 lugares (quatro cópias de um
+  /// `_authHeaders()` idêntico, mais mapas inline): trocar o esquema de auth
+  /// exigiria editar todos, e rota nova podia esquecer. O header do call site
+  /// continua tendo precedência — quem precisa de algo específico, manda.
+  static Map<String, String> _headers(Map<String, String>? doCallSite, {bool comCorpo = false}) {
+    final headers = <String, String>{};
+
+    final token = tokenProvider();
+    // Sem sessão (login, cadastro) não se manda o header: `Authorization: ""`
+    // é pior que a ausência dele, porque um guard pode lê-lo como inválido.
+    if (token.isNotEmpty) headers['Authorization'] = token;
+
+    if (comCorpo) headers['Content-Type'] = 'application/json';
+
+    if (doCallSite != null) headers.addAll(doCallSite);
+    return headers;
   }
 
   /// Define se [_checkAuth] deve agir em 401 desta chamada.
@@ -76,7 +100,7 @@ class ApiClient {
     Map<String, String>? headers,
     bool skip401Handling = false,
   }) async {
-    final res = await client.get(url, headers: headers).timeout(timeout);
+    final res = await client.get(url, headers: _headers(headers)).timeout(timeout);
     if (!skip401Handling) _checkAuth(res);
     return res;
   }
@@ -88,7 +112,9 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
-    final res = await client.post(url, headers: headers, body: body, encoding: encoding).timeout(timeout);
+    final res = await client
+        .post(url, headers: _headers(headers, comCorpo: body != null), body: body, encoding: encoding)
+        .timeout(timeout);
     if (!skip401Handling) _checkAuth(res);
     return res;
   }
@@ -100,7 +126,9 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
-    final res = await client.put(url, headers: headers, body: body, encoding: encoding).timeout(timeout);
+    final res = await client
+        .put(url, headers: _headers(headers, comCorpo: body != null), body: body, encoding: encoding)
+        .timeout(timeout);
     if (!skip401Handling) _checkAuth(res);
     return res;
   }
@@ -112,7 +140,9 @@ class ApiClient {
     Encoding? encoding,
     bool skip401Handling = false,
   }) async {
-    final res = await client.delete(url, headers: headers, body: body, encoding: encoding).timeout(timeout);
+    final res = await client
+        .delete(url, headers: _headers(headers, comCorpo: body != null), body: body, encoding: encoding)
+        .timeout(timeout);
     if (!skip401Handling) _checkAuth(res);
     return res;
   }

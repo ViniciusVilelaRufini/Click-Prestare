@@ -14,6 +14,62 @@ const kCategoriasPessoais = ["Aluguel", "Água", "Luz", "Internet", "Outros"];
 /// Categorias disponíveis na cobrança criada pelo síndico.
 const kCategoriasCobranca = ["Condomínio", "Aluguel", "Água", "Luz", "Internet", "Outros"];
 
+/// Mês/ano a que um lançamento pertence — a regra que decide se ele aparece
+/// quando o usuário troca o mês na tela.
+class Competencia {
+  /// Sempre com dois dígitos ("09"), que é o formato do seletor de mês.
+  final String mes;
+  final String ano;
+
+  const Competencia(this.mes, this.ano);
+
+  /// Compara com um mês/ano de seletor, tolerando "9" e "09" dos dois lados.
+  bool pertenceAo(String mesAlvo, String anoAlvo) =>
+      mes == mesAlvo.padLeft(2, '0') && ano == anoAlvo;
+}
+
+/// Extrai a competência de um lançamento, na ordem: data de vencimento →
+/// campo `data` → "Ref. MM/AAAA" no nome → mês corrente.
+///
+/// Estava escrita quatro vezes, com divergências que produziam bug de verdade:
+/// só uma cópia fazia `padLeft` no mês (sem ele, "5/9/2026" vira "9" e nunca
+/// casa com o seletor "09" — o lançamento some da tela), e nenhuma tratava
+/// data ISO, então o item caía no fallback e era jogado no mês corrente.
+Competencia competenciaDe(dynamic item) {
+  String bruto = item['data_vencimento']?.toString().trim() ?? '';
+  if (bruto.isEmpty) bruto = item['data']?.toString().trim() ?? '';
+
+  if (bruto.isNotEmpty) {
+    // dd/MM/yyyy
+    if (bruto.contains('/')) {
+      final partes = bruto.split('/');
+      if (partes.length >= 3) {
+        return Competencia(partes[1].trim().padLeft(2, '0'), partes[2].trim());
+      }
+    }
+    // ISO (yyyy-MM-dd, com ou sem hora)
+    final iso = DateTime.tryParse(bruto);
+    if (iso != null) {
+      return Competencia(iso.month.toString().padLeft(2, '0'), iso.year.toString());
+    }
+  }
+
+  final agora = DateTime.now();
+
+  final nome = item['nome']?.toString() ?? '';
+  if (nome.contains('Ref.')) {
+    final ref = nome.split('Ref.').last.trim();
+    final partes = ref.split('/');
+    final mes = partes[0].trim();
+    if (mes.isNotEmpty) {
+      final ano = partes.length >= 2 ? partes[1].trim() : agora.year.toString();
+      return Competencia(mes.padLeft(2, '0'), ano);
+    }
+  }
+
+  return Competencia(agora.month.toString().padLeft(2, '0'), agora.year.toString());
+}
+
 /// "Apto 10 - Bloco A" → ('10', 'A'). Devolve null se o nome não é fatura de
 /// apartamento. O bloco pode ter espaços ("Torre Norte").
 final _padraoFaturaApto = RegExp(

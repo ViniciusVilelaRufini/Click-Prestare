@@ -15,7 +15,6 @@ Future<List<dynamic>> apiGetAcessosVisitante(int idVisitante, {int limit = 30}) 
   try {
     final response = await ApiClient.get(
       url,
-      headers: {'Authorization': getToken()},
     ).timeout(ApiConfig.timeout);
 
     if (response.statusCode == 200) {
@@ -39,7 +38,6 @@ Future<List<dynamic>> apiGetAcessosMorador(int idMorador, {int limit = 30}) asyn
   try {
     final response = await ApiClient.get(
       url,
-      headers: {'Authorization': getToken()},
     ).timeout(ApiConfig.timeout);
 
     if (response.statusCode == 200) {

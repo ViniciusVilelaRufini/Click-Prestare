@@ -26,7 +26,7 @@ apiGetAllFinanceiro(String route, String mes, String ano) async {
   var url = ApiConfig.buildUri('/'+route+'/get-all',{'id_condominio': Singleton.instance.id_condominio.toString(), 'mes':mes, 'ano':ano});
   dynamic response;
   try {
-    response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    response = await ApiClient.get(url);
   } catch (e) {
     debugPrint('[apiGetAllFinanceiro] $e');
     throw Exception('Falha de comunicação com o servidor. Verifique sua conexão.');
@@ -46,7 +46,7 @@ apiGetInadimplenciaDashboard(String mes, String ano) async {
   });
   dynamic response;
   try {
-    response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    response = await ApiClient.get(url);
   } catch (e) {
     debugPrint('[apiGetInadimplenciaDashboard] $e');
     throw Exception('Falha de comunicação com o servidor. Verifique sua conexão.');
@@ -63,7 +63,6 @@ apiNotificarInadimplente(String bloco, String apto) async {
   try {
     var response = await ApiClient.post(
       url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({
         "id_condominio": Singleton.instance.id_condominio.toString(),
         "bloco": bloco,
@@ -96,7 +95,7 @@ apiGetDetailsInadimplente(String route, String bloco, String apto) async {
   var url = ApiConfig.buildUri('/'+route+'/get',{'id_condominio': Singleton.instance.id_condominio.toString(), 'bloco': bloco, 'apto': apto});
   dynamic response;
   try {
-    response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    response = await ApiClient.get(url);
   } catch (e) {
     debugPrint('[apiGetDetailsInadimplente] $e');
     throw Exception('Falha de comunicação com o servidor. Verifique sua conexão.');
@@ -112,7 +111,6 @@ apiUploadComprovante(int id, String fileBase64) async {
   try {
     var response = await ApiClient.post(
       url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({ "id": id, "file": fileBase64, "type": "comprovante" })
     );
     return response.statusCode == 200;
@@ -128,7 +126,7 @@ apiGetFinanceiroByUser() async {
   });
   dynamic response;
   try {
-    response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    response = await ApiClient.get(url);
   } catch (e) {
     debugPrint('[apiGetFinanceiroByUser] $e');
     throw Exception('Falha de comunicação com o servidor. Verifique sua conexão.');
@@ -144,7 +142,6 @@ apiInsertMoradorFinanceiro(Map<String, dynamic> data) async {
   try {
     var response = await ApiClient.post(
       url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({
         "id_condominio": Singleton.instance.id_condominio.toString(),
         "data": data
@@ -161,7 +158,6 @@ apiUpdateMoradorFinanceiro(Map<String, dynamic> data) async {
   try {
     var response = await ApiClient.post(
       url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({
         "id_condominio": Singleton.instance.id_condominio.toString(),
         "data": data
@@ -215,7 +211,7 @@ apiExportLivroCaixaCsv(String mes, String ano) async {
   });
   dynamic response;
   try {
-    response = await ApiClient.get(url, headers: { "Authorization": getToken() });
+    response = await ApiClient.get(url);
   } catch (e) {
     throw Exception('Falha de comunicação com o servidor. Verifique sua conexão.');
   }
@@ -228,7 +224,6 @@ apiRemoveMoradorFinanceiro(int id) async {
   try {
     var response = await ApiClient.post(
       url,
-      headers: { "Authorization": getToken(), "Content-Type": "application/json" },
       body: jsonEncode({ "id": id })
     );
     return response.statusCode == 200;

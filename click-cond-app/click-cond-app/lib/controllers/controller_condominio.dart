@@ -14,12 +14,6 @@ final _kTimeout = ApiConfig.timeout;
 Uri _buildUri(String path, [Map<String, String>? params]) =>
     ApiConfig.buildUri(path, params);
 
-Map<String, String> _authHeaders({bool withContentType = false}) {
-  final headers = <String, String>{"Authorization": getToken()};
-  if (withContentType) headers["Content-Type"] = "application/json";
-  return headers;
-}
-
 registerCondominio(CondominioRegister condominio) async {
   final url = _buildUri('/condominio/register');
   final body = json.encode({
@@ -45,7 +39,7 @@ registerCondominio(CondominioRegister condominio) async {
     }
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return "";
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -58,7 +52,7 @@ registerCondominio(CondominioRegister condominio) async {
 getCondominios() async {
   final url = _buildUri('/sindico/list-condominios');
   try {
-    final response = await ApiClient.get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -72,7 +66,7 @@ getCondominios() async {
 getCondominio(int id) async {
   final url = _buildUri('/condominio/get-condominio', {'id_condominio': id.toString()});
   try {
-    final response = await ApiClient.get(url, headers: _authHeaders())
+    final response = await ApiClient.get(url)
         .timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -98,7 +92,7 @@ updateInfosCondominio(String nome, String documento, String subsindico,
     }
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return;
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -125,7 +119,7 @@ updateAddressCondominio(String cep, String rua, String numero,
     }
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return;
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -147,7 +141,7 @@ updateAsinaturaCondominioApi(
     }
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return;
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -163,7 +157,7 @@ updateMoedaCondominioApi(String idCondominio, String moeda) async {
     "condominio": {"id": idCondominio, "moeda": moeda}
   });
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: body)
+    final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
     if (response.statusCode == 200) return;
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
@@ -181,7 +175,7 @@ updateMoedaCondominioApi(String idCondominio, String moeda) async {
 Future<bool> apiDeleteAccount() async {
   final url = _buildUri('/users/delete-account');
   try {
-    final response = await ApiClient.post(url, headers: _authHeaders(withContentType: true), body: '{}')
+    final response = await ApiClient.post(url, body: '{}')
         .timeout(_kTimeout);
     return response.statusCode == 200;
   } catch (e) {
@@ -193,7 +187,7 @@ Future<bool> apiDeleteAccount() async {
 getMeusEventos({int limit = 15}) async {
   final url = _buildUri('/dashboard/meus-eventos', {'limit': limit.toString()});
   try {
-    final response = await ApiClient.get(url, headers: _authHeaders()).timeout(_kTimeout);
+    final response = await ApiClient.get(url).timeout(_kTimeout);
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
       return decoded is List ? decoded : [];
@@ -211,7 +205,7 @@ getDashboardSummary([dynamic idCondominio]) async {
           ? {'id_condominio': idCondominio.toString()}
           : null);
   try {
-    final response = await ApiClient.get(url, headers: _authHeaders()).timeout(_kTimeout);
+    final response = await ApiClient.get(url).timeout(_kTimeout);
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }

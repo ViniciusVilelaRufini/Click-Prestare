@@ -124,27 +124,6 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
     }
   }
 
-  Map<String, String> _getMesAno(dynamic item) {
-    String v = item['data_vencimento']?.toString() ?? '';
-    if (v.isEmpty) v = item['data']?.toString() ?? '';
-    if (v.isNotEmpty && v.contains('/')) {
-      var parts = v.split('/');
-      if (parts.length >= 3) {
-        return {'mes': parts[1].padLeft(2, '0'), 'ano': parts[2]};
-      }
-    }
-    String nome = item['nome']?.toString() ?? '';
-    if (nome.contains('Ref.')) {
-      var refPart = nome.split('Ref.').last.trim();
-      if (refPart.contains('/')) {
-        var parts = refPart.split('/');
-        return {'mes': parts[0].padLeft(2, '0'), 'ano': parts[1]};
-      }
-    }
-    var now = DateTime.now();
-    return {'mes': now.month.toString().padLeft(2, '0'), 'ano': now.year.toString()};
-  }
-
   Color _corCategoria(String cat) {
     switch (cat) {
       case 'Condomínio':
@@ -212,13 +191,13 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
       if (_selectedStatus == 'pagos' && pago != 1) return false;
 
       // 3. Filtro de Período
-      final info = _getMesAno(item);
+      final info = competenciaDe(item);
       if (_selectedPeriodoType == 'mes') {
-        if (info['mes'] != _selectedMes || info['ano'] != _selectedAno) {
+        if (!info.pertenceAo(_selectedMes, _selectedAno)) {
           return false;
         }
       } else if (_selectedPeriodoType == 'ano') {
-        if (info['ano'] != _selectedAno) {
+        if (info.ano != _selectedAno) {
           return false;
         }
       }
