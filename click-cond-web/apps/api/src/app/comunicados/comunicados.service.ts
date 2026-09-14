@@ -69,6 +69,9 @@ export class ComunicadosService {
   async create(dto: CreateComunicadoDto, operador?: JwtPayload) {
     assertStaff(operador, 'publicar comunicado');
     await this.tenant.assertCondominio(dto.id_condominio, operador);
+    // assertStaff so garante "nao e morador": publicar comunicado e comunicacao
+    // oficial do condominio, e a flag existe para o sindico controlar isso.
+    await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'comunicados', operador);
     const criado = await this.prisma.comunicados.create({
       data: {
         titulo: dto.titulo,
@@ -95,6 +98,7 @@ export class ComunicadosService {
     const antes = await this.prisma.comunicados.findUnique({ where: { id } });
     if (!antes) throw new NotFoundException(`Comunicado ${id} não encontrado`);
     await this.tenant.assertEntidade(antes.id_condominio, operador, `comunicado #${id}`);
+    await this.tenant.assertPermissaoFuncionario(antes.id_condominio, 'comunicados', operador);
 
     try {
       const atualizado = await this.prisma.comunicados.update({
@@ -144,6 +148,7 @@ export class ComunicadosService {
     });
     if (!existing) throw new NotFoundException(`Comunicado ${id} não encontrado`);
     await this.tenant.assertEntidade(existing.id_condominio, operador, `comunicado #${id}`);
+    await this.tenant.assertPermissaoFuncionario(existing.id_condominio, 'comunicados', operador);
     try {
       await this.prisma.comunicados.delete({ where: { id } });
       if (existing) {

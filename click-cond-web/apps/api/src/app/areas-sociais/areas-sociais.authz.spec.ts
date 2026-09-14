@@ -43,6 +43,14 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
         findMany: jest.fn(async () => []),
       },
       sindicos_Condominios: { findFirst: jest.fn(async () => null) },
+      // O funcionário destes testes é um funcionário AUTORIZADO do condomínio 2:
+      // o que se verifica aqui é isolamento por condomínio, não a flag de
+      // permissão (essa tem cobertura própria em areas-sociais.permissao.spec).
+      funcionarios: {
+        findFirst: jest.fn(async ({ where }: any) =>
+          Number(where?.id_condominio) === 2 ? { areas_sociais: 1, manutencoes_programadas: 1 } : null,
+        ),
+      },
       ...overrides,
     };
     const notifications: any = { sendPushNotification: jest.fn() };

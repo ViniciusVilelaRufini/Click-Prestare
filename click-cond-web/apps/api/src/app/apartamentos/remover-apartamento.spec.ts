@@ -35,7 +35,13 @@ describe('ApartamentosService — remover unidade', () => {
       areas_Sociais_Agendamentos: { count: jest.fn(async () => 3) },
       mudancas: { count: jest.fn(async () => 0) },
     };
-    const tenant: any = { assertEntidade: jest.fn(async () => undefined), assertCondominio: jest.fn(async () => undefined) };
+    const tenant: any = {
+      assertEntidade: jest.fn(async () => undefined),
+      assertCondominio: jest.fn(async () => undefined),
+      // Estes testes usam síndico, para quem a checagem de flag é no-op.
+      // A cobertura da permissão em si está em apartamentos.permissao.spec.ts.
+      assertPermissaoFuncionario: jest.fn(async () => undefined),
+    };
     const auditoria: any = { registrar: jest.fn(async (r: any) => auditado.push(r)) };
     const svc = new ApartamentosService(prisma, tenant, auditoria);
     return { svc, prisma, auditado, ctrl: new ApartamentosController(svc) };

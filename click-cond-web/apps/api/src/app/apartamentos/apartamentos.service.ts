@@ -124,6 +124,9 @@ export class ApartamentosService {
     if (!this.viaOperadora(user)) {
       assertStaff(user, 'cadastrar apartamento');
       await this.tenant.assertCondominio(dto.id_condominio, user);
+      // assertStaff so garante "nao e morador". A flag e o que o sindico
+      // desliga quando nao quer aquele funcionario mexendo em unidades.
+      await this.tenant.assertPermissaoFuncionario(dto.id_condominio, 'apartamentos', user);
     }
     this.assertAptoValido(dto.apto, dto.bloco);
     if (!this.prisma.isConnected) {
@@ -180,6 +183,7 @@ export class ApartamentosService {
     if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
     if (!this.viaOperadora(user)) {
       await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+      await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'apartamentos', user);
     }
 
     // Valida o estado FINAL da unidade (campo enviado ou valor atual) —
@@ -239,6 +243,7 @@ export class ApartamentosService {
     if (!atual) throw new NotFoundException(`Apartamento ${id} não encontrado`);
     if (!this.viaOperadora(user)) {
       await this.tenant.assertEntidade(atual.id_condominio, user, `apartamento #${id}`);
+      await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'apartamentos', user);
     }
 
     const [moradores, visitantes, vagas, agendamentos, mudancas] = await Promise.all([
