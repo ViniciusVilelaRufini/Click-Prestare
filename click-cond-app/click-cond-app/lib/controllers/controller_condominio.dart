@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
-import 'package:click/utils/local_storage.dart';
 
 import '../pages/singleton.dart';
 

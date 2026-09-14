@@ -14,7 +14,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// Gestão de categorias de ocorrência (síndico): nome, prioridade e SLA em horas.
 /// O SLA define o prazo automático das ocorrências abertas nessa categoria.
 class ListCategoriasOcorrencia extends StatefulWidget {
-  const ListCategoriasOcorrencia({Key? key}) : super(key: key);
+  const ListCategoriasOcorrencia({super.key});
   @override
   State<ListCategoriasOcorrencia> createState() => _ListCategoriasOcorrenciaState();
 }
@@ -193,7 +193,7 @@ class _ListCategoriasOcorrenciaState extends State<ListCategoriasOcorrencia> {
                               Container(
                                 width: 44, height: 44,
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
+                                  color: AppColors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(PhosphorIcons.tag, color: AppColors.primary, size: 22),

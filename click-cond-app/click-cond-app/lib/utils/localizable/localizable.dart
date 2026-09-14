@@ -9,35 +9,61 @@ import 'package:click/utils/localizable/localizable_pt_pt.dart';
 import 'package:click/utils/localstorage_config.dart';
 import 'package:flutter/material.dart';
 
-String getText(String key) {
-  try{
-    var file;
-    switch (LocalStorageConfig.instance.getPreferenceLanguage()) {
-      case 'pt_BR':
-        file = Localizable_PtBr();
-        break;
-      case 'en': 
-        file = Localizable_EnUs();
-        break;
-      case 'es': 
-        file = Localizable_Es();
-        break;
-      case 'pt_PT':
-        file = Localizable_PtPt();
-        break;
-      case 'de':
-        file = Localizable_Al();
-        break;
-      default:
-        file = Localizable_PtBr();
-        break;
-    }
+/// Índice chave → texto. Chave duplicada mantém a primeira ocorrência, que é
+/// o que o antigo `.where(...).first` fazia.
+///
+/// Existe também por custo: as listas têm ~450 entradas e eram varridas
+/// linearmente a CADA getText — e há tela que chama cinco vezes por build,
+/// dentro de lista.
+Map<String, String> indiceDe(List<LocalizableModel> strings) {
+  final mapa = <String, String>{};
+  for (final s in strings) {
+    mapa.putIfAbsent(s.key, () => s.text);
+  }
+  return mapa;
+}
 
-    var item = file.strings.where((element) => element.key == key).first;
-    return item.text;
-  }catch(e){
-    return '';
-  }    
+/// Resolve em cascata: idioma escolhido → pt_BR → a própria chave.
+///
+/// O `.first` de antes lançava StateError na chave ausente e o catch devolvia
+/// STRING VAZIA: em inglês e alemão, telas inteiras renderizavam títulos e
+/// botões em branco, sem erro e sem log. Devolver a chave é feio, mas é
+/// visível — alguém vê "lb_meu_apartamento" na tela e conserta.
+String resolverTexto(String chave, Map<String, String> idioma, Map<String, String> padrao) {
+  final texto = idioma[chave];
+  if (texto != null && texto.isNotEmpty) return texto;
+  final reserva = padrao[chave];
+  if (reserva != null && reserva.isNotEmpty) return reserva;
+  return chave;
+}
+
+final Map<String, Map<String, String>> _indicesCache = {};
+
+Map<String, String> _indice(String idioma) {
+  return _indicesCache.putIfAbsent(idioma, () {
+    switch (idioma) {
+      case 'en':
+        return indiceDe(Localizable_EnUs().strings);
+      case 'es':
+        return indiceDe(Localizable_Es().strings);
+      case 'pt_PT':
+        return indiceDe(Localizable_PtPt().strings);
+      case 'de':
+        return indiceDe(Localizable_Al().strings);
+      default:
+        return indiceDe(Localizable_PtBr().strings);
+    }
+  });
+}
+
+String getText(String key) {
+  try {
+    final idioma = LocalStorageConfig.instance.getPreferenceLanguage() ?? 'pt_BR';
+    return resolverTexto(key, _indice(idioma), _indice('pt_BR'));
+  } catch (e) {
+    // Storage indisponível: ainda assim devolve o pt_BR, nunca vazio.
+    return resolverTexto(key, const {}, _indice('pt_BR'));
+  }
 }
 
 Locale getCurrentLocale(){

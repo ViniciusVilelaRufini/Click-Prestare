@@ -9,10 +9,10 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MeusAgendamentosCells extends StatefulWidget {
   const MeusAgendamentosCells({
-    Key? key,
+    super.key,
     required this.list,
     required this.reload,
-  }) : super(key: key);
+  });
 
   final List<dynamic> list;
   final Future<void> Function() reload;

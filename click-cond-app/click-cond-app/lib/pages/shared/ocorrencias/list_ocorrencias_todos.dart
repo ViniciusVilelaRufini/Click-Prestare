@@ -12,7 +12,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListOcorrenciasTodos extends StatefulWidget {
   final String? statusFilter;
-  const ListOcorrenciasTodos({Key? key, this.statusFilter}) : super(key: key);
+  const ListOcorrenciasTodos({super.key, this.statusFilter});
   @override
   _ListOcorrenciasTodosPageState createState() => _ListOcorrenciasTodosPageState();
 }
@@ -108,7 +108,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: AppColors.textTertiary(context).withOpacity(0.08),
+                color: AppColors.textTertiary(context).withValues(alpha: 0.08),
                 width: 1,
               ),
             ),
@@ -135,7 +135,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                   side: BorderSide(
                     color: _selectedMonth == null 
                         ? AppColors.primary 
-                        : AppColors.textTertiary(context).withOpacity(0.15),
+                        : AppColors.textTertiary(context).withValues(alpha: 0.15),
                   ),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -163,7 +163,7 @@ class _ListOcorrenciasTodosPageState extends State<ListOcorrenciasTodos> {
                     side: BorderSide(
                       color: isSelected 
                           ? AppColors.primary 
-                          : AppColors.textTertiary(context).withOpacity(0.15),
+                          : AppColors.textTertiary(context).withValues(alpha: 0.15),
                     ),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
@@ -278,7 +278,7 @@ class _OcorrenciaCard extends StatelessWidget {
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(
-                color: _statusColor(statusVal).withOpacity(0.12),
+                color: _statusColor(statusVal).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(_statusIcon(statusVal), color: _statusColor(statusVal), size: 22),
@@ -297,7 +297,7 @@ class _OcorrenciaCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: _statusColor(statusVal).withOpacity(0.12),
+                          color: _statusColor(statusVal).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -313,8 +313,8 @@ class _OcorrenciaCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: (item['publica'] == true) 
-                              ? const Color(0xFF22C55E).withOpacity(0.12) 
-                              : AppColors.textTertiary(context).withOpacity(0.08),
+                              ? const Color(0xFF22C55E).withValues(alpha: 0.12) 
+                              : AppColors.textTertiary(context).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(

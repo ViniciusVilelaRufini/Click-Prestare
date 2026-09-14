@@ -3,7 +3,7 @@
 /// Antes estavam duplicadas em new_financeiro_morador, morador_financeiro_view
 /// e list_financeiro; qualquer categoria nova exigia mexer em 4+ lugares e
 /// era fácil divergir (aí o filtro de uma tela não achava a categoria da outra).
-library financeiro_constants;
+library;
 
 import 'package:intl/intl.dart';
 

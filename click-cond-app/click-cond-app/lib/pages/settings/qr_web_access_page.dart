@@ -14,7 +14,7 @@ import 'package:click/widgets/app/app_scaffold.dart';
 
 class QrWebAccessPage extends StatefulWidget {
   final int idCondominio;
-  const QrWebAccessPage({Key? key, required this.idCondominio}) : super(key: key);
+  const QrWebAccessPage({super.key, required this.idCondominio});
 
   @override
   _QrWebAccessPageState createState() => _QrWebAccessPageState();
@@ -176,7 +176,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.8),
+                    color: Colors.black.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
                   child: Text(
@@ -192,7 +192,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
                     // Botão da Lanterna
                     CircleAvatar(
                       radius: 28,
-                      backgroundColor: Colors.black.withOpacity(0.8),
+                      backgroundColor: Colors.black.withValues(alpha: 0.8),
                       child: IconButton(
                         icon: ValueListenableBuilder(
                           valueListenable: _scannerController,
@@ -227,7 +227,7 @@ class _QrWebAccessPageState extends State<QrWebAccessPage> {
 
     return ColorFiltered(
       colorFilter: ColorFilter.mode(
-        Colors.black.withOpacity(0.6),
+        Colors.black.withValues(alpha: 0.6),
         BlendMode.srcOut,
       ),
       child: Stack(

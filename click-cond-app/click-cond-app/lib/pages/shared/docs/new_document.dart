@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/theme/app_colors.dart';
@@ -14,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewDocument extends StatefulWidget {
-  const NewDocument({Key? key, required this.is_ata}) : super(key: key);
+  const NewDocument({super.key, required this.is_ata});
   final bool is_ata;
 
   @override

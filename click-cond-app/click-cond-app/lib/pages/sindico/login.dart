@@ -1,7 +1,6 @@
 import 'package:click/pages/shared/aceite_privacidade.dart';
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/pages/sindico/forgot_password.dart';
-import 'package:click/pages/sindico/list_condominiums.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -19,7 +18,7 @@ import '../../controllers/controller_funcionario.dart';
 import '../../controllers/controller_moradores.dart';
 
 class LoginSindico extends StatefulWidget {
-  const LoginSindico({Key? key, required this.loginType}) : super(key: key);
+  const LoginSindico({super.key, required this.loginType});
   final String loginType;
 
   @override

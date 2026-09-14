@@ -11,7 +11,7 @@ import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class DetailComunicado extends StatefulWidget {
-  const DetailComunicado({Key? key, required this.id}) : super(key: key);
+  const DetailComunicado({super.key, required this.id});
   final int id;
   @override
   _DetailComunicadoPageState createState() => _DetailComunicadoPageState();
@@ -64,7 +64,7 @@ class _DetailComunicadoPageState extends State<DetailComunicado> {
                       Container(
                         width: 52, height: 52,
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: AppColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Icon(PhosphorIcons.megaphone, color: AppColors.primary, size: 26),

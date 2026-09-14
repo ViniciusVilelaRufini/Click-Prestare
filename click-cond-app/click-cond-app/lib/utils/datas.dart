@@ -26,6 +26,6 @@ DateTime? parseDataApi(dynamic valor) {
 String formatarDataHora(dynamic valor, {String fallback = ''}) {
   final d = parseDataApi(valor);
   if (d == null) return fallback;
-  final pad = (int n) => n.toString().padLeft(2, '0');
+  String pad(int n) => n.toString().padLeft(2, '0');
   return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
 }

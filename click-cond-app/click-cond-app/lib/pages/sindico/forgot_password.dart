@@ -3,7 +3,6 @@ import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
-import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
@@ -13,7 +12,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ForgotPassword extends StatefulWidget {
   final loginType;
-  const ForgotPassword({Key? key, required this.loginType}) : super(key: key);
+  const ForgotPassword({super.key, required this.loginType});
 
   @override
   _ForgotPasswordState createState() => _ForgotPasswordState();

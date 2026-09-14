@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListAtas extends StatefulWidget {
-  const ListAtas({Key? key}) : super(key: key);
+  const ListAtas({super.key});
   @override
   _ListAtasPageState createState() => _ListAtasPageState();
 }
@@ -115,7 +115,7 @@ class _ListAtasPageState extends State<ListAtas> {
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: AppColors.textTertiary(context).withOpacity(0.08),
+                        color: AppColors.textTertiary(context).withValues(alpha: 0.08),
                         width: 1,
                       ),
                     ),
@@ -142,7 +142,7 @@ class _ListAtasPageState extends State<ListAtas> {
                           side: BorderSide(
                             color: _selectedMonth == null 
                                 ? AppColors.primary 
-                                : AppColors.textTertiary(context).withOpacity(0.15),
+                                : AppColors.textTertiary(context).withValues(alpha: 0.15),
                           ),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
@@ -170,7 +170,7 @@ class _ListAtasPageState extends State<ListAtas> {
                             side: BorderSide(
                               color: isSelected 
                                   ? AppColors.primary 
-                                  : AppColors.textTertiary(context).withOpacity(0.15),
+                                  : AppColors.textTertiary(context).withValues(alpha: 0.15),
                             ),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -213,7 +213,7 @@ class _ListAtasPageState extends State<ListAtas> {
                                   children: [
                                     Container(
                                       width: 44, height: 44,
-                                      decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                                      decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
                                       child: const Icon(PhosphorIcons.fileText, color: AppColors.primary, size: 22),
                                     ),
                                     const SizedBox(width: AppSpacing.md),

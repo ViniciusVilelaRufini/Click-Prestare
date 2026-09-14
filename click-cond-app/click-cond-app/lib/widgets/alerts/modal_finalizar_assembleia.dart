@@ -1,19 +1,16 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:ui';
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/loader.dart';
 import 'package:click/widgets/buttons/default_button_normal.dart';
 import 'package:click/widgets/buttons/upload_button.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class ModalFinalizarAssembleia extends StatefulWidget {
 
   const ModalFinalizarAssembleia({
-    Key? key, required this.assembleia, 
-    }) : super(key: key);
+    super.key, required this.assembleia, 
+    });
     final dynamic assembleia;
 
   @override
@@ -26,7 +23,7 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
 
   save() async{
     try{
-      if(list.length == 0){
+      if(list.isEmpty){
         displayMessage(context, getText('alert_error'), getText('assembleia_alert_ata'));
         return;
       }
@@ -128,7 +125,7 @@ class _ModalFinalizarAssembleiaState extends State<ModalFinalizarAssembleia> {
           ),
         ),
         if(_isLoading)
-            Container(
+            SizedBox(
               height: 1000,
               width: 1000,
               child: const Loader(loadingTxt: '', opacity: 0.7, color: Colors.black, dismissibles: false)

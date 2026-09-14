@@ -16,10 +16,10 @@ class HistoricoAcessosPage extends StatefulWidget {
   final String? filtroInicial;
 
   const HistoricoAcessosPage({
-    Key? key,
+    super.key,
     this.destacarId,
     this.filtroInicial,
-  }) : super(key: key);
+  });
 
   @override
   State<HistoricoAcessosPage> createState() => _HistoricoAcessosPageState();

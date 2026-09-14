@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 
 class AreasSociaisCells extends StatelessWidget {
   const AreasSociaisCells({
-    Key? key,
+    super.key,
     required this.list,
     required this.reload
-  }) : super(key: key);
+  });
 
   final List<dynamic> list;
   final Function() reload;
@@ -21,7 +21,7 @@ class AreasSociaisCells extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
         SizedBox(height: 15),
-        if(list.length == 0)
+        if(list.isEmpty)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

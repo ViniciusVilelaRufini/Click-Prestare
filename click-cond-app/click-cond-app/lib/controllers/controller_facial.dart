@@ -1,6 +1,5 @@
 import 'package:click/utils/log.dart';
 import 'dart:convert';
-import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
 

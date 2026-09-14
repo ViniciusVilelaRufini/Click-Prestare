@@ -1,6 +1,4 @@
 import 'package:click/pages/shared/aceite_privacidade.dart';
-import 'package:click/pages/sindico/hello.dart';
-import 'package:click/pages/sindico/list_condominiums.dart';
 import 'package:click/pages/sindico/login.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -18,7 +16,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../utils/local_storage.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   _HomePageState createState() => _HomePageState();
@@ -102,8 +100,8 @@ class _HomePageState extends State<HomePage> {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        AppColors.primary.withOpacity(0.15),
-                        AppColors.primary.withOpacity(0),
+                        AppColors.primary.withValues(alpha: 0.15),
+                        AppColors.primary.withValues(alpha: 0),
                       ],
                     ),
                   ),
@@ -120,8 +118,8 @@ class _HomePageState extends State<HomePage> {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFF00C896).withOpacity(0.12),
-                        const Color(0xFF00C896).withOpacity(0),
+                        const Color(0xFF00C896).withValues(alpha: 0.12),
+                        const Color(0xFF00C896).withValues(alpha: 0),
                       ],
                     ),
                   ),
@@ -175,7 +173,7 @@ class _HomePageState extends State<HomePage> {
                                       borderRadius: BorderRadius.circular(AppRadius.xxl),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: AppColors.primary.withOpacity(0.25),
+                                          color: AppColors.primary.withValues(alpha: 0.25),
                                           blurRadius: 24, offset: const Offset(0, 8),
                                         ),
                                       ],
@@ -283,7 +281,7 @@ class _HomePageState extends State<HomePage> {
         Container(
           padding: const EdgeInsets.all(AppSpacing.sm),
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.12),
+            color: AppColors.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Icon(
@@ -359,8 +357,8 @@ class _HomePageState extends State<HomePage> {
   Widget _buildFeaturesList(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final checkColor = AppColors.primary;
-    final containerBg = isDark ? Colors.white.withOpacity(0.03) : AppColors.primary.withOpacity(0.04);
-    final borderCol = isDark ? Colors.white.withOpacity(0.05) : AppColors.primary.withOpacity(0.08);
+    final containerBg = isDark ? Colors.white.withValues(alpha: 0.03) : AppColors.primary.withValues(alpha: 0.04);
+    final borderCol = isDark ? Colors.white.withValues(alpha: 0.05) : AppColors.primary.withValues(alpha: 0.08);
 
     Widget featureItem(String text) {
       return Container(
@@ -376,7 +374,7 @@ class _HomePageState extends State<HomePage> {
             Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: checkColor.withOpacity(0.12),
+                color: checkColor.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -435,7 +433,7 @@ class GridPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final paint = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withOpacity(isDark ? 0.02 : 0.025)
+      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.02 : 0.025)
       ..strokeWidth = 0.8;
 
     const double step = 38.0;

@@ -1,6 +1,5 @@
 import 'package:click/utils/log.dart';
 import 'package:click/pages/shared/ocorrencias/ocorrencia_chat.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/pages/shared/ocorrencias/new_ocorrencia.dart';
@@ -18,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class DetailOcorrencia extends StatefulWidget {
-  const DetailOcorrencia({Key? key, required this.id}) : super(key: key);
+  const DetailOcorrencia({super.key, required this.id});
   final int id;
 
   @override
@@ -132,7 +131,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                   ...elegiveis.map((f) => ListTile(
                         leading: CircleAvatar(
                           radius: 18,
-                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                           child: Text(
                             (f['nome'] ?? '?').toString().substring(0, 1).toUpperCase(),
                             style: AppTypography.captionMedium(ctx).copyWith(color: AppColors.primary),
@@ -211,7 +210,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: _statusColor(obj['status'] ?? '').withOpacity(0.12),
+                                  color: _statusColor(obj['status'] ?? '').withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(obj['status'] ?? '',
@@ -230,8 +229,8 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: (obj['publica'] == true) 
-                                      ? const Color(0xFF22C55E).withOpacity(0.12) 
-                                      : AppColors.textTertiary(context).withOpacity(0.08),
+                                      ? const Color(0xFF22C55E).withValues(alpha: 0.12) 
+                                      : AppColors.textTertiary(context).withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
@@ -333,7 +332,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                       child: f.path.contains('.pdf')
                                           ? Container(
                                               width: 72, height: 72,
-                                              color: AppColors.error.withOpacity(0.08),
+                                              color: AppColors.error.withValues(alpha: 0.08),
                                               child: Icon(PhosphorIcons.filePdf, color: AppColors.error, size: 32),
                                             )
                                           : Image.file(f, width: 72, height: 72, fit: BoxFit.cover),
@@ -371,7 +370,7 @@ class _DetailOcorrenciaPageState extends State<DetailOcorrencia> {
                                 Text(
                                   obj['resposta'] ?? '',
                                   style: AppTypography.body(context).copyWith(
-                                    color: AppColors.textPrimary(context).withOpacity(0.9),
+                                    color: AppColors.textPrimary(context).withValues(alpha: 0.9),
                                     fontSize: 13,
                                   ),
                                 ),
@@ -524,7 +523,7 @@ class _StatusChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.12) : AppColors.surface(context),
+          color: selected ? color.withValues(alpha: 0.12) : AppColors.surface(context),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: selected ? color : AppColors.border(context)),
         ),

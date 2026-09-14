@@ -18,7 +18,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// relevante para o usuário — encomendas, comunicados, respostas de ocorrência,
 /// contas a pagar, reservas e entradas/saídas.
 class NotificacoesPage extends StatefulWidget {
-  const NotificacoesPage({Key? key}) : super(key: key);
+  const NotificacoesPage({super.key});
 
   @override
   State<NotificacoesPage> createState() => _NotificacoesPageState();
@@ -301,7 +301,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: AppColors.primary.withOpacity(0.25),
+                              color: AppColors.primary.withValues(alpha: 0.25),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             )
@@ -331,8 +331,8 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.white.withOpacity(0.25)
-                                : AppColors.primary.withOpacity(0.12),
+                                ? Colors.white.withValues(alpha: 0.25)
+                                : AppColors.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -402,12 +402,12 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: nova ? v.cor.withOpacity(0.4) : AppColors.border(context),
+          color: nova ? v.cor.withValues(alpha: 0.4) : AppColors.border(context),
           width: nova ? 1.2 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -437,7 +437,7 @@ class _NotificacoesPageState extends State<NotificacoesPage> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: v.cor.withOpacity(0.12),
+                            color: v.cor.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(v.icon, color: v.cor, size: 22),

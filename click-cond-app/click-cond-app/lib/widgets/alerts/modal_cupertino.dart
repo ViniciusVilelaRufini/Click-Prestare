@@ -12,12 +12,12 @@ class ModalCupertino extends StatefulWidget {
   final DateTime? minimumDate;
 
   const ModalCupertino({
-    Key? key,
+    super.key,
     required this.onPressed,
     required this.initialDate,
     required this.type,
     this.minimumDate,
-  }) : super(key: key);
+  });
 
   @override
   _ModalCupertinoState createState() => _ModalCupertinoState();

@@ -15,10 +15,10 @@ class OcorrenciaChatPage extends StatefulWidget {
   final String titulo;
 
   const OcorrenciaChatPage({
-    Key? key,
+    super.key,
     required this.idOcorrencia,
     required this.titulo,
-  }) : super(key: key);
+  });
 
   @override
   State<OcorrenciaChatPage> createState() => _OcorrenciaChatPageState();
@@ -133,7 +133,7 @@ class _OcorrenciaChatPageState extends State<OcorrenciaChatPage> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-            color: isDark ? AppColors.darkSurface.withOpacity(0.5) : Colors.grey.shade100,
+            color: isDark ? AppColors.darkSurface.withValues(alpha: 0.5) : Colors.grey.shade100,
             child: Row(
               children: [
                 Icon(PhosphorIcons.info, size: 18, color: AppColors.primary),

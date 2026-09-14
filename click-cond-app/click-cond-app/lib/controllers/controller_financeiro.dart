@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -23,7 +23,7 @@ Never _throwHttpError(dynamic response) {
 }
 
 apiGetAllFinanceiro(String route, String mes, String ano) async {
-  var url = ApiConfig.buildUri('/'+route+'/get-all',{'id_condominio': Singleton.instance.id_condominio.toString(), 'mes':mes, 'ano':ano});
+  var url = ApiConfig.buildUri('/$route/get-all',{'id_condominio': Singleton.instance.id_condominio.toString(), 'mes':mes, 'ano':ano});
   dynamic response;
   try {
     response = await ApiClient.get(url);
@@ -92,7 +92,7 @@ apiNotificarInadimplente(String bloco, String apto) async {
 }
 
 apiGetDetailsInadimplente(String route, String bloco, String apto) async {
-  var url = ApiConfig.buildUri('/'+route+'/get',{'id_condominio': Singleton.instance.id_condominio.toString(), 'bloco': bloco, 'apto': apto});
+  var url = ApiConfig.buildUri('/$route/get',{'id_condominio': Singleton.instance.id_condominio.toString(), 'bloco': bloco, 'apto': apto});
   dynamic response;
   try {
     response = await ApiClient.get(url);

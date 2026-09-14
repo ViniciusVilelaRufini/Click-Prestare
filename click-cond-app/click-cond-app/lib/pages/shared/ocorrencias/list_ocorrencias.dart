@@ -10,7 +10,7 @@ import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListOcorrencias extends StatefulWidget {
-  const ListOcorrencias({Key? key}) : super(key: key);
+  const ListOcorrencias({super.key});
   @override
   _ListOcorrenciasPageState createState() => _ListOcorrenciasPageState();
 }

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -15,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewFuncionario1 extends StatefulWidget {
-  const NewFuncionario1({Key? key, required this.isEdit, this.myId}) : super(key: key);
+  const NewFuncionario1({super.key, required this.isEdit, this.myId});
   final bool isEdit;
   final int? myId;
 
@@ -165,7 +164,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                         children: [
                           CircleAvatar(
                             radius: 52,
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                             backgroundImage: imageFile == null
                                 ? const AssetImage('assets/images/defaultUser.png')
                                 : (imageFile is String
@@ -253,7 +252,7 @@ class _NewFuncionario1PageState extends State<NewFuncionario1> {
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.08),
+                      color: AppColors.error.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(

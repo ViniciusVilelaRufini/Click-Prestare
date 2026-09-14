@@ -5,13 +5,13 @@ class CellMoradorApto extends StatelessWidget {
   final item;
 
   const CellMoradorApto({
-    Key? key,
+    super.key,
     required this.item, 
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: MediaQuery.of(context).size.width,
       // height: 190,
       child: Card(

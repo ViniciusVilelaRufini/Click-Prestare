@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListAssembleias extends StatefulWidget {
-  const ListAssembleias({Key? key}) : super(key: key);
+  const ListAssembleias({super.key});
   @override
   _ListAssembleiasPageState createState() => _ListAssembleiasPageState();
 }
@@ -102,7 +102,7 @@ class _AssembleiaCard extends StatelessWidget {
           children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
               child: const Icon(PhosphorIcons.usersThree, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: AppSpacing.md),

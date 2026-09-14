@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
-import 'package:click/utils/local_storage.dart';
 import 'package:http/http.dart' as http;
 
 final _kTimeout = ApiConfig.timeout;
@@ -213,7 +212,7 @@ apiUpdateStatus(String route, int idItem, bool status, String motivo) async {
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
     throw parsed["message"] ?? "Erro desconhecido";
   } catch (e) {
-    throw e;
+    rethrow;
   }
 }
 
@@ -232,7 +231,7 @@ Future<String> apiUpdateStatusAgendamento(int idItem, String status, {String mot
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
     throw parsed["message"] ?? "Erro desconhecido";
   } catch (e) {
-    throw e;
+    rethrow;
   }
 }
 
@@ -250,7 +249,7 @@ apiUpdateStatusOcorrManut(String route, int idItem, String status) async {
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
     throw parsed["message"] ?? "Erro desconhecido";
   } catch (e) {
-    throw e;
+    rethrow;
   }
 }
 

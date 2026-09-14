@@ -19,10 +19,10 @@ import 'package:flutter/material.dart';
 /// para um chat: nunca esconder conteúdo por não saber formatá-lo.
 class RespostaFormatada extends StatelessWidget {
   const RespostaFormatada({
-    Key? key,
+    super.key,
     required this.texto,
     required this.estilo,
-  }) : super(key: key);
+  });
 
   final String texto;
   final TextStyle estilo;

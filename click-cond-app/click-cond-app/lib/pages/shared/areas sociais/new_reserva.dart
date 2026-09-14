@@ -16,7 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewReserva extends StatefulWidget {
-  const NewReserva({Key? key, required this.obj, this.objEditReserva}) : super(key: key);
+  const NewReserva({super.key, required this.obj, this.objEditReserva});
   final dynamic obj;
   final dynamic objEditReserva;
 

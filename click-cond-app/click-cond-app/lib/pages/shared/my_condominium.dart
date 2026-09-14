@@ -49,11 +49,11 @@ class MyCondominium extends StatefulWidget {
   final Map<String, dynamic>? initialSummary;
 
   const MyCondominium({
-    Key? key,
+    super.key,
     required this.id,
     this.initialCond,
     this.initialSummary,
-  }) : super(key: key);
+  });
 
   @override
   _MyCondominiumState createState() => _MyCondominiumState();
@@ -411,10 +411,10 @@ class _MyCondominiumState extends State<MyCondominium> {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
           ),
         ),
         child: Row(
@@ -603,7 +603,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.30 : 0.07),
+                color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.07),
                 blurRadius: 20,
                 spreadRadius: 0,
                 offset: const Offset(0, 6),
@@ -621,12 +621,12 @@ class _MyCondominiumState extends State<MyCondominium> {
                 height: _isNavBarVisible ? 68.0 : 52.0,
                 decoration: BoxDecoration(
                   color: isDark
-                      ? Colors.black.withOpacity(0.35)
-                      : Colors.white.withOpacity(0.65),
+                      ? Colors.black.withValues(alpha: 0.35)
+                      : Colors.white.withValues(alpha: 0.65),
                   border: Border.all(
                     color: isDark
-                        ? Colors.white.withOpacity(0.15)
-                        : Colors.white.withOpacity(0.65),
+                        ? Colors.white.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.65),
                     width: 1,
                   ),
                 ),
@@ -794,7 +794,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.45),
+                color: AppColors.primary.withValues(alpha: 0.45),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -872,8 +872,8 @@ class _MyCondominiumState extends State<MyCondominium> {
             padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
             decoration: BoxDecoration(
               color: isSelected
-                  ? AppColors.primary.withOpacity(0.12)
-                  : (isAction ? AppColors.primary.withOpacity(0.08) : Colors.transparent),
+                  ? AppColors.primary.withValues(alpha: 0.12)
+                  : (isAction ? AppColors.primary.withValues(alpha: 0.08) : Colors.transparent),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
@@ -1014,7 +1014,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   Widget _buildOcorrenciasBadge(BuildContext context) {
     final count = _ocorrenciasAbertas;
     return Material(
-      color: Colors.white.withOpacity(0.18),
+      color: Colors.white.withValues(alpha: 0.18),
       borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1088,12 +1088,12 @@ class _MyCondominiumState extends State<MyCondominium> {
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFFF97316).withOpacity(0.35),
+              color: const Color(0xFFF97316).withValues(alpha: 0.35),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFEA580C).withOpacity(0.08),
+                color: const Color(0xFFEA580C).withValues(alpha: 0.08),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -1113,7 +1113,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFEA580C).withOpacity(0.32),
+                      color: const Color(0xFFEA580C).withValues(alpha: 0.32),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -1146,10 +1146,10 @@ class _MyCondominiumState extends State<MyCondominium> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFDC2626).withOpacity(0.12),
+                            color: const Color(0xFFDC2626).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: const Color(0xFFDC2626).withOpacity(0.3),
+                              color: const Color(0xFFDC2626).withValues(alpha: 0.3),
                               width: 1,
                             ),
                           ),
@@ -1196,7 +1196,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEA580C).withOpacity(0.12),
+                  color: const Color(0xFFEA580C).withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -1226,7 +1226,7 @@ class _MyCondominiumState extends State<MyCondominium> {
           borderRadius: BorderRadius.circular(AppRadius.xxl),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withOpacity(0.25),
+              color: AppColors.primary.withValues(alpha: 0.25),
               blurRadius: 20, offset: const Offset(0, 8),
             ),
           ],
@@ -1298,7 +1298,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                               ? '${getText('lb_apto')} ${Singleton.instance.apartamento}'
                               : '${(_cond?['num_aptos'] ?? '')} ${getText('lb_apartamentos')}',
                           style: AppTypography.caption(context).copyWith(
-                              color: Colors.white.withOpacity(0.85))),
+                              color: Colors.white.withValues(alpha: 0.85))),
                     ],
                   ),
                 ),
@@ -1307,7 +1307,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                 // chegar às atas da assembleia.
                 if (type == 'morador')
                   Material(
-                    color: Colors.white.withOpacity(0.18),
+                    color: Colors.white.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(AppRadius.md),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1323,7 +1323,7 @@ class _MyCondominiumState extends State<MyCondominium> {
             ),
             if (type == 'sindico') ...[
               AppSpacing.gapXl,
-              Container(height: 1, color: Colors.white.withOpacity(0.2)),
+              Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
               AppSpacing.gapLg,
               Row(
                 children: [
@@ -1333,7 +1333,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                       children: [
                         Text('Saldo atual'.toUpperCase(),
                             style: AppTypography.tiny(context).copyWith(
-                                color: Colors.white.withOpacity(0.7),
+                                color: Colors.white.withValues(alpha: 0.7),
                                 letterSpacing: 1)),
                         AppSpacing.gapXs,
                         // Mesmo saldo da tela de Financeiro do condomínio (o
@@ -1354,7 +1354,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                   _buildOcorrenciasBadge(context),
                   AppSpacing.gapSm,
                   Material(
-                    color: Colors.white.withOpacity(0.18),
+                    color: Colors.white.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(AppRadius.md),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1372,7 +1372,7 @@ class _MyCondominiumState extends State<MyCondominium> {
               if (!_temApto) ...[
                 AppSpacing.gapLg,
                 Material(
-                  color: Colors.white.withOpacity(0.18),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1390,7 +1390,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                                     .copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
                           ),
                           Icon(PhosphorIcons.caretRight,
-                              color: Colors.white.withOpacity(0.8), size: 16),
+                              color: Colors.white.withValues(alpha: 0.8), size: 16),
                         ],
                       ),
                     ),
@@ -1399,7 +1399,7 @@ class _MyCondominiumState extends State<MyCondominium> {
               ],
             ] else if (type == 'morador') ...[
               AppSpacing.gapXl,
-              Container(height: 1, color: Colors.white.withOpacity(0.2)),
+              Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
               AppSpacing.gapLg,
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -1415,7 +1415,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                           isExpanded: false,
                         ),
                         const SizedBox(height: 12),
-                        Container(height: 1, color: Colors.white.withOpacity(0.15)),
+                        Container(height: 1, color: Colors.white.withValues(alpha: 0.15)),
                         const SizedBox(height: 12),
                         _AlertItem(
                           count: _summary?['visits'] ?? 0,
@@ -1439,7 +1439,7 @@ class _MyCondominiumState extends State<MyCondominium> {
                         Container(
                           width: 1,
                           height: 40,
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                         ),
                         _AlertItem(
@@ -1462,7 +1462,7 @@ class _MyCondominiumState extends State<MyCondominium> {
   }
 
   Widget _condFallback() => Container(
-        color: Colors.white.withOpacity(0.2),
+        color: Colors.white.withValues(alpha: 0.2),
         child: Icon(PhosphorIcons.buildingsFill,
             color: Colors.white, size: 28),
       );
@@ -1495,7 +1495,7 @@ class _MenuRow extends StatelessWidget {
               Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(item.icon, color: AppColors.primary, size: 22),
@@ -1558,7 +1558,7 @@ class _AlertItem extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     label,
-                    style: AppTypography.tiny(context).copyWith(color: Colors.white.withOpacity(0.8)),
+                    style: AppTypography.tiny(context).copyWith(color: Colors.white.withValues(alpha: 0.8)),
                   ),
                 ),
               ],

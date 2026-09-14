@@ -23,7 +23,7 @@ bool _isSolucionado(dynamic status) {
 class OcorrenciaSlaBadge extends StatelessWidget {
   final dynamic item;
   final bool compact;
-  const OcorrenciaSlaBadge({Key? key, required this.item, this.compact = false}) : super(key: key);
+  const OcorrenciaSlaBadge({super.key, required this.item, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +33,7 @@ class OcorrenciaSlaBadge extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 8, vertical: compact ? 2 : 3),
       decoration: BoxDecoration(
-        color: data.color.withOpacity(0.12),
+        color: data.color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(

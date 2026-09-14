@@ -11,7 +11,7 @@ class LabelDefault extends StatelessWidget {
   final int? limitChars;
 
   const LabelDefault({
-    Key? key,
+    super.key,
     required this.title,
     this.size, 
     this.color, 
@@ -20,12 +20,12 @@ class LabelDefault extends StatelessWidget {
     this.align,
     this.decoration,
     this.limitChars
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {   
     return Text(
-        limitChars != null && title.length > limitChars! ? title.substring(0,limitChars)+"..." : title,
+        limitChars != null && title.length > limitChars! ? "${title.substring(0,limitChars)}..." : title,
         textAlign: align,
         maxLines: maxLines ?? 1,
         overflow: TextOverflow.ellipsis,

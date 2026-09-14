@@ -9,14 +9,13 @@ import 'package:click/utils/utils.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
-import 'package:click/widgets/cells/cell_morador_apto.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'new_morador.dart';
 
 class NewApto extends StatefulWidget {
-  const NewApto({Key? key, required this.isEdit, this.obj}) : super(key: key);
+  const NewApto({super.key, required this.isEdit, this.obj});
   final bool isEdit;
   final dynamic obj;
 
@@ -141,10 +140,10 @@ class _NewAptoPageState extends State<NewApto> {
                     Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.08),
+                        color: AppColors.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: AppColors.primary.withOpacity(0.15),
+                          color: AppColors.primary.withValues(alpha: 0.15),
                         ),
                       ),
                       child: Row(
@@ -171,15 +170,15 @@ class _NewAptoPageState extends State<NewApto> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: isDark 
-                              ? [AppColors.primary, AppColors.primary.withOpacity(0.7)]
-                              : [AppColors.primary, AppColors.primary.withOpacity(0.85)],
+                              ? [AppColors.primary, AppColors.primary.withValues(alpha: 0.7)]
+                              : [AppColors.primary, AppColors.primary.withValues(alpha: 0.85)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.25),
+                            color: AppColors.primary.withValues(alpha: 0.25),
                             blurRadius: 16,
                             offset: const Offset(0, 8),
                           ),
@@ -191,7 +190,7 @@ class _NewAptoPageState extends State<NewApto> {
                             width: 56,
                             height: 56,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -217,7 +216,7 @@ class _NewAptoPageState extends State<NewApto> {
                                 Text(
                                   'Bloco ${txtBloco.text}',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
+                                    color: Colors.white.withValues(alpha: 0.9),
                                     fontSize: 15,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -234,10 +233,10 @@ class _NewAptoPageState extends State<NewApto> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01),
+                      color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.01),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+                        color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
                       ),
                     ),
                     child: Column(
@@ -407,14 +406,14 @@ class _MoradorSection extends StatelessWidget {
   final void Function(dynamic item) onTap;
 
   const _MoradorSection({
-    Key? key,
+    super.key,
     required this.title,
     required this.roleName,
     required this.canEdit,
     required this.list,
     required this.onAdd,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -437,7 +436,7 @@ class _MoradorSection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.12),
+                color: AppColors.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -458,7 +457,7 @@ class _MoradorSection extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
+                      color: AppColors.primary.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -477,10 +476,10 @@ class _MoradorSection extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.005),
+              color: isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.005),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+                color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
               ),
             ),
             child: Column(
@@ -488,7 +487,7 @@ class _MoradorSection extends StatelessWidget {
                 Icon(
                   PhosphorIcons.users,
                   size: 28,
-                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.25),
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.25),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -507,7 +506,7 @@ class _MoradorSection extends StatelessWidget {
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      backgroundColor: AppColors.primary.withOpacity(0.08),
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.08),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -526,10 +525,10 @@ class _MoradorSection extends StatelessWidget {
             return Container(
               margin: const EdgeInsets.only(bottom: AppSpacing.sm),
               decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.015),
+                color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.015),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                 ),
               ),
               child: ClipRRect(
@@ -547,7 +546,7 @@ class _MoradorSection extends StatelessWidget {
                             height: 44,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: AppColors.primary.withOpacity(0.1),
+                              color: AppColors.primary.withValues(alpha: 0.1),
                               image: (photoUrl != null && photoUrl.isNotEmpty)
                                   ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
                                   : null,
@@ -592,7 +591,7 @@ class _MoradorSection extends StatelessWidget {
                           if (canEdit)
                             Icon(
                               PhosphorIcons.caretRight,
-                              color: (isDark ? Colors.white : Colors.black).withOpacity(0.3),
+                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.3),
                               size: 18,
                             ),
                         ],
@@ -602,7 +601,7 @@ class _MoradorSection extends StatelessWidget {
                 ),
               ),
             );
-          }).toList(),
+          }),
       ],
     );
   }

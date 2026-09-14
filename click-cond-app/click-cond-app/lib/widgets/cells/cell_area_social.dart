@@ -8,10 +8,10 @@ class CellAreaSocial extends StatelessWidget {
   final dynamic item;
 
   const CellAreaSocial({
-    Key? key,
+    super.key,
     required this.item,
     this.hasArrow,
-  }) : super(key: key);
+  });
 
   IconData _getAreaIcon(String nome) {
     final n = nome.toLowerCase();
@@ -52,7 +52,7 @@ class CellAreaSocial extends StatelessWidget {
         border: Border.all(color: AppColors.border(context)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -85,9 +85,9 @@ class CellAreaSocial extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Colors.black.withOpacity(0.2),
+                          Colors.black.withValues(alpha: 0.2),
                           Colors.transparent,
-                          Colors.black.withOpacity(0.65),
+                          Colors.black.withValues(alpha: 0.65),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -103,7 +103,7 @@ class CellAreaSocial extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
+                      color: Colors.black.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -179,7 +179,7 @@ class CellAreaSocial extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -221,7 +221,7 @@ class CellAreaSocial extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Icon(icon, size: 48, color: Colors.white.withOpacity(0.85)),
+        child: Icon(icon, size: 48, color: Colors.white.withValues(alpha: 0.85)),
       ),
     );
   }
@@ -230,7 +230,7 @@ class CellAreaSocial extends StatelessWidget {
 /// Selo sobre a imagem da área mostrando quantas pessoas estão dentro agora
 class _OcupacaoBadge extends StatelessWidget {
   final int ocupacao;
-  const _OcupacaoBadge({Key? key, required this.ocupacao}) : super(key: key);
+  const _OcupacaoBadge({super.key, required this.ocupacao});
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +241,7 @@ class _OcupacaoBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.6),
+          color: Colors.black.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(

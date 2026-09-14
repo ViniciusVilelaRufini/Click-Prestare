@@ -19,7 +19,7 @@ class AppButton extends StatelessWidget {
   final bool loading;
 
   const AppButton({
-    Key? key,
+    super.key,
     required this.label,
     required this.onPressed,
     this.icon,
@@ -28,7 +28,7 @@ class AppButton extends StatelessWidget {
     this.size = AppButtonSize.lg,
     this.fullWidth = true,
     this.loading = false,
-  }) : super(key: key);
+  });
 
   double get _height {
     switch (size) {
@@ -90,7 +90,7 @@ class AppButton extends StatelessWidget {
               : null,
           boxShadow: variant == AppButtonVariant.primary && !disabled
               ? [BoxShadow(
-                  color: AppColors.primary.withOpacity(0.25),
+                  color: AppColors.primary.withValues(alpha: 0.25),
                   offset: const Offset(0, 4), blurRadius: 12,
                 )]
               : null,

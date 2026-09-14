@@ -8,11 +8,11 @@ class AppSkeleton extends StatelessWidget {
   final double borderRadius;
 
   const AppSkeleton({
-    Key? key,
+    super.key,
     required this.width,
     required this.height,
     this.borderRadius = 8,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

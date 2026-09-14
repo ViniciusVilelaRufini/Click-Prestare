@@ -1,7 +1,6 @@
 import 'package:click/pages/shared/areas%20sociais/new_area_social.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
-import 'package:click/theme/app_typography.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -12,12 +11,12 @@ class CellHorarioAreaSocial extends StatelessWidget {
   final VoidCallback? onChangeAte;
 
   const CellHorarioAreaSocial({
-    Key? key,
+    super.key,
     required this.horario,
     required this.onDelete,
     required this.onChangeDe,
     required this.onChangeAte,
-  }) : super(key: key);
+  });
 
   String _calcDuration(String de, String ate) {
     try {
@@ -45,7 +44,7 @@ class CellHorarioAreaSocial extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B).withOpacity(0.5) : const Color(0xFFF8FAFC),
+        color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
@@ -65,7 +64,7 @@ class CellHorarioAreaSocial extends StatelessWidget {
                   color: isDark ? const Color(0xFF0F172A) : Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.primary.withOpacity(0.25),
+                    color: AppColors.primary.withValues(alpha: 0.25),
                     width: 1,
                   ),
                 ),
@@ -130,7 +129,7 @@ class CellHorarioAreaSocial extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.12),
+                      color: AppColors.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -158,7 +157,7 @@ class CellHorarioAreaSocial extends StatelessWidget {
                   color: isDark ? const Color(0xFF0F172A) : Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.primary.withOpacity(0.25),
+                    color: AppColors.primary.withValues(alpha: 0.25),
                     width: 1,
                   ),
                 ),
@@ -218,12 +217,12 @@ class CellHorarioAreaSocial extends StatelessWidget {
               height: 36,
               decoration: BoxDecoration(
                 color: isDark
-                    ? const Color(0xFF7F1D1D).withOpacity(0.25)
+                    ? const Color(0xFF7F1D1D).withValues(alpha: 0.25)
                     : const Color(0xFFFEE2E2),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: isDark
-                      ? const Color(0xFFEF4444).withOpacity(0.3)
+                      ? const Color(0xFFEF4444).withValues(alpha: 0.3)
                       : const Color(0xFFFECACA),
                 ),
               ),

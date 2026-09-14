@@ -19,7 +19,7 @@ class Localizable_Es {
           LocalizableModel(key: 'data_e_hora', text: 'Fecha y hora'),
           LocalizableModel(key: 'dia_e_hora', text: 'Día y hora'),
           LocalizableModel(key: 'dia', text: 'Día'),
-          LocalizableModel(key: 'días', text: 'días'),
+          LocalizableModel(key: 'dias', text: 'días'),
           LocalizableModel(key: 'data', text: 'Fecha'),
           LocalizableModel(key: 'datas', text: 'Fechas'),
           LocalizableModel(key: 'hora', text: 'Tiempo'),

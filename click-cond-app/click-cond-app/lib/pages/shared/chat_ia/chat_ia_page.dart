@@ -28,7 +28,7 @@ import 'telas_app.dart';
 /// É uma página EMPURRADA, não aba: antes vivia dentro da ilha de navegação da
 /// home, que ficava sobre o campo de digitar e não deixava caminho de volta.
 class ChatIaPage extends StatefulWidget {
-  const ChatIaPage({Key? key}) : super(key: key);
+  const ChatIaPage({super.key});
 
   @override
   State<ChatIaPage> createState() => _ChatIaPageState();
@@ -400,7 +400,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.12),
+                      color: AppColors.primary.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(PhosphorIcons.camera, color: AppColors.primary),
@@ -416,7 +416,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.teal.withOpacity(0.12),
+                      color: Colors.teal.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(PhosphorIcons.image, color: Colors.teal),
@@ -432,7 +432,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.deepOrange.withOpacity(0.12),
+                      color: Colors.deepOrange.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(PhosphorIcons.filePdf, color: Colors.deepOrange),
@@ -687,7 +687,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withOpacity(0.35),
+              color: AppColors.primary.withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -761,7 +761,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: Colors.white, size: 18),
@@ -806,7 +806,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   minimumSize: const Size.fromHeight(44),
-                  side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
@@ -876,7 +876,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
         final aberta = c.id == _conversaId;
         return Material(
           color: aberta
-              ? AppColors.primary.withOpacity(0.10)
+              ? AppColors.primary.withValues(alpha: 0.10)
               : AppColors.surface(context),
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
@@ -892,7 +892,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: aberta
-                      ? AppColors.primary.withOpacity(0.35)
+                      ? AppColors.primary.withValues(alpha: 0.35)
                       : Colors.transparent,
                 ),
               ),
@@ -902,7 +902,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(PhosphorIcons.chatCircleText,
@@ -958,7 +958,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
     final dias = DateTime(agora.year, agora.month, agora.day)
         .difference(DateTime(local.year, local.month, local.day))
         .inDays;
-    final pad = (int n) => n.toString().padLeft(2, '0');
+    String pad(int n) => n.toString().padLeft(2, '0');
     if (dias == 0) return 'Hoje às ${pad(local.hour)}:${pad(local.minute)}';
     if (dias == 1) return 'Ontem às ${pad(local.hour)}:${pad(local.minute)}';
     if (dias < 7) return 'Há $dias dias';
@@ -976,7 +976,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(PhosphorIcons.sparkle,
@@ -1066,7 +1066,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                             : Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
+                                  color: Colors.white.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Row(
@@ -1135,7 +1135,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
               ? (msg.resolvidaComSucesso
                   ? AppColors.success
                   : AppColors.border(context))
-              : AppColors.primary.withOpacity(acao.confirmavel ? 0.4 : 0.25),
+              : AppColors.primary.withValues(alpha: acao.confirmavel ? 0.4 : 0.25),
         ),
       ),
       child: Column(
@@ -1307,10 +1307,10 @@ class _ChatIaPageState extends State<ChatIaPage> {
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withOpacity(0.35), width: 1.5),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.08),
+            color: AppColors.primary.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -1331,7 +1331,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                 : Container(
                     width: 38,
                     height: 38,
-                    color: Colors.deepOrange.withOpacity(0.15),
+                    color: Colors.deepOrange.withValues(alpha: 0.15),
                     child: const Icon(PhosphorIcons.filePdf, color: Colors.deepOrange, size: 22),
                   ),
           ),
@@ -1360,7 +1360,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: AppColors.border(context).withOpacity(0.5),
+                color: AppColors.border(context).withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
               child: Icon(PhosphorIcons.x, size: 14, color: AppColors.textPrimary(context)),
@@ -1379,7 +1379,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
     const raio = 30.0;
 
     final Color bgColor = isDark
-        ? const Color(0xFF131D2E).withOpacity(0.92)
+        ? const Color(0xFF131D2E).withValues(alpha: 0.92)
         : Colors.white;
 
     final Color borderColor = isFocused
@@ -1408,18 +1408,18 @@ class _ChatIaPageState extends State<ChatIaPage> {
               boxShadow: [
                 if (!isDark) ...[
                   BoxShadow(
-                    color: const Color(0xFF101828).withOpacity(0.08),
+                    color: const Color(0xFF101828).withValues(alpha: 0.08),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
                   BoxShadow(
-                    color: const Color(0xFF101828).withOpacity(0.04),
+                    color: const Color(0xFF101828).withValues(alpha: 0.04),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ] else ...[
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.35),
+                    color: Colors.black.withValues(alpha: 0.35),
                     blurRadius: 20,
                     offset: const Offset(0, 6),
                   ),
@@ -1497,7 +1497,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: _ouvindo
-                                ? AppColors.error.withOpacity(0.15)
+                                ? AppColors.error.withValues(alpha: 0.15)
                                 : Colors.transparent,
                             shape: BoxShape.circle,
                           ),
@@ -1515,7 +1515,7 @@ class _ChatIaPageState extends State<ChatIaPage> {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: _isSending
-                                ? AppColors.primary.withOpacity(0.5)
+                                ? AppColors.primary.withValues(alpha: 0.5)
                                 : AppColors.primary,
                             shape: BoxShape.circle,
                           ),

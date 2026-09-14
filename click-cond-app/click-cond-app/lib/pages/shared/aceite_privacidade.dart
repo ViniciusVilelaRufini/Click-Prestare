@@ -20,7 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// pergunta na próxima vez. Prender o morador numa tela de aceite por causa
 /// de sinal ruim seria pior que perguntar de novo.
 class PortaDeEntrada extends StatefulWidget {
-  const PortaDeEntrada({Key? key}) : super(key: key);
+  const PortaDeEntrada({super.key});
 
   @override
   State<PortaDeEntrada> createState() => _PortaDeEntradaState();
@@ -74,7 +74,7 @@ class _PortaDeEntradaState extends State<PortaDeEntrada> {
 /// E a recusa é respeitada de verdade: o servidor consulta este registro
 /// antes de enrolar qualquer rosto no terminal.
 class AceitePrivacidadePage extends StatefulWidget {
-  const AceitePrivacidadePage({Key? key}) : super(key: key);
+  const AceitePrivacidadePage({super.key});
 
   @override
   State<AceitePrivacidadePage> createState() => _AceitePrivacidadePageState();

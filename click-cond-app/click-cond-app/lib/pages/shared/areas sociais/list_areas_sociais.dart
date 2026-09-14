@@ -5,7 +5,6 @@ import 'package:click/pages/shared/areas%20sociais/meus_agendamentos_cells.dart'
 import 'package:click/pages/shared/areas%20sociais/new_area_social.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
-import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -14,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListAreasSociais extends StatefulWidget {
-  const ListAreasSociais({Key? key}) : super(key: key);
+  const ListAreasSociais({super.key});
   @override
   _ListAreasSociaisPageState createState() => _ListAreasSociaisPageState();
 }
@@ -108,7 +107,7 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.primary.withValues(alpha: 0.3),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),

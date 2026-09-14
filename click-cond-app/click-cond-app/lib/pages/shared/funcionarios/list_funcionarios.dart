@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListFuncionarios extends StatefulWidget {
-  const ListFuncionarios({Key? key}) : super(key: key);
+  const ListFuncionarios({super.key});
   @override
   _ListFuncionariosPageState createState() => _ListFuncionariosPageState();
 }
@@ -103,7 +103,7 @@ class _FuncionarioCard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 22,
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               backgroundImage: (item['photo'] != null && item['photo'].toString().isNotEmpty)
                   ? NetworkImage(item['photo']) as ImageProvider
                   : null,

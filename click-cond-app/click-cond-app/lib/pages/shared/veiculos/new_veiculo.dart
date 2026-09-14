@@ -11,7 +11,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewVeiculo extends StatefulWidget {
   final VeiculoModel? veiculo;
-  const NewVeiculo({Key? key, this.veiculo}) : super(key: key);
+  const NewVeiculo({super.key, this.veiculo});
 
   @override
   State<NewVeiculo> createState() => _NewVeiculoState();

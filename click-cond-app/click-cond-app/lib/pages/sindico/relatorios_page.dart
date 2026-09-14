@@ -15,7 +15,7 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 
 class RelatoriosPage extends StatefulWidget {
-  const RelatoriosPage({Key? key}) : super(key: key);
+  const RelatoriosPage({super.key});
 
   @override
   _RelatoriosPageState createState() => _RelatoriosPageState();
@@ -197,10 +197,10 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                   margin: const EdgeInsets.only(bottom: AppSpacing.md),
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppColors.primary.withOpacity(0.1) : AppColors.surface(context),
+                    color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : AppColors.surface(context),
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                     border: Border.all(
-                      color: isSelected ? AppColors.primary : Colors.white.withOpacity(0.05),
+                      color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.05),
                     ),
                   ),
                   child: Row(
@@ -208,7 +208,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                       Container(
                         padding: const EdgeInsets.all(AppSpacing.sm),
                         decoration: BoxDecoration(
-                          color: (category['color'] as Color).withOpacity(0.12),
+                          color: (category['color'] as Color).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                         child: Icon(
@@ -242,7 +242,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
             const SizedBox(height: AppSpacing.lg),
             Text(
               'Período (Opcional):',
@@ -264,7 +264,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                       decoration: BoxDecoration(
                         color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(AppRadius.md),
-                        border: Border.all(color: Colors.white.withOpacity(0.05)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -298,7 +298,7 @@ class _RelatoriosPageState extends State<RelatoriosPage> {
                       decoration: BoxDecoration(
                         color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(AppRadius.md),
-                        border: Border.all(color: Colors.white.withOpacity(0.05)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

@@ -14,7 +14,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 class FinanceiroRelatorio extends StatefulWidget {
-  const FinanceiroRelatorio({Key? key}) : super(key: key);
+  const FinanceiroRelatorio({super.key});
 
   @override
   _FinanceiroRelatorioPageState createState() => _FinanceiroRelatorioPageState();
@@ -140,7 +140,7 @@ class _FinanceiroRelatorioPageState extends State<FinanceiroRelatorio> {
                                 border: Border.all(
                                   color: selected 
                                       ? AppColors.primary 
-                                      : AppColors.textSecondary(context).withOpacity(0.1),
+                                      : AppColors.textSecondary(context).withValues(alpha: 0.1),
                                   width: 1,
                                 ),
                               ),

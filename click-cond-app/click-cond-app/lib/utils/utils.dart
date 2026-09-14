@@ -13,8 +13,6 @@ import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
-import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
 
 const _kHttpTimeout = Duration(seconds: 15);
 
@@ -94,7 +92,7 @@ showConfirmDialog(BuildContext context, {String? text}) async {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -312,7 +310,7 @@ getPhoto(BuildContext context) async {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -436,7 +434,7 @@ convertToBase64(dynamic file, String type) {
   if (file != null) {
     if (kIsWeb) {
       if (file is PlatformFile && file.bytes != null) {
-        return 'data:$type;base64,' + base64Encode(file.bytes!);
+        return 'data:$type;base64,${base64Encode(file.bytes!)}';
       }
       return null;
     }
@@ -452,7 +450,7 @@ convertToBase64(dynamic file, String type) {
     }
     if (path != null) {
       final imageBytes = File(path).readAsBytesSync();
-      return 'data:$type;base64,' + base64Encode(imageBytes);
+      return 'data:$type;base64,${base64Encode(imageBytes)}';
     }
   }
   return null;

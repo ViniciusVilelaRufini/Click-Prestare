@@ -18,7 +18,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 class ListPrestadores extends StatefulWidget {
   final bool allCondos;
-  const ListPrestadores({Key? key, this.allCondos = false}) : super(key: key);
+  const ListPrestadores({super.key, this.allCondos = false});
   @override
   _ListPrestadoresPageState createState() => _ListPrestadoresPageState();
 }
@@ -124,7 +124,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.textTertiary(context).withOpacity(0.3),
+                    color: AppColors.textTertiary(context).withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -151,7 +151,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: AppColors.success.withOpacity(0.1),
+                                  color: AppColors.success.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -166,7 +166,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
+                                  color: AppColors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -181,7 +181,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: AppColors.textSecondary(context).withOpacity(0.1),
+                                  color: AppColors.textSecondary(context).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -210,7 +210,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                 context,
                 icon: PhosphorIcons.houseLine,
                 label: 'Unidade',
-                value: '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto'] ?? ''}',
+                value: '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim()} - ' : ''}${item['apto'] ?? ''}',
               ),
               if (item['doc_identificacao'] != null && item['doc_identificacao'].toString().trim().isNotEmpty)
                 _buildDetailRow(
@@ -252,12 +252,12 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        AppColors.primary.withOpacity(0.15),
-                        AppColors.primary.withOpacity(0.05),
+                        AppColors.primary.withValues(alpha: 0.15),
+                        AppColors.primary.withValues(alpha: 0.05),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     children: [
@@ -338,7 +338,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: const Text('Código PIN copiado!'),
-                                        backgroundColor: AppColors.primary.withOpacity(0.9),
+                                        backgroundColor: AppColors.primary.withValues(alpha: 0.9),
                                         duration: const Duration(seconds: 2),
                                       ),
                                     );
@@ -347,7 +347,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                               },
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.primary,
-                                side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                                side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 padding: const EdgeInsets.symmetric(vertical: 10),
                               ),
@@ -392,9 +392,9 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.textSecondary(context).withOpacity(0.05),
+                    color: AppColors.textSecondary(context).withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.textSecondary(context).withOpacity(0.2)),
+                    border: Border.all(color: AppColors.textSecondary(context).withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -450,7 +450,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: AppColors.textTertiary(context).withOpacity(0.3)),
+                        side: BorderSide(color: AppColors.textTertiary(context).withValues(alpha: 0.3)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                       child: Text('Fechar', style: AppTypography.body(context)),
@@ -536,8 +536,8 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
     
     if (s == null) return 'Qualquer data';
     
-    final pad = (int n) => n.toString().padLeft(2, '0');
-    final format = (DateTime d) => '${pad(d.day)}/${pad(d.month)}/${d.year} ${pad(d.hour)}:${pad(d.minute)}';
+    String pad(int n) => n.toString().padLeft(2, '0');
+    String format(DateTime d) => '${pad(d.day)}/${pad(d.month)}/${d.year} ${pad(d.hour)}:${pad(d.minute)}';
     
     if (e == null) {
       return 'A partir de ${format(s)}';
@@ -549,7 +549,7 @@ class _ListPrestadoresPageState extends State<ListPrestadores> {
     if (val == null) return '';
     final d = parseDataApi(val);
     if (d == null) return val.toString();
-    final pad = (int n) => n.toString().padLeft(2, '0');
+    String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
   }
 
@@ -883,21 +883,21 @@ class _PrestadorCard extends StatelessWidget {
                       Expanded(child: Text(item['nome'] ?? '', style: AppTypography.bodyMedium(context), maxLines: 1, overflow: TextOverflow.ellipsis)),
                       if (item['apto'] != null)
                         Text(
-                          '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto']}',
+                          '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim()} - ' : ''}${item['apto']}',
                           style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold),
                         ),
                       if (isInside) ...[
                         const SizedBox(width: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                          decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                           child: Text('NO LOCAL', style: AppTypography.tiny(context).copyWith(color: AppColors.success, fontWeight: FontWeight.bold)),
                         ),
                       ] else if (isAuthorized) ...[
                         const SizedBox(width: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                           child: Text('AUTORIZADO', style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
                         ),
                       ],
@@ -975,7 +975,7 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 48, color: AppColors.textTertiary(context).withOpacity(0.5)),
+          Icon(icon, size: 48, color: AppColors.textTertiary(context).withValues(alpha: 0.5)),
           const SizedBox(height: AppSpacing.md),
           Text(
             text,
@@ -1019,7 +1019,7 @@ Widget _buildVisitanteAvatar(BuildContext context, dynamic item, {double radius 
     if (provider != null) {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: AppColors.primary.withOpacity(0.1),
+        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
         backgroundImage: provider,
       );
     }
@@ -1027,7 +1027,7 @@ Widget _buildVisitanteAvatar(BuildContext context, dynamic item, {double radius 
 
   return CircleAvatar(
     radius: radius,
-    backgroundColor: AppColors.primary.withOpacity(0.1),
+    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
     child: Text(
       nome.substring(0, 1).toUpperCase(),
       style: AppTypography.bodyMedium(context).copyWith(color: AppColors.primary),

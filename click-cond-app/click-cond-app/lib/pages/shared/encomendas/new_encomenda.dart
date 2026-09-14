@@ -8,8 +8,6 @@ import 'package:click/models/encomenda_model.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
-import 'package:click/utils/local_storage.dart';
-import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/widgets/alerts/bottom_sheet_aptos.dart';
 import 'package:click/widgets/app/app_button.dart';
@@ -19,7 +17,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 class NewEncomenda extends StatefulWidget {
   final EncomendaModel? encomenda;
-  const NewEncomenda({Key? key, this.encomenda}) : super(key: key);
+  const NewEncomenda({super.key, this.encomenda});
 
   @override
   _NewEncomendaState createState() => _NewEncomendaState();
@@ -279,7 +277,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(PhosphorIcons.buildings, color: AppColors.primary, size: 20),
@@ -357,9 +355,9 @@ class _NewEncomendaState extends State<NewEncomenda> {
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.08),
+                color: Colors.green.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.withOpacity(0.25)),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
@@ -414,7 +412,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(PhosphorIcons.camera, color: AppColors.primary, size: 20),
@@ -500,10 +498,10 @@ class _NewEncomendaState extends State<NewEncomenda> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.04),
+                  color: AppColors.primary.withValues(alpha: 0.04),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: AppColors.primary.withValues(alpha: 0.3),
                     style: BorderStyle.solid,
                     width: 1.5,
                   ),
@@ -514,7 +512,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(PhosphorIcons.camera, color: AppColors.primary, size: 28),
@@ -568,7 +566,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(PhosphorIcons.package, color: AppColors.primary, size: 20),
@@ -649,7 +647,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(PhosphorIcons.truck, color: AppColors.primary, size: 20),
@@ -689,7 +687,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
                   duration: const Duration(milliseconds: 180),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? color.withOpacity(0.15) : AppColors.surfaceElevated(context),
+                    color: isSelected ? color.withValues(alpha: 0.15) : AppColors.surfaceElevated(context),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isSelected ? color : AppColors.border(context),
@@ -736,7 +734,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(PhosphorIcons.barcode, color: AppColors.primary, size: 20),
@@ -773,7 +771,7 @@ class _NewEncomendaState extends State<NewEncomenda> {
               const SizedBox(width: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: IconButton(

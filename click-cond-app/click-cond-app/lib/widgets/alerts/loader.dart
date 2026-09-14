@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 class Loader extends StatelessWidget  {
   
   const Loader({
-    Key? key,
+    super.key,
     required this.opacity,
     required this.dismissibles,
     required this.color,
     required this.loadingTxt,
-  }) : super(key: key);
+  });
 
   final double opacity;
   final bool dismissibles;
@@ -17,7 +17,7 @@ class Loader extends StatelessWidget  {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 1000,
       height: 1000,
       child: Stack(
@@ -36,9 +36,9 @@ class Loader extends StatelessWidget  {
                   height: 60,
                   alignment: Alignment.center,
                   padding: const EdgeInsets.only(top: 10),
-                  decoration: new BoxDecoration(
-                    image: new DecorationImage(
-                      image: new AssetImage("assets/loading.gif"),
+                  decoration: BoxDecoration(
+                    image: DecorationImage(
+                      image: AssetImage("assets/loading.gif"),
                     ),
                   ),
                 ),

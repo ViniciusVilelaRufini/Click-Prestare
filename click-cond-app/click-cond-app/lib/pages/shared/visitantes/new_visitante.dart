@@ -28,7 +28,7 @@ class NewVisitante extends StatefulWidget {
   final Map<String, dynamic>? reUseData;
   final String? defaultType;
 
-  const NewVisitante({Key? key, required this.isEdit, this.myId, this.reUseData, this.defaultType}) : super(key: key);
+  const NewVisitante({super.key, required this.isEdit, this.myId, this.reUseData, this.defaultType});
 
   @override
   _NewVisitantePageState createState() => _NewVisitantePageState();
@@ -229,7 +229,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.1),
+                    color: AppColors.success.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -257,7 +257,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                   decoration: BoxDecoration(
                     color: AppColors.surfaceElevated(context),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -410,7 +410,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                         children: [
                           CircleAvatar(
                             radius: 52,
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                             backgroundImage: _getAvatarImageProvider(),
                           ),
                           Positioned(
@@ -435,9 +435,9 @@ class _NewVisitantePageState extends State<NewVisitante> {
                       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                       margin: const EdgeInsets.only(top: AppSpacing.sm),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.06),
+                        color: AppColors.primary.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,

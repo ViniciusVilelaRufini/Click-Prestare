@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/pages/sindico/signup/signup_%20condominium_1.dart';
 import 'package:click/pages/sindico/signup/signup_%20condominium_3.dart';
@@ -17,7 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class SignupCondominuim2 extends StatefulWidget {
-  const SignupCondominuim2({Key? key, required this.condominio}) : super(key: key);
+  const SignupCondominuim2({super.key, required this.condominio});
   final CondominioRegister condominio;
 
   @override
@@ -125,7 +124,7 @@ class _SignupCondominuim2PageState extends State<SignupCondominuim2> {
               children: [
                 CircleAvatar(
                   radius: 36,
-                  backgroundColor: AppColors.primary.withOpacity(0.12),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                   backgroundImage: widget.condominio.photo != null
                       ? (kIsWeb
                           ? NetworkImage(widget.condominio.photo!)

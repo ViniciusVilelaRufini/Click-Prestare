@@ -12,13 +12,13 @@ import 'package:material_design_icons_flutter/material_design_icons_flutter.dart
 class uploadFile extends StatefulWidget {
 
   const uploadFile({
-    Key? key,
+    super.key,
     required this.title,
     required this.types,
     required this.maxDocs, 
     required this.onPressed,
     this.defaults
-  }) : super(key: key);
+  });
   final String title;
   final List<String> types;
   final int maxDocs;
@@ -80,7 +80,16 @@ class _uploadFileState extends State<uploadFile> {
             } else {
               // User canceled the picker
             }
-          }, 
+          },
+          style: ButtonStyle(
+            elevation: MaterialStateProperty.all(0),
+            backgroundColor: MaterialStateProperty.all<Color>(Colors.white),
+            shape: MaterialStateProperty.all<RoundedRectangleBorder>(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(5.0),
+              )
+            )
+          ), 
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -140,17 +149,8 @@ class _uploadFileState extends State<uploadFile> {
                 ],
               ),
               SizedBox(height: 20),
-              LabelDefault(title: widget.title+' (${list.length}/${widget.maxDocs})', size: 15, maxLines: 2),
+              LabelDefault(title: '${widget.title} (${list.length}/${widget.maxDocs})', size: 15, maxLines: 2),
             ],
-          ),
-          style: ButtonStyle(
-            elevation: MaterialStateProperty.all(0),
-            backgroundColor: MaterialStateProperty.all<Color>(Colors.white),
-            shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-              RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(5.0),
-              )
-            )
           )
         ),
       ),

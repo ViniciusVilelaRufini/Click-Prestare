@@ -20,7 +20,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'new_area_social.dart';
 
 class AreaSocialDetail extends StatefulWidget {
-  const AreaSocialDetail({Key? key, this.myId}) : super(key: key);
+  const AreaSocialDetail({super.key, this.myId});
   final int? myId;
 
   @override
@@ -151,7 +151,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
         color: AppColors.surface(context),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -195,8 +195,8 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.15),
-                  Colors.black.withOpacity(0.65),
+                  Colors.black.withValues(alpha: 0.15),
+                  Colors.black.withValues(alpha: 0.65),
                 ],
               ),
             ),
@@ -255,7 +255,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
+        color: Colors.black.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white24),
       ),
@@ -294,10 +294,10 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
           ),
         ),
         child: Row(
@@ -305,7 +305,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.12),
+                color: AppColors.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -430,10 +430,10 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                                       margin: const EdgeInsets.only(bottom: AppSpacing.md),
                                       padding: const EdgeInsets.all(AppSpacing.md),
                                       decoration: BoxDecoration(
-                                        color: AppColors.primary.withOpacity(0.08),
+                                        color: AppColors.primary.withValues(alpha: 0.08),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                            color: AppColors.primary.withOpacity(0.25)),
+                                            color: AppColors.primary.withValues(alpha: 0.25)),
                                       ),
                                       child: Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -468,7 +468,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                                             MaterialPageRoute(builder: (_) => NewReserva(obj: obj)),
                                           ).then((_) => load()),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.primary.withOpacity(0.12),
+                                            backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                                             foregroundColor: AppColors.primary,
                                             elevation: 0,
                                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -490,10 +490,10 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                                       padding: const EdgeInsets.symmetric(vertical: 40),
                                       width: double.infinity,
                                       decoration: BoxDecoration(
-                                        color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01),
+                                        color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.01),
                                         borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
-                                          color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+                                          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
                                         ),
                                       ),
                                       child: Center(
@@ -502,7 +502,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
                                             Icon(
                                               PhosphorIcons.calendarBlank,
                                               size: 32,
-                                              color: AppColors.textSecondary(context).withOpacity(0.5),
+                                              color: AppColors.textSecondary(context).withValues(alpha: 0.5),
                                             ),
                                             const SizedBox(height: 10),
                                             Text(
@@ -567,10 +567,10 @@ class _Tag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: color.withOpacity(0.2),
+          color: color.withValues(alpha: 0.2),
           width: 1,
         ),
       ),

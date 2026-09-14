@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -8,7 +7,6 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
-import 'package:click/widgets/alerts/modal_cupertino.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
@@ -18,7 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewAreaSocial extends StatefulWidget {
-  const NewAreaSocial({Key? key, required this.isEdit, this.myId, this.obj}) : super(key: key);
+  const NewAreaSocial({super.key, required this.isEdit, this.myId, this.obj});
   final bool isEdit;
   final int? myId;
   final dynamic obj;
@@ -162,7 +160,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
       return Container(
         width: double.infinity,
         height: 180,
-        color: AppColors.primary.withOpacity(0.08),
+        color: AppColors.primary.withValues(alpha: 0.08),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -348,7 +346,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B).withOpacity(0.4) : const Color(0xFFF1F5F9),
+        color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border(context)),
       ),
@@ -453,7 +451,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: AppColors.primary.withOpacity(0.35),
+              color: AppColors.primary.withValues(alpha: 0.35),
               width: 1,
             ),
           ),
@@ -615,7 +613,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                             child: ChoiceChip(
                               label: Text(item['label'] as String, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                               selected: intervalMin == item['min'],
-                              selectedColor: AppColors.primary.withOpacity(0.15),
+                              selectedColor: AppColors.primary.withValues(alpha: 0.15),
                               onSelected: (_) => setGenState(() => intervalMin = item['min'] as int),
                             ),
                           ),
@@ -690,7 +688,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                                 for (var h = 1; h <= 24; h++)
                                   DropdownMenuItem(
                                     value: h,
-                                    child: Text('${(h == 24 ? '23:59' : '${h.toString().padLeft(2, '0')}:00')}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    child: Text((h == 24 ? '23:59' : '${h.toString().padLeft(2, '0')}:00'), style: const TextStyle(fontWeight: FontWeight.bold)),
                                   ),
                               ],
                               onChanged: (val) {
@@ -712,9 +710,9 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
+                      color: AppColors.primary.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                     ),
                     child: Text(
                       'Serão criados ${slotsPreview.length} intervalos de ${intervalMin}m por dia (ex: ${slotsPreview.isNotEmpty ? "${slotsPreview.first.horarioDe}-${slotsPreview.first.horarioAte} até ${slotsPreview.last.horarioDe}-${slotsPreview.last.horarioAte}" : ""})',
@@ -744,7 +742,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                             child: FilterChip(
                               label: Text(daysOfWeek[i].nome.substring(0, 3).toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
                               selected: selectedDays.contains(i),
-                              selectedColor: AppColors.primary.withOpacity(0.2),
+                              selectedColor: AppColors.primary.withValues(alpha: 0.2),
                               onSelected: (val) {
                                 setGenState(() {
                                   if (val) {
@@ -869,7 +867,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
           height: 40,
           decoration: BoxDecoration(
             color: hasHorarios
-                ? AppColors.primary.withOpacity(0.12)
+                ? AppColors.primary.withValues(alpha: 0.12)
                 : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
             borderRadius: BorderRadius.circular(10),
           ),
@@ -952,7 +950,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF8FAFC),
+                color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -1275,7 +1273,7 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
                             child: ChoiceChip(
                               label: Text(preset, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                               selected: formattedNow == preset,
-                              selectedColor: AppColors.primary.withOpacity(0.15),
+                              selectedColor: AppColors.primary.withValues(alpha: 0.15),
                               onSelected: (_) {
                                 final parts = preset.split(':');
                                 setPickerState(() {
@@ -1375,7 +1373,7 @@ class _ObrigatoriedadeCard extends StatelessWidget {
             height: 38,
             decoration: BoxDecoration(
               color: value
-                  ? AppColors.primary.withOpacity(0.12)
+                  ? AppColors.primary.withValues(alpha: 0.12)
                   : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
               borderRadius: BorderRadius.circular(10),
             ),

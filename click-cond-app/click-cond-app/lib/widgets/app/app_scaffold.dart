@@ -17,7 +17,7 @@ class AppScaffold extends StatelessWidget {
   final bool safeAreaBottom;
 
   const AppScaffold({
-    Key? key,
+    super.key,
     this.title,
     required this.body,
     this.actions,
@@ -28,7 +28,7 @@ class AppScaffold extends StatelessWidget {
     this.backgroundColor,
     this.extendBodyBehindAppBar = false,
     this.safeAreaBottom = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

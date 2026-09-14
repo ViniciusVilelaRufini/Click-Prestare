@@ -14,7 +14,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// Só o síndico chega aqui — a lista esconde o botão para o morador, e o
 /// backend revalida com assertStaff.
 class NewContato extends StatefulWidget {
-  const NewContato({Key? key, this.contato}) : super(key: key);
+  const NewContato({super.key, this.contato});
 
   /// Quando vem preenchido, a tela entra em modo edição.
   final Map<String, dynamic>? contato;
@@ -139,7 +139,7 @@ class _NewContatoPageState extends State<NewContato> {
                       border: Border.all(
                         color: selecionada
                             ? AppColors.primary
-                            : AppColors.textTertiary(context).withOpacity(0.15),
+                            : AppColors.textTertiary(context).withValues(alpha: 0.15),
                       ),
                     ),
                     child: Text(

@@ -22,7 +22,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// tem o campo, mas a API não o persiste (não existe coluna em `Visitantes`),
 /// então ele seria um campo de mentira.
 class ConfirmarConvitePage extends StatefulWidget {
-  const ConfirmarConvitePage({Key? key, required this.convite}) : super(key: key);
+  const ConfirmarConvitePage({super.key, required this.convite});
 
   final dynamic convite;
 
@@ -141,7 +141,7 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
               onPressed: _enviando ? null : _recusar,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 48),
-                side: BorderSide(color: AppColors.error.withOpacity(0.5)),
+                side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: Text('Recusar', style: TextStyle(color: AppColors.error)),
@@ -258,7 +258,7 @@ class _ConfirmarConvitePageState extends State<ConfirmarConvitePage> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
+            color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(

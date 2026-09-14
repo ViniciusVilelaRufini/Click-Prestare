@@ -20,7 +20,7 @@ enum _VeiculosTab { veiculos, vagas }
 /// Tela unificada "Meus Veículos" + "Minhas Vagas", com um toggle no topo
 /// (mesmo padrão da tela de Financeiro: Meu Financeiro / Condomínio).
 class ListVeiculos extends StatefulWidget {
-  const ListVeiculos({Key? key}) : super(key: key);
+  const ListVeiculos({super.key});
 
   @override
   State<ListVeiculos> createState() => _ListVeiculosState();
@@ -261,7 +261,7 @@ class _ToggleItem extends StatelessWidget {
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: AppColors.primary.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4))
                   ]
@@ -305,7 +305,7 @@ class _VeiculoCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(PhosphorIcons.car, color: AppColors.primary, size: 22),
@@ -332,7 +332,7 @@ class _VeiculoCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text('Tag: ${veiculo.tagCodigo}',

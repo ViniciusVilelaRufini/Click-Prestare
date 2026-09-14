@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListVagas extends StatefulWidget {
-  const ListVagas({Key? key}) : super(key: key);
+  const ListVagas({super.key});
 
   @override
   State<ListVagas> createState() => _ListVagasState();
@@ -104,11 +104,11 @@ class VagasBody extends StatelessWidget {
   final VoidCallback onLiberar;
   final void Function(VagaModel vaga) onRevogar;
   const VagasBody({
-    Key? key,
+    super.key,
     required this.resumo,
     required this.onLiberar,
     required this.onRevogar,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -142,9 +142,9 @@ class VagasBody extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.08),
+        color: AppColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
@@ -152,7 +152,7 @@ class VagasBody extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.12),
+              color: AppColors.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(PhosphorIcons.carSimple, color: AppColors.primary, size: 26),
@@ -201,7 +201,7 @@ class VagasBody extends StatelessWidget {
 class VagaCard extends StatelessWidget {
   final VagaModel vaga;
   final VoidCallback onRevogar;
-  const VagaCard({Key? key, required this.vaga, required this.onRevogar}) : super(key: key);
+  const VagaCard({super.key, required this.vaga, required this.onRevogar});
 
   ({IconData icon, Color color, String label}) get _tag {
     if (vaga.isVisitante) {
@@ -238,7 +238,7 @@ class VagaCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: t.color.withOpacity(0.12),
+              color: t.color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(t.icon, color: t.color, size: 22),
@@ -259,7 +259,7 @@ class VagaCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: t.color.withOpacity(0.12),
+                        color: t.color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(t.label,
@@ -301,7 +301,7 @@ class VagaCard extends StatelessWidget {
 
 class VagaLivreCard extends StatelessWidget {
   final VoidCallback onTap;
-  const VagaLivreCard({Key? key, required this.onTap}) : super(key: key);
+  const VagaLivreCard({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -314,7 +314,7 @@ class VagaLivreCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.textTertiary(context).withOpacity(0.08),
+                color: AppColors.textTertiary(context).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(PhosphorIcons.plus,
@@ -346,14 +346,14 @@ class VagaLivreCard extends StatelessWidget {
 /// Caixa com borda tracejada simples (sem dependência externa).
 class DottedBorderBox extends StatelessWidget {
   final Widget child;
-  const DottedBorderBox({Key? key, required this.child}) : super(key: key);
+  const DottedBorderBox({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface(context).withOpacity(0.5),
+        color: AppColors.surface(context).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: AppColors.border(context),

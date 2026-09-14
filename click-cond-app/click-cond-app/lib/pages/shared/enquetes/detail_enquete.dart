@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class DetailEnquete extends StatefulWidget {
-  const DetailEnquete({Key? key, required this.id}) : super(key: key);
+  const DetailEnquete({super.key, required this.id});
   final int id;
 
   @override
@@ -245,7 +245,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
           decoration: BoxDecoration(
             color: isSelected 
-                ? AppColors.primary.withOpacity(0.08) 
+                ? AppColors.primary.withValues(alpha: 0.08) 
                 : AppColors.surface(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -274,7 +274,7 @@ class _DetailEnquetePageState extends State<DetailEnquete> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: isSelected 
-                      ? AppColors.primary.withOpacity(0.12) 
+                      ? AppColors.primary.withValues(alpha: 0.12) 
                       : AppColors.bg(context),
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -309,9 +309,9 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,

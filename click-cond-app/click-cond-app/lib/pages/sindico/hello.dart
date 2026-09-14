@@ -1,4 +1,4 @@
-﻿import 'package:click/pages/sindico/login.dart';
+import 'package:click/pages/sindico/login.dart';
 import 'package:click/pages/sindico/signup/signup_sindico.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class Hello extends StatelessWidget {
-  const Hello({Key? key}) : super(key: key);
+  const Hello({super.key});
 
   @override
   Widget build(BuildContext context) {

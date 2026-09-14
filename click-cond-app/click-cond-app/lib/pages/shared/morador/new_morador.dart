@@ -1,7 +1,5 @@
 import 'package:click/utils/log.dart';
-import 'dart:convert';
 import 'dart:io' as io;
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/controllers/controller_moradores.dart';
@@ -23,14 +21,14 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewMorador extends StatefulWidget {
   const NewMorador({
-    Key? key,
+    super.key,
     required this.isEdit,
     this.obj,
     required this.apto,
     required this.bloco,
     required this.tipo,
     required this.id_apto,
-  }) : super(key: key);
+  });
   final bool isEdit;
   final dynamic obj;
   final String apto, bloco, tipo, id_apto;
@@ -237,7 +235,7 @@ class _NewMoradorPageState extends State<NewMorador> {
                         children: [
                           CircleAvatar(
                             radius: 52,
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                             backgroundImage: imageFile == null
                                 ? const AssetImage('assets/images/defaultUser.png')
                                 : (imageFile is String

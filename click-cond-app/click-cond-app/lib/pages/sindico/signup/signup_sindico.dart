@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/pages/sindico/list_condominiums.dart';
@@ -17,7 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class SignupSindico extends StatefulWidget {
-  const SignupSindico({Key? key}) : super(key: key);
+  const SignupSindico({super.key});
 
   @override
   _SignupSindicoPageState createState() => _SignupSindicoPageState();
@@ -69,7 +68,7 @@ class _SignupSindicoPageState extends State<SignupSindico> {
     String? base64;
     if (_imageFile != null) {
       final bytes = await _imageFile.readAsBytes();
-      base64 = "data:image/png;base64," + base64Encode(bytes);
+      base64 = "data:image/png;base64,${base64Encode(bytes)}";
     }
 
     final message = await signupSindico(
@@ -105,7 +104,7 @@ class _SignupSindicoPageState extends State<SignupSindico> {
                 children: [
                   CircleAvatar(
                     radius: 52,
-                    backgroundColor: AppColors.primary.withOpacity(0.12),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
                     backgroundImage: _getAvatarImage(),
                   ),
                   Positioned(

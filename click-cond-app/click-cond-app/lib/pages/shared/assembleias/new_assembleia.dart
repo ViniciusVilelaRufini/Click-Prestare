@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/theme/app_colors.dart';
@@ -16,7 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewAssembleia extends StatefulWidget {
-  const NewAssembleia({Key? key, required this.isEdit, this.myId}) : super(key: key);
+  const NewAssembleia({super.key, required this.isEdit, this.myId});
   final bool isEdit;
   final int? myId;
 

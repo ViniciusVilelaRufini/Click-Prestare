@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewAgenda extends StatefulWidget {
-  const NewAgenda({Key? key, required this.isEdit, this.myId}) : super(key: key);
+  const NewAgenda({super.key, required this.isEdit, this.myId});
   final bool isEdit;
   final int? myId;
 

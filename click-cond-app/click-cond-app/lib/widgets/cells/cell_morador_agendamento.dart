@@ -10,10 +10,10 @@ class CellMoradorAgendamento extends StatelessWidget {
   final bool canEdit;
 
   const CellMoradorAgendamento({
-    Key? key,
+    super.key,
     required this.item,
     required this.canEdit,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,13 +24,13 @@ class CellMoradorAgendamento extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: canEdit 
-              ? AppColors.primary.withOpacity(0.24) 
+              ? AppColors.primary.withValues(alpha: 0.24) 
               : AppColors.border(context),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -44,7 +44,7 @@ class CellMoradorAgendamento extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: (canEdit ? AppColors.primary : AppColors.textSecondary(context)).withOpacity(0.1),
+                color: (canEdit ? AppColors.primary : AppColors.textSecondary(context)).withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -96,7 +96,7 @@ class CellMoradorAgendamento extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(

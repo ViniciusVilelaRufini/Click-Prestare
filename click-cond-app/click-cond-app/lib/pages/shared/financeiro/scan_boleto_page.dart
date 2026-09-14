@@ -1,7 +1,6 @@
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
-import 'package:click/utils/boleto_utils.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,7 +10,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// Escaneia o boleto/conta: QR (PIX copia-e-cola) ou código de barras do boleto.
 /// Retorna o valor bruto lido (String) via Navigator.pop.
 class ScanBoletoPage extends StatefulWidget {
-  const ScanBoletoPage({Key? key}) : super(key: key);
+  const ScanBoletoPage({super.key});
 
   @override
   State<ScanBoletoPage> createState() => _ScanBoletoPageState();
@@ -167,7 +166,7 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: AppColors.primary.withValues(alpha: 0.3),
                     blurRadius: 16,
                     spreadRadius: 2,
                   ),
@@ -191,7 +190,7 @@ class _ScanBoletoPageState extends State<ScanBoletoPage> {
                       vertical: AppSpacing.sm,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
+                      color: Colors.black.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(

@@ -10,7 +10,7 @@ import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListInadimplentes extends StatefulWidget {
-  const ListInadimplentes({Key? key}) : super(key: key);
+  const ListInadimplentes({super.key});
   @override
   _ListInadimplentesPageState createState() => _ListInadimplentesPageState();
 }
@@ -65,7 +65,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                             decoration: BoxDecoration(
                               color: AppColors.surface(context),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.error.withOpacity(0.15)),
+                              border: Border.all(color: AppColors.error.withValues(alpha: 0.15)),
                             ),
                             child: Theme(
                               data: Theme.of(context).copyWith(
@@ -82,7 +82,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                     Container(
                                       width: 40, height: 40,
                                       decoration: BoxDecoration(
-                                        color: AppColors.error.withOpacity(0.08), 
+                                        color: AppColors.error.withValues(alpha: 0.08), 
                                         borderRadius: BorderRadius.circular(10)
                                       ),
                                       child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 20),
@@ -131,7 +131,7 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                                 Container(
                                                   padding: const EdgeInsets.all(8),
                                                   decoration: BoxDecoration(
-                                                    color: AppColors.textSecondary(context).withOpacity(0.05),
+                                                    color: AppColors.textSecondary(context).withValues(alpha: 0.05),
                                                     borderRadius: BorderRadius.circular(8),
                                                   ),
                                                   child: Icon(PhosphorIcons.door, size: 18, color: AppColors.textSecondary(context)),
@@ -151,9 +151,9 @@ class _ListInadimplentesPageState extends State<ListInadimplentes> {
                                                   child: Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                                     decoration: BoxDecoration(
-                                                      color: AppColors.error.withOpacity(0.08),
+                                                      color: AppColors.error.withValues(alpha: 0.08),
                                                       borderRadius: BorderRadius.circular(12),
-                                                      border: Border.all(color: AppColors.error.withOpacity(0.25)),
+                                                      border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
                                                     ),
                                                     child: FittedBox(
                                                       fit: BoxFit.scaleDown,

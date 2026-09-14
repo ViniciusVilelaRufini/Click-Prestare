@@ -14,7 +14,7 @@ import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListEnquetes extends StatefulWidget {
-  const ListEnquetes({Key? key}) : super(key: key);
+  const ListEnquetes({super.key});
   @override
   _ListEnquetesPageState createState() => _ListEnquetesPageState();
 }
@@ -207,14 +207,14 @@ class _MonthStrip extends StatelessWidget {
                 color: isSelected
                     ? AppColors.primary
                     : isCurrentMonth
-                        ? AppColors.primary.withOpacity(0.08)
+                        ? AppColors.primary.withValues(alpha: 0.08)
                         : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 border: isSelected
                     ? null
                     : Border.all(
                         color: isCurrentMonth
-                            ? AppColors.primary.withOpacity(0.3)
+                            ? AppColors.primary.withValues(alpha: 0.3)
                             : AppColors.border(context),
                       ),
               ),
@@ -237,7 +237,7 @@ class _MonthStrip extends StatelessWidget {
                     yearLabel,
                     style: AppTypography.tiny(context).copyWith(
                       color: isSelected
-                          ? Colors.white.withOpacity(0.75)
+                          ? Colors.white.withValues(alpha: 0.75)
                           : AppColors.textTertiary(context),
                     ),
                   ),
@@ -269,7 +269,7 @@ class _EnqueteCard extends StatelessWidget {
           children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
               child: const Icon(PhosphorIcons.chartBar, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -301,7 +301,7 @@ class _StatusBadge extends StatelessWidget {
       margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: isOpen ? const Color(0xFF22C55E).withOpacity(0.1) : AppColors.textTertiary(context).withOpacity(0.1),
+        color: isOpen ? const Color(0xFF22C55E).withValues(alpha: 0.1) : AppColors.textTertiary(context).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

@@ -28,7 +28,7 @@ Future<void> showAppDialog(
               Container(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 decoration: BoxDecoration(
-                  color: (iconColor ?? AppColors.primary).withOpacity(0.12),
+                  color: (iconColor ?? AppColors.primary).withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: iconColor ?? AppColors.primary, size: 32),
@@ -72,7 +72,7 @@ Future<bool> showAppConfirmDialog(
             Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
-                color: (isDanger ? AppColors.error : AppColors.warning).withOpacity(0.12),
+                color: (isDanger ? AppColors.error : AppColors.warning).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(

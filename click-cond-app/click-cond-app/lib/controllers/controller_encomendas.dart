@@ -2,7 +2,6 @@ import 'package:click/utils/log.dart';
 import 'dart:convert';
 import 'package:click/pages/singleton.dart';
 import 'package:click/utils/local_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:click/utils/api_config.dart';
 import 'package:click/utils/api_client.dart';
 

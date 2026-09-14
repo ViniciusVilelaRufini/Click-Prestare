@@ -28,11 +28,11 @@ class ListVisitantes extends StatefulWidget {
   final bool hideAppBar;
   final bool showFab;
   const ListVisitantes({
-    Key? key, 
+    super.key, 
     this.allCondos = false, 
     this.hideAppBar = false,
     this.showFab = true,
-  }) : super(key: key);
+  });
   @override
   ListVisitantesPageState createState() => ListVisitantesPageState();
 }
@@ -233,7 +233,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                     child: Center(child: Container(
                       width: 40, height: 4,
                       decoration: BoxDecoration(
-                        color: AppColors.textTertiary(context).withOpacity(0.3),
+                        color: AppColors.textTertiary(context).withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     )),
@@ -275,7 +275,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: AppColors.success.withOpacity(0.1),
+                                  color: AppColors.success.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -290,7 +290,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
+                                  color: AppColors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -305,7 +305,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: AppColors.textSecondary(context).withOpacity(0.1),
+                                  color: AppColors.textSecondary(context).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -341,7 +341,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                 context,
                 icon: PhosphorIcons.houseLine,
                 label: 'Unidade',
-                value: '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? (item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim() + ' - ' : ''}${item['apto'] ?? ''}',
+                value: '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim().isNotEmpty && (item['apto_bloco'] ?? item['bloco'] ?? '').toString() != 'null' ? '${(item['apto_bloco'] ?? item['bloco'] ?? '').toString().trim()} - ' : ''}${item['apto'] ?? ''}',
               ),
               if (item['doc_identificacao'] != null && item['doc_identificacao'].toString().trim().isNotEmpty)
                 _buildDetailRow(
@@ -429,7 +429,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                             },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.primary,
-                              side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                              side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               padding: const EdgeInsets.symmetric(vertical: 10),
                             ),
@@ -455,7 +455,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: const Text('Texto de compartilhamento copiado!'),
-                                      backgroundColor: AppColors.primary.withOpacity(0.9),
+                                      backgroundColor: AppColors.primary.withValues(alpha: 0.9),
                                       duration: const Duration(seconds: 2),
                                     ),
                                   );
@@ -486,12 +486,12 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        AppColors.primary.withOpacity(0.15),
-                        AppColors.primary.withOpacity(0.05),
+                        AppColors.primary.withValues(alpha: 0.15),
+                        AppColors.primary.withValues(alpha: 0.05),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                   ),
                   child: Column(
                     children: [
@@ -578,7 +578,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: const Text('Código PIN copiado!'),
-                                        backgroundColor: AppColors.primary.withOpacity(0.9),
+                                        backgroundColor: AppColors.primary.withValues(alpha: 0.9),
                                         duration: const Duration(seconds: 2),
                                       ),
                                     );
@@ -587,7 +587,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                               },
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.primary,
-                                side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                                side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 padding: const EdgeInsets.symmetric(vertical: 10),
                               ),
@@ -632,9 +632,9 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.textSecondary(context).withOpacity(0.05),
+                    color: AppColors.textSecondary(context).withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.textSecondary(context).withOpacity(0.2)),
+                    border: Border.all(color: AppColors.textSecondary(context).withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -722,7 +722,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           onPressed: () => Navigator.pop(ctx),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(48),
-                            side: BorderSide(color: AppColors.textTertiary(context).withOpacity(0.3)),
+                            side: BorderSide(color: AppColors.textTertiary(context).withValues(alpha: 0.3)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
                           child: Text('Fechar', style: AppTypography.body(context)),
@@ -818,8 +818,8 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     
     if (s == null) return 'Qualquer data';
     
-    final pad = (int n) => n.toString().padLeft(2, '0');
-    final format = (DateTime d) => '${pad(d.day)}/${pad(d.month)}/${d.year} ${pad(d.hour)}:${pad(d.minute)}';
+    String pad(int n) => n.toString().padLeft(2, '0');
+    String format(DateTime d) => '${pad(d.day)}/${pad(d.month)}/${d.year} ${pad(d.hour)}:${pad(d.minute)}';
     
     if (e == null) {
       return 'A partir de ${format(s)}';
@@ -831,7 +831,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
     if (val == null) return '';
     final d = parseDataApi(val);
     if (d == null) return val.toString();
-    final pad = (int n) => n.toString().padLeft(2, '0');
+    String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
   }
 
@@ -971,7 +971,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.08),
+                      color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.08),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -990,7 +990,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                         color: AppColors.primary,
                         borderRadius: BorderRadius.circular(28),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.20),
+                          color: Colors.white.withValues(alpha: 0.20),
                           width: 1.0,
                         ),
                       ),
@@ -1344,8 +1344,8 @@ class _VisitanteCard extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: isDark
-                  ? Colors.black.withOpacity(0.25)
-                  : const Color(0xFF64748B).withOpacity(0.06),
+                  ? Colors.black.withValues(alpha: 0.25)
+                  : const Color(0xFF64748B).withValues(alpha: 0.06),
               blurRadius: 14,
               offset: const Offset(0, 4),
             ),
@@ -1690,10 +1690,10 @@ class _TipoChip extends StatelessWidget {
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: selected ? AppColors.primary.withOpacity(0.12) : AppColors.surface(context),
+            color: selected ? AppColors.primary.withValues(alpha: 0.12) : AppColors.surface(context),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected ? AppColors.primary.withOpacity(0.5) : Colors.transparent,
+              color: selected ? AppColors.primary.withValues(alpha: 0.5) : Colors.transparent,
             ),
           ),
           child: FittedBox(
@@ -1805,17 +1805,17 @@ Widget _buildFaceBadge(BuildContext context, String? status) {
   String label;
   switch (status) {
     case 'synced':
-      bg = AppColors.success.withOpacity(0.15);
+      bg = AppColors.success.withValues(alpha: 0.15);
       fg = AppColors.success;
       label = 'FACIAL';
       break;
     case 'pending':
-      bg = Colors.amber.withOpacity(0.15);
+      bg = Colors.amber.withValues(alpha: 0.15);
       fg = Colors.amber.shade700;
       label = 'SINC.';
       break;
     case 'error':
-      bg = Colors.red.withOpacity(0.15);
+      bg = Colors.red.withValues(alpha: 0.15);
       fg = Colors.red.shade600;
       label = 'ERRO';
       break;

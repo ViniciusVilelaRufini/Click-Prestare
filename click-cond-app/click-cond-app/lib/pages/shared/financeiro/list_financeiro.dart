@@ -21,7 +21,6 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
-import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -33,10 +32,10 @@ class ListFinanceiro extends StatefulWidget {
   final bool hideAppBar;
   final bool showFab;
   const ListFinanceiro({
-    Key? key, 
+    super.key, 
     this.hideAppBar = false,
     this.showFab = true,
-  }) : super(key: key);
+  });
   @override
   ListFinanceiroState createState() => ListFinanceiroState();
 }
@@ -346,8 +345,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                                       boxShadow: [
                                         BoxShadow(
                                           color: Theme.of(context).brightness == Brightness.dark
-                                              ? Colors.black.withOpacity(0.15)
-                                              : const Color(0xFF64748B).withOpacity(0.04),
+                                              ? Colors.black.withValues(alpha: 0.15)
+                                              : const Color(0xFF64748B).withValues(alpha: 0.04),
                                           blurRadius: 8,
                                           offset: const Offset(0, 2),
                                         ),
@@ -553,8 +552,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
         boxShadow: [
           BoxShadow(
             color: isDark 
-                ? Colors.black.withOpacity(0.2) 
-                : const Color(0xFF64748B).withOpacity(0.06),
+                ? Colors.black.withValues(alpha: 0.2) 
+                : const Color(0xFF64748B).withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -708,7 +707,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 10,
                       ),
                     ],
@@ -933,7 +932,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                         leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF2563EB).withOpacity(0.12),
+                          backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.12),
                           child: const Icon(PhosphorIcons.receipt, color: Color(0xFF2563EB), size: 20),
                         ),
                         title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
@@ -1086,7 +1085,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               Text(
                 "Total pendente",
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.92),
+                  color: Colors.white.withValues(alpha: 0.92),
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.1,
@@ -1095,7 +1094,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -1153,7 +1152,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                 Container(
                   height: 6,
                   width: double.infinity,
-                  color: Colors.white.withOpacity(0.25),
+                  color: Colors.white.withValues(alpha: 0.25),
                 ),
                 FractionallySizedBox(
                   alignment: Alignment.centerLeft,
@@ -1173,7 +1172,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
           Text(
             progressText,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.88),
+              color: Colors.white.withValues(alpha: 0.88),
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -1314,7 +1313,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               PhosphorIcons.caretLeft,
               color: selectedIndex > 0 
                   ? const Color(0xFF94A3B8) 
-                  : const Color(0xFFCBD5E1).withOpacity(0.4),
+                  : const Color(0xFFCBD5E1).withValues(alpha: 0.4),
             ),
             onPressed: selectedIndex > 0
                 ? () {
@@ -1375,7 +1374,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                             yearShort,
                             style: TextStyle(
                               color: isSelected 
-                                  ? Colors.white.withOpacity(0.9)
+                                  ? Colors.white.withValues(alpha: 0.9)
                                   : (Theme.of(context).brightness == Brightness.dark
                                       ? const Color(0xFF64748B)
                                       : const Color(0xFF94A3B8)),
@@ -1399,7 +1398,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
               PhosphorIcons.caretRight,
               color: selectedIndex < titlesTabs.length - 1 
                   ? const Color(0xFF94A3B8) 
-                  : const Color(0xFFCBD5E1).withOpacity(0.4),
+                  : const Color(0xFFCBD5E1).withValues(alpha: 0.4),
             ),
             onPressed: selectedIndex < titlesTabs.length - 1
                 ? () {
@@ -1504,7 +1503,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 6,
               offset: const Offset(0, 3),
             )
@@ -1524,8 +1523,8 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: hasPending
-                          ? AppColors.error.withOpacity(0.08)
-                          : AppColors.primary.withOpacity(0.08),
+                          ? AppColors.error.withValues(alpha: 0.08)
+                          : AppColors.primary.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -1800,16 +1799,16 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.08),
+                          color: AppColors.primary.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.primary.withOpacity(0.35)),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
                         ),
                         child: Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.15),
+                                color: AppColors.primary.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(
@@ -1916,7 +1915,7 @@ class ListFinanceiroState extends State<ListFinanceiro> {
                               style: AppTypography.captionMedium(context)
                                   .copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                            side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -2110,8 +2109,8 @@ class _DashboardHeader extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: isDark 
-                    ? Colors.black.withOpacity(0.20) 
-                    : const Color(0xFF64748B).withOpacity(0.06),
+                    ? Colors.black.withValues(alpha: 0.20) 
+                    : const Color(0xFF64748B).withValues(alpha: 0.06),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -2251,7 +2250,7 @@ class _SmallSummaryCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.15) : const Color(0xFF64748B).withOpacity(0.05),
+            color: isDark ? Colors.black.withValues(alpha: 0.15) : const Color(0xFF64748B).withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 3),
           ),
@@ -2265,7 +2264,7 @@ class _SmallSummaryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: isDark ? color.withOpacity(0.20) : iconBg,
+                  color: isDark ? color.withValues(alpha: 0.20) : iconBg,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, size: 14, color: color),
@@ -2325,10 +2324,10 @@ class _CountChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: isDark ? color.withOpacity(0.15) : (bgColor ?? color.withOpacity(0.08)),
+        color: isDark ? color.withValues(alpha: 0.15) : (bgColor ?? color.withValues(alpha: 0.08)),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? color.withOpacity(0.3) : (borderColor ?? color.withOpacity(0.2)),
+          color: isDark ? color.withValues(alpha: 0.3) : (borderColor ?? color.withValues(alpha: 0.2)),
           width: 1,
         ),
       ),
@@ -2400,7 +2399,7 @@ class _LancamentoCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.15) : const Color(0xFF64748B).withOpacity(0.04),
+            color: isDark ? Colors.black.withValues(alpha: 0.15) : const Color(0xFF64748B).withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -2414,7 +2413,7 @@ class _LancamentoCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: isCredito 
                   ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7)) 
-                  : (isDark ? const Color(0xFF1E3A8A).withOpacity(0.4) : const Color(0xFFEFF6FF)),
+                  : (isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.4) : const Color(0xFFEFF6FF)),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
@@ -2521,7 +2520,7 @@ class _ActionCardButton extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: isDark ? Colors.black.withOpacity(0.15) : const Color(0xFF64748B).withOpacity(0.04),
+                color: isDark ? Colors.black.withValues(alpha: 0.15) : const Color(0xFF64748B).withValues(alpha: 0.04),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -2533,7 +2532,7 @@ class _ActionCardButton extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: isDark ? color.withOpacity(0.20) : (iconBg ?? color.withOpacity(0.12)),
+                  color: isDark ? color.withValues(alpha: 0.20) : (iconBg ?? color.withValues(alpha: 0.12)),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 16),
@@ -2563,7 +2562,7 @@ class _ActionCardButton extends StatelessWidget {
 class InadimplenciaDashboardPage extends StatefulWidget {
   final String mes;
   final String ano;
-  const InadimplenciaDashboardPage({Key? key, this.mes = '', this.ano = ''}) : super(key: key);
+  const InadimplenciaDashboardPage({super.key, this.mes = '', this.ano = ''});
   @override
   State<InadimplenciaDashboardPage> createState() => _InadimplenciaDashboardPageState();
 }
@@ -2653,7 +2652,7 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                               decoration: BoxDecoration(
                                 color: sel ? AppColors.primary : AppColors.surface(context),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: sel ? AppColors.primary : AppColors.textSecondary(context).withOpacity(0.1)),
+                                border: Border.all(color: sel ? AppColors.primary : AppColors.textSecondary(context).withValues(alpha: 0.1)),
                               ),
                               child: Row(mainAxisSize: MainAxisSize.min, children: [
                                 Icon(PhosphorIcons.calendarBlank, size: 14, color: sel ? Colors.white : AppColors.textSecondary(context)),
@@ -2717,7 +2716,7 @@ class _InadimplenciaDashboardPageState extends State<InadimplenciaDashboardPage>
                       padding: const EdgeInsets.all(AppSpacing.xl),
                       decoration: BoxDecoration(color: AppColors.surface(context), borderRadius: BorderRadius.circular(16)),
                       child: Column(children: [
-                        Icon(PhosphorIcons.checkCircle, size: 40, color: AppColors.success.withOpacity(0.6)),
+                        Icon(PhosphorIcons.checkCircle, size: 40, color: AppColors.success.withValues(alpha: 0.6)),
                         const SizedBox(height: AppSpacing.sm),
                         Text('Nenhuma inadimplência neste período.', textAlign: TextAlign.center,
                           style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
@@ -2759,7 +2758,7 @@ class _InadKpiCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface(context),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.15)),
+            border: Border.all(color: color.withValues(alpha: 0.15)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2768,7 +2767,7 @@ class _InadKpiCard extends StatelessWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
                     child: Icon(icon, color: color, size: 18),
                   ),
                   const Spacer(),
@@ -2855,7 +2854,7 @@ class _InadBlocoTile extends StatelessWidget {
         child: ExpansionTile(
           leading: Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
             child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 18),
           ),
           title: Text('Bloco $nomeBloco', style: AppTypography.bodyMedium(context).copyWith(fontWeight: FontWeight.bold)),
@@ -2890,7 +2889,7 @@ class _InadBlocoTile extends StatelessWidget {
 class InadimplenciaListaPage extends StatelessWidget {
   final String titulo;
   final List<dynamic> itens;
-  const InadimplenciaListaPage({Key? key, required this.titulo, required this.itens}) : super(key: key);
+  const InadimplenciaListaPage({super.key, required this.titulo, required this.itens});
 
   @override
   Widget build(BuildContext context) {
@@ -2923,7 +2922,7 @@ class InadimplenciaListaPage extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: (pago ? const Color(0xFF22C55E) : const Color(0xFFF59E0B)).withOpacity(0.12),
+                        color: (pago ? const Color(0xFF22C55E) : const Color(0xFFF59E0B)).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10)),
                       child: Icon(pago ? PhosphorIcons.checkCircle : PhosphorIcons.clock,
                         color: pago ? const Color(0xFF22C55E) : const Color(0xFFF59E0B), size: 18),
@@ -2962,7 +2961,7 @@ class InadimplenciaListaPage extends StatelessWidget {
 // ===== Tela: aptos inadimplentes (Notificar + detalhe) =====
 class InadimplenciaAptosPage extends StatelessWidget {
   final List<dynamic> itens;
-  const InadimplenciaAptosPage({Key? key, required this.itens}) : super(key: key);
+  const InadimplenciaAptosPage({super.key, required this.itens});
 
   Future<void> _notificar(BuildContext context, String bloco, String apto) async {
     final res = await apiNotificarInadimplente(bloco, apto);
@@ -2983,7 +2982,7 @@ class InadimplenciaAptosPage extends StatelessWidget {
           ? Center(child: Padding(
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(PhosphorIcons.checkCircle, size: 48, color: AppColors.success.withOpacity(0.6)),
+                Icon(PhosphorIcons.checkCircle, size: 48, color: AppColors.success.withValues(alpha: 0.6)),
                 const SizedBox(height: AppSpacing.md),
                 Text('Nenhum apto inadimplente.', style: AppTypography.body(context).copyWith(color: AppColors.textSecondary(context))),
               ]),
@@ -3003,7 +3002,7 @@ class InadimplenciaAptosPage extends StatelessWidget {
                   child: Row(children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                       child: Icon(PhosphorIcons.buildings, color: AppColors.error, size: 18),
                     ),
                     const SizedBox(width: AppSpacing.md),
@@ -3023,9 +3022,9 @@ class InadimplenciaAptosPage extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
+                          color: AppColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.primary.withOpacity(0.3))),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3))),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(PhosphorIcons.bell, size: 12, color: AppColors.primary),
                           const SizedBox(width: 4),

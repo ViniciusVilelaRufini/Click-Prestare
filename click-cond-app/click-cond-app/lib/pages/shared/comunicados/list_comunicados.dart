@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListComunicados extends StatefulWidget {
-  const ListComunicados({Key? key}) : super(key: key);
+  const ListComunicados({super.key});
   @override
   _ListComunicadosPageState createState() => _ListComunicadosPageState();
 }
@@ -100,7 +100,7 @@ class _ComunicadoCard extends StatelessWidget {
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(PhosphorIcons.megaphone, color: AppColors.primary, size: 22),

@@ -45,7 +45,7 @@ passRecoveryApi(String email, String loginType) async {
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
     throw parsed["message"] ?? parsed["msg"] ?? "Houve um erro, tente novamente!";
   } catch (e) {
-    throw e;
+    rethrow;
   }
 }
 
@@ -102,7 +102,7 @@ updateSindico(String nome, String documento, String dn, String email,
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
     throw parsed["message"] ?? "Houve um erro, tente novamente!";
   } catch (e) {
-    throw e;
+    rethrow;
   }
 }
 

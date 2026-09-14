@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewComunicado extends StatefulWidget {
-  const NewComunicado({Key? key, required this.isEdit, this.myId}) : super(key: key);
+  const NewComunicado({super.key, required this.isEdit, this.myId});
   final bool isEdit;
   final int? myId;
   @override

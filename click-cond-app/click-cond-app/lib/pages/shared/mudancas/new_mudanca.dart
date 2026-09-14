@@ -16,7 +16,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../singleton.dart';
 
 class NewMudanca extends StatefulWidget {
-  const NewMudanca({Key? key, required this.isEdit, this.myId}) : super(key: key);
+  const NewMudanca({super.key, required this.isEdit, this.myId});
   final bool isEdit;
   final int? myId;
 

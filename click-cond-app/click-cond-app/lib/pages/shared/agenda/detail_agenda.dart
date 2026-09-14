@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class DetailAgenda extends StatefulWidget {
-  const DetailAgenda({Key? key, required this.id}) : super(key: key);
+  const DetailAgenda({super.key, required this.id});
   final int id;
 
   @override

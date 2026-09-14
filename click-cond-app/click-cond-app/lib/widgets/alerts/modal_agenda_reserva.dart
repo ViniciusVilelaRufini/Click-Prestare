@@ -7,11 +7,11 @@ import 'package:table_calendar/table_calendar.dart';
 
 class ModalAgendaReserva extends StatefulWidget {
   const ModalAgendaReserva({
-    Key? key,
+    super.key,
     required this.onPressed,
     this.selected,
     required this.allowedDays,
-  }) : super(key: key);
+  });
 
   final Function(DateTime) onPressed;
   final DateTime? selected;
@@ -53,7 +53,7 @@ class _ModalAgendaReservaState extends State<ModalAgendaReserva> {
             border: Border.all(color: AppColors.border(context)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
@@ -165,9 +165,9 @@ class _ModalAgendaReservaState extends State<ModalAgendaReserva> {
       bg = AppColors.primary;
       fg = Colors.white;
     } else if (allowed) {
-      bg = AppColors.primary.withOpacity(0.15);
+      bg = AppColors.primary.withValues(alpha: 0.15);
       fg = AppColors.primary;
-      border = Border.all(color: AppColors.primary.withOpacity(0.35));
+      border = Border.all(color: AppColors.primary.withValues(alpha: 0.35));
     } else {
       bg = Colors.transparent;
       fg = AppColors.textTertiary(context);

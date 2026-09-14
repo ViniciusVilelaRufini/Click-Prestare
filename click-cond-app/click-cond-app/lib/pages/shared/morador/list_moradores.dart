@@ -12,7 +12,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'new_apto.dart';
 
 class ListMoradores extends StatefulWidget {
-  const ListMoradores({Key? key}) : super(key: key);
+  const ListMoradores({super.key});
   @override
   _ListMoradoresPageState createState() => _ListMoradoresPageState();
 }
@@ -187,7 +187,7 @@ class _BlockCard extends StatelessWidget {
             Container(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
               child: const Icon(PhosphorIcons.buildings, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -230,7 +230,7 @@ class _AptoCard extends StatelessWidget {
           children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
               child: const Icon(PhosphorIcons.door, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: AppSpacing.md),

@@ -16,7 +16,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 /// O síndico cadastra; o morador só consulta e liga — mesma relação que já
 /// vale para os documentos/atas, por isso a tela vive junto de ListDocs.
 class ListContatos extends StatefulWidget {
-  const ListContatos({Key? key}) : super(key: key);
+  const ListContatos({super.key});
   @override
   State<ListContatos> createState() => _ListContatosPageState();
 }
@@ -238,7 +238,7 @@ class _ContatoCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,

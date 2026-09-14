@@ -134,12 +134,12 @@ class FinanceiroCard extends StatelessWidget {
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.border(context).withOpacity(0.8),
+          color: AppColors.border(context).withValues(alpha: 0.8),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -154,7 +154,7 @@ class FinanceiroCard extends StatelessWidget {
             Container(
               height: 3.5,
               width: double.infinity,
-              color: statusColor.withOpacity(0.85),
+              color: statusColor.withValues(alpha: 0.85),
             ),
             Padding(
               padding: const EdgeInsets.all(18),
@@ -170,7 +170,7 @@ class FinanceiroCard extends StatelessWidget {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.12),
+                          color: statusColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(13),
                         ),
                         child: Icon(
@@ -203,7 +203,7 @@ class FinanceiroCard extends StatelessWidget {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primary.withOpacity(0.12),
+                                      color: AppColors.primary.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: const Text(
@@ -246,10 +246,10 @@ class FinanceiroCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: AppColors.bg(context).withOpacity(0.55),
+                      color: AppColors.bg(context).withValues(alpha: 0.55),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: AppColors.border(context).withOpacity(0.6),
+                        color: AppColors.border(context).withValues(alpha: 0.6),
                       ),
                     ),
                     child: Row(
@@ -474,7 +474,7 @@ class FinanceiroCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                         decoration: BoxDecoration(
-                          color: AppColors.textTertiary(context).withOpacity(0.08),
+                          color: AppColors.textTertiary(context).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
@@ -581,9 +581,9 @@ class FinanceiroCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
       decoration: BoxDecoration(
-        color: cor.withOpacity(0.12),
+        color: cor.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: cor.withOpacity(0.35), width: 1),
+        border: Border.all(color: cor.withValues(alpha: 0.35), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -656,7 +656,7 @@ class FinanceiroCard extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return Material(
-      color: AppColors.bg(context).withOpacity(0.6),
+      color: AppColors.bg(context).withValues(alpha: 0.6),
       borderRadius: BorderRadius.circular(11),
       child: InkWell(
         onTap: onTap,
@@ -666,7 +666,7 @@ class FinanceiroCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(11),
             border: Border.all(
-              color: AppColors.border(context).withOpacity(0.7),
+              color: AppColors.border(context).withValues(alpha: 0.7),
               width: 1,
             ),
           ),
@@ -704,7 +704,7 @@ class FinanceiroCard extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: cor.withOpacity(0.10),
+        color: cor.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: onTap,
@@ -766,7 +766,7 @@ class FinanceiroCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 10,
                     ),
                   ],

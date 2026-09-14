@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListDocs extends StatefulWidget {
-  const ListDocs({Key? key}) : super(key: key);
+  const ListDocs({super.key});
   @override
   _ListDocsPageState createState() => _ListDocsPageState();
 }
@@ -119,7 +119,7 @@ class _ListDocsPageState extends State<ListDocs> {
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: AppColors.textTertiary(context).withOpacity(0.08),
+                        color: AppColors.textTertiary(context).withValues(alpha: 0.08),
                         width: 1,
                       ),
                     ),
@@ -146,7 +146,7 @@ class _ListDocsPageState extends State<ListDocs> {
                           side: BorderSide(
                             color: _selectedMonth == null 
                                 ? AppColors.primary 
-                                : AppColors.textTertiary(context).withOpacity(0.15),
+                                : AppColors.textTertiary(context).withValues(alpha: 0.15),
                           ),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
@@ -174,7 +174,7 @@ class _ListDocsPageState extends State<ListDocs> {
                             side: BorderSide(
                               color: isSelected 
                                   ? AppColors.primary 
-                                  : AppColors.textTertiary(context).withOpacity(0.15),
+                                  : AppColors.textTertiary(context).withValues(alpha: 0.15),
                             ),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -268,7 +268,7 @@ class _DocCard extends StatelessWidget {
           children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
               child: Icon(icon ?? PhosphorIcons.filePdf, color: AppColors.primary, size: 22),
             ),
             const SizedBox(width: AppSpacing.md),

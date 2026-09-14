@@ -111,7 +111,7 @@ Widget _buildFallbackAvatar({
 /// Portaria remota — tela "Solicitações pendentes" (inbox do morador).
 /// Lista visitantes aguardando autorização e permite Autorizar/Negar.
 class PendentesVisitantePage extends StatefulWidget {
-  const PendentesVisitantePage({Key? key}) : super(key: key);
+  const PendentesVisitantePage({super.key});
 
   @override
   State<PendentesVisitantePage> createState() => _PendentesVisitantePageState();
@@ -201,7 +201,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.08),
+              color: AppColors.primary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(PhosphorIcons.bellSlash, size: 36, color: AppColors.primary),
@@ -246,7 +246,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -389,7 +389,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Material(
-                        color: AppColors.primary.withOpacity(0.12),
+                        color: AppColors.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(10),
@@ -399,7 +399,7 @@ class _PendentesVisitantePageState extends State<PendentesVisitantePage> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: AppColors.primary.withOpacity(0.35),
+                                color: AppColors.primary.withValues(alpha: 0.35),
                                 width: 1,
                               ),
                             ),
@@ -620,7 +620,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                 const SizedBox(width: 10),
                 Expanded(
                   child: Material(
-                    color: AppColors.primary.withOpacity(0.12),
+                    color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
@@ -630,7 +630,7 @@ Future<void> mostrarDialogoAutorizacaoVisitante({
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: AppColors.primary.withOpacity(0.35),
+                            color: AppColors.primary.withValues(alpha: 0.35),
                             width: 1,
                           ),
                         ),

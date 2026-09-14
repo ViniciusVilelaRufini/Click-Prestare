@@ -19,7 +19,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// Essa ordem é deliberada — link encaminhado para a pessoa errada vira um
 /// pedido recusável, não acesso ao prédio.
 class ConvitesVisitaPage extends StatefulWidget {
-  const ConvitesVisitaPage({Key? key}) : super(key: key);
+  const ConvitesVisitaPage({super.key});
 
   @override
   State<ConvitesVisitaPage> createState() => _ConvitesVisitaPageState();
@@ -145,9 +145,9 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.08),
+        color: AppColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(children: [
         Icon(PhosphorIcons.info, color: AppColors.primary, size: 18),
@@ -208,7 +208,7 @@ class _ConvitesVisitaPageState extends State<ConvitesVisitaPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: marcado ? AppColors.primary.withOpacity(0.10) : AppColors.surface(context),
+          color: marcado ? AppColors.primary.withValues(alpha: 0.10) : AppColors.surface(context),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: marcado ? AppColors.primary : AppColors.border(context),

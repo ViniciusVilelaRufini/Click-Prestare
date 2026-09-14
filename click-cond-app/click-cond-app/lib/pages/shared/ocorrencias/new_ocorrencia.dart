@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
 import 'package:click/theme/app_colors.dart';
@@ -14,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewOcorrencia extends StatefulWidget {
-  const NewOcorrencia({Key? key, required this.isEdit, this.myId}) : super(key: key);
+  const NewOcorrencia({super.key, required this.isEdit, this.myId});
   final bool isEdit;
   final int? myId;
 
@@ -166,7 +165,7 @@ class _NewOcorrenciaPageState extends State<NewOcorrencia> {
                             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
                             decoration: BoxDecoration(
                               color: currentTipo == categ["id"].toString()
-                                  ? AppColors.primary.withOpacity(0.08)
+                                  ? AppColors.primary.withValues(alpha: 0.08)
                                   : AppColors.surface(context),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(

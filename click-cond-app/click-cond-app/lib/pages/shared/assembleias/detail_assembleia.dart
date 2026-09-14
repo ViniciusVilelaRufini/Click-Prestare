@@ -15,7 +15,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'new_votacao.dart';
 
 class DetailAssembleia extends StatefulWidget {
-  const DetailAssembleia({Key? key, required this.id}) : super(key: key);
+  const DetailAssembleia({super.key, required this.id});
   final int id;
 
   @override

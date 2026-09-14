@@ -17,7 +17,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../singleton.dart';
 
 class NewPrestador extends StatefulWidget {
-  const NewPrestador({Key? key, required this.isEdit, this.myId}) : super(key: key);
+  const NewPrestador({super.key, required this.isEdit, this.myId});
   final bool isEdit;
   final int? myId;
 
@@ -244,10 +244,10 @@ class _NewPrestadorPageState extends State<NewPrestador> {
           children: [
             CircleAvatar(
               radius: 48,
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               backgroundImage: provider,
               child: provider == null
-                  ? Icon(PhosphorIcons.userCircle, size: 48, color: AppColors.primary.withOpacity(0.5))
+                  ? Icon(PhosphorIcons.userCircle, size: 48, color: AppColors.primary.withValues(alpha: 0.5))
                   : null,
             ),
             Positioned(

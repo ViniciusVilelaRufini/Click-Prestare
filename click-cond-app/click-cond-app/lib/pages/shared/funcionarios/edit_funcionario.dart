@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:io' as io;
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
@@ -21,7 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class EditFuncionario extends StatefulWidget {
-  const EditFuncionario({Key? key}) : super(key: key);
+  const EditFuncionario({super.key});
 
   @override
   _EditFuncionarioPageState createState() => _EditFuncionarioPageState();
@@ -160,7 +158,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                         children: [
                           CircleAvatar(
                             radius: 52,
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                             backgroundImage: imageFile == null
                                 ? const AssetImage('assets/images/defaultUser.png')
                                 : (imageFile is String
@@ -204,9 +202,9 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.08),
+                      color: AppColors.error.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.error.withOpacity(0.25)),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +238,7 @@ class _EditFuncionarioPageState extends State<EditFuncionario> {
                             label: const Text('Excluir minha conta'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.error,
-                              side: BorderSide(color: AppColors.error.withOpacity(0.5)),
+                              side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),

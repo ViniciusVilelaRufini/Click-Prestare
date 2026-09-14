@@ -20,12 +20,12 @@ class MoradorRelatorioPage extends StatefulWidget {
   final VoidCallback? onRefresh;
 
   const MoradorRelatorioPage({
-    Key? key,
+    super.key,
     required this.initialMes,
     required this.initialAno,
     this.items,
     this.onRefresh,
-  }) : super(key: key);
+  });
 
   @override
   State<MoradorRelatorioPage> createState() => _MoradorRelatorioPageState();
@@ -385,7 +385,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: AppColors.primary.withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 5),
                       ),
@@ -399,7 +399,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(PhosphorIcons.fileCsv, color: Colors.white, size: 24),
@@ -421,7 +421,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                                 Text(
                                   "Personalize os filtros para exportar seus dados",
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.85),
+                                    color: Colors.white.withValues(alpha: 0.85),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -434,7 +434,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
+                          color: Colors.white.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Row(
@@ -738,7 +738,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                             width: 38,
                             height: 38,
                             decoration: BoxDecoration(
-                              color: cor.withOpacity(0.12),
+                              color: cor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(icon, color: cor, size: 20),
@@ -774,8 +774,8 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: pago == 1
-                                      ? const Color(0xFF10B981).withOpacity(0.12)
-                                      : const Color(0xFFEF4444).withOpacity(0.12),
+                                      ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                                      : const Color(0xFFEF4444).withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -792,7 +792,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
 
                 if (filtered.length > 10)
                   Padding(
@@ -811,7 +811,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
           color: AppColors.bg(context),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 10,
               offset: const Offset(0, -3),
             ),
@@ -847,7 +847,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11),
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
         ),
         const SizedBox(height: 3),
         Text(
@@ -891,7 +891,7 @@ class _MoradorRelatorioPageState extends State<MoradorRelatorioPage> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.08) : AppColors.surface(context),
+          color: isSelected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surface(context),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected ? AppColors.primary : AppColors.border(context),

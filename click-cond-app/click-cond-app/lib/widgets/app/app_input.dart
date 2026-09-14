@@ -23,7 +23,7 @@ class AppInput extends StatefulWidget {
   final int maxLines;
 
   const AppInput({
-    Key? key,
+    super.key,
     required this.label,
     required this.controller,
     this.hint,
@@ -39,7 +39,7 @@ class AppInput extends StatefulWidget {
     this.readOnly = false,
     this.onTap,
     this.maxLines = 1,
-  }) : super(key: key);
+  });
 
   @override
   State<AppInput> createState() => _AppInputState();

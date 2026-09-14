@@ -15,7 +15,7 @@ import 'new_morador.dart';
 /// seu vínculo (proprietário/inquilino/membro) e os moradores do apto. O proprietário
 /// pode cadastrar novos familiares (tipo "Membro").
 class MyApartamentoView extends StatefulWidget {
-  const MyApartamentoView({Key? key}) : super(key: key);
+  const MyApartamentoView({super.key});
 
   @override
   _MyApartamentoViewState createState() => _MyApartamentoViewState();
@@ -157,15 +157,15 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDark
-              ? [AppColors.primary, AppColors.primary.withOpacity(0.7)]
-              : [AppColors.primary, AppColors.primary.withOpacity(0.85)],
+              ? [AppColors.primary, AppColors.primary.withValues(alpha: 0.7)]
+              : [AppColors.primary, AppColors.primary.withValues(alpha: 0.85)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.25),
+            color: AppColors.primary.withValues(alpha: 0.25),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -177,7 +177,7 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: const Icon(PhosphorIcons.door, color: Colors.white, size: 28),
@@ -194,13 +194,13 @@ class _MyApartamentoViewState extends State<MyApartamentoView> {
                 const SizedBox(height: 2),
                 Text(
                   '${getText('lb_bloco')} $_bloco',
-                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 15, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -237,13 +237,13 @@ class _MoradorSection extends StatelessWidget {
   final VoidCallback onAdd;
 
   const _MoradorSection({
-    Key? key,
+    super.key,
     required this.title,
     required this.roleName,
     required this.list,
     required this.canAdd,
     required this.onAdd,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -266,7 +266,7 @@ class _MoradorSection extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.12),
+                color: AppColors.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -287,7 +287,7 @@ class _MoradorSection extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
+                      color: AppColors.primary.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(PhosphorIcons.plus, color: AppColors.primary, size: 16),
@@ -302,10 +302,10 @@ class _MoradorSection extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.005),
+              color: isDark ? Colors.white.withValues(alpha: 0.01) : Colors.black.withValues(alpha: 0.005),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+                color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
               ),
             ),
             child: Column(
@@ -313,7 +313,7 @@ class _MoradorSection extends StatelessWidget {
                 Icon(
                   PhosphorIcons.users,
                   size: 28,
-                  color: (isDark ? Colors.white : Colors.black).withOpacity(0.25),
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.25),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -332,7 +332,7 @@ class _MoradorSection extends StatelessWidget {
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      backgroundColor: AppColors.primary.withOpacity(0.08),
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.08),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     ),
                   ),
@@ -349,10 +349,10 @@ class _MoradorSection extends StatelessWidget {
             return Container(
               margin: const EdgeInsets.only(bottom: AppSpacing.sm),
               decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.015),
+                color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.015),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
                 ),
               ),
               child: Padding(
@@ -364,7 +364,7 @@ class _MoradorSection extends StatelessWidget {
                       height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         image: (photoUrl != null && photoUrl.isNotEmpty)
                             ? DecorationImage(image: NetworkImage(photoUrl), fit: BoxFit.cover)
                             : null,
@@ -410,7 +410,7 @@ class _MoradorSection extends StatelessWidget {
                 ),
               ),
             );
-          }).toList(),
+          }),
       ],
     );
   }

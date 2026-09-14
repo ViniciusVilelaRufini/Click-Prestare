@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class LiberarVagaPage extends StatefulWidget {
-  const LiberarVagaPage({Key? key}) : super(key: key);
+  const LiberarVagaPage({super.key});
 
   @override
   State<LiberarVagaPage> createState() => _LiberarVagaPageState();
@@ -232,7 +232,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
             padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
               color: active
-                  ? AppColors.primary.withOpacity(0.12)
+                  ? AppColors.primary.withValues(alpha: 0.12)
                   : AppColors.surface(context),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
@@ -294,7 +294,7 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
                 color: active
-                    ? AppColors.primary.withOpacity(0.08)
+                    ? AppColors.primary.withValues(alpha: 0.08)
                     : AppColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
@@ -353,9 +353,9 @@ class _LiberarVagaPageState extends State<LiberarVagaPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.warning.withOpacity(0.10),
+        color: AppColors.warning.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

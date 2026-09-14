@@ -28,7 +28,7 @@ apiSaveApto(String route, String nameObj, dynamic obj, bool isEdit) async {
     final parsed = jsonDecode(response.body) as Map<String, dynamic>;
     throw parsed["message"] ?? "Houve um erro, tente novamente!";
   } catch (e) {
-    throw e;
+    rethrow;
   }
 }
 

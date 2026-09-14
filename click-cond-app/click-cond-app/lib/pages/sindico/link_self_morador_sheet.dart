@@ -25,7 +25,7 @@ Future<Map<String, dynamic>?> showLinkSelfMoradorSheet(BuildContext context) {
 }
 
 class _LinkSelfMoradorSheet extends StatefulWidget {
-  const _LinkSelfMoradorSheet({Key? key}) : super(key: key);
+  const _LinkSelfMoradorSheet({super.key});
 
   @override
   State<_LinkSelfMoradorSheet> createState() => _LinkSelfMoradorSheetState();
@@ -124,7 +124,7 @@ class _LinkSelfMoradorSheetState extends State<_LinkSelfMoradorSheet> {
               decoration: BoxDecoration(
                 color: AppColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.textSecondary(context).withOpacity(0.1)),
+                border: Border.all(color: AppColors.textSecondary(context).withValues(alpha: 0.1)),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<dynamic>(
@@ -176,7 +176,7 @@ class _LinkSelfMoradorSheetState extends State<_LinkSelfMoradorSheet> {
             color: selected ? AppColors.primary : AppColors.surface(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? AppColors.primary : AppColors.textSecondary(context).withOpacity(0.15),
+              color: selected ? AppColors.primary : AppColors.textSecondary(context).withValues(alpha: 0.15),
             ),
           ),
           child: Center(

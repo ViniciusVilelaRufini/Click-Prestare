@@ -8,13 +8,13 @@ class DefaultButtonNormal extends StatelessWidget {
   final bool? isRed;
 
   const DefaultButtonNormal({
-    Key? key,
+    super.key,
     required this.title,
     this.onPressed,
     required this.hasArrow,
     this.aligment, 
     this.isRed
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

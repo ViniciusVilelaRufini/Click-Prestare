@@ -1,7 +1,7 @@
 import 'package:click/main.dart';
 
 class Singleton {
-  static final Singleton _singleton = new Singleton._internal();
+  static final Singleton _singleton = Singleton._internal();
   Singleton._internal();
   static Singleton get instance => _singleton;
 

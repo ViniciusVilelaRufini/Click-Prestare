@@ -15,10 +15,10 @@ class AcessosFacialList extends StatefulWidget {
   final int limit;
 
   const AcessosFacialList({
-    Key? key,
+    super.key,
     required this.idVisitante,
     this.limit = 5,
-  }) : super(key: key);
+  });
 
   @override
   State<AcessosFacialList> createState() => _AcessosFacialListState();
@@ -47,7 +47,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
     if (ts == null) return '';
     final d = parseDataApi(ts);
     if (d == null) return ts.toString();
-    final pad = (int n) => n.toString().padLeft(2, '0');
+    String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(d.day)}/${pad(d.month)}/${d.year} às ${pad(d.hour)}:${pad(d.minute)}';
   }
 
@@ -118,7 +118,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: AppColors.textSecondary(context).withOpacity(0.05),
+          color: AppColors.textSecondary(context).withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -177,7 +177,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
                   border: !isLast
                       ? Border(
                           bottom: BorderSide(
-                            color: AppColors.textTertiary(context).withOpacity(0.1),
+                            color: AppColors.textTertiary(context).withValues(alpha: 0.1),
                           ),
                         )
                       : null,
@@ -203,7 +203,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.10),
+                                  color: AppColors.primary.withValues(alpha: 0.10),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Row(
@@ -235,7 +235,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
                             Text(
                               observacao.trim(),
                               style: AppTypography.tiny(context).copyWith(
-                                color: style.color.withOpacity(0.7),
+                                color: style.color.withValues(alpha: 0.7),
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
@@ -247,7 +247,7 @@ class _AcessosFacialListState extends State<AcessosFacialList> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.textSecondary(context).withOpacity(0.1),
+                          color: AppColors.textSecondary(context).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(

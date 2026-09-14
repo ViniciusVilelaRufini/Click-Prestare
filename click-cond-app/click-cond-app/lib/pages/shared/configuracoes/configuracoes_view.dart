@@ -21,7 +21,7 @@ import 'package:click/pages/settings/qr_web_access_page.dart';
 
 class ConfiguracoesView extends StatefulWidget {
   final dynamic condominio;
-  const ConfiguracoesView({Key? key, required this.condominio}) : super(key: key);
+  const ConfiguracoesView({super.key, required this.condominio});
 
   @override
   _ConfiguracoesViewState createState() => _ConfiguracoesViewState();
@@ -172,7 +172,7 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
       ),
       builder: (c) {
         final cur = LocalStorageConfig.instance.getPreferenceLanguage();
-        final opt = (String code, String label) => _OptionItem(
+        _OptionItem opt(String code, String label) => _OptionItem(
               icon: PhosphorIcons.translate,
               label: label,
               selected: cur == code,
@@ -205,7 +205,7 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (c) {
-        final opt = (String symbol, String label) => _OptionItem(
+        _OptionItem opt(String symbol, String label) => _OptionItem(
               icon: PhosphorIcons.currencyCircleDollar,
               label: '$label ($symbol)',
               selected: Singleton.instance.checkCurrentMoeda(symbol),

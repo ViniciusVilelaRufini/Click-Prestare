@@ -9,8 +9,8 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class CustomDialogBox extends StatefulWidget {
   const CustomDialogBox({
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   _CustomDialogBoxState createState() => _CustomDialogBoxState();
@@ -48,12 +48,12 @@ class _CustomDialogBoxState extends State<CustomDialogBox> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.xl),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.12),
+              color: AppColors.primary.withValues(alpha: 0.12),
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primary.withOpacity(0.24), width: 2),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.24), width: 2),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.08),
+                  color: AppColors.primary.withValues(alpha: 0.08),
                   blurRadius: 32,
                   spreadRadius: 8,
                 ),

@@ -9,10 +9,10 @@ class CellMyAgendamento extends StatelessWidget {
   final Function(int id)? onCancel;
 
   const CellMyAgendamento({
-    Key? key,
+    super.key,
     required this.item,
     this.onCancel,
-  }) : super(key: key);
+  });
 
   void _mostrarModalCancelar(BuildContext context) {
     showDialog(
@@ -119,7 +119,7 @@ class CellMyAgendamento extends StatelessWidget {
         border: Border.all(color: AppColors.border(context)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -161,10 +161,10 @@ class CellMyAgendamento extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.12),
+                              color: statusColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: statusColor.withOpacity(0.3),
+                                color: statusColor.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -242,9 +242,9 @@ class CellMyAgendamento extends StatelessWidget {
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.08),
+                            color: statusColor.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: statusColor.withOpacity(0.2)),
+                            border: Border.all(color: statusColor.withValues(alpha: 0.2)),
                           ),
                           child: Row(
                             children: [
@@ -262,11 +262,11 @@ class CellMyAgendamento extends StatelessWidget {
                                       ? 'Aprovado por $aprovadoPor${aprovadoEm != null ? " ($aprovadoEm)" : ""}'
                                       : (status == 'recusado'
                                           ? 'Recusado por $aprovadoPor${motivoRecusa != null && motivoRecusa.isNotEmpty ? " • Motivo: $motivoRecusa" : ""}'
-                                          : '$aprovadoPor'),
+                                          : aprovadoPor),
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
-                                    color: isDark ? statusColor.withOpacity(0.9) : (isAprovado ? const Color(0xFF065F46) : const Color(0xFF991B1B)),
+                                    color: isDark ? statusColor.withValues(alpha: 0.9) : (isAprovado ? const Color(0xFF065F46) : const Color(0xFF991B1B)),
                                   ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,

@@ -9,11 +9,10 @@ import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_input.dart';
 import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class NewVotacao extends StatefulWidget {
-  const NewVotacao({Key? key, this.idAssembleia, required this.isEnquete}) : super(key: key);
+  const NewVotacao({super.key, this.idAssembleia, required this.isEnquete});
   final int? idAssembleia;
   final bool? isEnquete;
 

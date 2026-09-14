@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListPrestadoresCadastro extends StatefulWidget {
-  const ListPrestadoresCadastro({Key? key}) : super(key: key);
+  const ListPrestadoresCadastro({super.key});
 
   @override
   _ListPrestadoresCadastroState createState() => _ListPrestadoresCadastroState();
@@ -121,9 +121,9 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.08),
+              color: AppColors.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
@@ -131,7 +131,7 @@ class _ListPrestadoresCadastroState extends State<ListPrestadoresCadastro> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.12),
+                    color: AppColors.primary.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(PhosphorIcons.identificationCard, color: AppColors.primary, size: 20),
@@ -214,8 +214,8 @@ class _PrestadorCadastroCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: syncStatus == 'synced'
-                                ? AppColors.success.withOpacity(0.12)
-                                : AppColors.primary.withOpacity(0.1),
+                                ? AppColors.success.withValues(alpha: 0.12)
+                                : AppColors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Row(
@@ -262,7 +262,7 @@ class _PrestadorCadastroCard extends StatelessWidget {
                         children: categorias.take(3).map((c) => Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.08),
+                                color: AppColors.primary.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -311,7 +311,7 @@ class _PrestadorCadastroCard extends StatelessWidget {
 
     return CircleAvatar(
       radius: 22,
-      backgroundColor: AppColors.primary.withOpacity(0.1),
+      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
       backgroundImage: provider,
       child: provider == null
           ? Text(

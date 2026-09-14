@@ -11,7 +11,6 @@ import 'package:click/pages/shared/notificacoes/notificacoes_page.dart';
 import 'package:click/pages/shared/notificacoes/historico_acessos_page.dart';
 import 'package:click/pages/shared/financeiro/list_financeiro.dart';
 import 'package:click/pages/shared/financeiro/morador_financeiro_view.dart';
-import 'package:click/pages/shared/financeiro/list_inadimplentes.dart';
 import 'package:click/utils/financeiro_constants.dart';
 import 'package:click/pages/shared/funcionarios/edit_funcionario.dart';
 import 'package:click/controllers/controller_visitantes.dart';
@@ -36,7 +35,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ListCondomiums extends StatefulWidget {
-  const ListCondomiums({Key? key}) : super(key: key);
+  const ListCondomiums({super.key});
 
   @override
   _ListCondomiumsState createState() => _ListCondomiumsState();
@@ -333,7 +332,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
+                                  color: AppColors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
@@ -495,7 +494,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.30 : 0.07),
+                color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.07),
                 blurRadius: 20,
                 spreadRadius: 0,
                 offset: const Offset(0, 6),
@@ -511,12 +510,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 height: 68.0,
                 decoration: BoxDecoration(
                   color: isDark
-                      ? Colors.black.withOpacity(0.35)
-                      : Colors.white.withOpacity(0.65),
+                      ? Colors.black.withValues(alpha: 0.35)
+                      : Colors.white.withValues(alpha: 0.65),
                   border: Border.all(
                     color: isDark
-                        ? Colors.white.withOpacity(0.15)
-                        : Colors.white.withOpacity(0.65),
+                        ? Colors.white.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.65),
                     width: 1,
                   ),
                 ),
@@ -609,7 +608,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.45),
+                color: AppColors.primary.withValues(alpha: 0.45),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -648,7 +647,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppColors.primary.withOpacity(0.12)
+                    ? AppColors.primary.withValues(alpha: 0.12)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -713,7 +712,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.35),
+                  color: AppColors.primary.withValues(alpha: 0.35),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -726,7 +725,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.4),
+                      color: Colors.white.withValues(alpha: 0.4),
                       width: 2,
                     ),
                   ),
@@ -735,7 +734,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                     child: Container(
                       width: avatarRadius * 2,
                       height: avatarRadius * 2,
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       child: getUserPhoto().isNotEmpty
                           ? Image.network(
                               getUserPhoto().trim(),
@@ -774,7 +773,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                               TextSpan(
                                 text: "${getText('ola')} ",
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
+                                  color: Colors.white.withValues(alpha: 0.9),
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -799,7 +798,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
+                          color: Colors.white.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -808,7 +807,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                             Icon(
                               PhosphorIcons.calendarBlank,
                               size: 11,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                             const SizedBox(width: 4),
                             Flexible(
@@ -818,7 +817,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                                 child: Text(
                                   _getFormattedHeaderDate(),
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.95),
+                                    color: Colors.white.withValues(alpha: 0.95),
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.2,
@@ -918,7 +917,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: Colors.white, size: iconSize),
@@ -1150,12 +1149,12 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             ),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFFF97316).withOpacity(0.35),
+              color: const Color(0xFFF97316).withValues(alpha: 0.35),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFEA580C).withOpacity(0.08),
+                color: const Color(0xFFEA580C).withValues(alpha: 0.08),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -1175,7 +1174,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFEA580C).withOpacity(0.32),
+                      color: const Color(0xFFEA580C).withValues(alpha: 0.32),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -1208,10 +1207,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFDC2626).withOpacity(0.12),
+                            color: const Color(0xFFDC2626).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: const Color(0xFFDC2626).withOpacity(0.3),
+                              color: const Color(0xFFDC2626).withValues(alpha: 0.3),
                               width: 1,
                             ),
                           ),
@@ -1258,7 +1257,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEA580C).withOpacity(0.12),
+                  color: const Color(0xFFEA580C).withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -1374,8 +1373,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
             boxShadow: [
               BoxShadow(
                 color: isDark
-                    ? Colors.black.withOpacity(0.20)
-                    : const Color(0xFF64748B).withOpacity(0.06),
+                    ? Colors.black.withValues(alpha: 0.20)
+                    : const Color(0xFF64748B).withValues(alpha: 0.06),
                 blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
@@ -1401,7 +1400,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 ),
                 Material(
                   color: isDark
-                      ? Colors.white.withOpacity(0.02)
+                      ? Colors.white.withValues(alpha: 0.02)
                       : const Color(0xFFF8FAFC),
                   child: InkWell(
                     onTap: () => _abrirHistoricoAcessos(),
@@ -1449,10 +1448,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
 
     final Color arrowBg = isDark
         ? (isEntrada
-            ? const Color(0xFF1E3A8A).withOpacity(0.35)
-            : const Color(0xFF581C87).withOpacity(0.35))
+            ? const Color(0xFF1E3A8A).withValues(alpha: 0.35)
+            : const Color(0xFF581C87).withValues(alpha: 0.35))
         : (isEntrada
-            ? const Color(0xFFDBEAFE).withOpacity(0.6)
+            ? const Color(0xFFDBEAFE).withValues(alpha: 0.6)
             : const Color(0xFFF3E8FF));
 
     final Color arrowColor = isDark
@@ -1564,7 +1563,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
   String _formatHora(dynamic ts) {
     final d = parseDataApi(ts);
     if (d == null) return '--:--';
-    final pad = (int n) => n.toString().padLeft(2, '0');
+    String pad(int n) => n.toString().padLeft(2, '0');
     return '${pad(d.hour)}:${pad(d.minute)}';
   }
 
@@ -1667,8 +1666,8 @@ class _DashboardCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: isDark
-                ? Colors.black.withOpacity(0.20)
-                : const Color(0xFF64748B).withOpacity(0.06),
+                ? Colors.black.withValues(alpha: 0.20)
+                : const Color(0xFF64748B).withValues(alpha: 0.06),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -1694,7 +1693,7 @@ class _DashboardCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.12),
+                        color: color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(icon, color: color, size: 20),
@@ -1795,8 +1794,8 @@ class _CondominioCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: isDark
-                ? Colors.black.withOpacity(0.20)
-                : const Color(0xFF64748B).withOpacity(0.06),
+                ? Colors.black.withValues(alpha: 0.20)
+                : const Color(0xFF64748B).withValues(alpha: 0.06),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -1934,12 +1933,12 @@ class _CondominioCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
             decoration: BoxDecoration(
               color: isDark
-                  ? const Color(0xFF064E3B).withOpacity(0.45)
+                  ? const Color(0xFF064E3B).withValues(alpha: 0.45)
                   : const Color(0xFFDCFCE7),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isDark
-                    ? const Color(0xFF059669).withOpacity(0.4)
+                    ? const Color(0xFF059669).withValues(alpha: 0.4)
                     : const Color(0xFFBBF7D0),
                 width: 1,
               ),
@@ -1976,12 +1975,12 @@ class _CondominioCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
             decoration: BoxDecoration(
               color: isDark
-                  ? const Color(0xFF1E1B4B).withOpacity(0.45)
+                  ? const Color(0xFF1E1B4B).withValues(alpha: 0.45)
                   : const Color(0xFFEEF2FF),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isDark
-                    ? const Color(0xFF4338CA).withOpacity(0.4)
+                    ? const Color(0xFF4338CA).withValues(alpha: 0.4)
                     : const Color(0xFFE0E7FF),
                 width: 1,
               ),

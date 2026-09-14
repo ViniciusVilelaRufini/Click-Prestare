@@ -17,7 +17,7 @@ class CellVotacao extends StatelessWidget {
   final String? title;
 
   const CellVotacao({
-    Key? key,
+    super.key,
     required this.item, 
     required this.meusVotos, 
     this.hasArrow, 
@@ -25,7 +25,7 @@ class CellVotacao extends StatelessWidget {
     required this.isRegister,
     required this.onPressedDelete,
     required this.onPressedChoice, 
-  }) : super(key: key);
+  });
 
   Widget _buildOptionRow(BuildContext context, dynamic item, String id, String text, int votesCount) {
     final isSelected = meusVotos.contains(id);
@@ -46,7 +46,7 @@ class CellVotacao extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
           decoration: BoxDecoration(
             color: isSelected 
-                ? AppColors.primary.withOpacity(0.08) 
+                ? AppColors.primary.withValues(alpha: 0.08) 
                 : AppColors.surface(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -76,7 +76,7 @@ class CellVotacao extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: isSelected 
-                        ? AppColors.primary.withOpacity(0.12) 
+                        ? AppColors.primary.withValues(alpha: 0.12) 
                         : AppColors.bg(context),
                     borderRadius: BorderRadius.circular(20),
                   ),

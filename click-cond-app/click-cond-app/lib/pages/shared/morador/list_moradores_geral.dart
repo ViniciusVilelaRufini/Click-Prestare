@@ -13,7 +13,7 @@ import 'list_moradores.dart';
 import 'new_morador.dart';
 
 class ListMoradoresGeral extends StatefulWidget {
-  const ListMoradoresGeral({Key? key}) : super(key: key);
+  const ListMoradoresGeral({super.key});
 
   @override
   _ListMoradoresGeralState createState() => _ListMoradoresGeralState();
@@ -204,7 +204,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         children: [
@@ -213,7 +213,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(PhosphorIcons.usersFill, color: AppColors.primary, size: 24),
@@ -263,7 +263,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: TextField(
         onChanged: (val) => setState(() => _searchQuery = val),
@@ -301,7 +301,7 @@ class _ListMoradoresGeralState extends State<ListMoradoresGeral> {
                 color: isSelected ? AppColors.primary : AppColors.surface(context),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : Colors.white.withOpacity(0.08),
+                  color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.08),
                 ),
               ),
               child: Text(
@@ -346,13 +346,13 @@ class _MoradorGeralCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.03)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.03)),
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 22,
-              backgroundColor: tipoColor.withOpacity(0.15),
+              backgroundColor: tipoColor.withValues(alpha: 0.15),
               backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
               child: photoUrl.isEmpty
                   ? Text(
@@ -394,9 +394,9 @@ class _MoradorGeralCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: tipoColor.withOpacity(0.1),
+                    color: tipoColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: tipoColor.withOpacity(0.2)),
+                    border: Border.all(color: tipoColor.withValues(alpha: 0.2)),
                   ),
                   child: Text(
                     tipo,
@@ -412,7 +412,7 @@ class _MoradorGeralCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: AppColors.surface(context),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.4)),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,

@@ -14,7 +14,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ModalNewPassword extends StatefulWidget {
-  const ModalNewPassword({Key? key}) : super(key: key);
+  const ModalNewPassword({super.key});
 
   @override
   _ModalNewPasswordState createState() => _ModalNewPasswordState();

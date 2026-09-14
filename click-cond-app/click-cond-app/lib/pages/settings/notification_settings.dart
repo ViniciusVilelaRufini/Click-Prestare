@@ -10,7 +10,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'dart:convert';
 
 class NotificationSettingsPage extends StatefulWidget {
-  const NotificationSettingsPage({Key? key}) : super(key: key);
+  const NotificationSettingsPage({super.key});
 
   @override
   _NotificationSettingsPageState createState() => _NotificationSettingsPageState();
@@ -149,7 +149,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: AppColors.primaryLight.withOpacity(0.5),
+            color: AppColors.primaryLight.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Icon(icon, color: AppColors.primary, size: 24),
