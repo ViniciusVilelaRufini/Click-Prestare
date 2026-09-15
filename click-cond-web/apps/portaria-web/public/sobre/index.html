@@ -29,8 +29,11 @@
   a { color: var(--text-link); text-decoration: none; transition: color 150ms cubic-bezier(.2,.8,.28,1); }
   a:hover { color: var(--prestare-blue-600); }
   img { max-width: 100%; }
-  input, textarea { font: var(--type-body); color: var(--text-strong); background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px; width: 100%; outline: none; transition: border-color 150ms cubic-bezier(.2,.8,.28,1), box-shadow 150ms cubic-bezier(.2,.8,.28,1); }
-  input:focus, textarea:focus { border-color: var(--border-brand); box-shadow: 0 0 0 3px rgba(37,96,232,.28); }
+  /* :not([type=checkbox]) porque esta regra e para os campos do formulario —
+     sem isso ela transforma as caixas do painel de cookies em campos de texto
+     de 100% de largura. */
+  input:not([type="checkbox"]), textarea { font: var(--type-body); color: var(--text-strong); background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px; width: 100%; outline: none; transition: border-color 150ms cubic-bezier(.2,.8,.28,1), box-shadow 150ms cubic-bezier(.2,.8,.28,1); }
+  input:not([type="checkbox"]):focus, textarea:focus { border-color: var(--border-brand); box-shadow: 0 0 0 3px rgba(37,96,232,.28); }
   ::placeholder { color: var(--text-faint); }
   @keyframes ps-pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
   @keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
@@ -61,6 +64,7 @@
     .ps-logo-txt { font-size: 16px !important; }
     .ps-hero { padding-left: 18px !important; padding-right: 18px !important; }
     .ps-sec { padding-left: 18px !important; padding-right: 18px !important; padding-top: 40px !important; padding-bottom: 40px !important; }
+    .ps-foot { padding-left: 18px !important; padding-right: 18px !important; }
     .ps-modal-txt { padding: 20px !important; }
     .ps-modal-img { padding: 12px !important; }
     .ps-modal-img img { max-height: 48vh !important; }
@@ -77,7 +81,7 @@
 <div style="font: var(--type-body); color: var(--text-body); background: var(--surface-app); min-height: 100vh;">
 
   <header style="position: sticky; top: 0; z-index: 20; background: rgba(247,248,250,.88); backdrop-filter: blur(18px); border-bottom: 1px solid var(--border-row);">
-    <div class="ps-hdr" style="max-width: 1160px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 24px;">
+    <div class="ps-hdr" style="max-width: 1440px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 24px;">
       <a href="#topo" style="display: inline-flex; align-items: center; gap: 10px; flex: none;">
         <img src="/sobre/assets/prestare-icon.png" alt="Prestare Click" width="36" height="36" style="display: block; border-radius: 9px;">
         <span class="ps-logo-txt" style="font: var(--weight-extrabold) 19px/1 var(--font-display); letter-spacing: .04em; color: var(--prestare-blue-900);">PRESTARE <span style="color: var(--prestare-blue-500);">CLICK</span></span>
@@ -97,7 +101,7 @@
   <div id="topo" style="position: relative; background: linear-gradient(180deg, #f4f7fd 0%, var(--surface-app) 78%); border-bottom: 1px solid var(--border-row); overflow: hidden;">
     <div style="position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(37,96,232,.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(37,96,232,.07) 1px, transparent 1px); background-size: 64px 64px; mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 85%); -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 85%);"></div>
 
-    <section class="ps-hero" style="position: relative; max-width: 1160px; margin: 0 auto; padding: 64px 24px 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 48px; align-items: center;">
+    <section class="ps-hero" style="position: relative; max-width: 1440px; margin: 0 auto; padding: 64px 24px 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 48px; align-items: center;">
       <div style="min-width: 0;">
         <span style="display: inline-flex; align-items: center; gap: 8px; font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600); background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-pill); padding: 6px 13px;">
           <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--green-500); animation: ps-pulse 2s infinite;"></span>
@@ -131,7 +135,7 @@
   </div>
 
   <sc-if value="{{ mostrarNumeros }}" hint-placeholder-val="{{ true }}">
-    <section style="max-width: 1160px; margin: 0 auto; padding: 24px;">
+    <section style="max-width: 1440px; margin: 0 auto; padding: 24px;">
       <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 28px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 24px;">
         <div style="min-width: 0;">
           <div style="font: var(--weight-extrabold) 34px/1 var(--font-ui); letter-spacing: -.02em; color: var(--prestare-blue-500); font-variant-numeric: tabular-nums;">1 app</div>
@@ -154,7 +158,7 @@
   </sc-if>
 
   <section id="app" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
-    <div class="ps-sec" style="max-width: 1160px; margin: 0 auto; padding: 64px 24px;">
+    <div class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px;">
       <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o morador</span>
       <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">Bonito de usar — e simples o bastante para ninguém precisar de treinamento.</h2>
       <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Três toques resolvem o dia a dia: liberar quem chega, ver a encomenda na portaria e conferir a conta do condomínio.</p>
@@ -190,7 +194,7 @@
     </div>
   </section>
 
-  <section id="console" class="ps-sec" style="max-width: 1160px; margin: 0 auto; padding: 64px 24px 24px;">
+  <section id="console" class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px 24px;">
     <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o síndico e a portaria</span>
     <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 28ch; text-wrap: pretty;">O console web mostra quem está no condomínio agora.</h2>
     <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Mesma informação do app, do outro lado do balcão: ativos no local, liberados aguardando, quem saiu e o total registrado — com PIN, documento protegido e baixa por apartamento.</p>
@@ -213,7 +217,7 @@
     </div>
   </section>
 
-  <section id="modulos" style="max-width: 1160px; margin: 0 auto; padding: 48px 24px 56px;">
+  <section id="modulos" style="max-width: 1440px; margin: 0 auto; padding: 48px 24px 56px;">
     <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: baseline; justify-content: space-between;">
       <div style="min-width: 0;">
         <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Módulos</span>
@@ -270,7 +274,7 @@
     </div>
   </section>
 
-  <section style="max-width: 1160px; margin: 0 auto; padding: 0 24px 56px;">
+  <section style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
     <div style="background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 28px;">
       <div style="min-width: 0;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="id-card" tone="brand" hint-size="44px,44px"></x-import>
@@ -291,30 +295,30 @@
   </section>
 
   <sc-if value="{{ mostrarFaq }}" hint-placeholder-val="{{ true }}">
-    <section id="duvidas" style="max-width: 1160px; margin: 0 auto; padding: 0 24px 56px;">
+    <section id="duvidas" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 56px;">
       <h2 style="margin: 0 0 24px; font: var(--weight-extrabold) clamp(24px, 2.4vw, 30px)/1.15 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong);">Dúvidas frequentes</h2>
       <div style="display: grid; gap: 10px;">
         <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
           <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Precisa trocar os equipamentos da portaria?</summary>
-          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">Não. O console roda no navegador do computador que já existe na portaria. Leitor facial e catraca são opcionais e entram depois, se o condomínio quiser.</p>
+          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. O console roda no navegador do computador que já existe na portaria. Leitor facial e catraca são opcionais e entram depois, se o condomínio quiser.</p>
         </details>
         <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
           <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">E o morador que não tem paciência com aplicativo?</summary>
-          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">A portaria registra tudo do mesmo jeito. O app é o atalho: quem usa libera visitante e vê a conta em segundos; quem não usa continua atendido no balcão.</p>
+          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">A portaria registra tudo do mesmo jeito. O app é o atalho: quem usa libera visitante e vê a conta em segundos; quem não usa continua atendido no balcão.</p>
         </details>
         <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
           <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Quanto tempo leva para começar a rodar?</summary>
-          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">Blocos, apartamentos e moradores são importados de planilha. Com a lista em mãos, a portaria começa a registrar no mesmo dia.</p>
+          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Blocos, apartamentos e moradores são importados de planilha. Com a lista em mãos, a portaria começa a registrar no mesmo dia.</p>
         </details>
         <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
           <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Se a internet cair, para tudo?</summary>
-          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">Não. A portaria continua registrando e o sistema sincroniza quando a conexão volta — o status <strong style="font-weight: 600;">Sinc.</strong> mostra o que ainda está subindo.</p>
+          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 82ch;">Não. A portaria continua registrando e o sistema sincroniza quando a conexão volta — o status <strong style="font-weight: 600;">Sinc.</strong> mostra o que ainda está subindo.</p>
         </details>
       </div>
     </section>
   </sc-if>
 
-  <section id="contato" style="max-width: 1160px; margin: 0 auto; padding: 0 24px 72px;">
+  <section id="contato" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px;">
     <div style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
       <div style="min-width: 0;">
         <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Veja o Prestare Click com o seu condomínio dentro.</h2>
@@ -366,14 +370,118 @@
   </section>
 
   <footer style="border-top: 1px solid var(--border-row); background: var(--surface-card);">
-    <div style="max-width: 1160px; margin: 0 auto; padding: 28px 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
-      <span style="display: inline-flex; align-items: center; gap: 10px;">
-        <img src="/sobre/assets/prestare-icon.png" alt="" width="28" height="28" style="display: block; border-radius: 7px;">
-        <span style="font: var(--type-caption); color: var(--text-muted);">Prestare Click · controle de acesso para condomínios</span>
-      </span>
-      <span style="font: var(--type-caption); color: var(--text-faint);">suporte@clickprestarecondominios.com.br · clickprestarecondominios.com.br</span>
+    <!-- Flex em vez de grid: a marca ocupa a esquerda e as colunas de links sao
+         empurradas para a direita, quebrando uma a uma conforme a tela estreita. -->
+    <div class="ps-foot" style="max-width: 1440px; margin: 0 auto; padding: 56px 24px 36px; display: flex; flex-wrap: wrap; gap: 44px; justify-content: space-between;">
+      <div style="flex: 1 1 320px; min-width: 0; max-width: 44ch;">
+        <span style="display: inline-flex; align-items: center; gap: 10px;">
+          <img src="/sobre/assets/prestare-icon.png" alt="" width="32" height="32" style="display: block; border-radius: 8px;">
+          <span style="font: var(--weight-extrabold) 17px/1 var(--font-display); letter-spacing: .04em; color: var(--prestare-blue-900);">PRESTARE <span style="color: var(--prestare-blue-500);">CLICK</span></span>
+        </span>
+        <p style="margin: 16px 0 0; font: var(--type-sub); color: var(--text-muted); text-wrap: pretty;">Controle de acesso, encomendas, áreas sociais e a conta do condomínio — no celular do morador e no console da portaria.</p>
+        <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font: var(--type-sub); color: var(--prestare-blue-600);">
+          <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="phone" size="16" color="var(--prestare-blue-500)" hint-size="16px,16px"></x-import>Falar no WhatsApp
+        </a>
+      </div>
+
+      <nav style="flex: 0 1 165px; min-width: 0; display: grid; gap: 11px; align-content: start;">
+        <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--text-strong);">Produto</span>
+        <a href="#app" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Para o morador</a>
+        <a href="#console" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Para o síndico</a>
+        <a href="#modulos" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Módulos</a>
+        <a href="#duvidas" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Dúvidas frequentes</a>
+      </nav>
+
+      <nav style="flex: 0 1 165px; min-width: 0; display: grid; gap: 11px; align-content: start;">
+        <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--text-strong);">Acesso</span>
+        <a href="/login" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Console da portaria</a>
+        <a href="#contato" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Pedir demonstração</a>
+        <a href="mailto:suporte@clickprestarecondominios.com.br" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Suporte</a>
+      </nav>
+
+      <nav style="flex: 0 1 185px; min-width: 0; display: grid; gap: 11px; align-content: start;">
+        <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--text-strong);">Legal</span>
+        <a href="/politica-de-privacidade.html" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Política de privacidade</a>
+        <a href="/termos-de-uso.html" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Termos de uso</a>
+        <span onClick="{{ abrirCookies }}" style="font: var(--type-sub); color: var(--text-muted); cursor: pointer; justify-self: start;" style-hover="color: var(--prestare-blue-600);">Preferências de cookies</span>
+      </nav>
+    </div>
+
+    <div class="ps-foot" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 28px;">
+      <div style="border-top: 1px solid var(--border-row); padding-top: 20px; display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between;">
+        <span style="font: var(--type-caption); color: var(--text-faint);">© {{ ano }} Prestare Click · Todos os direitos reservados</span>
+        <span style="font: var(--type-caption); color: var(--text-faint);">clickprestarecondominios.com.br</span>
+      </div>
     </div>
   </footer>
+
+  <!-- ─── Consentimento de cookies ──────────────────────────────────────────
+       Feito na mao, sem servico de terceiro: a escolha fica no localStorage do
+       proprio navegador. Hoje a pagina nao grava cookie nem carrega analytics,
+       entao isto ainda nao governa nada — e o ponto de controle pronto para
+       quando uma tag de medicao entrar. Quem ligar o analytics deve checar
+       `analytics: true` no consentimento gravado ANTES de disparar. -->
+  <sc-if value="{{ cookieBanner }}" hint-placeholder-val="{{ true }}">
+    <div style="position: fixed; left: 0; bottom: 0; z-index: 70; padding: 16px; max-width: 100%;">
+      <div role="dialog" aria-label="Preferências de cookies" style="width: min(calc(100vw - 32px), 460px); background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: 0 24px 60px rgba(6,42,93,.24); padding: 22px; animation: ps-zoom 260ms cubic-bezier(.2,.8,.28,1);">
+        <h2 style="margin: 0; font: var(--type-h3); color: var(--text-strong);">Valorizamos sua privacidade</h2>
+        <p style="margin: 8px 0 0; font: var(--type-sub); color: var(--text-muted); text-wrap: pretty;">Usamos cookies para lembrar suas preferências e entender como esta página é usada. Os necessários mantêm o site funcionando; os demais só com a sua autorização.</p>
+
+        <sc-if value="{{ cookiePainel }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top: 16px;">
+            <label style="display: flex; gap: 12px; align-items: flex-start; padding: 13px 0; border-top: 1px solid var(--border-row); cursor: not-allowed;">
+              <input type="checkbox" checked="{{ true }}" disabled="{{ true }}" style="width: 17px; height: 17px; margin-top: 2px; flex: none; accent-color: var(--prestare-blue-500);">
+              <span style="min-width: 0;">
+                <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Necessários</span>
+                <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">Guardam esta própria escolha e mantêm a página funcionando. Não dá para desligar.</span>
+              </span>
+            </label>
+            <label style="display: flex; gap: 12px; align-items: flex-start; padding: 13px 0; border-top: 1px solid var(--border-row); cursor: pointer;">
+              <input type="checkbox" checked="{{ cookieAnalytics }}" onChange="{{ alternarAnalytics }}" style="width: 17px; height: 17px; margin-top: 2px; flex: none; accent-color: var(--prestare-blue-500);">
+              <span style="min-width: 0;">
+                <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Analíticos</span>
+                <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">Medição anônima de navegação, para sabermos o que melhorar na página.</span>
+              </span>
+            </label>
+            <label style="display: flex; gap: 12px; align-items: flex-start; padding: 13px 0; border-top: 1px solid var(--border-row); cursor: pointer;">
+              <input type="checkbox" checked="{{ cookieMarketing }}" onChange="{{ alternarMarketing }}" style="width: 17px; height: 17px; margin-top: 2px; flex: none; accent-color: var(--prestare-blue-500);">
+              <span style="min-width: 0;">
+                <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Marketing</span>
+                <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">Permite medir a origem de quem chega até aqui por anúncio ou campanha.</span>
+              </span>
+            </label>
+          </div>
+        </sc-if>
+
+        <div style="margin-top: 18px; display: flex; flex-wrap: wrap; gap: 9px;">
+          <sc-if value="{{ cookieResumo }}" hint-placeholder-val="{{ true }}">
+            <span onClick="{{ personalizarCookies }}" style="cursor: pointer;">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="sm" hint-size="130px,36px">Personalizar</x-import>
+            </span>
+          </sc-if>
+          <sc-if value="{{ cookiePainel }}" hint-placeholder-val="{{ false }}">
+            <span onClick="{{ salvarCookies }}" style="cursor: pointer;">
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="sm" hint-size="165px,36px">Salvar preferências</x-import>
+            </span>
+          </sc-if>
+          <span onClick="{{ rejeitarCookies }}" style="cursor: pointer;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="ghost" size="sm" hint-size="100px,36px">Rejeitar</x-import>
+          </span>
+          <span onClick="{{ aceitarCookies }}" style="cursor: pointer;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="sm" hint-size="130px,36px">Aceitar todos</x-import>
+          </span>
+        </div>
+
+        <a href="/politica-de-privacidade.html" style="display: inline-block; margin-top: 13px; font: var(--type-caption); color: var(--text-muted); text-decoration: underline;">Ler a política de privacidade</a>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ cookieBotao }}" hint-placeholder-val="{{ false }}">
+    <span onClick="{{ abrirCookies }}" title="Preferências de cookies" aria-label="Preferências de cookies" style="position: fixed; left: 16px; bottom: 16px; z-index: 65; cursor: pointer;">
+      <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="shield-check" hint-size="44px,44px"></x-import>
+    </span>
+  </sc-if>
 
   <sc-if value="{{ telaAberta }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ fecharTela }}" style="position: fixed; inset: 0; z-index: 60; background: rgba(26,29,35,.58); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 12px; animation: ps-fade 180ms cubic-bezier(.2,.8,.28,1);">
@@ -449,7 +557,15 @@
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;whatsapp&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;5517988338147&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Contato&quot;},&quot;mostrarNumeros&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;},&quot;mostrarFaq&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;}}">
 class Component extends DCLogic {
-  state = { enviado: false, tela: null };
+  state = {
+    enviado: false, tela: null,
+    // O banner comeca fechado e so abre no componentDidMount, depois de ler o
+    // localStorage: abrir antes provocaria um pisca em quem ja decidiu.
+    cookieBanner: false, cookiePainel: false,
+    cookieAnalytics: false, cookieMarketing: false
+  };
+
+  CHAVE_COOKIES = "prestare-click:consentimento";
 
   TELAS = {
     "app-home": {
@@ -495,7 +611,42 @@ class Component extends DCLogic {
   componentDidMount() {
     this._esc = (e) => { if (e.key === "Escape") this.fechar(); };
     window.addEventListener("keydown", this._esc);
+
+    const c = this.lerConsentimento();
+    if (c) this.setState({ cookieAnalytics: !!c.analytics, cookieMarketing: !!c.marketing });
+    else this.setState({ cookieBanner: true });
   }
+
+  // localStorage lanca em Safari privado e quando o usuario bloqueia storage —
+  // nesse caso o banner simplesmente reaparece, em vez de a pagina quebrar.
+  lerConsentimento() {
+    try { return JSON.parse(window.localStorage.getItem(this.CHAVE_COOKIES) || "null"); }
+    catch (_) { return null; }
+  }
+
+  gravarConsentimento(v) {
+    try { window.localStorage.setItem(this.CHAVE_COOKIES, JSON.stringify(v)); }
+    catch (_) { /* sem storage: a escolha vale so para esta visita */ }
+  }
+
+  decidirCookies = (analytics, marketing) => {
+    this.gravarConsentimento({
+      versao: 1, data: new Date().toISOString(),
+      necessarios: true, analytics: analytics, marketing: marketing
+    });
+    this.setState({
+      cookieAnalytics: analytics, cookieMarketing: marketing,
+      cookieBanner: false, cookiePainel: false
+    });
+  };
+
+  aceitarCookies = () => this.decidirCookies(true, true);
+  rejeitarCookies = () => this.decidirCookies(false, false);
+  salvarCookies = () => this.decidirCookies(this.state.cookieAnalytics, this.state.cookieMarketing);
+  personalizarCookies = () => this.setState({ cookiePainel: true });
+  abrirCookies = () => this.setState({ cookieBanner: true, cookiePainel: true });
+  alternarAnalytics = () => this.setState({ cookieAnalytics: !this.state.cookieAnalytics });
+  alternarMarketing = () => this.setState({ cookieMarketing: !this.state.cookieMarketing });
 
   componentWillUnmount() {
     window.removeEventListener("keydown", this._esc);
@@ -589,7 +740,23 @@ class Component extends DCLogic {
       linkWhatsapp: "https://wa.me/" + num + "?text=" + encodeURIComponent("Olá! Quero conhecer o Prestare Click para o meu condomínio."),
       enviado: this.state.enviado,
       mostrarForm: !this.state.enviado,
-      enviar: this.enviar
+      enviar: this.enviar,
+      ano: new Date().getFullYear(),
+      cookieBanner: this.state.cookieBanner,
+      cookiePainel: this.state.cookiePainel,
+      // O bloco de botoes alterna entre "Personalizar" e "Salvar preferencias",
+      // entao precisa do inverso do painel como valor proprio: sc-if nao nega.
+      cookieResumo: !this.state.cookiePainel,
+      cookieBotao: !this.state.cookieBanner,
+      cookieAnalytics: this.state.cookieAnalytics,
+      cookieMarketing: this.state.cookieMarketing,
+      aceitarCookies: this.aceitarCookies,
+      rejeitarCookies: this.rejeitarCookies,
+      salvarCookies: this.salvarCookies,
+      personalizarCookies: this.personalizarCookies,
+      abrirCookies: this.abrirCookies,
+      alternarAnalytics: this.alternarAnalytics,
+      alternarMarketing: this.alternarMarketing
     };
   }
 }
