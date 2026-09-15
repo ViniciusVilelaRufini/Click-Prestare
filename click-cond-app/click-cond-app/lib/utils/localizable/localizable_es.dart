@@ -313,7 +313,7 @@ class Localizable_Es {
           LocalizableModel(key: 'config_termos_uso', text: 'Condiciones de uso'), 
           LocalizableModel(key: 'config_politica_privacidade', text: 'política de privacidad'), 
           LocalizableModel(key: 'config_fale_conosco', text: 'Contáctenos'), 
-          LocalizableModel(key: 'config_fale_conosco_descricao', text: 'Ponte en contacto vía correo electrónico con tus dudas y/o requerimientos.\n\nY no olvides identificarte.\n\ncontato@click-app.co\n'), 
+          LocalizableModel(key: 'config_fale_conosco_descricao', text: 'Ponte en contacto vía correo electrónico con tus dudas y/o requerimientos.\n\nY no olvides identificarte.\n\nsuporte@clickprestarecondominios.com.br\n'), 
           LocalizableModel(key: 'config_alt_senha', text: 'Cambiar la contraseña'), 
           LocalizableModel(key: 'config_delete_cond', text: 'Excluir condominio'), 
           LocalizableModel(key: 'config_delete_account', text: 'eliminar mi cuenta'), 

@@ -85,7 +85,7 @@ import { CommonModule } from '@angular/common';
             <div class="p-4 rounded-xl bg-slate-900 border border-white/5 space-y-2 mt-2">
               <p class="font-semibold text-white text-xs">Canal de Atendimento ao Titular e Exclusão:</p>
               <p class="text-xs text-slate-400">
-                Moradores podem solicitar a exclusão de sua conta pelo aplicativo móvel (<em>"Configurações > Excluir Minha Conta"</em>). Visitantes e prestadores podem solicitar esclarecimentos ou requerer a remoção de dados por meio da administração do condomínio ou diretamente pelo e-mail do Encarregado de Dados (DPO): <code class="text-emerald-400">privacidade&#64;prestare.com.br</code> ou <code class="text-emerald-400">suporte&#64;prestare.com.br</code>.
+                Moradores podem solicitar a exclusão de sua conta pelo aplicativo móvel (<em>"Configurações > Excluir Minha Conta"</em>). Visitantes e prestadores podem solicitar esclarecimentos ou requerer a remoção de dados por meio da administração do condomínio ou diretamente pelo e-mail do Encarregado de Dados (DPO): <code class="text-emerald-400">suporte&#64;clickprestarecondominios.com.br</code>.
               </p>
             </div>
           </section>

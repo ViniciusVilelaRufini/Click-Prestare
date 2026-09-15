@@ -313,7 +313,7 @@ class Localizable_EnUs {
           LocalizableModel(key: 'config_termos_uso', text: 'Terms of Use'), 
           LocalizableModel(key: 'config_politica_privacidade', text: 'Privacy Policy'), 
           LocalizableModel(key: 'config_fale_conosco', text: 'Contact Us'), 
-          LocalizableModel(key: 'config_fale_conosco_descricao', text: "Contact us via email with your questions and/or requests.\n\nAnd don't forget to identify yourself.\n\ncontato@click-app.co\n"), 
+          LocalizableModel(key: 'config_fale_conosco_descricao', text: "Contact us via email with your questions and/or requests.\n\nAnd don't forget to identify yourself.\n\nsuporte@clickprestarecondominios.com.br\n"), 
           LocalizableModel(key: 'config_alt_senha', text: 'Change password'), 
           LocalizableModel(key: 'config_delete_cond', text: 'Delete condominium'), 
           LocalizableModel(key: 'config_delete_account', text: 'Delete my account'), 
