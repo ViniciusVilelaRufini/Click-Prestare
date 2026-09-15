@@ -35,18 +35,54 @@
   @keyframes ps-pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
   @keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes ps-zoom { from { opacity: 0; transform: translateY(14px) scale(.965) } to { opacity: 1; transform: none } }
+
+  /* ─── Responsivo ───────────────────────────────────────────────────────
+     O layout todo e inline style, que nao aceita media query — por isso as
+     regras abaixo precisam de !important para vencer o atributo style. */
+
+  /* Rede de seguranca. Sem overflow-x:hidden de proposito: em html/body ele
+     vira um scroll container e quebra o position:sticky do header. A causa
+     real do vazamento sao os grid tracks, corrigidos com minmax(min(Npx,100%)). */
+  img, figure { max-width: 100%; }
+  h1, h2, h3, p, li, summary { overflow-wrap: anywhere; }
+
+  /* Tablet retrato para baixo: o hero de 2 colunas fica espremido demais
+     (cada coluna cai para ~340px e as telas de celular viram miniatura). */
+  @media (max-width: 900px) {
+    .ps-hero { grid-template-columns: 1fr !important; gap: 36px !important; padding-top: 44px !important; padding-bottom: 40px !important; }
+    .ps-nav { display: none !important; }
+    .ps-sec { padding-top: 48px !important; padding-bottom: 48px !important; }
+  }
+
+  /* Celular: a barra do topo nao cabe — logo (~210px) + botao (~150px)
+     estouram os 312px uteis de uma tela de 360px. */
+  @media (max-width: 560px) {
+    .ps-hdr { padding: 12px 18px !important; gap: 12px !important; }
+    .ps-logo-txt { font-size: 16px !important; }
+    .ps-hero { padding-left: 18px !important; padding-right: 18px !important; }
+    .ps-sec { padding-left: 18px !important; padding-right: 18px !important; padding-top: 40px !important; padding-bottom: 40px !important; }
+    .ps-modal-txt { padding: 20px !important; }
+    .ps-modal-img { padding: 12px !important; }
+    .ps-modal-img img { max-height: 48vh !important; }
+  }
+
+  /* Telas estreitas (<=430px): some o wordmark e fica so o icone, para o
+     CTA do WhatsApp continuar visivel no topo em vez de vazar. */
+  @media (max-width: 430px) {
+    .ps-logo-txt { display: none !important; }
+  }
 </style>
 </helmet>
 
 <div style="font: var(--type-body); color: var(--text-body); background: var(--surface-app); min-height: 100vh;">
 
   <header style="position: sticky; top: 0; z-index: 20; background: rgba(247,248,250,.88); backdrop-filter: blur(18px); border-bottom: 1px solid var(--border-row);">
-    <div style="max-width: 1160px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 24px;">
+    <div class="ps-hdr" style="max-width: 1160px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 24px;">
       <a href="#topo" style="display: inline-flex; align-items: center; gap: 10px; flex: none;">
         <img src="/sobre/assets/prestare-icon.png" alt="Prestare Click" width="36" height="36" style="display: block; border-radius: 9px;">
-        <span style="font: var(--weight-extrabold) 19px/1 var(--font-display); letter-spacing: .04em; color: var(--prestare-blue-900);">PRESTARE <span style="color: var(--prestare-blue-500);">CLICK</span></span>
+        <span class="ps-logo-txt" style="font: var(--weight-extrabold) 19px/1 var(--font-display); letter-spacing: .04em; color: var(--prestare-blue-900);">PRESTARE <span style="color: var(--prestare-blue-500);">CLICK</span></span>
       </a>
-      <nav style="display: flex; align-items: center; gap: 26px; margin-left: auto; font: var(--type-body-strong); flex-wrap: wrap;">
+      <nav class="ps-nav" style="display: flex; align-items: center; gap: 26px; margin-left: auto; font: var(--type-body-strong); flex-wrap: wrap;">
         <a href="#app" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Para o morador</a>
         <a href="#console" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Para o síndico</a>
         <a href="#modulos" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Módulos</a>
@@ -61,7 +97,7 @@
   <div id="topo" style="position: relative; background: linear-gradient(180deg, #f4f7fd 0%, var(--surface-app) 78%); border-bottom: 1px solid var(--border-row); overflow: hidden;">
     <div style="position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(37,96,232,.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(37,96,232,.07) 1px, transparent 1px); background-size: 64px 64px; mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 85%); -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 85%);"></div>
 
-    <section style="position: relative; max-width: 1160px; margin: 0 auto; padding: 64px 24px 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 48px; align-items: center;">
+    <section class="ps-hero" style="position: relative; max-width: 1160px; margin: 0 auto; padding: 64px 24px 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 48px; align-items: center;">
       <div style="min-width: 0;">
         <span style="display: inline-flex; align-items: center; gap: 8px; font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600); background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-pill); padding: 6px 13px;">
           <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--green-500); animation: ps-pulse 2s infinite;"></span>
@@ -70,7 +106,7 @@
         <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Todo o condomínio<br><span style="color: var(--prestare-blue-500);">na palma da mão</span></h1>
         <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Visitantes, encomendas e a conta do condomínio no celular do morador — e o síndico vendo tudo acontecer no console web, sem planilha e sem livro de papel.</p>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 20px; margin-top: 26px; max-width: 420px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 8px 20px; margin-top: 26px; max-width: 420px;">
           <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Controle de acesso</span>
           <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Gestão de encomendas</span>
           <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Conta do condomínio</span>
@@ -96,7 +132,7 @@
 
   <sc-if value="{{ mostrarNumeros }}" hint-placeholder-val="{{ true }}">
     <section style="max-width: 1160px; margin: 0 auto; padding: 24px;">
-      <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 28px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 24px;">
+      <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 28px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 24px;">
         <div style="min-width: 0;">
           <div style="font: var(--weight-extrabold) 34px/1 var(--font-ui); letter-spacing: -.02em; color: var(--prestare-blue-500); font-variant-numeric: tabular-nums;">1 app</div>
           <div style="margin-top: 8px; font: var(--type-sub); color: var(--text-muted);">Para todos os moradores</div>
@@ -118,12 +154,12 @@
   </sc-if>
 
   <section id="app" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
-    <div style="max-width: 1160px; margin: 0 auto; padding: 64px 24px;">
+    <div class="ps-sec" style="max-width: 1160px; margin: 0 auto; padding: 64px 24px;">
       <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o morador</span>
       <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">Bonito de usar — e simples o bastante para ninguém precisar de treinamento.</h2>
       <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Três toques resolvem o dia a dia: liberar quem chega, ver a encomenda na portaria e conferir a conta do condomínio.</p>
 
-      <div style="margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; align-items: center;">
+      <div style="margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 40px; align-items: center;">
         <div style="min-width: 0; display: grid; gap: 14px;">
           <div style="display: flex; gap: 14px; align-items: flex-start; background: var(--surface-app); border-radius: var(--radius-lg); padding: 18px;">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="contact-round" tone="brand" hint-size="44px,44px"></x-import>
@@ -154,7 +190,7 @@
     </div>
   </section>
 
-  <section id="console" style="max-width: 1160px; margin: 0 auto; padding: 64px 24px 24px;">
+  <section id="console" class="ps-sec" style="max-width: 1160px; margin: 0 auto; padding: 64px 24px 24px;">
     <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o síndico e a portaria</span>
     <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 28ch; text-wrap: pretty;">O console web mostra quem está no condomínio agora.</h2>
     <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Mesma informação do app, do outro lado do balcão: ativos no local, liberados aguardando, quem saiu e o total registrado — com PIN, documento protegido e baixa por apartamento.</p>
@@ -164,7 +200,7 @@
         <img src="/sobre/assets/web-visitantes.png" alt="Console web: lista de visitantes com status no condomínio" style="display: block; width: 100%; border-radius: 14px;">
         <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;">Visitantes · controle de acesso, entrada e saída do condomínio <span style="font: var(--type-caption); color: var(--prestare-blue-500);">Clique para ampliar</span></figcaption>
       </figure>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px;">
         <figure onClick="{{ abrirWebFinanceiro }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
           <img src="/sobre/assets/web-financeiro.png" alt="Console web: controle financeiro com inadimplência por bloco" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Financeiro · fluxo de caixa, pendências por apartamento e exportação em CSV</figcaption>
@@ -186,7 +222,7 @@
       <p style="margin: 0; font: var(--type-sub); color: var(--text-muted); max-width: 38ch;">Cada módulo é ligado por condomínio — você paga e usa só o que precisa.</p>
     </div>
 
-    <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+    <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 16px;">
       <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="contact-round" tone="brand" size="lg" hint-size="52px,52px"></x-import>
         <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Visitantes</h3>
@@ -235,7 +271,7 @@
   </section>
 
   <section style="max-width: 1160px; margin: 0 auto; padding: 0 24px 56px;">
-    <div style="background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 28px;">
+    <div style="background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 28px;">
       <div style="min-width: 0;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="id-card" tone="brand" hint-size="44px,44px"></x-import>
         <h3 style="margin: 14px 0 0; font: var(--type-h3); color: var(--text-strong);">Dados pessoais sob a LGPD</h3>
@@ -279,7 +315,7 @@
   </sc-if>
 
   <section id="contato" style="max-width: 1160px; margin: 0 auto; padding: 0 24px 72px;">
-    <div style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 36px; align-items: center;">
+    <div style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
       <div style="min-width: 0;">
         <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Veja o Prestare Click com o seu condomínio dentro.</h2>
         <p style="margin: 14px 0 0; font: var(--type-body); color: rgba(255,255,255,.85); max-width: 44ch;">20 minutos de demonstração: app do morador, console da portaria e os relatórios que o conselho pede.</p>
@@ -341,7 +377,7 @@
 
   <sc-if value="{{ telaAberta }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ fecharTela }}" style="position: fixed; inset: 0; z-index: 60; background: rgba(26,29,35,.58); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 12px; animation: ps-fade 180ms cubic-bezier(.2,.8,.28,1);">
-      <div style="width: {{ modalLargura }}; max-width: min(98vw, 1480px); max-height: 94vh; overflow: auto; background: var(--surface-card); border-radius: 22px; box-shadow: 0 30px 80px rgba(6,42,93,.35); animation: ps-zoom 260ms cubic-bezier(.2,.8,.28,1); display: flex; flex-direction: column;">
+      <div class="ps-modal" style="width: {{ modalLargura }}; max-width: min(98vw, 1480px); max-height: 94vh; overflow: auto; background: var(--surface-card); border-radius: 22px; box-shadow: 0 30px 80px rgba(6,42,93,.35); animation: ps-zoom 260ms cubic-bezier(.2,.8,.28,1); display: flex; flex-direction: column;">
         <div style="position: sticky; top: 0; z-index: 2; background: var(--surface-card); border-bottom: 1px solid var(--border-row); padding: 14px 18px; display: flex; align-items: center; gap: 12px; justify-content: space-between;">
           <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
             <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">{{ telaTipo }}</span>
@@ -354,10 +390,10 @@
 
         <sc-if value="{{ telaRetrato }}" hint-placeholder-val="{{ false }}">
           <div style="display: flex; flex-wrap: wrap; align-items: stretch;">
-            <div style="flex: 0 1 auto; background: var(--surface-app); padding: 18px; display: flex; align-items: center; justify-content: center;">
+            <div class="ps-modal-img" style="flex: 0 1 auto; background: var(--surface-app); padding: 18px; display: flex; align-items: center; justify-content: center;">
               {{ telaImgRetrato }}
             </div>
-            <div style="flex: 0 1 430px; min-width: 0; padding: 26px 28px; display: flex; flex-direction: column; gap: 16px; justify-content: center;">
+            <div class="ps-modal-txt" style="flex: 0 1 430px; min-width: 0; padding: 26px 28px; display: flex; flex-direction: column; gap: 16px; justify-content: center;">
               <p style="margin: 0; font: var(--weight-regular) 17px/1.6 var(--font-ui); color: var(--text-muted); text-wrap: pretty; max-width: 56ch;">{{ telaTexto }}</p>
               <ul style="margin: 0; padding: 0; list-style: none; display: grid; gap: 12px;">
                 <sc-for list="{{ telaItens }}" as="item" hint-placeholder-count="3">
@@ -380,7 +416,7 @@
           <div style="background: var(--surface-app); padding: 10px; display: flex; align-items: center; justify-content: center;">
             {{ telaImgPaisagem }}
           </div>
-          <div style="padding: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px 32px; align-items: start;">
+          <div style="padding: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 20px 32px; align-items: start;">
             <p style="margin: 0; font: var(--type-body); color: var(--text-muted); text-wrap: pretty; max-width: 62ch;">{{ telaTexto }}</p>
             <ul style="margin: 0; padding: 0; list-style: none; display: grid; gap: 10px;">
               <sc-for list="{{ telaItens }}" as="item" hint-placeholder-count="3">
