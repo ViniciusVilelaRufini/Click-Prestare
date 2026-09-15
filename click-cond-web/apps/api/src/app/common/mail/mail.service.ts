@@ -150,13 +150,15 @@ export class MailService implements OnModuleInit {
   }
 
   private async send(to: string, subject: string, html: string): Promise<void> {
+    const htmlComRodape = `${html}${this.getEmailFooter()}`;
+
     if (this.resend) {
       try {
         const { data, error } = await this.resend.emails.send({
           from: this.fromAddress,
           to: [to],
           subject,
-          html,
+          html: htmlComRodape,
         });
         if (error) {
           this.logger.error(`Falha Resend para ${to}: ${error.name ?? ''} ${error.message ?? error}`);
@@ -172,7 +174,7 @@ export class MailService implements OnModuleInit {
 
     if (this.transporter) {
       try {
-        const info = await this.transporter.sendMail({ from: this.fromAddress, to, subject, html });
+        const info = await this.transporter.sendMail({ from: this.fromAddress, to, subject, html: htmlComRodape });
         this.logger.log(`E-mail enviado via SMTP para ${to}. messageId=${info.messageId}`);
       } catch (err: any) {
         this.logger.error(`Erro no envio SMTP para ${to}: ${err?.message ?? err}`);
@@ -182,6 +184,24 @@ export class MailService implements OnModuleInit {
     }
 
     this.logger.warn(`E-mail para ${to} ignorado (nenhum provider configurado).`);
+  }
+
+  private getEmailFooter(): string {
+    return `
+      <br>
+      <table style="font-family: Arial, Helvetica, sans-serif; border-collapse: collapse; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+        <tr>
+          <td style="vertical-align: middle; padding-right: 14px;">
+            <img src="https://click-prestare.vercel.app/logo-prestare.png" alt="Logo Prestare" width="46" height="46" style="border-radius: 6px; display: block;" />
+          </td>
+          <td style="vertical-align: middle; font-size: 13px; line-height: 1.4; color: #334155;">
+            <strong style="color: #0f172a; font-size: 14px;">Prestare - Gestao</strong><br>
+            <span style="font-style: italic; color: #64748b;">Declaração de missão</span><br>
+            <a href="https://www.clickprestarecondominios.com.br" style="color: #2563eb; text-decoration: none;" target="_blank">https://www.clickprestarecondominios.com.br</a>
+          </td>
+        </tr>
+      </table>
+    `;
   }
 
   private escape(value: string): string {
