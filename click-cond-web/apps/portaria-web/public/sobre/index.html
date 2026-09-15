@@ -327,7 +327,38 @@
           <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="align-self: flex-start;">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="lg" icon-left="phone" hint-size="220px,52px">Falar no WhatsApp agora</x-import>
           </a>
-          <a href="mailto:suporte@clickprestarecondominios.com.br" style="font: var(--type-sub); color: rgba(255,255,255,.88); text-decoration: underline;">suporte@clickprestarecondominios.com.br</a>
+          <!-- mailto: sozinho so funciona para quem tem cliente de e-mail
+               configurado; no resto o clique nao faz nada e sobra copiar o
+               endereco na mao. Por isso a escolha explicita de onde escrever,
+               com o assunto e o corpo ja montados. -->
+          <div style="align-self: flex-start; max-width: 100%;">
+            <span onClick="{{ alternarEmailPainel }}" style="display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font: var(--type-sub); color: rgba(255,255,255,.9); text-decoration: underline; text-underline-offset: 3px;" style-hover="color: #fff;">
+              Prefiro escrever um e-mail
+              <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="chevron-down" size="15" color="rgba(255,255,255,.9)" hint-size="15px,15px"></x-import>
+            </span>
+
+            <sc-if value="{{ emailPainel }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top: 12px; width: min(100%, 330px); background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: 0 18px 40px rgba(6,42,93,.3); padding: 7px; display: grid; gap: 2px; animation: ps-zoom 200ms cubic-bezier(.2,.8,.28,1);">
+                <span onClick="{{ abrirGmail }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border-radius: var(--radius-sm); cursor: pointer; font: var(--type-sub); color: var(--text-body);" style-hover="background: var(--prestare-blue-50); color: var(--prestare-blue-700);">
+                  Abrir no Gmail
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="arrow-up-right" size="16" color="var(--text-faint)" hint-size="16px,16px"></x-import>
+                </span>
+                <span onClick="{{ abrirOutlook }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border-radius: var(--radius-sm); cursor: pointer; font: var(--type-sub); color: var(--text-body);" style-hover="background: var(--prestare-blue-50); color: var(--prestare-blue-700);">
+                  Abrir no Outlook
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="arrow-up-right" size="16" color="var(--text-faint)" hint-size="16px,16px"></x-import>
+                </span>
+                <span onClick="{{ abrirAppEmail }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border-radius: var(--radius-sm); cursor: pointer; font: var(--type-sub); color: var(--text-body);" style-hover="background: var(--prestare-blue-50); color: var(--prestare-blue-700);">
+                  Abrir no meu app de e-mail
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="arrow-up-right" size="16" color="var(--text-faint)" hint-size="16px,16px"></x-import>
+                </span>
+                <span onClick="{{ copiarEmail }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border-radius: var(--radius-sm); cursor: pointer; font: var(--type-sub); color: var(--text-body); border-top: 1px solid var(--border-row);" style-hover="background: var(--prestare-blue-50); color: var(--prestare-blue-700);">
+                  {{ rotuloCopiar }}
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="link-2" size="16" color="var(--text-faint)" hint-size="16px,16px"></x-import>
+                </span>
+                <span style="padding: 4px 12px 8px; font: var(--type-caption); color: var(--text-faint); overflow-wrap: anywhere;">suporte@clickprestarecondominios.com.br</span>
+              </div>
+            </sc-if>
+          </div>
         </div>
       </div>
 
@@ -340,7 +371,7 @@
           </div>
         </sc-if>
         <sc-if value="{{ mostrarForm }}" hint-placeholder-val="{{ true }}">
-          <form onSubmit="{{ enviar }}" style="display: grid; gap: 14px;">
+          <form id="ps-form-demo" onSubmit="{{ enviar }}" style="display: grid; gap: 14px;">
             <div>
               <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedir demonstração</h3>
               <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">Preencha e continuamos a conversa no WhatsApp.</p>
@@ -562,10 +593,13 @@ class Component extends DCLogic {
     // O banner comeca fechado e so abre no componentDidMount, depois de ler o
     // localStorage: abrir antes provocaria um pisca em quem ja decidiu.
     cookieBanner: false, cookiePainel: false,
-    cookieAnalytics: false, cookieMarketing: false
+    cookieAnalytics: false, cookieMarketing: false,
+    emailPainel: false, emailCopiado: false
   };
 
   CHAVE_COOKIES = "prestare-click:consentimento";
+  EMAIL = "suporte@clickprestarecondominios.com.br";
+  ASSUNTO = "Demonstração do Prestare Click";
 
   TELAS = {
     "app-home": {
@@ -609,7 +643,11 @@ class Component extends DCLogic {
   fechar = () => this.setState({ tela: null });
 
   componentDidMount() {
-    this._esc = (e) => { if (e.key === "Escape") this.fechar(); };
+    this._esc = (e) => {
+      if (e.key !== "Escape") return;
+      this.fechar();
+      if (this.state.emailPainel) this.setState({ emailPainel: false });
+    };
     window.addEventListener("keydown", this._esc);
 
     const c = this.lerConsentimento();
@@ -628,6 +666,89 @@ class Component extends DCLogic {
     try { window.localStorage.setItem(this.CHAVE_COOKIES, JSON.stringify(v)); }
     catch (_) { /* sem storage: a escolha vale so para esta visita */ }
   }
+
+  // Le o que ja foi digitado no formulario ao lado, para o e-mail nascer
+  // preenchido. O formulario nao e controlado, entao a leitura e pelo DOM; se
+  // ele nao existir (apos o envio) ou estiver vazio, o corpo sai com os campos
+  // em branco para a pessoa completar.
+  dadosFormulario() {
+    try {
+      const el = document.getElementById("ps-form-demo");
+      if (!el) return null;
+      const f = new FormData(el);
+      const d = {
+        nome: String(f.get("nome") || "").trim(),
+        condominio: String(f.get("condominio") || "").trim(),
+        contato: String(f.get("contato") || "").trim(),
+        unidades: String(f.get("unidades") || "").trim()
+      };
+      return (d.nome || d.condominio || d.contato || d.unidades) ? d : null;
+    } catch (_) { return null; }
+  }
+
+  corpoEmail() {
+    const d = this.dadosFormulario();
+    return [
+      "Olá! Gostaria de ver o Prestare Click funcionando no meu condomínio.",
+      "",
+      "Nome: " + (d ? this.tituloCaso(d.nome) : ""),
+      "Condomínio: " + (d ? this.tituloCaso(d.condominio) : ""),
+      "WhatsApp: " + (d ? this.formatarTelefone(d.contato) : ""),
+      "Unidades: " + (d ? d.unidades : ""),
+      "",
+      "Enviado pelo site clickprestarecondominios.com.br/sobre"
+    ].join("\n");
+  }
+
+  linkEmail(onde) {
+    const to = encodeURIComponent(this.EMAIL);
+    const su = encodeURIComponent(this.ASSUNTO);
+    const bo = encodeURIComponent(this.corpoEmail());
+    if (onde === "gmail") return "https://mail.google.com/mail/?view=cm&fs=1&to=" + to + "&su=" + su + "&body=" + bo;
+    if (onde === "outlook") return "https://outlook.live.com/mail/0/deeplink/compose?to=" + to + "&subject=" + su + "&body=" + bo;
+    return "mailto:" + this.EMAIL + "?subject=" + su + "&body=" + bo;
+  }
+
+  abrirEmail = (onde) => () => {
+    const url = this.linkEmail(onde);
+    // mailto: nao pode ir por window.open: se nao houver cliente registrado,
+    // sobra uma aba em branco. No mesmo contexto o navegador so ignora.
+    if (onde === "app") window.location.href = url;
+    else window.open(url, "_blank", "noopener");
+    this.setState({ emailPainel: false });
+  };
+
+  alternarEmailPainel = () => this.setState({ emailPainel: !this.state.emailPainel });
+
+  copiarEmail = () => {
+    const ok = () => {
+      this.setState({ emailCopiado: true });
+      window.setTimeout(() => this.setState({ emailCopiado: false }), 2400);
+    };
+    // clipboard.writeText exige contexto seguro (https) e pode ser negado;
+    // o textarea + execCommand cobre http local e navegador antigo.
+    const manual = () => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = this.EMAIL;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        ok();
+      } catch (_) { /* sem copia: o endereco fica visivel abaixo do menu */ }
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(this.EMAIL).then(ok, manual);
+        return;
+      }
+    } catch (_) { /* cai no manual */ }
+    manual();
+  };
 
   decidirCookies = (analytics, marketing) => {
     this.gravarConsentimento({
@@ -756,7 +877,14 @@ class Component extends DCLogic {
       personalizarCookies: this.personalizarCookies,
       abrirCookies: this.abrirCookies,
       alternarAnalytics: this.alternarAnalytics,
-      alternarMarketing: this.alternarMarketing
+      alternarMarketing: this.alternarMarketing,
+      emailPainel: this.state.emailPainel,
+      rotuloCopiar: this.state.emailCopiado ? "Endereço copiado!" : "Copiar endereço",
+      alternarEmailPainel: this.alternarEmailPainel,
+      copiarEmail: this.copiarEmail,
+      abrirGmail: this.abrirEmail("gmail"),
+      abrirOutlook: this.abrirEmail("outlook"),
+      abrirAppEmail: this.abrirEmail("app")
     };
   }
 }
