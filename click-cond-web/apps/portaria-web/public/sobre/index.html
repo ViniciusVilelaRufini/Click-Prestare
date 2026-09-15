@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prestare Click — Gestão condominial no app e no console web</title>
+<meta name="description" content="Visitantes, encomendas, áreas sociais e financeiro no celular do morador, com o síndico acompanhando tudo no console web da portaria.">
+<link rel="icon" href="/sobre/assets/prestare-icon.png">
+<script src="/sobre/support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/fonts.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/colors.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/typography.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/spacing.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/radius.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/elevation.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/motion.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/base.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/tokens/interactions.css">
+<link rel="stylesheet" href="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/styles.css">
+<script src="/sobre/_ds/prestare-design-system-ea5733ab-5826-4a69-b0f1-440d2f55154e/_ds_bundle.js"></script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--surface-app); color: var(--text-body); font: var(--type-body); -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  a { color: var(--text-link); text-decoration: none; transition: color 150ms cubic-bezier(.2,.8,.28,1); }
+  a:hover { color: var(--prestare-blue-600); }
+  img { max-width: 100%; }
+  input, textarea { font: var(--type-body); color: var(--text-strong); background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px 14px; width: 100%; outline: none; transition: border-color 150ms cubic-bezier(.2,.8,.28,1), box-shadow 150ms cubic-bezier(.2,.8,.28,1); }
+  input:focus, textarea:focus { border-color: var(--border-brand); box-shadow: 0 0 0 3px rgba(37,96,232,.28); }
+  ::placeholder { color: var(--text-faint); }
+  @keyframes ps-pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  @keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes ps-zoom { from { opacity: 0; transform: translateY(14px) scale(.965) } to { opacity: 1; transform: none } }
+</style>
+</helmet>
+
+<div style="font: var(--type-body); color: var(--text-body); background: var(--surface-app); min-height: 100vh;">
+
+  <header style="position: sticky; top: 0; z-index: 20; background: rgba(247,248,250,.88); backdrop-filter: blur(18px); border-bottom: 1px solid var(--border-row);">
+    <div style="max-width: 1160px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 24px;">
+      <a href="#topo" style="display: inline-flex; align-items: center; gap: 10px; flex: none;">
+        <img src="/sobre/assets/prestare-icon.png" alt="Prestare Click" width="36" height="36" style="display: block; border-radius: 9px;">
+        <span style="font: var(--weight-extrabold) 19px/1 var(--font-display); letter-spacing: .04em; color: var(--prestare-blue-900);">PRESTARE <span style="color: var(--prestare-blue-500);">CLICK</span></span>
+      </a>
+      <nav style="display: flex; align-items: center; gap: 26px; margin-left: auto; font: var(--type-body-strong); flex-wrap: wrap;">
+        <a href="#app" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Para o morador</a>
+        <a href="#console" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Para o síndico</a>
+        <a href="#modulos" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Módulos</a>
+        <a href="#duvidas" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Dúvidas</a>
+      </nav>
+      <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="flex: none;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="sm" icon-right="arrow-right" hint-size="180px,36px">Falar no WhatsApp</x-import>
+      </a>
+    </div>
+  </header>
+
+  <div id="topo" style="position: relative; background: linear-gradient(180deg, #f4f7fd 0%, var(--surface-app) 78%); border-bottom: 1px solid var(--border-row); overflow: hidden;">
+    <div style="position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(37,96,232,.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(37,96,232,.07) 1px, transparent 1px); background-size: 64px 64px; mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 85%); -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 35%, transparent 85%);"></div>
+
+    <section style="position: relative; max-width: 1160px; margin: 0 auto; padding: 64px 24px 56px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 48px; align-items: center;">
+      <div style="min-width: 0;">
+        <span style="display: inline-flex; align-items: center; gap: 8px; font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600); background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-pill); padding: 6px 13px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--green-500); animation: ps-pulse 2s infinite;"></span>
+          App do morador + console da portaria
+        </span>
+        <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Todo o condomínio<br><span style="color: var(--prestare-blue-500);">na palma da mão</span></h1>
+        <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Visitantes, encomendas e a conta do condomínio no celular do morador — e o síndico vendo tudo acontecer no console web, sem planilha e sem livro de papel.</p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 20px; margin-top: 26px; max-width: 420px;">
+          <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Controle de acesso</span>
+          <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Gestão de encomendas</span>
+          <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Conta do condomínio</span>
+          <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Relatórios gerenciais</span>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px;">
+          <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Quero ver no meu condomínio</x-import>
+          </a>
+          <a href="#modulos">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="ghost" size="lg" hint-size="170px,52px">Ver os módulos</x-import>
+          </a>
+        </div>
+      </div>
+
+      <div style="min-width: 0; position: relative; display: flex; justify-content: center; align-items: flex-end; gap: 16px;">
+        <img src="/sobre/assets/app-ia.png" alt="Tela do Prestare IA no app do morador — clique para ampliar" onClick="{{ abrirAppIa }}" style="width: 38%; max-width: 185px; border-radius: 22px; border: 1px solid var(--border-subtle); box-shadow: 0 14px 34px rgba(26,29,35,.12); display: block; margin-bottom: 26px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), box-shadow 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-6px); box-shadow: 0 20px 44px rgba(26,29,35,.18);">
+        <img src="/sobre/assets/app-home.jpeg" alt="Tela inicial do app do morador — clique para ampliar" onClick="{{ abrirAppHome }}" style="width: 50%; max-width: 245px; border-radius: 26px; border: 1px solid var(--border-subtle); box-shadow: 0 22px 48px rgba(26,29,35,.16); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), box-shadow 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-6px); box-shadow: 0 28px 56px rgba(26,29,35,.22);">
+      </div>
+    </section>
+  </div>
+
+  <sc-if value="{{ mostrarNumeros }}" hint-placeholder-val="{{ true }}">
+    <section style="max-width: 1160px; margin: 0 auto; padding: 24px;">
+      <div style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 28px 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 24px;">
+        <div style="min-width: 0;">
+          <div style="font: var(--weight-extrabold) 34px/1 var(--font-ui); letter-spacing: -.02em; color: var(--prestare-blue-500); font-variant-numeric: tabular-nums;">1 app</div>
+          <div style="margin-top: 8px; font: var(--type-sub); color: var(--text-muted);">Para todos os moradores</div>
+        </div>
+        <div style="min-width: 0;">
+          <div style="font: var(--weight-extrabold) 34px/1 var(--font-ui); letter-spacing: -.02em; color: var(--prestare-blue-500); font-variant-numeric: tabular-nums;">24/7</div>
+          <div style="margin-top: 8px; font: var(--type-sub); color: var(--text-muted);">Portaria registrando entrada e saída</div>
+        </div>
+        <div style="min-width: 0;">
+          <div style="font: var(--weight-extrabold) 34px/1 var(--font-ui); letter-spacing: -.02em; color: var(--prestare-blue-500); font-variant-numeric: tabular-nums;">0</div>
+          <div style="margin-top: 8px; font: var(--type-sub); color: var(--text-muted);">Livro de papel na recepção</div>
+        </div>
+        <div style="min-width: 0;">
+          <div style="font: var(--weight-extrabold) 34px/1 var(--font-ui); letter-spacing: -.02em; color: var(--prestare-blue-500); font-variant-numeric: tabular-nums;">iOS · Android</div>
+          <div style="margin-top: 8px; font: var(--type-sub); color: var(--text-muted);">E o console no navegador</div>
+        </div>
+      </div>
+    </section>
+  </sc-if>
+
+  <section id="app" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
+    <div style="max-width: 1160px; margin: 0 auto; padding: 64px 24px;">
+      <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o morador</span>
+      <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">Bonito de usar — e simples o bastante para ninguém precisar de treinamento.</h2>
+      <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Três toques resolvem o dia a dia: liberar quem chega, ver a encomenda na portaria e conferir a conta do condomínio.</p>
+
+      <div style="margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; align-items: center;">
+        <div style="min-width: 0; display: grid; gap: 14px;">
+          <div style="display: flex; gap: 14px; align-items: flex-start; background: var(--surface-app); border-radius: var(--radius-lg); padding: 18px;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="contact-round" tone="brand" hint-size="44px,44px"></x-import>
+            <div style="min-width: 0;"><h3 style="margin: 0; font: var(--type-h3); color: var(--text-strong);">Visitante liberado antes de chegar</h3><p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-muted);">O morador cadastra pelo app; na portaria é só confirmar. Sem ligação, sem fila no portão.</p></div>
+          </div>
+          <div style="display: flex; gap: 14px; align-items: flex-start; background: var(--surface-app); border-radius: var(--radius-lg); padding: 18px;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="wallet" tone="success" hint-size="44px,44px"></x-import>
+            <div style="min-width: 0;"><h3 style="margin: 0; font: var(--type-h3); color: var(--text-strong);">A conta do condomínio na hora</h3><p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-muted);">Valor em aberto, vencimento e boleto na tela — e <span style="white-space: nowrap;">Nenhuma pendência</span> quando está tudo certo.</p></div>
+          </div>
+          <div style="display: flex; gap: 14px; align-items: flex-start; background: var(--surface-app); border-radius: var(--radius-lg); padding: 18px;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="package" tone="violet" hint-size="44px,44px"></x-import>
+            <div style="min-width: 0;"><h3 style="margin: 0; font: var(--type-h3); color: var(--text-strong);">Encomenda avisada, não esquecida</h3><p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-muted);">Chegou na portaria, apareceu no app com a contagem do que aguarda retirada.</p></div>
+          </div>
+          <div style="display: flex; gap: 14px; align-items: flex-start; background: var(--surface-app); border-radius: var(--radius-lg); padding: 18px;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="building-complex" tone="neutral" hint-size="44px,44px"></x-import>
+            <div style="min-width: 0;"><h3 style="margin: 0; font: var(--type-h3); color: var(--text-strong);">Mais de um endereço, um login</h3><p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-muted);">Quem mora em um e investe em outro troca de condomínio sem sair do app.</p></div>
+          </div>
+        </div>
+
+        <div style="min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+          <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; width: 100%;">
+            <img src="/sobre/assets/app-visitantes.jpeg" alt="Tela de visitantes do app do morador — clique para ampliar" onClick="{{ abrirAppVisitantes }}" style="width: 44%; min-width: 150px; max-width: 220px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1); " style-hover="transform: translateY(-6px);">
+            <img src="/sobre/assets/app-financeiro.jpeg" alt="Tela do financeiro do app do morador — clique para ampliar" onClick="{{ abrirAppFinanceiro }}" style="width: 44%; min-width: 150px; max-width: 220px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-6px);">
+          </div>
+          <span style="display: inline-flex; align-items: center; gap: 7px; font: var(--type-caption); color: var(--text-faint);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="search" size="14" hint-size="14px,14px"></x-import>Clique em uma tela para ampliar</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="console" style="max-width: 1160px; margin: 0 auto; padding: 64px 24px 24px;">
+    <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o síndico e a portaria</span>
+    <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 28ch; text-wrap: pretty;">O console web mostra quem está no condomínio agora.</h2>
+    <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Mesma informação do app, do outro lado do balcão: ativos no local, liberados aguardando, quem saiu e o total registrado — com PIN, documento protegido e baixa por apartamento.</p>
+
+    <div style="margin-top: 32px; display: grid; gap: 16px;">
+      <figure onClick="{{ abrirWebVisitantes }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-floating); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
+        <img src="/sobre/assets/web-visitantes.png" alt="Console web: lista de visitantes com status no condomínio" style="display: block; width: 100%; border-radius: 14px;">
+        <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;">Visitantes · controle de acesso, entrada e saída do condomínio <span style="font: var(--type-caption); color: var(--prestare-blue-500);">Clique para ampliar</span></figcaption>
+      </figure>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+        <figure onClick="{{ abrirWebFinanceiro }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
+          <img src="/sobre/assets/web-financeiro.png" alt="Console web: controle financeiro com inadimplência por bloco" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Financeiro · fluxo de caixa, pendências por apartamento e exportação em CSV</figcaption>
+        </figure>
+        <figure onClick="{{ abrirWebLogin }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
+          <img src="/sobre/assets/web-login.png" alt="Painel de acesso do console web Prestare Click" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Painel de acesso · turno da portaria ou entrada por QR Code</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="modulos" style="max-width: 1160px; margin: 0 auto; padding: 48px 24px 56px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: baseline; justify-content: space-between;">
+      <div style="min-width: 0;">
+        <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Módulos</span>
+        <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong);">Começa pelos três que o condomínio usa todo dia</h2>
+      </div>
+      <p style="margin: 0; font: var(--type-sub); color: var(--text-muted); max-width: 38ch;">Cada módulo é ligado por condomínio — você paga e usa só o que precisa.</p>
+    </div>
+
+    <div style="margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="contact-round" tone="brand" size="lg" hint-size="52px,52px"></x-import>
+        <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Visitantes</h3>
+        <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Cadastro pelo morador, validação de PIN na portaria e status <strong style="font-weight: 600; color: var(--green-600);">No local</strong> em tempo real.</p>
+        <ul style="margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; font: var(--type-sub); color: var(--text-body);">
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Visitante, prestador e entregador</li>
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Documento mascarado por permissão</li>
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Baixa e nova visita em um clique</li>
+        </ul>
+      </article>
+
+      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="wallet" tone="success" size="lg" hint-size="52px,52px"></x-import>
+        <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Financeiro</h3>
+        <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Receitas, despesas e inadimplência por bloco. O morador vê a própria conta; o síndico vê o caixa.</p>
+        <ul style="margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; font: var(--type-sub); color: var(--text-body);">
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Histórico de pendências por apartamento</li>
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Notificar morador direto do painel</li>
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Exportação em CSV por período</li>
+        </ul>
+      </article>
+
+      <article style="min-width: 0; background: var(--surface-card); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 26px;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="package" tone="violet" size="lg" hint-size="52px,52px"></x-import>
+        <h3 style="margin: 18px 0 0; font: var(--weight-bold) 20px/1.2 var(--font-ui); letter-spacing: -.012em; color: var(--text-strong);">Encomendas</h3>
+        <p style="margin: 8px 0 0; font: var(--type-body); color: var(--text-muted);">Recebimento registrado na portaria, aviso no app e retirada com responsável identificado.</p>
+        <ul style="margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; font: var(--type-sub); color: var(--text-body);">
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Contagem do que aguarda retirada</li>
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Foto e volume anotados no recebimento</li>
+          <li style="display: flex; gap: 9px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>Fim do "não avisaram que chegou"</li>
+        </ul>
+      </article>
+    </div>
+
+    <p style="margin: 28px 0 12px; font: var(--type-body-strong); color: var(--text-strong);">E também no mesmo console:</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 9px 16px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="truck" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Prestadores</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 9px 16px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="circle-alert" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Ocorrências</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 9px 16px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="users" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Moradores e apartamentos</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 9px 16px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="car" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Veículos</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 9px 16px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="megaphone" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Comunicados</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 9px 16px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="calendar-days" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Áreas sociais</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 9px 16px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="file-text" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Assembleias</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 9px 16px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="chart-column" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Relatórios gerenciais</span>
+    </div>
+  </section>
+
+  <section style="max-width: 1160px; margin: 0 auto; padding: 0 24px 56px;">
+    <div style="background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 28px;">
+      <div style="min-width: 0;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="id-card" tone="brand" hint-size="44px,44px"></x-import>
+        <h3 style="margin: 14px 0 0; font: var(--type-h3); color: var(--text-strong);">Dados pessoais sob a LGPD</h3>
+        <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-muted);">Documento de visitante aparece mascarado (<span style="font-family: var(--font-mono);">453.***.***-52</span>) e só é revelado por quem tem permissão — com o acesso registrado.</p>
+      </div>
+      <div style="min-width: 0;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="shield-check" tone="brand" hint-size="44px,44px"></x-import>
+        <h3 style="margin: 14px 0 0; font: var(--type-h3); color: var(--text-strong);">Histórico que não se apaga</h3>
+        <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-muted);">Cada entrada, saída e baixa fica com autor, data e hora. Em caso de dúvida, a prova está no sistema.</p>
+      </div>
+      <div style="min-width: 0;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="settings" tone="brand" hint-size="44px,44px"></x-import>
+        <h3 style="margin: 14px 0 0; font: var(--type-h3); color: var(--text-strong);">Perfis separados</h3>
+        <p style="margin: 6px 0 0; font: var(--type-sub); color: var(--text-muted);">Portaria, síndico e administradora veem exatamente o que lhes cabe — nem mais, nem menos.</p>
+      </div>
+    </div>
+  </section>
+
+  <sc-if value="{{ mostrarFaq }}" hint-placeholder-val="{{ true }}">
+    <section id="duvidas" style="max-width: 1160px; margin: 0 auto; padding: 0 24px 56px;">
+      <h2 style="margin: 0 0 24px; font: var(--weight-extrabold) clamp(24px, 2.4vw, 30px)/1.15 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong);">Dúvidas frequentes</h2>
+      <div style="display: grid; gap: 10px;">
+        <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
+          <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Precisa trocar os equipamentos da portaria?</summary>
+          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">Não. O console roda no navegador do computador que já existe na portaria. Leitor facial e catraca são opcionais e entram depois, se o condomínio quiser.</p>
+        </details>
+        <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
+          <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">E o morador que não tem paciência com aplicativo?</summary>
+          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">A portaria registra tudo do mesmo jeito. O app é o atalho: quem usa libera visitante e vê a conta em segundos; quem não usa continua atendido no balcão.</p>
+        </details>
+        <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
+          <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Quanto tempo leva para começar a rodar?</summary>
+          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">Blocos, apartamentos e moradores são importados de planilha. Com a lista em mãos, a portaria começa a registrar no mesmo dia.</p>
+        </details>
+        <details style="background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px 20px;">
+          <summary style="font: var(--type-body-strong); color: var(--text-strong); cursor: pointer;">Se a internet cair, para tudo?</summary>
+          <p style="margin: 10px 0 0; font: var(--type-body); color: var(--text-muted);">Não. A portaria continua registrando e o sistema sincroniza quando a conexão volta — o status <strong style="font-weight: 600;">Sinc.</strong> mostra o que ainda está subindo.</p>
+        </details>
+      </div>
+    </section>
+  </sc-if>
+
+  <section id="contato" style="max-width: 1160px; margin: 0 auto; padding: 0 24px 72px;">
+    <div style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 36px; align-items: center;">
+      <div style="min-width: 0;">
+        <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Veja o Prestare Click com o seu condomínio dentro.</h2>
+        <p style="margin: 14px 0 0; font: var(--type-body); color: rgba(255,255,255,.85); max-width: 44ch;">20 minutos de demonstração: app do morador, console da portaria e os relatórios que o conselho pede.</p>
+        <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
+          <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="align-self: flex-start;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="lg" icon-left="phone" hint-size="220px,52px">Falar no WhatsApp agora</x-import>
+          </a>
+          <a href="mailto:suporte@clickprestarecondominios.com.br" style="font: var(--type-sub); color: rgba(255,255,255,.88); text-decoration: underline;">suporte@clickprestarecondominios.com.br</a>
+        </div>
+      </div>
+
+      <div style="min-width: 0; background: var(--surface-card); border-radius: var(--radius-xl); padding: 24px; box-shadow: 0 18px 40px rgba(6,42,93,.28);">
+        <sc-if value="{{ enviado }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 12px 0;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="circle-check" tone="success" size="lg" hint-size="52px,52px"></x-import>
+            <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedido registrado</h3>
+            <p style="margin: 0; font: var(--type-body); color: var(--text-muted);">Abrimos o WhatsApp com os seus dados. Se a janela não abrir, chame em <strong style="font-weight: 600;">{{ telefone }}</strong>.</p>
+          </div>
+        </sc-if>
+        <sc-if value="{{ mostrarForm }}" hint-placeholder-val="{{ true }}">
+          <form onSubmit="{{ enviar }}" style="display: grid; gap: 14px;">
+            <div>
+              <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedir demonstração</h3>
+              <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">Preencha e continuamos a conversa no WhatsApp.</p>
+            </div>
+            <label style="display: grid; gap: 6px;">
+              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Seu nome</span>
+              <input name="nome" required placeholder="Ex: Vinicius Rufini">
+            </label>
+            <label style="display: grid; gap: 6px;">
+              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Condomínio</span>
+              <input name="condominio" required placeholder="Ex: Edifício Demo">
+            </label>
+            <label style="display: grid; gap: 6px;">
+              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">WhatsApp</span>
+              <input name="contato" required placeholder="(00) 00000-0000">
+            </label>
+            <label style="display: grid; gap: 6px;">
+              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Quantas unidades</span>
+              <input name="unidades" placeholder="Ex: 59 apartamentos">
+            </label>
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" type="submit" size="lg" full-width="{{ true }}" icon-right="arrow-right" hint-size="100%,52px">Enviar e abrir o WhatsApp</x-import>
+            <span style="font: var(--type-caption); color: var(--text-faint);">Usamos os dados só para responder este contato.</span>
+          </form>
+        </sc-if>
+      </div>
+    </div>
+  </section>
+
+  <footer style="border-top: 1px solid var(--border-row); background: var(--surface-card);">
+    <div style="max-width: 1160px; margin: 0 auto; padding: 28px 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;">
+      <span style="display: inline-flex; align-items: center; gap: 10px;">
+        <img src="/sobre/assets/prestare-icon.png" alt="" width="28" height="28" style="display: block; border-radius: 7px;">
+        <span style="font: var(--type-caption); color: var(--text-muted);">Prestare Click · controle de acesso para condomínios</span>
+      </span>
+      <span style="font: var(--type-caption); color: var(--text-faint);">suporte@clickprestarecondominios.com.br · clickprestarecondominios.com.br</span>
+    </div>
+  </footer>
+
+  <sc-if value="{{ telaAberta }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ fecharTela }}" style="position: fixed; inset: 0; z-index: 60; background: rgba(26,29,35,.58); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 12px; animation: ps-fade 180ms cubic-bezier(.2,.8,.28,1);">
+      <div style="width: {{ modalLargura }}; max-width: min(98vw, 1480px); max-height: 94vh; overflow: auto; background: var(--surface-card); border-radius: 22px; box-shadow: 0 30px 80px rgba(6,42,93,.35); animation: ps-zoom 260ms cubic-bezier(.2,.8,.28,1); display: flex; flex-direction: column;">
+        <div style="position: sticky; top: 0; z-index: 2; background: var(--surface-card); border-bottom: 1px solid var(--border-row); padding: 14px 18px; display: flex; align-items: center; gap: 12px; justify-content: space-between;">
+          <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+            <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">{{ telaTipo }}</span>
+            <span style="font: var(--weight-extrabold) clamp(19px, 2vw, 24px)/1.15 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong);">{{ telaTitulo }}</span>
+          </span>
+          <span onClick="{{ fecharTela }}" style="cursor: pointer; flex: none;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="x" hint-size="44px,44px"></x-import>
+          </span>
+        </div>
+
+        <sc-if value="{{ telaRetrato }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-wrap: wrap; align-items: stretch;">
+            <div style="flex: 0 1 auto; background: var(--surface-app); padding: 18px; display: flex; align-items: center; justify-content: center;">
+              {{ telaImgRetrato }}
+            </div>
+            <div style="flex: 0 1 430px; min-width: 0; padding: 26px 28px; display: flex; flex-direction: column; gap: 16px; justify-content: center;">
+              <p style="margin: 0; font: var(--weight-regular) 17px/1.6 var(--font-ui); color: var(--text-muted); text-wrap: pretty; max-width: 56ch;">{{ telaTexto }}</p>
+              <ul style="margin: 0; padding: 0; list-style: none; display: grid; gap: 12px;">
+                <sc-for list="{{ telaItens }}" as="item" hint-placeholder-count="3">
+                  <li style="display: flex; gap: 10px; align-items: flex-start; font: var(--type-body); color: var(--text-body);">
+                    <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="18" color="var(--green-600)" hint-size="18px,18px"></x-import>{{ item }}
+                  </li>
+                </sc-for>
+              </ul>
+              <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Ver funcionando ao vivo</x-import>
+                </a>
+                <span style="font: var(--type-caption); color: var(--text-faint);">Esc para fechar</span>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ telaPaisagem }}" hint-placeholder-val="{{ true }}">
+          <div style="background: var(--surface-app); padding: 10px; display: flex; align-items: center; justify-content: center;">
+            {{ telaImgPaisagem }}
+          </div>
+          <div style="padding: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px 32px; align-items: start;">
+            <p style="margin: 0; font: var(--type-body); color: var(--text-muted); text-wrap: pretty; max-width: 62ch;">{{ telaTexto }}</p>
+            <ul style="margin: 0; padding: 0; list-style: none; display: grid; gap: 10px;">
+              <sc-for list="{{ telaItens }}" as="item" hint-placeholder-count="3">
+                <li style="display: flex; gap: 10px; align-items: flex-start; font: var(--type-sub); color: var(--text-body);">
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import>{{ item }}
+                </li>
+              </sc-for>
+            </ul>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+              <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
+                <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Ver funcionando ao vivo</x-import>
+              </a>
+              <span style="font: var(--type-caption); color: var(--text-faint);">Esc para fechar</span>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;whatsapp&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;5517988338147&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Contato&quot;},&quot;mostrarNumeros&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;},&quot;mostrarFaq&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;}}">
+class Component extends DCLogic {
+  state = { enviado: false, tela: null };
+
+  TELAS = {
+    "app-home": {
+      src: "/sobre/assets/app-home.jpeg", tipo: "App do morador", titulo: "Início",
+      texto: "A primeira tela do morador: saudação, resumo do dia com visitas agendadas e encomendas aguardando retirada, e a lista dos condomínios em que ele tem unidade. Abaixo, os eventos recentes de entrada e saída da própria unidade.",
+      itens: ["Resumo geral do dia", "Troca entre condomínios", "Eventos recentes da unidade"]
+    },
+    "app-ia": {
+      src: "/sobre/assets/app-ia.png", tipo: "App do morador", titulo: "Prestare IA",
+      texto: "O assistente dentro do app. O morador pergunta em português e recebe a resposta do próprio condomínio — ou pede para resolver: reservar área, abrir ocorrência, pagar boleto.",
+      itens: ["Perguntas sobre visitas, assembleias e portaria", "Executa ações no lugar do morador", "Sugestões prontas para começar"]
+    },
+    "app-visitantes": {
+      src: "/sobre/assets/app-visitantes.jpeg", tipo: "App do morador", titulo: "Visitantes e prestadores",
+      texto: "O morador cadastra quem vai visitar antes de a pessoa chegar, gera o PIN de acesso e acompanha o status. Na portaria, é só confirmar — sem ligação e sem fila no portão.",
+      itens: ["Busca por nome ou documento", "PIN de acesso por visitante", "No local e Cadastrados separados"]
+    },
+    "app-financeiro": {
+      src: "/sobre/assets/app-financeiro.jpeg", tipo: "App do morador", titulo: "Meu financeiro",
+      texto: "A conta do condomínio na palma da mão: total pendente em destaque, mês a mês, e cada conta com o próprio status — Condomínio, Aluguel, Água, Luz e Internet.",
+      itens: ["Total pendente do mês", "1 pendente · Nenhuma pendência", "Boleto direto na conta"]
+    },
+    "web-visitantes": {
+      src: "/sobre/assets/web-visitantes.png", tipo: "Console web", titulo: "Visitantes",
+      texto: "A tela que a portaria usa no turno inteiro. Ativos no local, liberados aguardando, quem saiu e o total registrado — com documento mascarado, validação de PIN e baixa por apartamento.",
+      itens: ["Ativos no local em tempo real", "Dar baixa e nova visita em um clique", "Documento revelado só por permissão"]
+    },
+    "web-financeiro": {
+      src: "/sobre/assets/web-financeiro.png", tipo: "Console web", titulo: "Controle financeiro",
+      texto: "Fluxo de caixa, auditoria de pagamentos e inadimplência por bloco. O síndico abre um apartamento, vê o histórico de pendências e notifica o morador sem sair do painel.",
+      itens: ["Receitas, despesas e saldo do período", "Inadimplência por bloco e apartamento", "Exportação em CSV"]
+    },
+    "web-login": {
+      src: "/sobre/assets/web-login.png", tipo: "Console web", titulo: "Painel de acesso",
+      texto: "Entrada da portaria no início do turno, com credenciais próprias por perfil. Quem prefere o celular acessa pelo QR Code e cai direto no app.",
+      itens: ["Perfis de portaria, síndico e administradora", "Acesso por QR Code", "Sessão por turno"]
+    }
+  };
+
+  abrir = (id) => () => this.setState({ tela: id });
+  fechar = () => this.setState({ tela: null });
+
+  componentDidMount() {
+    this._esc = (e) => { if (e.key === "Escape") this.fechar(); };
+    window.addEventListener("keydown", this._esc);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener("keydown", this._esc);
+  }
+
+  enviar = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const texto = [
+      "Olá! Quero uma demonstração do Prestare Click.",
+      "Nome: " + (f.get("nome") || "-"),
+      "Condomínio: " + (f.get("condominio") || "-"),
+      "WhatsApp: " + (f.get("contato") || "-"),
+      "Unidades: " + (f.get("unidades") || "-")
+    ].join("\n");
+    const num = (this.props.whatsapp ?? "5517988338147").replace(/\D/g, "");
+    window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(texto), "_blank", "noopener");
+    this.setState({ enviado: true });
+  };
+
+  renderVals() {
+    const num = (this.props.whatsapp ?? "5517988338147").replace(/\D/g, "");
+    const t = this.state.tela ? this.TELAS[this.state.tela] : null;
+    return {
+      telaAberta: !!t,
+      telaRetrato: !!t && t.tipo === "App do morador",
+      modalLargura: !!t && t.tipo === "App do morador" ? "fit-content" : "min(98vw, 1480px)",
+      telaPaisagem: !!t && t.tipo !== "App do morador",
+      telaImgRetrato: t ? React.createElement("img", {
+        src: t.src, alt: t.titulo,
+        style: { display: "block", width: "auto", maxWidth: "100%", maxHeight: "74vh", borderRadius: 14, border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-row)" }
+      }) : null,
+      telaImgPaisagem: t ? React.createElement("img", {
+        src: t.src, alt: t.titulo,
+        style: { display: "block", width: "100%", maxWidth: "100%", borderRadius: 12, border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-row)" }
+      }) : null,
+      telaTipo: t ? t.tipo : "",
+      telaTitulo: t ? t.titulo : "",
+      telaTexto: t ? t.texto : "",
+      telaItens: t ? t.itens : [],
+      fecharTela: this.fechar,
+      abrirAppHome: this.abrir("app-home"),
+      abrirAppIa: this.abrir("app-ia"),
+      abrirAppVisitantes: this.abrir("app-visitantes"),
+      abrirAppFinanceiro: this.abrir("app-financeiro"),
+      abrirWebVisitantes: this.abrir("web-visitantes"),
+      abrirWebFinanceiro: this.abrir("web-financeiro"),
+      abrirWebLogin: this.abrir("web-login"),
+      mostrarNumeros: this.props.mostrarNumeros ?? true,
+      mostrarFaq: this.props.mostrarFaq ?? true,
+      telefone: this.props.whatsapp ?? "5517988338147",
+      linkWhatsapp: "https://wa.me/" + num + "?text=" + encodeURIComponent("Olá! Quero conhecer o Prestare Click para o meu condomínio."),
+      enviado: this.state.enviado,
+      mostrarForm: !this.state.enviado,
+      enviar: this.enviar
+    };
+  }
+}
+</script>
+</body>
+</html>

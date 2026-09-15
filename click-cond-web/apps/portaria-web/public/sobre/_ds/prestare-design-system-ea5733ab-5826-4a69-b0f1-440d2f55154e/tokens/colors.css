@@ -1,0 +1,90 @@
+:root{
+/* ---------- Brand ---------- */
+--prestare-blue-900:#062a5d; /* logo gradient end / deepest navy */
+--prestare-blue-800:#0b4a9b; /* logo gradient start */
+--prestare-blue-700:#1a45b8;
+--prestare-blue-600:#1e4fd8; /* hero gradient end */
+--prestare-blue-500:#2560e8; /* PRIMARY — buttons, active tab, links */
+--prestare-blue-400:#4a7bf0;
+--prestare-blue-300:#93b1ff;
+--prestare-blue-200:#c2d3ff;
+--prestare-blue-100:#dde7ff; /* icon chip fill */
+--prestare-blue-50:#eef3ff;  /* tint surface */
+--prestare-yellow:#ffd400;   /* logo mark accent — mark only, never UI chrome */
+--prestare-yellow-dark:#e0bb00;
+
+/* ---------- Neutrals ---------- */
+--neutral-0:#ffffff;
+--neutral-25:#fafbfc;
+--neutral-50:#f7f8fa; /* app background / resting row fill */
+--neutral-100:#eff0f2;
+--neutral-200:#e4e6ea;
+--neutral-300:#d2d5db;
+--neutral-400:#b0b5bd;
+--neutral-500:#9aa0aa;
+--neutral-600:#636771; /* inactive tab label */
+--neutral-700:#464a53;
+--neutral-800:#2b2f36;
+--neutral-900:#1a1d23; /* headings */
+
+/* ---------- Semantic hues ---------- */
+--green-600:#05a377;
+--green-500:#06c18e; /* "NO LOCAL" / entered */
+--green-100:#d6f7ec;
+--green-50:#eafaf4;
+--red-600:#cf3b40;
+--red-500:#e5484d; /* pendente */
+--red-100:#fbdcdd;
+--red-50:#fdeeee;
+--amber-600:#c9820f;
+--amber-500:#e8a020; /* sinc. / energia */
+--amber-100:#fbe9c8;
+--amber-50:#fdf5e6;
+--violet-500:#6c5ce7; /* "Saiu" / exit events */
+--violet-100:#e0e1ff;
+--violet-50:#f0f0ff;
+--cyan-500:#2aa7d8; /* água */
+--cyan-100:#d4e6f3;
+--cyan-50:#eaf5fb;
+
+/* ---------- Semantic aliases ---------- */
+--surface-app:var(--neutral-50);
+--surface-card:var(--neutral-0);
+--surface-sunken:var(--neutral-50);
+--surface-row:var(--neutral-50);
+--surface-row-hover:var(--neutral-100);
+--surface-tint:var(--prestare-blue-50);
+--surface-inverse:var(--prestare-blue-500);
+--surface-chip:var(--prestare-blue-100);
+--surface-overlay:rgba(26,29,35,.45);
+
+--text-strong:var(--neutral-900);
+--text-body:var(--neutral-800);
+--text-muted:var(--neutral-600);
+--text-faint:var(--neutral-500);
+--text-on-brand:var(--neutral-0);
+--text-on-brand-muted:rgba(255,255,255,.72);
+--text-link:var(--prestare-blue-500);
+--text-danger:var(--red-500);
+--text-success:var(--green-600);
+
+--border-subtle:var(--neutral-200);
+--border-row:var(--neutral-100);
+--border-strong:var(--neutral-300);
+--border-brand:var(--prestare-blue-500);
+--border-danger:var(--red-100);
+
+--icon-default:var(--neutral-700);
+--icon-muted:var(--neutral-500);
+--icon-brand:var(--prestare-blue-500);
+--icon-on-brand:var(--neutral-0);
+
+--gradient-hero:linear-gradient(118deg,#2a62de 0%,#2560e8 46%,#1e4fd8 100%); /* @kind color */
+--gradient-brandmark:linear-gradient(160deg,#0b4a9b 0%,#062a5d 100%); /* @kind color */
+
+--status-in:var(--prestare-blue-500);
+--status-out:var(--violet-500);
+--status-onsite:var(--green-500);
+--status-pending:var(--red-500);
+--status-syncing:var(--amber-500);
+}

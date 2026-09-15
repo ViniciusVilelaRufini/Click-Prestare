@@ -1,0 +1,11 @@
+:root{
+--radius-xs:6px;
+--radius-sm:10px;
+--radius-md:14px;   /* icon chips, small tiles */
+--radius-lg:18px;   /* list rows, cards */
+--radius-xl:22px;   /* hero cards, account tiles */
+--radius-2xl:28px;  /* floating tab bar */
+--radius-pill:999px;
+--radius-avatar:999px;
+--radius-thumb:16px; /* condominium photo thumbnails */
+}

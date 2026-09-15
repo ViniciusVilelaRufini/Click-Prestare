@@ -1,0 +1,6 @@
+/* Prestare webfonts — Google Fonts.
+   SUBSTITUTION NOTICE: no font binaries were supplied with the source screenshots.
+   Figtree stands in for the app's UI sans (geometric, tall x-height, double-storey 'a').
+   Poppins stands in for the PRESTARE wordmark / display weight.
+   Replace these @import lines with real @font-face rules once the brand files arrive. */
+@import url("https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=Poppins:wght@600;700;800&display=swap");

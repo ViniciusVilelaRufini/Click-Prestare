@@ -1,0 +1,26 @@
+:root{
+--space-0:0px;
+--space-1:2px;
+--space-2:4px;
+--space-3:6px;
+--space-4:8px;
+--space-5:10px;
+--space-6:12px;
+--space-7:14px;
+--space-8:16px;   /* screen gutter */
+--space-10:20px;
+--space-12:24px;  /* section gap */
+--space-14:28px;
+--space-16:32px;
+--space-20:40px;
+--space-24:48px;
+
+--gutter-screen:16px;
+--gap-row:10px;      /* between stacked list rows */
+--gap-section:24px;  /* between page sections */
+--pad-card:16px;
+--pad-row:14px 16px;
+--tap-min:44px;      /* never smaller */
+--tabbar-height:64px;
+--appbar-height:56px;
+}

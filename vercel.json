@@ -10,6 +10,14 @@
       "destination": "https://click-prestare-production.up.railway.app/simulador-acesso.html"
     },
     {
+      "source": "/sobre",
+      "destination": "/sobre/index.html"
+    },
+    {
+      "source": "/sobre/",
+      "destination": "/sobre/index.html"
+    },
+    {
       "source": "/:path*",
       "destination": "/index.html"
     }

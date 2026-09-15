@@ -1,0 +1,33 @@
+:root{
+--font-ui:"Figtree","Helvetica Neue",system-ui,sans-serif;
+--font-display:"Poppins","Figtree",system-ui,sans-serif;
+--font-mono:ui-monospace,"SFMono-Regular",Menlo,monospace;
+
+--weight-regular:400;
+--weight-medium:500;
+--weight-semibold:600;
+--weight-bold:700;
+--weight-extrabold:800;
+
+/* Mobile-first scale, lifted from the app screens (390pt design width) */
+--text-display-size:34px;  --text-display-lh:38px;  --text-display-ls:-.02em;
+--text-h1-size:27px;       --text-h1-lh:32px;       --text-h1-ls:-.018em;
+--text-h2-size:21px;       --text-h2-lh:26px;       --text-h2-ls:-.012em;
+--text-h3-size:17px;       --text-h3-lh:22px;       --text-h3-ls:-.006em;
+--text-body-size:15px;     --text-body-lh:21px;     --text-body-ls:0em;
+--text-sub-size:14px;      --text-sub-lh:19px;      --text-sub-ls:0em;
+--text-caption-size:12px;  --text-caption-lh:16px;  --text-caption-ls:.004em;
+--text-overline-size:11px; --text-overline-lh:14px; --text-overline-ls:.07em;
+--text-amount-size:32px;   --text-amount-lh:36px;   --text-amount-ls:-.02em;
+
+--type-display:var(--weight-extrabold) var(--text-display-size)/var(--text-display-lh) var(--font-display);
+--type-h1:var(--weight-extrabold) var(--text-h1-size)/var(--text-h1-lh) var(--font-ui);
+--type-h2:var(--weight-bold) var(--text-h2-size)/var(--text-h2-lh) var(--font-ui);
+--type-h3:var(--weight-semibold) var(--text-h3-size)/var(--text-h3-lh) var(--font-ui);
+--type-body:var(--weight-regular) var(--text-body-size)/var(--text-body-lh) var(--font-ui);
+--type-body-strong:var(--weight-semibold) var(--text-body-size)/var(--text-body-lh) var(--font-ui);
+--type-sub:var(--weight-regular) var(--text-sub-size)/var(--text-sub-lh) var(--font-ui);
+--type-caption:var(--weight-medium) var(--text-caption-size)/var(--text-caption-lh) var(--font-ui);
+--type-overline:var(--weight-bold) var(--text-overline-size)/var(--text-overline-lh) var(--font-ui);
+--type-amount:var(--weight-extrabold) var(--text-amount-size)/var(--text-amount-lh) var(--font-ui);
+}
