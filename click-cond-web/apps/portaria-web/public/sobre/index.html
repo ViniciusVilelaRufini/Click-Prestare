@@ -393,16 +393,25 @@
             <div class="ps-modal-img" style="flex: 0 1 auto; background: var(--surface-app); padding: 18px; display: flex; align-items: center; justify-content: center;">
               {{ telaImgRetrato }}
             </div>
-            <div class="ps-modal-txt" style="flex: 0 1 430px; min-width: 0; padding: 26px 28px; display: flex; flex-direction: column; gap: 16px; justify-content: center;">
-              <p style="margin: 0; font: var(--weight-regular) 17px/1.6 var(--font-ui); color: var(--text-muted); text-wrap: pretty; max-width: 56ch;">{{ telaTexto }}</p>
-              <ul style="margin: 0; padding: 0; list-style: none; display: grid; gap: 12px;">
+            <!-- Ancorado no topo de proposito: com justify-content:center o texto
+                 flutuava no meio da coluna, longe do titulo do modal e com um
+                 vazio grande embaixo, porque a coluna acompanha a altura da
+                 imagem do celular (bem mais alta que o texto). -->
+            <div class="ps-modal-txt" style="flex: 0 1 430px; min-width: 0; padding: 30px 30px 26px; display: flex; flex-direction: column; gap: 18px;">
+              <div>
+                <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">O que essa tela mostra</span>
+                <p style="margin: 10px 0 0; font: var(--weight-regular) 16px/1.68 var(--font-ui); color: var(--text-muted); text-wrap: pretty; max-width: 44ch;">{{ telaTexto }}</p>
+              </div>
+              <ul style="margin: 0; padding: 18px 0 0; border-top: 1px solid var(--border-row); list-style: none; display: grid; gap: 13px;">
                 <sc-for list="{{ telaItens }}" as="item" hint-placeholder-count="3">
-                  <li style="display: flex; gap: 10px; align-items: flex-start; font: var(--type-body); color: var(--text-body);">
-                    <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="18" color="var(--green-600)" hint-size="18px,18px"></x-import>{{ item }}
+                  <li style="display: flex; gap: 11px; align-items: flex-start; font: var(--weight-regular) 15px/1.45 var(--font-ui); color: var(--text-body);">
+                    <span style="flex: none; display: inline-flex; margin-top: 2px;"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--green-600)" hint-size="17px,17px"></x-import></span>{{ item }}
                   </li>
                 </sc-for>
               </ul>
-              <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+              <!-- margin-top:auto empurra a acao para a base da coluna, em vez de
+                   deixa-la colada na lista com espaco morto embaixo. -->
+              <div style="margin-top: auto; padding-top: 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
                 <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
                   <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Ver funcionando ao vivo</x-import>
                 </a>
@@ -492,18 +501,57 @@ class Component extends DCLogic {
     window.removeEventListener("keydown", this._esc);
   }
 
+  // Partículas que não levam maiúscula no meio de um nome próprio.
+  PARTICULAS = ["de", "da", "do", "das", "dos", "e", "di", "du", "del", "van", "von"];
+
+  // O visitante digita como quer — "VINICIUS VILELA RUFINI" ou "acapulco".
+  // Só normalizamos quando veio tudo em caixa alta ou tudo em minúscula; se a
+  // pessoa capitalizou à mão, o que ela escreveu é respeitado.
+  tituloCaso = (v) => {
+    const t = String(v ?? "").trim().replace(/\s+/g, " ");
+    if (!t) return "";
+    if (t !== t.toUpperCase() && t !== t.toLowerCase()) return t;
+    return t.toLowerCase().split(" ").map((p, i) =>
+      i > 0 && this.PARTICULAS.indexOf(p) !== -1 ? p : p.charAt(0).toUpperCase() + p.slice(1)
+    ).join(" ");
+  };
+
+  // "17992559990" -> "(17) 99255-9990".
+  formatarTelefone = (v) => {
+    let d = String(v ?? "").replace(/\D/g, "");
+    // Só tira o 55 do país quando sobra número demais para ser um DDD — o 55
+    // também é o DDD de Santa Maria/RS, e não pode ser comido aqui.
+    if (d.length > 11 && d.indexOf("55") === 0) d = d.slice(2);
+    if (d.length === 11) return "(" + d.slice(0, 2) + ") " + d.slice(2, 7) + "-" + d.slice(7);
+    if (d.length === 10) return "(" + d.slice(0, 2) + ") " + d.slice(2, 6) + "-" + d.slice(6);
+    return String(v ?? "").trim();
+  };
+
   enviar = (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
-    const texto = [
-      "Olá! Quero uma demonstração do Prestare Click.",
-      "Nome: " + (f.get("nome") || "-"),
-      "Condomínio: " + (f.get("condominio") || "-"),
-      "WhatsApp: " + (f.get("contato") || "-"),
-      "Unidades: " + (f.get("unidades") || "-")
-    ].join("\n");
+    const unidadesBruto = String(f.get("unidades") ?? "").trim();
+
+    // Linha em branco entre os blocos e rótulo em negrito (*x* é a marcação do
+    // WhatsApp): sem isso a mensagem chega como um parágrafo corrido.
+    const linhas = [
+      "*Pedido de demonstração — Prestare Click*",
+      "",
+      "Olá! Gostaria de ver o Prestare Click funcionando no meu condomínio.",
+      "",
+      "*Nome:* " + this.tituloCaso(f.get("nome")),
+      "*Condomínio:* " + this.tituloCaso(f.get("condominio")),
+      "*WhatsApp:* " + this.formatarTelefone(f.get("contato"))
+    ];
+    // Unidades é o único campo opcional do formulário — em branco, sai fora da
+    // mensagem em vez de virar um "Unidades: -".
+    if (unidadesBruto) {
+      linhas.push("*Tamanho:* " + (/^\d+$/.test(unidadesBruto) ? unidadesBruto + " unidades" : unidadesBruto));
+    }
+    linhas.push("", "_Enviado pelo site clickprestarecondominios.com.br/sobre_");
+
     const num = (this.props.whatsapp ?? "5517988338147").replace(/\D/g, "");
-    window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(texto), "_blank", "noopener");
+    window.open("https://wa.me/" + num + "?text=" + encodeURIComponent(linhas.join("\n")), "_blank", "noopener");
     this.setState({ enviado: true });
   };
 
@@ -537,7 +585,7 @@ class Component extends DCLogic {
       abrirWebLogin: this.abrir("web-login"),
       mostrarNumeros: this.props.mostrarNumeros ?? true,
       mostrarFaq: this.props.mostrarFaq ?? true,
-      telefone: this.props.whatsapp ?? "5517988338147",
+      telefone: this.formatarTelefone(this.props.whatsapp ?? "5517988338147"),
       linkWhatsapp: "https://wa.me/" + num + "?text=" + encodeURIComponent("Olá! Quero conhecer o Prestare Click para o meu condomínio."),
       enviado: this.state.enviado,
       mostrarForm: !this.state.enviado,
