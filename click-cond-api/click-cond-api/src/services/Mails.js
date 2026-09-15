@@ -6,12 +6,12 @@ module.exports = {
       return new Promise( (resolve, reject) => {
         message = `
                     Olá,<br><br>
-                    Você ou alguém solicitou a recuperação de senha do App CLICK.<br><br>
+                    Você ou alguém solicitou a recuperação de senha do App PRESTARE.<br><br>
                     Utilize a senha abaixo para entrar na sua conta como ${login_type}:<br>
                     <b>${newPassword}</b>
                     <br><br>
                     Atenciosamente,<br>
-                    Equipe CLICK
+                    Equipe PRESTARE
                     `;        
 
         var remetente = nodemailer.createTransport({
@@ -26,7 +26,7 @@ module.exports = {
           var emailASerEnviado = {
             from: 'nao.responder.click@gmail.com',
             to: emailToSend,
-            subject: `CLICK - Recuperação de Senha`,
+            subject: `PRESTARE - Recuperação de Senha`,
             text: '',
             html: message,
           };
@@ -45,13 +45,13 @@ module.exports = {
       return new Promise( (resolve, reject) => {
         const message = `
                     Olá, <b>${nomeMorador}</b>!<br><br>
-                    O seu acesso ao aplicativo <b>CLICK Condomínios</b> foi criado com sucesso.<br><br>
+                    O seu acesso ao aplicativo <b>PRESTARE</b> foi criado com sucesso.<br><br>
                     Para acessar sua conta como <b>Morador</b>, baixe o aplicativo e utilize as credenciais abaixo:<br><br>
                     <b>Login (E-mail):</b> ${emailToSend}<br>
                     <b>Senha Inicial:</b> ${documentoSenha || '123456'}<br><br>
                     <i>Recomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.</i><br><br>
                     Seja muito bem-vindo(a)!<br>
-                    Equipe CLICK
+                    Equipe PRESTARE
                     `;        
 
         var remetente = nodemailer.createTransport({
@@ -66,7 +66,7 @@ module.exports = {
           var emailASerEnviado = {
             from: 'nao.responder.click@gmail.com',
             to: emailToSend,
-            subject: "CLICK - Bem-vindo(a)! Suas credenciais de acesso",
+            subject: "PRESTARE - Bem-vindo(a)! Suas credenciais de acesso",
             text: '',
             html: message,
           };

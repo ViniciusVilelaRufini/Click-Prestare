@@ -28,7 +28,7 @@ export class MailService implements OnModuleInit {
       || 'onboarding@resend.dev';
     const fromName = process.env.MAIL_FROM_NAME
       || process.env.SMTP_FROM_NAME
-      || 'Click Condomínios';
+      || 'Prestare Condomínios';
     this.fromAddress = `${fromName} <${fromEmail}>`;
 
     this.logger.log(`MailService construido. Resend=${!!this.resendKey} SMTP=${!!(this.smtpUser && this.smtpPass)} from=${this.fromAddress}`);
@@ -86,42 +86,42 @@ export class MailService implements OnModuleInit {
   }
 
   async sendWelcomeMorador(email: string, nome: string, senhaInicial: string): Promise<void> {
-    const subject = 'CLICK - Bem-vindo(a)! Suas credenciais de acesso';
+    const subject = 'PRESTARE - Bem-vindo(a)! Suas credenciais de acesso';
     const html = `
       Olá, <b>${this.escape(nome)}</b>!<br><br>
-      O seu acesso ao aplicativo <b>CLICK Condomínios</b> foi criado com sucesso.<br><br>
+      O seu acesso ao aplicativo <b>PRESTARE</b> foi criado com sucesso.<br><br>
       Para acessar sua conta como <b>Morador</b>, baixe o aplicativo e utilize as credenciais abaixo:<br><br>
       <b>Login (E-mail):</b> ${this.escape(email)}<br>
       <b>Senha Inicial:</b> ${this.escape(senhaInicial)}<br><br>
       <i>Recomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.</i><br><br>
       Seja muito bem-vindo(a)!<br>
-      Equipe CLICK
+      Equipe PRESTARE
     `;
     await this.send(email, subject, html);
   }
 
   async sendWelcomeMoradorExisting(email: string, nome: string): Promise<void> {
-    const subject = 'CLICK - Bem-vindo(a)! Novo vínculo de condomínio';
+    const subject = 'PRESTARE - Bem-vindo(a)! Novo vínculo de condomínio';
     const html = `
       Olá, <b>${this.escape(nome)}</b>!<br><br>
-      O seu acesso ao aplicativo <b>CLICK Condomínios</b> foi vinculado a um novo apartamento com sucesso.<br><br>
+      O seu acesso ao aplicativo <b>PRESTARE</b> foi vinculado a um novo apartamento com sucesso.<br><br>
       Como você já possui um cadastro ativo no sistema associado a este e-mail, **utilize a sua senha cadastrada anteriormente** para acessar a sua conta.<br><br>
       Se você não se lembra da sua senha atual, basta abrir o aplicativo e tocar em **"Esqueci minha senha"** na tela de login para redefini-la.<br><br>
       Seja muito bem-vindo(a)!<br>
-      Equipe CLICK
+      Equipe PRESTARE
     `;
     await this.send(email, subject, html);
   }
 
   async sendForgotPassword(email: string, novaSenha: string, tipoUsuario: string): Promise<void> {
-    const subject = 'CLICK - Recuperação de Senha';
+    const subject = 'PRESTARE - Recuperação de Senha';
     const html = `
       Olá,<br><br>
-      Você ou alguém solicitou a recuperação de senha do App CLICK.<br><br>
+      Você ou alguém solicitou a recuperação de senha do App PRESTARE.<br><br>
       Utilize a senha abaixo para entrar na sua conta como ${this.escape(tipoUsuario)}:<br>
       <b>${this.escape(novaSenha)}</b><br><br>
       Atenciosamente,<br>
-      Equipe CLICK
+      Equipe PRESTARE
     `;
     await this.send(email, subject, html);
   }
@@ -142,9 +142,9 @@ export class MailService implements OnModuleInit {
       <b>Valor:</b> ${this.escape(valor)}<br>
       <b>Vencimento:</b> ${this.escape(vencimento)}<br><br>
       ${copiacola ? `Você pode efetuar o pagamento diretamente usando a chave Pix Copia e Cola abaixo:<br><br><pre style="background: #f4f4f4; padding: 10px; border-radius: 5px; word-break: break-all;">${this.escape(copiacola)}</pre><br><br>` : ''}
-      Regularize sua situação financeira pelo aplicativo CLICK.<br><br>
+      Regularize sua situação financeira pelo aplicativo PRESTARE.<br><br>
       Atenciosamente,<br>
-      Equipe CLICK
+      Equipe PRESTARE
     `;
     await this.send(email, subject, html);
   }
