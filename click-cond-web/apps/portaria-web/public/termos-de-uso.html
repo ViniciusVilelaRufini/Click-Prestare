@@ -3,127 +3,399 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Termos de Uso – Click Condomínios</title>
+  <title>Termos de Uso — Prestare Gestão</title>
+  <meta name="description" content="Termos de Uso da plataforma Prestare Gestão: quem pode usar, responsabilidades, assinatura, suporte e foro." />
+  <link rel="icon" href="/sobre/assets/prestare-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Poppins:wght@700;800&display=swap" rel="stylesheet" />
   <style>
+    /* Paleta copiada dos tokens do design system (_ds/tokens/colors.css), nao
+       importada: um documento legal precisa abrir sozinho, sem depender dos
+       arquivos da landing. Se a marca mudar de cor, atualizar aqui tambem. */
+    :root {
+      --blue-900: #062a5d;
+      --blue-700: #1a45b8;
+      --blue-600: #1e4fd8;
+      --blue-500: #2560e8;
+      --blue-200: #c2d3ff;
+      --blue-100: #dde7ff;
+      --blue-50:  #eef3ff;
+
+      --n-0:   #ffffff;
+      --n-50:  #f7f8fa;
+      --n-100: #eff0f2;
+      --n-200: #e4e6ea;
+      --n-300: #d2d5db;
+      --n-600: #636771;
+      --n-700: #464a53;
+      --n-800: #2b2f36;
+      --n-900: #1a1d23;
+
+      --amber-500: #e8a020;
+      --amber-50:  #fdf5e6;
+      --amber-100: #fbe9c8;
+
+      --r-sm: 10px;
+      --r-md: 14px;
+      --r-lg: 18px;
+      --r-xl: 22px;
+      --r-pill: 999px;
+
+      --shadow-card: 0 2px 8px rgba(26,29,35,.05);
+      --shadow-raised: 0 6px 18px rgba(26,29,35,.07);
+
+      --ui: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --display: 'Poppins', var(--ui);
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0a1628;
-      color: #cbd5e1;
-      line-height: 1.7;
-      padding: 3rem 1.25rem;
+      font-family: var(--ui);
+      background: var(--n-50);
+      color: var(--n-700);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
     }
-    .container { max-width: 800px; margin: 0 auto; }
+
+    a { color: var(--blue-500); text-decoration: none; }
+    a:hover { color: var(--blue-700); text-decoration: underline; }
+
+    .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Topo ───────────────────────────────────────────────────────────── */
+    .topbar {
+      background: var(--n-0);
+      border-bottom: 1px solid var(--n-200);
+    }
+    .topbar .wrap {
+      display: flex; align-items: center; gap: 16px;
+      padding-top: 15px; padding-bottom: 15px;
+    }
+    .logo { display: inline-flex; align-items: center; gap: 10px; }
+    .logo img { display: block; width: 32px; height: 32px; border-radius: 8px; }
+    .logo span {
+      font-family: var(--display); font-weight: 800; font-size: 17px;
+      letter-spacing: .04em; color: var(--blue-900);
+    }
+    .logo em { font-style: normal; color: var(--blue-500); }
+    .topbar nav { margin-left: auto; font-size: 14px; font-weight: 500; }
+
+    header.doc {
+      background: linear-gradient(180deg, var(--blue-50) 0%, var(--n-50) 100%);
+      border-bottom: 1px solid var(--n-200);
+      padding: 52px 0 40px;
+    }
     .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
-      background: rgba(26,174,235,0.1);
-      border: 1px solid rgba(26,174,235,0.25);
-      color: #1aaeeb;
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 1rem;
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 6px 13px; border-radius: var(--r-pill);
+      background: var(--n-0); border: 1px solid var(--blue-200);
+      color: var(--blue-600);
+      font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
     }
-    header {
-      text-align: center;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      padding-bottom: 2rem;
-      margin-bottom: 2.5rem;
+    .badge::before {
+      content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--blue-500);
     }
-    h1 { font-size: 2rem; font-weight: 800; color: #f1f5f9; margin-bottom: 0.5rem; }
-    .date { font-size: 0.8rem; color: #64748b; }
-    section { margin-bottom: 2rem; }
-    h2 {
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      border-left: 3px solid #1aaeeb;
-      padding-left: 0.75rem;
-      margin-bottom: 0.75rem;
+    header.doc h1 {
+      margin: 18px 0 0;
+      font-family: var(--ui); font-weight: 800;
+      font-size: clamp(30px, 4vw, 42px); line-height: 1.1;
+      letter-spacing: -.024em; color: var(--n-900);
     }
-    p { color: #94a3b8; margin-bottom: 0.75rem; font-size: 0.92rem; }
-    ul { list-style: disc; padding-left: 1.5rem; color: #64748b; font-size: 0.92rem; }
-    ul li { margin-bottom: 0.5rem; }
-    ul li strong { color: #94a3b8; }
-    code { color: #1aaeeb; font-family: monospace; }
-    footer {
-      text-align: center;
-      font-size: 0.75rem;
-      color: #334155;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      padding-top: 2rem;
-      margin-top: 3rem;
+    .meta {
+      margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px 22px;
+      font-size: 14px; color: var(--n-600);
+    }
+    .meta b { color: var(--n-800); font-weight: 600; }
+
+    /* ── Layout: sumario + conteudo ─────────────────────────────────────── */
+    .layout {
+      display: grid; grid-template-columns: 228px minmax(0, 1fr);
+      gap: 48px; align-items: start;
+      padding: 44px 0 64px;
+    }
+
+    .toc {
+      position: sticky; top: 24px;
+      background: var(--n-0); border: 1px solid var(--n-200);
+      border-radius: var(--r-lg); padding: 18px 16px;
+      box-shadow: var(--shadow-card);
+    }
+    .toc h2 {
+      font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+      color: var(--n-600); margin-bottom: 12px;
+    }
+    .toc ol { list-style: none; counter-reset: toc; display: grid; gap: 2px; }
+    .toc li { counter-increment: toc; }
+    .toc a {
+      display: flex; gap: 9px; padding: 7px 9px; border-radius: var(--r-sm);
+      font-size: 13.5px; line-height: 1.35; color: var(--n-700); text-decoration: none;
+    }
+    .toc a::before {
+      content: counter(toc); flex: none; width: 17px;
+      font-variant-numeric: tabular-nums; font-weight: 600; color: var(--n-300);
+    }
+    .toc a:hover { background: var(--blue-50); color: var(--blue-700); text-decoration: none; }
+    .toc a:hover::before { color: var(--blue-500); }
+
+    /* ── Cartao de resumo ───────────────────────────────────────────────── */
+    .resumo {
+      background: var(--n-0); border: 1px solid var(--n-200);
+      border-radius: var(--r-xl); box-shadow: var(--shadow-card);
+      padding: 26px; margin-bottom: 34px;
+    }
+    .resumo h2 {
+      font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+      color: var(--blue-500); margin-bottom: 18px;
+    }
+    .resumo dl {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+      gap: 20px 28px;
+    }
+    .resumo dt {
+      font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+      color: var(--n-600); margin-bottom: 5px;
+    }
+    .resumo dd { font-size: 14.5px; color: var(--n-800); overflow-wrap: anywhere; }
+
+    /* ── Secoes ─────────────────────────────────────────────────────────── */
+    section.doc { scroll-margin-top: 20px; margin-bottom: 34px; }
+    section.doc h2 {
+      display: flex; align-items: baseline; gap: 11px;
+      font-size: 19px; font-weight: 700; letter-spacing: -.012em;
+      color: var(--n-900); margin-bottom: 12px;
+    }
+    section.doc h2 .num {
+      flex: none; min-width: 26px; height: 26px; padding: 0 7px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--blue-50); border: 1px solid var(--blue-100);
+      border-radius: var(--r-sm);
+      font-size: 12.5px; font-weight: 700; color: var(--blue-600);
+      font-variant-numeric: tabular-nums; transform: translateY(-1px);
+    }
+    section.doc p { margin-bottom: 12px; max-width: 74ch; }
+    section.doc p:last-child { margin-bottom: 0; }
+    section.doc strong { color: var(--n-900); font-weight: 600; }
+
+    ul.lista { list-style: none; display: grid; gap: 9px; margin: 14px 0; max-width: 74ch; }
+    ul.lista li {
+      position: relative; padding-left: 24px;
+    }
+    ul.lista li::before {
+      content: ""; position: absolute; left: 7px; top: .62em;
+      width: 6px; height: 6px; border-radius: 50%; background: var(--blue-200);
+    }
+
+    /* Perfis com acesso: vira cartao, em vez de bullet solto. */
+    .perfis {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+      gap: 12px; margin: 16px 0;
+    }
+    .perfis div {
+      background: var(--n-0); border: 1px solid var(--n-200);
+      border-radius: var(--r-md); padding: 15px 16px;
+    }
+    .perfis b { display: block; font-size: 14.5px; font-weight: 600; color: var(--n-900); margin-bottom: 3px; }
+    .perfis span { font-size: 13.5px; color: var(--n-600); }
+
+    .callout {
+      display: flex; gap: 12px;
+      background: var(--amber-50); border: 1px solid var(--amber-100);
+      border-radius: var(--r-md); padding: 15px 17px;
+      margin: 16px 0; max-width: 74ch; font-size: 14.5px;
+    }
+    .callout::before {
+      content: "!"; flex: none;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--amber-500); color: var(--n-0);
+      font-size: 13px; font-weight: 700; line-height: 20px; text-align: center;
+      transform: translateY(1px);
+    }
+
+    code {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      font-size: .92em; background: var(--blue-50); color: var(--blue-700);
+      padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere;
+    }
+
+    /* ── Rodape ─────────────────────────────────────────────────────────── */
+    footer.doc {
+      border-top: 1px solid var(--n-200); background: var(--n-0);
+      padding: 30px 0;
+    }
+    footer.doc .wrap {
+      display: flex; flex-wrap: wrap; gap: 10px 24px;
+      align-items: center; justify-content: space-between;
+      font-size: 13px; color: var(--n-600);
+    }
+    footer.doc nav { display: flex; flex-wrap: wrap; gap: 18px; }
+
+    /* ── Telas estreitas ────────────────────────────────────────────────── */
+    @media (max-width: 880px) {
+      .layout { grid-template-columns: 1fr; gap: 28px; padding-top: 32px; }
+      .toc { position: static; }
+      .toc ol { grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); display: grid; }
+    }
+    @media (max-width: 560px) {
+      .wrap { padding: 0 18px; }
+      header.doc { padding: 36px 0 30px; }
+      .resumo { padding: 20px; }
+      section.doc h2 { font-size: 17.5px; }
+    }
+
+    /* Impressao: o sumario e a barra de topo nao servem no papel. */
+    @media print {
+      body { background: #fff; color: #000; }
+      .topbar, .toc, footer.doc nav { display: none; }
+      header.doc { background: none; border-bottom: 1px solid #ccc; padding: 0 0 18px; }
+      .layout { display: block; padding: 18px 0; }
+      .resumo, .perfis div, .callout { border: 1px solid #ccc; box-shadow: none; }
+      section.doc { break-inside: avoid; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="badge">Documento Legal Oficial</div>
-      <h1>Termos de Uso</h1>
-      <p class="date">Última atualização: 14 de Maio de 2026</p>
-    </header>
 
-    <section>
-      <h2>1. Aceitação dos Termos</h2>
-      <p>Ao utilizar o aplicativo <strong>Click Condomínios</strong>, você concorda com estes Termos de Uso. Se não concordar com qualquer parte, não utilize o serviço.</p>
-    </section>
-
-    <section>
-      <h2>2. Descrição do Serviço</h2>
-      <p>O Click Condomínios é uma plataforma de gestão condominial que oferece aos usuários ferramentas para controle de acesso, comunicação, gestão financeira, reservas de áreas sociais e demais funcionalidades de administração predial.</p>
-    </section>
-
-    <section>
-      <h2>3. Uso Permitido</h2>
-      <p>O acesso ao aplicativo é concedido exclusivamente a:</p>
-      <ul>
-        <li><strong>Síndicos e administradores</strong> do condomínio devidamente cadastrados.</li>
-        <li><strong>Moradores e condôminos</strong> com vínculo ativo ao condomínio.</li>
-        <li><strong>Porteiros e funcionários</strong> autorizados pela administração condominial.</li>
-      </ul>
-      <p>É vedada a utilização do sistema para fins não relacionados à administração do condomínio, bem como o compartilhamento de credenciais de acesso.</p>
-    </section>
-
-    <section>
-      <h2>4. Responsabilidades do Usuário</h2>
-      <ul>
-        <li>Manter suas credenciais de acesso (e-mail e senha) em sigilo.</li>
-        <li>Fornecer informações verdadeiras no cadastro e atualizá-las quando necessário.</li>
-        <li>Não utilizar o sistema para divulgar conteúdo ofensivo, ilegal ou que viole direitos de terceiros.</li>
-        <li>Notificar imediatamente a administração em caso de acesso não autorizado à sua conta.</li>
-      </ul>
-    </section>
-
-    <section>
-      <h2>5. Compras e Assinatura</h2>
-      <p>Alguns planos e funcionalidades avançadas do Click Condomínios podem requerer assinatura paga processada pela Google Play Store. Reembolsos e cancelamentos seguem a política da loja de aplicativos correspondente. Todas as cobranças são transparentes e previamente informadas ao contratante.</p>
-    </section>
-
-    <section>
-      <h2>6. Disponibilidade e Suporte</h2>
-      <p>Nos esforçamos para garantir a disponibilidade do serviço 24 horas por dia, 7 dias por semana, mas não garantimos disponibilidade ininterrupta. Manutenções programadas serão comunicadas previamente sempre que possível. Suporte técnico: <code>suporte@clickprestarecondominios.com.br</code>.</p>
-    </section>
-
-    <section>
-      <h2>7. Modificações</h2>
-      <p>Estes Termos podem ser atualizados periodicamente. O uso continuado do aplicativo após notificação de alterações implica a aceitação dos novos termos.</p>
-    </section>
-
-    <section>
-      <h2>8. Foro e Lei Aplicável</h2>
-      <p>Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o foro da Comarca de Fortaleza/CE para dirimir eventuais litígios, salvo disposição em contrário prevista em lei.</p>
-    </section>
-
-    <footer>
-      Click Condomínios &copy; 2026. Todos os direitos reservados. Sistema de Gestão Predial Inteligente.
-    </footer>
+  <div class="topbar">
+    <div class="wrap">
+      <a class="logo" href="/sobre">
+        <img src="/sobre/assets/prestare-icon.png" alt="" />
+        <span>PRESTARE <em>GESTÃO</em></span>
+      </a>
+      <nav><a href="/politica-de-privacidade.html">Política de privacidade</a></nav>
+    </div>
   </div>
+
+  <header class="doc">
+    <div class="wrap">
+      <span class="badge">Documento legal oficial</span>
+      <h1>Termos de Uso</h1>
+      <div class="meta">
+        <span>Última atualização: <b>14 de maio de 2026</b></span>
+        <span>Aplica-se ao app do morador e ao console web</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="layout">
+
+      <nav class="toc" aria-label="Sumário">
+        <h2>Nesta página</h2>
+        <ol>
+          <li><a href="#aceitacao">Aceitação dos Termos</a></li>
+          <li><a href="#servico">Descrição do Serviço</a></li>
+          <li><a href="#uso">Uso Permitido</a></li>
+          <li><a href="#responsabilidades">Responsabilidades do Usuário</a></li>
+          <li><a href="#assinatura">Compras e Assinatura</a></li>
+          <li><a href="#disponibilidade">Disponibilidade e Suporte</a></li>
+          <li><a href="#modificacoes">Modificações</a></li>
+          <li><a href="#foro">Foro e Lei Aplicável</a></li>
+        </ol>
+      </nav>
+
+      <main>
+
+        <div class="resumo">
+          <h2>Resumo</h2>
+          <dl>
+            <div>
+              <dt>Serviço</dt>
+              <dd>Prestare Gestão — plataforma de gestão condominial</dd>
+            </div>
+            <div>
+              <dt>Quem pode usar</dt>
+              <dd>Síndicos, moradores, porteiros e funcionários com vínculo ativo</dd>
+            </div>
+            <div>
+              <dt>Suporte</dt>
+              <dd><a href="mailto:suporte@clickprestarecondominios.com.br">suporte@clickprestarecondominios.com.br</a></dd>
+            </div>
+            <div>
+              <dt>Foro</dt>
+              <dd>Comarca de Fortaleza/CE</dd>
+            </div>
+          </dl>
+        </div>
+
+        <section class="doc" id="aceitacao">
+          <h2><span class="num">1</span>Aceitação dos Termos</h2>
+          <p>Ao utilizar a plataforma <strong>Prestare Gestão</strong>, você concorda com estes Termos de Uso. Se não concordar com qualquer parte, não utilize o serviço.</p>
+        </section>
+
+        <section class="doc" id="servico">
+          <h2><span class="num">2</span>Descrição do Serviço</h2>
+          <p>O Prestare Gestão é uma plataforma de gestão condominial que oferece aos usuários ferramentas para controle de acesso, comunicação, gestão financeira, reservas de áreas sociais e demais funcionalidades de administração predial.</p>
+        </section>
+
+        <section class="doc" id="uso">
+          <h2><span class="num">3</span>Uso Permitido</h2>
+          <p>O acesso ao aplicativo é concedido exclusivamente a:</p>
+          <div class="perfis">
+            <div>
+              <b>Síndicos e administradores</b>
+              <span>Do condomínio, devidamente cadastrados.</span>
+            </div>
+            <div>
+              <b>Moradores e condôminos</b>
+              <span>Com vínculo ativo ao condomínio.</span>
+            </div>
+            <div>
+              <b>Porteiros e funcionários</b>
+              <span>Autorizados pela administração condominial.</span>
+            </div>
+          </div>
+          <div class="callout">
+            É vedada a utilização do sistema para fins não relacionados à administração do condomínio, bem como o compartilhamento de credenciais de acesso.
+          </div>
+        </section>
+
+        <section class="doc" id="responsabilidades">
+          <h2><span class="num">4</span>Responsabilidades do Usuário</h2>
+          <ul class="lista">
+            <li>Manter suas credenciais de acesso (e-mail e senha) em sigilo.</li>
+            <li>Fornecer informações verdadeiras no cadastro e atualizá-las quando necessário.</li>
+            <li>Não utilizar o sistema para divulgar conteúdo ofensivo, ilegal ou que viole direitos de terceiros.</li>
+            <li>Notificar imediatamente a administração em caso de acesso não autorizado à sua conta.</li>
+          </ul>
+        </section>
+
+        <section class="doc" id="assinatura">
+          <h2><span class="num">5</span>Compras e Assinatura</h2>
+          <p>Alguns planos e funcionalidades avançadas do Prestare Gestão podem requerer assinatura paga processada pela Google Play Store. Reembolsos e cancelamentos seguem a política da loja de aplicativos correspondente. Todas as cobranças são transparentes e previamente informadas ao contratante.</p>
+        </section>
+
+        <section class="doc" id="disponibilidade">
+          <h2><span class="num">6</span>Disponibilidade e Suporte</h2>
+          <p>Nos esforçamos para garantir a disponibilidade do serviço 24 horas por dia, 7 dias por semana, mas não garantimos disponibilidade ininterrupta. Manutenções programadas serão comunicadas previamente sempre que possível.</p>
+          <p>Suporte técnico: <code>suporte@clickprestarecondominios.com.br</code>.</p>
+        </section>
+
+        <section class="doc" id="modificacoes">
+          <h2><span class="num">7</span>Modificações</h2>
+          <p>Estes Termos podem ser atualizados periodicamente. O uso continuado do aplicativo após notificação de alterações implica a aceitação dos novos termos.</p>
+        </section>
+
+        <section class="doc" id="foro">
+          <h2><span class="num">8</span>Foro e Lei Aplicável</h2>
+          <p>Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o foro da Comarca de Fortaleza/CE para dirimir eventuais litígios, salvo disposição em contrário prevista em lei.</p>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <footer class="doc">
+    <div class="wrap">
+      <span>Prestare Gestão &copy; 2026 · Todos os direitos reservados</span>
+      <nav>
+        <a href="/sobre">Site</a>
+        <a href="/politica-de-privacidade.html">Política de privacidade</a>
+        <a href="mailto:suporte@clickprestarecondominios.com.br">Suporte</a>
+      </nav>
+    </div>
+  </footer>
+
 </body>
 </html>
