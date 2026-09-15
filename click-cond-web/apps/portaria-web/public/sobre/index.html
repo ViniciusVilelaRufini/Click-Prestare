@@ -185,8 +185,9 @@
 
         <div style="min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px;">
           <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; width: 100%;">
-            <img src="/sobre/assets/app-visitantes.jpeg" alt="Tela de visitantes do app do morador — clique para ampliar" onClick="{{ abrirAppVisitantes }}" style="width: 44%; min-width: 150px; max-width: 220px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1); " style-hover="transform: translateY(-6px);">
-            <img src="/sobre/assets/app-financeiro.jpeg" alt="Tela do financeiro do app do morador — clique para ampliar" onClick="{{ abrirAppFinanceiro }}" style="width: 44%; min-width: 150px; max-width: 220px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-6px);">
+            <img src="/sobre/assets/app-visitantes.jpeg" alt="Tela de visitantes do app do morador — clique para ampliar" onClick="{{ abrirAppVisitantes }}" style="width: 31%; min-width: 128px; max-width: 200px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1); " style-hover="transform: translateY(-6px);">
+            <img src="/sobre/assets/app-encomendas.jpeg" alt="Tela de encomendas do app do morador — clique para ampliar" onClick="{{ abrirAppEncomendas }}" style="width: 31%; min-width: 128px; max-width: 200px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-6px);">
+            <img src="/sobre/assets/app-financeiro.jpeg" alt="Tela do financeiro do app do morador — clique para ampliar" onClick="{{ abrirAppFinanceiro }}" style="width: 31%; min-width: 128px; max-width: 200px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-6px);">
           </div>
           <span style="display: inline-flex; align-items: center; gap: 7px; font: var(--type-caption); color: var(--text-faint);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="search" size="14" hint-size="14px,14px"></x-import>Clique em uma tela para ampliar</span>
         </div>
@@ -617,6 +618,11 @@ class Component extends DCLogic {
       texto: "O morador cadastra quem vai visitar antes de a pessoa chegar, gera o PIN de acesso e acompanha o status. Na portaria, é só confirmar — sem ligação e sem fila no portão.",
       itens: ["Busca por nome ou documento", "PIN de acesso por visitante", "No local e Cadastrados separados"]
     },
+    "app-encomendas": {
+      src: "/sobre/assets/app-encomendas.jpeg", tipo: "App do morador", titulo: "Minhas encomendas",
+      texto: "Tudo o que chegou na portaria em uma lista só: busca por remetente, separação entre o que aguarda retirada e o que já foi entregue, e a foto do volume quando a portaria registra. Cada item mostra bloco, apartamento, transportadora e a hora da chegada.",
+      itens: ["Aguardando e Entregues separados", "Quem retirou fica registrado", "Foto do volume no recebimento"]
+    },
     "app-financeiro": {
       src: "/sobre/assets/app-financeiro.jpeg", tipo: "App do morador", titulo: "Meu financeiro",
       texto: "A conta do condomínio na palma da mão: total pendente em destaque, mês a mês, e cada conta com o próprio status — Condomínio, Aluguel, Água, Luz e Internet.",
@@ -851,6 +857,7 @@ class Component extends DCLogic {
       abrirAppHome: this.abrir("app-home"),
       abrirAppIa: this.abrir("app-ia"),
       abrirAppVisitantes: this.abrir("app-visitantes"),
+      abrirAppEncomendas: this.abrir("app-encomendas"),
       abrirAppFinanceiro: this.abrir("app-financeiro"),
       abrirWebVisitantes: this.abrir("web-visitantes"),
       abrirWebFinanceiro: this.abrir("web-financeiro"),
