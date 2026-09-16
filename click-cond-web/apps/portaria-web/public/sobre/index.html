@@ -80,10 +80,85 @@
     .ps-modal-img img { max-height: 48vh !important; }
   }
 
+  /* ─── Celular ───────────────────────────────────────────────────────────
+     Abaixo de 720px o layout deixa de ser "o desktop apertado" e passa a se
+     comportar como app: navegacao por menu, uma coluna, CTA sempre alcancavel. */
+  @media (max-width: 720px) {
+
+    /* O Button do DS e white-space:nowrap com altura fixa e sem max-width —
+       rotulo longo vaza do cartao. No celular ele vira bloco e quebra linha. */
+    .ps-cta { display: block !important; width: 100% !important; }
+    button[class*="ps-btn-"] {
+      width: 100% !important;
+      white-space: normal !important;
+      height: auto !important;
+      min-height: 48px;
+      padding-top: 12px !important;
+      padding-bottom: 12px !important;
+      line-height: 1.25;
+    }
+
+    /* Respiro vertical menor: no celular a rolagem e o custo. */
+    .ps-sec { padding-top: 38px !important; padding-bottom: 38px !important; }
+    .ps-hero { padding-top: 30px !important; padding-bottom: 34px !important; gap: 28px !important; }
+
+    /* O rodape em 3 colunas de links vira lista unica. */
+    .ps-foot nav { flex: 1 1 100% !important; }
+
+    /* Espaco para a barra fixa de CTA nao cobrir o fim da pagina. */
+    body { padding-bottom: 76px; }
+  }
+
   /* Telas estreitas (<=430px): some o wordmark e fica so o icone, para o
      CTA do WhatsApp continuar visivel no topo em vez de vazar. */
   @media (max-width: 430px) {
     .ps-logo-txt { display: none !important; }
+  }
+
+  /* ─── Menu do celular ───────────────────────────────────────────────── */
+  .ps-menu-btn { display: none; }
+  @media (max-width: 900px) {
+    .ps-menu-btn { display: inline-flex; }
+  }
+
+  /* ─── Barra fixa de CTA (so no celular) ─────────────────────────────── */
+  .ps-barra { display: none; }
+  @media (max-width: 720px) {
+    .ps-barra {
+      display: flex; gap: 10px; align-items: center;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 55;
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(255,255,255,.94); backdrop-filter: blur(14px);
+      border-top: 1px solid var(--border-row);
+    }
+    /* O botao de cookies sobe para nao ficar atras da barra. */
+    .ps-cookie-btn { bottom: 86px !important; }
+    .ps-cookie-caixa { padding-bottom: 84px !important; }
+  }
+
+  /* ─── Faixa rolavel de telas do app ─────────────────────────────────── */
+  @media (max-width: 720px) {
+    .ps-telas {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      justify-content: flex-start !important;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      gap: 14px !important;
+      padding-bottom: 10px;
+      /* Sem margem negativa para sangrar ate a borda: ela deixaria a faixa
+         mais larga que o container e voltaria o scroll horizontal da pagina. */
+      scrollbar-width: none;
+    }
+    .ps-telas::-webkit-scrollbar { display: none; }
+    /* Tamanho legivel em vez de tres miniaturas espremidas. */
+    .ps-telas > * {
+      flex: 0 0 auto !important;
+      width: 60vw !important;
+      max-width: 240px !important;
+      min-width: 0 !important;
+      scroll-snap-align: center;
+    }
   }
 </style>
 </helmet>
@@ -103,7 +178,10 @@
         <a href="#modulos" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Módulos</a>
         <a href="#duvidas" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Dúvidas</a>
       </nav>
-      <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="flex: none;">
+      <span onClick="{{ alternarMenu }}" class="ps-menu-btn" title="Menu" aria-label="Abrir o menu" style="margin-left: auto; flex: none; cursor: pointer;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="ellipsis" hint-size="44px,44px"></x-import>
+      </span>
+      <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="flex: none;" class="ps-cta-topo">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="sm" icon-right="arrow-right" hint-size="180px,36px">Falar no WhatsApp</x-import>
       </a>
     </div>
@@ -129,10 +207,10 @@
         </div>
 
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px;">
-          <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
+          <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Quero um orçamento</x-import>
           </a>
-          <a href="#modulos">
+          <a href="#modulos" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="ghost" size="lg" hint-size="170px,52px">Ver os módulos</x-import>
           </a>
         </div>
@@ -195,7 +273,7 @@
         </div>
 
         <div style="min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px;">
-          <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; width: 100%;">
+          <div class="ps-telas" style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; width: 100%;">
             <img src="/sobre/assets/app-visitantes.jpeg" alt="Tela de visitantes do app do morador — clique para ampliar" onClick="{{ abrirAppVisitantes }}" style="width: 31%; min-width: 128px; max-width: 200px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1); " style-hover="transform: translateY(-6px);">
             <img src="/sobre/assets/app-encomendas.jpeg" alt="Tela de encomendas do app do morador — clique para ampliar" onClick="{{ abrirAppEncomendas }}" style="width: 31%; min-width: 128px; max-width: 200px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-6px);">
             <img src="/sobre/assets/app-financeiro.jpeg" alt="Tela do financeiro do app do morador — clique para ampliar" onClick="{{ abrirAppFinanceiro }}" style="width: 31%; min-width: 128px; max-width: 200px; border-radius: 24px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-floating); display: block; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-6px);">
@@ -285,7 +363,7 @@
         </span>
       </div>
 
-      <div style="margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; padding: 6px 2px 0;">
+      <div class="ps-telas" style="margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; padding: 6px 2px 0;">
         <figure onClick="{{ abrirPorteiroInicio }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
           <img src="/sobre/assets/porteiro-inicio.jpeg" alt="Tela inicial do app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 13px 6px 3px;">
@@ -428,7 +506,7 @@
         <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Receba um orçamento para o seu condomínio.</h2>
         <p style="margin: 14px 0 0; font: var(--type-body); color: rgba(255,255,255,.85); max-width: 44ch;">O valor acompanha o tamanho do condomínio. Diga quantas unidades e eu respondo com o orçamento e os módulos que fazem sentido para vocês.</p>
         <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
-          <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="align-self: flex-start;">
+          <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="align-self: flex-start;" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="lg" icon-left="phone" hint-size="220px,52px">Falar no WhatsApp agora</x-import>
           </a>
           <!-- mailto: sozinho so funciona para quem tem cliente de e-mail
@@ -551,6 +629,59 @@
     </div>
   </footer>
 
+  <!-- ─── Menu do celular ───────────────────────────────────────────────
+       A navegacao do topo some abaixo de 900px. Sem isto o visitante de
+       celular so descobre as secoes rolando a pagina inteira. Cada item leva
+       uma linha de apoio: o menu e o indice do site, nao so atalho. -->
+  <sc-if value="{{ menuAberto }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ fecharMenu }}" style="position: fixed; inset: 0; z-index: 80; background: rgba(26,29,35,.55); backdrop-filter: blur(5px); animation: ps-fade 160ms cubic-bezier(.2,.8,.28,1);">
+      <div onClick="{{ pararClique }}" style="background: var(--surface-card); border-bottom-left-radius: 22px; border-bottom-right-radius: 22px; padding: 12px 14px 18px; box-shadow: 0 22px 54px rgba(6,42,93,.3); animation: ps-zoom 220ms cubic-bezier(.2,.8,.28,1); max-height: 92vh; overflow: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 6px 10px;">
+          <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--text-faint);">Navegar</span>
+          <span onClick="{{ fecharMenu }}" style="cursor: pointer;" aria-label="Fechar o menu">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="x" hint-size="44px,44px"></x-import>
+          </span>
+        </div>
+
+        <a href="#app" onClick="{{ fecharMenu }}" style="display: block; padding: 13px 12px; border-radius: var(--radius-md);" style-hover="background: var(--prestare-blue-50);">
+          <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Para o morador</span>
+          <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">Visitantes, encomendas e a conta do condomínio</span>
+        </a>
+        <a href="#portaria-app" onClick="{{ fecharMenu }}" style="display: block; padding: 13px 12px; border-radius: var(--radius-md);" style-hover="background: var(--prestare-blue-50);">
+          <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">App do porteiro</span>
+          <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">O turno inteiro resolvido pelo celular</span>
+        </a>
+        <a href="#console" onClick="{{ fecharMenu }}" style="display: block; padding: 13px 12px; border-radius: var(--radius-md);" style-hover="background: var(--prestare-blue-50);">
+          <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Para o síndico</span>
+          <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">Console web e liberação de entrada pelo app</span>
+        </a>
+        <a href="#modulos" onClick="{{ fecharMenu }}" style="display: block; padding: 13px 12px; border-radius: var(--radius-md);" style-hover="background: var(--prestare-blue-50);">
+          <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Módulos</span>
+          <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">O que cada condomínio liga e paga</span>
+        </a>
+        <a href="#duvidas" onClick="{{ fecharMenu }}" style="display: block; padding: 13px 12px; border-radius: var(--radius-md);" style-hover="background: var(--prestare-blue-50);">
+          <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Dúvidas frequentes</span>
+          <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">Equipamento, internet, prazo para começar</span>
+        </a>
+
+        <a href="#contato" onClick="{{ fecharMenu }}" class="ps-cta" style="display: block; margin-top: 10px;">
+          <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" full-width="{{ true }}" hint-size="100%,52px">Quero um orçamento</x-import>
+        </a>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Barra fixa: no celular o CTA fica sempre ao alcance do polegar, em vez
+       de so existir no topo e no fim da pagina. -->
+  <div class="ps-barra">
+    <a href="#contato" style="flex: 1 1 auto; min-width: 0;">
+      <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" full-width="{{ true }}" hint-size="100%,46px">Quero um orçamento</x-import>
+    </a>
+    <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" title="Falar no WhatsApp" aria-label="Falar no WhatsApp" style="flex: none;">
+      <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="phone" tone="brand" hint-size="44px,44px"></x-import>
+    </a>
+  </div>
+
   <!-- ─── Consentimento de cookies ──────────────────────────────────────────
        Feito na mao, sem servico de terceiro: a escolha fica no localStorage do
        proprio navegador. Hoje a pagina nao grava cookie nem carrega analytics,
@@ -558,7 +689,7 @@
        quando uma tag de medicao entrar. Quem ligar o analytics deve checar
        `analytics: true` no consentimento gravado ANTES de disparar. -->
   <sc-if value="{{ cookieBanner }}" hint-placeholder-val="{{ true }}">
-    <div style="position: fixed; left: 0; bottom: 0; z-index: 70; padding: 16px; max-width: 100%;">
+    <div class="ps-cookie-caixa" style="position: fixed; left: 0; bottom: 0; z-index: 70; padding: 16px; max-width: 100%;">
       <div role="dialog" aria-label="Preferências de cookies" style="width: min(calc(100vw - 32px), 460px); background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: 0 24px 60px rgba(6,42,93,.24); padding: 22px; animation: ps-zoom 260ms cubic-bezier(.2,.8,.28,1);">
         <h2 style="margin: 0; font: var(--type-h3); color: var(--text-strong);">Valorizamos sua privacidade</h2>
         <p style="margin: 8px 0 0; font: var(--type-sub); color: var(--text-muted); text-wrap: pretty;">Usamos cookies para lembrar suas preferências e entender como esta página é usada. Os necessários mantêm o site funcionando; os demais só com a sua autorização.</p>
@@ -591,19 +722,19 @@
 
         <div style="margin-top: 18px; display: flex; flex-wrap: wrap; gap: 9px;">
           <sc-if value="{{ cookieResumo }}" hint-placeholder-val="{{ true }}">
-            <span onClick="{{ personalizarCookies }}" style="cursor: pointer;">
+            <span onClick="{{ personalizarCookies }}" style="cursor: pointer;" class="ps-cta">
               <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="sm" hint-size="130px,36px">Personalizar</x-import>
             </span>
           </sc-if>
           <sc-if value="{{ cookiePainel }}" hint-placeholder-val="{{ false }}">
-            <span onClick="{{ salvarCookies }}" style="cursor: pointer;">
+            <span onClick="{{ salvarCookies }}" style="cursor: pointer;" class="ps-cta">
               <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="sm" hint-size="165px,36px">Salvar preferências</x-import>
             </span>
           </sc-if>
-          <span onClick="{{ rejeitarCookies }}" style="cursor: pointer;">
+          <span onClick="{{ rejeitarCookies }}" style="cursor: pointer;" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="ghost" size="sm" hint-size="100px,36px">Rejeitar</x-import>
           </span>
-          <span onClick="{{ aceitarCookies }}" style="cursor: pointer;">
+          <span onClick="{{ aceitarCookies }}" style="cursor: pointer;" class="ps-cta">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="sm" hint-size="130px,36px">Aceitar todos</x-import>
           </span>
         </div>
@@ -614,7 +745,7 @@
   </sc-if>
 
   <sc-if value="{{ cookieBotao }}" hint-placeholder-val="{{ false }}">
-    <span onClick="{{ abrirCookies }}" title="Preferências de cookies" aria-label="Preferências de cookies" style="position: fixed; left: 16px; bottom: 16px; z-index: 65; cursor: pointer;">
+    <span onClick="{{ abrirCookies }}" class="ps-cookie-btn" title="Preferências de cookies" aria-label="Preferências de cookies" style="position: fixed; left: 16px; bottom: 16px; z-index: 65; cursor: pointer;">
       <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="shield-check" hint-size="44px,44px"></x-import>
     </span>
   </sc-if>
@@ -656,7 +787,7 @@
               <!-- margin-top:auto empurra a acao para a base da coluna, em vez de
                    deixa-la colada na lista com espaco morto embaixo. -->
               <div style="margin-top: auto; padding-top: 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
-                <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
+                <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-cta">
                   <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Pedir um orçamento</x-import>
                 </a>
                 <span style="font: var(--type-caption); color: var(--text-faint);">Esc para fechar</span>
@@ -679,7 +810,7 @@
               </sc-for>
             </ul>
             <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-              <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
+              <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" class="ps-cta">
                 <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Pedir um orçamento</x-import>
               </a>
               <span style="font: var(--type-caption); color: var(--text-faint);">Esc para fechar</span>
@@ -697,7 +828,7 @@ class Component extends DCLogic {
     enviado: false, tela: null,
     // O banner comeca fechado e so abre no componentDidMount, depois de ler o
     // localStorage: abrir antes provocaria um pisca em quem ja decidiu.
-    consoleIndice: 0,
+    consoleIndice: 0, menuAberto: false,
     cookieBanner: false, cookiePainel: false,
     cookieAnalytics: false, cookieMarketing: false,
     emailPainel: false, emailCopiado: false
@@ -706,6 +837,12 @@ class Component extends DCLogic {
   // Ordem do carrossel do console. As legendas e os textos moram no TELAS,
   // para o carrossel e o modal nunca divergirem.
   CONSOLE_TELAS = ["web-visitantes", "web-financeiro", "web-dashboard"];
+
+  alternarMenu = () => this.setState({ menuAberto: !this.state.menuAberto });
+  fecharMenu = () => this.setState({ menuAberto: false });
+  // O painel fica dentro do fundo clicavel; sem isto, clicar no proprio menu
+  // fecharia o menu.
+  pararClique = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
 
   INTERVALO_CONSOLE = 6000;
 
@@ -831,6 +968,7 @@ class Component extends DCLogic {
     this._esc = (e) => {
       if (e.key !== "Escape") return;
       this.fechar();
+      if (this.state.menuAberto) this.setState({ menuAberto: false });
       if (this.state.emailPainel) this.setState({ emailPainel: false });
     };
     window.addEventListener("keydown", this._esc);
@@ -1053,6 +1191,10 @@ class Component extends DCLogic {
       consoleAlt: telaConsole.titulo + " no console web — clique para ampliar",
       consoleLegenda: telaConsole.legenda,
       consoleAbrir: this.abrir(chaveConsole),
+      menuAberto: this.state.menuAberto,
+      alternarMenu: this.alternarMenu,
+      fecharMenu: this.fecharMenu,
+      pararClique: this.pararClique,
       pausarConsole: this.pararRotacao,
       retomarConsole: this.iniciarRotacao,
       consoleAnterior: this.navegarConsole(-1),
