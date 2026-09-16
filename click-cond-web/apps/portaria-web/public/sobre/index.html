@@ -39,12 +39,6 @@
   @keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes ps-zoom { from { opacity: 0; transform: translateY(14px) scale(.965) } to { opacity: 1; transform: none } }
 
-  /* Carrossel da portaria: rolagem nativa, com barra discreta. */
-  .ps-carrossel { scrollbar-width: thin; scrollbar-color: var(--border-subtle) transparent; -webkit-overflow-scrolling: touch; }
-  .ps-carrossel::-webkit-scrollbar { height: 7px; }
-  .ps-carrossel::-webkit-scrollbar-track { background: transparent; }
-  .ps-carrossel::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 999px; }
-
   /* ─── Responsivo ───────────────────────────────────────────────────────
      O layout todo e inline style, que nao aceita media query — por isso as
      regras abaixo precisam de !important para vencer o atributo style. */
@@ -231,22 +225,14 @@
       <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">A portaria resolve no celular, sem largar o portão.</h2>
       <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">O mesmo sistema do console, na mão de quem está no posto: o turno começa com os números do dia e segue com mudança, comunicado e ocorrência resolvidos onde a coisa acontece.</p>
 
-      <div style="margin-top: 30px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;">
+      <div style="margin-top: 30px; display: flex; justify-content: center;">
         <span style="display: inline-flex; align-items: center; gap: 7px; font: var(--type-caption); color: var(--text-faint);">
           <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="search" size="14" hint-size="14px,14px"></x-import>Clique em uma tela para ver o que ela faz
         </span>
-        <span style="display: flex; gap: 8px; flex: none;">
-          <span onClick="{{ carrosselAnterior }}" title="Anterior" aria-label="Tela anterior" style="cursor: pointer;">
-            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="chevron-left" hint-size="40px,40px"></x-import>
-          </span>
-          <span onClick="{{ carrosselProximo }}" title="Próxima" aria-label="Próxima tela" style="cursor: pointer;">
-            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="chevron-right" hint-size="40px,40px"></x-import>
-          </span>
-        </span>
       </div>
 
-      <div id="ps-carrossel" class="ps-carrossel" style="margin-top: 14px; display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px 2px 16px; scroll-padding-left: 2px;">
-        <figure onClick="{{ abrirPorteiroInicio }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; scroll-snap-align: start; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
+      <div style="margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; padding: 6px 2px 0;">
+        <figure onClick="{{ abrirPorteiroInicio }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
           <img src="/sobre/assets/porteiro-inicio.jpeg" alt="Tela inicial do app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 13px 6px 3px;">
             <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Início do turno</span>
@@ -254,7 +240,7 @@
           </figcaption>
         </figure>
 
-        <figure onClick="{{ abrirPorteiroMudancas }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; scroll-snap-align: start; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
+        <figure onClick="{{ abrirPorteiroMudancas }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
           <img src="/sobre/assets/porteiro-mudancas.jpeg" alt="Agendamentos de mudança no app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 13px 6px 3px;">
             <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Agendamentos de mudança</span>
@@ -262,7 +248,7 @@
           </figcaption>
         </figure>
 
-        <figure onClick="{{ abrirPorteiroComunicados }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; scroll-snap-align: start; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
+        <figure onClick="{{ abrirPorteiroComunicados }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
           <img src="/sobre/assets/porteiro-comunicados.jpeg" alt="Comunicados no app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 13px 6px 3px;">
             <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Comunicados</span>
@@ -270,7 +256,7 @@
           </figcaption>
         </figure>
 
-        <figure onClick="{{ abrirPorteiroOcorrencias }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; scroll-snap-align: start; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
+        <figure onClick="{{ abrirPorteiroOcorrencias }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
           <img src="/sobre/assets/porteiro-ocorrencias.jpeg" alt="Abertura de ocorrências no app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 13px 6px 3px;">
             <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Abertura de ocorrências</span>
@@ -757,21 +743,6 @@ class Component extends DCLogic {
     catch (_) { /* sem storage: a escolha vale so para esta visita */ }
   }
 
-  // Carrossel da portaria. Rola por scroll nativo com scroll-snap, em vez de
-  // um transform controlado por state: assim o arrasto no celular e a roda do
-  // mouse funcionam de graca, e nao ha indice para dessincronizar.
-  GAP_CARROSSEL = 18;
-
-  rolarCarrossel = (direcao) => () => {
-    const el = document.getElementById("ps-carrossel");
-    if (!el) return;
-    const primeiro = el.firstElementChild;
-    const passo = primeiro
-      ? primeiro.getBoundingClientRect().width + this.GAP_CARROSSEL
-      : el.clientWidth * 0.8;
-    el.scrollBy({ left: direcao * passo, behavior: "smooth" });
-  };
-
   // Le o que ja foi digitado no formulario ao lado, para o e-mail nascer
   // preenchido. O formulario nao e controlado, entao a leitura e pelo DOM; se
   // ele nao existir (apos o envio) ou estiver vazio, o corpo sai com os campos
@@ -962,8 +933,6 @@ class Component extends DCLogic {
       abrirPorteiroMudancas: this.abrir("porteiro-mudancas"),
       abrirPorteiroComunicados: this.abrir("porteiro-comunicados"),
       abrirPorteiroOcorrencias: this.abrir("porteiro-ocorrencias"),
-      carrosselAnterior: this.rolarCarrossel(-1),
-      carrosselProximo: this.rolarCarrossel(1),
       abrirWebVisitantes: this.abrir("web-visitantes"),
       abrirWebFinanceiro: this.abrir("web-financeiro"),
       abrirWebLogin: this.abrir("web-login"),
