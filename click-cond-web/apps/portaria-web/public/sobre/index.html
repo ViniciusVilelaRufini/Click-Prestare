@@ -991,7 +991,7 @@ class Component extends DCLogic {
     return {
       telaAberta: !!t,
       telaRetrato: !!t && !!t.retrato,
-      modalLargura: !!t && t.retrato ? "fit-content" : "min(98vw, 1480px)",
+      modalLargura: !!t && t.retrato ? "fit-content" : "min(94vw, 1180px)",
       telaPaisagem: !!t && !t.retrato,
       telaImgRetrato: t ? React.createElement("img", {
         src: t.src, alt: t.titulo,
@@ -999,7 +999,7 @@ class Component extends DCLogic {
       }) : null,
       telaImgPaisagem: t ? React.createElement("img", {
         src: t.src, alt: t.titulo,
-        style: { display: "block", width: "100%", maxWidth: "100%", borderRadius: 12, border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-row)" }
+        style: { display: "block", width: "auto", maxWidth: "100%", maxHeight: "58vh", borderRadius: 12, border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-row)" }
       }) : null,
       telaTipo: t ? t.tipo : "",
       telaTitulo: t ? t.titulo : "",
