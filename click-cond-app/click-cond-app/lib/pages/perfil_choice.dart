@@ -6,7 +6,7 @@ import 'package:click/theme/app_typography.dart';
 import 'package:click/theme/theme_controller.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/utils/utils.dart';
-import 'package:click/widgets/app/app_button.dart';
+import 'package:click/widgets/app/grid_background.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -66,70 +66,58 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _abrirLogin(String tipo) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => LoginSindico(loginType: tipo)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return PopScope(
       canPop: false,
       child: Scaffold(
         backgroundColor: AppColors.bg(context),
         body: Stack(
           children: [
-            // Background Gradient & Grid Pattern matching the premium Web look
+            // Fundo: no claro é branco puro no topo (a marca respira sobre ele)
+            // e esfria para um azul bem lavado na base.
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: Theme.of(context).brightness == Brightness.dark
-                        ? [const Color(0xFF090E1A), const Color(0xFF04060A)]
-                        : [const Color(0xFFEBF3FC), const Color(0xFFFFFFFF)],
+                    colors: isDark
+                        ? [const Color(0xFF0A1628), const Color(0xFF04060A)]
+                        : [const Color(0xFFFFFFFF), const Color(0xFFEEF4FD)],
                   ),
                 ),
               ),
             ),
-            if (Theme.of(context).brightness == Brightness.dark) ...[
-              // Top-left soft glow
+            if (isDark)
               Positioned(
-                top: -180,
-                left: -180,
+                top: -200,
+                left: -140,
                 child: Container(
-                  width: 400,
-                  height: 400,
+                  width: 420,
+                  height: 420,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        AppColors.primary.withValues(alpha: 0.15),
+                        AppColors.primary.withValues(alpha: 0.18),
                         AppColors.primary.withValues(alpha: 0),
                       ],
                     ),
                   ),
                 ),
               ),
-              // Bottom-right soft glow
-              Positioned(
-                bottom: -180,
-                right: -180,
-                child: Container(
-                  width: 400,
-                  height: 400,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        const Color(0xFF00C896).withValues(alpha: 0.12),
-                        const Color(0xFF00C896).withValues(alpha: 0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
             Positioned.fill(
-              child: CustomPaint(
-                painter: GridPainter(context),
-              ),
+              child: const GridBackground(),
             ),
             Positioned.fill(
               child: SafeArea(
@@ -138,125 +126,59 @@ class _HomePageState extends State<HomePage> {
                     return SingleChildScrollView(
                       physics: const ClampingScrollPhysics(),
                       child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
+                        constraints:
+                            BoxConstraints(minHeight: constraints.maxHeight),
                         child: IntrinsicHeight(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.xxl),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 const SizedBox(height: AppSpacing.sm),
 
-                                // Top Bar (Logo centralizado e Botão de tema alinhados na mesma linha)
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const SizedBox(width: 42),
-                                    _buildCorporateBranding(context),
-                                    _buildThemeToggle(context),
-                                  ],
+                                // Topo enxuto: só o controle de tema. A marca
+                                // agora é o herói da tela, não um item de barra.
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _buildThemeToggle(context),
                                 ),
 
-                                const Spacer(flex: 1),
+                                const Spacer(flex: 2),
 
-                                // Hero central (Ícone, Bem-vindo, Subtítulo e Features)
-                                Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(AppSpacing.xl),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        begin: Alignment.topLeft, end: Alignment.bottomRight,
-                                        colors: [AppColors.primaryGradientStart, AppColors.primaryGradientEnd],
-                                      ),
-                                      borderRadius: BorderRadius.circular(AppRadius.xxl),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.primary.withValues(alpha: 0.25),
-                                          blurRadius: 24, offset: const Offset(0, 8),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Icon(
-                                      PhosphorIcons.buildingsFill,
-                                      size: 56, color: Colors.white,
-                                    ),
-                                  ),
+                                _buildBrandBlock(context),
+
+                                const SizedBox(height: AppSpacing.xxxl),
+
+                                _buildSectionLabel(context),
+                                const SizedBox(height: AppSpacing.md),
+
+                                _PerfilCard(
+                                  icon: PhosphorIcons.shieldCheckBold,
+                                  titulo: 'Síndico',
+                                  descricao: 'Gestão completa do condomínio',
+                                  destaque: true,
+                                  onTap: () => _abrirLogin('sindico'),
                                 ),
-                                const SizedBox(height: AppSpacing.xxl),
-                                Text(
-                                  'Bem-vindo',
-                                  style: AppTypography.display(context),
-                                  textAlign: TextAlign.center,
+                                const SizedBox(height: AppSpacing.md),
+                                _PerfilCard(
+                                  icon: PhosphorIcons.houseFill,
+                                  titulo: 'Morador',
+                                  descricao: 'Visitas, encomendas e reservas',
+                                  onTap: () => _abrirLogin('morador'),
                                 ),
-                                const SizedBox(height: AppSpacing.sm),
-                                Text(
-                                  'Gerencie seu condomínio com simplicidade',
-                                  style: AppTypography.bodySecondary(context),
-                                  textAlign: TextAlign.center,
+                                const SizedBox(height: AppSpacing.md),
+                                _PerfilCard(
+                                  icon: PhosphorIcons.identificationCard,
+                                  titulo: 'Funcionário',
+                                  descricao: 'Portaria, ocorrências e rotinas',
+                                  onTap: () => _abrirLogin('funcionario'),
                                 ),
-                                const SizedBox(height: AppSpacing.sm),
-                                _buildFeaturesList(context),
+
+                                const Spacer(flex: 3),
 
                                 const SizedBox(height: AppSpacing.lg),
-
-                                // Bloco de Botões de Ação de Perfil (unido com a área central)
-                                AppButton(
-                                  label: getText("sou_sindico"),
-                                  variant: AppButtonVariant.primary,
-                                  trailingIcon: PhosphorIcons.arrowRight,
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const LoginSindico(loginType: 'sindico')),
-                                    );
-                                  },
-                                ),
-                                const SizedBox(height: AppSpacing.md),
-                                AppButton(
-                                  label: getText("sou_morador"),
-                                  variant: AppButtonVariant.secondary,
-                                  trailingIcon: PhosphorIcons.arrowRight,
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const LoginSindico(loginType: 'morador')),
-                                    );
-                                  },
-                                ),
-                                const SizedBox(height: AppSpacing.md),
-                                AppButton(
-                                  label: getText("sou_funcionario"),
-                                  variant: AppButtonVariant.ghost,
-                                  trailingIcon: PhosphorIcons.arrowRight,
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const LoginSindico(loginType: 'funcionario')),
-                                    );
-                                  },
-                                ),
-
-                                const Spacer(flex: 1),
-
-                                const SizedBox(height: AppSpacing.md),
-                                Text(
-                                  '${getText("vesaoApp")} $_appVersion',
-                                  style: AppTypography.tiny(context).copyWith(
-                                    color: AppColors.textTertiary(context),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: AppSpacing.xs),
-                                Text(
-                                  '© 2026 Prestare Gestão e Tecnologia.\nTodos os direitos reservados.',
-                                  style: AppTypography.tiny(context).copyWith(
-                                    color: AppColors.textTertiary(context),
-                                    height: 1.4,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
+                                _buildFooter(context),
                                 const SizedBox(height: AppSpacing.lg),
                               ],
                             ),
@@ -274,23 +196,41 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildCorporateBranding(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  /// Marca: a logo em um cartão branco arredondado, o nome novo logo abaixo
+  /// e a linha do que o app entrega.
+  Widget _buildBrandBlock(BuildContext context) {
+    return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-          child: Icon(
-            PhosphorIcons.buildings,
-            size: 20,
-            color: AppColors.primary,
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.08),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.18),
+                  blurRadius: 28,
+                  spreadRadius: -4,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.xl),
+              child: Image.asset(
+                'assets/images/logo_prestare_gestao.png',
+                width: 92,
+                height: 92,
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
+        const SizedBox(height: AppSpacing.xl),
         Text.rich(
           TextSpan(
             children: [
@@ -298,22 +238,120 @@ class _HomePageState extends State<HomePage> {
                 text: 'PRESTARE ',
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w800,
-                  fontSize: 16,
+                  fontSize: 26,
                   color: AppColors.textPrimary(context),
-                  letterSpacing: 0.5,
+                  letterSpacing: 1.0,
                 ),
               ),
               TextSpan(
-                text: 'CLICK',
+                text: 'GESTÃO',
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w800,
-                  fontSize: 16,
+                  fontSize: 26,
                   color: AppColors.primary,
-                  letterSpacing: 0.5,
+                  letterSpacing: 1.0,
                 ),
               ),
             ],
           ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Todo o condomínio na palma da mão',
+          style: AppTypography.caption(context),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _buildTrustRow(context),
+      ],
+    );
+  }
+
+  /// Linha fina de capacidades — substitui os quatro cartões de feature que
+  /// competiam com os botões de perfil.
+  Widget _buildTrustRow(BuildContext context) {
+    Widget item(IconData icon, String label) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.primary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: AppTypography.tiny(context).copyWith(
+              color: AppColors.textSecondary(context),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget dot() => Container(
+          width: 3,
+          height: 3,
+          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.textTertiary(context),
+            shape: BoxShape.circle,
+          ),
+        );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        item(PhosphorIcons.lockKeyOpen, 'Acesso'),
+        dot(),
+        item(PhosphorIcons.package, 'Encomendas'),
+        dot(),
+        item(PhosphorIcons.chartPieSlice, 'Relatórios'),
+      ],
+    );
+  }
+
+  Widget _buildSectionLabel(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Divider(color: AppColors.border(context), thickness: 1),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Text(
+            'ENTRAR COMO',
+            style: AppTypography.tiny(context).copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: AppColors.textTertiary(context),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Divider(color: AppColors.border(context), thickness: 1),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooter(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          '${getText("vesaoApp")} $_appVersion',
+          style: AppTypography.tiny(context).copyWith(
+            color: AppColors.textTertiary(context),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          '© 2026 Prestare Gestão e Tecnologia.\nTodos os direitos reservados.',
+          style: AppTypography.tiny(context).copyWith(
+            color: AppColors.textTertiary(context),
+            height: 1.4,
+          ),
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -353,99 +391,139 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
 
-  Widget _buildFeaturesList(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final checkColor = AppColors.primary;
-    final containerBg = isDark ? Colors.white.withValues(alpha: 0.03) : AppColors.primary.withValues(alpha: 0.04);
-    final borderCol = isDark ? Colors.white.withValues(alpha: 0.05) : AppColors.primary.withValues(alpha: 0.08);
+/// Cartão de escolha de perfil. O `destaque` pinta o cartão com o gradiente
+/// primário — é o caminho principal (síndico), os outros ficam em superfície.
+class _PerfilCard extends StatelessWidget {
+  const _PerfilCard({
+    required this.icon,
+    required this.titulo,
+    required this.descricao,
+    required this.onTap,
+    this.destaque = false,
+  });
 
-    Widget featureItem(String text) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: containerBg,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: borderCol),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: checkColor.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                PhosphorIcons.check,
-                color: checkColor,
-                size: 12,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                text,
-                style: AppTypography.tiny(context).copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary(context),
+  final IconData icon;
+  final String titulo;
+  final String descricao;
+  final VoidCallback onTap;
+  final bool destaque;
+
+  @override
+  Widget build(BuildContext context) {
+    final corTitulo =
+        destaque ? Colors.white : AppColors.textPrimary(context);
+    final corDescricao = destaque
+        ? Colors.white.withValues(alpha: 0.82)
+        : AppColors.textSecondary(context);
+
+    final raio = BorderRadius.circular(AppRadius.xl);
+
+    // A decoração fica no Container, não num `Ink`: dentro de um Material
+    // transparente o `Ink` pinta na camada de tinta do Material e vaza um
+    // retângulo claro para fora dos cantos arredondados.
+    return Container(
+      decoration: BoxDecoration(
+        color: destaque ? null : AppColors.surfaceElevated(context),
+        gradient: destaque
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primaryGradientStart,
+                  AppColors.primaryGradientEnd,
+                ],
+              )
+            : null,
+        borderRadius: raio,
+        border: destaque
+            ? null
+            : Border.all(color: AppColors.border(context), width: 1.2),
+        boxShadow: destaque
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.22),
+                  blurRadius: 18,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 6),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: raio,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: raio,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.lg,
             ),
-          ],
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: destaque
+                        ? Colors.white.withValues(alpha: 0.18)
+                        : AppColors.primary.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 22,
+                    color: destaque ? Colors.white : AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        titulo,
+                        style: GoogleFonts.poppins(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: corTitulo,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        descricao,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: corDescricao,
+                          height: 1.35,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Icon(
+                  PhosphorIcons.caretRightBold,
+                  size: 16,
+                  color: destaque
+                      ? Colors.white
+                      : AppColors.textTertiary(context),
+                ),
+              ],
+            ),
+          ),
         ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: featureItem('Controle de Acesso')),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: featureItem('Gestão de Encomendas')),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(child: featureItem('Ocorrências Ativas')),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: featureItem('Relatórios Gerenciais')),
-            ],
-          ),
-        ],
       ),
     );
   }
 }
 
-class GridPainter extends CustomPainter {
-  final BuildContext context;
-  GridPainter(this.context);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final paint = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.02 : 0.025)
-      ..strokeWidth = 0.8;
-
-    const double step = 38.0;
-
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

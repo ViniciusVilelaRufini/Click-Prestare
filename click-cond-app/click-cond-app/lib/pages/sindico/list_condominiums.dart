@@ -1,4 +1,5 @@
 import 'package:click/utils/log.dart';
+import 'package:click/widgets/app/grid_background.dart';
 import 'dart:ui';
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
@@ -411,6 +412,8 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       backgroundColor: isDark ? const Color(0xFF0A1628) : const Color(0xFFF8FAFC),
       body: Stack(
         children: [
+          // Textura quadriculada de fundo, a mesma da tela de entrada.
+          const Positioned.fill(child: GridBackground()),
           SafeArea(
             bottom: false,
             child: RefreshIndicator(
@@ -1364,10 +1367,10 @@ class _ListCondomiumsState extends State<ListCondomiums> {
         ),
         Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            color: isDark ? AppColors.darkSurface : Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
               width: 1.2,
             ),
             boxShadow: [
@@ -1388,7 +1391,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                   Divider(
                     height: 1,
                     thickness: 1,
-                    color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                    color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
                   ),
                 _buildEventoRow(context, mostrar[i]),
               ],
@@ -1396,7 +1399,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                 Divider(
                   height: 1,
                   thickness: 1,
-                  color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                  color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
                 ),
                 Material(
                   color: isDark
@@ -1657,10 +1660,10 @@ class _DashboardCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+          color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
           width: 1.2,
         ),
         boxShadow: [
@@ -1785,10 +1788,10 @@ class _CondominioCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+          color: isDark ? AppColors.darkBorder : const Color(0xFFF1F5F9),
           width: 1.2,
         ),
         boxShadow: [
@@ -1907,10 +1910,10 @@ class _CondominioCard extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+          color: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            color: isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0),
             width: 1,
           ),
         ),
@@ -2020,10 +2023,10 @@ class _CondominioCard extends StatelessWidget {
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+        color: isDark ? AppColors.darkSurface : const Color(0xFFEFF6FF),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE),
+          color: isDark ? AppColors.darkBorder : const Color(0xFFDBEAFE),
           width: 1.2,
         ),
       ),

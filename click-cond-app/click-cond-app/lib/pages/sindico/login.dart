@@ -9,7 +9,7 @@ import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
 import 'package:click/widgets/app/app_dialog.dart';
 import 'package:click/widgets/app/app_input.dart';
-import 'package:click/widgets/app/app_scaffold.dart';
+import 'package:click/widgets/app/grid_background.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -106,95 +106,287 @@ class _LoginSindicoPageState extends State<LoginSindico> {
     }
   }
 
+  IconData _typeIcon() {
+    switch (widget.loginType) {
+      case 'sindico': return PhosphorIcons.shieldCheckBold;
+      case 'morador': return PhosphorIcons.houseFill;
+      default: return PhosphorIcons.identificationCard;
+    }
+  }
+
+  /// A frase que diz ao usuário o que ele encontra depois de entrar — mesma
+  /// promessa dos cartões da tela de escolha de perfil.
+  String _typeSubtitle() {
+    switch (widget.loginType) {
+      case 'sindico': return 'Gestão completa do condomínio';
+      case 'morador': return 'Visitas, encomendas e reservas';
+      default: return 'Portaria, ocorrências e rotinas';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: AppSpacing.xl),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                ),
-                child: Icon(
-                  widget.loginType == 'sindico'
-                      ? PhosphorIcons.userCircleFill
-                      : widget.loginType == 'morador'
-                          ? PhosphorIcons.houseFill
-                          : PhosphorIcons.briefcaseFill,
-                  size: 36,
-                  color: AppColors.primary,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: AppColors.bg(context),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? [const Color(0xFF0A1628), const Color(0xFF04060A)]
+                      : [const Color(0xFFFFFFFF), const Color(0xFFEEF4FD)],
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
-            Text(
-              'Entrar',
-              style: AppTypography.display(context),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Acessar como ${_typeLabel()}',
-              style: AppTypography.bodySecondary(context),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.xxxl),
-            AppInput(
-              label: getText('email'),
-              controller: _txtLogin,
-              keyboard: TextInputType.emailAddress,
-              prefixIcon: PhosphorIcons.envelope,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppInput(
-              label: getText('senha'),
-              controller: _txtSenha,
-              isPassword: true,
-              prefixIcon: PhosphorIcons.lock,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.sm,
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ForgotPassword(loginType: widget.loginType),
+          ),
+          const Positioned.fill(child: GridBackground()),
+          Positioned.fill(
+            child: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xxl,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: ConstrainedBox(
+                      // Garante altura mínima de tela cheia para o Spacer ter o
+                      // que distribuir — é o que gruda o copyright na base
+                      // quando sobra espaço, sem quebrar o scroll com teclado.
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - AppSpacing.sm * 2,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: _buildBackButton(context),
+                            ),
+                            const SizedBox(height: AppSpacing.xxl),
+                            _buildBrand(context),
+                            const SizedBox(height: AppSpacing.xxl),
+                            _buildFormCard(context),
+                            const Spacer(),
+                            const SizedBox(height: AppSpacing.xl),
+                            Text(
+                              '© 2026 Prestare Gestão e Tecnologia.',
+                              style: AppTypography.tiny(context).copyWith(
+                                color: AppColors.textTertiary(context),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 },
-                child: Text(
-                  getText('login_btn_esqueci_senha'),
-                  style: AppTypography.captionMedium(context).copyWith(
-                    color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackButton(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.full),
+      child: Material(
+        color: AppColors.surfaceElevated(context),
+        child: InkWell(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              border: Border.all(color: AppColors.border(context), width: 1.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              PhosphorIcons.caretLeft,
+              color: AppColors.textPrimary(context),
+              size: 20,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Marca compacta: a mesma logo em cartão branco da tela de entrada, menor,
+  /// para o usuário não perder a referência de onde está.
+  Widget _buildBrand(BuildContext context) {
+    final marca = AppTypography.title(context).copyWith(
+      fontSize: 20,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0.8,
+    );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.08),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.16),
+                blurRadius: 22,
+                spreadRadius: -4,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: Image.asset(
+              'assets/images/logo_prestare_gestao.png',
+              width: 68,
+              height: 68,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Flexible(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: 'PRESTARE ', style: marca),
+                TextSpan(
+                  text: 'GESTÃO',
+                  style: marca.copyWith(color: AppColors.primary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated(context),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+        border: Border.all(color: AppColors.border(context), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 24,
+            spreadRadius: -6,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Selo do perfil: repete ícone e texto do cartão que trouxe o
+          // usuário até aqui, para a navegação não parecer um salto.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppRadius.full),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_typeIcon(), size: 15, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    _typeLabel(),
+                    style: AppTypography.tiny(context).copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Entrar', style: AppTypography.title(context)),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _typeSubtitle(),
+            style: AppTypography.caption(context),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          AppInput(
+            label: getText('email'),
+            controller: _txtLogin,
+            keyboard: TextInputType.emailAddress,
+            prefixIcon: PhosphorIcons.envelope,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppInput(
+            label: getText('senha'),
+            controller: _txtSenha,
+            isPassword: true,
+            prefixIcon: PhosphorIcons.lock,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: AppSpacing.sm,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ForgotPassword(loginType: widget.loginType),
+                  ),
+                );
+              },
+              child: Text(
+                getText('login_btn_esqueci_senha'),
+                style: AppTypography.tiny(context).copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            const SizedBox(height: AppSpacing.xl),
-            AppButton(
-              label: getText('login_btn_entrar'),
-              loading: _isLoading,
-              onPressed: _doLogin,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-          ],
-        ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppButton(
+            label: getText('login_btn_entrar'),
+            loading: _isLoading,
+            trailingIcon: PhosphorIcons.arrowRight,
+            onPressed: _doLogin,
+          ),
+        ],
       ),
     );
   }
