@@ -129,7 +129,7 @@
 
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px;">
           <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
-            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Quero ver no meu condomínio</x-import>
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="lg" icon-right="arrow-right" hint-size="240px,52px">Quero um orçamento</x-import>
           </a>
           <a href="#modulos">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="ghost" size="lg" hint-size="170px,52px">Ver os módulos</x-import>
@@ -424,8 +424,8 @@
   <section id="contato" style="max-width: 1440px; margin: 0 auto; padding: 0 24px 72px;">
     <div style="background: var(--gradient-hero); border-radius: 28px; box-shadow: var(--glow-brand); padding: clamp(28px, 4vw, 48px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 36px; align-items: center;">
       <div style="min-width: 0;">
-        <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Veja o Prestare Gestão com o seu condomínio dentro.</h2>
-        <p style="margin: 14px 0 0; font: var(--type-body); color: rgba(255,255,255,.85); max-width: 44ch;">20 minutos de demonstração: app do morador, console da portaria e os relatórios que o conselho pede.</p>
+        <h2 style="margin: 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-display); letter-spacing: -.02em; color: var(--text-on-brand); text-wrap: pretty;">Receba um orçamento para o seu condomínio.</h2>
+        <p style="margin: 14px 0 0; font: var(--type-body); color: rgba(255,255,255,.85); max-width: 44ch;">O valor acompanha o tamanho do condomínio. Diga quantas unidades e eu respondo com o orçamento e os módulos que fazem sentido para vocês.</p>
         <div style="margin-top: 24px; display: flex; flex-direction: column; gap: 10px;">
           <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="align-self: flex-start;">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" variant="outline" size="lg" icon-left="phone" hint-size="220px,52px">Falar no WhatsApp agora</x-import>
@@ -469,15 +469,15 @@
         <sc-if value="{{ enviado }}" hint-placeholder-val="{{ false }}">
           <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 12px 0;">
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconChip" icon="circle-check" tone="success" size="lg" hint-size="52px,52px"></x-import>
-            <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedido registrado</h3>
+            <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedido de orçamento enviado</h3>
             <p style="margin: 0; font: var(--type-body); color: var(--text-muted);">Abrimos o WhatsApp com os seus dados. Se a janela não abrir, chame em <strong style="font-weight: 600;">{{ telefone }}</strong>.</p>
           </div>
         </sc-if>
         <sc-if value="{{ mostrarForm }}" hint-placeholder-val="{{ true }}">
           <form id="ps-form-demo" onSubmit="{{ enviar }}" style="display: grid; gap: 14px;">
             <div>
-              <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedir demonstração</h3>
-              <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">Preencha e continuamos a conversa no WhatsApp.</p>
+              <h3 style="margin: 0; font: var(--type-h2); color: var(--text-strong);">Pedir orçamento</h3>
+              <p style="margin: 4px 0 0; font: var(--type-sub); color: var(--text-muted);">Preencha e eu respondo com o valor pelo WhatsApp.</p>
             </div>
             <label style="display: grid; gap: 6px;">
               <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Seu nome</span>
@@ -492,8 +492,8 @@
               <input name="contato" required placeholder="(00) 00000-0000">
             </label>
             <label style="display: grid; gap: 6px;">
-              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Quantas unidades</span>
-              <input name="unidades" placeholder="Ex: 59 apartamentos">
+              <span style="font: var(--type-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em;">Quantas unidades · define o valor</span>
+              <input name="unidades" required placeholder="Ex: 59 apartamentos">
             </label>
             <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" type="submit" size="lg" full-width="{{ true }}" icon-right="arrow-right" hint-size="100%,52px">Enviar e abrir o WhatsApp</x-import>
             <span style="font: var(--type-caption); color: var(--text-faint);">Usamos os dados só para responder este contato.</span>
@@ -530,7 +530,7 @@
       <nav style="flex: 0 1 165px; min-width: 0; display: grid; gap: 11px; align-content: start;">
         <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--text-strong);">Acesso</span>
         <a href="/login" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Console da portaria</a>
-        <a href="#contato" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Pedir demonstração</a>
+        <a href="#contato" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Pedir orçamento</a>
         <a href="mailto:suporte@clickprestarecondominios.com.br" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Suporte</a>
       </nav>
 
@@ -656,7 +656,7 @@
                    deixa-la colada na lista com espaco morto embaixo. -->
               <div style="margin-top: auto; padding-top: 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
                 <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
-                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Ver funcionando ao vivo</x-import>
+                  <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Pedir um orçamento</x-import>
                 </a>
                 <span style="font: var(--type-caption); color: var(--text-faint);">Esc para fechar</span>
               </div>
@@ -679,7 +679,7 @@
             </ul>
             <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
               <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener">
-                <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Ver funcionando ao vivo</x-import>
+                <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="md" icon-right="arrow-right" hint-size="200px,44px">Pedir um orçamento</x-import>
               </a>
               <span style="font: var(--type-caption); color: var(--text-faint);">Esc para fechar</span>
             </div>
@@ -716,7 +716,7 @@ class Component extends DCLogic {
 
   CHAVE_COOKIES = "prestare-click:consentimento";
   EMAIL = "suporte@clickprestarecondominios.com.br";
-  ASSUNTO = "Demonstração do Prestare Gestão";
+  ASSUNTO = "Orçamento do Prestare Gestão";
 
   TELAS = {
     "app-home": {
@@ -844,7 +844,7 @@ class Component extends DCLogic {
   corpoEmail() {
     const d = this.dadosFormulario();
     return [
-      "Olá! Gostaria de ver o Prestare Gestão funcionando no meu condomínio.",
+      "Olá! Gostaria de receber um orçamento do Prestare Gestão para o meu condomínio.",
       "",
       "Nome: " + (d ? this.tituloCaso(d.nome) : ""),
       "Condomínio: " + (d ? this.tituloCaso(d.condominio) : ""),
@@ -962,19 +962,18 @@ class Component extends DCLogic {
     // Linha em branco entre os blocos e rótulo em negrito (*x* é a marcação do
     // WhatsApp): sem isso a mensagem chega como um parágrafo corrido.
     const linhas = [
-      "*Pedido de demonstração — Prestare Gestão*",
+      "*Pedido de orçamento — Prestare Gestão*",
       "",
-      "Olá! Gostaria de ver o Prestare Gestão funcionando no meu condomínio.",
+      "Olá! Gostaria de receber um orçamento do Prestare Gestão para o meu condomínio.",
       "",
       "*Nome:* " + this.tituloCaso(f.get("nome")),
       "*Condomínio:* " + this.tituloCaso(f.get("condominio")),
       "*WhatsApp:* " + this.formatarTelefone(f.get("contato"))
     ];
-    // Unidades é o único campo opcional do formulário — em branco, sai fora da
-    // mensagem em vez de virar um "Unidades: -".
-    if (unidadesBruto) {
-      linhas.push("*Tamanho:* " + (/^\d+$/.test(unidadesBruto) ? unidadesBruto + " unidades" : unidadesBruto));
-    }
+    // O campo agora e obrigatorio — e ele que define o preco. A guarda fica de
+    // pe: sem ela um envio sem o campo viraria um "Unidades: -" na mensagem.
+    // Sem sufixo: com o rotulo "Unidades", um "30 unidades" viraria redundante.
+    if (unidadesBruto) linhas.push("*Unidades:* " + unidadesBruto);
     linhas.push("", "_Enviado pelo site clickprestarecondominios.com.br/sobre_");
 
     const num = (this.props.whatsapp ?? "5517988338147").replace(/\D/g, "");
@@ -1035,7 +1034,7 @@ class Component extends DCLogic {
       mostrarNumeros: this.props.mostrarNumeros ?? true,
       mostrarFaq: this.props.mostrarFaq ?? true,
       telefone: this.formatarTelefone(this.props.whatsapp ?? "5517988338147"),
-      linkWhatsapp: "https://wa.me/" + num + "?text=" + encodeURIComponent("Olá! Quero conhecer o Prestare Gestão para o meu condomínio."),
+      linkWhatsapp: "https://wa.me/" + num + "?text=" + encodeURIComponent("Olá! Quero um orçamento do Prestare Gestão para o meu condomínio."),
       enviado: this.state.enviado,
       mostrarForm: !this.state.enviado,
       enviar: this.enviar,
