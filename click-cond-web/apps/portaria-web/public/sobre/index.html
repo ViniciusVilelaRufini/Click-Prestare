@@ -109,11 +109,9 @@
     body { padding-bottom: 76px; }
   }
 
-  /* Telas estreitas (<=430px): some o wordmark e fica so o icone, para o
-     CTA do WhatsApp continuar visivel no topo em vez de vazar. */
-  @media (max-width: 430px) {
-    .ps-logo-txt { display: none !important; }
-  }
+  /* O wordmark some? Nao mais. A regra que o escondia abaixo de 430px existia
+     para o botao "Falar no WhatsApp" caber no topo; sem ele, sobram 24px
+     mesmo num aparelho de 320px (icone 36 + marca + hamburguer 44). */
 
   /* ─── Menu do celular ───────────────────────────────────────────────── */
   /* Hamburguer desenhado a mao: o set de icones do design system tem 47
