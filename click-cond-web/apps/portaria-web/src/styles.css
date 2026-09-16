@@ -66,6 +66,24 @@ html, body {
   transition: background-color 0.3s ease;
 }
 
+/* Padrão Quadriculado Decorativo (Grid Pattern Blueprint) */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, #0f172a 1px, transparent 1px),
+    linear-gradient(to bottom, #0f172a 1px, transparent 1px);
+  background-size: 4rem 4rem;
+  opacity: 0.08;
+}
+
+.dark .bg-grid-pattern,
+html.dark .bg-grid-pattern,
+body.dark .bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, #ffffff 1px, transparent 1px),
+    linear-gradient(to bottom, #ffffff 1px, transparent 1px);
+  opacity: 0.04;
+}
+
 /* Mapeamento dinâmico e inteligente para os utilitários fixos de UI no modo Claro */
 .light .bg-graphite-200 {
   background-color: var(--bg-surface) !important;
