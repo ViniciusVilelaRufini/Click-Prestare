@@ -211,9 +211,9 @@
           <img src="/sobre/assets/web-financeiro.png" alt="Console web: controle financeiro com inadimplência por bloco" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Financeiro · fluxo de caixa, pendências por apartamento e exportação em CSV</figcaption>
         </figure>
-        <figure onClick="{{ abrirWebLogin }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
-          <img src="/sobre/assets/web-login.png" alt="Painel de acesso do console web Prestare Gestão" style="display: block; width: 100%; border-radius: 14px;">
-          <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Painel de acesso · turno da portaria ou entrada por QR Code</figcaption>
+        <figure onClick="{{ abrirWebDashboard }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
+          <img src="/sobre/assets/web-dashboard.png" alt="Console web: dashboard com indicadores do dia e últimos eventos — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Dashboard · o condomínio agora, com os últimos eventos em tempo real</figcaption>
         </figure>
       </div>
     </div>
@@ -756,10 +756,10 @@ class Component extends DCLogic {
       texto: "Fluxo de caixa, auditoria de pagamentos e inadimplência por bloco. O síndico abre um apartamento, vê o histórico de pendências e notifica o morador sem sair do painel.",
       itens: ["Receitas, despesas e saldo do período", "Inadimplência por bloco e apartamento", "Exportação em CSV"]
     },
-    "web-login": {
-      src: "/sobre/assets/web-login.png", tipo: "Console web", titulo: "Painel de acesso",
-      texto: "Entrada da portaria no início do turno, com credenciais próprias por perfil. Quem prefere o celular acessa pelo QR Code e cai direto no app.",
-      itens: ["Perfis de portaria, síndico e administradora", "Acesso por QR Code", "Sessão por turno"]
+    "web-dashboard": {
+      src: "/sobre/assets/web-dashboard.png", tipo: "Console web", titulo: "Dashboard da operação",
+      texto: "A tela que o síndico abre para saber como o condomínio está agora: visitantes no local, encomendas aguardando retirada, ocorrências pendentes e prestadores ativos. Ao lado, o fluxo de entradas e saídas em tempo real e os atalhos que a portaria mais usa no turno.",
+      itens: ["Quatro indicadores do dia em destaque", "Últimos eventos com filtro por tipo", "Atalhos: liberar visitante, validar PIN, dar baixa"]
     }
   };
 
@@ -985,7 +985,7 @@ class Component extends DCLogic {
       abrirAppAutorizacao: this.abrir("app-autorizacao"),
       abrirWebVisitantes: this.abrir("web-visitantes"),
       abrirWebFinanceiro: this.abrir("web-financeiro"),
-      abrirWebLogin: this.abrir("web-login"),
+      abrirWebDashboard: this.abrir("web-dashboard"),
       mostrarNumeros: this.props.mostrarNumeros ?? true,
       mostrarFaq: this.props.mostrarFaq ?? true,
       telefone: this.formatarTelefone(this.props.whatsapp ?? "5517988338147"),
