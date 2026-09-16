@@ -116,9 +116,22 @@
   }
 
   /* ─── Menu do celular ───────────────────────────────────────────────── */
-  .ps-menu-btn { display: none; }
+  /* Hamburguer desenhado a mao: o set de icones do design system tem 47
+     nomes e nenhum de menu — o "ellipsis" lia como "mais opcoes", nao como
+     navegacao. As medidas copiam o IconButton (44px, neutral-100) para o
+     botao continuar parecendo parte do sistema. */
+  .ps-menu-btn {
+    display: none;
+    margin-left: auto; flex: none; cursor: pointer;
+    width: 44px; height: 44px; border-radius: var(--radius-md);
+    background: var(--neutral-100);
+    flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    transition: background 150ms cubic-bezier(.2,.8,.28,1);
+  }
+  .ps-menu-btn:hover { background: var(--prestare-blue-100); }
+  .ps-menu-btn i { display: block; width: 17px; height: 2px; border-radius: 2px; background: var(--prestare-blue-900); }
   @media (max-width: 900px) {
-    .ps-menu-btn { display: inline-flex; }
+    .ps-menu-btn { display: flex; }
   }
 
   /* ─── Barra fixa de CTA (so no celular) ─────────────────────────────── */
@@ -178,12 +191,7 @@
         <a href="#modulos" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Módulos</a>
         <a href="#duvidas" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Dúvidas</a>
       </nav>
-      <span onClick="{{ alternarMenu }}" class="ps-menu-btn" title="Menu" aria-label="Abrir o menu" style="margin-left: auto; flex: none; cursor: pointer;">
-        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="ellipsis" hint-size="44px,44px"></x-import>
-      </span>
-      <a href="{{ linkWhatsapp }}" target="_blank" rel="noopener" style="flex: none;" class="ps-cta-topo">
-        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Button" size="sm" icon-right="arrow-right" hint-size="180px,36px">Falar no WhatsApp</x-import>
-      </a>
+      <span onClick="{{ alternarMenu }}" class="ps-menu-btn" title="Menu" aria-label="Abrir o menu" role="button"><i></i><i></i><i></i></span>
     </div>
   </header>
 
