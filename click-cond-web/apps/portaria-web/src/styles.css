@@ -38,7 +38,8 @@ html.light, body.light, .light {
 app-root,
 app-shell,
 app-confirm-host,
-app-toast-host {
+app-toast-host,
+app-network-banner {
   display: block;
 }
 
