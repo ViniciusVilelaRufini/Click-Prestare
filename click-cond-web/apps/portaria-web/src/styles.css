@@ -66,31 +66,6 @@ html, body {
   transition: background-color 0.3s ease;
 }
 
-/* Padrão Quadriculado Decorativo (Grid Pattern Blueprint — 100% no Background) */
-.bg-grid-pattern {
-  background-color: var(--bg-base);
-  background-image: 
-    radial-gradient(ellipse 60% 40% at 10% 0%, rgba(37, 99, 235, 0.05) 0%, transparent 100%),
-    radial-gradient(ellipse 50% 50% at 90% 40%, rgba(37, 99, 235, 0.03) 0%, transparent 100%),
-    linear-gradient(to right, rgba(15, 23, 42, 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(15, 23, 42, 0.07) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 4rem 4rem, 4rem 4rem;
-  background-repeat: no-repeat, no-repeat, repeat, repeat;
-}
-
-.dark .bg-grid-pattern,
-html.dark .bg-grid-pattern,
-body.dark .bg-grid-pattern {
-  background-color: var(--bg-base);
-  background-image: 
-    radial-gradient(ellipse 60% 40% at 10% 0%, rgba(37, 99, 235, 0.08) 0%, transparent 100%),
-    radial-gradient(ellipse 50% 50% at 90% 40%, rgba(37, 99, 235, 0.05) 0%, transparent 100%),
-    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 4rem 4rem, 4rem 4rem;
-  background-repeat: no-repeat, no-repeat, repeat, repeat;
-}
-
 /* Mapeamento dinâmico e inteligente para os utilitários fixos de UI no modo Claro */
 .light .bg-graphite-200 {
   background-color: var(--bg-surface) !important;
