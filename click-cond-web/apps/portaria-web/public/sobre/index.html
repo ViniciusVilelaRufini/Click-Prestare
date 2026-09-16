@@ -39,6 +39,15 @@
   @keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes ps-zoom { from { opacity: 0; transform: translateY(14px) scale(.965) } to { opacity: 1; transform: none } }
 
+  /* Setas do carrossel do console: por fora da imagem quando ha margem, por
+     dentro quando nao ha — abaixo de ~1150px o container encosta no padding. */
+  .ps-seta-esq { left: -21px; }
+  .ps-seta-dir { right: -21px; }
+  @media (max-width: 1150px) {
+    .ps-seta-esq { left: 8px; }
+    .ps-seta-dir { right: 8px; }
+  }
+
   /* ─── Responsivo ───────────────────────────────────────────────────────
      O layout todo e inline style, que nao aceita media query — por isso as
      regras abaixo precisam de !important para vencer o atributo style. */
@@ -201,20 +210,26 @@
     <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 28ch; text-wrap: pretty;">O console web mostra quem está no condomínio agora.</h2>
     <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Mesma informação do app, do outro lado do balcão: ativos no local, liberados aguardando, quem saiu e o total registrado — com PIN, documento protegido e baixa por apartamento.</p>
 
-    <div style="margin-top: 32px; display: grid; gap: 16px;">
-      <figure onClick="{{ abrirWebVisitantes }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-floating); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
-        <img src="/sobre/assets/web-visitantes.png" alt="Console web: lista de visitantes com status no condomínio" style="display: block; width: 100%; border-radius: 14px;">
-        <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;">Visitantes · controle de acesso, entrada e saída do condomínio <span style="font: var(--type-caption); color: var(--prestare-blue-500);">Clique para ampliar</span></figcaption>
+    <!-- Uma tela por vez: as tres empilhadas ocupavam quase 1100px de altura
+         para dizer a mesma coisa. As setas ficam por fora da imagem no desktop
+         e por dentro quando nao ha margem sobrando. -->
+    <div class="ps-console" style="margin: 32px auto 0; max-width: 1040px; position: relative;">
+      <span onClick="{{ consoleAnterior }}" class="ps-seta ps-seta-esq" title="Tela anterior" aria-label="Tela anterior" style="position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; cursor: pointer;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="chevron-left" hint-size="42px,42px"></x-import>
+      </span>
+      <span onClick="{{ consoleProximo }}" class="ps-seta ps-seta-dir" title="Próxima tela" aria-label="Próxima tela" style="position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; cursor: pointer;">
+        <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="chevron-right" hint-size="42px,42px"></x-import>
+      </span>
+
+      <figure onClick="{{ consoleAbrir }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-floating); padding: 10px; cursor: zoom-in;">
+        <img src="{{ consoleSrc }}" alt="{{ consoleAlt }}" style="display: block; width: 100%; border-radius: 14px;">
+        <figcaption style="padding: 14px 12px 6px; font: var(--type-sub); color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;">{{ consoleLegenda }} <span style="font: var(--type-caption); color: var(--prestare-blue-500);">Clique para ampliar</span></figcaption>
       </figure>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px;">
-        <figure onClick="{{ abrirWebFinanceiro }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
-          <img src="/sobre/assets/web-financeiro.png" alt="Console web: controle financeiro com inadimplência por bloco" style="display: block; width: 100%; border-radius: 14px;">
-          <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Financeiro · fluxo de caixa, pendências por apartamento e exportação em CSV</figcaption>
-        </figure>
-        <figure onClick="{{ abrirWebDashboard }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
-          <img src="/sobre/assets/web-dashboard.png" alt="Console web: dashboard com indicadores do dia e últimos eventos — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
-          <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Dashboard · o condomínio agora, com os últimos eventos em tempo real</figcaption>
-        </figure>
+
+      <div style="margin-top: 14px; display: flex; gap: 7px; align-items: center; justify-content: center;">
+        <span onClick="{{ consoleIr0 }}" title="Visitantes" style="width: {{ consoleLarg0 }}; height: 7px; border-radius: 999px; background: {{ consoleCor0 }}; cursor: pointer; transition: width 200ms cubic-bezier(.2,.8,.28,1), background 200ms cubic-bezier(.2,.8,.28,1);"></span>
+        <span onClick="{{ consoleIr1 }}" title="Financeiro" style="width: {{ consoleLarg1 }}; height: 7px; border-radius: 999px; background: {{ consoleCor1 }}; cursor: pointer; transition: width 200ms cubic-bezier(.2,.8,.28,1), background 200ms cubic-bezier(.2,.8,.28,1);"></span>
+        <span onClick="{{ consoleIr2 }}" title="Dashboard" style="width: {{ consoleLarg2 }}; height: 7px; border-radius: 999px; background: {{ consoleCor2 }}; cursor: pointer; transition: width 200ms cubic-bezier(.2,.8,.28,1), background 200ms cubic-bezier(.2,.8,.28,1);"></span>
       </div>
     </div>
 
@@ -681,10 +696,23 @@ class Component extends DCLogic {
     enviado: false, tela: null,
     // O banner comeca fechado e so abre no componentDidMount, depois de ler o
     // localStorage: abrir antes provocaria um pisca em quem ja decidiu.
+    consoleIndice: 0,
     cookieBanner: false, cookiePainel: false,
     cookieAnalytics: false, cookieMarketing: false,
     emailPainel: false, emailCopiado: false
   };
+
+  // Ordem do carrossel do console. As legendas e os textos moram no TELAS,
+  // para o carrossel e o modal nunca divergirem.
+  CONSOLE_TELAS = ["web-visitantes", "web-financeiro", "web-dashboard"];
+
+  navegarConsole = (passo) => () => {
+    const n = this.CONSOLE_TELAS.length;
+    // +n antes do resto para o -1 no primeiro slide dar a volta em vez de -1.
+    this.setState({ consoleIndice: (this.state.consoleIndice + passo + n) % n });
+  };
+
+  irConsole = (i) => () => this.setState({ consoleIndice: i });
 
   CHAVE_COOKIES = "prestare-click:consentimento";
   EMAIL = "suporte@clickprestarecondominios.com.br";
@@ -748,16 +776,19 @@ class Component extends DCLogic {
     },
     "web-visitantes": {
       src: "/sobre/assets/web-visitantes.png", tipo: "Console web", titulo: "Visitantes",
+      legenda: "Visitantes · controle de acesso, entrada e saída do condomínio",
       texto: "A tela que a portaria usa no turno inteiro. Ativos no local, liberados aguardando, quem saiu e o total registrado — com documento mascarado, validação de PIN e baixa por apartamento.",
       itens: ["Ativos no local em tempo real", "Dar baixa e nova visita em um clique", "Documento revelado só por permissão"]
     },
     "web-financeiro": {
       src: "/sobre/assets/web-financeiro.png", tipo: "Console web", titulo: "Controle financeiro",
+      legenda: "Financeiro · fluxo de caixa, pendências por apartamento e exportação em CSV",
       texto: "Fluxo de caixa, auditoria de pagamentos e inadimplência por bloco. O síndico abre um apartamento, vê o histórico de pendências e notifica o morador sem sair do painel.",
       itens: ["Receitas, despesas e saldo do período", "Inadimplência por bloco e apartamento", "Exportação em CSV"]
     },
     "web-dashboard": {
       src: "/sobre/assets/web-dashboard.png", tipo: "Console web", titulo: "Dashboard da operação",
+      legenda: "Dashboard · o condomínio agora, com os últimos eventos em tempo real",
       texto: "A tela que o síndico abre para saber como o condomínio está agora: visitantes no local, encomendas aguardando retirada, ocorrências pendentes e prestadores ativos. Ao lado, o fluxo de entradas e saídas em tempo real e os atalhos que a portaria mais usa no turno.",
       itens: ["Quatro indicadores do dia em destaque", "Últimos eventos com filtro por tipo", "Atalhos: liberar visitante, validar PIN, dar baixa"]
     }
@@ -954,6 +985,9 @@ class Component extends DCLogic {
   renderVals() {
     const num = (this.props.whatsapp ?? "5517988338147").replace(/\D/g, "");
     const t = this.state.tela ? this.TELAS[this.state.tela] : null;
+    const ci = this.state.consoleIndice;
+    const chaveConsole = this.CONSOLE_TELAS[ci];
+    const telaConsole = this.TELAS[chaveConsole];
     return {
       telaAberta: !!t,
       telaRetrato: !!t && !!t.retrato,
@@ -983,9 +1017,21 @@ class Component extends DCLogic {
       abrirPorteiroOcorrencias: this.abrir("porteiro-ocorrencias"),
       abrirWebAutorizacao: this.abrir("web-autorizacao"),
       abrirAppAutorizacao: this.abrir("app-autorizacao"),
-      abrirWebVisitantes: this.abrir("web-visitantes"),
-      abrirWebFinanceiro: this.abrir("web-financeiro"),
-      abrirWebDashboard: this.abrir("web-dashboard"),
+      consoleSrc: telaConsole.src,
+      consoleAlt: telaConsole.titulo + " no console web — clique para ampliar",
+      consoleLegenda: telaConsole.legenda,
+      consoleAbrir: this.abrir(chaveConsole),
+      consoleAnterior: this.navegarConsole(-1),
+      consoleProximo: this.navegarConsole(1),
+      consoleIr0: this.irConsole(0),
+      consoleIr1: this.irConsole(1),
+      consoleIr2: this.irConsole(2),
+      consoleCor0: ci === 0 ? "var(--prestare-blue-500)" : "var(--border-subtle)",
+      consoleCor1: ci === 1 ? "var(--prestare-blue-500)" : "var(--border-subtle)",
+      consoleCor2: ci === 2 ? "var(--prestare-blue-500)" : "var(--border-subtle)",
+      consoleLarg0: ci === 0 ? "22px" : "7px",
+      consoleLarg1: ci === 1 ? "22px" : "7px",
+      consoleLarg2: ci === 2 ? "22px" : "7px",
       mostrarNumeros: this.props.mostrarNumeros ?? true,
       mostrarFaq: this.props.mostrarFaq ?? true,
       telefone: this.formatarTelefone(this.props.whatsapp ?? "5517988338147"),
