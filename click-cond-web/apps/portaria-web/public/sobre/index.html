@@ -39,13 +39,14 @@
   @keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes ps-zoom { from { opacity: 0; transform: translateY(14px) scale(.965) } to { opacity: 1; transform: none } }
 
-  /* Setas do carrossel do console: por fora da imagem quando ha margem, por
-     dentro quando nao ha — abaixo de ~1150px o container encosta no padding. */
-  .ps-seta-esq { left: -21px; }
-  .ps-seta-dir { right: -21px; }
-  @media (max-width: 1150px) {
-    .ps-seta-esq { left: 8px; }
-    .ps-seta-dir { right: 8px; }
+  /* As setas moram na calha lateral do .ps-console (padding de 58px), nunca
+     sobre o cartao. Em tela estreita a calha aperta, mas continua existindo. */
+  .ps-seta-esq { left: 8px; }
+  .ps-seta-dir { right: 8px; }
+  @media (max-width: 560px) {
+    .ps-console { padding-left: 48px !important; padding-right: 48px !important; }
+    .ps-seta-esq { left: 0; }
+    .ps-seta-dir { right: 0; }
   }
 
   /* ─── Responsivo ───────────────────────────────────────────────────────
@@ -213,7 +214,7 @@
     <!-- Uma tela por vez: as tres empilhadas ocupavam quase 1100px de altura
          para dizer a mesma coisa. As setas ficam por fora da imagem no desktop
          e por dentro quando nao ha margem sobrando. -->
-    <div class="ps-console" style="margin: 32px auto 0; max-width: 1040px; position: relative;">
+    <div class="ps-console" onMouseEnter="{{ pausarConsole }}" onMouseLeave="{{ retomarConsole }}" style="margin: 32px auto 0; max-width: 1156px; padding: 0 58px; position: relative;">
       <span onClick="{{ consoleAnterior }}" class="ps-seta ps-seta-esq" title="Tela anterior" aria-label="Tela anterior" style="position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; cursor: pointer;">
         <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="chevron-left" hint-size="42px,42px"></x-import>
       </span>
@@ -706,13 +707,42 @@ class Component extends DCLogic {
   // para o carrossel e o modal nunca divergirem.
   CONSOLE_TELAS = ["web-visitantes", "web-financeiro", "web-dashboard"];
 
+  INTERVALO_CONSOLE = 6000;
+
   navegarConsole = (passo) => () => {
     const n = this.CONSOLE_TELAS.length;
     // +n antes do resto para o -1 no primeiro slide dar a volta em vez de -1.
     this.setState({ consoleIndice: (this.state.consoleIndice + passo + n) % n });
+    // Reinicia a contagem: girar sozinho logo apos um clique manual passaria
+    // a impressao de que o proprio clique pulou duas telas.
+    this.iniciarRotacao();
   };
 
-  irConsole = (i) => () => this.setState({ consoleIndice: i });
+  irConsole = (i) => () => {
+    this.setState({ consoleIndice: i });
+    this.iniciarRotacao();
+  };
+
+  iniciarRotacao = () => {
+    this.pararRotacao();
+    // Quem pediu menos animacao no sistema nao recebe carrossel girando.
+    try {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    } catch (_) { /* sem matchMedia: segue girando */ }
+    this._rotacao = window.setInterval(() => {
+      // Com o modal aberto a tela de fundo mudaria sozinha por tras dele.
+      if (this.state.tela) return;
+      const n = this.CONSOLE_TELAS.length;
+      this.setState({ consoleIndice: (this.state.consoleIndice + 1) % n });
+    }, this.INTERVALO_CONSOLE);
+  };
+
+  pararRotacao = () => {
+    if (this._rotacao) {
+      window.clearInterval(this._rotacao);
+      this._rotacao = null;
+    }
+  };
 
   CHAVE_COOKIES = "prestare-click:consentimento";
   EMAIL = "suporte@clickprestarecondominios.com.br";
@@ -804,6 +834,8 @@ class Component extends DCLogic {
       if (this.state.emailPainel) this.setState({ emailPainel: false });
     };
     window.addEventListener("keydown", this._esc);
+
+    this.iniciarRotacao();
 
     const c = this.lerConsentimento();
     if (c) this.setState({ cookieAnalytics: !!c.analytics, cookieMarketing: !!c.marketing });
@@ -926,6 +958,7 @@ class Component extends DCLogic {
 
   componentWillUnmount() {
     window.removeEventListener("keydown", this._esc);
+    this.pararRotacao();
   }
 
   // Partículas que não levam maiúscula no meio de um nome próprio.
@@ -1020,6 +1053,8 @@ class Component extends DCLogic {
       consoleAlt: telaConsole.titulo + " no console web — clique para ampliar",
       consoleLegenda: telaConsole.legenda,
       consoleAbrir: this.abrir(chaveConsole),
+      pausarConsole: this.pararRotacao,
+      retomarConsole: this.iniciarRotacao,
       consoleAnterior: this.navegarConsole(-1),
       consoleProximo: this.navegarConsole(1),
       consoleIr0: this.irConsole(0),
