@@ -39,6 +39,12 @@
   @keyframes ps-fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes ps-zoom { from { opacity: 0; transform: translateY(14px) scale(.965) } to { opacity: 1; transform: none } }
 
+  /* Carrossel da portaria: rolagem nativa, com barra discreta. */
+  .ps-carrossel { scrollbar-width: thin; scrollbar-color: var(--border-subtle) transparent; -webkit-overflow-scrolling: touch; }
+  .ps-carrossel::-webkit-scrollbar { height: 7px; }
+  .ps-carrossel::-webkit-scrollbar-track { background: transparent; }
+  .ps-carrossel::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 999px; }
+
   /* ─── Responsivo ───────────────────────────────────────────────────────
      O layout todo e inline style, que nao aceita media query — por isso as
      regras abaixo precisam de !important para vencer o atributo style. */
@@ -89,6 +95,7 @@
       <nav class="ps-nav" style="display: flex; align-items: center; gap: 26px; margin-left: auto; font: var(--type-body-strong); flex-wrap: wrap;">
         <a href="#app" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Para o morador</a>
         <a href="#console" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Para o síndico</a>
+        <a href="#portaria-app" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">App do porteiro</a>
         <a href="#modulos" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Módulos</a>
         <a href="#duvidas" style="color: var(--text-muted);" style-hover="color: var(--text-strong);">Dúvidas</a>
       </nav>
@@ -213,6 +220,62 @@
         <figure onClick="{{ abrirWebLogin }}" style="margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-200);">
           <img src="/sobre/assets/web-login.png" alt="Painel de acesso do console web Prestare Gestão" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 14px 12px 8px; font: var(--type-sub); color: var(--text-muted);">Painel de acesso · turno da portaria ou entrada por QR Code</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="portaria-app" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
+    <div class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 56px 24px;">
+      <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">App do porteiro</span>
+      <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">A portaria resolve no celular, sem largar o portão.</h2>
+      <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">O mesmo sistema do console, na mão de quem está no posto: o turno começa com os números do dia e segue com mudança, comunicado e ocorrência resolvidos onde a coisa acontece.</p>
+
+      <div style="margin-top: 30px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;">
+        <span style="display: inline-flex; align-items: center; gap: 7px; font: var(--type-caption); color: var(--text-faint);">
+          <x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="search" size="14" hint-size="14px,14px"></x-import>Clique em uma tela para ver o que ela faz
+        </span>
+        <span style="display: flex; gap: 8px; flex: none;">
+          <span onClick="{{ carrosselAnterior }}" title="Anterior" aria-label="Tela anterior" style="cursor: pointer;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="chevron-left" hint-size="40px,40px"></x-import>
+          </span>
+          <span onClick="{{ carrosselProximo }}" title="Próxima" aria-label="Próxima tela" style="cursor: pointer;">
+            <x-import component-from-global-scope="PrestareDesignSystem_ea5733.IconButton" icon="chevron-right" hint-size="40px,40px"></x-import>
+          </span>
+        </span>
+      </div>
+
+      <div id="ps-carrossel" class="ps-carrossel" style="margin-top: 14px; display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px 2px 16px; scroll-padding-left: 2px;">
+        <figure onClick="{{ abrirPorteiroInicio }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; scroll-snap-align: start; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
+          <img src="/sobre/assets/porteiro-inicio.jpeg" alt="Tela inicial do app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 13px 6px 3px;">
+            <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Início do turno</span>
+            <span style="display: block; margin-top: 3px; font: var(--type-caption); color: var(--text-muted);">Os números do condomínio agora</span>
+          </figcaption>
+        </figure>
+
+        <figure onClick="{{ abrirPorteiroMudancas }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; scroll-snap-align: start; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
+          <img src="/sobre/assets/porteiro-mudancas.jpeg" alt="Agendamentos de mudança no app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 13px 6px 3px;">
+            <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Agendamentos de mudança</span>
+            <span style="display: block; margin-top: 3px; font: var(--type-caption); color: var(--text-muted);">Aceitar ou recusar em um toque</span>
+          </figcaption>
+        </figure>
+
+        <figure onClick="{{ abrirPorteiroComunicados }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; scroll-snap-align: start; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
+          <img src="/sobre/assets/porteiro-comunicados.jpeg" alt="Comunicados no app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 13px 6px 3px;">
+            <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Comunicados</span>
+            <span style="display: block; margin-top: 3px; font: var(--type-caption); color: var(--text-muted);">O mesmo aviso que o morador vê</span>
+          </figcaption>
+        </figure>
+
+        <figure onClick="{{ abrirPorteiroOcorrencias }}" class="ps-slide" style="flex: 0 0 auto; width: 236px; scroll-snap-align: start; margin: 0; cursor: zoom-in; background: var(--surface-app); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-row); padding: 10px; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-5px); border-color: var(--prestare-blue-200);">
+          <img src="/sobre/assets/porteiro-ocorrencias.jpeg" alt="Abertura de ocorrências no app da portaria — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 13px 6px 3px;">
+            <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Abertura de ocorrências</span>
+            <span style="display: block; margin-top: 3px; font: var(--type-caption); color: var(--text-muted);">Registrada na hora, com prazo</span>
+          </figcaption>
         </figure>
       </div>
     </div>
@@ -420,6 +483,7 @@
         <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--text-strong);">Produto</span>
         <a href="#app" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Para o morador</a>
         <a href="#console" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Para o síndico</a>
+        <a href="#portaria-app" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">App do porteiro</a>
         <a href="#modulos" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Módulos</a>
         <a href="#duvidas" style="font: var(--type-sub); color: var(--text-muted);" style-hover="color: var(--prestare-blue-600);">Dúvidas frequentes</a>
       </nav>
@@ -604,29 +668,49 @@ class Component extends DCLogic {
 
   TELAS = {
     "app-home": {
-      src: "/sobre/assets/app-home.jpeg", tipo: "App do morador", titulo: "Início",
+      src: "/sobre/assets/app-home.jpeg", tipo: "App do morador", retrato: true, titulo: "Início",
       texto: "A primeira tela do morador: saudação, resumo do dia com visitas agendadas e encomendas aguardando retirada, e a lista dos condomínios em que ele tem unidade. Abaixo, os eventos recentes de entrada e saída da própria unidade.",
       itens: ["Resumo geral do dia", "Troca entre condomínios", "Eventos recentes da unidade"]
     },
     "app-ia": {
-      src: "/sobre/assets/app-ia.png", tipo: "App do morador", titulo: "Prestare IA",
+      src: "/sobre/assets/app-ia.png", tipo: "App do morador", retrato: true, titulo: "Prestare IA",
       texto: "O assistente dentro do app. O morador pergunta em português e recebe a resposta do próprio condomínio — ou pede para resolver: reservar área, abrir ocorrência, pagar boleto.",
       itens: ["Perguntas sobre visitas, assembleias e portaria", "Executa ações no lugar do morador", "Sugestões prontas para começar"]
     },
     "app-visitantes": {
-      src: "/sobre/assets/app-visitantes.jpeg", tipo: "App do morador", titulo: "Visitantes e prestadores",
+      src: "/sobre/assets/app-visitantes.jpeg", tipo: "App do morador", retrato: true, titulo: "Visitantes e prestadores",
       texto: "O morador cadastra quem vai visitar antes de a pessoa chegar, gera o PIN de acesso e acompanha o status. Na portaria, é só confirmar — sem ligação e sem fila no portão.",
       itens: ["Busca por nome ou documento", "PIN de acesso por visitante", "No local e Cadastrados separados"]
     },
     "app-encomendas": {
-      src: "/sobre/assets/app-encomendas.jpeg", tipo: "App do morador", titulo: "Minhas encomendas",
+      src: "/sobre/assets/app-encomendas.jpeg", tipo: "App do morador", retrato: true, titulo: "Minhas encomendas",
       texto: "Tudo o que chegou na portaria em uma lista só: busca por remetente, separação entre o que aguarda retirada e o que já foi entregue, e a foto do volume quando a portaria registra. Cada item mostra bloco, apartamento, transportadora e a hora da chegada.",
       itens: ["Aguardando e Entregues separados", "Quem retirou fica registrado", "Foto do volume no recebimento"]
     },
     "app-financeiro": {
-      src: "/sobre/assets/app-financeiro.jpeg", tipo: "App do morador", titulo: "Meu financeiro",
+      src: "/sobre/assets/app-financeiro.jpeg", tipo: "App do morador", retrato: true, titulo: "Meu financeiro",
       texto: "A conta do condomínio na palma da mão: total pendente em destaque, mês a mês, e cada conta com o próprio status — Condomínio, Aluguel, Água, Luz e Internet.",
       itens: ["Total pendente do mês", "1 pendente · Nenhuma pendência", "Boleto direto na conta"]
+    },
+    "porteiro-inicio": {
+      src: "/sobre/assets/porteiro-inicio.jpeg", tipo: "App da portaria", retrato: true, titulo: "Início do turno",
+      texto: "A primeira tela de quem assume o posto: encomendas aguardando retirada, visitantes liberados no dia, quantas pessoas estão no condomínio agora e as ocorrências em aberto. Abaixo, o condomínio do turno com blocos, unidades e quantos estão no local.",
+      itens: ["Quatro números que abrem o turno", "Quantos estão no condomínio agora", "Troca de condomínio no mesmo login"]
+    },
+    "porteiro-mudancas": {
+      src: "/sobre/assets/porteiro-mudancas.jpeg", tipo: "App da portaria", retrato: true, titulo: "Agendamentos de mudança",
+      texto: "O morador pede a data da mudança e a portaria aceita ou recusa na própria tela, sem bilhete no balcão. Cada pedido mostra apartamento, dia e hora, e fica com o estado à vista — pendente, aceito ou recusado.",
+      itens: ["Aceitar ou recusar em um toque", "Pendentes destacados no topo", "Histórico do que já foi agendado"]
+    },
+    "porteiro-comunicados": {
+      src: "/sobre/assets/porteiro-comunicados.jpeg", tipo: "App da portaria", retrato: true, titulo: "Comunicados",
+      texto: "Os avisos do condomínio na mão de quem atende o portão: manutenção de piscina, interdição de quadra, limpeza de caixa d'água, convocação de assembleia. A portaria responde ao morador sem precisar procurar o síndico.",
+      itens: ["Mesmo aviso que o morador recebe", "Publicação direto do celular", "Sem papel no mural da recepção"]
+    },
+    "porteiro-ocorrencias": {
+      src: "/sobre/assets/porteiro-ocorrencias.jpeg", tipo: "App da portaria", retrato: true, titulo: "Abertura de ocorrências",
+      texto: "Portão que não abre, vidro quebrado, lâmpada queimada: a portaria registra na hora, com filtro por situação e por mês. Cada ocorrência fica marcada como pública ou privada e mostra o autor e o prazo.",
+      itens: ["Pendentes e Em andamento separados", "Pública ou privada por ocorrência", "Autor e prazo registrados"]
     },
     "web-visitantes": {
       src: "/sobre/assets/web-visitantes.png", tipo: "Console web", titulo: "Visitantes",
@@ -672,6 +756,21 @@ class Component extends DCLogic {
     try { window.localStorage.setItem(this.CHAVE_COOKIES, JSON.stringify(v)); }
     catch (_) { /* sem storage: a escolha vale so para esta visita */ }
   }
+
+  // Carrossel da portaria. Rola por scroll nativo com scroll-snap, em vez de
+  // um transform controlado por state: assim o arrasto no celular e a roda do
+  // mouse funcionam de graca, e nao ha indice para dessincronizar.
+  GAP_CARROSSEL = 18;
+
+  rolarCarrossel = (direcao) => () => {
+    const el = document.getElementById("ps-carrossel");
+    if (!el) return;
+    const primeiro = el.firstElementChild;
+    const passo = primeiro
+      ? primeiro.getBoundingClientRect().width + this.GAP_CARROSSEL
+      : el.clientWidth * 0.8;
+    el.scrollBy({ left: direcao * passo, behavior: "smooth" });
+  };
 
   // Le o que ja foi digitado no formulario ao lado, para o e-mail nascer
   // preenchido. O formulario nao e controlado, entao a leitura e pelo DOM; se
@@ -838,9 +937,9 @@ class Component extends DCLogic {
     const t = this.state.tela ? this.TELAS[this.state.tela] : null;
     return {
       telaAberta: !!t,
-      telaRetrato: !!t && t.tipo === "App do morador",
-      modalLargura: !!t && t.tipo === "App do morador" ? "fit-content" : "min(98vw, 1480px)",
-      telaPaisagem: !!t && t.tipo !== "App do morador",
+      telaRetrato: !!t && !!t.retrato,
+      modalLargura: !!t && t.retrato ? "fit-content" : "min(98vw, 1480px)",
+      telaPaisagem: !!t && !t.retrato,
       telaImgRetrato: t ? React.createElement("img", {
         src: t.src, alt: t.titulo,
         style: { display: "block", width: "auto", maxWidth: "100%", maxHeight: "74vh", borderRadius: 14, border: "1px solid var(--border-subtle)", boxShadow: "var(--shadow-row)" }
@@ -859,6 +958,12 @@ class Component extends DCLogic {
       abrirAppVisitantes: this.abrir("app-visitantes"),
       abrirAppEncomendas: this.abrir("app-encomendas"),
       abrirAppFinanceiro: this.abrir("app-financeiro"),
+      abrirPorteiroInicio: this.abrir("porteiro-inicio"),
+      abrirPorteiroMudancas: this.abrir("porteiro-mudancas"),
+      abrirPorteiroComunicados: this.abrir("porteiro-comunicados"),
+      abrirPorteiroOcorrencias: this.abrir("porteiro-ocorrencias"),
+      carrosselAnterior: this.rolarCarrossel(-1),
+      carrosselProximo: this.rolarCarrossel(1),
       abrirWebVisitantes: this.abrir("web-visitantes"),
       abrirWebFinanceiro: this.abrir("web-financeiro"),
       abrirWebLogin: this.abrir("web-login"),
