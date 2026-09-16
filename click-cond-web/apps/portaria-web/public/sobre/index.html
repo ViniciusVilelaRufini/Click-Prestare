@@ -217,6 +217,44 @@
         </figure>
       </div>
     </div>
+
+    <!-- Fluxo de autorizacao remota: dois lados do mesmo momento, por isso as
+         duas telas ficam lado a lado em vez de virarem cartoes separados. -->
+    <div style="margin-top: 40px; background: var(--prestare-blue-50); border: 1px solid var(--prestare-blue-200); border-radius: var(--radius-xl); padding: clamp(24px, 3vw, 36px);">
+      <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-600);">Portaria remota</span>
+      <h3 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(22px, 2.4vw, 30px)/1.14 var(--font-ui); letter-spacing: -.018em; color: var(--text-strong); max-width: 24ch; text-wrap: pretty;">O visitante chega e o morador libera pelo celular.</h3>
+      <p style="margin: 12px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 58ch;">Acabou a ligação do interfone no meio da reunião. O porteiro toca em <strong style="font-weight: 600; color: var(--text-body);">Solicitar</strong>, o morador recebe a notificação com a foto de quem está no portão e responde do lugar onde estiver — e a portaria vê a resposta na hora.</p>
+
+      <ol style="margin: 26px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px;">
+        <li style="min-width: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--prestare-blue-500); color: var(--text-on-brand); font: var(--weight-bold) 13px/1 var(--font-ui);">1</span>
+          <span style="display: block; margin-top: 12px; font: var(--type-body-strong); color: var(--text-strong);">A portaria solicita</span>
+          <span style="display: block; margin-top: 4px; font: var(--type-sub); color: var(--text-muted);">Um toque em Solicitar na linha do visitante ou prestador. Sem telefonema.</span>
+        </li>
+        <li style="min-width: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--prestare-blue-500); color: var(--text-on-brand); font: var(--weight-bold) 13px/1 var(--font-ui);">2</span>
+          <span style="display: block; margin-top: 12px; font: var(--type-body-strong); color: var(--text-strong);">O morador decide</span>
+          <span style="display: block; margin-top: 4px; font: var(--type-sub); color: var(--text-muted);">Notificação no celular com foto e nome: Autorizar, Negar ou decidir depois.</span>
+        </li>
+        <li style="min-width: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--prestare-blue-500); color: var(--text-on-brand); font: var(--weight-bold) 13px/1 var(--font-ui);">3</span>
+          <span style="display: block; margin-top: 12px; font: var(--type-body-strong); color: var(--text-strong);">A entrada fica registrada</span>
+          <span style="display: block; margin-top: 4px; font: var(--type-sub); color: var(--text-muted);">A portaria registra no sistema ou libera a catraca — com autor, data e hora.</span>
+        </li>
+      </ol>
+
+      <div style="margin-top: 26px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; justify-content: center;">
+        <figure onClick="{{ abrirWebAutorizacao }}" style="flex: 1 1 460px; min-width: 0; max-width: 780px; margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-floating); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-300);">
+          <img src="/sobre/assets/web-autorizacao.png" alt="Console web: pedido de autorização de acesso respondido pelo morador — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 13px 8px 4px; font: var(--type-sub); color: var(--text-muted);">No console · a portaria pede e vê a resposta chegar</figcaption>
+        </figure>
+
+        <figure onClick="{{ abrirAppAutorizacao }}" style="flex: 0 1 218px; min-width: 0; margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-floating); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-300);">
+          <img src="/sobre/assets/app-autorizacao.jpeg" alt="App do morador: notificação para autorizar a entrada — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
+          <figcaption style="padding: 13px 8px 4px; font: var(--type-caption); color: var(--text-muted);">No app · o morador autoriza ou nega</figcaption>
+        </figure>
+      </div>
+    </div>
   </section>
 
   <section id="portaria-app" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
@@ -698,6 +736,16 @@ class Component extends DCLogic {
       texto: "Portão que não abre, vidro quebrado, lâmpada queimada: a portaria registra na hora, com filtro por situação e por mês. Cada ocorrência fica marcada como pública ou privada e mostra o autor e o prazo.",
       itens: ["Pendentes e Em andamento separados", "Pública ou privada por ocorrência", "Autor e prazo registrados"]
     },
+    "web-autorizacao": {
+      src: "/sobre/assets/web-autorizacao.png", tipo: "Console web", titulo: "Autorização de acesso",
+      texto: "A portaria toca em Solicitar e o pedido sai para o morador. Quando a resposta volta, o console mostra o estado na própria linha — e oferece os dois caminhos: registrar a entrada no sistema ou liberar a catraca e o portão físico.",
+      itens: ["Solicitar direto da linha da pessoa", "Resposta do morador em tempo real", "Registrar entrada ou liberar catraca"]
+    },
+    "app-autorizacao": {
+      src: "/sobre/assets/app-autorizacao.jpeg", tipo: "App do morador", retrato: true, titulo: "Liberação pelo morador",
+      texto: "A notificação chega com a foto e o nome de quem está no portão. O morador responde de onde estiver: Negar, Autorizar, ou Autorizar e Dar Entrada de uma vez — e ainda pode deixar para decidir depois, sem travar a portaria.",
+      itens: ["Foto e nome de quem está no portão", "Autorizar, negar ou decidir depois", "Resolve sem atender o interfone"]
+    },
     "web-visitantes": {
       src: "/sobre/assets/web-visitantes.png", tipo: "Console web", titulo: "Visitantes",
       texto: "A tela que a portaria usa no turno inteiro. Ativos no local, liberados aguardando, quem saiu e o total registrado — com documento mascarado, validação de PIN e baixa por apartamento.",
@@ -933,6 +981,8 @@ class Component extends DCLogic {
       abrirPorteiroMudancas: this.abrir("porteiro-mudancas"),
       abrirPorteiroComunicados: this.abrir("porteiro-comunicados"),
       abrirPorteiroOcorrencias: this.abrir("porteiro-ocorrencias"),
+      abrirWebAutorizacao: this.abrir("web-autorizacao"),
+      abrirAppAutorizacao: this.abrir("app-autorizacao"),
       abrirWebVisitantes: this.abrir("web-visitantes"),
       abrirWebFinanceiro: this.abrir("web-financeiro"),
       abrirWebLogin: this.abrir("web-login"),
