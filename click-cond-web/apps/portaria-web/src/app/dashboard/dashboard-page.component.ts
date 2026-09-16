@@ -7,6 +7,7 @@ import { AuthService } from '../auth/auth.service';
 import { VisitantesService, Pessoa } from '../visitantes/visitantes.service';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { ServerClockService } from '../core/server-clock.service';
+import { NetworkStatusService } from '../core/network-status.service';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -23,6 +24,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private visitantesService = inject(VisitantesService);
   private aptosService = inject(ApartamentosApi);
   private relogio = inject(ServerClockService);
+  readonly network = inject(NetworkStatusService);
 
   readonly data = signal<DashboardSummary | null>(null);
   readonly loading = signal(true);
@@ -42,6 +44,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   readonly pessoasEncontradas = signal<Pessoa[]>([]);
   readonly pessoaSelecionada = signal<Pessoa | null>(null);
   readonly apartamentos = signal<Apartamento[]>([]);
+  readonly carregandoApartamentos = signal(false);
   readonly idApartamentoSelecionado = signal<number | null>(null);
   readonly liberarInicio = signal<string>('');
   readonly liberarTermino = signal<string>('');
@@ -164,6 +167,21 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return (partes[0].substring(0, 1) + partes[partes.length - 1].substring(0, 1)).toUpperCase();
   }
 
+  carregarApartamentos() {
+    this.carregandoApartamentos.set(true);
+    this.erroLiberar.set(null);
+    this.aptosService.list().subscribe({
+      next: (data) => {
+        this.apartamentos.set(data);
+        this.carregandoApartamentos.set(false);
+      },
+      error: (e) => {
+        this.carregandoApartamentos.set(false);
+        this.erroLiberar.set(this.network.getFriendlyErrorMessage(e, 'Falha ao carregar apartamentos'));
+      },
+    });
+  }
+
   abrirModalLiberar() {
     this.showLiberarModal.set(true);
     this.buscaPessoa.set('');
@@ -177,10 +195,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
     // Carrega a lista de apartamentos se estiver vazia
     if (this.apartamentos().length === 0) {
-      this.aptosService.list().subscribe({
-        next: (data) => this.apartamentos.set(data),
-        error: (e) => this.erroLiberar.set('Falha ao carregar apartamentos: ' + (e?.message ?? e)),
-      });
+      this.carregarApartamentos();
     }
   }
 
@@ -207,7 +222,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
         this.carregandoPessoas.set(false);
       },
       error: (e) => {
-        this.erroLiberar.set('Falha ao buscar visitantes: ' + (e?.message ?? e));
+        this.erroLiberar.set(this.network.getFriendlyErrorMessage(e, 'Falha ao buscar visitantes'));
         this.carregandoPessoas.set(false);
       }
     });
@@ -228,7 +243,12 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   confirmarLiberacao() {
     const p = this.pessoaSelecionada();
     const idApto = this.idApartamentoSelecionado();
-    if (!p) return;
+
+    if (!p) {
+      this.erroLiberar.set('Selecione uma pessoa para liberar o acesso.');
+      return;
+    }
+
     if (!idApto) {
       this.erroLiberar.set('Selecione o apartamento de destino.');
       return;
@@ -254,13 +274,13 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
           },
           error: (e) => {
             this.liberandoVisitante.set(false);
-            this.erroLiberar.set('A visita foi cadastrada, mas falhou ao liberar o acesso: ' + (e?.error?.message ?? e?.message ?? e));
+            this.erroLiberar.set(this.network.getFriendlyErrorMessage(e, 'A visita foi cadastrada, mas falhou ao liberar o acesso'));
           }
         });
       },
       error: (e) => {
         this.liberandoVisitante.set(false);
-        this.erroLiberar.set('Falha ao criar visita: ' + (e?.error?.message ?? e?.message ?? e));
+        this.erroLiberar.set(this.network.getFriendlyErrorMessage(e, 'Falha ao criar visita'));
       }
     });
   }
@@ -364,7 +384,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
         this.carregandoBaixa.set(false);
       },
       error: (e) => {
-        this.erroBaixa.set('Falha ao carregar pessoas no condomínio: ' + (e?.message ?? e));
+        this.erroBaixa.set(this.network.getFriendlyErrorMessage(e, 'Falha ao carregar pessoas no condomínio'));
         this.carregandoBaixa.set(false);
       }
     });
@@ -398,7 +418,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       },
       error: (e) => {
         this.registrandoSaida.set(false);
-        this.erroBaixa.set('Falha ao registrar saída: ' + (e?.error?.message ?? e?.message ?? e));
+        this.erroBaixa.set(this.network.getFriendlyErrorMessage(e, 'Falha ao registrar saída'));
       }
     });
   }

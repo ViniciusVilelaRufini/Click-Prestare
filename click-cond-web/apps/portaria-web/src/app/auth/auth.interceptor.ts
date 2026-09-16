@@ -6,12 +6,14 @@ import {
 import { inject } from '@angular/core';
 import { AuthService } from './auth.service';
 import { ServerClockService } from '../core/server-clock.service';
+import { NetworkStatusService } from '../core/network-status.service';
 import { catchError, tap } from 'rxjs/operators';
 import { throwError } from 'rxjs';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
   const clock = inject(ServerClockService);
+  const network = inject(NetworkStatusService);
   const token = auth.token;
   if (token) {
     req = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
@@ -23,6 +25,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     tap((ev) => {
       if (ev instanceof HttpResponse) {
         clock.registrar(ev.headers.get('Date'), enviadoEm);
+        network.reportHttpSuccess();
       }
     }),
     catchError((error: HttpErrorResponse) => {
@@ -32,7 +35,29 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       if (error.status === 401) {
         auth.logout();
       }
+
+      // Notifica o serviço de status de rede em caso de status 0 (queda de conexão)
+      network.reportHttpError(error);
+
+      // Normaliza mensagens técnicas do Angular (ex: "Http failure response ...: 0 undefined")
+      // para um texto em português claro e direto para o operador da portaria.
+      const friendlyMsg = network.getFriendlyErrorMessage(error);
+      try {
+        Object.defineProperty(error, 'message', {
+          value: friendlyMsg,
+          writable: true,
+          configurable: true,
+        });
+        if (!error.error || typeof error.error !== 'object') {
+          (error as any).error = { message: friendlyMsg };
+        } else if (!error.error.message) {
+          error.error.message = friendlyMsg;
+        }
+      } catch {
+        // Ignora caso o objeto de erro seja congelado pelo runtime
+      }
+
       return throwError(() => error);
     })
   );
-};
+};
