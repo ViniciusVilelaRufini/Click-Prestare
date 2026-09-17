@@ -214,6 +214,7 @@ export class MoradoresPageComponent implements OnInit {
   showForm = false;
   editingId: number | null = null;
   readonly saving = signal(false);
+  readonly revogandoBiometria = signal(false);
 
   // === Veículos do morador (só ao editar um morador existente) ===
   readonly veiculos = signal<Veiculo[]>([]);
@@ -341,6 +342,7 @@ export class MoradoresPageComponent implements OnInit {
       documento: m.documento ?? '',
       email: m.email ?? '',
       telefone: m.telefone ?? '',
+      data_nascimento: m.data_nascimento ? (typeof m.data_nascimento === 'string' ? m.data_nascimento.slice(0, 10) : new Date(m.data_nascimento).toISOString().slice(0, 10)) : '',
       tipo: m.tipo ?? 'proprietario',
       id_apartamento: m.id_apartamento,
       sendCredentials: false,
@@ -629,7 +631,52 @@ export class MoradoresPageComponent implements OnInit {
   }
 
   private estadoInicial(): CreateMorador {
-    return { nome: '', documento: '', email: '', telefone: '', tipo: 'proprietario', id_apartamento: 0, sendCredentials: true, tag_rfid: '', qrcode_acesso: '' };
+    return { nome: '', documento: '', email: '', telefone: '', data_nascimento: '', tipo: 'proprietario', id_apartamento: 0, sendCredentials: true, tag_rfid: '', qrcode_acesso: '' };
+  }
+
+  isMenorDeIdade(dataNascimento?: string | null): boolean {
+    if (!dataNascimento) return false;
+    const parts = dataNascimento.split('-');
+    if (parts.length < 3) return false;
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    if (isNaN(d.getTime())) return false;
+    const hoje = new Date();
+    let idade = hoje.getFullYear() - d.getFullYear();
+    const m = hoje.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < d.getDate())) {
+      idade--;
+    }
+    return idade < 18;
+  }
+
+  onDataNascimentoChange(data: string) {
+    if (this.isMenorDeIdade(data)) {
+      this.novo.sendCredentials = false;
+      this.novo.foto_pessoa = undefined;
+      this.fotoPessoaBase64.set(null);
+      this.novo.tipo = 'dependente';
+    }
+  }
+
+  revogarBiometria(m: Morador) {
+    if (!confirm(`Deseja realmente revogar a biometria facial de ${m.nome}? Os acessos faciais serão removidos das catracas e terminais (Cláusula 8.4 e DPA 9.3).`)) {
+      return;
+    }
+    this.revogandoBiometria.set(true);
+    this.api.revogarBiometria(m.id).subscribe({
+      next: (res) => {
+        this.revogandoBiometria.set(false);
+        m.face_id = null;
+        m.face_sync_status = res.status || 'revoked';
+        m.foto_pessoa = null;
+        m.photo = null;
+        this.carregar();
+      },
+      error: (err) => {
+        this.revogandoBiometria.set(false);
+        alert(`Erro ao revogar biometria: ${err?.error?.message || err?.message || 'Falha na comunicação'}`);
+      },
+    });
   }
 
   // Controle de Importação em Lote (Excel/CSV)

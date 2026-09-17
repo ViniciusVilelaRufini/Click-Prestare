@@ -141,6 +141,43 @@
             </div>
           </div>
         </button>
+
+        <!-- Card Exportação Completa LGPD (Exclusivo Síndico / Cláusula 9.5) -->
+        <div class="p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 transition space-y-3">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/15 text-emerald-400">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="font-semibold text-white">Exportação de Dados (LGPD)</h3>
+              <p class="text-xs text-slate-400 mt-0.5">Pacote completo do condomínio em formato universal (.zip / CSV).</p>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            Em conformidade com a <strong>Cláusula 9.5</strong> do Contrato e o <strong>DPA 11.2</strong>, exporta unidades, moradores, veículos, vagas, visitantes, encomendas, ocorrências e acessos em CSV com UTF-8.
+          </p>
+          <button
+            type="button"
+            (click)="exportarDadosCompletos()"
+            [disabled]="exportandoCompleto()"
+            class="w-full py-2 px-3 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            @if (exportandoCompleto()) {
+              <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Gerando Pacote .ZIP...</span>
+            } @else {
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              <span>Baixar Exportação Completa (.zip)</span>
+            }
+          </button>
+        </div>
       </div>
 
       <!-- Coluna 2 & 3: Configuração de Filtros e Ações de Exportação -->

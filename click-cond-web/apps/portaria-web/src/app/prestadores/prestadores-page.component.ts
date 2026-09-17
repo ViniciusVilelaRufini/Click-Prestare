@@ -9,6 +9,7 @@ import { VisitantesService, Pessoa } from '../visitantes/visitantes.service';
 import { Visitante } from '../visitantes/visitante.model';
 import { ApartamentosApi, Apartamento } from '../apartamentos/apartamentos.service';
 import { compressImage } from '../shared/image-compress.util';
+import { ConsentimentosApi } from '../core/consentimentos.service';
 
 @Component({
   selector: 'app-prestadores-page',
@@ -22,6 +23,9 @@ export class PrestadoresPageComponent implements OnInit {
   private visitantesApi = inject(VisitantesService);
   private aptApi = inject(ApartamentosApi);
   private route = inject(ActivatedRoute);
+  private consentimentosApi = inject(ConsentimentosApi);
+
+  readonly consentimentoBiometria = signal(false);
 
   constructor() {
     effect(() => {
@@ -395,6 +399,7 @@ export class PrestadoresPageComponent implements OnInit {
     this.fecharCamera();
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
+    this.consentimentoBiometria.set(false);
     this.showForm = false;
     this.editingId = null;
     this.error.set(null);
@@ -423,7 +428,17 @@ export class PrestadoresPageComponent implements OnInit {
       ? this.api.update(this.editingId, this.novo)
       : this.api.create(this.novo);
     obs.subscribe({
-      next: () => {
+      next: (saved: any) => {
+        const idPessoa = this.editingId || saved?.id;
+        if (this.novo.foto_pessoa && idPessoa) {
+          this.consentimentosApi.registrarTerceiro({
+            tipoPessoa: 'prestador',
+            idPessoa: Number(idPessoa),
+            doc: this.novo.telefone || undefined,
+            biometria: this.consentimentoBiometria(),
+            maiorIdade: this.consentimentoBiometria(),
+          }).subscribe({ error: (err) => console.error('Erro ao registrar consentimento do prestador:', err) });
+        }
         this.saving.set(false);
         this.cancelarForm();
         this.novo = { nome: '', telefone: '', email: '', senha: '', hasPortariaAccess: false, categorias: '' };

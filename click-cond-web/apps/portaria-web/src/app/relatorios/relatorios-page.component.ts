@@ -17,6 +17,7 @@ export class RelatoriosPageComponent {
   readonly loadingAudit = signal<boolean>(false);
   readonly errorAudit = signal<string | null>(null);
   readonly exportandoCsv = signal<boolean>(false);
+  readonly exportandoCompleto = signal<boolean>(false);
 
   // Filtros de auditoria
   readonly filtroModulo = signal<string>('todos');
@@ -256,6 +257,29 @@ export class RelatoriosPageComponent {
         console.error(err);
         this.errorAudit.set('Falha ao exportar CSV.');
         this.exportandoCsv.set(false);
+      },
+    });
+  }
+
+  exportarDadosCompletos() {
+    this.exportandoCompleto.set(true);
+    this.api.exportDadosCompletos().subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const stamp = new Date().toISOString().slice(0, 10);
+        a.download = `export_condominio_${stamp}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        this.exportandoCompleto.set(false);
+      },
+      error: (err) => {
+        console.error(err);
+        this.errorAudit.set('Falha ao exportar dados completos (exclusivo para Síndico).');
+        this.exportandoCompleto.set(false);
       },
     });
   }

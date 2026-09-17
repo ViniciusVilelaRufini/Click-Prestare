@@ -13,6 +13,7 @@ import { compressImage } from '../shared/image-compress.util';
 import { RealtimeService } from '../shared/realtime.service';
 import { MaskDocPipe } from '../shared/mask-doc.pipe';
 import { AuthService } from '../auth/auth.service';
+import { ConsentimentosApi } from '../core/consentimentos.service';
 
 @Component({
   selector: 'app-visitantes-page',
@@ -29,6 +30,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   private sanitizer = inject(DomSanitizer);
   private realtime = inject(RealtimeService);
   private auth = inject(AuthService);
+  private consentimentosApi = inject(ConsentimentosApi);
+
+  readonly consentimentoBiometria = signal(false);
 
   readonly isPorteiro = computed(() => {
     const info = this.auth.porteiroInfo();
@@ -815,6 +819,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
     this.pessoaEncontrada.set(null);
+    this.consentimentoBiometria.set(false);
     this.error.set(null);
   }
 
@@ -868,6 +873,15 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         bloqueado: this.novo.bloqueado,
       }).subscribe({
         next: () => {
+          if (this.novo.foto_pessoa && this.editingId) {
+            this.consentimentosApi.registrarTerceiro({
+              tipoPessoa: this.novo.is_prestador ? 'prestador' : 'visitante',
+              idPessoa: this.editingId,
+              doc: this.novo.doc_identificacao || undefined,
+              biometria: this.consentimentoBiometria(),
+              maiorIdade: this.consentimentoBiometria(),
+            }).subscribe({ error: (err) => console.error('Erro ao registrar consentimento de terceiro:', err) });
+          }
           this.saving.set(false);
           this.cancelarForm();
           this.novo = this.estadoInicial();
@@ -888,7 +902,16 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     }
     this.saving.set(true);
     this.service.create(this.novo).subscribe({
-      next: () => {
+      next: (created) => {
+        if (this.novo.foto_pessoa && created?.id) {
+          this.consentimentosApi.registrarTerceiro({
+            tipoPessoa: this.novo.is_prestador ? 'prestador' : 'visitante',
+            idPessoa: created.id,
+            doc: created.doc_identificacao || undefined,
+            biometria: this.consentimentoBiometria(),
+            maiorIdade: this.consentimentoBiometria(),
+          }).subscribe({ error: (err) => console.error('Erro ao registrar consentimento de terceiro:', err) });
+        }
         this.saving.set(false);
         this.cancelarForm();
         this.novo = this.estadoInicial();

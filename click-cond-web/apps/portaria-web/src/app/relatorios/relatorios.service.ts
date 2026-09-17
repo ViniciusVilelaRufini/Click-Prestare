@@ -28,6 +28,11 @@ export class RelatoriosApi {
     });
   }
 
+  exportDadosCompletos(): Observable<Blob> {
+    const cid = this.auth.porteiroInfo()?.id_condominio ?? 1;
+    return this.http.get(`${API_BASE}/condominios/${cid}/export`, { responseType: 'blob' });
+  }
+
   getAuditoria(
     modulo?: string,
     dataInicio?: string,

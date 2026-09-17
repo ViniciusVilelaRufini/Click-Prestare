@@ -31,6 +31,7 @@ export interface CreateMorador {
   documento?: string;
   email?: string;
   telefone?: string;
+  data_nascimento?: string;
   tipo?: string;
   id_apartamento: number;
   sendCredentials?: boolean;
@@ -82,6 +83,13 @@ export class MoradoresApi {
 
   sendCredentials(id: number): Observable<{ ok: boolean }> {
     return this.http.post<{ ok: boolean }>(`${this.base}/${id}/send-credentials`, {});
+  }
+
+  revogarBiometria(id: number): Observable<{ ok: boolean; status?: string; message?: string }> {
+    return this.http.post<{ ok: boolean; status?: string; message?: string }>(
+      `${this.base}/${id}/revogar-biometria`,
+      {},
+    );
   }
 
   atividade(id: number): Observable<MoradorAtividade> {

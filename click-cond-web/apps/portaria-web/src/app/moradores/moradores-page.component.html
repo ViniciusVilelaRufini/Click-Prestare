@@ -238,6 +238,30 @@
               />
             </label>
 
+            <!-- Data de Nascimento (Validação LGPD / Cláusula 8.3) -->
+            <label class="block">
+              <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
+                Data de Nascimento
+              </span>
+              <input
+                [(ngModel)]="novo.data_nascimento"
+                (ngModelChange)="onDataNascimentoChange($event)"
+                type="date"
+                class="w-full px-3 py-2 text-sm rounded-lg bg-white dark:bg-graphite border border-slate-300 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition shadow-2xs font-sans"
+              />
+            </label>
+
+            @if (isMenorDeIdade(novo.data_nascimento)) {
+              <div class="col-span-full p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400 text-xs flex items-start gap-2.5">
+                <svg class="w-4 h-4 shrink-0 mt-0.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div>
+                  <span class="font-bold">Titular Menor de 18 Anos:</span> Conforme a Cláusula 8.3 do Contrato e o DPA (LGPD), menores de 18 anos não podem ter conta de aplicativo nem cadastro biométrico facial. O cadastro será realizado apenas como dependente presencial da unidade.
+                </div>
+              </div>
+            }
+
             <!-- Tag RFID (Acesso Físico) -->
             <label class="block">
               <div class="flex items-center justify-between mb-1.5">
@@ -310,42 +334,51 @@
                   </p>
                 </div>
 
-                <div class="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    (click)="iniciarCamera('pessoa')"
-                    class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-accent/10 hover:bg-accent/15 border border-accent/25 text-accent transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                    Tirar Foto
-                  </button>
-
-                  <button
-                    type="button"
-                    (click)="facialModalOpen.set(true)"
-                    title="Capturar foto pelo terminal facial"
-                    class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                    Câmera facial
-                  </button>
-
-                  <label class="px-2.5 py-1.5 text-xs rounded-lg font-medium bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 transition cursor-pointer flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                    Upload
-                    <input type="file" accept="image/*" class="hidden" (change)="onFileSelectedImage($event, 'pessoa')" />
-                  </label>
-
-                  @if (fotoPessoaBase64()) {
+                @if (isMenorDeIdade(novo.data_nascimento)) {
+                  <div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-400 font-medium flex items-center gap-2">
+                    <svg class="w-4 h-4 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    <span>Biometria bloqueada para menores de 18 anos (Cláusula 8.3 do Contrato / LGPD).</span>
+                  </div>
+                } @else {
+                  <div class="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
-                      (click)="fotoPessoaBase64.set(null); novo.foto_pessoa = ''"
-                      class="text-[11px] text-rose-500 hover:text-rose-600 hover:underline cursor-pointer ml-auto"
+                      (click)="iniciarCamera('pessoa')"
+                      class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-accent/10 hover:bg-accent/15 border border-accent/25 text-accent transition flex items-center gap-1.5 cursor-pointer"
                     >
-                      Remover foto
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      Tirar Foto
                     </button>
-                  }
-                </div>
+
+                    <button
+                      type="button"
+                      (click)="facialModalOpen.set(true)"
+                      title="Capturar foto pelo terminal facial"
+                      class="px-2.5 py-1.5 text-xs rounded-lg font-semibold bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                      Câmera facial
+                    </button>
+
+                    <label class="px-2.5 py-1.5 text-xs rounded-lg font-medium bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 transition cursor-pointer flex items-center gap-1.5">
+                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                      Upload
+                      <input type="file" accept="image/*" class="hidden" (change)="onFileSelectedImage($event, 'pessoa')" />
+                    </label>
+
+                    @if (fotoPessoaBase64()) {
+                      <button
+                        type="button"
+                        (click)="fotoPessoaBase64.set(null); novo.foto_pessoa = ''"
+                        class="text-[11px] text-rose-500 hover:text-rose-600 hover:underline cursor-pointer ml-auto"
+                      >
+                        Remover foto
+                      </button>
+                    }
+                  </div>
+                }
               </div>
             </div>
 
@@ -488,14 +521,26 @@
 
         <!-- Opções de Acesso Inicial (ao cadastrar novo) -->
         @if (!editingId) {
-          <div class="p-3.5 rounded-xl bg-accent/[0.04] dark:bg-accent/10 border border-accent/20 flex items-start gap-3">
-            <input type="checkbox" id="checkCredenciais" [(ngModel)]="novo.sendCredentials"
-              class="w-4 h-4 mt-0.5 rounded border-accent/30 bg-white dark:bg-graphite text-accent focus:ring-accent cursor-pointer" />
-            <label for="checkCredenciais" class="text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-              <span class="font-bold text-slate-900 dark:text-white block mb-0.5">Enviar credenciais por e-mail</span>
-              Enviar link de acesso e senha inicial automaticamente para o e-mail do morador ao salvar o cadastro.
-            </label>
-          </div>
+          @if (isMenorDeIdade(novo.data_nascimento)) {
+            <div class="p-3.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-start gap-3">
+              <svg class="w-4 h-4 mt-0.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+              <div class="text-xs text-slate-500 dark:text-slate-400">
+                <span class="font-bold text-slate-700 dark:text-slate-300 block mb-0.5">Credenciais de Acesso Bloqueadas</span>
+                Menores de 18 anos não recebem conta de acesso ao aplicativo por força da Cláusula 8.3 do Contrato e da LGPD.
+              </div>
+            </div>
+          } @else {
+            <div class="p-3.5 rounded-xl bg-accent/[0.04] dark:bg-accent/10 border border-accent/20 flex items-start gap-3">
+              <input type="checkbox" id="checkCredenciais" [(ngModel)]="novo.sendCredentials"
+                class="w-4 h-4 mt-0.5 rounded border-accent/30 bg-white dark:bg-graphite text-accent focus:ring-accent cursor-pointer" />
+              <label for="checkCredenciais" class="text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <span class="font-bold text-slate-900 dark:text-white block mb-0.5">Enviar credenciais por e-mail</span>
+                Enviar link de acesso e senha inicial automaticamente para o e-mail do morador ao salvar o cadastro.
+              </label>
+            </div>
+          }
         }
 
         <!-- Barra de Ações (Salvar / Cancelar) -->
@@ -1010,6 +1055,14 @@
               <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 uppercase tracking-wider">
                 Sinc. Pendente
               </span>
+            } @else if (selectedMorador()!.face_sync_status === 'pending_removal') {
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 uppercase tracking-wider" title="Remoção em hardware pendente de reconexão do terminal">
+                Remoção Pendente
+              </span>
+            } @else if (selectedMorador()!.face_sync_status === 'revoked') {
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-500/15 border border-slate-500/30 text-slate-700 dark:text-slate-400 uppercase tracking-wider">
+                Biometria Revogada
+              </span>
             } @else if (selectedMorador()!.face_sync_status === 'error') {
               <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-400 uppercase tracking-wider" [title]="selectedMorador()!.face_sync_error || 'Erro na sincronização facial'">
                 Erro Facial
@@ -1462,6 +1515,14 @@
         Remover
       </button>
       <div class="flex gap-2">
+        @if (selectedMorador()!.face_id || selectedMorador()!.face_sync_status === 'synced' || selectedMorador()!.face_sync_status === 'pending' || selectedMorador()!.face_sync_status === 'pending_removal') {
+          <button (click)="revogarBiometria(selectedMorador()!)"
+                  [disabled]="revogandoBiometria()"
+                  class="px-3 py-2 text-xs rounded-lg border border-amber-300 dark:border-amber-400/20 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-400/10 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+            {{ revogandoBiometria() ? 'Revogando...' : 'Revogar Biometria' }}
+          </button>
+        }
         <button (click)="sendCredentials(selectedMorador()!)"
                 [disabled]="!selectedMorador()!.email"
                 class="px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition flex items-center gap-1.5 disabled:opacity-40">

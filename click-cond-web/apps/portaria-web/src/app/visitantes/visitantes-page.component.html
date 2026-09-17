@@ -671,6 +671,27 @@
                     </button>
                   }
                 </div>
+
+                @if (fotoPessoaBase64() || novo.foto_pessoa) {
+                  <div class="mt-2.5 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <label class="flex items-start gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        [ngModel]="consentimentoBiometria()"
+                        (ngModelChange)="consentimentoBiometria.set($event)"
+                        class="mt-0.5 rounded border-emerald-400/40 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <span class="text-[11px] text-emerald-800 dark:text-emerald-300 font-medium leading-tight">
+                        Declaro que o titular é maior de 18 anos e forneceu autorização prévia e informada para utilização de biometria facial nos acessos deste condomínio (Cláusulas 8.1 e 8.3 do Contrato / DPA LGPD).
+                      </span>
+                    </label>
+                    @if (!consentimentoBiometria()) {
+                      <p class="text-[10px] text-amber-600 dark:text-amber-400 mt-1 pl-5">
+                        * Sem esta autorização, a foto será mantida apenas para identificação na portaria e <strong>não será sincronizada com os terminais faciais</strong>.
+                      </p>
+                    }
+                  </div>
+                }
               </div>
             </div>
 
