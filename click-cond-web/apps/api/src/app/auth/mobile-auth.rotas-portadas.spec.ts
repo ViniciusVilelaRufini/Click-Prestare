@@ -67,7 +67,7 @@ describe('MobileAuthService — rotas portadas do Express', () => {
 
   // -------------------------------------------------------------------------
   describe('insertFamiliar', () => {
-    const body = { id_condominio: 2, morador: { nome: 'Filho', id_apto: 10 } };
+    const body = { id_condominio: 2, morador: { nome: 'Filho', id_apto: 10, data_nascimento: '2000-01-01' } };
 
     /**
      * Vínculo do usuário com o apto 10 (condomínio 2).

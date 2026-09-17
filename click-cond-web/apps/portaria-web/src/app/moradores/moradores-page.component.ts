@@ -211,6 +211,7 @@ export class MoradoresPageComponent implements OnInit {
   });
 
   novo: CreateMorador = this.estadoInicial();
+  dataNascimentoMasked = '';
   showForm = false;
   editingId: number | null = null;
   readonly saving = signal(false);
@@ -327,6 +328,7 @@ export class MoradoresPageComponent implements OnInit {
     this.editingId = null;
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
+    this.dataNascimentoMasked = '';
     this.novo = this.estadoInicial();
     this.veiculos.set([]);
     this.resetNovoVeiculo();
@@ -337,6 +339,7 @@ export class MoradoresPageComponent implements OnInit {
     this.editingId = m.id;
     this.fotoPessoaBase64.set(m.foto_pessoa ?? m.photo ?? null);
     this.fotoDocumentoBase64.set(m.foto_documento ?? null);
+    this.dataNascimentoMasked = this.formatarParaBr(m.data_nascimento);
     this.novo = {
       nome: m.nome,
       documento: m.documento ?? '',
@@ -432,11 +435,12 @@ export class MoradoresPageComponent implements OnInit {
     this.fecharCamera();
     this.fotoPessoaBase64.set(null);
     this.fotoDocumentoBase64.set(null);
+    this.dataNascimentoMasked = '';
     this.showForm = false;
     this.editingId = null;
     this.error.set(null);
   }
-  salvar() {
+  async salvar() {
     if (!this.novo.nome?.trim() || !this.novo.id_apartamento) {
       this.error.set('Nome e apartamento são obrigatórios.');
       return;
@@ -453,6 +457,36 @@ export class MoradoresPageComponent implements OnInit {
       this.error.set('CPF inválido. Use o formato 000.000.000-00.');
       return;
     }
+
+    const digitos = (this.dataNascimentoMasked || '').replace(/\D/g, '');
+    if (digitos.length > 0 && digitos.length < 8) {
+      this.error.set('Data de nascimento incompleta. Digite os 8 números no formato DD/MM/AAAA.');
+      return;
+    }
+
+    const ehMenor = this.isMenorDeIdade(this.novo.data_nascimento);
+
+    if (ehMenor && (this.fotoPessoaBase64() || this.novo.foto_pessoa)) {
+      const ok = await this.confirm.ask({
+        title: 'Morador Menor de 18 Anos',
+        message: 'A data informada torna o morador menor de idade. Pela Cláusula 8.3 do Contrato e a LGPD, a foto/biometria facial NÃO será sincronizada com os terminais. Deseja prosseguir salvando apenas como dependente sem biometria?',
+        confirmLabel: 'Prosseguir',
+        cancelLabel: 'Corrigir Data',
+        variant: 'danger',
+      });
+      if (!ok) {
+        return;
+      }
+      this.novo.foto_pessoa = undefined;
+      this.fotoPessoaBase64.set(null);
+      this.novo.sendCredentials = false;
+      this.novo.tipo = 'dependente';
+    } else if (ehMenor) {
+      this.novo.foto_pessoa = undefined;
+      this.novo.sendCredentials = false;
+      this.novo.tipo = 'dependente';
+    }
+
     this.saving.set(true);
     const obs = this.editingId
       ? this.api.update(this.editingId, this.novo)
@@ -634,28 +668,115 @@ export class MoradoresPageComponent implements OnInit {
     return { nome: '', documento: '', email: '', telefone: '', data_nascimento: '', tipo: 'proprietario', id_apartamento: 0, sendCredentials: true, tag_rfid: '', qrcode_acesso: '' };
   }
 
-  isMenorDeIdade(dataNascimento?: string | null): boolean {
-    if (!dataNascimento) return false;
-    const parts = dataNascimento.split('-');
-    if (parts.length < 3) return false;
-    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-    if (isNaN(d.getTime())) return false;
+  formatarParaBr(data: string | Date | null | undefined): string {
+    if (!data) return '';
+    if (typeof data === 'string') {
+      const s = data.trim();
+      if (!s) return '';
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+      const ymdMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (ymdMatch) {
+        return `${ymdMatch[3]}/${ymdMatch[2]}/${ymdMatch[1]}`;
+      }
+    }
+    const d = new Date(data);
+    if (isNaN(d.getTime())) return '';
+    const dia = String(d.getUTCDate()).padStart(2, '0');
+    const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const ano = d.getUTCFullYear();
+    return `${dia}/${mes}/${ano}`;
+  }
+
+  formatarParaIso(dataBr: string): string {
+    if (!dataBr) return '';
+    const digits = dataBr.replace(/\D/g, '');
+    if (digits.length === 8) {
+      const dia = digits.slice(0, 2);
+      const mes = digits.slice(2, 4);
+      const ano = digits.slice(4, 8);
+      return `${ano}-${mes}-${dia}`;
+    }
+    return '';
+  }
+
+  getIdade(data?: string | null): number | null {
+    if (!data) return null;
+    const s = String(data).trim();
+    if (!s) return null;
+    let d: Date | null = null;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+      const [dia, mes, ano] = s.split('/').map(Number);
+      d = new Date(ano, mes - 1, dia);
+      if (d.getFullYear() !== ano || d.getMonth() !== mes - 1 || d.getDate() !== dia) {
+        return null;
+      }
+    } else {
+      const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      } else {
+        d = new Date(s);
+      }
+    }
+    if (!d || isNaN(d.getTime())) return null;
+
     const hoje = new Date();
     let idade = hoje.getFullYear() - d.getFullYear();
     const m = hoje.getMonth() - d.getMonth();
     if (m < 0 || (m === 0 && hoje.getDate() < d.getDate())) {
       idade--;
     }
-    return idade < 18;
+    return Math.max(0, idade);
   }
 
-  onDataNascimentoChange(data: string) {
-    if (this.isMenorDeIdade(data)) {
-      this.novo.sendCredentials = false;
-      this.novo.foto_pessoa = undefined;
-      this.fotoPessoaBase64.set(null);
-      this.novo.tipo = 'dependente';
+  isMenorDeIdade(dataNascimento?: string | null): boolean {
+    const idade = this.getIdade(dataNascimento);
+    return idade !== null && idade < 18;
+  }
+
+  onDataNascimentoMaskedChange(valor: string) {
+    const digits = (valor || '').replace(/\D/g, '');
+    if (digits.length === 8) {
+      const iso = this.formatarParaIso(valor);
+      this.novo.data_nascimento = iso;
+      if (this.isMenorDeIdade(iso)) {
+        this.novo.sendCredentials = false;
+        this.novo.tipo = 'dependente';
+      }
+    } else if (digits.length === 0) {
+      this.novo.data_nascimento = '';
     }
+  }
+
+  abrirCalendarioNativo(picker: HTMLInputElement) {
+    if (this.novo.data_nascimento) {
+      picker.value = this.novo.data_nascimento;
+    }
+    if (typeof (picker as any).showPicker === 'function') {
+      try {
+        (picker as any).showPicker();
+      } catch {
+        picker.click();
+      }
+    } else {
+      picker.click();
+    }
+  }
+
+  onNativeDateChange(isoValue: string) {
+    if (isoValue) {
+      this.novo.data_nascimento = isoValue;
+      this.dataNascimentoMasked = this.formatarParaBr(isoValue);
+      if (this.isMenorDeIdade(isoValue)) {
+        this.novo.sendCredentials = false;
+        this.novo.tipo = 'dependente';
+      }
+    }
+  }
+
+  removerFotoPessoa() {
+    this.fotoPessoaBase64.set(null);
+    this.novo.foto_pessoa = '';
   }
 
   revogarBiometria(m: Morador) {
