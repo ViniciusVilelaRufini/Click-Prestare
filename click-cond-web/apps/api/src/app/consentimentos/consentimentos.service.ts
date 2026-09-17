@@ -1,5 +1,6 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { FacialService } from '../facial/facial.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
 /**
@@ -24,7 +25,22 @@ export type TipoConsentimento = 'privacidade' | 'biometria';
 export class ConsentimentosService {
   private readonly logger = new Logger(ConsentimentosService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(
+      forwardRef(() => {
+        // Lazy require em tempo de execução para evitar TDZ por import circular
+        const { FacialService } = require('../facial/facial.service');
+        return FacialService;
+      }),
+    )
+    private readonly facial: FacialService,
+  ) {}
+
+  /** Expõe o PrismaService para os controllers do módulo quando necessário */
+  get prismaClient(): PrismaService {
+    return this.prisma;
+  }
 
   private idDoUsuario(user: JwtPayload): number {
     const id = Number(user?.user?.id ?? user?.sub);
@@ -103,6 +119,74 @@ export class ConsentimentosService {
     );
 
     return { ok: true, versao: POLITICA_VERSAO };
+  }
+
+  /**
+   * Revoga o consentimento de biometria facial do titular.
+   *
+   * 1. Grava novo registro append-only com `aceito: 0`.
+   * 2. Localiza todos os moradores vinculados ao usuário.
+   * 3. Chama `facial.unsyncMorador` para cada morador com face_id.
+   * 4. Se todos os aparelhos removeram com sucesso: face_id = null, face_sync_status = 'revoked'.
+   * 5. Se algum aparelho falhou (offline): face_sync_status = 'pending_removal' (preserva face_id para retry).
+   */
+  async revogarBiometria(target: JwtPayload | number, operadorNome?: string) {
+    const idUser = typeof target === 'number' ? target : this.idDoUsuario(target);
+    const registrado_em = new Date();
+
+    // 1. Histórico LGPD: novo registro com aceito = 0
+    await this.prisma.consentimentos.create({
+      data: {
+        id_user: idUser,
+        tipo: 'biometria',
+        versao: POLITICA_VERSAO,
+        aceito: 0,
+        registrado_em,
+      },
+    });
+
+    this.logger.log(
+      `Biometria facial revogada para usuário ${idUser} por ${operadorNome ?? 'próprio titular'}.`,
+    );
+
+    // 2. Localiza moradores vinculados
+    const moradores = await this.prisma.moradores.findMany({
+      where: { id_user: idUser },
+    });
+
+    let allRemoved = true;
+    for (const m of moradores) {
+      if (m.face_id && m.id_condominio) {
+        const ok = await this.facial.unsyncMorador(m.id, m.face_id, m.id_condominio);
+        if (ok) {
+          await this.prisma.moradores.update({
+            where: { id: m.id },
+            data: {
+              face_id: null,
+              face_sync_status: 'revoked',
+              face_sync_error: null,
+              foto_pessoa: null,
+            },
+          });
+        } else {
+          allRemoved = false;
+          await this.prisma.moradores.update({
+            where: { id: m.id },
+            data: {
+              face_sync_status: 'pending_removal',
+              face_sync_error: 'device_offline_pending_retry',
+              foto_pessoa: null,
+            },
+          });
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      revogado: true,
+      status: allRemoved ? 'revoked' : 'pending_removal',
+    };
   }
 
   /**

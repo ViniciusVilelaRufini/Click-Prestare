@@ -18,8 +18,9 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 describe('ConsentimentosService', () => {
   const USER: JwtPayload = { sub: 7, nome: 'Morador', typeAccess: 'Morador' };
 
-  function build(linhas: any[] = []) {
+  function build(linhas: any[] = [], moradores: any[] = [], unsyncResult = true) {
     const registros = [...linhas];
+    const listaMoradores = [...moradores];
     const prisma: any = {
       isConnected: true,
       consentimentos: {
@@ -29,16 +30,38 @@ describe('ConsentimentosService', () => {
             .sort((a, b) => b.registrado_em - a.registrado_em);
           return doTipo[0] ?? null;
         }),
+        create: jest.fn(async ({ data }: any) => {
+          registros.push(data);
+          return data;
+        }),
         createMany: jest.fn(async ({ data }: any) => {
           registros.push(...data);
           return { count: data.length };
         }),
       },
+      moradores: {
+        findMany: jest.fn(async ({ where }: any) => {
+          return listaMoradores.filter((m) => m.id_user === where.id_user);
+        }),
+        update: jest.fn(async ({ where, data }: any) => {
+          const m = listaMoradores.find((x) => x.id === where.id);
+          if (m) Object.assign(m, data);
+          return m;
+        }),
+      },
     };
-    return { svc: new ConsentimentosService(prisma), prisma, registros };
+    const facial: any = {
+      unsyncMorador: jest.fn().mockResolvedValue(unsyncResult),
+    };
+    return { svc: new ConsentimentosService(prisma, facial), prisma, registros, facial, listaMoradores };
   }
 
-  const linha = (tipo: string, aceito: number, versao = POLITICA_VERSAO, quando = new Date()) => ({
+  const linha = (
+    tipo: string,
+    aceito: number,
+    versao = POLITICA_VERSAO,
+    quando = new Date(Date.now() - 5000),
+  ) => ({
     id_user: 7,
     tipo,
     aceito,
@@ -145,6 +168,58 @@ describe('ConsentimentosService', () => {
     it('sem usuário, não autoriza', async () => {
       const { svc } = build([linha('biometria', 1)]);
       expect(await svc.autorizouBiometria(0)).toBe(false);
+    });
+  });
+
+  describe('revogarBiometria', () => {
+    const criarMorador = () => ({
+      id: 1,
+      id_user: 7,
+      id_condominio: 10,
+      face_id: 'face-123',
+      face_sync_status: 'synced',
+    });
+
+    it('grava nova linha com aceito=0 (append-only) e remove rosto do aparelho', async () => {
+      const { svc, registros, facial, listaMoradores } = build(
+        [linha('biometria', 1)],
+        [criarMorador()],
+        true,
+      );
+
+      const r = await svc.revogarBiometria(USER);
+      expect(r.ok).toBe(true);
+      expect(r.status).toBe('revoked');
+
+      // Append-only: mantém histórico e adiciona linha nova
+      expect(registros).toHaveLength(2);
+      expect(registros[1]).toMatchObject({
+        id_user: 7,
+        tipo: 'biometria',
+        aceito: 0,
+      });
+
+      // Chamou unsyncMorador nos aparelhos
+      expect(facial.unsyncMorador).toHaveBeenCalledWith(1, 'face-123', 10);
+      expect(listaMoradores[0].face_id).toBeNull();
+      expect(listaMoradores[0].face_sync_status).toBe('revoked');
+
+      // Imediatamente não autoriza mais
+      expect(await svc.autorizouBiometria(7)).toBe(false);
+    });
+
+    it('se aparelho estiver offline, marca pending_removal para retry sem perder revogação', async () => {
+      const { svc, listaMoradores } = build(
+        [linha('biometria', 1)],
+        [criarMorador()],
+        false, // falha / offline
+      );
+
+      const r = await svc.revogarBiometria(USER);
+      expect(r.ok).toBe(true);
+      expect(r.status).toBe('pending_removal');
+      expect(listaMoradores[0].face_sync_status).toBe('pending_removal');
+      expect(await svc.autorizouBiometria(7)).toBe(false);
     });
   });
 });

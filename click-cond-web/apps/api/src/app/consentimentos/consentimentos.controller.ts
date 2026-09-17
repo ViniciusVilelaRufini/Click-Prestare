@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, NotFoundException, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ConsentimentosService } from './consentimentos.service';
 import { ConsentimentosTerceirosService, TipoPessoaTerceiro } from './consentimentos-terceiros.service';
 import { ReqUser } from '../auth/req-user.decorator';
@@ -92,5 +92,28 @@ export class ConsentimentosCondominioController {
       idPessoa: Number(idPessoa || 0),
       doc: doc || null,
     });
+  }
+
+  /**
+   * Síndico ou portaria revoga a biometria de um morador a pedido deste.
+   */
+  @Post('moradores/:idMorador/revogar-biometria')
+  @HttpCode(200)
+  async revogarBiometriaMorador(
+    @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @Param('idMorador', ParseIntPipe) idMorador: number,
+    @ReqUser() user: JwtPayload,
+  ) {
+    assertOperador(user, 'revogar biometria do morador');
+    const morador = await this.service.prismaClient.moradores.findUnique({
+      where: { id: idMorador },
+    });
+    if (!morador || morador.id_condominio !== idCondominio) {
+      throw new NotFoundException('Morador não encontrado neste condomínio.');
+    }
+    return this.service.revogarBiometria(
+      morador.id_user,
+      user?.user?.name ?? (user as any)?.nome ?? 'Portaria',
+    );
   }
 }
