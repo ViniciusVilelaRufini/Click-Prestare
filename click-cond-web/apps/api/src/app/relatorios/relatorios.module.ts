@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
-import { RelatoriosController } from './relatorios.controller';
+import { RelatoriosController, CondominiosExportController } from './relatorios.controller';
 import { RelatoriosService } from './relatorios.service';
+import { CondominiosExportService } from './condominios-export.service';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [RelatoriosController],
-  providers: [RelatoriosService],
-  exports: [RelatoriosService],
+  controllers: [RelatoriosController, CondominiosExportController],
+  providers: [RelatoriosService, CondominiosExportService],
+  exports: [RelatoriosService, CondominiosExportService],
 })
 export class RelatoriosModule {}

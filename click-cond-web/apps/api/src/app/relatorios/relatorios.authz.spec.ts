@@ -83,4 +83,33 @@ describe('RelatoriosController — só operador/síndico', () => {
     await expect(ctrl.exportAuditoria(1, res, porteiroWeb)).rejects.toBeInstanceOf(ForbiddenException);
     expect(service.exportAuditoriaCsv).not.toHaveBeenCalled();
   });
+
+  it('NEGA morador exportar pacote completo de dados do condomínio (LGPD)', async () => {
+    const { ctrl, res } = build();
+    await expect(ctrl.exportDadosCondominio(1, res, morador)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('NEGA operador da portaria-web exportar pacote completo de dados (exclusivo Síndico)', async () => {
+    const { ctrl, res } = build();
+    await expect(ctrl.exportDadosCondominio(1, res, porteiroWeb)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('PERMITE síndico exportar pacote completo de dados do condomínio', async () => {
+    const exportService: any = {
+      gerarPacoteExportacao: jest.fn().mockResolvedValue({
+        buffer: Buffer.from('PK...'),
+        filename: 'export_condominio_1_20260917.zip',
+      }),
+    };
+    const res: any = { setHeader: jest.fn(), end: jest.fn() };
+    const ctrl = new RelatoriosController({} as any, exportService);
+
+    await ctrl.exportDadosCondominio(1, res, sindico);
+    expect(exportService.gerarPacoteExportacao).toHaveBeenCalledWith(1, {
+      nome: 'Síndico',
+      email: undefined,
+    });
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/zip');
+    expect(res.end).toHaveBeenCalled();
+  });
 });
