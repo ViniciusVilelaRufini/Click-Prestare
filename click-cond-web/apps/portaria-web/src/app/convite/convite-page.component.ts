@@ -38,15 +38,18 @@ import { ThemeService } from '../shared/theme.service';
       <div class="w-full max-w-md mx-auto space-y-6">
 
         <!-- Marca, no mesmo formato da tela de login -->
-        <div class="flex items-center justify-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-accent/10 border border-accent/25 flex items-center justify-center">
-            <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-            </svg>
+        <div class="flex items-center justify-center gap-2.5">
+          <div class="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center ring-1 ring-accent/10 shadow-md shadow-accent/15 shrink-0">
+            <img src="/logo-prestare-gestao.png" alt="Prestare Gestão" class="w-full h-full object-cover rounded-lg" />
           </div>
-          <span class="text-lg font-bold tracking-tight uppercase text-white">
-            Prestare <span class="text-accent font-extrabold">Click</span>
-          </span>
+          <div class="min-w-0 leading-none">
+            <span class="text-lg font-extrabold tracking-tight uppercase text-white block">
+              PRESTARE<span class="text-accent"> GESTÃO</span>
+            </span>
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 block">
+              Web Console
+            </span>
+          </div>
         </div>
 
         @if (carregando()) {

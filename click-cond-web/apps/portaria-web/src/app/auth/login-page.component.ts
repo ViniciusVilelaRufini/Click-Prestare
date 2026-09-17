@@ -65,19 +65,22 @@ import { ThemeService } from '../shared/theme.service';
         >
           <div class="absolute inset-0 bg-gradient-to-br from-accent/5 via-blue-500/0 to-transparent pointer-events-none"></div>
           
-          <!-- Logo Prestare / Click -->
-          <div class="relative flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-accent/10 border border-accent/25 flex items-center justify-center shadow-lg shadow-accent/5">
-              <svg class="w-5 h-5 text-accent animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-              </svg>
+          <!-- Logo Prestare Gestão -->
+          <div class="relative flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center ring-1 ring-accent/10 shadow-md shadow-accent/15 shrink-0">
+              <img src="/logo-prestare-gestao.png" alt="Prestare Gestão" class="w-full h-full object-cover rounded-lg" />
             </div>
-            <span 
-              class="text-lg font-bold tracking-tight uppercase transition-colors duration-300"
-              [ngClass]="isLight() ? 'text-slate-800' : 'text-white'"
-            >
-              Prestare <span class="text-accent font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-500">Click</span>
-            </span>
+            <div class="min-w-0 leading-none">
+              <span 
+                class="text-lg font-extrabold tracking-tight uppercase transition-colors duration-300 block"
+                [ngClass]="isLight() ? 'text-slate-900' : 'text-slate-100'"
+              >
+                PRESTARE<span class="text-accent"> GESTÃO</span>
+              </span>
+              <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 block">
+                Web Console
+              </span>
+            </div>
           </div>
 
           <!-- Hero Message -->
@@ -166,19 +169,20 @@ import { ThemeService } from '../shared/theme.service';
             
             <!-- Header de Mobile (Visível apenas em telas pequenas) -->
             <div class="text-center lg:hidden">
-              <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent/10 border border-accent/20 mb-3 shadow-lg shadow-accent/5">
-                <svg class="w-6 h-6 text-accent animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                </svg>
+              <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white p-1 mb-3 ring-1 ring-accent/10 shadow-md shadow-accent/15">
+                <img src="/logo-prestare-gestao.png" alt="Prestare Gestão" class="w-full h-full object-cover rounded-lg" />
               </div>
               <h1 
-                class="text-2xl font-bold tracking-tight transition-colors duration-300"
-                [ngClass]="isLight() ? 'text-slate-800' : 'text-white'"
+                class="text-2xl font-extrabold tracking-tight uppercase transition-colors duration-300"
+                [ngClass]="isLight() ? 'text-slate-900' : 'text-white'"
               >
-                Prestare <span class="text-accent">Click</span>
+                PRESTARE<span class="text-accent"> GESTÃO</span>
               </h1>
+              <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5 block">
+                Web Console
+              </span>
               <p 
-                class="text-xs mt-1 transition-colors duration-300"
+                class="text-xs mt-2 transition-colors duration-300"
                 [ngClass]="isLight() ? 'text-slate-500' : 'text-slate-400'"
               >
                 Acesso restrito ao console de portaria
