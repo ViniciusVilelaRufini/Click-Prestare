@@ -188,6 +188,7 @@ model Condominios {
   sindicosCondominios  Sindicos_Condominios[]
   visitantes           Visitantes[]
   convites             Convites_Visita[]
+  consentimentosTerceiros Consentimentos_Terceiros[]
   vagas                Vagas[]
   votacoes             Votacoes[]
   facialDevices        Facial_Devices[]
@@ -1391,4 +1392,34 @@ model Consentimentos {
   user Users @relation("ConsentimentoUser", fields: [id_user], references: [id], onDelete: Cascade, map: "fk_consent_user")
 
   @@index([id_user, tipo, registrado_em], map: "idx_consent_user_tipo")
+}
+
+/// Consentimento biométrico de quem NÃO tem conta: visitante e prestador.
+/// `Consentimentos` cobre morador e síndico, que passam pela tela de aceite do
+/// app. Estes não passam por tela nenhuma — a declaração é colhida por quem
+/// cadastra, e sem ela o rosto não vai para o terminal.
+model Consentimentos_Terceiros {
+  id            Int     @id @default(autoincrement())
+  id_condominio Int
+  /// 'visitante' | 'prestador'. Auditoria; não é chave de busca.
+  tipo_pessoa   String  @db.VarChar(20)
+  id_pessoa     Int
+  /// CPF só com dígitos — a chave real. `Visitantes` tem uma linha por VISITA,
+  /// e o mesmo CPF voltando não pode ter de declarar tudo de novo.
+  doc           String? @db.VarChar(20)
+  versao        String  @db.VarChar(20)
+  /// 1 autorizou, 0 recusou/revogou.
+  aceito        Int     @db.TinyInt
+  /// O titular declarou ser maior de 18. Sem isto não enrola, mesmo com aceite.
+  maior_idade   Int     @default(0) @db.TinyInt
+  /// Quem colheu a declaração. Nulo para o porteiro, que autentica por
+  /// `Funcionarios_Portaria` e não tem `Users.id`.
+  declarado_por_id   Int?
+  declarado_por_nome String? @db.VarChar(255)
+  registrado_em      DateTime @default(now()) @db.DateTime(0)
+
+  condominio Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_consent3_cond")
+
+  @@index([id_condominio, doc, registrado_em], map: "idx_consent3_doc")
+  @@index([id_condominio, tipo_pessoa, id_pessoa, registrado_em], map: "idx_consent3_pessoa")
 }

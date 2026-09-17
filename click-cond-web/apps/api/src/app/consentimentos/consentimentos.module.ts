@@ -1,6 +1,8 @@
-import { Global, Module } from '@nestjs/common';
-import { ConsentimentosController } from './consentimentos.controller';
+import { Global, Module, forwardRef } from '@nestjs/common';
+import { ConsentimentosController, ConsentimentosCondominioController } from './consentimentos.controller';
 import { ConsentimentosService } from './consentimentos.service';
+import { ConsentimentosTerceirosService } from './consentimentos-terceiros.service';
+import { FacialModule } from '../facial/facial.module';
 
 /**
  * Global porque o `VisitantesService` precisa consultar o consentimento de
@@ -10,8 +12,13 @@ import { ConsentimentosService } from './consentimentos.service';
  */
 @Global()
 @Module({
-  controllers: [ConsentimentosController],
-  providers: [ConsentimentosService],
-  exports: [ConsentimentosService],
+  // forwardRef porque o ciclo é real e intencional: o Facial pergunta ao
+  // Consentimentos antes de enrolar, e o Consentimentos manda o Facial APAGAR
+  // o rosto quando o titular revoga. Sem o segundo sentido, a revogação seria
+  // decorativa — o rosto continuaria abrindo a portaria.
+  imports: [forwardRef(() => FacialModule)],
+  controllers: [ConsentimentosController, ConsentimentosCondominioController],
+  providers: [ConsentimentosService, ConsentimentosTerceirosService],
+  exports: [ConsentimentosService, ConsentimentosTerceirosService],
 })
 export class ConsentimentosModule {}
