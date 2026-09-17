@@ -9,6 +9,7 @@ import { SuperlogicaWriteService } from '../superlogica/superlogica-write.servic
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import * as bcrypt from 'bcrypt';
+import { calcularIdade, validarMaioridade } from '../common/idade.util';
 
 export interface CreateMoradorDto {
   nome: string;
@@ -733,9 +734,35 @@ export class MoradoresService {
     const senhaHash = await bcrypt.hash(dto.documento || '123456', 10);
     let passwordWasSet = false;
 
-    // Cria/encontra Users por email se fornecido
+    const ehMenor = dto.data_nascimento ? calcularIdade(dto.data_nascimento) < 18 : false;
+
+    // Cláusula 8.3 e Anexo I: Se informou email ou pediu credenciais, valida maioridade
+    if (dto.email || dto.sendCredentials) {
+      validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
+    }
+
+    // Cláusula 8.3: Se enviou foto facial para biometria, valida maioridade
+    if (fotoPessoaUrl) {
+      validarMaioridade(dto.data_nascimento, 'cadastro de biometria facial');
+    }
+
+    // Cria/encontra Users
     let userId: number;
-    if (dto.email) {
+    if (ehMenor) {
+      // Menor de 18 anos: cria registro básico de dependente sem acesso ao aplicativo (is_morador: 0)
+      const u = await this.prisma.users.create({
+        data: {
+          name: dto.nome,
+          phone: dto.telefone,
+          cpf: dto.documento,
+          is_morador: 0,
+          login_type: 'dependente_menor',
+          photo: null,
+          profile_image: null,
+        },
+      });
+      userId = u.id;
+    } else if (dto.email) {
       const existing = await this.prisma.users.findFirst({
         where: { email: dto.email },
       });
@@ -934,6 +961,21 @@ export class MoradoresService {
       });
       if (conflito) {
         throw new BadRequestException('Já existe outro usuário com este e-mail.');
+      }
+    }
+    // Cláusula 8.3: Se menor de 18 anos, impede vinculação de email de login ou foto facial
+    const dnFinal = dto.data_nascimento !== undefined ? dto.data_nascimento : atual.data_nascimento;
+    const ehMenorUpdate = dnFinal ? calcularIdade(dnFinal) < 18 : false;
+    if (ehMenorUpdate) {
+      if (dto.email || (emailMudou && dto.email)) {
+        throw new BadRequestException(
+          'Menores de 18 anos não podem possuir conta de usuário no aplicativo conforme a Cláusula 8.3 do contrato.',
+        );
+      }
+      if (fotoPessoaUrl) {
+        throw new BadRequestException(
+          'É proibida a coleta ou utilização de biometria facial de menores de 18 anos conforme a Cláusula 8.3 do contrato.',
+        );
       }
     }
 

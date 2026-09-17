@@ -17,6 +17,7 @@ import { EnrollSessionService } from './enroll-session.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { ConsentimentosService } from '../consentimentos/consentimentos.service';
+import { ConsentimentosTerceirosService } from '../consentimentos/consentimentos-terceiros.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AccessStateService } from './access-state.service';
 import { AgentBridgeService } from './agent-bridge.service';
@@ -29,6 +30,7 @@ import {
 import { normalizarPlaca, placaValida, variantesPlaca } from './placa.util';
 import { normalizarPayloadNativo } from './webhook-payload.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
+import { calcularIdade } from '../common/idade.util';
 
 /**
  * Capacidades por fabricante — um só lugar para responder "esta marca sabe
@@ -143,6 +145,7 @@ export class FacialService {
     private readonly agent: AgentBridgeService,
     private readonly tenant: TenantAccessService,
     private readonly consentimentos: ConsentimentosService,
+    private readonly consentimentosTerceiros: ConsentimentosTerceirosService,
   ) {
     // Re-sincroniza quem tem restrição de dia da semana ao virar o dia (0h BRT).
     // Delay de 5 min no boot para aguardar banco conectar após deploy.
@@ -1214,6 +1217,21 @@ export class FacialService {
     if (!morador)
       throw new NotFoundException(`Morador ${idMorador} não encontrado`);
 
+    // Cláusula 8.3 do contrato: É proibida a coleta ou utilização de biometria de menores de 18 anos.
+    if (!morador.data_nascimento || calcularIdade(morador.data_nascimento) < 18) {
+      this.logger.log(
+        `Morador ${idMorador} menor de 18 anos ou sem data de nascimento comprovada: enrolamento facial não realizado.`,
+      );
+      if (morador.face_id && morador.id_condominio) {
+        await this.unsyncMorador(idMorador, morador.face_id, morador.id_condominio);
+        await this.prisma.moradores.update({
+          where: { id: idMorador },
+          data: { face_id: null, face_sync_status: 'revoked', face_sync_error: 'menor_de_idade' },
+        });
+      }
+      return { skipped: true, reason: 'menor_de_idade_ou_sem_comprovacao' };
+    }
+
     // Biometria é dado sensível (Art. 11 da LGPD) e exige consentimento
     // específico e destacado. O app pede numa caixa separada, opcional.
     //
@@ -1226,6 +1244,13 @@ export class FacialService {
       this.logger.log(
         `Morador ${idMorador} sem consentimento de biometria: enrolamento facial não realizado.`,
       );
+      if (morador.face_id && morador.id_condominio) {
+        await this.unsyncMorador(idMorador, morador.face_id, morador.id_condominio);
+        await this.prisma.moradores.update({
+          where: { id: idMorador },
+          data: { face_id: null, face_sync_status: 'revoked' },
+        });
+      }
       return { skipped: true, reason: 'sem_consentimento_biometria' };
     }
     if (!morador.foto_pessoa) {
@@ -1646,6 +1671,27 @@ export class FacialService {
       return { skipped: true, reason: 'no_photo' };
     }
 
+    // Biometria é dado sensível (Art. 11 da LGPD) e o titular aqui não tem
+    // conta no sistema: quem cadastrou é que declara ter colhido a autorização
+    // e a maioridade. Sem declaração, o visitante entra normalmente — por PIN,
+    // interfone ou liberação da portaria — só não vai rosto para o terminal.
+    //
+    // A checagem vem DEPOIS do bloco de remoção acima de propósito: rosto que
+    // já está no aparelho e perdeu a foto continua sendo removido.
+    if (
+      !(await this.consentimentosTerceiros.autorizouBiometria({
+        idCondominio: visitante.id_condominio,
+        tipoPessoa: visitante.is_prestador === 1 ? 'prestador' : 'visitante',
+        idPessoa: visitante.id,
+        doc: visitante.doc_identificacao,
+      }))
+    ) {
+      this.logger.log(
+        `Visitante ${idVisitante} sem declaração de consentimento biométrico: enrolamento facial não realizado.`,
+      );
+      return { skipped: true, reason: 'sem_consentimento_biometria' };
+    }
+
     // O rosto do visitante só fica no aparelho enquanto ele está AUTORIZADO —
     // liberado=1 E dentro da janela de validade, OU atualmente DENTRO (entrou e
     // ainda não saiu, p/ poder sair). Sem isso, um visitante já sem liberação
@@ -1876,13 +1922,21 @@ export class FacialService {
     return { ok: allOk, face_id: faceId, status, error: ultimoErro };
   }
 
+  /**
+   * Remove o rosto do morador dos terminais. Devolve `true` só quando TODAS as
+   * remoções deram certo — mesmo contrato do `unsyncVisitante`, e por isso
+   * mesmo: numa revogação de consentimento, "tentei apagar" não é "apaguei".
+   * Com `false`, quem chamou deve manter o face_id em 'pending' para o
+   * back-fill do reconnect re-tentar, senão a revogação se perde e a pessoa
+   * continua abrindo a porta fisicamente.
+   */
   async unsyncMorador(
     idMorador: number,
     faceId: string | null,
     idCondominio: number | null,
     opts: { deviceIds?: number[] } = {},
-  ) {
-    if (FACIAL_DISABLED || !faceId || !idCondominio) return;
+  ): Promise<boolean> {
+    if (FACIAL_DISABLED || !faceId || !idCondominio) return true;
     // Mesmo critério do sync: só terminais faciais têm /persons.
     const devices = await this.prisma.facial_Devices.findMany({
       where: {
@@ -1892,15 +1946,18 @@ export class FacialService {
         ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
       },
     });
+    let allOk = true;
     for (const device of devices) {
       try {
         await this.client.removePerson(this.toConfig(device), faceId);
       } catch (err: any) {
+        allOk = false;
         this.logger.warn(
           `Remoção morador ${idMorador} device ${device.id}: ${err?.message ?? err}`,
         );
       }
     }
+    return allOk;
   }
 
   /**
@@ -1981,6 +2038,24 @@ export class FacialService {
         return { ok: true, removed: true };
       }
       return { skipped: true, reason: 'no_photo' };
+    }
+
+    // Mesma trava do visitante: o prestador não tem conta, então a autorização
+    // e a maioridade são declaradas por quem cadastrou. `Prestadores_servico`
+    // não guarda documento, então a declaração é localizada pelo par
+    // (tipo, id) — ver `ConsentimentosTerceirosService`.
+    if (
+      !(await this.consentimentosTerceiros.autorizouBiometria({
+        idCondominio: prest.id_condominio,
+        tipoPessoa: 'prestador',
+        idPessoa: prest.id,
+        doc: null,
+      }))
+    ) {
+      this.logger.log(
+        `Prestador ${idPrestador} sem declaração de consentimento biométrico: enrolamento facial não realizado.`,
+      );
+      return { skipped: true, reason: 'sem_consentimento_biometria' };
     }
 
     // Restrição de dia da semana (horário de Brasília p/ bater com o aparelho).

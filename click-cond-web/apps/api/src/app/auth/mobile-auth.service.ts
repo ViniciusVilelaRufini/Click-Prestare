@@ -14,6 +14,7 @@ import { TenantAccessService } from './tenant-access.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { assertStaff, assertSindico, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
+import { calcularIdade, validarMaioridade } from '../common/idade.util';
 
 @Injectable()
 export class MobileAuthService {
@@ -2610,6 +2611,22 @@ export class MobileAuthService {
           if (conflito) throw new BadRequestException('Já existe outro usuário com este e-mail.');
         }
 
+        // Cláusula 8.3: Bloqueio de menor de 18 anos para login e biometria
+        const dnFinal = mor.data_nascimento ?? atual.data_nascimento;
+        const ehMenorUpdate = dnFinal ? calcularIdade(dnFinal) < 18 : false;
+        if (ehMenorUpdate) {
+          if (mor.email || (emailMudou && mor.email)) {
+            throw new BadRequestException(
+              'Menores de 18 anos não podem possuir conta de usuário no aplicativo conforme a Cláusula 8.3 do contrato.',
+            );
+          }
+          if (photoUrl !== null) {
+            throw new BadRequestException(
+              'É proibida a coleta ou utilização de biometria facial de menores de 18 anos conforme a Cláusula 8.3 do contrato.',
+            );
+          }
+        }
+
         await this.prisma.$transaction(async (tx) => {
           await tx.moradores.update({
             where: { id: idMorador },
@@ -2694,13 +2711,17 @@ export class MobileAuthService {
       }
 
       // Cria/reutiliza Users por email OU cpf — senha inicial = documento ou '123456'
+      const cpf = mor.documento ? String(mor.documento).trim() : null;
+      const ehMenor = mor.data_nascimento ? calcularIdade(mor.data_nascimento) < 18 : false;
+      if (mor.email || mor.sendCredentials !== false) {
+        validarMaioridade(mor.data_nascimento, 'criação de conta de usuário');
+      }
+      if (photoUrl !== null) {
+        validarMaioridade(mor.data_nascimento, 'biometria facial');
+      }
+
       let userId: number;
       let passwordWasSet = false;
-      const cpf = mor.documento ? String(mor.documento).trim() : null;
-      // Só os dígitos: a senha vai por e-mail para a pessoa digitar, e com a
-      // máscara ("453.466.488-53") ela erra o ponto ou o traço e não entra.
-      // O mesmo valor é enviado no e-mail mais abaixo, então os dois seguem
-      // iguais — mudar só a mensagem deixaria a senha exibida errada.
       const senhaInicial = somenteDigitos(cpf) || '123456';
       // bcrypt: a senha inicial sao os digitos do CPF, que nao e segredo. Em
       // MD5 sem sal, qualquer vazamento do banco entrega a senha na hora.
@@ -2753,6 +2774,20 @@ export class MobileAuthService {
         if (Object.keys(patch).length > 0) {
           await this.prisma.users.update({ where: { id: existing.id }, data: patch });
         }
+      } else if (ehMenor) {
+        // Menor de 18 anos: cria apenas registro básico sem acesso ao aplicativo (is_morador: 0)
+        const u = await this.prisma.users.create({
+          data: {
+            name: mor.nome,
+            phone: mor.telefone,
+            cpf,
+            is_morador: 0,
+            login_type: 'dependente_menor',
+            photo: null,
+            profile_image: null,
+          },
+        });
+        userId = u.id;
       } else if (mor.email) {
         const u = await this.prisma.users.create({
           data: {
