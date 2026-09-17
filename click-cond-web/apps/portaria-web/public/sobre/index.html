@@ -222,7 +222,7 @@
           App do morador + console da portaria
         </span>
         <h1 style="margin: 22px 0 0; font: var(--weight-extrabold) clamp(34px, 4.4vw, 50px)/1.06 var(--font-ui); letter-spacing: -.026em; color: var(--text-strong); max-width: 17ch; text-wrap: balance;">Todo o condomínio<br><span style="color: var(--prestare-blue-500);">na palma da mão</span></h1>
-        <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Visitantes, encomendas e a conta do condomínio no celular do morador — e o síndico vendo tudo acontecer no console web, sem planilha e sem livro de papel.</p>
+        <p style="margin: 18px 0 0; font: var(--weight-regular) clamp(16px, 1.3vw, 18px)/1.55 var(--font-ui); color: var(--text-muted); max-width: 46ch; text-wrap: pretty;">Visitantes, encomendas e a conta do condomínio no celular do morador — e o síndico vendo tudo acontecer no sistema web, sem planilha e sem livro de papel.</p>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 8px 20px; margin-top: 26px; max-width: 420px;">
           <span style="display: inline-flex; align-items: center; gap: 9px; font: var(--type-sub); color: var(--text-body);"><x-import component-from-global-scope="PrestareDesignSystem_ea5733.Icon" name="check" size="17" color="var(--prestare-blue-500)" hint-size="17px,17px"></x-import>Controle de acesso</span>
@@ -311,7 +311,7 @@
 
   <section id="console" class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 64px 24px 24px;">
     <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">Para o síndico e a portaria</span>
-    <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 28ch; text-wrap: pretty;">O console web mostra quem está no condomínio agora.</h2>
+    <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 28ch; text-wrap: pretty;">O sistema web mostra quem está no condomínio agora.</h2>
     <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">Mesma informação do app, do outro lado do balcão: ativos no local, liberados aguardando, quem saiu e o total registrado — com PIN, documento protegido e baixa por apartamento.</p>
 
     <!-- Uma tela por vez: as tres empilhadas ocupavam quase 1100px de altura
@@ -364,7 +364,7 @@
 
       <div style="margin-top: 26px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; justify-content: center;">
         <figure onClick="{{ abrirWebAutorizacao }}" style="flex: 1 1 460px; min-width: 0; max-width: 780px; margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); box-shadow: var(--shadow-floating); padding: 10px; cursor: zoom-in; transition: transform 220ms cubic-bezier(.2,.8,.28,1), border-color 220ms cubic-bezier(.2,.8,.28,1);" style-hover="transform: translateY(-4px); border-color: var(--prestare-blue-300);">
-          <img src="/sobre/assets/web-autorizacao.png" alt="Console web: pedido de autorização de acesso respondido pelo morador — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
+          <img src="/sobre/assets/web-autorizacao.png" alt="Sistema web: pedido de autorização de acesso respondido pelo morador — clique para ampliar" style="display: block; width: 100%; border-radius: 14px;">
           <figcaption style="padding: 13px 8px 4px; font: var(--type-sub); color: var(--text-muted);">No console · a portaria pede e vê a resposta chegar</figcaption>
         </figure>
 
@@ -379,7 +379,7 @@
   <section id="portaria-app" style="background: var(--surface-card); border-top: 1px solid var(--border-row); border-bottom: 1px solid var(--border-row);">
     <div class="ps-sec" style="max-width: 1440px; margin: 0 auto; padding: 56px 24px;">
       <span style="font: var(--type-overline); letter-spacing: .07em; text-transform: uppercase; color: var(--prestare-blue-500);">App do porteiro</span>
-      <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">A portaria resolve no celular, sem largar o portão.</h2>
+      <h2 style="margin: 12px 0 0; font: var(--weight-extrabold) clamp(26px, 3vw, 36px)/1.12 var(--font-ui); letter-spacing: -.02em; color: var(--text-strong); max-width: 26ch; text-wrap: pretty;">A portaria inteira na palma da mão, em tempo real.</h2>
       <p style="margin: 14px 0 0; font: var(--type-body); color: var(--text-muted); max-width: 56ch;">O mesmo sistema do console, na mão de quem está no posto: o turno começa com os números do dia e segue com mudança, comunicado e ocorrência resolvidos onde a coisa acontece.</p>
 
       <div style="margin-top: 30px; display: flex; justify-content: center;">
@@ -678,7 +678,7 @@
         </a>
         <a href="#console" onClick="{{ fecharMenu }}" style="display: block; padding: 13px 12px; border-radius: var(--radius-md);" style-hover="background: var(--prestare-blue-50);">
           <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Para o síndico</span>
-          <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">Console web e liberação de entrada pelo app</span>
+          <span style="display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted);">Sistema web e liberação de entrada pelo app</span>
         </a>
         <a href="#modulos" onClick="{{ fecharMenu }}" style="display: block; padding: 13px 12px; border-radius: var(--radius-md);" style-hover="background: var(--prestare-blue-50);">
           <span style="display: block; font: var(--type-body-strong); color: var(--text-strong);">Módulos</span>
@@ -957,7 +957,7 @@ class Component extends DCLogic {
       itens: ["Pendentes e Em andamento separados", "Pública ou privada por ocorrência", "Autor e prazo registrados"]
     },
     "web-autorizacao": {
-      src: "/sobre/assets/web-autorizacao.png", tipo: "Console web", titulo: "Autorização de acesso",
+      src: "/sobre/assets/web-autorizacao.png", tipo: "Sistema web", titulo: "Autorização de acesso",
       texto: "A portaria toca em Solicitar e o pedido sai para o morador. Quando a resposta volta, o console mostra o estado na própria linha — e oferece os dois caminhos: registrar a entrada no sistema ou liberar a catraca e o portão físico.",
       itens: ["Solicitar direto da linha da pessoa", "Resposta do morador em tempo real", "Registrar entrada ou liberar catraca"]
     },
@@ -967,19 +967,19 @@ class Component extends DCLogic {
       itens: ["Foto e nome de quem está no portão", "Autorizar, negar ou decidir depois", "Resolve sem atender o interfone"]
     },
     "web-visitantes": {
-      src: "/sobre/assets/web-visitantes.png", tipo: "Console web", titulo: "Visitantes",
+      src: "/sobre/assets/web-visitantes.png", tipo: "Sistema web", titulo: "Visitantes",
       legenda: "Visitantes · controle de acesso, entrada e saída do condomínio",
       texto: "A tela que a portaria usa no turno inteiro. Ativos no local, liberados aguardando, quem saiu e o total registrado — com documento mascarado, validação de PIN e baixa por apartamento.",
       itens: ["Ativos no local em tempo real", "Dar baixa e nova visita em um clique", "Documento revelado só por permissão"]
     },
     "web-financeiro": {
-      src: "/sobre/assets/web-financeiro.png", tipo: "Console web", titulo: "Controle financeiro",
+      src: "/sobre/assets/web-financeiro.png", tipo: "Sistema web", titulo: "Controle financeiro",
       legenda: "Financeiro · fluxo de caixa, pendências por apartamento e exportação em CSV",
       texto: "Fluxo de caixa, auditoria de pagamentos e inadimplência por bloco. O síndico abre um apartamento, vê o histórico de pendências e notifica o morador sem sair do painel.",
       itens: ["Receitas, despesas e saldo do período", "Inadimplência por bloco e apartamento", "Exportação em CSV"]
     },
     "web-dashboard": {
-      src: "/sobre/assets/web-dashboard.png", tipo: "Console web", titulo: "Dashboard da operação",
+      src: "/sobre/assets/web-dashboard.png", tipo: "Sistema web", titulo: "Dashboard da operação",
       legenda: "Dashboard · o condomínio agora, com os últimos eventos em tempo real",
       texto: "A tela que o síndico abre para saber como o condomínio está agora: visitantes no local, encomendas aguardando retirada, ocorrências pendentes e prestadores ativos. Ao lado, o fluxo de entradas e saídas em tempo real e os atalhos que a portaria mais usa no turno.",
       itens: ["Quatro indicadores do dia em destaque", "Últimos eventos com filtro por tipo", "Atalhos: liberar visitante, validar PIN, dar baixa"]
@@ -1213,7 +1213,7 @@ class Component extends DCLogic {
       abrirWebAutorizacao: this.abrir("web-autorizacao"),
       abrirAppAutorizacao: this.abrir("app-autorizacao"),
       consoleSrc: telaConsole.src,
-      consoleAlt: telaConsole.titulo + " no console web — clique para ampliar",
+      consoleAlt: telaConsole.titulo + " no sistema web — clique para ampliar",
       consoleLegenda: telaConsole.legenda,
       consoleAbrir: this.abrir(chaveConsole),
       menuAberto: this.state.menuAberto,
