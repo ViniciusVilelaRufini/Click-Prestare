@@ -1,5 +1,6 @@
 require('dotenv').config();
 const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
 
 async function createFreshUser() {
   const connection = await mysql.createConnection({
@@ -12,6 +13,7 @@ async function createFreshUser() {
 
   const email = 'teste@click.com';
   const pass = '123456';
+  const hash = await bcrypt.hash(pass, 10);
 
   console.log(`Creating fresh user ${email} with password ${pass}...`);
 
@@ -21,8 +23,8 @@ async function createFreshUser() {
   // Inserir no Users
   const [result] = await connection.execute(`
     INSERT INTO Users (login, email, password, is_morador, name)
-    VALUES (?, ?, MD5(?), 1, 'Usuario Teste')
-  `, [email, email, pass]);
+    VALUES (?, ?, ?, 1, 'Usuario Teste')
+  `, [email, email, hash]);
 
   const userId = result.insertId;
 

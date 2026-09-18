@@ -1,11 +1,11 @@
 const { PrismaClient } = require('./prisma/generated');
-const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
 async function main() {
   const login = 'sindico_novo@click.com';
   const passwordRaw = '123456';
-  const md5Password = crypto.createHash('md5').update(passwordRaw).digest('hex');
+  const bcryptPassword = await bcrypt.hash(passwordRaw, 12);
   const name = 'Sindico de Teste 2026';
   const idCondominio = 1; // Edifício Demo
 
@@ -15,7 +15,7 @@ async function main() {
   const user = await prisma.users.create({
     data: {
       login: login,
-      password: md5Password,
+      password: bcryptPassword,
       is_sindico: 1,
       name: name,
     }

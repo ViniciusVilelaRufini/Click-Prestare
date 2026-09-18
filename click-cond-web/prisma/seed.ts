@@ -1,17 +1,13 @@
 /**
- * Seed inicial — popula o banco do Railway com dados mínimos pra a Portaria Web operar.
+ * Seed inicial — popula o banco de dados (AWS RDS) com dados mínimos pra a Portaria Web operar.
  * Rodar com: npx tsx prisma/seed.ts
  *
  * Idempotente: pode rodar várias vezes que não duplica.
  */
 import { PrismaClient } from '../apps/api/src/app/prisma/generated';
-import { createHash } from 'node:crypto';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
-
-function md5(s: string): string {
-  return createHash('md5').update(s).digest('hex');
-}
 
 async function main() {
   console.log('🌱 Iniciando seed...');
@@ -89,7 +85,7 @@ async function main() {
       data: {
         nome: 'Porteiro Demo',
         login: loginPorteiro,
-        password: md5(senhaPadrao),
+        password: bcrypt.hashSync(senhaPadrao, 10),
         turno: 'Diurno',
         id_condominio: condominio.id,
         ativo: 1,

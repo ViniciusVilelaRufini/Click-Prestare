@@ -1,5 +1,6 @@
 require('dotenv').config();
 const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
 
 async function fixUser() {
   const connection = await mysql.createConnection({
@@ -12,15 +13,16 @@ async function fixUser() {
 
   const email = 'morador@teste.com';
   const newPass = '123456';
+  const hash = await bcrypt.hash(newPass, 10);
 
   console.log(`Reseting password for ${email} to ${newPass}...`);
 
-  // Atualizando a senha para MD5('123456') e garantindo que is_morador = 1
+  // Atualizando a senha para bcrypt e garantindo que is_morador = 1
   await connection.execute(`
     UPDATE Users 
-    SET password = MD5(?) , is_morador = 1
+    SET password = ? , is_morador = 1
     WHERE login = ? OR email = ?
-  `, [newPass, email, email]);
+  `, [hash, email, email]);
 
   // Verificando se o morador existe e está vinculado a um condomínio
   const [moradores] = await connection.execute(`

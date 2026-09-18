@@ -1,15 +1,11 @@
 /**
- * Stress Test — popula o banco do Railway com dados em massa para testar todos os módulos.
+ * Stress Test — popula o banco de dados (AWS RDS) com dados em massa para testar todos os módulos.
  * Rodar com: npx tsx prisma/stress_test.ts
  */
 import { PrismaClient } from '../apps/api/src/app/prisma/generated';
-import { createHash } from 'node:crypto';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
-
-function md5(s: string): string {
-  return createHash('md5').update(s).digest('hex');
-}
 
 function randomDate(start: Date, end: Date): Date {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
@@ -152,7 +148,7 @@ async function main() {
           name: nome,
           email,
           login: email,
-          password: md5('123456'),
+          password: bcrypt.hashSync('123456', 10),
           cpf: doc.replace(/\D/g, ''),
           phone: `(11) 9${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
           is_morador: 1,
