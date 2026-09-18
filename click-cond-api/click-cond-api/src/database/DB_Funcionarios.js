@@ -1,20 +1,40 @@
 const db = require('./MySQL.js');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 module.exports = {
   login: async function (login, password) {
-    const query = `select u.id, f.nome, u.photo, 
+    const query = `select u.id, f.nome, u.photo, u.password,
                       f.areas_sociais, f.comunicados, f.ocorrencias, f.manutencoes_programadas, f.prestadores_servico, 
                       f.agendar_mudanca, f.cadastrar_visitante, f.apartamentos                           
                     from Funcionarios f 
                     inner join Users u on u.id = f.id_user
-                    where u.login='${login}' and password=MD5('${password}')`;
+                    where u.login=?`;
 
-    const result = await db.query(query);
-    if (!result.results[0]) {
+    const result = await db.queryParam(query, [login]);
+    if (!result.results || !result.results[0]) {
       throw new Error('Login ou Senha incorretos');
     }
-    return result.results[0];
+    const user = result.results[0];
+    const md5Password = crypto.createHash('md5').update(password).digest("hex");
+
+    let isMatch = false;
+    if (user.password && user.password.startsWith('$2')) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      isMatch = (user.password === md5Password);
+      if (isMatch) {
+        const newHash = await bcrypt.hash(password, 10);
+        await db.queryParam(`UPDATE Users SET password=? WHERE id=?`, [newHash, user.id]);
+      }
+    }
+
+    if (!isMatch) {
+      throw new Error('Login ou Senha incorretos');
+    }
+
+    delete user.password;
+    return user;
   },
 
   internalLogin: async function (login, password) {
@@ -23,29 +43,28 @@ module.exports = {
                       f.agendar_mudanca, f.cadastrar_visitante, f.apartamentos                           
                     from Funcionarios f 
                     inner join Users u on u.id = f.id_user
-                    where u.login='${login}'`;
+                    where u.login=?`;
 
-    const result = await db.query(query);
-    if (!result.results[0]) {
+    const result = await db.queryParam(query, [login]);
+    if (!result.results || !result.results[0]) {
       throw new Error('Login ou Senha incorretos');
     }
     return result.results[0];
   },
 
   insertUser: async function(email, password, photo){
-    const query = `insert into Users (login, password, is_funcionario)
-                        values ('${email}',  MD5('${password}'), 1)`;
+    const hash = await bcrypt.hash(password, 10);
+    const query = `insert into Users (login, password, is_funcionario) values (?, ?, 1)`;
 
-    const response = await db.query(query);
-    
-    if(response.status == 'Error'){
-      if (response.error.sqlMessage && response.error.sqlMessage.includes('user_login')) {
+    try {
+      const response = await db.queryParam(query, [email, hash]);
+      return response.results.insertId;
+    } catch (err) {
+      if (err.message && (err.message.includes('user_login') || err.message.includes('ER_DUP_ENTRY'))) {
         throw new Error('E-mail já cadastrado!');
       }
       throw new Error('Houve um erro ao realizar o seu cadastro. Por favor, tente novamente!');
     }
-
-    return response.results.insertId;
   },
 
   insertFuncionario: async function (nome, documento, email, telefone, funcao, ch, extra1, extra2, idUser, idCondominio) {

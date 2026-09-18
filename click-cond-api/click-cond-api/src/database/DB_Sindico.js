@@ -19,19 +19,18 @@ function verifyPassword(plain, stored) {
 
 module.exports = {
   insertUser: async function(email, password, photo){
-    const query = `insert into Users (login, password, is_sindico)
-                        values ('${email}',  MD5('${password}'), 1)`;
+    const hash = await bcrypt.hash(password, 10);
+    const query = `insert into Users (login, password, is_sindico) values (?, ?, 1)`;
 
-    const response = await db.query(query);
-    
-    if(response.status == 'Error'){
-      if (response.error.sqlMessage && response.error.sqlMessage.includes('user_login')) {
+    try {
+      const response = await db.queryParam(query, [email, hash]);
+      return response.results.insertId;
+    } catch (err) {
+      if (err.message && (err.message.includes('user_login') || err.message.includes('ER_DUP_ENTRY'))) {
         throw new Error('E-mail já cadastrado!');
       }
       throw new Error('Houve um erro ao realizar o seu cadastro. Por favor, tente novamente!');
     }
-
-    return response.results.insertId;
   },
 
   insertSindico: async function (nome, email, date_birth, phone, doc_identification, userId) {
@@ -76,12 +75,29 @@ module.exports = {
     const query = `select u.id, s.name, u.photo, u.password
                     from Sindicos s
                     inner join Users u on u.id = s.id_user
-                    where u.login='${login}'`;
-    const result = await db.query(query);
-    const user = result.results[0];
-    if (!user || !verifyPassword(password, user.password)) {
+                    where u.login=?`;
+    const result = await db.queryParam(query, [login]);
+    if (!result.results || !result.results[0]) {
       throw new Error('Login ou Senha incorretos');
     }
+    const user = result.results[0];
+    const md5Password = crypto.createHash('md5').update(password).digest('hex');
+
+    let isMatch = false;
+    if (user.password && user.password.startsWith('$2')) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      isMatch = (user.password === md5Password);
+      if (isMatch) {
+        const newHash = await bcrypt.hash(password, 10);
+        await db.queryParam(`UPDATE Users SET password=? WHERE id=?`, [newHash, user.id]);
+      }
+    }
+
+    if (!isMatch) {
+      throw new Error('Login ou Senha incorretos');
+    }
+
     delete user.password;
     return user;
   },
@@ -90,9 +106,9 @@ module.exports = {
     const query = `select u.id, s.name, u.photo                           
                     from Sindicos s 
                     inner join Users u on u.id = s.id_user
-                    where u.login='${login}'`;
-    const result = await db.query(query);
-    if (!result.results[0]) {
+                    where u.login=?`;
+    const result = await db.queryParam(query, [login]);
+    if (!result.results || !result.results[0]) {
       throw new Error('Login ou Senha incorretos');
     }
     return result.results[0];
@@ -100,17 +116,18 @@ module.exports = {
 
   recoveryPassword: async function (email) {
     const query = `select count(id) as count
-                            from Authors  
-                            where email='${email}'`;
-    const result = await db.query(query);
-    if (result.results[0].count == 0) {
+                            from Users  
+                            where login=? and is_sindico=1`;
+    const result = await db.queryParam(query, [email]);
+    if (!result.results || result.results[0].count == 0) {
       throw new Error('Usuário não localizado!');
     }
   },
 
   setNewPassword: async function (email, password) {
-    const query = `update Authors set password=MD5('${password}') where email='${email}' `;
-    await db.query(query);
+    const hash = await bcrypt.hash(password, 10);
+    const query = `update Users set password=? where login=? and is_sindico=1`;
+    await db.queryParam(query, [hash, email]);
   },  
 
   

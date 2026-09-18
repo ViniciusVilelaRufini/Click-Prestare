@@ -1,4 +1,6 @@
 const db = require('./MySQL.js');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 module.exports = {
   login: async function (login, password) {
@@ -12,8 +14,6 @@ module.exports = {
     }
     
     const user = result.results[0];
-    const bcrypt = require('bcrypt');
-    const crypto = require('crypto');
     const md5Password = crypto.createHash('md5').update(password).digest("hex");
     
     let isMatch = false;
@@ -39,9 +39,9 @@ module.exports = {
     const query = `select u.id, s.nome, u.photo                           
                     from Moradores s 
                     inner join Users u on u.id = s.id_user
-                    where u.login='${login}'`;
-    const result = await db.query(query);
-    return result.results[0];
+                    where u.login=?`;
+    const result = await db.queryParam(query, [login]);
+    return result.results ? result.results[0] : null;
   },
 
   insertUser: async function(email, password){
@@ -51,20 +51,18 @@ module.exports = {
       ? email
       : `familiar_${Date.now()}_${Math.floor(Math.random()*100000)}@noemail.local`;
 
-    const query = `insert into Users (login, password, is_morador)
-                        values ('${login}',  MD5('${password}'), 1)`;
+    const hash = await bcrypt.hash(password, 10);
+    const query = `insert into Users (login, password, is_morador) values (?, ?, 1)`;
 
-    await db.query(query).then((response) => {
-      if(response.status == 'Error'){
-        if (response.error.sqlMessage.includes('user_login')) {
-          throw new Error('E-mail já cadastrado!');
-        }
-        throw new Error('Houve um erro ao realizar o seu cadastro. Por favor, tente novamente!');
+    try {
+      const response = await db.queryParam(query, [login, hash]);
+      return response.results.insertId;
+    } catch (err) {
+      if (err.message && (err.message.includes('user_login') || err.message.includes('ER_DUP_ENTRY'))) {
+        throw new Error('E-mail já cadastrado!');
       }
-    });
-
-    const result2 = await db.query(`select id from Users where login='${login}'`);
-    return result2.results[0].id;
+      throw new Error('Houve um erro ao realizar o seu cadastro. Por favor, tente novamente!');
+    }
   },
 
   // Confirma se o usuário logado pode gerenciar o apartamento como morador principal
