@@ -16,8 +16,11 @@ async function exportRailway() {
   }
 
   console.log('Conectando ao banco de dados do Railway...');
-  const conn = await mysql.createConnection(RAILWAY_URL);
-  console.log('Conectado com sucesso ao Railway!');
+  const conn = await mysql.createConnection({
+    uri: RAILWAY_URL,
+    dateStrings: true
+  });
+  console.log('Conectado com sucesso ao Railway (dateStrings preservados)!');
 
   const [tablesResult] = await conn.query("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
   const tables = tablesResult.map(row => Object.values(row)[0]);

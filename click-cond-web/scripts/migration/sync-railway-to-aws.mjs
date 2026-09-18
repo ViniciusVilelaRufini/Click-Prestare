@@ -1,18 +1,29 @@
 import mysql from 'mysql2/promise';
 
-const RAILWAY_URL = process.env.DATABASE_URL_RAILWAY || process.env.DATABASE_URL;
-const AWS_URL = process.env.DATABASE_URL_AWS || process.env.DATABASE_URL;
+const RAILWAY_URL = process.env.DATABASE_URL_RAILWAY || 'mysql://root:jWmcNvtW3UQAThADP7Exs5qHxxFp2Zwr@turntable.proxy.rlwy.net:54654/railway';
+const AWS_CONFIG = {
+  host: 'database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com',
+  port: 3306,
+  user: 'admin',
+  password: '-+fD7_YHhF.,qZx',
+  database: 'click_prestare',
+  connectTimeout: 20000,
+  dateStrings: true
+};
 
 async function sync() {
   console.log('--- INICIANDO MIGRAÇÃO DIRETA: RAILWAY → AWS RDS ---');
   
   console.log('1. Conectando na Origem (Railway)...');
-  const source = await mysql.createConnection(RAILWAY_URL);
-  console.log('   Origem conectada com sucesso!');
+  const source = await mysql.createConnection({
+    uri: RAILWAY_URL,
+    dateStrings: true
+  });
+  console.log('   Origem conectada com sucesso (dateStrings preservados)!');
 
   console.log('2. Conectando no Destino (AWS RDS)...');
   const dest = await mysql.createConnection(AWS_CONFIG);
-  console.log('   Destino conectado com sucesso!');
+  console.log('   Destino conectado com sucesso (dateStrings preservados)!');
 
   console.log('3. Desativando checagens de chave estrangeira no destino...');
   await dest.query('SET NAMES utf8mb4;');
