@@ -157,34 +157,66 @@ export class MailService implements OnModuleInit {
   }
 
   async sendMfaCode(email: string, nome: string, code: string): Promise<void> {
-    const subject = 'PRESTARE - Seu código de verificação em duas etapas';
+    const subject = `Código de verificação: ${code} - PRESTARE`;
+    const text = `Olá, ${nome}!\n\nRecebemos uma solicitação de login no aplicativo PRESTARE Síndico.\n\nSeu código de segurança de 6 dígitos é: ${code}\n\nEste código é válido por 10 minutos.\nSe você não solicitou este acesso, sua senha pode estar comprometida. Altere sua senha imediatamente no aplicativo ou contate o suporte.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-        <h2 style="color: #0f172a; margin-top: 0; font-size: 20px;">Autenticação em Duas Etapas</h2>
-        <p style="color: #475569; font-size: 14px; line-height: 1.5;">
-          Olá, <b>${this.escape(nome)}</b>!<br><br>
-          Recebemos uma solicitação de login no aplicativo <b>PRESTARE Síndico</b>. Utilize o código de 6 dígitos abaixo para confirmar seu acesso:
-        </p>
-        <div style="text-align: center; margin: 28px 0;">
-          <span style="display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1e3a8a; background-color: #f1f5f9; padding: 14px 28px; border-radius: 10px; border: 1px dashed #94a3b8;">
-            ${this.escape(code)}
-          </span>
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${this.escape(subject)}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px 10px;">
+        <div style="display:none;font-size:1px;color:#fff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+          Seu código de acesso PRESTARE é ${this.escape(code)}
         </div>
-        <p style="color: #64748b; font-size: 13px; line-height: 1.4;">
-          ⏳ Este código é válido por <b>10 minutos</b>.<br>
-          ⚠️ Se você não solicitou este acesso, sua senha pode estar comprometida. Altere sua senha imediatamente no aplicativo ou contate o suporte.
-        </p>
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-        <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">
-          Equipe PRESTARE Condomínios
-        </p>
-      </div>
+        <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #0f172a; margin: 0; font-size: 20px; font-weight: 700;">Autenticação em Duas Etapas</h2>
+          </div>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+            Olá, <b>${this.escape(nome)}</b>!<br><br>
+            Recebemos uma solicitação de login no aplicativo <b>PRESTARE Síndico</b>. Utilize o código de 6 dígitos abaixo para confirmar seu acesso:
+          </p>
+          <div style="text-align: center; margin: 24px 0;">
+            <span style="display: inline-block; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #1e3a8a; background-color: #f1f5f9; padding: 14px 28px; border-radius: 8px; border: 1px dashed #94a3b8; font-family: monospace;">
+              ${this.escape(code)}
+            </span>
+          </div>
+          <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">
+            ⏳ Este código é válido por <b>10 minutos</b>.<br>
+            ⚠️ Se você não solicitou este acesso, sua conta pode estar sob tentativa de invasão. Altere sua senha imediatamente.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            Equipe PRESTARE Condomínios
+          </p>
+        </div>
+      </body>
+      </html>
     `;
-    await this.send(email, subject, html);
+    await this.send(email, subject, html, text);
   }
 
-  private async send(to: string, subject: string, html: string): Promise<void> {
+  private async send(to: string, subject: string, html: string, text?: string): Promise<void> {
     const htmlComRodape = `${html}${this.getEmailFooter()}`;
+    const textContent =
+      text ||
+      html
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const headers = {
+      'X-Priority': '1 (Highest)',
+      'X-MSMail-Priority': 'High',
+      Importance: 'High',
+      'Auto-Submitted': 'auto-generated',
+      'X-Auto-Response-Suppress': 'OOF, AutoReply',
+      'X-Mailer': 'Prestare-Security-Mailer',
+    };
 
     if (this.resend) {
       try {
@@ -193,6 +225,8 @@ export class MailService implements OnModuleInit {
           to: [to],
           subject,
           html: htmlComRodape,
+          text: textContent,
+          headers,
         });
         if (error) {
           this.logger.error(`Falha Resend para ${to}: ${error.name ?? ''} ${error.message ?? error}`);
@@ -208,7 +242,14 @@ export class MailService implements OnModuleInit {
 
     if (this.transporter) {
       try {
-        const info = await this.transporter.sendMail({ from: this.fromAddress, to, subject, html: htmlComRodape });
+        const info = await this.transporter.sendMail({
+          from: this.fromAddress,
+          to,
+          subject,
+          text: textContent,
+          html: htmlComRodape,
+          headers,
+        });
         this.logger.log(`E-mail enviado via SMTP para ${to}. messageId=${info.messageId}`);
       } catch (err: any) {
         this.logger.error(`Erro no envio SMTP para ${to}: ${err?.message ?? err}`);
