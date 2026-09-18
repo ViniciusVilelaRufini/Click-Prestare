@@ -1,7 +1,6 @@
 import * as dns from 'dns';
-// Railway egress nao tem rota IPv6 — forca IPv4 primeiro em todas as
-// resolucoes DNS do processo. Tem que rodar ANTES de qualquer modulo
-// que faca lookup (smtp, prisma, axios, etc).
+// Força IPv4 primeiro em todas as resoluções DNS do processo. Tem que rodar
+// ANTES de qualquer módulo que faça lookup (smtp, prisma, axios, etc).
 dns.setDefaultResultOrder('ipv4first');
 
 import { Logger, ValidationPipe } from '@nestjs/common';
@@ -17,7 +16,7 @@ import { requestContext, extractClientIp } from './app/common/context/request-co
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
-  // Habilita trust proxy para ler IP correto através de proxies/load balancers (Railway, Cloudflare, etc.)
+  // Habilita trust proxy para ler IP correto através de proxies/load balancers (AWS CloudFront, ALB, etc.)
   app.set('trust proxy', true);
 
   // Armazena o IP da máquina do cliente no AsyncLocalStorage para logs de auditoria automáticos
@@ -71,10 +70,11 @@ async function bootstrap() {
     'http://localhost:4200',
     'http://localhost:3000',
     'http://localhost:5173',
-    'https://click-prestare.vercel.app',
-    'https://crm-click-prestare.vercel.app',
     'https://clickprestarecondominios.com.br',
     'https://www.clickprestarecondominios.com.br',
+    'https://main.d340ziyanv9pav.amplifyapp.com',
+    'https://click-prestare.vercel.app',
+    'https://crm-click-prestare.vercel.app',
     'https://kabania.vercel.app',
   ];
   const allowedOrigins = allowedOriginsEnv
@@ -84,6 +84,7 @@ async function bootstrap() {
   const alwaysAllowed = [
     'https://clickprestarecondominios.com.br',
     'https://www.clickprestarecondominios.com.br',
+    'https://main.d340ziyanv9pav.amplifyapp.com',
     'https://click-prestare.vercel.app',
     'https://crm-click-prestare.vercel.app',
     'https://kabania.vercel.app',
@@ -99,8 +100,6 @@ async function bootstrap() {
 
   // Assinatura (req, callback): dá acesso à URL para liberar rotas públicas.
   app.enableCors((req: any, callback: (err: Error | null, options?: any) => void) => {
-    const origin: string | undefined = req.headers?.origin;
-
     // Endpoints públicos de webhook/simulador de dispositivos: chamados por
     // hardware (catraca/leitor) e pelas páginas de simulador a partir de
     // QUALQUER host. Não há cookie/credencial — libera qualquer origem.

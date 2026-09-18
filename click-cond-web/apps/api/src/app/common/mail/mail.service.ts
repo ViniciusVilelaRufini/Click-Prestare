@@ -192,7 +192,7 @@ export class MailService implements OnModuleInit {
       <table style="font-family: Arial, Helvetica, sans-serif; border-collapse: collapse; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
         <tr>
           <td style="vertical-align: middle; padding-right: 14px;">
-            <img src="https://click-prestare.vercel.app/logo-prestare.png" alt="Logo Prestare" width="46" height="46" style="border-radius: 6px; display: block;" />
+            <img src="https://www.clickprestarecondominios.com.br/logo-prestare.png" alt="Logo Prestare" width="46" height="46" style="border-radius: 6px; display: block;" />
           </td>
           <td style="vertical-align: middle; font-size: 13px; line-height: 1.4; color: #334155;">
             <strong style="color: #0f172a; font-size: 14px;">Prestare - Gestao</strong><br>

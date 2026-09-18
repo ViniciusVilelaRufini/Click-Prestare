@@ -1,6 +1,7 @@
 export interface JwtPayload {
   sub: number;
   nome: string;
+  email?: string;
   id_condominio?: number;
   turno?: string | null;
   typeAccess?: string;
