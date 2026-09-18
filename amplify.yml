@@ -1,0 +1,17 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd click-cond-web
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: click-cond-web/dist/apps/portaria-web/browser
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - click-cond-web/node_modules/**/*

@@ -171,4 +171,13 @@ Com todas as frentes homologadas com sucesso, os seguintes passos de encerrament
    * Promover a versão aprovada no TestFlight para a versão pública na [App Store Connect](https://appstoreconnect.apple.com/).
 
 ---
+
+## 9. Próxima Fase: Unificação Total na AWS (Amplify Hosting + API CloudFront)
+
+Para extinguir completamente qualquer dependência da Vercel e consolidar 100% da infraestrutura sob a conta AWS `850401152034` (blindagem integral perante a LGPD):
+* **Frontend Web:** Migração do portal da portaria (`portaria-web`) para o **AWS Amplify Hosting**, com automação de build CI/CD via GitHub (`amplify.yml`) e certificado SSL nativo.
+* **API Direta:** Criação do subdomínio `api.clickprestarecondominios.com.br` roteado via **Amazon CloudFront** diretamente para o Elastic Beanstalk.
+* **Documentação Técnica e Plano:** Registrados em [`docs/superpowers/specs/2026-09-18-subdominio-api-cloudfront-aws-design.md`](file:///c:/Users/vinic/Desktop/Click-with-Prestare/docs/superpowers/specs/2026-09-18-subdominio-api-cloudfront-aws-design.md) e [`docs/superpowers/plans/2026-09-18-unificacao-aws-amplify-cloudfront.md`](file:///c:/Users/vinic/Desktop/Click-with-Prestare/docs/superpowers/plans/2026-09-18-unificacao-aws-amplify-cloudfront.md).
+
+---
 *Documento registrado no repositório oficial do projeto para rastreabilidade e governança de TI.*

@@ -1,30 +1,25 @@
-# Especificação de Design: Roteamento Direto de API e Biometria via AWS CloudFront
+# Especificação de Design: Arquitetura 100% AWS (AWS Amplify Hosting + API via CloudFront)
 
 **Status:** Aprovado em Brainstorming  
 **Data:** 18 de Setembro de 2026  
 **Autor:** Antigravity AI / Engenharia Prestare  
-**Ambiente:** AWS CloudFront + ACM + Elastic Beanstalk (`sa-east-1`) + Registro.br  
-**Objetivo:** Eliminar 100% do trânsito de dados pessoais e biometria facial pela infraestrutura da Vercel, direcionando todas as chamadas de API diretamente para a nuvem da AWS sob o subdomínio `api.clickprestarecondominios.com.br`.
+**Conta AWS Oficial:** `850401152034`  
+**Escopo:** Consolidação Integral na AWS — Substituição Definitiva do Vercel pelo **AWS Amplify Hosting** e Roteamento Direto da API via **Amazon CloudFront**.
 
 ---
 
-## 1. Contexto e Motivação
+## 1. Contexto e Motivação da Eliminação do Vercel
 
-Atualmente, o frontend da portaria web é hospedado na Vercel (`clickprestarecondominios.com.br`). Por conveniência arquitetural inicial, a Vercel foi configurada com uma regra de rewrite em seu arquivo de borda (`vercel.json`):
-```json
-{
-  "source": "/api/:path*",
-  "destination": "http://Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com/api/:path*"
-}
-```
+O sistema Prestare já migrou com sucesso o banco de dados (RDS) e o backend (Elastic Beanstalk) do Railway para a AWS. Atualmente, a única ponta fora do ecossistema Amazon é a **Vercel**, que hospeda os arquivos visuais da portaria web e atua como proxy reverso provisório de chamadas.
 
-Embora o Vercel seja *stateless* e **não armazene nenhum dado**, a cláusula padrão de uso da Vercel veda o trânsito de categorias especiais/dados sensíveis (*"Sensitive Data or Special Categories of Data"*). Para fins de conformidade estrita com a **LGPD (Art. 5º, II e Art. 46)** e para garantir um dossiê de auditoria 100% incontestável perante síndicos e assessoria jurídica, projeta-se a segregação total entre:
-1. **Frontend Estático (Vercel):** Exclusivamente para servir arquivos HTML, CSS e JavaScript compilados;
-2. **Backend API e Banco de Dados (AWS):** Recepção de todas as requisições, biometrias, fotos e registros operacionais sob o subdomínio direto `https://api.clickprestarecondominios.com.br`.
+### Por que eliminar a Vercel e adotar o AWS Amplify Hosting:
+1. **Unificação em 1 Único Fornecedor:** Elimina a fragmentação de serviços. Todo o ecossistema (Frontend, API, Banco, Arquivos e DNS) passa a residir dentro da conta **AWS `850401152034`**.
+2. **Segurança Jurídica Absoluta (LGPD):** A Vercel é 100% removida do fluxo. A assessoria jurídica e os contratos dos condomínios passam a listar **exclusivamente a Amazon Web Services (AWS Brasil)** como suboperadora de nuvem.
+3. **Mesma Experiência de Deploy com Automação Git:** O **AWS Amplify Hosting** oferece exatamente as mesmas facilidades do Vercel: conecta ao repositório GitHub da Prestare, compila o código Angular a cada `git push` e distribui com certificado SSL automático e CDN global da Amazon.
 
 ---
 
-## 2. Arquitetura da Solução
+## 2. Arquitetura 100% AWS
 
 ### 2.1 Diagrama de Fluxo de Dados
 
@@ -37,150 +32,154 @@ graph TD
     end
 
     subgraph "DNS Autoritativo (Registro.br)"
-        DNS_ROOT[clickprestarecondominios.com.br -> Vercel IP]
+        DNS_WEB[clickprestarecondominios.com.br / www -> AWS Amplify]
         DNS_API[api.clickprestarecondominios.com.br -> CloudFront CNAME]
     end
 
-    subgraph "Vercel Edge (Somente Frontend Estático)"
-        VERCEL[Vercel CDN\nHTML / CSS / JS da Portaria\nZero trânsito de dados de API]
+    subgraph "AWS Global Edge (Conta 850401152034)"
+        AMPLIFY[AWS Amplify Hosting\nFrontend Angular / Portaria Web\nDeploy Automático via Git\nSSL Gratuito Automático]
+        CF[Amazon CloudFront\napi.clickprestarecondominios.com.br\nTerminação SSL TLS 1.3 / ACM us-east-1\nProteção Anti-DDoS AWS Shield]
     end
 
-    subgraph "AWS Global Edge Network"
-        CF[Amazon CloudFront\nTerminação SSL TLS 1.3\nAWS Certificate Manager us-east-1\nProteção Anti-DDoS AWS Shield]
-    end
-
-    subgraph "AWS sa-east-1 (São Paulo)"
-        EB[AWS Elastic Beanstalk\nClickprestareapi-env\nNode.js 24 / Express API]
+    subgraph "AWS sa-east-1 (São Paulo - Conta 850401152034)"
+        EB[AWS Elastic Beanstalk\nClickprestareapi-env\nAPI Node.js 24 / Express]
         RDS[(AWS RDS MySQL 8.0\ndatabase-1\n63 Tabelas - Criptografia AES-256)]
+        S3[Amazon S3\nstorage-click-dev\nFotos e Documentos]
     end
 
-    WEB -.->|1. Carrega telas e scripts| DNS_ROOT --> VERCEL
+    WEB -.->|1. Carrega telas e JS| DNS_WEB --> AMPLIFY
     WEB ===>|2. Chamadas de API e Biometria| DNS_API
     IOS ===>|Chamadas de API e Biometria| DNS_API
     AND ===>|Chamadas de API e Biometria| DNS_API
     DNS_API --> CF
-    CF -->|Conexão Segura na Rede AWS| EB
+    CF -->|Rede Dedicada AWS| EB
     EB -->|VPC Privada Porta 3306| RDS
+    EB -->|SDK Seguro| S3
 ```
 
 ---
 
-## 3. Especificação Detalhada dos Componentes
+## 3. Especificação dos Componentes da Solução
 
-### 3.1. Certificado Digital SSL (AWS Certificate Manager — ACM)
-* **Região Obrigatória:** **`us-east-1` (N. Virginia)**.
-  > **Requisito Técnico Estrito da AWS:** Para distribuições do Amazon CloudFront com domínio personalizado, o certificado SSL/TLS **obrigatoriamente** deve ser emitido na região `us-east-1` do ACM, independentemente de os servidores de origem residirem em São Paulo (`sa-east-1`). Certificados criados em São Paulo não aparecem na listagem do CloudFront.
-* **Nome de Domínio Solicitado:** `api.clickprestarecondominios.com.br`
-* **Tipo de Validação:** Validação por DNS (registro CNAME no Registro.br).
-* **Renovação:** Totalmente automatizada pela Amazon antes do vencimento anual.
+### 3.1. Frontend: AWS Amplify Hosting (Substituição da Vercel)
+* **Serviço AWS:** AWS Amplify Hosting (Web Apps).
+* **Conexão com Repositório:** Conectado diretamente ao repositório GitHub `ViniciusVilelaRufini/Click-Prestare`, branch `main`.
+* **Gatilho de Deploy (CI/CD):** A cada `git push` no branch `main`, o Amplify inicia o pipeline automatizado de build.
+* **Configuração de Build (`amplify.yml`):**
+  ```yaml
+  version: 1
+  frontend:
+    phases:
+      preBuild:
+        commands:
+          - cd click-cond-web
+          - npm ci
+      build:
+        commands:
+          - npm run build
+    artifacts:
+      baseDirectory: click-cond-web/dist/apps/portaria-web/browser
+      files:
+        - '**/*'
+    cache:
+      paths:
+        - click-cond-web/node_modules/**/*
+  ```
+* **Regras de Redirecionamento e Rewrite no Amplify (SPA Angular):**
+  Para que a navegação do Angular (ex.: `/dashboard`, `/sobre`, `/login`) funcione em reload sem retornar erro 404:
+  * **Source address:** `</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webmanifest)$)([^.]+$)/>`
+  * **Target address:** `/index.html`
+  * **Type:** `200 (Rewrite)`
+  * **Redirecionamento Raiz -> WWW:** `https://clickprestarecondominios.com.br` ➔ `https://www.clickprestarecondominios.com.br` (`301 Redirect`).
+* **Domínios Personalizados no Amplify:**
+  * `clickprestarecondominios.com.br` (domínio raiz)
+  * `www.clickprestarecondominios.com.br` (com redirecionamento automático configurado)
+* **Certificado SSL:** Emitido e renovado de forma 100% automática pela AWS (Let's Encrypt / ACM integrado).
 
-### 3.2. Distribuição Amazon CloudFront
-* **Origem (Origin Domain):** `Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com`
-* **Protocolo de Origem:** HTTP (porta 80) — o CloudFront comunica-se com a instância através do backbone dedicado da AWS.
-* **Nomes de Domínio Alternativos (CNAMEs):** `api.clickprestarecondominios.com.br`
-* **Certificado SSL do Visualizador:** Selecionar o certificado emitido no ACM em `us-east-1`.
-* **Configuração de Comportamento (Default Cache Behavior):**
-  * **Viewer Protocol Policy:** `Redirect HTTP to HTTPS` (garante que nenhuma requisição não criptografada trafegue).
-  * **Allowed HTTP Methods:** `GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE`.
-  * **Cache Policy:** `Managed-CachingDisabled` (ID `4135ea2d-6df8-44a3-9df3-4b5a84be39ad`).
-    * *Justificativa:* A API do Prestare é transacional, em tempo real e com autenticação baseada em tokens JWT. Nenhuma chamada de API deve ser mantida em cache de borda.
-  * **Origin Request Policy:** `Managed-AllViewerExceptHostHeader` (ID `b689b0a8-53d0-40ab-baf2-68738e2966ac`).
-    * *Justificativa:* Repassa todos os headers de requisição (`Authorization`, `Content-Type`, `Cookie`, query strings), substituindo o header `Host` pelo domínio do Elastic Beanstalk para aceitação correta no servidor Nginx/Node.js da AWS.
-* **Proteção:** AWS Shield Standard habilitado por padrão (sem custo).
+---
 
-### 3.3. Configuração de DNS no Registro.br
-No painel do domínio `clickprestarecondominios.com.br` no **Registro.br**, serão adicionados dois registros:
+### 3.2. Backend: Subdomínio de API com Amazon CloudFront + ACM
+* **Nome do Subdomínio:** `api.clickprestarecondominios.com.br`
+* **Certificado SSL:** AWS Certificate Manager (ACM) criado na região `us-east-1` (exigência técnica do CloudFront para bordas).
+* **Distribuição CloudFront:**
+  * **Origem:** `Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com`
+  * **Política de Protocolo:** `Redirect HTTP to HTTPS` (TLS 1.2/1.3 forçado).
+  * **Allowed Methods:** `GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE`.
+  * **Cache Policy:** `Managed-CachingDisabled` (ID `4135ea2d-6df8-44a3-9df3-4b5a84be39ad`) — tráfego 100% transacional dinâmico sem retenção em borda.
+  * **Origin Request Policy:** `Managed-AllViewerExceptHostHeader` — repassa cabeçalhos JWT de autenticação (`Authorization`), mantendo conformidade com o Nginx da AWS.
+
+---
+
+### 3.3. Configuração de DNS no Registro.br (Sem Vercel)
+
+Com a saída da Vercel, a zona de DNS no **Registro.br** é totalmente orientada para a Amazon:
 
 | Tipo | Nome | Destino / Valor | Finalidade |
 | :--- | :--- | :--- | :--- |
-| **CNAME** | `_xxxxxxxxxxxx.api` | `_yyyyyyyyyyyy.acm-validations.aws.` | Validação criptográfica do certificado ACM |
-| **CNAME** | `api` | `dXXXXXXXXXXXXX.cloudfront.net.` | Apontamento do subdomínio para a distribuição CloudFront |
+| **CNAME** | `www` | `xxxx.amplifyapp.com.` | Frontend Web no AWS Amplify |
+| **A / ALIAS** | `@` (raiz) | IP / CNAME do AWS Amplify | Acesso direto sem www |
+| **CNAME** | `api` | `dXXXXXXXXXXXXX.cloudfront.net.` | Endpoint da API no CloudFront |
+| **CNAME** | `_acm.api` | `_yyy.acm-validations.aws.` | Validação SSL da API no ACM |
 
 ---
 
-## 4. Ajustes no Código e Clientes
+## 4. Ajustes no Código dos Aplicativos e Web
 
-### 4.1. Aplicativo Mobile Flutter (`click-cond-app`)
-No arquivo `lib/utils/api_config.dart`, atualizar o host de produção:
-```dart
-class ApiConfig {
-  static const bool isProduction = true;
-
-  static String get host {
-    if (isProduction) return "api.clickprestarecondominios.com.br";
-    if (kIsWeb) return "localhost:3003";
-    return "10.0.2.2:3003";
-  }
-  ...
-}
-```
-
-### 4.2. Console Web Portaria (`click-cond-web`)
-No frontend Angular da portaria (`apps/portaria-web`), as chamadas de API devem ser configuradas para o endpoint completo da API:
-* Em desenvolvimento: `http://localhost:3003/api`
-* Em produção: `https://api.clickprestarecondominios.com.br/api`
-
-### 4.3. Configuração de CORS no Backend Node.js (`click-cond-api`)
-Certificar que a lista de origens autorizadas no Express permite o domínio da web:
-```javascript
-const allowedOrigins = [
-  'https://clickprestarecondominios.com.br',
-  'https://www.clickprestarecondominios.com.br',
-  'http://localhost:4200'
-];
-```
-
-### 4.4. Limpeza no `vercel.json`
-Com o subdomínio direto ativo, a regra de rewrite no Vercel torna-se desnecessária:
-```json
-{
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/sobre",
-      "destination": "/sobre/index.html"
-    },
-    {
-      "source": "/:path*",
-      "destination": "/index.html"
-    }
-  ]
-}
-```
+1. **App Mobile (`click-cond-app`):**
+   * Em `lib/utils/api_config.dart`:
+     ```dart
+     static String get host {
+       if (isProduction) return "api.clickprestarecondominios.com.br";
+       ...
+     }
+     ```
+2. **Console Web (`click-cond-web`):**
+   * Configuração de ambiente (`environment.prod.ts`):
+     ```typescript
+     export const environment = {
+       production: true,
+       apiUrl: 'https://api.clickprestarecondominios.com.br/api'
+     };
+     ```
+3. **Backend Node.js (`click-cond-api`):**
+   * Liberar os domínios do Amplify no CORS do Express:
+     ```javascript
+     const allowedOrigins = [
+       'https://clickprestarecondominios.com.br',
+       'https://www.clickprestarecondominios.com.br'
+     ];
+     ```
+4. **Descomissionamento do Vercel:**
+   * Exclusão do projeto na Vercel e encerramento da conta, sem qualquer impacto residual.
 
 ---
 
-## 5. Estratégia de Transição Suave (Zero Downtime)
+## 5. Estimativa de Custos para até 10 Condomínios
 
-Para garantir que a transição ocorra sem qualquer indisponibilidade para os usuários ou aplicativos já instalados:
-
-1. **Fase 1 — Provisionamento Paralelo:** Criar o certificado ACM e a distribuição CloudFront sem tocar no código de produção.
-2. **Fase 2 — Testes de Homologação:** Testar os endpoints diretamente via `curl`:
-   ```bash
-   curl -I https://api.clickprestarecondominios.com.br/api/health
-   ```
-3. **Fase 3 — Manutenção do Rewrite Vercel como Fallback:** Manter o rewrite no `vercel.json` por um período de transição (ex.: 30 dias) para atender clientes com versões móveis legadas ainda não atualizadas.
-4. **Fase 4 — Deploy das Novas Versões:** Publicar o app mobile e o painel web apontando para `api.clickprestarecondominios.com.br`.
-5. **Fase 5 — Desativação Definitiva do Rewrite:** Remover a regra do `vercel.json` após a consolidação das atualizações.
+| Serviço | Função | Nível Gratuito / Custo Mensal Estimado |
+| :--- | :--- | :--- |
+| **AWS Amplify Hosting** | Frontend Web e Portaria | **US$ 0,00 a US$ 1,50/mês** (Free Tier cobre 1.000 min de build e 15 GB servidos/mês). |
+| **Amazon CloudFront** | Roteador e SSL da API | **US$ 0,00/mês** (Free Tier perpétuo cobre até 1.000.000 reqs/mês). |
+| **AWS ACM** | Certificados SSL | **Gratuito** fornecido pela Amazon. |
+| **Elastic Beanstalk + RDS** | API e Banco MySQL | Já ativos na conta `850401152034`. |
+| **Custo Total Adicional:** | — | **Aproximadamente R$ 0,00 a R$ 8,00/mês**. |
 
 ---
 
-## 6. Dimensionamento e Custos (Capacidade para até 10 Condomínios)
+## 6. Roteiro Prático de Execução
 
-* **Volume de Requisições Estimado (10 Condomínios):** ~20.000 a 45.000 requisições diárias (~1,3 milhão/mês).
-* **AWS CloudFront Free Tier:**
-  * 1.000.000 de requisições HTTP/HTTPS gratuitas todo mês (para sempre).
-  * 1 TB de transferência de dados de saída gratuito todo mês.
-* **Custo Adicional Mensal:** **US$ 0,00 a US$ 0,35** (praticamente zero reais).
-* **Comparação com ALB (Load Balancer):** Economia de ~US$ 18 a 22/mês (~R$ 1.300,00/ano).
+1. **Etapa 1:** Solicitar certificado ACM para `api.clickprestarecondominios.com.br` no painel AWS (`us-east-1`).
+2. **Etapa 2:** Criar distribuição CloudFront apontando para o Elastic Beanstalk.
+3. **Etapa 3:** Criar novo App no **AWS Amplify Console**, conectando ao repositório GitHub na branch `main`.
+4. **Etapa 4:** Validar o build do painel web no Amplify e associar o domínio `clickprestarecondominios.com.br`.
+5. **Etapa 5:** Atualizar as entradas de DNS no **Registro.br** (apontando web para o Amplify e api para o CloudFront).
+6. **Etapa 6:** Testar acessos ponta a ponta e deletar definitivamente o projeto no painel da Vercel.
 
 ---
 
-## 7. Conclusão e Próximos Passos
+## 7. Conclusão
 
-Esta arquitetura confere à Prestare Gestão:
-1. **Blindagem Jurídica Completa sob a LGPD:** O Vercel fica 100% fora da rota de biometria e dados pessoais;
-2. **Performance Máxima:** Latência mínima com terminação SSL na borda brasileira do CloudFront;
-3. **Custo Otimizado:** Custo operacional irrisório perfeitamente calibrado para a escala de até 10 condomínios.
-
-*Documento aprovado em fase de planejamento, pronto para execução técnica quando demandado pela equipe.*
+Com a implementação deste design, a **Prestare Gestão** atinge **100% de soberania e independência dentro da AWS**:
+* Zero dependência do Railway;
+* Zero dependência do Vercel;
+* 1 único painel, 1 única fatura, 1 único contrato sob a conta AWS `850401152034` com total respaldo perante a LGPD.
