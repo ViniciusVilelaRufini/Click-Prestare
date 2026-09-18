@@ -8,7 +8,7 @@ class ApiConfig {
 
   /// Host dinâmico
   static String get host {
-    if (isProduction) return "click-prestare-production.up.railway.app";
+    if (isProduction) return "www.clickprestarecondominios.com.br";
     if (kIsWeb) return "localhost:3003";
     // 10.0.2.2 é o endereço especial para acessar o localhost do seu PC de dentro do Emulador Android
     return "10.0.2.2:3003";
