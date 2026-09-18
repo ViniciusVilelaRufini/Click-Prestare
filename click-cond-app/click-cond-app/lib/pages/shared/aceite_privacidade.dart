@@ -242,6 +242,16 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
                       descricao:
                           'Enquanto você for morador, e pelo prazo legal aplicável depois disso.',
                     ),
+                    const SizedBox(height: 10),
+
+                    // Card 4: Seus direitos (Art. 9º LGPD)
+                    _cardInformativo(
+                      context,
+                      icone: PhosphorIcons.scales,
+                      titulo: 'Seus direitos',
+                      descricao:
+                          'Acessar, corrigir e revogar a qualquer momento pelo app ou com a administração.',
+                    ),
                     const SizedBox(height: AppSpacing.md),
 
                     // Link sutil para ler a política completa
