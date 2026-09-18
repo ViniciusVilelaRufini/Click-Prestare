@@ -124,6 +124,8 @@ model Users {
   votacoesUsuarios    Votacoes_Usuarios[]
   financeiros         Financeiro[]
   devices             Users_Devices[]
+  mfaChallenges       Mfa_Challenges[]
+  trustedDevices      User_Trusted_Devices[]
 
   @@index([address], map: "fk_users_address")
 }
@@ -1423,4 +1425,35 @@ model Consentimentos_Terceiros {
 
   @@index([id_condominio, doc, registrado_em], map: "idx_consent3_doc")
   @@index([id_condominio, tipo_pessoa, id_pessoa, registrado_em], map: "idx_consent3_pessoa")
+}
+
+/// Desafios de autenticação em duas etapas em andamento (temporários)
+model Mfa_Challenges {
+  id         Int      @id @default(autoincrement())
+  id_user    Int
+  token      String   @unique(map: "uni_mfa_challenges_token") @db.Char(36)
+  code_hash  String   @db.VarChar(255)
+  tentativas Int      @default(0)
+  expires_at DateTime @db.DateTime(0)
+  created_at DateTime @default(now()) @db.DateTime(0)
+  user       Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_mfa_challenges_user")
+
+  @@index([token], map: "idx_mfa_challenges_token")
+  @@index([id_user, expires_at], map: "idx_mfa_challenges_user_exp")
+  @@map("mfa_challenges")
+}
+
+/// Dispositivos confiáveis do síndico (Token de 30 dias)
+model User_Trusted_Devices {
+  id          Int      @id @default(autoincrement())
+  id_user     Int
+  device_hash String   @unique(map: "uni_user_trusted_devices_hash") @db.Char(64)
+  user_agent  String?  @db.VarChar(255)
+  ip_address  String?  @db.VarChar(45)
+  expires_at  DateTime @db.DateTime(0)
+  created_at  DateTime @default(now()) @db.DateTime(0)
+  user        Users    @relation(fields: [id_user], references: [id], onDelete: Cascade, map: "fk_user_trusted_devices_user")
+
+  @@index([id_user, expires_at], map: "idx_user_trusted_devices_user_exp")
+  @@map("user_trusted_devices")
 }
