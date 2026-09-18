@@ -100,6 +100,21 @@ async function bundle() {
   console.log('5. Criando Procfile...');
   fs.writeFileSync(path.join(EB_DIR, 'Procfile'), 'web: node main.js\n');
 
+  // 6.1 Cria .env com credenciais de SMTP como fallback
+  console.log('5.1 Criando .env com fallback de SMTP...');
+  const fallbackEnv = `# Fallback de SMTP caso o console do Elastic Beanstalk não tenha as variáveis
+SMTP_SERVICE="gmail"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER="viniciusrufini17@gmail.com"
+SMTP_PASS="vjtyuvqakfzwztuz"
+SMTP_FROM="viniciusrufini17@gmail.com"
+SMTP_FROM_NAME="Prestare Condomínios"
+MAIL_FROM_NAME="Prestare Condomínios"
+`;
+  fs.writeFileSync(path.join(EB_DIR, '.env'), fallbackEnv, 'utf8');
+
   // 7. Gera o arquivo .zip compatível com Linux usando adm-zip
   if (fs.existsSync(ZIP_OUTPUT)) {
     fs.unlinkSync(ZIP_OUTPUT);

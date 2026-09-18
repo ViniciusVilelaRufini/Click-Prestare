@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { Resend } from 'resend';
 import * as nodemailer from 'nodemailer';
 import * as dns from 'dns';
@@ -18,20 +18,27 @@ export class MailService implements OnModuleInit {
   private readonly smtpPass?: string;
 
   constructor() {
-    this.resendKey = process.env.RESEND_API_KEY;
-    this.smtpUser = process.env.SMTP_USER;
-    this.smtpPass = process.env.SMTP_PASS;
+    const clean = (s?: string) => (s ? s.trim().replace(/^["']|["']$/g, '') : undefined);
+    this.resendKey = clean(process.env.RESEND_API_KEY);
+    this.smtpUser = clean(process.env.SMTP_USER);
+    this.smtpPass = clean(process.env.SMTP_PASS)?.replace(/\s+/g, '');
 
-    const fromEmail = process.env.MAIL_FROM
-      || process.env.SMTP_FROM
-      || this.smtpUser
-      || 'onboarding@resend.dev';
-    const fromName = process.env.MAIL_FROM_NAME
-      || process.env.SMTP_FROM_NAME
-      || 'Prestare Condomínios';
+    const fromEmail =
+      clean(process.env.MAIL_FROM) ||
+      clean(process.env.SMTP_FROM) ||
+      this.smtpUser ||
+      'onboarding@resend.dev';
+    const fromName =
+      clean(process.env.MAIL_FROM_NAME) ||
+      clean(process.env.SMTP_FROM_NAME) ||
+      'Prestare Condomínios';
     this.fromAddress = `${fromName} <${fromEmail}>`;
 
-    this.logger.log(`MailService construido. Resend=${!!this.resendKey} SMTP=${!!(this.smtpUser && this.smtpPass)} from=${this.fromAddress}`);
+    this.logger.log(
+      `MailService construido. Resend=${!!this.resendKey} SMTP=${!!(
+        this.smtpUser && this.smtpPass
+      )} from=${this.fromAddress}`,
+    );
   }
 
   async onModuleInit() {
@@ -210,7 +217,27 @@ export class MailService implements OnModuleInit {
       return;
     }
 
-    this.logger.warn(`E-mail para ${to} ignorado (nenhum provider configurado).`);
+    this.logger.error(
+      `Tentativa de envio de e-mail para ${to} rejeitada: nenhum serviço de e-mail (Resend ou SMTP) está configurado no servidor.`,
+    );
+    throw new ServiceUnavailableException(
+      'Serviço de envio de e-mail não configurado no servidor.',
+    );
+  }
+
+  async getHealth(): Promise<{ configured: boolean; provider: string; from: string; error?: string }> {
+    if (this.resend) {
+      return { configured: true, provider: 'resend', from: this.fromAddress };
+    }
+    if (this.transporter) {
+      try {
+        await this.transporter.verify();
+        return { configured: true, provider: 'smtp', from: this.fromAddress };
+      } catch (err: any) {
+        return { configured: false, provider: 'smtp', from: this.fromAddress, error: err?.message ?? String(err) };
+      }
+    }
+    return { configured: false, provider: 'none', from: this.fromAddress, error: 'Nenhum provedor configurado' };
   }
 
   private getEmailFooter(): string {

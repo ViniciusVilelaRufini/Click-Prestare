@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
 import { MfaService } from './mfa.service';
 import { Public } from '../public.decorator';
 import { extractClientIp } from '../../common/context/request-context';
@@ -30,5 +30,11 @@ export class MfaController {
   @HttpCode(200)
   async resend(@Body() body: { mfa_token: string }) {
     return this.mfaService.resendChallenge(body.mfa_token);
+  }
+
+  @Public()
+  @Get('health')
+  async health() {
+    return this.mfaService.checkMailHealth();
   }
 }

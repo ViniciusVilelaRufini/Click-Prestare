@@ -127,7 +127,20 @@ export class MobileAuthService {
       const isTrusted = await this.mfa.isDeviceTrusted(user.id, deviceToken);
       if (!isTrusted) {
         const sindico = user.sindicos[0];
-        const email = user.email || user.login || '';
+        const email = (sindico?.email?.trim() && sindico.email.includes('@'))
+          ? sindico.email.trim()
+          : (user.email?.trim() && user.email.includes('@'))
+            ? user.email.trim()
+            : (user.login?.trim() && user.login.includes('@'))
+              ? user.login.trim()
+              : '';
+
+        if (!email) {
+          throw new BadRequestException(
+            'Não há um e-mail válido vinculado a este cadastro de Síndico para envio do código de segurança de 2 etapas. Atualize o e-mail no painel.',
+          );
+        }
+
         return this.mfa.createChallenge({
           id: user.id,
           email,

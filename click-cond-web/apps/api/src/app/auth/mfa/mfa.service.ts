@@ -70,6 +70,12 @@ export class MfaService {
       await this.mail.sendMfaCode(user.email, user.name, code);
     } catch (err: any) {
       this.logger.error(`Falha ao disparar e-mail de 2FA para ${user.email}: ${err?.message ?? err}`);
+      await this.prisma.mfa_Challenges.deleteMany({ where: { token } }).catch(() => null);
+      throw new ServiceUnavailableException(
+        `Não foi possível enviar o código para o e-mail cadastrado (${this.maskEmail(
+          user.email,
+        )}). Detalhes: ${err?.message ?? 'Serviço de e-mail indisponível'}`,
+      );
     }
 
     return {
@@ -213,13 +219,34 @@ export class MfaService {
 
     const user = challenge.user;
     const nome = user.sindicos?.[0]?.name ?? 'Síndico';
-    const email = user.email || user.login || '';
+    const email = (user.sindicos?.[0]?.email?.trim() && user.sindicos[0].email.includes('@'))
+      ? user.sindicos[0].email.trim()
+      : (user.email?.trim() && user.email.includes('@'))
+        ? user.email.trim()
+        : (user.login?.trim() && user.login.includes('@'))
+          ? user.login.trim()
+          : '';
 
-    if (email) {
+    if (!email) {
+      throw new BadRequestException('E-mail cadastrado inválido para reenvio do código.');
+    }
+
+    try {
       await this.mail.sendMfaCode(email, nome, novoCodigo);
+    } catch (err: any) {
+      this.logger.error(`Falha ao reenviar e-mail de 2FA para ${email}: ${err?.message ?? err}`);
+      throw new ServiceUnavailableException(
+        `Não foi possível reenviar o código para ${this.maskEmail(
+          email,
+        )}. Detalhes: ${err?.message ?? 'Falha no serviço de e-mail'}`,
+      );
     }
 
     return { success: true, message: 'Novo código enviado com sucesso!' };
+  }
+
+  async checkMailHealth() {
+    return this.mail.getHealth();
   }
 
   async isDeviceTrusted(userId: number, deviceToken?: string): Promise<boolean> {

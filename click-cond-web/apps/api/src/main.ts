@@ -3,6 +3,15 @@ import * as dns from 'dns';
 // ANTES de qualquer módulo que faça lookup (smtp, prisma, axios, etc).
 dns.setDefaultResultOrder('ipv4first');
 
+// Carrega .env se presente no diretório da aplicação (fallback de produção/Beanstalk)
+if (typeof (process as any).loadEnvFile === 'function') {
+  try {
+    (process as any).loadEnvFile();
+  } catch {
+    // Ignora se não houver arquivo .env
+  }
+}
+
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
