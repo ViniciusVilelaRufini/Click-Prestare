@@ -1,10 +1,10 @@
 const dbVis = require('../database/DB_Visitantes.js');
 
-// O motor do facial vive no NestJS (produção). O Express (dev) não enrola
-// direto — então dispara o sync lá. URL configurável por env.
-const NEST_URL = process.env.NEST_API_URL || 'https://click-prestare-production.up.railway.app';
+// O motor do facial vive no NestJS (produção na AWS). O Express dispara o sync lá.
+// URL configurável por env (default: API oficial na AWS).
+const NEST_URL = process.env.NEST_API_URL || 'https://api.clickprestarecondominios.com.br';
 // Token compartilhado (server-to-server) — deve ser IGUAL ao INTERNAL_SYNC_TOKEN
-// definido no NestJS (Railway). Sem ele, o disparo imediato é pulado (o
+// definido no NestJS (AWS). Sem ele, o disparo imediato é pulado (o
 // back-fill do NestJS ainda enrola via face_sync_status='pending').
 const INTERNAL_SYNC_TOKEN = process.env.INTERNAL_SYNC_TOKEN || '';
 

@@ -1,5 +1,5 @@
 /**
- * Cria um síndico de teste no banco do Railway.
+ * Cria um síndico de teste no banco de dados (AWS RDS).
  *
  * Uso: npx ts-node scripts/create-sindico.ts
  *      ou: npx tsx scripts/create-sindico.ts

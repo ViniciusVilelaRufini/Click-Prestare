@@ -6,7 +6,11 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const RAILWAY_URL = process.env.DATABASE_URL || 'mysql://root:jWmcNvtW3UQAThADP7Exs5qHxxFp2Zwr@turntable.proxy.rlwy.net:54654/railway';
+const RAILWAY_URL = process.env.DATABASE_URL_RAILWAY || process.env.DATABASE_URL;
+if (!RAILWAY_URL) {
+  console.error('❌ Erro: DATABASE_URL_RAILWAY ou DATABASE_URL não definida nas variáveis de ambiente.');
+  process.exit(1);
+}
 const OUTPUT_DIR = path.resolve(__dirname, '../../../backups');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'railway_dump_final.sql');
 

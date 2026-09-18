@@ -1,11 +1,14 @@
 export const API_BASE = '/api';
 
 /**
- * Origem do Socket.IO. O HTTP comum continua relativo (`/api`), passando pelo
- * rewrite da Vercel.
+ * Origem do Socket.IO.
+ * Em produção, conecta diretamente na API da AWS (CloudFront / Elastic Beanstalk),
+ * contornando o CDN estático do frontend (AWS Amplify) que não faz upgrade de WebSocket.
+ * Em desenvolvimento local, conecta na porta 3000.
  */
 export const REALTIME_ORIGIN = (() => {
   if (typeof window === 'undefined') return '';
-  return window.location.origin;
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  return isLocal ? 'http://localhost:3000' : 'https://api.clickprestarecondominios.com.br';
 })();
 

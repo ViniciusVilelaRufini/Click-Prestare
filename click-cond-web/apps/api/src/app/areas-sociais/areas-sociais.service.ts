@@ -1481,4 +1481,66 @@ export class AreasSociaisService {
     await this.prisma.areas_Sociais_Manutencoes.delete({ where: { id: Number(id) } });
     return { success: true };
   }
+
+  async updateAgendamento(agendamento: any, user?: JwtPayload) {
+    if (!agendamento?.id) {
+      throw new BadRequestException('ID do agendamento é obrigatório');
+    }
+    const atual = await this.prisma.areas_Sociais_Agendamentos.findUnique({
+      where: { id: Number(agendamento.id) },
+      include: { area: { select: { id_condominio: true } } },
+    });
+    if (!atual) throw new NotFoundException('Agendamento não encontrado.');
+    await this.tenant.assertEntidade(atual.area?.id_condominio, user, `agendamento #${agendamento.id}`);
+
+    const updateData: any = {};
+    if (agendamento.data) {
+      const parts = String(agendamento.data).split('/');
+      if (parts.length === 3) {
+        updateData.data = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      } else {
+        updateData.data = new Date(agendamento.data);
+      }
+    }
+    if (agendamento.horaDe || agendamento.hora_de) {
+      const [hDe, mDe] = this.parseTime(agendamento.horaDe || agendamento.hora_de);
+      updateData.hora_de = new Date(1970, 0, 1, hDe, mDe, 0);
+    }
+    if (agendamento.horaAte || agendamento.hora_ate) {
+      const [hAte, mAte] = this.parseTime(agendamento.horaAte || agendamento.hora_ate);
+      updateData.hora_ate = new Date(1970, 0, 1, hAte, mAte, 0);
+    }
+    if (agendamento.convidados !== undefined) {
+      updateData.convidados = Number(agendamento.convidados);
+    }
+    if (agendamento.status) {
+      updateData.status = String(agendamento.status);
+    }
+
+    return this.prisma.areas_Sociais_Agendamentos.update({
+      where: { id: Number(agendamento.id) },
+      data: updateData,
+    });
+  }
+
+  async getAllManutencoes(idCondominio: number, idAreaSocial?: number, user?: JwtPayload) {
+    if (idCondominio) {
+      await this.tenant.assertEntidade(idCondominio, user, 'listar manutenções');
+    }
+    const where: any = {};
+    if (idAreaSocial) {
+      where.id_area_social = Number(idAreaSocial);
+    } else if (idCondominio) {
+      where.area = { id_condominio: Number(idCondominio) };
+    }
+    return this.prisma.areas_Sociais_Manutencoes.findMany({
+      where,
+      orderBy: { id: 'desc' },
+      include: {
+        area: {
+          select: { id: true, nome: true, id_condominio: true },
+        },
+      },
+    });
+  }
 }

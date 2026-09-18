@@ -72,6 +72,11 @@ export class SindicoMobileController {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.linkUserAsMorador(Number(idUser), Number(body.id_apartamento), body.tipo);
   }
+
+  @Get('list-sindicos')
+  listSindicos(@Query('id_condominio') idCond: string) {
+    return this.service.listSindicosByCondominio(Number(idCond));
+  }
 }
 
 // ==========================================
@@ -253,6 +258,15 @@ export class DashboardMobileController {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.getMeusEventos(Number(idUser), limit ? Number(limit) : 15);
   }
+
+  @Get('condominios/get-all')
+  getAllCondominios(@ReqUser() payload: JwtPayload) {
+    const idUser = payload.user?.id ?? payload.sub;
+    const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Sindico';
+    if (typeAccess === 'Morador') return this.service.listCondominiosMorador(Number(idUser));
+    if (typeAccess === 'Funcionario') return this.service.listCondominiosFuncionario(Number(idUser));
+    return this.service.listCondominiosSindico(Number(idUser));
+  }
 }
 
 // ==========================================
@@ -327,6 +341,11 @@ export class CondominioMobileController {
   updateAssinatura(@ReqUser() payload: JwtPayload, @Body() body: any) {
     const idUser = payload.user?.id ?? payload.sub;
     return this.service.updateAssinaturaCondominio(body, Number(idUser), payload);
+  }
+
+  @Get('aptos/get-all')
+  getAllAptos(@Query('id_condominio') idCond: string, @ReqUser() payload: JwtPayload) {
+    return this.service.getAllApartamentos(Number(idCond), payload);
   }
 }
 

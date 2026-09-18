@@ -85,6 +85,7 @@ describe('FinanceiroController — financeiro do condomínio é somente leitura'
       'morador/insert': 'conta pessoal do morador — fora do escopo da restrição',
       'morador/update': 'conta pessoal do morador',
       'morador/remove': 'conta pessoal do morador',
+      'morador/anexar-codigo': 'código/pix da conta pessoal do morador',
       'upload-shared-file': 'comprovante da própria conta; boleto é recusado dentro do service',
       'inadimplente/notificar': 'comunicação, não altera dado financeiro',
       'webhook/asaas': 'gateway de pagamento (@Public, valida token)',

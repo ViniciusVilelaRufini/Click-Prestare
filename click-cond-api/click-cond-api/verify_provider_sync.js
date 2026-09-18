@@ -1,12 +1,13 @@
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 
 async function checkSync() {
   const connection = await mysql.createConnection({
-    host: 'turntable.proxy.rlwy.net',
-    port: 54654,
-    user: 'root',
-    password: 'dwhGSPBYLxNVOAOdhshsGoLXPTSPqhwr',
-    database: 'railway'
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306', 10),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'click_cond'
   });
 
   try {

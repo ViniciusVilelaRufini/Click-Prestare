@@ -85,7 +85,7 @@ class _AceitePrivacidadePageState extends State<AceitePrivacidadePage> {
   bool _biometria = false;
   bool _enviando = false;
 
-  static const _urlPolitica = 'https://click-prestare.vercel.app/politica-de-privacidade.html';
+  static const _urlPolitica = 'https://www.clickprestarecondominios.com.br/politica-de-privacidade.html';
 
   Future<void> _aceitar() async {
     if (!_privacidade || _enviando) return;

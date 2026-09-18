@@ -4032,4 +4032,30 @@ export class MobileAuthService {
 
     return { ok: true };
   }
+
+  async listSindicosByCondominio(idCond: number) {
+    if (!this.prisma.isConnected) return [];
+    const links = await this.prisma.sindicos_Condominios.findMany({
+      where: { id_condominio: Number(idCond) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            sindicos: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    return links.map((l) => ({
+      id_user: l.id_user,
+      nome: l.user?.sindicos?.[0]?.name ?? l.user?.email ?? '',
+      email: l.user?.sindicos?.[0]?.email ?? l.user?.email ?? '',
+    }));
+  }
 }

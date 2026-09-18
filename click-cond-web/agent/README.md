@@ -1,6 +1,6 @@
 # Agente Local — Click Portaria
 
-Faz a ponte entre a nuvem (Railway) e os dispositivos de controle de acesso
+Faz a ponte entre a nuvem (AWS) e os dispositivos de controle de acesso
 (facial, catraca, botoeira, leitores) que ficam na **rede local do condomínio**.
 
 ## Por que isso existe
@@ -15,7 +15,7 @@ aparelho da LAN e devolve o resultado. Como o tráfego é **só de saída**, nã
 preciso liberar nenhuma porta no roteador do condomínio.
 
 ```
-[ Condomínio - LAN ]                         [ Nuvem - Railway ]
+[ Condomínio - LAN ]                         [ Nuvem - AWS ]
   Facial / Catraca / Botoeira                       API
         ▲                                            ▲
         │ http LAN                                   │ HTTPS (saída)
@@ -50,7 +50,7 @@ npm run build:exe        # gera click-agent.exe (Windows) / click-agent (Linux/m
 **3. Configure (só 2 valores).** Você **não** precisa editar arquivo: rode o
 `click-agent.exe` por uma **janela de terminal** uma vez e ele pergunta e salva
 o `.env` sozinho. Ele pede:
-- **URL da API** (ex.: `https://sua-api.up.railway.app`).
+- **URL da API** (ex.: `https://api.clickprestarecondominios.com.br`).
 - **Um token** — no portal, **Terminais de Dispositivos** → **"Copiar URL Webhook"**
   em **qualquer** dispositivo e cole (pode colar a URL inteira). Esse único token
   gerencia **todos** os dispositivos do condomínio (modo condomínio).

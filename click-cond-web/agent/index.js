@@ -17,7 +17,7 @@
  * Sem dependências externas: usa só módulos nativos do Node 18+.
  *
  * Configuração (variáveis de ambiente ou arquivo .env ao lado deste arquivo):
- *   API_URL        Base da API na nuvem. Ex.: https://sua-api.up.railway.app
+ *   API_URL        Base da API na nuvem. Ex.: https://api.clickprestarecondominios.com.br
  *   DEVICE_TOKENS  Tokens dos devices (o webhook_token de cada um), separados
  *                  por vírgula. Copie do portal: botão "Copiar URL Webhook" —
  *                  o token é o trecho final da URL.
@@ -221,7 +221,7 @@ async function firstRunSetup() {
 
   console.log('\n=== Configuração inicial do Agente Local ===');
   console.log('(você só faz isso uma vez; depois é automático)\n');
-  const urlIn = await ask('1) URL da API na nuvem (ex.: https://sua-api.up.railway.app): ');
+  const urlIn = await ask('1) URL da API na nuvem (ex.: https://api.clickprestarecondominios.com.br): ');
   console.log('\n2) No portal, em Terminais de Dispositivos, clique "Copiar URL Webhook"');
   console.log('   em QUALQUER dispositivo e cole aqui (pode colar a URL inteira):');
   const tokenIn = await ask('   Token/URL: ');

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 /// Configuração centralizada da API.
 class ApiConfig {
-  /// Mude para 'true' para usar o servidor do Railway (Nuvem)
+  /// Mude para 'true' para usar o servidor da AWS (Nuvem)
   /// Mude para 'false' para usar o servidor local (Seu PC)
   static const bool isProduction = true;
 
@@ -14,7 +14,7 @@ class ApiConfig {
     return "10.0.2.2:3003";
   }
 
-  /// HTTPS é obrigatório no Railway (Produção)
+  /// HTTPS é obrigatório na AWS (Produção)
   static bool get useHttps => isProduction;
 
   /// Timeout padrão de requisições HTTP

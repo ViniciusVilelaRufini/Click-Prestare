@@ -1,15 +1,25 @@
 import mysql from 'mysql2/promise';
 
-const RAILWAY_URL = process.env.DATABASE_URL_RAILWAY || 'mysql://root:jWmcNvtW3UQAThADP7Exs5qHxxFp2Zwr@turntable.proxy.rlwy.net:54654/railway';
+const RAILWAY_URL = process.env.DATABASE_URL_RAILWAY;
 const AWS_CONFIG = {
-  host: 'database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com',
-  port: 3306,
-  user: 'admin',
-  password: '-+fD7_YHhF.,qZx',
-  database: 'click_prestare',
+  host: process.env.AWS_RDS_HOST || 'database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com',
+  port: parseInt(process.env.AWS_RDS_PORT || '3306', 10),
+  user: process.env.AWS_RDS_USER || 'admin',
+  password: process.env.AWS_RDS_PASSWORD || process.env.DB_PASSWORD,
+  database: process.env.AWS_RDS_DATABASE || 'click_prestare',
   connectTimeout: 20000,
   dateStrings: true
 };
+
+if (!RAILWAY_URL) {
+  console.error('❌ Erro: DATABASE_URL_RAILWAY não definida nas variáveis de ambiente.');
+}
+if (!AWS_CONFIG.password) {
+  console.error('❌ Erro: AWS_RDS_PASSWORD ou DB_PASSWORD não definida nas variáveis de ambiente.');
+}
+if (!RAILWAY_URL || !AWS_CONFIG.password) {
+  process.exit(1);
+}
 
 async function sync() {
   console.log('--- INICIANDO MIGRAÇÃO DIRETA: RAILWAY → AWS RDS ---');

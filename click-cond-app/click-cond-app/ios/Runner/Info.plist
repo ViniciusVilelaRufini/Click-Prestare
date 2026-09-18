@@ -51,15 +51,6 @@
 					<key>NSTemporaryExceptionMinimumTLSVersion</key>
 					<string>TLSv1.2</string>
 				</dict>
-				<key>click-prestare-production.up.railway.app</key>
-				<dict>
-					<key>NSIncludesSubdomains</key>
-					<true/>
-					<key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
-					<false/>
-					<key>NSTemporaryExceptionMinimumTLSVersion</key>
-					<string>TLSv1.2</string>
-				</dict>
 			</dict>
 		</dict>
 		<!--

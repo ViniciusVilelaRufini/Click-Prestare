@@ -331,15 +331,13 @@ class _ConfiguracoesViewState extends State<ConfiguracoesView> {
             _SettingsTile(
               icon: PhosphorIcons.fileText,
               label: getText('config_termos_uso'),
-              // click-app.co não existe mais (o domínio nem resolve DNS) e
-              // estes dois links abriam erro dentro do app. As páginas são
-              // servidas pelo portaria-web, em public/.
-              onTap: () => launchInBrowser('https://click-prestare.vercel.app/termos-de-uso.html', context),
+              // As páginas são servidas pelo portaria-web hospedado no AWS Amplify Hosting.
+              onTap: () => launchInBrowser('https://www.clickprestarecondominios.com.br/termos-de-uso.html', context),
             ),
             _SettingsTile(
               icon: PhosphorIcons.shieldCheck,
               label: getText('config_politica_privacidade'),
-              onTap: () => launchInBrowser('https://click-prestare.vercel.app/politica-de-privacidade.html', context),
+              onTap: () => launchInBrowser('https://www.clickprestarecondominios.com.br/politica-de-privacidade.html', context),
             ),
             _SettingsTile(
               icon: PhosphorIcons.chatCircle,

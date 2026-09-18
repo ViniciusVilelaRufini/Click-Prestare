@@ -134,4 +134,22 @@ export class AreasSociaisController {
   removeManutencao(@Body() body: { id: string | number }, @ReqUser() payload: JwtPayload) {
     return this.service.removeManutencao(Number(body.id), payload);
   }
+
+  @Post('agendamento/update')
+  @HttpCode(200)
+  updateAgendamento(
+    @Body() body: { agendamento: any },
+    @ReqUser() payload: JwtPayload,
+  ) {
+    return this.service.updateAgendamento(body.agendamento, payload);
+  }
+
+  @Get('manutencoes/get-all')
+  getAllManutencoes(
+    @Query('id_condominio') idCondominio: string,
+    @Query('id_area_social') idAreaSocial?: string,
+    @ReqUser() payload?: JwtPayload,
+  ) {
+    return this.service.getAllManutencoes(Number(idCondominio), idAreaSocial ? Number(idAreaSocial) : undefined, payload);
+  }
 }

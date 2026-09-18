@@ -3911,4 +3911,22 @@ export class FinanceiroService implements OnModuleInit {
       }
     }
   }
+
+  async anexarCodigoMorador(userId: number, idConta: number, dados: { linha_digitavel?: string; pix_copia_cola?: string }) {
+    if (!this.prisma.isConnected) return { success: true };
+    const conta = await this.prisma.financeiro.findFirst({
+      where: { id: Number(idConta), id_usuario: Number(userId) },
+    });
+    if (!conta) throw new NotFoundException('Conta não encontrada ou não pertence ao usuário.');
+
+    const data: any = {};
+    if (dados.linha_digitavel) data.linha_digitavel = dados.linha_digitavel;
+    if (dados.pix_copia_cola) data.pix_copia_cola = dados.pix_copia_cola;
+
+    await this.prisma.financeiro.update({
+      where: { id: Number(idConta) },
+      data,
+    });
+    return { success: true };
+  }
 }

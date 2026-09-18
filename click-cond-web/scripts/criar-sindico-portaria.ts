@@ -17,7 +17,7 @@ async function main() {
 
     // 2. Dados de acesso
     const login = "sindico@click.com";
-    const nome = "Sindico Railway";
+    const nome = "Sindico Prestare";
     const email = "sindico@click.com";
     const senhaPlana = "clickpassword123";
     const turno = "Síndico"; // Crucial para o frontend não tratar como porteiro comum

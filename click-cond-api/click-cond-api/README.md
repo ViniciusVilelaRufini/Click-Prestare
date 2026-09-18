@@ -1,4 +1,13 @@
-# Click API
+# Click API (LEGACY - DESCONTINUADO / ARQUIVADO)
+
+> ⚠️ **AVISO DE DEPRECIAÇÃO / UNIFICAÇÃO (Setembro/2026)**
+>
+> Este backend Express legado foi **100% unificado e migrado** para o monorepo oficial em NestJS:
+> 📍 **`click-cond-web/apps/api`** (hospedado na AWS Elastic Beanstalk + RDS PostgreSQL).
+>
+> Todas as rotas legadas (áreas sociais, agendamentos, financeiro, auth mobile, condomínios e relatórios) possuem paridade e retrocompatibilidade implementadas no NestJS.
+> O deploy e a manutenção ativa ocorrem exclusivamente via pipeline de CI/CD do GitHub Actions apontando para a AWS.
+> Este diretório é mantido apenas como histórico/referência técnica.
 
 This api uses the following technologies/libraries:
 

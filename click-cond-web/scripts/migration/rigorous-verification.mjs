@@ -7,16 +7,21 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const RAILWAY_URL = 'mysql://root:jWmcNvtW3UQAThADP7Exs5qHxxFp2Zwr@turntable.proxy.rlwy.net:54654/railway';
+const RAILWAY_URL = process.env.DATABASE_URL_RAILWAY;
 const AWS_CONFIG = {
-  host: 'database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com',
-  port: 3306,
-  user: 'admin',
-  password: '-+fD7_YHhF.,qZx',
-  database: 'click_prestare',
+  host: process.env.AWS_RDS_HOST || 'database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com',
+  port: parseInt(process.env.AWS_RDS_PORT || '3306', 10),
+  user: process.env.AWS_RDS_USER || 'admin',
+  password: process.env.AWS_RDS_PASSWORD || process.env.DB_PASSWORD,
+  database: process.env.AWS_RDS_DATABASE || 'click_prestare',
   connectTimeout: 20000
 };
 const BACKUP_FILE = path.resolve(__dirname, '../../../backups/railway_dump_final.sql');
+
+if (!AWS_CONFIG.password) {
+  console.error('❌ Erro: AWS_RDS_PASSWORD ou DB_PASSWORD não definida nas variáveis de ambiente.');
+  process.exit(1);
+}
 
 async function runRigorousVerification() {
   console.log('=== INICIANDO VERIFICAÇÃO RIGOROSA DE INTEGRIDADE (SUPERPOWERS) ===\n');

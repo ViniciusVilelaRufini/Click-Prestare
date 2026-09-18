@@ -23,7 +23,7 @@
                 type="button"
                 class="badge press"
                 [class]="h.connected ? 'badge badge-success press' : 'badge badge-warning press'"
-                [title]="h.connected ? 'Conectado ao banco (Railway) — latência ' + h.dbLatencyMs + 'ms · clique para reverificar' : 'API em modo offline — usando dados mock em memória'"
+                [title]="h.connected ? 'Conectado ao banco (AWS RDS) — latência ' + h.dbLatencyMs + 'ms · clique para reverificar' : 'API em modo offline — usando dados mock em memória'"
                 (click)="verificarConexao()"
               >
                 <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current" [class.status-dot-live]="h.connected"></span>

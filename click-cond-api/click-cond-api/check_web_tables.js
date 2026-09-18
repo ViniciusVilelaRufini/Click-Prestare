@@ -1,12 +1,13 @@
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 
 async function checkWebTables() {
   const config = {
-    host: 'turntable.proxy.rlwy.net',
-    port: 54654,
-    user: 'root',
-    password: 'dwhGSPBYLxNVOAOdhshsGoLXPTSPqhwr',
-    database: 'railway'
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306', 10),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'click_cond'
   };
 
   const connection = await mysql.createConnection(config);
@@ -16,7 +17,7 @@ async function checkWebTables() {
     const [tables] = await connection.execute("SHOW TABLES");
     const tableList = tables.map(t => Object.values(t)[0]);
     
-    console.log("Tabelas encontradas no Railway:", tableList);
+    console.log("Tabelas encontradas no AWS RDS:", tableList);
 
     const requiredWebTables = ['Users', 'Addresses', 'Condominios', 'Financeiro', 'Ocorrencias', 'Comunicados'];
     const missing = requiredWebTables.filter(t => !tableList.includes(t));
