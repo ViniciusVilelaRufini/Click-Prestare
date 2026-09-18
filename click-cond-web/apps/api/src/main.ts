@@ -116,21 +116,7 @@ async function bootstrap() {
     // costuma rodar sem sincronização de horário (visto em produção: 91s
     // adiantado). Ver ServerClockService.
     const base = { origin: true, credentials: true, exposedHeaders: ['Date'] };
-
-    // Demais rotas: whitelist (mantém credentials para o cookie/JWT do console).
-    if (!origin) return callback(null, base);
-    if (
-      allowedOrigins.includes(origin) ||
-      origin.endsWith('clickprestarecondominios.com.br') ||
-      origin.endsWith('.vercel.app')
-    ) {
-      return callback(null, base);
-    }
-    // Permite qualquer localhost (Flutter web usa porta dinâmica)
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-      return callback(null, base);
-    }
-    return callback(new Error(`Origem não permitida por CORS: ${origin}`));
+    return callback(null, base);
   });
 
   const globalPrefix = 'api';
