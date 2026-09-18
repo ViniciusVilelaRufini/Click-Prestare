@@ -51,15 +51,15 @@ A relação jurídica entre a Prestare e a AWS é regida pelos seguintes instrum
    * Aditivo que incorpora expressamente os requisitos da Lei Federal nº 13.709/2018 (LGPD), incluindo definições de Controlador, Operador, direitos dos titulares e notificações de incidentes.
    * Disponível em: `https://aws.amazon.com/compliance/lgpd-brazil/`
 
-### 3.2. Como o DPA da AWS é Formalizado e Assinado
-A AWS opera sob o modelo de adesão contratual digital com validade jurídica universal:
-* O AWS DPA entra em vigor automaticamente no momento da criação da conta e utilização dos serviços para tratamento de dados pessoais.
-* **Obtenção do DPA Assinado pela Amazon (para arquivo da Advogada):**
-  A conta do Prestare pode baixar um exemplar formal e personalizado com o ID da conta diretamente no console da AWS via **AWS Artifact**:
-  1. Acessar o console AWS ➔ buscar por **AWS Artifact**;
-  2. Ir em **Agreements** (Contratos);
-  3. Localizar **AWS Data Processing Addendum (including LGPD Addendum)**;
-  4. Clicar em **Download** ou **Accept Agreement**. O sistema gera um PDF assinado digitalmente pela Amazon para anexar ao dossiê de conformidade da empresa.
+### 3.2. Como o DPA da AWS é Formalizado e Vigente
+A AWS opera sob o modelo de **incorporação contratual automática (Universal Addendum)**:
+* **Cobertura Automática por Padrão:** Desde a atualização global dos Termos de Serviço da Amazon, o **AWS Data Processing Addendum (DPA)** aplica-se **automaticamente** a todas as contas da AWS no mundo que realizem tratamento de dados pessoais regulados por legislações como a LGPD (Brasil) ou o GDPR (Europa).
+* **Ausência de Necessidade de Aceite Manual em "Agreements":** Na seção *AWS Artifact > Agreements*, constam apenas termos regulatórios setoriais específicos (como normas financeiras dos EUA ou saúde/HIPAA). O DPA geral de proteção de dados não exige aceite manual porque já integra os Termos de Serviço como cláusula vinculante e irrenunciável.
+* **Documento Oficial para o Dossiê da Advogada:** O PDF oficial emitido pela Amazon com os termos do DPA já foi baixado e arquivado localmente na pasta do projeto:
+  📁 `comercial/AWS_Data_Processing_Addendum_LGPD.pdf` (disponível para anexar diretamente aos autos/arquivos jurídicos da empresa).
+* **Relatórios de Auditoria Independente (AWS Artifact > Reports):** Para comprovação perante condôminos ou auditorias externas, a assessoria jurídica pode consultar na aba *Reports* os certificados internacionais da AWS:
+  - **ISO/IEC 27018:** Norma específica de proteção de dados pessoais e biométricos em nuvem pública;
+  - **SOC 2 Type II Privacy Report:** Relatório independente de auditoria sobre a eficácia dos controles de privacidade e segurança.
 
 ---
 
