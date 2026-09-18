@@ -7,6 +7,7 @@ on:
   push:
     branches: [master, main]
   pull_request:
+  workflow_dispatch:
 
 # Um push novo cancela a execução anterior da mesma branch — não adianta
 # terminar de checar um commit que já foi substituído.
@@ -50,6 +51,27 @@ jobs:
 
       - name: Build da portaria-web
         run: npx nx build portaria-web
+
+      # Deploy contínuo da API na AWS Elastic Beanstalk:
+      # Roda apenas em push na branch master após os testes e builds passarem.
+      - name: Empacotar API para Elastic Beanstalk
+        if: (github.ref == 'refs/heads/master' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
+        run: node scripts/migration/bundle-eb.mjs
+
+      - name: Deploy no AWS Elastic Beanstalk
+        if: (github.ref == 'refs/heads/master' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: click-prestare-api
+          environment_name: Clickprestareapi-env
+          version_label: "v-${{ github.run_number }}-${{ github.sha }}"
+          region: sa-east-1
+          deployment_package: click-cond-web/deploy-api-aws.zip
+          use_existing_version_if_available: true
+          wait_for_deployment: true
+          wait_for_environment_recovery: 180
 
   app:
     name: App Flutter (analyze e testes)
