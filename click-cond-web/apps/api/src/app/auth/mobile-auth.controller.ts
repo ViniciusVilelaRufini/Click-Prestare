@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req } from '@nestjs/common';
 import { MobileAuthService } from './mobile-auth.service';
 import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
@@ -16,9 +16,13 @@ export class SindicoMobileController {
   @Public()
   @Post('login')
   @HttpCode(200)
-  login(@Body() body: { login: string; password?: string; senha?: string }) {
+  login(
+    @Body() body: { login: string; password?: string; senha?: string; device_token?: string },
+    @Req() req: any,
+  ) {
     const pwd = body.password ?? body.senha ?? '';
-    return this.service.loginSindico(body.login, pwd);
+    const deviceToken = (req?.headers?.['x-device-token'] as string) || body.device_token;
+    return this.service.loginSindico(body.login, pwd, deviceToken);
   }
 
   @Public()

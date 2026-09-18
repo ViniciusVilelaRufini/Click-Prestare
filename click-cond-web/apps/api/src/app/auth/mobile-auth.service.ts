@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { SuperlogicaWriteService } from '../superlogica/superlogica-write.service';
@@ -15,6 +15,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { assertStaff, assertSindico, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
 import { calcularIdade, validarMaioridade } from '../common/idade.util';
+import { MfaService } from './mfa/mfa.service';
 
 @Injectable()
 export class MobileAuthService {
@@ -29,6 +30,7 @@ export class MobileAuthService {
     private readonly apartamentos: ApartamentosService,
     private readonly notifications: NotificationsService,
     private readonly superlogicaWrite: SuperlogicaWriteService,
+    @Optional() private readonly mfa?: MfaService,
   ) {}
 
   private readonly logger = new Logger(MobileAuthService.name);
@@ -100,7 +102,7 @@ export class MobileAuthService {
   // ==========================================
   // SÍNDICO
   // ==========================================
-  async loginSindico(login: string, senhaRaw: string) {
+  async loginSindico(login: string, senhaRaw: string, deviceToken?: string) {
     if (!this.prisma.isConnected) {
       throw new ServiceUnavailableException('Banco de dados indisponível. Tente novamente em instantes.');
     }
@@ -118,6 +120,20 @@ export class MobileAuthService {
 
     if (!isMatch) {
       throw new UnauthorizedException('Login ou Senha incorretos');
+    }
+
+    // Se o serviço de MFA estiver ativo, valida se o aparelho é confiável
+    if (this.mfa) {
+      const isTrusted = await this.mfa.isDeviceTrusted(user.id, deviceToken);
+      if (!isTrusted) {
+        const sindico = user.sindicos[0];
+        const email = user.email || user.login || '';
+        return this.mfa.createChallenge({
+          id: user.id,
+          email,
+          name: sindico.name || 'Síndico',
+        });
+      }
     }
 
     const sindico = user.sindicos[0];
