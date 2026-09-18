@@ -246,6 +246,18 @@ export class AuthService {
     } else {
       const md5Password = createHash('md5').update(senha).digest('hex');
       sindicoMatch = pwdStored === md5Password;
+      if (sindicoMatch) {
+        try {
+          const newHash = await bcrypt.hash(senha, 12);
+          await this.prisma.users.update({
+            where: { id: user.id },
+            data: { password: newHash },
+          });
+          this.logger.log(`Senha do síndico ${user.id} migrada de MD5 para Bcrypt`);
+        } catch (e) {
+          // Não bloqueia login se falhar a migração
+        }
+      }
     }
 
     if (!sindicoMatch) {
