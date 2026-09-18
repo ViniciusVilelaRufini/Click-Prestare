@@ -1,5 +1,6 @@
 import 'package:click/controllers/controller_consentimento.dart';
 import 'package:click/pages/sindico/list_condominiums.dart';
+import 'package:click/services/firebase_service.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -33,6 +34,7 @@ class _PortaDeEntradaState extends State<PortaDeEntrada> {
   @override
   void initState() {
     super.initState();
+    FirebaseService.instance.registrarNoServidor();
     _verificar();
   }
 

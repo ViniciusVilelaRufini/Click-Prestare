@@ -101,7 +101,16 @@ export class NotificationsService implements OnModuleInit {
           headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
           payload: { aps: { sound: 'default' } },
         },
-        android: { priority: 'high', notification: { sound: 'default' } },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'high_importance_channel',
+            sound: 'default',
+            priority: 'high',
+            defaultSound: true,
+            defaultVibrateTimings: true,
+          },
+        },
       });
       return { ok: true, messageId: id };
     } catch (error: any) {
@@ -169,7 +178,13 @@ export class NotificationsService implements OnModuleInit {
         },
         android: {
           priority: 'high',
-          notification: { sound: 'default' },
+          notification: {
+            channelId: 'high_importance_channel',
+            sound: 'default',
+            priority: 'high',
+            defaultSound: true,
+            defaultVibrateTimings: true,
+          },
         },
       });
     } catch (error) {

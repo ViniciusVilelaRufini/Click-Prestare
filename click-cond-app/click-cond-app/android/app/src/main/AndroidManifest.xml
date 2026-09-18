@@ -2,6 +2,8 @@
     package="br.com.clickprestare.app"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Notificações push no Android 13+ (API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Ditado por voz no PRESTARE IA. O reconhecimento roda no aparelho. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- BILLING removida junto com o in_app_purchase: sem a biblioteca de
@@ -22,6 +24,13 @@
    <application
         android:label="Prestare"
         android:icon="@mipmap/ic_launcher">
+        <!-- Canal padrão e ícone de notificações de alta importância do Firebase -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="high_importance_channel" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
         <activity
             android:requestLegacyExternalStorage="true"
             android:name=".MainActivity"

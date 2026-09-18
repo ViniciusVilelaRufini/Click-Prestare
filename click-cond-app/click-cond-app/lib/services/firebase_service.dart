@@ -33,6 +33,7 @@ class FirebaseService {
 
   Future<void> _init() async {
     await Firebase.initializeApp();
+    await ensureStorageReady();
 
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
@@ -41,11 +42,12 @@ class FirebaseService {
       alert: true,
       badge: true,
       sound: true,
+      provisional: false,
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       if (kDebugMode) {
-        logDebug('User granted permission');
+        logDebug('User granted notification permission');
       }
     }
 
@@ -188,6 +190,7 @@ class FirebaseService {
 
   Future<void> _registrarNoServidor(String? tokenFcm) async {
     if (tokenFcm == null || tokenFcm.isEmpty) return;
+    await ensureStorageReady();
     final jwt = getToken();
     if (jwt.isEmpty) return;
 
