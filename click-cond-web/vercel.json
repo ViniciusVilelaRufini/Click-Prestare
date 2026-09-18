@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://click-prestare-production.up.railway.app/api/:path*"
+      "destination": "http://Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com/api/:path*"
     },
     {
       "source": "/simulador-acesso.html",
-      "destination": "https://click-prestare-production.up.railway.app/simulador-acesso.html"
+      "destination": "http://Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com/simulador-acesso.html"
     },
     {
       "source": "/:path*",

@@ -53,6 +53,7 @@
     "jest-environment-node": "^30.0.2",
     "jest-preset-angular": "~16.0.0",
     "jest-util": "^30.0.2",
+    "mysql2": "^3.24.4",
     "nx": "22.7.0",
     "postcss": "^8.4.5",
     "prettier": "^3.8.1",

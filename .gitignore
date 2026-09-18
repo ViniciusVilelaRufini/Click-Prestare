@@ -14,6 +14,9 @@ yarn-error.log
 firebase-service-account.json
 scratch/
 backups/
+deploy-api-aws.zip
+eb-package/
+*.zip
 
 # Android signing artifacts — NEVER commit these
 *.jks
