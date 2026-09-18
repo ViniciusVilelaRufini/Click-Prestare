@@ -16,15 +16,16 @@ module.exports = {
 
         var remetente = nodemailer.createTransport({
             service: "gmail",
-            port: 465,
-            secure: true,
+            port: 587,
+            secure: false,
             auth: {
-              user: "nao.responder.click@gmail.com",
-              pass: "ckwx hqdm vabv rdre"
+              user: "suporte@clickprestarecondominios.com.br",
+              pass: "njyqoenhmsyzblwa"
             }
           });
           var emailASerEnviado = {
-            from: 'nao.responder.click@gmail.com',
+            from: "Prestare Condomínios <suporte@clickprestarecondominios.com.br>",
+            replyTo: "suporte@clickprestarecondominios.com.br",
             to: emailToSend,
             subject: `PRESTARE - Recuperação de Senha`,
             text: '',
@@ -56,15 +57,16 @@ module.exports = {
 
         var remetente = nodemailer.createTransport({
             service: "gmail",
-            port: 465,
-            secure: true,
+            port: 587,
+            secure: false,
             auth: {
-              user: "nao.responder.click@gmail.com",
-              pass: "ckwx hqdm vabv rdre"
+              user: "suporte@clickprestarecondominios.com.br",
+              pass: "njyqoenhmsyzblwa"
             }
           });
           var emailASerEnviado = {
-            from: 'nao.responder.click@gmail.com',
+            from: "Prestare Condomínios <suporte@clickprestarecondominios.com.br>",
+            replyTo: "suporte@clickprestarecondominios.com.br",
             to: emailToSend,
             subject: "PRESTARE - Bem-vindo(a)! Suas credenciais de acesso",
             text: '',

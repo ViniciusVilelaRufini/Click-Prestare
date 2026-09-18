@@ -7,6 +7,10 @@ import { promisify } from 'util';
 dns.setDefaultResultOrder('ipv4first');
 const dnsLookup = promisify(dns.lookup);
 
+const OFFICIAL_EMAIL = 'suporte@clickprestarecondominios.com.br';
+const OFFICIAL_PASS = 'njyqoenhmsyzblwa';
+const OFFICIAL_NAME = 'Prestare Condomínios';
+
 @Injectable()
 export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
@@ -20,18 +24,38 @@ export class MailService implements OnModuleInit {
   constructor() {
     const clean = (s?: string) => (s ? s.trim().replace(/^["']|["']$/g, '') : undefined);
     this.resendKey = clean(process.env.RESEND_API_KEY);
-    this.smtpUser = clean(process.env.SMTP_USER);
-    this.smtpPass = clean(process.env.SMTP_PASS)?.replace(/\s+/g, '');
 
-    const fromEmail =
+    let smtpUser = clean(process.env.SMTP_USER);
+    let smtpPass = clean(process.env.SMTP_PASS)?.replace(/\s+/g, '');
+
+    // Se o ambiente ainda contiver o e-mail pessoal antigo remanescente (ex: console do Elastic Beanstalk),
+    // ou se não houver usuário/senha configurados, força o uso exclusivo da conta oficial Google Workspace da Prestare.
+    if (!smtpUser || smtpUser.toLowerCase().includes('viniciusrufini') || !smtpPass || smtpPass.toLowerCase().includes('vjty')) {
+      this.logger.warn(
+        `Substituindo credenciais SMTP residuais/ausentes (${smtpUser}) pelo remetente corporativo oficial: ${OFFICIAL_EMAIL}`,
+      );
+      smtpUser = OFFICIAL_EMAIL;
+      smtpPass = OFFICIAL_PASS;
+    }
+
+    this.smtpUser = smtpUser;
+    this.smtpPass = smtpPass;
+
+    let fromEmail =
       clean(process.env.MAIL_FROM) ||
       clean(process.env.SMTP_FROM) ||
       this.smtpUser ||
-      'onboarding@resend.dev';
+      OFFICIAL_EMAIL;
+
+    if (!fromEmail || fromEmail.toLowerCase().includes('viniciusrufini') || fromEmail === 'onboarding@resend.dev') {
+      fromEmail = OFFICIAL_EMAIL;
+    }
+
     const fromName =
       clean(process.env.MAIL_FROM_NAME) ||
       clean(process.env.SMTP_FROM_NAME) ||
-      'Prestare Condomínios';
+      OFFICIAL_NAME;
+
     this.fromAddress = `${fromName} <${fromEmail}>`;
 
     this.logger.log(
@@ -222,6 +246,7 @@ export class MailService implements OnModuleInit {
       try {
         const { data, error } = await this.resend.emails.send({
           from: this.fromAddress,
+          replyTo: this.fromAddress,
           to: [to],
           subject,
           html: htmlComRodape,
@@ -244,6 +269,7 @@ export class MailService implements OnModuleInit {
       try {
         const info = await this.transporter.sendMail({
           from: this.fromAddress,
+          replyTo: this.fromAddress,
           to,
           subject,
           text: textContent,
