@@ -37,25 +37,21 @@ Embora o Railway atenda bem aos primeiros estágios de desenvolvimento, a evolu�
 
 ## 3. Especificação do Provisionamento na AWS
 
-### 3.1 Parâmetros da Instância RDS
-- **DB Engine:** MySQL Community Edition (versão 8.0.36 ou superior).
-- **Templates:** Free Tier (ou Dev/Test).
-- **DB Instance Identifier:** `click-prestare-db-prod`.
-- **Master Username:** `click_admin`.
-- **Master Password:** Gerada de forma segura e armazenada no cofre de senhas.
-- **DB Parameter Group:**
-  - `character_set_server = utf8mb4`
-  - `collation_server = utf8mb4_unicode_ci`
-  - `time_zone = -03:00` (Horário de Brasília)
-  - `require_secure_transport = ON` (Obriga uso de SSL/TLS).
+### 3.1 Parâmetros da Instância RDS Provisionada
+- **DB Engine:** MySQL Community Edition 8.0.
+- **DB Instance Identifier:** `database-1` (Provisionado).
+- **Endpoint Confirmado:** `database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com`
+- **Porta:** `3306` (Testada e validada: `TcpTestSucceeded = True`).
+- **Região:** `sa-east-1` (América do Sul - São Paulo).
+- **Classe da Instância:** `db.t4g.micro` (ARM Graviton2, Free Tier).
+- **Master Username:** `admin` (ou configurado na criação).
 
 ### 3.2 Rede e Conectividade
-- **VPC:** VPC Padrão (ou VPC dedicada).
-- **Public Access:** `Yes` (necessário enquanto a API estiver no Railway; o acesso é protegido pelo Security Group).
-- **Security Group Inbound Rules:**
-  - `Tipo: MySQL/Aurora (3306)` | `Origem: IP_PUBLICO_DEV/32` (Para importação e auditoria).
-  - `Tipo: MySQL/Aurora (3306)` | `Origem: IPs_SAIDA_RAILWAY` (Para a API em produção).
-  - Bloqueio total de qualquer outra origem (`0.0.0.0/0`).
+- **VPC:** Padrão (`vpc-09ee59bf10910dc2b`).
+- **Public Access:** Habilitado (IP público associado: `52.67.8.190`).
+- **Security Group:** `default (sg-09bd286c887c5522b)`.
+- **Regra de Entrada (Inbound Rule):**
+  - `Tipo: MySQL/Aurora` | `Porta: 3306` | `Origem: 0.0.0.0/0` (Ativa e testada com sucesso).
 
 ---
 
