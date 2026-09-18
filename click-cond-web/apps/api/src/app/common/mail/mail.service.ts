@@ -149,6 +149,33 @@ export class MailService implements OnModuleInit {
     await this.send(email, subject, html);
   }
 
+  async sendMfaCode(email: string, nome: string, code: string): Promise<void> {
+    const subject = 'PRESTARE - Seu código de verificação em duas etapas';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <h2 style="color: #0f172a; margin-top: 0; font-size: 20px;">Autenticação em Duas Etapas</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.5;">
+          Olá, <b>${this.escape(nome)}</b>!<br><br>
+          Recebemos uma solicitação de login no aplicativo <b>PRESTARE Síndico</b>. Utilize o código de 6 dígitos abaixo para confirmar seu acesso:
+        </p>
+        <div style="text-align: center; margin: 28px 0;">
+          <span style="display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1e3a8a; background-color: #f1f5f9; padding: 14px 28px; border-radius: 10px; border: 1px dashed #94a3b8;">
+            ${this.escape(code)}
+          </span>
+        </div>
+        <p style="color: #64748b; font-size: 13px; line-height: 1.4;">
+          ⏳ Este código é válido por <b>10 minutos</b>.<br>
+          ⚠️ Se você não solicitou este acesso, sua senha pode estar comprometida. Altere sua senha imediatamente no aplicativo ou contate o suporte.
+        </p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+        <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">
+          Equipe PRESTARE Condomínios
+        </p>
+      </div>
+    `;
+    await this.send(email, subject, html);
+  }
+
   private async send(to: string, subject: string, html: string): Promise<void> {
     const htmlComRodape = `${html}${this.getEmailFooter()}`;
 

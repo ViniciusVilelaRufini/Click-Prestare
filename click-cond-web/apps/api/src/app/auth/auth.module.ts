@@ -7,6 +7,8 @@ import { JwtStrategy } from './jwt.strategy';
 import { MobileAuthService } from './mobile-auth.service';
 import { QrSessionStore } from './qr-session.store';
 import { resolveJwtSecret } from './jwt-secret';
+import { MfaService } from './mfa/mfa.service';
+import { MfaController } from './mfa/mfa.controller';
 import {
   SindicoMobileController,
   MoradoresMobileController,
@@ -51,6 +53,7 @@ import { SuperlogicaModule } from '../superlogica/superlogica.module';
   ],
   controllers: [
     AuthController,
+    MfaController,
     SindicoMobileController,
     MoradoresMobileController,
     FuncionariosMobileController,
@@ -62,9 +65,9 @@ import { SuperlogicaModule } from '../superlogica/superlogica.module';
     VeiculosMobileController,
     VagasMobileController,
     UsersMobileController,
-  NotificacoesMobileController,
+    NotificacoesMobileController,
   ],
-  providers: [AuthService, MobileAuthService, JwtStrategy, QrSessionStore],
-  exports: [AuthService, QrSessionStore],
+  providers: [AuthService, MobileAuthService, MfaService, JwtStrategy, QrSessionStore],
+  exports: [AuthService, MfaService, QrSessionStore],
 })
 export class AuthModule {}
