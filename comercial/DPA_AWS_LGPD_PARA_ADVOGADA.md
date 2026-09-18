@@ -42,6 +42,16 @@ A comprovação material de que os dados pessoais e biométricos estão fisicame
 * **Região:** São Paulo (`sa-east-1`)
 * **Papel:** Backend em Node.js 24 responsável pela intermediação das regras de negócio, autenticação JWT com expiração e comunicação com terminais de controle de acesso.
 
+### 2.3. Roteador de API e Proteção de Borda (Amazon CloudFront + ACM)
+* **Subdomínio Próprio:** `api.clickprestarecondominios.com.br`
+* **Certificado Criptográfico Oficial:** Emitido pela Amazon (AWS Certificate Manager `d728005e-5672-48d8-9113-40b1bd32ce71`) com protocolo **TLS 1.3**.
+* **Ponto de Presença (Edge):** Borda da Amazon em São Paulo (`GRU3-P13`), garantindo que o tráfego de dados e biometria trafegue exclusivamente por fibra dedicada da AWS com proteção anti-DDoS (AWS Shield).
+
+### 2.4. Portal Web e Portaria (AWS Amplify Hosting)
+* **Domínio Oficial:** `www.clickprestarecondominios.com.br`
+* **Infraestrutura:** Hospedado no **AWS Amplify Hosting** da conta `850401152034`, com certificado SSL emitido pela Amazon e deploy automatizado a partir do repositório da Prestare.
+* **Eliminação da Vercel:** A Vercel foi 100% excluída e desvinculada do DNS, consolidando o frontend no mesmo fornecedor da API e do banco.
+
 ---
 
 ## 3. Contexto da Migração e Superação dos Riscos Anteriores
@@ -53,6 +63,7 @@ Na auditoria do fornecedor anterior (**Railway Corporation**, sediado nos EUA), 
 ### Como a AWS Sanou Integralmente Esses Riscos:
 * **Fim da Transferência Internacional:** Com o provisionamento no datacenter de São Paulo (`sa-east-1`), **100% dos dados biométricos e cadastrais residem no Brasil**, sob plena jurisdição da legislação brasileira e do foro da Comarca de São Paulo.
 * **Admissão e Proteção de Dados Sensíveis:** Diferente do formulário errôneo anterior, a AWS reconhece e autoriza o processamento de dados biométricos, fornecendo as garantias da norma internacional **ISO/IEC 27018** (código de conduta específico para proteção de dados pessoais e biometria em nuvens públicas).
+* **Eliminação de Provedores Intermediários (Vercel):** A interface web foi migrada para o AWS Amplify Hosting e a API ganhou rota direta via CloudFront. A Vercel foi 100% excluída da cadeia de dados, unificando toda a operação sob um único suboperador auditável (AWS).
 
 ---
 

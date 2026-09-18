@@ -211,20 +211,32 @@
         <td>AES-256 (KMS) em repouso; VPC privada sem acesso externo.</td>
       </tr>
       <tr>
-        <td><strong>API de Aplicação</strong><br>(Elastic Beanstalk)</td>
+        <td><strong>API Backend</strong><br>(Elastic Beanstalk)</td>
         <td><code>Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com</code></td>
         <td><span class="badge badge-green">São Paulo</span></td>
-        <td>TLS 1.2 / TLS 1.3 obrigatório; tokens JWT com expiração.</td>
+        <td>Backend Node.js 24; tokens JWT com expiração.</td>
+      </tr>
+      <tr>
+        <td><strong>Roteador API & Borda</strong><br>(Amazon CloudFront)</td>
+        <td><code>api.clickprestarecondominios.com.br</code></td>
+        <td><span class="badge badge-green">Borda SP</span></td>
+        <td>TLS 1.3 Amazon ACM; tráfego direto de biometria sem intermediários.</td>
+      </tr>
+      <tr>
+        <td><strong>Portal Web Portaria</strong><br>(AWS Amplify Hosting)</td>
+        <td><code>www.clickprestarecondominios.com.br</code></td>
+        <td><span class="badge badge-green">Borda SP</span></td>
+        <td>SSL Amazon nativo; Vercel 100% excluída e descomissionada.</td>
       </tr>
     </tbody>
   </table>
 
-  <div class="section-title">3. Comparativo: Superação dos Riscos Anteriores (Railway ➔ AWS)</div>
+  <div class="section-title">3. Comparativo: Superação dos Riscos Anteriores (Railway & Vercel ➔ AWS)</div>
   <table>
     <thead>
       <tr>
         <th>Critério Jurídico</th>
-        <th>Fornecedor Anterior (Railway)</th>
+        <th>Fornecedores Anteriores (Railway / Vercel)</th>
         <th>Situação Atual (AWS São Paulo)</th>
         <th>Status LGPD</th>
       </tr>
@@ -249,10 +261,10 @@
         <td><span class="badge badge-green">Conforme (Art. 46)</span></td>
       </tr>
       <tr>
-        <td><strong>Jurisdição & Foro</strong></td>
-        <td>Legislação da Irlanda e cortes de Dublin.</td>
-        <td><strong>Legislação Brasileira (LGPD)</strong> e Foro de São Paulo.</td>
-        <td><span class="badge badge-green">Segurança Plena</span></td>
+        <td><strong>Cadeia de Fornecedores</strong></td>
+        <td>Fragmentada (Railway + Vercel + AWS).</td>
+        <td><strong>100% Unificada na AWS</strong> (Conta ID: <code>850401152034</code>).</td>
+        <td><span class="badge badge-green">Soberania Plena</span></td>
       </tr>
     </tbody>
   </table>
