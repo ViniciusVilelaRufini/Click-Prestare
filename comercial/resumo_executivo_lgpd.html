@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Resumo Executivo - Conformidade LGPD & Infraestrutura AWS - Prestare Gestão</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 14mm 14mm 14mm 14mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      font-size: 9.5pt;
+      line-height: 1.45;
+    }
+    .header {
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .brand {
+      font-size: 16pt;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+    .brand span {
+      color: #2563eb;
+    }
+    .doc-tag {
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #2563eb;
+      background: #eff6ff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #bfdbfe;
+    }
+    .title-block {
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 13pt;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 3px;
+    }
+    .subtitle {
+      font-size: 8.5pt;
+      color: #64748b;
+    }
+    .section-title {
+      font-size: 9.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #1e3a8a;
+      border-left: 3px solid #2563eb;
+      padding-left: 6px;
+      margin-top: 10px;
+      margin-bottom: 6px;
+    }
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      font-size: 8.5pt;
+    }
+    th, td {
+      padding: 5px 8px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      font-size: 8pt;
+      text-transform: uppercase;
+    }
+    .badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 7.5pt;
+      font-weight: 600;
+    }
+    .badge-green {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+    .badge-red {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    .badge-blue {
+      background: #e0e7ff;
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+    }
+    .minuta {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-left: 4px solid #16a34a;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 8.5pt;
+      color: #14532d;
+      margin-top: 6px;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+    .footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 6px;
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 7.5pt;
+      color: #94a3b8;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .code-box {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 8pt;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 6px 10px;
+      border-radius: 4px;
+      margin: 4px 0 8px 0;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PÁGINA 1 -->
+  <div class="header">
+    <div class="brand">PRESTARE<span>GESTÃO</span></div>
+    <div class="doc-tag">Parecer Técnico-Jurídico LGPD</div>
+  </div>
+
+  <div class="title-block">
+    <h1>Resumo Executivo: Proteção de Biometria Facial & Infraestrutura AWS</h1>
+    <div class="subtitle">Comprovação material de conformidade sob a Lei nº 13.709/2018 para envio à Assessoria Jurídica</div>
+  </div>
+
+  <div class="section-title">1. Identificação Oficial da Conta e Prova de Vínculo na AWS</div>
+  <div class="card">
+    <table>
+      <tr>
+        <td style="width: 32%; font-weight: 700;">Titular da Conta:</td>
+        <td><strong>Prestare Gestão Condominial Inteligente</strong></td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700;">AWS Account ID Oficial:</td>
+        <td><strong style="color: #2563eb; font-size: 9.5pt;">850401152034</strong> <span class="badge badge-blue">Identificador Único Vinculante</span></td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700;">Entidade Contratada:</td>
+        <td>Amazon Serviços de Varejo do Brasil Ltda. / AWS Brasil</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700;">Datacenter e Região:</td>
+        <td><strong>América do Sul (São Paulo, Brasil) — <code>sa-east-1</code></strong> <span class="badge badge-green">100% Território Nacional</span></td>
+      </tr>
+    </table>
+    <div style="font-size: 8pt; color: #475569; margin-top: 2px;">
+      <em>Fundamento:</em> Conforme a Seção 1.4 do <strong>AWS Customer Agreement</strong>, o contrato e o DPA aplicam-se expressamente à conta <strong>`850401152034`</strong>, vinculando todos os dados sob custódia da Amazon às garantias legais brasileiras.
+    </div>
+  </div>
+
+  <div class="section-title">2. Inventário dos Recursos Ativos sob a Conta `850401152034`</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Recurso</th>
+        <th>Endpoint Criptografado Oficial</th>
+        <th>Região</th>
+        <th>Segurança Aplicada</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Banco RDS MySQL 8.0</strong><br>(Fotos e Biometria)</td>
+        <td><code>database-1.crq2ie2ww3dh.sa-east-1.rds.amazonaws.com</code></td>
+        <td><span class="badge badge-green">São Paulo</span></td>
+        <td>AES-256 (KMS) em repouso; VPC privada sem acesso externo.</td>
+      </tr>
+      <tr>
+        <td><strong>API de Aplicação</strong><br>(Elastic Beanstalk)</td>
+        <td><code>Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com</code></td>
+        <td><span class="badge badge-green">São Paulo</span></td>
+        <td>TLS 1.2 / TLS 1.3 obrigatório; tokens JWT com expiração.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="section-title">3. Comparativo: Superação dos Riscos Anteriores (Railway ➔ AWS)</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Critério Jurídico</th>
+        <th>Fornecedor Anterior (Railway)</th>
+        <th>Situação Atual (AWS São Paulo)</th>
+        <th>Status LGPD</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Localização dos Dados</strong></td>
+        <td>EUA / Irlanda (Transferência internacional desregulada).</td>
+        <td><strong>São Paulo / Brasil (`sa-east-1`)</strong>.</td>
+        <td><span class="badge badge-green">Sanado (Art. 33)</span></td>
+      </tr>
+      <tr>
+        <td><strong>Declaração de Biometria</strong></td>
+        <td>Formulário declarava <em>"Sensitive Data: None"</em> (Inverídico).</td>
+        <td><strong>Permitida expressamente</strong> sob padrão ISO/IEC 27018.</td>
+        <td><span class="badge badge-green">Regular (Art. 5º, II)</span></td>
+      </tr>
+      <tr>
+        <td><strong>Segurança Criptográfica</strong></td>
+        <td>Container compartilhado sem KMS dedicado.</td>
+        <td><strong>Criptografia AES-256</strong> em repouso e isolamento em VPC.</td>
+        <td><span class="badge badge-green">Conforme (Art. 46)</span></td>
+      </tr>
+      <tr>
+        <td><strong>Jurisdição & Foro</strong></td>
+        <td>Legislação da Irlanda e cortes de Dublin.</td>
+        <td><strong>Legislação Brasileira (LGPD)</strong> e Foro de São Paulo.</td>
+        <td><span class="badge badge-green">Segurança Plena</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>Prestare Gestão Condominial Inteligente • Documento Interno de Compliance</span>
+    <span>Página 1 de 2</span>
+  </div>
+
+  <!-- PÁGINA 2 -->
+  <div class="page-break"></div>
+
+  <div class="header">
+    <div class="brand">PRESTARE<span>GESTÃO</span></div>
+    <div class="doc-tag">Parecer Técnico-Jurídico LGPD</div>
+  </div>
+
+  <div class="section-title">4. Cadeia de Tratamento sob a LGPD (Art. 5º e 39)</div>
+  <div class="card" style="display: flex; justify-content: space-between; text-align: center; padding: 10px 6px;">
+    <div style="flex: 1; padding: 0 4px;">
+      <strong style="color: #1e3a8a; font-size: 8.5pt;">CONDOMÍNIO</strong><br>
+      <span class="badge badge-blue">Controlador (Art. 5º, VI)</span>
+      <p style="font-size: 7.5pt; color: #64748b; margin-top: 4px;">Define a finalidade do controle de acesso e colhe consentimento.</p>
+    </div>
+    <div style="align-self: center; font-weight: bold; color: #94a3b8;">➔</div>
+    <div style="flex: 1; padding: 0 4px;">
+      <strong style="color: #1e3a8a; font-size: 8.5pt;">PRESTARE GESTÃO</strong><br>
+      <span class="badge badge-blue">Operadora (Art. 5º, VII)</span>
+      <p style="font-size: 7.5pt; color: #64748b; margin-top: 4px;">Licencia o software e trata os dados estritamente sob ordem do Condomínio.</p>
+    </div>
+    <div style="align-self: center; font-weight: bold; color: #94a3b8;">➔</div>
+    <div style="flex: 1; padding: 0 4px;">
+      <strong style="color: #1e3a8a; font-size: 8.5pt;">AWS BRASIL</strong><br>
+      <span class="badge badge-green">Suboperadora (Art. 39)</span>
+      <p style="font-size: 7.5pt; color: #64748b; margin-top: 4px;">Conta ID: <strong>850401152034</strong><br>Provê infraestrutura, banco RDS e segurança física.</p>
+    </div>
+  </div>
+
+  <div class="section-title">5. Base Contratual e Validade do DPA da AWS</div>
+  <div class="card">
+    <p style="font-size: 8.5pt; margin-bottom: 6px;">
+      A relação entre a Prestare e a Amazon é regida pelo <strong>AWS Data Processing Addendum (DPA)</strong>, incorporado automaticamente ao <strong>AWS Customer Agreement</strong> (Seção 1.4).
+    </p>
+    <ul style="padding-left: 16px; font-size: 8pt; color: #334155; line-height: 1.4;">
+      <li><strong>Vigência Automática:</strong> Aplica-se universalmente a todas as contas que tratam dados pessoais sob a LGPD e GDPR, sem necessidade de assinatura física em papel.</li>
+      <li><strong>Auditorias e Laudos Oficiais:</strong> A infraestrutura de São Paulo possui certificações de conformidade independentes: <strong>ISO/IEC 27001, ISO/IEC 27017, ISO/IEC 27018</strong> (Privacidade em Nuvem) e relatórios <strong>SOC 2 Type II</strong>.</li>
+      <li><strong>Arquivo Anexo:</strong> O contrato oficial completo emitido pela Amazon acompanha este resumo no arquivo <code>AWS_Data_Processing_Addendum_LGPD.pdf</code>.</li>
+    </ul>
+  </div>
+
+  <div class="section-title">6. Minuta Sugerida para o Anexo II (Contrato com Condomínios)</div>
+  <p style="font-size: 8pt; color: #475569; margin-bottom: 4px;">
+    Texto pronto para inclusão pela assessoria jurídica no Acordo de Tratamento de Dados (DPA) dos condomínios:
+  </p>
+  <div class="minuta">
+    <strong>"CLÁUSULA DE SUBOPERADORES E INFRAESTRUTURA DE DADOS:</strong><br>
+    A CONTRATADA (Prestare Gestão) declara que, para a hospedagem do banco de dados, aplicação e processamento seguro de imagens e biometria facial, utiliza infraestrutura de nuvem provida pela <strong>Amazon Web Services (AWS)</strong> — <em>Amazon Serviços de Varejo do Brasil Ltda.</em>, sob a conta corporativa de <strong>ID nº 850401152034</strong>, alocada fisicamente na Região América do Sul (<strong>São Paulo, Brasil — <code>sa-east-1</code></strong>). O tratamento de dados observa integralmente o <em>AWS Data Processing Addendum (DPA)</em> e a Lei Federal nº 13.709/2018 (LGPD), restando garantido que os dados pessoais e biométricos dos condôminos não são objeto de transferência internacional desregulada e permanecem protegidos por criptografia padrão AES-256 e certificação ISO/IEC 27018."
+  </div>
+
+  <div class="section-title">7. Conclusão e Documentos do Dossiê</div>
+  <table style="margin-bottom: 8px;">
+    <tr>
+      <td style="width: 30%; font-weight: 700;">Documento 1:</td>
+      <td><strong>Este Resumo Executivo</strong> (Parecer técnico de vinculação e segurança).</td>
+    </tr>
+    <tr>
+      <td style="font-weight: 700;">Documento 2 (Anexo):</td>
+      <td><strong>AWS Data Processing Addendum Oficial (PDF)</strong> — <code>AWS_Data_Processing_Addendum_LGPD.pdf</code>.</td>
+    </tr>
+    <tr>
+      <td style="font-weight: 700;">Documento 3 (Fiscal):</td>
+      <td><strong>Extrato / Fatura de Cobrança da Conta `850401152034`</strong> (Disponível no console em <em>Billing &gt; Faturas</em>).</td>
+    </tr>
+  </table>
+
+  <div style="margin-top: 14px; text-align: center; font-size: 8pt; color: #475569;">
+    <strong>Prestare Gestão Condominial Inteligente</strong><br>
+    Catanduva / SP • contato@prestaregestao.com.br
+  </div>
+
+  <div class="footer">
+    <span>Prestare Gestão Condominial Inteligente • Documento Interno de Compliance</span>
+    <span>Página 2 de 2</span>
+  </div>
+
+</body>
+</html>
