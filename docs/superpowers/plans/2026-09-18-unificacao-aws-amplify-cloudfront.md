@@ -250,17 +250,9 @@
   Validado com sucesso:
   `curl -v https://www.clickprestarecondominios.com.br/api/condominios/1/apartamentos` ➔ `HTTP/1.1 401 Unauthorized` proxied pelo Amplify Edge para o CloudFront.
 
-- [ ] **Step 3: Descomissionamento definitivo do projeto na Vercel**
-  - Acessar o painel [vercel.com](https://vercel.com).
-  - Selecionar o projeto `click-cond-web`.
-  - Ir em **Settings** > **Advanced** > **Delete Project**.
-  - Confirmar a exclusão.
-  - Confirmar cancelamento da assinatura/conta na Vercel.
-  - Acessar o painel [vercel.com](https://vercel.com).
-  - Selecionar o projeto `click-cond-web`.
-  - Ir em **Settings** > **Advanced** > **Delete Project**.
-  - Confirmar a exclusão.
-  - Confirmar cancelamento da assinatura/conta na Vercel.
+- [x] **Step 3: Descomissionamento definitivo do projeto na Vercel**
+  - Projeto `click-cond-web` excluído definitivamente no painel da Vercel.
+  - Vercel 100% desligada do ecossistema e faturamento zerado.
 
 ---
 
