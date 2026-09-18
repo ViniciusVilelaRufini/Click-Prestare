@@ -78,14 +78,23 @@ async function bootstrap() {
     'https://kabania.vercel.app',
   ];
   const allowedOrigins = allowedOriginsEnv
-    ? allowedOriginsEnv.split(',').map((o) => o.trim()).filter(Boolean)
+    ? allowedOriginsEnv.split(',').map((o) => o.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
     : defaultOrigins;
 
-  if (!allowedOrigins.includes('https://kabania.vercel.app')) {
-    allowedOrigins.push('https://kabania.vercel.app');
-  }
-  if (!allowedOrigins.includes('http://localhost:5173')) {
-    allowedOrigins.push('http://localhost:5173');
+  const alwaysAllowed = [
+    'https://clickprestarecondominios.com.br',
+    'https://www.clickprestarecondominios.com.br',
+    'https://click-prestare.vercel.app',
+    'https://crm-click-prestare.vercel.app',
+    'https://kabania.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:4200',
+    'http://localhost:3000',
+  ];
+  for (const dom of alwaysAllowed) {
+    if (!allowedOrigins.includes(dom)) {
+      allowedOrigins.push(dom);
+    }
   }
 
   // Assinatura (req, callback): dá acesso à URL para liberar rotas públicas.
@@ -110,7 +119,11 @@ async function bootstrap() {
 
     // Demais rotas: whitelist (mantém credentials para o cookie/JWT do console).
     if (!origin) return callback(null, base);
-    if (allowedOrigins.includes(origin)) {
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('clickprestarecondominios.com.br') ||
+      origin.endsWith('.vercel.app')
+    ) {
       return callback(null, base);
     }
     // Permite qualquer localhost (Flutter web usa porta dinâmica)
