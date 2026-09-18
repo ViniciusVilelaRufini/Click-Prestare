@@ -8,24 +8,133 @@ final _kTimeout = ApiConfig.timeout;
 
 Uri _buildUri(String path) => ApiConfig.buildUri(path);
 
-loginSindico(String login, String password) async {
+class SindicoLoginResult {
+  final bool success;
+  final bool mfaRequired;
+  final String? mfaToken;
+  final String? emailMasked;
+  final int? expiresInSeconds;
+  final String? errorMessage;
+
+  const SindicoLoginResult({
+    this.success = false,
+    this.mfaRequired = false,
+    this.mfaToken,
+    this.emailMasked,
+    this.expiresInSeconds,
+    this.errorMessage,
+  });
+}
+
+Future<SindicoLoginResult> loginSindico(String login, String password) async {
   try {
     final url = _buildUri('/sindico/login');
-    final body = json.encode({'login': login, 'password': password});
+    final deviceToken = getSindicoDeviceToken();
+    final headers = {
+      "Content-Type": "application/json",
+      if (deviceToken.isNotEmpty) "x-device-token": deviceToken,
+    };
+    final body = json.encode({
+      'login': login,
+      'password': password,
+      if (deviceToken.isNotEmpty) 'device_token': deviceToken,
+    });
     final response = await ApiClient
         .post(url,
-            headers: {"Content-Type": "application/json"}, body: body,
+            headers: headers, body: body,
             skip401Handling: true)
         .timeout(_kTimeout);
+
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+
     if (response.statusCode == 200) {
-      final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+      if (parsed['mfa_required'] == true) {
+        return SindicoLoginResult(
+          mfaRequired: true,
+          mfaToken: parsed['mfa_token']?.toString(),
+          emailMasked: parsed['email_masked']?.toString(),
+          expiresInSeconds: parsed['expires_in_seconds'] is int
+              ? parsed['expires_in_seconds'] as int
+              : int.tryParse(parsed['expires_in_seconds']?.toString() ?? '600') ?? 600,
+        );
+      }
+      storageLogin(parsed);
+      return const SindicoLoginResult(success: true);
+    }
+    return SindicoLoginResult(
+      success: false,
+      errorMessage: parsed["message"]?.toString() ?? "Houve um erro, tente novamente!",
+    );
+  } catch (e) {
+    return const SindicoLoginResult(
+      success: false,
+      errorMessage: "Houve um erro, tente novamente!",
+    );
+  }
+}
+
+Future<String> verifyMfaCode(String mfaToken, String code, bool rememberDevice) async {
+  try {
+    final url = _buildUri('/auth/mfa/verify');
+    final body = json.encode({
+      'mfa_token': mfaToken,
+      'code': code.trim(),
+      'remember_device': rememberDevice,
+    });
+    final response = await ApiClient
+        .post(url,
+            headers: {"Content-Type": "application/json"},
+            body: body,
+            skip401Handling: true)
+        .timeout(_kTimeout);
+
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final deviceToken = parsed['device_token']?.toString();
+      if (deviceToken != null && deviceToken.isNotEmpty && deviceToken != 'null') {
+        setSindicoDeviceToken(deviceToken);
+      }
       storageLogin(parsed);
       return "";
     }
-    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
-    return parsed["message"] ?? "Houve um erro, tente novamente!";
+    return parsed["message"]?.toString() ?? "Código inválido ou expirado.";
   } catch (e) {
-    return "Houve um erro, tente novamente!";
+    return "Houve um erro ao verificar o código. Tente novamente!";
+  }
+}
+
+Future<Map<String, dynamic>> resendMfaCode(String mfaToken) async {
+  try {
+    final url = _buildUri('/auth/mfa/resend');
+    final body = json.encode({'mfa_token': mfaToken});
+    final response = await ApiClient
+        .post(url,
+            headers: {"Content-Type": "application/json"},
+            body: body,
+            skip401Handling: true)
+        .timeout(_kTimeout);
+
+    final parsed = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return {
+        'success': true,
+        'mfa_token': parsed['mfa_token'],
+        'email_masked': parsed['email_masked'],
+        'expires_in_seconds': parsed['expires_in_seconds'] ?? 600,
+        'message': parsed['message'] ?? 'Novo código enviado com sucesso!',
+      };
+    }
+    return {
+      'success': false,
+      'message': parsed['message']?.toString() ?? 'Não foi possível reenviar o código.',
+    };
+  } catch (e) {
+    return {
+      'success': false,
+      'message': 'Houve um erro de conexão ao reenviar o código.',
+    };
   }
 }
 

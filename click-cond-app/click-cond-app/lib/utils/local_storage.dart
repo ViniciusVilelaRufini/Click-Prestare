@@ -77,10 +77,22 @@ Future<void> storageLogout() async {
   // Cache de exibição do condomínio vive no processo, não no storage: sem isto
   // o próximo login veria o saldo/resumo do usuário anterior antes do refresh.
   CondCache.clear();
+  final deviceToken = getSindicoDeviceToken();
   try {
     await FirebaseService.instance.desregistrarNoServidor();
   } catch (_) {}
   _storage.clear();
+  if (deviceToken.isNotEmpty) {
+    setSindicoDeviceToken(deviceToken);
+  }
+}
+
+String getSindicoDeviceToken() {
+  return _storage.getItem('sindico_device_token')?.toString() ?? "";
+}
+
+void setSindicoDeviceToken(String token) {
+  _storage.setItem('sindico_device_token', token);
 }
 
 String getToken() {

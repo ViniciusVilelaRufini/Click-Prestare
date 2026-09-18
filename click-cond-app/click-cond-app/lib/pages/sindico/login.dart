@@ -1,6 +1,7 @@
 import 'package:click/pages/shared/aceite_privacidade.dart';
 import 'package:click/controllers/controller_sindico.dart';
 import 'package:click/pages/sindico/forgot_password.dart';
+import 'package:click/pages/sindico/mfa_verification_page.dart';
 import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
@@ -57,13 +58,32 @@ class _LoginSindicoPageState extends State<LoginSindico> {
     String message;
     try {
       if (widget.loginType == 'sindico') {
-        message = await loginSindico(login, senha);
+        final res = await loginSindico(login, senha);
+        if (res.mfaRequired) {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MfaVerificationPage(
+                mfaToken: res.mfaToken ?? '',
+                emailMasked: res.emailMasked ?? '',
+                expiresInSeconds: res.expiresInSeconds ?? 600,
+              ),
+            ),
+          );
+          return;
+        } else if (res.success) {
+          message = "";
+        } else {
+          message = res.errorMessage ?? getText('login_error');
+        }
       } else if (widget.loginType == 'morador') {
         message = await loginMorador(login, senha);
       } else {
         message = await loginFuncionario(login, senha);
       }
-      if (getUsername().isEmpty) message = getText('login_error');
+      if (getUsername().isEmpty && message.isEmpty) message = getText('login_error');
     } catch (_) {
       message = getText('login_error');
     }
