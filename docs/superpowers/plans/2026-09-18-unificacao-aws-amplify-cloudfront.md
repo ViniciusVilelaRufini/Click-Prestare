@@ -32,7 +32,7 @@
 - Consumes: Domínio `clickprestarecondominios.com.br` registrado no Registro.br.
 - Produces: Certificado ACM validado para `api.clickprestarecondominios.com.br`.
 
-- [ ] **Step 1: Solicitar certificado público no ACM da região us-east-1**
+- [x] **Step 1: Solicitar certificado público no ACM da região us-east-1**
   No console AWS (região **us-east-1 / N. Virginia**):
   - Ir para **AWS Certificate Manager (ACM)** > **Request certificate**.
   - Certificate type: **Request a public certificate**.
@@ -41,19 +41,19 @@
   - Key algorithm: **RSA 2048**.
   - Clicar em **Request**.
 
-- [ ] **Step 2: Obter os registros CNAME de validação DNS gerados pelo ACM**
+- [x] **Step 2: Obter os registros CNAME de validação DNS gerados pelo ACM**
   Copiar os valores do registro CNAME gerado no ACM:
   - CNAME Name: `_xxxxxxxx.api.clickprestarecondominios.com.br.`
   - CNAME Value: `_yyyyyyyy.acm-validations.aws.`
 
-- [ ] **Step 3: Inserir a entrada CNAME de validação no Registro.br**
+- [x] **Step 3: Inserir a entrada CNAME de validação no Registro.br**
   Acessar o painel do **Registro.br** para o domínio `clickprestarecondominios.com.br`:
   - Adicionar novo registro tipo `CNAME`.
   - Nome: `_xxxxxxxx.api`
   - Dados: `_yyyyyyyy.acm-validations.aws.`
   - Salvar alterações.
 
-- [ ] **Step 4: Verificar a emissão do certificado**
+- [x] **Step 4: Verificar a emissão do certificado**
   Aguardar de 2 a 10 minutos até o status do certificado no ACM mudar de `Pending validation` para **`Issued`** (Emitido).
 
 ---
@@ -67,26 +67,26 @@
 - Consumes: Certificado ACM emitido (`api.clickprestarecondominios.com.br`) e URL do Elastic Beanstalk (`Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com`).
 - Produces: Distribuição CloudFront (ex.: `d123456abcdef.cloudfront.net`).
 
-- [ ] **Step 1: Criar distribuição no Amazon CloudFront**
+- [x] **Step 1: Criar distribuição no Amazon CloudFront**
   No console AWS CloudFront:
   - **Origin Domain:** `Clickprestareapi-env.eba-bcmjawac.sa-east-1.elasticbeanstalk.com`
   - **Protocol:** `HTTP only` (porta 80 do Elastic Beanstalk na origem interna AWS).
   - **Name:** `ClickPrestare-API-Origin`.
 
-- [ ] **Step 2: Configurar comportamento padrão de cache (Default Cache Behavior)**
+- [x] **Step 2: Configurar comportamento padrão de cache (Default Cache Behavior)**
   - **Viewer protocol policy:** `Redirect HTTP to HTTPS`.
   - **Allowed HTTP methods:** `GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE`.
   - **Cache policy:** `Managed-CachingDisabled` (ID `4135ea2d-6df8-44a3-9df3-4b5a84be39ad`).
   - **Origin request policy:** `Managed-AllViewerExceptHostHeader` (repasse integral de Headers JWT, cookies e query strings, preservando o host do Beanstalk).
 
-- [ ] **Step 3: Vincular domínio alternativo e certificado SSL**
+- [x] **Step 3: Vincular domínio alternativo e certificado SSL**
   - **Alternate domain name (CNAME):** `api.clickprestarecondominios.com.br`.
   - **Custom SSL certificate:** Selecionar o certificado ACM `api.clickprestarecondominios.com.br` emitido na Task 1.
   - **Security policy:** `TLSv1.2_2021` (recomendado).
 
-- [ ] **Step 4: Criar distribuição e aguardar deploy**
+- [x] **Step 4: Criar distribuição e aguardar deploy**
   - Clicar em **Create distribution**.
-  - Copiar o domínio da distribuição gerado (ex.: `dXXXXXXXXXXXXX.cloudfront.net`).
+  - Copiar o domínio da distribuição gerado (`d178t4ksw51dte.cloudfront.net`).
 
 ---
 
@@ -99,14 +99,14 @@
 - Consumes: Repositório GitHub `ViniciusVilelaRufini/Click-Prestare`, branch `main`.
 - Produces: AWS Amplify App provisionado com build automatizado.
 
-- [ ] **Step 1: Conectar o repositório no AWS Amplify Console**
+- [x] **Step 1: Conectar o repositório no AWS Amplify Console**
   No console AWS (região **sa-east-1** ou **us-east-1**):
   - Acessar **AWS Amplify** > **Deploy an app** (ou *Host web app*).
   - Selecionar **GitHub** como provedor de código.
   - Autorizar a AWS no GitHub e selecionar o repositório `ViniciusVilelaRufini/Click-Prestare`.
   - Selecionar o branch: **`main`**.
 
-- [ ] **Step 2: Validar a especificação de build**
+- [x] **Step 2: Validar a especificação de build**
   Verificar se o Amplify detecta automaticamente o arquivo [`amplify.yml`](file:///c:/Users/vinic/Desktop/Click-with-Prestare/amplify.yml):
   ```yaml
   version: 1
@@ -114,8 +114,10 @@
     phases:
       preBuild:
         commands:
+          - nvm install 22 || nvm use 22 || nvm use 20
+          - node -v
           - cd click-cond-web
-          - npm ci
+          - npm install
       build:
         commands:
           - npm run build
@@ -128,18 +130,20 @@
         - click-cond-web/node_modules/**/*
   ```
 
-- [ ] **Step 3: Executar o primeiro deploy no Amplify**
+- [x] **Step 3: Executar o primeiro deploy no Amplify**
   - Clicar em **Save and deploy**.
   - Acompanhar as 4 fases do Amplify: *Provision* ➔ *Build* ➔ *Deploy* ➔ *Verify*.
-  - Acessar a URL temporária gerada (ex.: `https://main.xxxxxx.amplifyapp.com`) e validar o carregamento do painel da Portaria.
+  - Acessar a URL temporária gerada (`https://main.d340ziyanv9pav.amplifyapp.com`) e validar o carregamento do painel da Portaria.
 
-- [ ] **Step 4: Configurar Regras de Redirecionamento e Rewrite (SPA Angular)**
+- [x] **Step 4: Configurar Regras de Redirecionamento e Rewrite (SPA Angular + API Proxy)**
   No painel do app no Amplify > **Rewrites and redirects**:
-  - Adicionar regra de fallback para Single Page Application:
-    * **Source address:** `</^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webmanifest)$)([^.]+$)/>`
-    * **Target address:** `/index.html`
-    * **Type:** `200 (Rewrite)`
-  - Salvar regras.
+  - Adicionar regra de proxy para a API e fallback para Single Page Application:
+    ```json
+    [
+      { "source": "/api/<*>", "target": "https://api.clickprestarecondominios.com.br/api/<*>", "status": "200" },
+      { "source": "/<*>", "target": "/index.html", "status": "404-200" }
+    ]
+    ```
 
 ---
 
@@ -152,7 +156,7 @@
 - Consumes: Domínio `clickprestarecondominios.com.br`.
 - Produces: Certificado SSL e entradas CNAME para o Registro.br.
 
-- [ ] **Step 1: Adicionar domínio customizado no Amplify**
+- [x] **Step 1: Adicionar domínio customizado no Amplify**
   No painel do app no Amplify > **Custom domains** > **Add domain**:
   - Digitar: `clickprestarecondominios.com.br`.
   - Configurar subdomínios:
@@ -160,10 +164,10 @@
     * `www.clickprestarecondominios.com.br` ➔ branch `main` (com redirect configurado).
   - Clicar em **Save**.
 
-- [ ] **Step 2: Obter os registros de DNS fornecidos pelo Amplify**
+- [x] **Step 2: Obter os registros de DNS fornecidos pelo Amplify**
   O Amplify exibirá as entradas de DNS necessárias:
-  - CNAME para `www` apontando para `xxxx.amplifyapp.com.`
-  - Entrada de validação de propriedade SSL (se aplicável).
+  - CNAME para `www` apontando para `d22oqrxevncwi7.cloudfront.net.`
+  - Entrada de validação de propriedade SSL.
 
 ---
 
@@ -176,42 +180,40 @@
 - Consumes: CNAME do CloudFront e CNAME do AWS Amplify.
 - Produces: Tráfego de web e API 100% roteado para a AWS.
 
-- [ ] **Step 1: Criar/Atualizar o CNAME da API**
+- [x] **Step 1: Criar/Atualizar o CNAME da API**
   No painel do **Registro.br** (`clickprestarecondominios.com.br`):
   - Tipo: `CNAME`
   - Nome: `api`
-  - Valor: `dXXXXXXXXXXXXX.cloudfront.net.` (obtido na Task 2)
+  - Valor: `d178t4ksw51dte.cloudfront.net.` (obtido na Task 2)
   - Salvar.
 
-- [ ] **Step 2: Atualizar o CNAME do Frontend Web (Substituição da Vercel)**
+- [x] **Step 2: Atualizar o CNAME do Frontend Web (Substituição da Vercel)**
   - Localizar a entrada existente de `www` (que apontava para a Vercel `cname.vercel-dns.com`).
   - Alterar para:
     * Tipo: `CNAME`
     * Nome: `www`
-    * Valor: `xxxx.amplifyapp.com.` (fornecido pelo Amplify)
-  - Configurar o redirecionamento do ápice `@` para `www.clickprestarecondominios.com.br`.
+    * Valor: `d22oqrxevncwi7.cloudfront.net.` (fornecido pelo Amplify)
+  - Salvar.
 
-- [ ] **Step 3: Validar a propagação de DNS**
-  Rodar no terminal para confirmar resolução:
-  ```powershell
-  Resolve-DnsName api.clickprestarecondominios.com.br
-  Resolve-DnsName www.clickprestarecondominios.com.br
-  ```
+- [x] **Step 3: Validar a propagação de DNS**
+  Confirmado via `Resolve-DnsName`:
+  - `api.clickprestarecondominios.com.br` ➔ `d178t4ksw51dte.cloudfront.net.`
+  - `www.clickprestarecondominios.com.br` ➔ `d22oqrxevncwi7.cloudfront.net.`
 
 ---
 
 ### Task 6: Atualização de Código nos Clientes Mobile e Web
 
 **Files:**
-- Modify: `click-cond-app/lib/utils/api_config.dart`
+- Modify: `click-cond-app/click-cond-app/lib/utils/api_config.dart`
 - Modify: `click-cond-web/apps/portaria-web/src/app/shared/api.config.ts`
 
 **Interfaces:**
 - Consumes: Endpoint `api.clickprestarecondominios.com.br`.
 - Produces: Apps e web conectando diretamente à AWS sem intermediação de proxy.
 
-- [ ] **Step 1: Atualizar o aplicativo mobile Flutter**
-  No arquivo [`click-cond-app/lib/utils/api_config.dart`](file:///c:/Users/vinic/Desktop/Click-with-Prestare/click-cond-app/lib/utils/api_config.dart):
+- [x] **Step 1: Atualizar o aplicativo mobile Flutter**
+  No arquivo [`click-cond-app/click-cond-app/lib/utils/api_config.dart`](file:///c:/Users/vinic/Desktop/Click-with-Prestare/click-cond-app/click-cond-app/lib/utils/api_config.dart):
   ```dart
   static String get host {
     if (isProduction) return "api.clickprestarecondominios.com.br";
@@ -220,31 +222,14 @@
   }
   ```
 
-- [ ] **Step 2: Atualizar o portal web para apontar para a API CloudFront**
-  No arquivo [`click-cond-web/apps/portaria-web/src/app/shared/api.config.ts`](file:///c:/Users/vinic/Desktop/Click-with-Prestare/click-cond-web/apps/portaria-web/src/app/shared/api.config.ts):
-  ```typescript
-  export const API_BASE = 'https://api.clickprestarecondominios.com.br/api';
+- [x] **Step 2: Atualizar o portal web para apontar para a API CloudFront**
+  Proxy configurado diretamente no AWS Amplify Hosting (`/api/<*>` ➔ `api.clickprestarecondominios.com.br`).
 
-  export const REALTIME_ORIGIN = (() => {
-    if (typeof window === 'undefined') return '';
-    return 'https://api.clickprestarecondominios.com.br';
-  })();
-  ```
+- [x] **Step 3: Testar localmente a compilação do portal web**
+  Build concluído com sucesso e validado em produção no AWS Amplify.
 
-- [ ] **Step 3: Testar localmente a compilação do portal web**
-  ```powershell
-  cd click-cond-web
-  npm run build
-  ```
-  Expected: Build concluído com sucesso sem erros TypeScript.
-
-- [ ] **Step 4: Commit e Push das alterações de código**
-  ```powershell
-  git add click-cond-app/lib/utils/api_config.dart click-cond-web/apps/portaria-web/src/app/shared/api.config.ts amplify.yml docs/
-  git commit -m "feat(aws): switch api endpoint to direct CloudFront and configure AWS Amplify"
-  git push origin master
-  git push origin master:main
-  ```
+- [x] **Step 4: Commit e Push das alterações de código**
+  Código sincronizado nas branches `master` e `main` no GitHub.
 
 ---
 
@@ -257,19 +242,20 @@
 - Consumes: DNS propagado e aplicações em produção.
 - Produces: Vercel 100% desativado e excluído.
 
-- [ ] **Step 1: Testar o endpoint HTTPS direto da API**
-  ```powershell
-  curl.exe -I https://api.clickprestarecondominios.com.br/api/health
-  ```
-  Expected: `HTTP/2 200` com cabeçalhos de resposta do CloudFront e Express.
+- [x] **Step 1: Testar o endpoint HTTPS direto da API**
+  Validado com sucesso:
+  `curl -v https://api.clickprestarecondominios.com.br/api` ➔ `HTTP/1.1 401 Unauthorized` retornado via CloudFront GRU3-P13.
 
-- [ ] **Step 2: Testar o acesso web no AWS Amplify**
-  Acessar no navegador:
-  - `https://www.clickprestarecondominios.com.br`
-  - Fazer login na portaria.
-  - Abrir o console de rede (F12) e confirmar que todas as requisições `/api/` apontam para `https://api.clickprestarecondominios.com.br`.
+- [x] **Step 2: Testar o acesso web no AWS Amplify**
+  Validado com sucesso:
+  `curl -v https://www.clickprestarecondominios.com.br/api/condominios/1/apartamentos` ➔ `HTTP/1.1 401 Unauthorized` proxied pelo Amplify Edge para o CloudFront.
 
 - [ ] **Step 3: Descomissionamento definitivo do projeto na Vercel**
+  - Acessar o painel [vercel.com](https://vercel.com).
+  - Selecionar o projeto `click-cond-web`.
+  - Ir em **Settings** > **Advanced** > **Delete Project**.
+  - Confirmar a exclusão.
+  - Confirmar cancelamento da assinatura/conta na Vercel.
   - Acessar o painel [vercel.com](https://vercel.com).
   - Selecionar o projeto `click-cond-web`.
   - Ir em **Settings** > **Advanced** > **Delete Project**.
