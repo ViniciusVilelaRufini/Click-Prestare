@@ -17,7 +17,7 @@ Antes de gerar o `.aab`:
    ```
    Se ficar `false`, o app publicado aponta para `10.0.2.2:3003` (PC local) e
    **não acessa backend nenhum**. Em produção o host vira
-   `click-prestare-production.up.railway.app` (HTTPS).
+   `www.clickprestarecondominios.com.br` (HTTPS / AWS).
 
 2. **Versão** — incrementar SEMPRE o `versionCode` (a Play Store recusa um
    versionCode já enviado). Dois lugares devem bater:
@@ -80,9 +80,9 @@ para a loja. A reversão só afeta builds locais futuros.
 - ❌ NÃO commitar: `android/local.properties` (senhas + keystore) — gitignored.
 - ❌ NÃO commitar: `*.jks`, o `.aab` gerado.
 
-Deploy do backend/web continua via push:
-- `master` → Railway (backend)
-- `main` → Vercel (web)
+Deploy do backend/web:
+- AWS Elastic Beanstalk (backend API na AWS)
+- Vercel (frontend web + proxy reverso para AWS Elastic Beanstalk)
 (empurrar nas duas: `git push origin master` e `git push origin master:main`).
 
 ---
