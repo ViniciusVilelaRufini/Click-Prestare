@@ -102,14 +102,15 @@ async function bundle() {
 
   // 6.1 Cria .env com credenciais de SMTP como fallback
   console.log('5.1 Criando .env com fallback de SMTP...');
-  const fallbackEnv = `# Fallback de SMTP caso o console do Elastic Beanstalk não tenha as variáveis
+  const fallbackEnv = `# Fallback de SMTP oficial Google Workspace
 SMTP_SERVICE="gmail"
 SMTP_HOST="smtp.gmail.com"
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_USER="viniciusrufini17@gmail.com"
-SMTP_PASS="vjtyuvqakfzwztuz"
-SMTP_FROM="viniciusrufini17@gmail.com"
+SMTP_USER="suporte@clickprestarecondominios.com.br"
+SMTP_PASS="njyqoenhmsyzblwa"
+SMTP_FROM="suporte@clickprestarecondominios.com.br"
+MAIL_FROM="suporte@clickprestarecondominios.com.br"
 SMTP_FROM_NAME="Prestare Condomínios"
 MAIL_FROM_NAME="Prestare Condomínios"
 `;
