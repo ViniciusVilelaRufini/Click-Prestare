@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Query, Res, NotFoundException, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Public } from '../auth/public.decorator';
 import { CrmService } from './crm.service';
 import { CrmCondominiosService } from './crm-condominios.service';
 import type { CriarCondominioDto } from './crm-condominios.service';
@@ -36,6 +37,7 @@ export class CrmController {
    * Health check público — retorna status de conexão do banco, latência e
    * modo de dados (live/mock). Não requer autenticação.
    */
+  @Public()
   @Get('health')
   health() {
     return this.service.healthCheck();
