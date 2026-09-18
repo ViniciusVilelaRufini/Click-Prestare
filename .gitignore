@@ -13,6 +13,7 @@ yarn-error.log
 .antigravity_config.json
 firebase-service-account.json
 scratch/
+backups/
 
 # Android signing artifacts — NEVER commit these
 *.jks
