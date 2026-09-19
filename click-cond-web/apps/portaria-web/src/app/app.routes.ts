@@ -39,6 +39,21 @@ export const appRoutes: Route[] = [
       import('./legal/politica-privacidade.component').then((m) => m.PoliticaPrivacidadeComponent),
   },
   {
+    path: 'politica-privacidade',
+    loadComponent: () =>
+      import('./legal/politica-privacidade.component').then((m) => m.PoliticaPrivacidadeComponent),
+  },
+  {
+    path: 'exclusao-de-conta',
+    loadComponent: () =>
+      import('./legal/exclusao-conta.component').then((m) => m.ExclusaoContaComponent),
+  },
+  {
+    path: 'exclusao-conta',
+    loadComponent: () =>
+      import('./legal/exclusao-conta.component').then((m) => m.ExclusaoContaComponent),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     canActivateChild: [authGuard],
