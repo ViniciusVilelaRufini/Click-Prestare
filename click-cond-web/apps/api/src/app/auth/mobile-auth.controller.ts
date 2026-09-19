@@ -78,8 +78,8 @@ export class SindicoMobileController {
   }
 
   @Get('list-sindicos')
-  listSindicos(@Query('id_condominio') idCond: string) {
-    return this.service.listSindicosByCondominio(Number(idCond));
+  listSindicos(@Query('id_condominio') idCond: string, @ReqUser() payload: JwtPayload) {
+    return this.service.listSindicosByCondominio(Number(idCond), payload);
   }
 }
 
@@ -260,7 +260,8 @@ export class DashboardMobileController {
   @Get('meus-eventos')
   meusEventos(@ReqUser() payload: JwtPayload, @Query('limit') limit?: string) {
     const idUser = payload.user?.id ?? payload.sub;
-    return this.service.getMeusEventos(Number(idUser), limit ? Number(limit) : 15);
+    const typeAccess = payload.typeAccess ?? payload.user?.typeAccess ?? 'Sindico';
+    return this.service.getMeusEventos(Number(idUser), limit ? Number(limit) : 15, typeAccess);
   }
 
   @Get('condominios/get-all')

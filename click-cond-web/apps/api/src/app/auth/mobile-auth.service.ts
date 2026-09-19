@@ -1068,10 +1068,122 @@ export class MobileAuthService {
 
   // "Meus eventos" da home: acessos (entrada/saída) do próprio usuário como
   // morador + acessos dos visitantes/prestadores que ele cadastrou ou do seu
-  // apartamento. Últimos 30 dias, do mais recente para o mais antigo.
-  async getMeusEventos(idUser: number, limit = 15) {
+  // apartamento. Para funcionários/porteiros: acessos de todo o condomínio.
+  // Últimos 30 dias, do mais recente para o mais antigo.
+  async getMeusEventos(idUser: number, limit = 15, typeAccess?: string) {
     if (!this.prisma.isConnected) return [];
     const lim = Math.min(Math.max(Number(limit) || 15, 1), 50);
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    // Se for perfil Funcionário/Porteiro:
+    let idCondominioFuncionario: number | null = null;
+    if (typeAccess === 'Funcionario') {
+      const func = await this.prisma.funcionarios.findFirst({
+        where: { id_user: idUser },
+        select: { id_condominio: true },
+      });
+      if (func?.id_condominio) {
+        idCondominioFuncionario = func.id_condominio;
+      }
+    }
+
+    if (idCondominioFuncionario) {
+      const [facialEvents, visitors] = await Promise.all([
+        this.prisma.acessos_Facial.findMany({
+          where: {
+            id_condominio: idCondominioFuncionario,
+            evento: { in: ['entrada', 'saida'] },
+            timestamp: { gte: cutoff },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 50,
+        }),
+        this.prisma.visitantes.findMany({
+          where: {
+            id_condominio: idCondominioFuncionario,
+            OR: [
+              { data_entrada: { gte: cutoff } },
+              { data_saida: { gte: cutoff } },
+            ],
+          },
+          select: {
+            id: true,
+            nome: true,
+            id_condominio: true,
+            is_prestador: true,
+            data_entrada: true,
+            data_saida: true,
+          },
+          take: 50,
+        }),
+      ]);
+
+      const DEDUP_MS = 15_000;
+      const facialBuckets = new Set<string>();
+      for (const a of facialEvents) {
+        const b = Math.floor(a.timestamp.getTime() / DEDUP_MS);
+        facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b}`);
+        facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
+        facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
+      }
+      const jaVeioDoFacial = (idVis: number, evento: 'entrada' | 'saida', ts: Date) =>
+        facialBuckets.has(`${idVis}:${evento}:${Math.floor(ts.getTime() / DEDUP_MS)}`);
+
+      const manualEv = [];
+      for (const v of visitors) {
+        const marcos: [('entrada' | 'saida'), Date | null][] = [
+          ['entrada', v.data_entrada],
+          ['saida', v.data_saida],
+        ];
+        for (const [evento, ts] of marcos) {
+          if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts)) continue;
+          manualEv.push({
+            id: -(v.id * 2 + (evento === 'saida' ? 1 : 0)),
+            id_pessoa: v.id,
+            id_condominio: v.id_condominio,
+            nome_pessoa: v.nome ?? '',
+            evento,
+            tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+            tipo_dispositivo: 'pin',
+            confianca: null,
+            timestamp: ts,
+          });
+        }
+      }
+
+      const conds = await this.prisma.condominios.findMany({
+        where: { id: idCondominioFuncionario },
+        select: { id: true, nome: true },
+      });
+      const condNome = conds.length ? conds[0].nome : '';
+
+      const merged = [
+        ...facialEvents.map((e) => ({
+          e,
+          categoria: e.tipo_pessoa === 'morador' ? 'voce' : (e.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante'),
+        })),
+        ...manualEv.map((e) => ({
+          e,
+          categoria: e.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
+        })),
+      ];
+      merged.sort((a, b) => b.e.timestamp.getTime() - a.e.timestamp.getTime());
+
+      return merged.slice(0, lim).map(({ e, categoria }) => ({
+        id: e.id,
+        id_pessoa: e.id_pessoa,
+        nome: (e.nome_pessoa || '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
+        evento: e.evento,
+        tipo_pessoa: e.tipo_pessoa,
+        tipo_dispositivo: e.tipo_dispositivo,
+        confianca: e.confianca,
+        categoria,
+        condominio: condNome,
+        timestamp: e.timestamp,
+      }));
+    }
 
     const [moras, aptoUsers] = await Promise.all([
       this.prisma.moradores.findMany({ where: { id_user: idUser }, select: { id: true } }),
@@ -1097,9 +1209,6 @@ export class MobileAuthService {
       },
     });
     const visitorIds = visitors.map((v) => v.id);
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
 
     const [morEv, visEv] = await Promise.all([
       moradorIds.length
@@ -4062,7 +4171,12 @@ export class MobileAuthService {
     return { ok: true };
   }
 
-  async listSindicosByCondominio(idCond: number) {
+  async listSindicosByCondominio(idCond: number, user?: JwtPayload) {
+    // Sem esta checagem, qualquer usuário autenticado (morador ou funcionário de
+    // OUTRO condomínio) itera id_condominio e extrai nome + e-mail de todos os
+    // síndicos da base. O TenantGuard global não cobre: ele só valida o route
+    // param :idCondominio, e aqui o id vem por query string.
+    await this.tenant.assertCondominio(Number(idCond), user);
     if (!this.prisma.isConnected) return [];
     const links = await this.prisma.sindicos_Condominios.findMany({
       where: { id_condominio: Number(idCond) },
