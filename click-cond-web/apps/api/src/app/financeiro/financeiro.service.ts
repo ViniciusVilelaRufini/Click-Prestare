@@ -801,40 +801,64 @@ export class FinanceiroService implements OnModuleInit {
 
     // Morador só pode ver lançamentos vinculados a ele OU cobranças do seu apto.
     // Sem isso, morador chuta IDs e lê dados financeiros de qualquer um.
+    // Porteiros e funcionários comuns também não podem ler contas pessoais de moradores
+    // nem cobranças/inadimplências individuais de apartamentos (LGPD Art. 6º, III).
     const typeAccess = user?.typeAccess ?? user?.user?.typeAccess;
     const isMorador = typeAccess === 'Morador';
-    if (isMorador) {
-      const userId = user?.sub ?? user?.user?.id;
-      const podeVer = result.id_usuario === userId;
-      if (!podeVer && result.nome) {
-        // Para faturas de apto (nome "Apto X Bloco Y - Ref. ..."), verifica se o
-        // morador realmente mora nesse apto. Match por id_user em Moradores e Apartamentos_Users.
-        const moradoresList = await this.prisma.moradores.findMany({
-          where: {
-            id_user: Number(userId),
-            id_condominio: Number(idCondominio),
-          },
-          select: { apartamento: true, bloco: true },
-        });
-        const auList = await this.prisma.apartamentos_Users.findMany({
-          where: {
-            id_user: Number(userId),
-            apartamento: { id_condominio: Number(idCondominio) },
-          },
-          include: { apartamento: true },
-        });
-        const userUnits = [
-          ...moradoresList.map(m => ({ bloco: m.bloco, apartamento: m.apartamento })),
-          ...auList.map(au => ({ bloco: au.apartamento?.bloco, apartamento: au.apartamento?.apto })),
-        ].filter(unit => unit.apartamento != null && unit.apartamento !== '');
+    const isSindico = typeAccess === 'Sindico' || typeAccess === 'Admin' || typeAccess === 'Administradora';
+    const userId = user?.sub ?? user?.user?.id;
 
-        const match = userUnits.some(unit =>
-          this.nomeFaturaDeApto(result.nome, unit.apartamento, unit.bloco)
-        );
+    // 1. Conta pessoal de usuário (id_usuario preenchido: luz, água, internet, etc.)
+    if (result.id_usuario != null) {
+      const isDono = userId != null && Number(result.id_usuario) === Number(userId);
+      if (!isDono && !isSindico) {
+        throw new ForbiddenException('Acesso negado: lançamento pessoal não pertence a você');
+      }
+    }
+
+    // 2. Cobrança de unidade / Taxa condominial (tipo 'C')
+    if (result.tipo === 'C') {
+      if (!isSindico) {
+        if (!isMorador) {
+          // Porteiro ou funcionário comum não pode inspecionar cobranças individuais de moradores (LGPD Art. 6º, III)
+          throw new ForbiddenException('Acesso negado: cobrança de unidade é restrita ao morador e à administração');
+        }
+
+        // Morador só pode ver cobrança se pertencer à sua unidade
+        let match = false;
+        if (userId != null && result.nome) {
+          const moradoresList = await this.prisma.moradores.findMany({
+            where: {
+              id_user: Number(userId),
+              id_condominio: Number(idCondominio),
+            },
+            select: { apartamento: true, bloco: true },
+          });
+          const auList = await this.prisma.apartamentos_Users.findMany({
+            where: {
+              id_user: Number(userId),
+              apartamento: { id_condominio: Number(idCondominio) },
+            },
+            include: { apartamento: true },
+          });
+          const userUnits = [
+            ...moradoresList.map(m => ({ bloco: m.bloco, apartamento: m.apartamento })),
+            ...auList.map(au => ({ bloco: au.apartamento?.bloco, apartamento: au.apartamento?.apto })),
+          ].filter(unit => unit.apartamento != null && unit.apartamento !== '');
+
+          match = userUnits.some(unit =>
+            this.nomeFaturaDeApto(result.nome, unit.apartamento, unit.bloco)
+          );
+        }
+
         if (!match) {
           throw new ForbiddenException('Acesso negado: lançamento não pertence a você');
         }
-      } else if (!podeVer) {
+      }
+    } else if (isMorador && result.id_usuario == null) {
+      // 3. Despesa geral do condomínio (tipo 'D') acessada por morador:
+      // O morador só pode ver despesas publicadas no livro caixa (já pagas: pago = 1).
+      if (result.pago !== 1) {
         throw new ForbiddenException('Acesso negado: lançamento não pertence a você');
       }
     }

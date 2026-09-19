@@ -200,6 +200,8 @@ async function minhasCobrancas(ctx: ContextoFerramenta, apenasAberto: boolean) {
     where: {
       id_condominio: ctx.idCondominio,
       ...(apenasAberto && { pago: 0 }),
+      status: { not: '3' },
+      valor: { gt: 0 },
       OR: [
         { id_usuario: ctx.idUser }, // sempre do JWT, nunca dos args
         { tipo: 'C' }, // filtrada abaixo pela unidade do usuário

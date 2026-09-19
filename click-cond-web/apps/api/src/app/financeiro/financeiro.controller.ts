@@ -199,11 +199,12 @@ export class FinanceiroController {
   @Get('get-by-user')
   getByUser(@Query('id_user') idUser: string, @Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
     const typeAccess = payload?.typeAccess ?? payload?.user?.typeAccess;
-    const isMorador = typeAccess === 'Morador';
+    const isSindico = typeAccess === 'Sindico' || typeAccess === 'Admin' || typeAccess === 'Administradora';
     const currentUserId = payload?.user?.id ?? payload?.sub;
-    // Morador SEMPRE recebe os próprios lançamentos, ignorando qualquer
-    // id_user que ele tente passar (impede ler dados de outro morador).
-    const targetUserId = isMorador ? Number(currentUserId) : Number(idUser);
+    // Somente Síndico/Admin pode consultar o extrato financeiro de outro usuário.
+    // Para qualquer outro papel (Morador, Porteiro, Funcionário), força o id_user
+    // da própria sessão para impedir espionagem de contas pessoais e boletos.
+    const targetUserId = isSindico && idUser ? Number(idUser) : Number(currentUserId);
     return this.service.getByUser(targetUserId, Number(idCondominio), payload);
   }
 

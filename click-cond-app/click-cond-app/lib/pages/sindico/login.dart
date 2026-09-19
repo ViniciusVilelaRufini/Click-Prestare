@@ -198,6 +198,14 @@ class _LoginSindicoPageState extends State<LoginSindico> {
               password: senha,
             );
           }
+        } else if (isSaved) {
+          // Se já possuía Face ID salvo e digitou credenciais alteradas, atualiza
+          // o Keychain para manter a biometria sempre sincronizada com a senha nova.
+          await service.updateCredentialsIfChanged(
+            loginType: widget.loginType,
+            login: login,
+            password: senha,
+          );
         }
       }
 
@@ -492,10 +500,18 @@ class _LoginSindicoPageState extends State<LoginSindico> {
             const SizedBox(height: AppSpacing.md),
           ],
           AppInput(
-            label: getText('email'),
+            label: widget.loginType == 'morador'
+                ? 'CPF ou E-mail'
+                : widget.loginType == 'funcionario'
+                    ? 'Usuário ou E-mail'
+                    : getText('email'),
             controller: _txtLogin,
-            keyboard: TextInputType.emailAddress,
-            prefixIcon: PhosphorIcons.envelope,
+            keyboard: widget.loginType == 'morador'
+                ? TextInputType.text
+                : TextInputType.emailAddress,
+            prefixIcon: widget.loginType == 'morador'
+                ? PhosphorIcons.identificationCard
+                : PhosphorIcons.envelope,
           ),
           const SizedBox(height: AppSpacing.md),
           AppInput(

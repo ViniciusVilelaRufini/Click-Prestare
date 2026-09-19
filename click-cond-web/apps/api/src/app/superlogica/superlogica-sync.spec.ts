@@ -166,6 +166,21 @@ describe('SuperlogicaSyncService — importação de unidades', () => {
     expect(create.mock.calls.map((c: any[]) => c[0].data.apto)).toEqual(['1', '2', '3', '4', '5']);
     expect(create.mock.calls.every((c: any[]) => c[0].data.bloco === 'a')).toBe(true);
   });
+
+  it('descarta unidades de outros condomínios retornadas pelo ERP', async () => {
+    // Se a API retornar unidades misturadas de outra conta, não podem ser importadas
+    const unidades = [
+      { id_unidade_uni: '101', id_condominio_cond: '999', st_unidade_uni: '101', st_bloco_uni: 'A' },
+      { id_unidade_uni: '102', id_condominio_cond: '24', st_unidade_uni: '102', st_bloco_uni: 'A' },
+    ];
+    const { service, create } = montar(unidades);
+
+    const r = await service.importarUnidades(7);
+
+    expect(r.apartamentosCriados).toBe(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0].data.apto).toBe('102');
+  });
 });
 
 describe('SuperlogicaSyncService — sincronização de cobranças', () => {
@@ -364,5 +379,16 @@ describe('SuperlogicaSyncService — sincronização de cobranças', () => {
 
     expect(raspar).not.toHaveBeenCalled();
     raspar.mockRestore();
+  });
+
+  it('descarta cobranças de outros condomínios retornadas pelo ERP', async () => {
+    // Cobrança pertencente a id_condominio_cond diferente não pode ser gravada neste condomínio
+    const deOutroCond = { ...cobranca('99999', '837'), id_condominio_cond: '999' };
+    const { service, upsert } = montar([deOutroCond], [{ id_superlogica_uni: 837, apto: '408', bloco: '4' }]);
+
+    const r = await service.sincronizarCondominio(7);
+
+    expect(upsert).not.toHaveBeenCalled();
+    expect(r.lancamentosGravados).toBe(0);
   });
 });

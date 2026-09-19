@@ -166,4 +166,30 @@ class BiometricAuthService {
     await _storage.delete(key: '$_keyPrefixPass$loginType');
     await _storage.delete(key: '$_keyPrefixEnabled$loginType');
   }
+
+  /// Atualiza as credenciais no Keychain se o usuário já possuir Face ID ativado
+  /// para este perfil e os valores tiverem mudado (ex: trocou de senha ou login).
+  /// Retorna `true` se houve atualização, ou `false` caso contrário.
+  Future<bool> updateCredentialsIfChanged({
+    required String loginType,
+    required String login,
+    required String password,
+  }) async {
+    final current = await getSavedCredentials(loginType);
+    if (current == null) return false;
+
+    final cleanLogin = login.trim();
+    final cleanPassword = password.trim();
+    if (cleanLogin.isEmpty || cleanPassword.isEmpty) return false;
+
+    if (current['login'] != cleanLogin || current['password'] != cleanPassword) {
+      await saveCredentials(
+        loginType: loginType,
+        login: cleanLogin,
+        password: cleanPassword,
+      );
+      return true;
+    }
+    return false;
+  }
 }

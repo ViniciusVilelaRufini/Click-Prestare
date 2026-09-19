@@ -1,3 +1,4 @@
+import 'package:click/pages/singleton.dart';
 import 'package:click/services/firebase_service.dart';
 import 'package:click/utils/cond_cache.dart';
 import 'package:localstorage/localstorage.dart';
@@ -77,6 +78,7 @@ Future<void> storageLogout() async {
   // Cache de exibição do condomínio vive no processo, não no storage: sem isto
   // o próximo login veria o saldo/resumo do usuário anterior antes do refresh.
   CondCache.clear();
+  Singleton.instance.reset();
   final deviceToken = getSindicoDeviceToken();
   try {
     await FirebaseService.instance.desregistrarNoServidor();

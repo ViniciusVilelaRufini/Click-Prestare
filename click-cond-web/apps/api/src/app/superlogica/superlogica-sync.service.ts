@@ -146,6 +146,15 @@ export class SuperlogicaSyncService implements OnModuleInit {
     const contatosPorApartamento: { idApartamento: number; contatos: SuperlogicaContato[] }[] = [];
 
     for (const u of unidades) {
+      // Defesa em profundidade: descarta unidades que pertençam a outro condomínio no ERP
+      if (
+        u.id_condominio_cond &&
+        condominio.id_superlogica_cond &&
+        String(u.id_condominio_cond).trim() !== String(condominio.id_superlogica_cond).trim()
+      ) {
+        continue;
+      }
+
       const apto = SuperlogicaSyncService.normalizarUnidade(u.st_unidade_uni);
       const bloco = SuperlogicaSyncService.normalizarUnidade(u.st_bloco_uni) || null;
 
@@ -284,6 +293,16 @@ export class SuperlogicaSyncService implements OnModuleInit {
     let descartadas = 0;
 
     for (const cobranca of cobrancas) {
+      // Defesa em profundidade: descarta cobranças que pertençam a outro condomínio no ERP
+      if (
+        cobranca.id_condominio_cond &&
+        condominio.id_superlogica_cond &&
+        String(cobranca.id_condominio_cond).trim() !== String(condominio.id_superlogica_cond).trim()
+      ) {
+        descartadas++;
+        continue;
+      }
+
       const apartamento = porUnidade.get(Number(cobranca.id_unidade_uni));
       if (!apartamento) {
         // Unidade não importada (ou fantasma do ERP). Sem apartamento não há a

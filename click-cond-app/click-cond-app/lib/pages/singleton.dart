@@ -48,4 +48,20 @@ class Singleton {
   getCurrentMoeda(){    
     return moeda.isEmpty ? "R\$" : moeda;
   }
+
+  /// Limpa o estado em memória para evitar vazamento de apartamento/bloco
+  /// e condomínio entre sessões no logout.
+  void reset() {
+    id_condominio = null;
+    id_apartamento = null;
+    apartamento = '';
+    bloco = '';
+    condominio_nome = '';
+    condominio_photo = '';
+    apto_tipo = null;
+    vencimento_morador = '';
+    dias_restantes_morador = 10;
+    moeda = 'R\$';
+    mainView = null;
+  }
 }

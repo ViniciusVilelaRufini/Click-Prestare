@@ -93,6 +93,71 @@ describe('FinanceiroService — isolamento de tenant (IDOR)', () => {
       const result = await svc.get(2, 500, porteiroCond2);
       expect(result.id).toBe(500);
     });
+
+    it('NEGA porteiro ler conta pessoal de morador (id_usuario preenchido)', async () => {
+      const contaPessoal = { ...lancamentoDoCond2, id: 501, id_usuario: 7, tipo: 'D' };
+      const { svc } = buildService({
+        financeiro: {
+          findFirst: jest.fn(async ({ where }: any) =>
+            where.id === 501 && where.id_condominio === 2 ? contaPessoal : null,
+          ),
+        },
+      });
+      await expect(svc.get(2, 501, porteiroCond2)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('NEGA porteiro inspecionar cobrança individual de unidade (tipo C)', async () => {
+      const cobrancaUnidade = { ...lancamentoDoCond2, id: 502, tipo: 'C', nome: 'Apto 101 Bloco A - Ref. 05/2026' };
+      const { svc } = buildService({
+        financeiro: {
+          findFirst: jest.fn(async ({ where }: any) =>
+            where.id === 502 && where.id_condominio === 2 ? cobrancaUnidade : null,
+          ),
+        },
+      });
+      await expect(svc.get(2, 502, porteiroCond2)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('PERMITE morador ler a própria conta pessoal com sub string do JWT', async () => {
+      const contaPessoal = { ...lancamentoDoCond2, id: 503, id_usuario: 7, tipo: 'D' };
+      const { svc } = buildService({
+        financeiro: {
+          findFirst: jest.fn(async ({ where }: any) =>
+            where.id === 503 && where.id_condominio === 2 ? contaPessoal : null,
+          ),
+        },
+        apartamentos_Users: {
+          findFirst: jest.fn(async () => ({ id_apto: 10 })),
+          findMany: jest.fn(async () => []),
+        },
+        moradores: {
+          findMany: jest.fn(async () => [{ apartamento: '101', bloco: 'A' }]),
+        },
+      });
+      const morador: JwtPayload = { sub: '7' as any, nome: 'Morador 7', typeAccess: 'Morador' };
+      const result = await svc.get(2, 503, morador);
+      expect(result.id).toBe(503);
+    });
+
+    it('NEGA morador ler conta pessoal de outro usuário', async () => {
+      const contaAlheia = { ...lancamentoDoCond2, id: 504, id_usuario: 8, tipo: 'D' };
+      const { svc } = buildService({
+        financeiro: {
+          findFirst: jest.fn(async ({ where }: any) =>
+            where.id === 504 && where.id_condominio === 2 ? contaAlheia : null,
+          ),
+        },
+        apartamentos_Users: {
+          findFirst: jest.fn(async () => ({ id_apto: 10 })),
+          findMany: jest.fn(async () => []),
+        },
+        moradores: {
+          findMany: jest.fn(async () => [{ apartamento: '101', bloco: 'A' }]),
+        },
+      });
+      const morador: JwtPayload = { sub: '7' as any, nome: 'Morador 7', typeAccess: 'Morador' };
+      await expect(svc.get(2, 504, morador)).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 
   describe('síndico e morador mobile (JWT sem id_condominio)', () => {

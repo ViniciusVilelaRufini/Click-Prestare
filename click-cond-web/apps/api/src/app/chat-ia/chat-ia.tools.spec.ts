@@ -140,6 +140,8 @@ describe('Ferramentas do Assistente IA — autorização', () => {
       // O OR aceita conta pessoal do próprio usuário OU cobrança tipo 'C' —
       // esta última é peneirada pela unidade dele logo depois da query.
       expect(arg.where.OR).toEqual([{ id_usuario: 47 }, { tipo: 'C' }]);
+      expect(arg.where.status).toEqual({ not: '3' });
+      expect(arg.where.valor).toEqual({ gt: 0 });
     });
 
     /**
