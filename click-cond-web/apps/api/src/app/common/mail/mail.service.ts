@@ -118,43 +118,145 @@ export class MailService implements OnModuleInit {
 
   async sendWelcomeMorador(email: string, nome: string, senhaInicial: string): Promise<void> {
     const subject = 'PRESTARE - Bem-vindo(a)! Suas credenciais de acesso';
+    const text = `Olá, ${nome}!\n\nO seu acesso ao aplicativo PRESTARE foi criado com sucesso.\nPara acessar sua conta como Morador, baixe o aplicativo e utilize as credenciais abaixo:\n\nLogin (E-mail): ${email}\nSenha Inicial: ${senhaInicial}\n\nRecomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
     const html = `
-      Olá, <b>${this.escape(nome)}</b>!<br><br>
-      O seu acesso ao aplicativo <b>PRESTARE</b> foi criado com sucesso.<br><br>
-      Para acessar sua conta como <b>Morador</b>, baixe o aplicativo e utilize as credenciais abaixo:<br><br>
-      <b>Login (E-mail):</b> ${this.escape(email)}<br>
-      <b>Senha Inicial:</b> ${this.escape(senhaInicial)}<br><br>
-      <i>Recomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.</i><br><br>
-      Seja muito bem-vindo(a)!<br>
-      Equipe PRESTARE
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${this.escape(subject)}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px 10px;">
+        <div style="display:none;font-size:1px;color:#fff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+          Suas credenciais de acesso ao aplicativo PRESTARE
+        </div>
+        <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #0f172a; margin: 0; font-size: 20px; font-weight: 700;">Credenciais de Acesso</h2>
+          </div>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+            Olá, <b>${this.escape(nome)}</b>!<br><br>
+            O seu acesso ao aplicativo <b>PRESTARE</b> foi criado com sucesso.<br><br>
+            Para acessar sua conta como <b>Morador</b>, baixe o aplicativo e utilize as credenciais abaixo:
+          </p>
+
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <div style="margin-bottom: 14px;">
+              <span style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Login (E-mail):</span>
+              <div style="font-size: 14px; color: #0f172a; font-weight: 600; margin-top: 4px; word-break: break-all;">
+                ${this.escape(email)}
+              </div>
+            </div>
+            <div>
+              <span style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Senha Inicial:</span>
+              <div style="text-align: center; margin: 12px 0 6px 0;">
+                <span style="display: inline-block; font-size: 28px; font-weight: 800; letter-spacing: 4px; color: #1e3a8a; background-color: #ffffff; padding: 12px 28px; border-radius: 8px; border: 1px dashed #94a3b8; font-family: monospace;">
+                  ${this.escape(senhaInicial)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">
+            🔒 <i>Recomendamos que você altere sua senha após o primeiro acesso no menu de Configurações do App.</i>
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            Equipe PRESTARE Condomínios
+          </p>
+        </div>
+      </body>
+      </html>
     `;
-    await this.send(email, subject, html);
+    await this.send(email, subject, html, text);
   }
 
   async sendWelcomeMoradorExisting(email: string, nome: string): Promise<void> {
     const subject = 'PRESTARE - Bem-vindo(a)! Novo vínculo de condomínio';
+    const text = `Olá, ${nome}!\n\nO seu acesso ao aplicativo PRESTARE foi vinculado a um novo condomínio com sucesso.\nComo você já possui um cadastro ativo no sistema associado a este e-mail (${email}), utilize a sua senha cadastrada anteriormente para acessar.\n\nSe você não se lembra da sua senha atual, basta abrir o aplicativo e tocar em "Esqueci minha senha" na tela de login para redefini-la.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
     const html = `
-      Olá, <b>${this.escape(nome)}</b>!<br><br>
-      O seu acesso ao aplicativo <b>PRESTARE</b> foi vinculado a um novo apartamento com sucesso.<br><br>
-      Como você já possui um cadastro ativo no sistema associado a este e-mail, **utilize a sua senha cadastrada anteriormente** para acessar a sua conta.<br><br>
-      Se você não se lembra da sua senha atual, basta abrir o aplicativo e tocar em **"Esqueci minha senha"** na tela de login para redefini-la.<br><br>
-      Seja muito bem-vindo(a)!<br>
-      Equipe PRESTARE
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${this.escape(subject)}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px 10px;">
+        <div style="display:none;font-size:1px;color:#fff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+          Novo vínculo de condomínio no aplicativo PRESTARE
+        </div>
+        <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #0f172a; margin: 0; font-size: 20px; font-weight: 700;">Novo Vínculo de Unidade</h2>
+          </div>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+            Olá, <b>${this.escape(nome)}</b>!<br><br>
+            O seu acesso ao aplicativo <b>PRESTARE</b> foi vinculado a um novo apartamento/condomínio com sucesso.<br><br>
+            Como você já possui um cadastro ativo associado ao e-mail <b>${this.escape(email)}</b>, utilize a sua <b>senha já cadastrada anteriormente</b> para acessar sua conta.
+          </p>
+
+          <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 18px; margin: 20px 0;">
+            <p style="color: #1e40af; font-size: 13px; line-height: 1.5; margin: 0;">
+              💡 <b>Esqueceu sua senha?</b> Basta abrir o aplicativo PRESTARE e clicar em <b>"Esqueci minha senha"</b> na tela de login para redefini-la a qualquer momento.
+            </p>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            Equipe PRESTARE Condomínios
+          </p>
+        </div>
+      </body>
+      </html>
     `;
-    await this.send(email, subject, html);
+    await this.send(email, subject, html, text);
   }
 
   async sendForgotPassword(email: string, novaSenha: string, tipoUsuario: string): Promise<void> {
     const subject = 'PRESTARE - Recuperação de Senha';
+    const text = `Olá!\n\nVocê ou alguém solicitou a recuperação de senha do aplicativo PRESTARE.\n\nUtilize a senha temporária abaixo para entrar na sua conta como ${tipoUsuario}:\n${novaSenha}\n\nPor segurança, altere sua senha no menu de Configurações logo após o login.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
     const html = `
-      Olá,<br><br>
-      Você ou alguém solicitou a recuperação de senha do App PRESTARE.<br><br>
-      Utilize a senha abaixo para entrar na sua conta como ${this.escape(tipoUsuario)}:<br>
-      <b>${this.escape(novaSenha)}</b><br><br>
-      Atenciosamente,<br>
-      Equipe PRESTARE
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${this.escape(subject)}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px 10px;">
+        <div style="display:none;font-size:1px;color:#fff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+          Recuperação de senha do aplicativo PRESTARE
+        </div>
+        <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #0f172a; margin: 0; font-size: 20px; font-weight: 700;">Recuperação de Senha</h2>
+          </div>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+            Olá!<br><br>
+            Você ou alguém solicitou a recuperação de senha da sua conta no aplicativo <b>PRESTARE</b>.<br><br>
+            Utilize a nova senha temporária abaixo para entrar na sua conta como <b>${this.escape(tipoUsuario)}</b>:
+          </p>
+
+          <div style="text-align: center; margin: 24px 0;">
+            <span style="display: inline-block; font-size: 28px; font-weight: 800; letter-spacing: 4px; color: #1e3a8a; background-color: #f1f5f9; padding: 12px 28px; border-radius: 8px; border: 1px dashed #94a3b8; font-family: monospace;">
+              ${this.escape(novaSenha)}
+            </span>
+          </div>
+
+          <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">
+            ⚠️ <i>Por motivos de segurança, altere sua senha nas configurações do aplicativo logo após o primeiro acesso.</i>
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            Equipe PRESTARE Condomínios
+          </p>
+        </div>
+      </body>
+      </html>
     `;
-    await this.send(email, subject, html);
+    await this.send(email, subject, html, text);
   }
 
   async sendBillingReminder(
@@ -166,18 +268,60 @@ export class MailService implements OnModuleInit {
     copiacola?: string,
   ): Promise<void> {
     const subject = `Lembrete de Cobrança: ${descricao}`;
+    const text = `Olá, ${nome}!\n\nEste é um aviso automático sobre a seguinte cobrança pendente:\n\nDescrição: ${descricao}\nValor: ${valor}\nVencimento: ${vencimento}\n\n${copiacola ? `Chave Pix Copia e Cola:\n${copiacola}\n\n` : ''}Regularize sua situação pelo aplicativo PRESTARE.\n\nEquipe PRESTARE Condomínios\nhttps://www.clickprestarecondominios.com.br`;
     const html = `
-      Olá, <b>${this.escape(nome)}</b>!<br><br>
-      Este é um aviso automático sobre a seguinte cobrança pendente:<br><br>
-      <b>Descrição:</b> ${this.escape(descricao)}<br>
-      <b>Valor:</b> ${this.escape(valor)}<br>
-      <b>Vencimento:</b> ${this.escape(vencimento)}<br><br>
-      ${copiacola ? `Você pode efetuar o pagamento diretamente usando a chave Pix Copia e Cola abaixo:<br><br><pre style="background: #f4f4f4; padding: 10px; border-radius: 5px; word-break: break-all;">${this.escape(copiacola)}</pre><br><br>` : ''}
-      Regularize sua situação financeira pelo aplicativo PRESTARE.<br><br>
-      Atenciosamente,<br>
-      Equipe PRESTARE
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${this.escape(subject)}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px 10px;">
+        <div style="display:none;font-size:1px;color:#fff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+          Lembrete de cobrança pendente PRESTARE
+        </div>
+        <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #0f172a; margin: 0; font-size: 20px; font-weight: 700;">Lembrete de Cobrança</h2>
+          </div>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
+            Olá, <b>${this.escape(nome)}</b>!<br><br>
+            Este é um aviso automático sobre a seguinte cobrança pendente:
+          </p>
+
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <div style="margin-bottom: 10px;">
+              <span style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Descrição:</span>
+              <div style="font-size: 14px; color: #0f172a; font-weight: 600; margin-top: 2px;">${this.escape(descricao)}</div>
+            </div>
+            <div style="margin-bottom: 10px;">
+              <span style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Valor:</span>
+              <div style="font-size: 16px; color: #1e3a8a; font-weight: 700; margin-top: 2px;">${this.escape(valor)}</div>
+            </div>
+            <div>
+              <span style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Vencimento:</span>
+              <div style="font-size: 14px; color: #b91c1c; font-weight: 600; margin-top: 2px;">${this.escape(vencimento)}</div>
+            </div>
+            ${copiacola ? `
+            <div style="margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+              <span style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Chave Pix Copia e Cola:</span>
+              <pre style="background: #ffffff; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; word-break: break-all; font-size: 11px; color: #334155; margin-top: 6px; white-space: pre-wrap;">${this.escape(copiacola)}</pre>
+            </div>` : ''}
+          </div>
+
+          <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0;">
+            Regularize sua situação financeira diretamente pelo aplicativo <b>PRESTARE</b>.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            Equipe PRESTARE Condomínios
+          </p>
+        </div>
+      </body>
+      </html>
     `;
-    await this.send(email, subject, html);
+    await this.send(email, subject, html, text);
   }
 
   async sendMfaCode(email: string, nome: string, code: string): Promise<void> {
