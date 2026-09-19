@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:click/services/firebase_service.dart';
+import 'package:click/services/biometric_auth_service.dart';
 import '../../controllers/controller_funcionario.dart';
 import '../../controllers/controller_moradores.dart';
 
@@ -31,6 +32,90 @@ class _LoginSindicoPageState extends State<LoginSindico> {
   final _txtSenha = TextEditingController();
   bool _isLoading = false;
 
+  bool _hasBiometrics = false;
+  bool _hasSavedCredentials = false;
+  bool _isBiometricAuthenticating = false;
+  bool _autoBiometricAttempted = false;
+  String _biometricLabel = 'Face ID';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometrics();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final service = BiometricAuthService.instance;
+    final available = await service.isBiometricAvailable();
+    if (!available || !mounted) return;
+
+    final label = await service.getBiometricLabel();
+    final creds = await service.getSavedCredentials(widget.loginType);
+
+    if (!mounted) return;
+    setState(() {
+      _hasBiometrics = available;
+      _biometricLabel = label;
+      if (creds != null) {
+        _hasSavedCredentials = true;
+        _txtLogin.text = creds['login'] ?? '';
+      }
+    });
+
+    if (creds != null && !_autoBiometricAttempted) {
+      _autoBiometricAttempted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loginWithBiometrics(creds: creds);
+        }
+      });
+    }
+  }
+
+  Future<void> _loginWithBiometrics({Map<String, String>? creds}) async {
+    if (_isLoading || _isBiometricAuthenticating) return;
+
+    final service = BiometricAuthService.instance;
+    final saved = creds ?? await service.getSavedCredentials(widget.loginType);
+    if (saved == null) return;
+
+    setState(() => _isBiometricAuthenticating = true);
+
+    final authenticated = await service.authenticate(
+      reason:
+          'Autentique-se com $_biometricLabel para acessar sua conta de ${_typeLabel()}',
+    );
+
+    if (!mounted) return;
+    setState(() => _isBiometricAuthenticating = false);
+
+    if (authenticated) {
+      _txtLogin.text = saved['login'] ?? '';
+      _txtSenha.text = saved['password'] ?? '';
+      await _doLogin(isFromBiometrics: true);
+    }
+  }
+
+  Future<void> _forgetBiometrics() async {
+    final confirm = await showAppConfirmDialog(
+      context,
+      title: 'Desvincular $_biometricLabel?',
+      message:
+          'Suas credenciais salvas de ${_typeLabel()} serão removidas deste dispositivo.',
+      confirmLabel: 'Desvincular',
+      cancelLabel: 'Cancelar',
+      isDanger: true,
+    );
+    if (confirm == true) {
+      await BiometricAuthService.instance.clearCredentials(widget.loginType);
+      if (!mounted) return;
+      setState(() {
+        _hasSavedCredentials = false;
+        _txtSenha.clear();
+      });
+    }
+  }
+
   @override
   void dispose() {
     _txtLogin.dispose();
@@ -38,7 +123,7 @@ class _LoginSindicoPageState extends State<LoginSindico> {
     super.dispose();
   }
 
-  Future<void> _doLogin() async {
+  Future<void> _doLogin({bool isFromBiometrics = false}) async {
     if (_isLoading) return;
     final login = _txtLogin.text.trim();
     final senha = _txtSenha.text.trim();
@@ -92,6 +177,30 @@ class _LoginSindicoPageState extends State<LoginSindico> {
     setState(() => _isLoading = false);
 
     if (message == "") {
+      if (!isFromBiometrics && _hasBiometrics) {
+        final service = BiometricAuthService.instance;
+        final isSaved = await service.hasSavedCredentials(widget.loginType);
+        if (!isSaved && mounted) {
+          final shouldSave = await showAppConfirmDialog(
+            context,
+            title: 'Ativar $_biometricLabel?',
+            message:
+                'Deseja salvar sua senha no aparelho e usar o $_biometricLabel para entrar com rapidez e segurança nos próximos acessos?',
+            confirmLabel: 'Ativar $_biometricLabel',
+            cancelLabel: 'Agora não',
+            icon: PhosphorIcons.scan,
+            iconColor: AppColors.primary,
+          );
+          if (shouldSave == true) {
+            await service.saveCredentials(
+              loginType: widget.loginType,
+              login: login,
+              password: senha,
+            );
+          }
+        }
+      }
+
       await _updateFcmToken();
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -356,6 +465,32 @@ class _LoginSindicoPageState extends State<LoginSindico> {
             style: AppTypography.caption(context),
           ),
           const SizedBox(height: AppSpacing.xl),
+          if (_hasSavedCredentials) ...[
+            AppButton(
+              label: 'Entrar com $_biometricLabel',
+              icon: PhosphorIcons.scan,
+              loading: _isBiometricAuthenticating,
+              variant: AppButtonVariant.primary,
+              onPressed: () => _loginWithBiometrics(),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Row(
+              children: [
+                Expanded(child: Divider(color: AppColors.border(context))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  child: Text(
+                    'ou acesse com sua senha',
+                    style: AppTypography.tiny(context).copyWith(
+                      color: AppColors.textTertiary(context),
+                    ),
+                  ),
+                ),
+                Expanded(child: Divider(color: AppColors.border(context))),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           AppInput(
             label: getText('email'),
             controller: _txtLogin,
@@ -406,6 +541,30 @@ class _LoginSindicoPageState extends State<LoginSindico> {
             trailingIcon: PhosphorIcons.arrowRight,
             onPressed: _doLogin,
           ),
+          if (_hasSavedCredentials) ...[
+            const SizedBox(height: AppSpacing.md),
+            Center(
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textTertiary(context),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(PhosphorIcons.trash, size: 14),
+                label: Text(
+                  'Desvincular $_biometricLabel deste aparelho',
+                  style: AppTypography.tiny(context).copyWith(
+                    color: AppColors.textTertiary(context),
+                  ),
+                ),
+                onPressed: _forgetBiometrics,
+              ),
+            ),
+          ],
         ],
       ),
     );

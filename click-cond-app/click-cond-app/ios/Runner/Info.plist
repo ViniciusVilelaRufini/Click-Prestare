@@ -78,6 +78,8 @@
 		<string>Permite salvar na sua galeria as fotos e comprovantes gerados no aplicativo.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Permite escolher na sua galeria a foto de cadastro de moradores, visitantes, prestadores e funcionários, além de comprovantes de encomendas e despesas do condomínio.</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>Permite autenticar de forma rápida e segura usando o Face ID para acessar sua conta de morador, síndico ou portaria.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UILaunchStoryboardName</key>

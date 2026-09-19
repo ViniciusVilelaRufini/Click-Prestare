@@ -39,9 +39,45 @@ void main() {
       expect(faturaDeAptoCorresponde('Apto 10 Bloco A', '10', 'A'), isTrue);
     });
 
-    /// Sem apto/bloco no Singleton (morador que entrou direto pela home) não
-    /// dá para afirmar titularidade — e o chute erra para o lado errado.
-    test('sem apto ou bloco do morador, não associa', () {
+    test('casa fatura com sufixo de taxa condominial e referência (o caso real)', () {
+      expect(
+        faturaDeAptoCorresponde('Apto 101 Bloco A - Taxa Condominial Ref. 09/2026', '101', 'A'),
+        isTrue,
+      );
+      expect(
+        faturaDeAptoCorresponde('Apto 101 - Bloco A - Taxa Condominial Ref. 09/2026', '101', 'A'),
+        isTrue,
+      );
+    });
+
+    test('aceita condomínio sem bloco (unidade de torre única)', () {
+      expect(
+        faturaDeAptoCorresponde('Apto 101 - Taxa Condominial Ref. 09/2026', '101', ''),
+        isTrue,
+      );
+      // Mas não casa se a fatura pertence a um bloco e o morador não tem bloco
+      expect(
+        faturaDeAptoCorresponde('Apto 101 Bloco B - Taxa Condominial Ref. 09/2026', '101', ''),
+        isFalse,
+      );
+    });
+
+    test('tolera morador com "Apto 101" ou "Bloco A" preenchidos no perfil', () {
+      expect(
+        faturaDeAptoCorresponde('Apto 101 Bloco A - Taxa Condominial Ref. 09/2026', 'Apto 101', 'Bloco A'),
+        isTrue,
+      );
+    });
+
+    test('aceita "Apartamento" como variação de "Apto"', () {
+      expect(
+        faturaDeAptoCorresponde('Apartamento 101 Bloco A - Ref. 09/2026', '101', 'A'),
+        isTrue,
+      );
+    });
+
+    /// Sem apto no Singleton não dá para afirmar titularidade.
+    test('sem apto ou bloco do morador, não associa indevidamente', () {
       expect(faturaDeAptoCorresponde('Apto 10 - Bloco A', '', 'A'), isFalse);
       expect(faturaDeAptoCorresponde('Apto 10 - Bloco A', '10', ''), isFalse);
     });

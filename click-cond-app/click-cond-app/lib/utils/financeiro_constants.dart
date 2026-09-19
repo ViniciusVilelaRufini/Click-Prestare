@@ -70,28 +70,42 @@ Competencia competenciaDe(dynamic item) {
   return Competencia(agora.month.toString().padLeft(2, '0'), agora.year.toString());
 }
 
-/// "Apto 10 - Bloco A" → ('10', 'A'). Devolve null se o nome não é fatura de
-/// apartamento. O bloco pode ter espaços ("Torre Norte").
-final _padraoFaturaApto = RegExp(
-  r'^\s*apto\s+(\S+)\s*[-–—]?\s*bloco\s+(.+?)\s*$',
-  caseSensitive: false,
-);
-
 /// Decide se uma cobrança órfã (sem `id_usuario`) é da unidade do morador,
-/// comparando apartamento e bloco extraídos do nome do lançamento.
+/// comparando apartamento e bloco informados com o nome do lançamento.
 ///
-/// Antes isto era `nome.contains('apto $meuApto')`, que casa por prefixo: para
-/// quem mora no Apto 10, "Apto 101" e "Apto 1050" também batiam, e a dívida do
-/// vizinho entrava no total do morador. Comparação exata, campo a campo.
+/// Segue a mesma especificação de `FinanceiroService.nomeFaturaDeApto` do backend:
+/// aceita sufixos como " - Taxa Condominial Ref. MM/AAAA", tolera blocos com
+/// espaço ("Torre Norte") e condomínios de bloco único / sem bloco.
 bool faturaDeAptoCorresponde(String nome, String meuApto, String meuBloco) {
-  final apto = meuApto.trim().toLowerCase();
-  final bloco = meuBloco.trim().toLowerCase();
-  if (apto.isEmpty || bloco.isEmpty) return false;
+  var apto = meuApto.trim();
+  if (apto.toLowerCase().startsWith('apto ')) {
+    apto = apto.substring(5).trim();
+  }
+  if (apto.isEmpty || nome.trim().isEmpty) return false;
 
-  final m = _padraoFaturaApto.firstMatch(nome);
-  if (m == null) return false;
+  final aptoEsc = RegExp.escape(apto);
+  final aptoRegex = RegExp(
+    '\\b(?:Apto|Apartamento)\\s+$aptoEsc(?=\\s+Bloco\\s|\\s*[-–—]\\s|\$)',
+    caseSensitive: false,
+  );
+  if (!aptoRegex.hasMatch(nome)) return false;
 
-  return m.group(1)!.trim().toLowerCase() == apto && m.group(2)!.trim().toLowerCase() == bloco;
+  var bloco = meuBloco.trim();
+  if (bloco.toLowerCase().startsWith('bloco ')) {
+    bloco = bloco.substring(6).trim();
+  }
+
+  if (bloco.isNotEmpty) {
+    final blocoEsc = RegExp.escape(bloco);
+    final blocoRegex = RegExp(
+      '\\bBloco\\s+$blocoEsc(?=\\s*[-–—]\\s|\$)',
+      caseSensitive: false,
+    );
+    return blocoRegex.hasMatch(nome);
+  }
+
+  // Sem bloco no perfil do morador: aceita apenas se a fatura também não tiver bloco
+  return !RegExp(r'\bBloco\s+\S', caseSensitive: false).hasMatch(nome);
 }
 
 /// Totais de uma lista de lançamentos do financeiro.

@@ -3,7 +3,7 @@ description: Click - Gestão inteligente de condomínios. Controle de acesso, vi
 
 publish_to: 'none'
 
-version: 1.2.18+72
+version: 1.2.19+73
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -53,6 +53,8 @@ dependencies:
 
   http: any
   path_provider: any
+  local_auth: ^3.0.2
+  flutter_secure_storage: ^10.3.4
 dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_native_splash: ^2.4.0

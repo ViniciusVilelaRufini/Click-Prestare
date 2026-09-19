@@ -1,4 +1,4 @@
-﻿import 'package:click/theme/app_colors.dart';
+import 'package:click/theme/app_colors.dart';
 import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/widgets/app/app_button.dart';
@@ -58,7 +58,12 @@ Future<bool> showAppConfirmDialog(
   String confirmLabel = 'Confirmar',
   String cancelLabel = 'Cancelar',
   bool isDanger = false,
+  IconData? icon,
+  Color? iconColor,
 }) async {
+  final effectiveIcon = icon ?? (isDanger ? PhosphorIcons.warning : PhosphorIcons.warning);
+  final effectiveColor = iconColor ?? (isDanger ? AppColors.error : AppColors.warning);
+
   final result = await showDialog<bool>(
     context: context,
     builder: (c) => Dialog(
@@ -72,12 +77,12 @@ Future<bool> showAppConfirmDialog(
             Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
-                color: (isDanger ? AppColors.error : AppColors.warning).withValues(alpha: 0.12),
+                color: effectiveColor.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                PhosphorIcons.warning,
-                color: isDanger ? AppColors.error : AppColors.warning,
+                effectiveIcon,
+                color: effectiveColor,
                 size: 32,
               ),
             ),

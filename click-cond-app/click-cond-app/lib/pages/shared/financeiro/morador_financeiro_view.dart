@@ -58,7 +58,7 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
 
   bool _isFaturaDeApto(String name) {
     final clean = name.toLowerCase().trim();
-    return clean.startsWith('apto ') && clean.contains('bloco');
+    return clean.startsWith('apto ') || clean.startsWith('apartamento ');
   }
 
   bool _isFaturaDesteMorador(dynamic item) {
@@ -71,20 +71,18 @@ class MoradorFinanceiroViewState extends State<MoradorFinanceiroView> {
       return true;
     }
     
-    // Se for uma fatura de apartamento (inicia com "Apto" e contém "Bloco"),
-    // mas está órfã (sem id_usuario), associamos pelo apartamento e bloco do
-    // Singleton — com comparação EXATA: o `contains` de antes casava por
-    // prefixo e trazia "Apto 101" para o morador do "Apto 10".
-    if (_isFaturaDeApto(nome)) {
-      return faturaDeAptoCorresponde(
-        nome,
-        Singleton.instance.apartamento.toString(),
-        Singleton.instance.bloco.toString(),
-      );
+    // Se for uma fatura da unidade (com ou sem bloco),
+    // associamos pelo apartamento e bloco do morador com correspondência exata.
+    if (faturaDeAptoCorresponde(
+      nome,
+      Singleton.instance.apartamento.toString(),
+      Singleton.instance.bloco.toString(),
+    )) {
+      return true;
     }
 
-    // Se idUsuario for nulo e NÃO for fatura de apartamento, então é uma despesa/receita global do condomínio.
-    // Essas despesas globais NÃO devem aparecer no "Meu Financeiro", apenas na aba "Condomínio".
+    // Se idUsuario for nulo e NÃO for da unidade deste morador,
+    // não deve aparecer no "Meu Financeiro", apenas na aba "Condomínio" se for despesa global.
     return false;
   }
 

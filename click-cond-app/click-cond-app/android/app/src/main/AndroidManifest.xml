@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Ditado por voz no PRESTARE IA. O reconhecimento roda no aparelho. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Autenticação biométrica para Face ID / impressão digital -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <!-- BILLING removida junto com o in_app_purchase: sem a biblioteca de
          faturamento, a permissao sozinha faz o Google classificar o app como
          integracao AIDL legada e rejeitar a versao. -->
