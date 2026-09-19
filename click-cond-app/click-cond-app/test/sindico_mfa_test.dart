@@ -87,8 +87,20 @@ void main() {
       // Botão de confirmação
       expect(find.text('Confirmar e Entrar'), findsOneWidget);
 
-      // 6 caixas de texto OTP
-      expect(find.byType(TextField), findsNWidgets(6));
+      // 1 campo de texto unificado OTP (evita fechar teclado no iOS a cada dígito)
+      expect(find.byType(TextField), findsOneWidget);
+
+      // Digita o código de 6 dígitos no campo
+      await tester.enterText(find.byType(TextField), '123456');
+      await tester.pump();
+
+      // Confirma que os dígitos aparecem na tela nas caixas visuais
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
+      expect(find.text('6'), findsOneWidget);
     });
   });
 }

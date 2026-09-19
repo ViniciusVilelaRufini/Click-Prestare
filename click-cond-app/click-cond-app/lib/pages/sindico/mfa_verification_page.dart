@@ -41,9 +41,8 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
   bool _isLoading = false;
   bool _isResending = false;
 
-  final List<TextEditingController> _controllers =
-      List.generate(6, (_) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
+  final TextEditingController _codeController = TextEditingController();
+  final FocusNode _codeFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -52,28 +51,24 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
     _currentEmailMasked = widget.emailMasked;
     _remainingSeconds = widget.expiresInSeconds;
 
-    for (int i = 0; i < 6; i++) {
-      final index = i;
-      _focusNodes[index].onKeyEvent = (node, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.backspace) {
-          if (_controllers[index].text.isEmpty && index > 0) {
-            _focusNodes[index - 1].requestFocus();
-            _controllers[index - 1].clear();
-            return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
-      };
-    }
+    _codeController.addListener(() {
+      if (mounted) setState(() {});
+      if (_codeController.text.length == 6 && !_isLoading) {
+        _submitVerification();
+      }
+    });
+
+    _codeFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
 
     _startCountdownTimer();
     _startCooldownTimer();
 
-    // Auto-foco na primeira caixa
+    // Auto-foco suave na entrada
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _focusNodes.isNotEmpty) {
-        _focusNodes[0].requestFocus();
+      if (mounted) {
+        _codeFocusNode.requestFocus();
       }
     });
   }
@@ -82,12 +77,8 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
   void dispose() {
     _countdownTimer?.cancel();
     _cooldownTimer?.cancel();
-    for (final c in _controllers) {
-      c.dispose();
-    }
-    for (final f in _focusNodes) {
-      f.dispose();
-    }
+    _codeController.dispose();
+    _codeFocusNode.dispose();
     super.dispose();
   }
 
@@ -122,38 +113,10 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
     return '$minutes:$seconds';
   }
 
-  String get _code => _controllers.map((c) => c.text.trim()).join();
-
-  void _onDigitChanged(int index, String value) {
-    if (value.length > 1) {
-      // Trata colagem de texto completa
-      final digits = value.replaceAll(RegExp(r'\D'), '');
-      if (digits.isNotEmpty) {
-        for (int i = 0; i < 6 && i < digits.length; i++) {
-          _controllers[i].text = digits[i];
-        }
-        final nextIndex = digits.length < 6 ? digits.length : 5;
-        _focusNodes[nextIndex].requestFocus();
-        if (digits.length >= 6) {
-          _submitVerification();
-        }
-      }
-      return;
-    }
-
-    if (value.isNotEmpty) {
-      if (index < 5) {
-        _focusNodes[index + 1].requestFocus();
-      } else {
-        _focusNodes[index].unfocus();
-        if (_code.length == 6) {
-          _submitVerification();
-        }
-      }
-    }
-  }
+  String get _code => _codeController.text.trim();
 
   Future<void> _submitVerification() async {
+    _codeFocusNode.unfocus();
     final code = _code;
     if (code.length != 6) {
       showAppDialog(
@@ -239,13 +202,11 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
               ? res['expires_in_seconds'] as int
               : 600;
           _resendCooldown = 60;
-          for (final c in _controllers) {
-            c.clear();
-          }
+          _codeController.clear();
         });
         _startCountdownTimer();
         _startCooldownTimer();
-        _focusNodes[0].requestFocus();
+        _codeFocusNode.requestFocus();
 
         showAppDialog(
           context,
@@ -300,13 +261,18 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
           const Positioned.fill(child: GridBackground()),
           Positioned.fill(
             child: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xxl,
-                      vertical: AppSpacing.sm,
-                    ),
+              child: GestureDetector(
+                onTap: () => FocusScope.of(context).unfocus(),
+                behavior: HitTestBehavior.translucent,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xxl,
+                        vertical: AppSpacing.sm,
+                      ),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                         minHeight: constraints.maxHeight - AppSpacing.sm * 2,
@@ -337,8 +303,9 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
                         ),
                       ),
                     ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -457,12 +424,37 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Digite o código recebido',
-            style: AppTypography.headline(context).copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-            textAlign: TextAlign.center,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Digite o código recebido',
+                style: AppTypography.headline(context).copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (_codeFocusNode.hasFocus)
+                TextButton.icon(
+                  onPressed: () => _codeFocusNode.unfocus(),
+                  icon: const Icon(PhosphorIcons.caretDown, size: 14),
+                  label: const Text(
+                    'Ocultar teclado',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary(context),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: AppColors.surface(context),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      side: BorderSide(color: AppColors.border(context)),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.xl),
           _buildOtpRow(context),
@@ -592,53 +584,93 @@ class _MfaVerificationPageState extends State<MfaVerificationPage> {
   }
 
   Widget _buildOtpRow(BuildContext context) {
-    return Row(
-      children: List.generate(6, (index) {
-        return Expanded(
-          child: Container(
-            height: 58,
-            margin: EdgeInsets.only(
-              left: index == 0 ? 0 : AppSpacing.xs,
-              right: index == 5 ? 0 : AppSpacing.xs,
-            ),
+    final currentCode = _codeController.text;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // 1. TextField real invisível mas totalmente interativo, com input numérico estável no iOS
+        Opacity(
+          opacity: 0.0,
+          child: SizedBox(
+            width: double.infinity,
+            height: 60,
             child: TextField(
-              controller: _controllers[index],
-              focusNode: _focusNodes[index],
-              textAlign: TextAlign.center,
+              controller: _codeController,
+              focusNode: _codeFocusNode,
               keyboardType: TextInputType.number,
-              maxLength: 1,
-              style: AppTypography.title(context).copyWith(
-                fontWeight: FontWeight.w800,
-                fontSize: 22,
-                color: AppColors.primary,
-              ),
-              decoration: InputDecoration(
-                counterText: '',
-                contentPadding: EdgeInsets.zero,
-                filled: true,
-                fillColor: AppColors.surface(context),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(
-                    color: _controllers[index].text.isNotEmpty
-                        ? AppColors.primary.withValues(alpha: 0.6)
-                        : AppColors.border(context),
-                    width: 1.5,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: const BorderSide(
-                    color: AppColors.primary,
-                    width: 2.2,
-                  ),
-                ),
-              ),
-              onChanged: (val) => _onDigitChanged(index, val),
+              textInputAction: TextInputAction.done,
+              enableSuggestions: false,
+              autocorrect: false,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+              onSubmitted: (_) {
+                if (_codeController.text.trim().length == 6) {
+                  _submitVerification();
+                } else {
+                  _codeFocusNode.unfocus();
+                }
+              },
             ),
           ),
-        );
-      }),
+        ),
+
+        // 2. Os 6 quadrantes visuais desenhados com alta elegância e precisão
+        IgnorePointer(
+          child: Row(
+            children: List.generate(6, (index) {
+              final hasChar = currentCode.length > index;
+              final char = hasChar ? currentCode[index] : '';
+              final isCurrentSlot = _codeFocusNode.hasFocus &&
+                  (currentCode.length == index ||
+                      (currentCode.length == 6 && index == 5));
+
+              return Expanded(
+                child: Container(
+                  height: 58,
+                  margin: EdgeInsets.only(
+                    left: index == 0 ? 0 : AppSpacing.xs,
+                    right: index == 5 ? 0 : AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface(context),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(
+                      color: isCurrentSlot
+                          ? AppColors.primary
+                          : (hasChar
+                              ? AppColors.primary.withValues(alpha: 0.6)
+                              : AppColors.border(context)),
+                      width: isCurrentSlot ? 2.2 : (hasChar ? 1.5 : 1.2),
+                    ),
+                    boxShadow: isCurrentSlot
+                        ? [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      char,
+                      style: AppTypography.title(context).copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 24,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
     );
   }
 }
