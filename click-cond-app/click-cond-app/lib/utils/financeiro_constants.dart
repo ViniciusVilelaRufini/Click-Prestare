@@ -204,3 +204,18 @@ String valorParaInput(dynamic bruto) {
 String formatMoeda(dynamic bruto) {
   return NumberFormat('#,##0.00', 'pt_BR').format(parseValorMoeda(bruto));
 }
+
+/// Define se o perfil tem permissão de ver/alternar entre finanças pessoais ("Meu Financeiro") e do condomínio.
+///
+/// Porteiros/funcionários só devem ver as finanças do condomínio (receitas e despesas),
+/// nunca "Meu Financeiro". Síndicos podem alternar entre os dois. Moradores veem suas próprias contas.
+bool deveExibirToggleFinanceiro(String userType) => userType == 'sindico';
+
+/// Determina se o modo financeiro inicial deve ser o do condomínio para o perfil.
+/// Funcionários e Síndicos iniciam em condomínio; apenas moradores em pessoal/morador.
+bool isModoCondominioParaPerfil(String userType) => userType != 'morador';
+
+/// Define se as contas pessoais do usuário devem ser requisitadas na API.
+/// Funcionários não possuem contas pessoais no condomínio.
+bool deveCarregarFinanceiroPessoal(String userType) => userType != 'funcionario';
+
