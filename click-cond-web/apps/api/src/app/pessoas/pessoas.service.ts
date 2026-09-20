@@ -20,8 +20,8 @@ export class PessoasService {
         ...(search
           ? {
               OR: [
-                { nome: { contains: search } },
-                ...(docLimpo ? [{ doc_identificacao: { contains: docLimpo } }] : []),
+                { nome: { startsWith: search } },
+                ...(docLimpo ? [{ doc_identificacao: { equals: docLimpo } }] : []),
               ],
             }
           : {}),
@@ -29,6 +29,21 @@ export class PessoasService {
       orderBy: { nome: 'asc' },
       take: 50,
     });
+  }
+
+  private async atualizarSeNecessario(existente: any, dto: CriarPessoaDto) {
+    const updateData: any = {};
+    if (dto.telefone && !existente.telefone) updateData.telefone = dto.telefone;
+    if (dto.foto_pessoa && !existente.foto_pessoa) updateData.foto_pessoa = dto.foto_pessoa;
+    if (dto.face_id && !existente.face_id) updateData.face_id = dto.face_id;
+
+    if (Object.keys(updateData).length > 0) {
+      return this.prisma.pessoas.update({
+        where: { id: existente.id },
+        data: updateData,
+      });
+    }
+    return existente;
   }
 
   async obterOuCriar(idCondominio: number, dto: CriarPessoaDto) {
@@ -50,33 +65,59 @@ export class PessoasService {
       });
 
       if (existentePorDoc) {
-        const updateData: any = {};
-        if (dto.telefone && !existentePorDoc.telefone) updateData.telefone = dto.telefone;
-        if (dto.foto_pessoa && !existentePorDoc.foto_pessoa) updateData.foto_pessoa = dto.foto_pessoa;
-        if (dto.face_id && !existentePorDoc.face_id) updateData.face_id = dto.face_id;
-
-        if (Object.keys(updateData).length > 0) {
-          return this.prisma.pessoas.update({
-            where: { id: existentePorDoc.id },
-            data: updateData,
-          });
-        }
-        return existentePorDoc;
+        return this.atualizarSeNecessario(existentePorDoc, dto);
       }
     }
 
-    return this.prisma.pessoas.create({
-      data: {
-        id_condominio: Number(idCondominio),
-        nome: dto.nome.trim(),
-        doc_identificacao: docLimpo,
-        telefone: dto.telefone ?? null,
-        foto_pessoa: dto.foto_pessoa ?? null,
-        foto_documento: dto.foto_documento ?? null,
-        tipo_pessoa: dto.tipo_pessoa ?? 'visitante',
-        face_id: dto.face_id ?? null,
-      },
-    });
+    // Regra herdada da heuristica antiga de agrupamento: mesmo rosto = mesma
+    // pessoa. Sem isto, visitante sem CPF (o sistema aceita) vira uma Pessoa
+    // nova a cada visita e o terminal acumula varias faces do mesmo humano —
+    // o problema que esta migracao existe para resolver.
+    if (dto.face_id) {
+      const existentePorFace = await this.prisma.pessoas.findFirst({
+        where: {
+          id_condominio: Number(idCondominio),
+          face_id: dto.face_id,
+        },
+      });
+
+      if (existentePorFace) {
+        return this.atualizarSeNecessario(existentePorFace, dto);
+      }
+    }
+
+    try {
+      return await this.prisma.pessoas.create({
+        data: {
+          id_condominio: Number(idCondominio),
+          nome: dto.nome.trim(),
+          doc_identificacao: docLimpo,
+          telefone: dto.telefone ?? null,
+          foto_pessoa: dto.foto_pessoa ?? null,
+          foto_documento: dto.foto_documento ?? null,
+          tipo_pessoa: dto.tipo_pessoa ?? 'visitante',
+          face_id: dto.face_id ?? null,
+        },
+      });
+    } catch (err: any) {
+      // `@@unique([id_condominio, doc_identificacao])` (Task 1) faz duas
+      // criações concorrentes do mesmo documento colidirem aqui em vez de
+      // gerarem duas Pessoas. Sem este catch, a segunda requisição veria o
+      // P2002 cru do Prisma como 500 em vez de ganhar a Pessoa que a
+      // primeira acabou de criar.
+      if (err?.code === 'P2002' && docLimpo) {
+        const criadaPelaOutraRequisicao = await this.prisma.pessoas.findFirst({
+          where: {
+            id_condominio: Number(idCondominio),
+            doc_identificacao: docLimpo,
+          },
+        });
+        if (criadaPelaOutraRequisicao) {
+          return this.atualizarSeNecessario(criadaPelaOutraRequisicao, dto);
+        }
+      }
+      throw err;
+    }
   }
 
   /**
