@@ -71,7 +71,7 @@ async function main() {
       .filter(([t, n]) => !PRESERVAR.has(t) && n > 0);
     if (restantes.length) {
       console.error('\nAINDA HÁ LINHAS:', restantes.map(([t, n]) => `${t}=${n}`).join(', '));
-      process.exit(1);
+      throw new Error(`Linhas remanescentes após wipe: ${restantes.map(([t, n]) => `${t}=${n}`).join(', ')}`);
     }
     console.log(`\nOK. Users preservados: ${depois['Users'] ?? 0}`);
   } finally {
