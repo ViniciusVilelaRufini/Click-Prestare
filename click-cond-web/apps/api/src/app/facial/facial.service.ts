@@ -2182,19 +2182,24 @@ export class FacialService {
       return { ok: false, reason: 'photo_unreachable' };
     }
 
-    let faceId = pessoa.face_id ?? null;
+    let faceId: string | null = pessoa.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
     for (const device of devices) {
       try {
-        const res = await this.client.createOrUpdatePerson(this.toConfig(device), {
-          external_id: externalId,
-          nome: pessoa.nome,
-          tipo: pessoa.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
-          face_id: faceId ?? undefined,
-          foto_base64: fotoBase64,
-        });
-        if (res.face_id) faceId = res.face_id;
+        if (faceId) {
+          await this.client.updatePerson(this.toConfig(device), faceId, {
+            nome: pessoa.nome,
+            fotoBase64,
+          });
+        } else {
+          const r = await this.client.enrollPerson(this.toConfig(device), {
+            externalId,
+            nome: pessoa.nome,
+            fotoBase64,
+          });
+          faceId = r.faceId;
+        }
       } catch (err: any) {
         allOk = false;
         ultimoErro = err?.message ?? String(err);
