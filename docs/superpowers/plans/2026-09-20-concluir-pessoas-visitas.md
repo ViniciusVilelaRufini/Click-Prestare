@@ -291,12 +291,91 @@ git commit -m "feat(pessoas): funde identidade por face_id e corrige busca por d
 
 ---
 
-### Tasks 3 em diante — migrar as escritas
+---
 
-As tasks seguintes migram `VisitantesService` para delegar a `PessoasService`/`VisitasService`, na ordem: `create` (a maior), depois `update`/`remove`/`removerPessoa`/`atualizarPessoa`, depois os caminhos de estado (liberar, bloquear, entrada, saída) e as leituras restantes (`findAll`, `findOne`, `findAllMobile`).
+### Task 3: Migrar create() para Pessoas/Visitas (Concluída no commit a6311c9b)
 
-Cada uma preserva o contrato de resposta que o app v75 publicado consome, e nenhuma liga a flag.
+### Task 4: Migrar update, remove, removerPessoa, atualizarPessoa (Concluída nos commits 617f25e1 e 03dd212a)
 
-Depois delas vem o facial (Task 7): `parseExternalId` aceitar `pessoa_`, `tickFantasmas` consultar `pessoas`, `syncVisitante` delegar a `syncPessoa`, e os ticks passarem a varrer `Pessoas`. Só então a flag é ligada (Task 8) e o caminho legado removido (Task 9).
+---
 
-**Estas tasks serão detalhadas após a Task 2**, quando o formato real de `criarVisita` e do adapter já estiver estabelecido em código — detalhá-las agora seria escrever contra uma interface que as duas primeiras tasks ainda vão mexer.
+### Task 5: Migrar caminhos de estado e leituras em VisitantesService
+
+**Files:**
+- Modify: `apps/api/src/app/visitantes/visitantes.service.ts`
+- Test: `apps/api/src/app/visitantes/visitantes.state-surface.pessoas-visitas.spec.ts` (criar)
+
+**Interfaces:**
+- Consumes: `assertPodeAcessarVisita`, `mapVisitaParaRespostaLegada`, `prisma.visitas`, `prisma.pessoas`
+- Produces: Delegação completa de `checkIn`, `liberarAcesso`, `checkOut`, `solicitarAutorizacao`, `autorizar`, `negar`, `validarCodigo`, `findOne`, `detalhes`, `findAll`, `findAllMobile`, `listarPendentes` quando `pessoasMigrationEnabled() === true`.
+
+**Requisitos específicos:**
+1. `checkIn`:
+   - Quando flag ativa, usa `assertPodeAcessarVisita(id, payload)`.
+   - Atualiza `visitas`: `data_entrada: new Date()`, `data_saida: null`, `liberado: 1`, `user: payload?.sub`. Se `auth_status === 'pendente'`, marca como `autorizado`.
+   - Dispara `facial.syncPessoa(v.id_pessoa)` e auditoria `CHECK_IN`.
+2. `liberarAcesso`:
+   - Usa `assertPodeAcessarVisita(id, payload)`.
+   - Atualiza `visitas`: `liberado: 1`, `data_entrada: null`, `data_saida: null`.
+   - Desativa outros códigos para a mesma pessoa/visita.
+   - Dispara `facial.syncPessoa(v.id_pessoa)` e auditoria.
+3. `checkOut`:
+   - Usa `assertPodeAcessarVisita(id, payload)`.
+   - Atualiza `visitas`: `data_saida: new Date()`, `codigo_acesso: null`, `liberado: ref.is_prestador === 1 ? 1 : 0`, `auth_status: null`.
+   - Libera vagas de garagem vinculadas à visita (`prisma.vagas.updateMany({ where: { id_visita: v.id }, data: { ocupada: 0, id_visita: null, placa: null } })`).
+   - Dispara `facial.syncPessoa(v.id_pessoa)` e auditoria `CHECK_OUT`.
+4. `solicitarAutorizacao`, `autorizar`, `negar`:
+   - Usam `assertPodeAcessarVisita`.
+   - Atualizam `visitas`: `auth_status`, `auth_solicitado_em` / `auth_respondido_em`, `auth_respondido_por`.
+   - Disparam eventos realtime e `facial.syncPessoa(v.id_pessoa)`.
+5. `validarCodigo`:
+   - Busca em `prisma.visitas` com include `pessoa`, `apartamento`, `criadoPor`.
+   - Verifica período de validade, tolerância e dias de semana.
+   - Retorna formato compatível (LGPD sanitizado).
+6. `findOne`, `detalhes`, `findAll`, `findAllMobile`, `listarPendentes`:
+   - Buscam em `visitas` + `pessoa` e formatam via `mapVisitaParaRespostaLegada()`.
+
+---
+
+### Task 6: Hardware Facial: Suporte a pessoa_ e Proteção contra Fantasmas
+
+**Files:**
+- Modify: `apps/api/src/app/facial/facial.service.ts`
+- Modify: `apps/api/src/app/facial/facial-device-client.service.ts`
+- Test: `apps/api/src/app/facial/parse-external-id.spec.ts`
+- Test: `apps/api/src/app/facial/tick-fantasmas.spec.ts`
+
+**Requisitos específicos:**
+1. `facial-device-client.service.ts`:
+   - `NOSSO_EXTERNAL_ID`: atualizar regex para `/^(morador|visitante|prestador_servico|pessoa)_\d+$/`.
+2. `facial.service.ts`:
+   - `parseExternalId`: aceitar `/^(morador|visitante|prestador_servico|pessoa)_(\d+)$/`.
+   - No tratamento de eventos por `externalId`: quando `parsed.tipo === 'pessoa'`, buscar `this.prisma.pessoas.findUnique({ where: { id: parsed.id } })` e mapear `idPessoa`, `tipoPessoa`, `nomePessoa`.
+   - No fallback por `face_id`: incluir busca em `this.prisma.pessoas.findFirst({ where: { face_id: externalId, id_condominio: device.id_condominio } })`.
+   - `tickFantasmas`: incluir `this.prisma.pessoas.findMany({ where: { id_condominio: device.id_condominio, face_id: { in: idsNoAparelho } }, select: { face_id: true } })` em `idsNoBanco`. Garante que biometria de pessoas migradas nunca seja removida como fantasma.
+   - `syncVisitante`: quando `pessoasMigrationEnabled()`, resolver a `pessoa` vinculada à visita e chamar `syncPessoa`.
+
+---
+
+### Task 7: Virar a chave da flag PESSOAS_MIGRATION_ENABLED=true e Validação Global
+
+**Files:**
+- Modify: `click-cond-web/.env`
+- Modify: `click-cond-web/.env.example`
+
+**Requisitos específicos:**
+1. Set `PESSOAS_MIGRATION_ENABLED=true`.
+2. Rodar bateria completa de testes Jest da API (`npx jest --config apps/api/jest.config.cts --forceExit`).
+3. Rodar checagem de tipos TypeScript (`npx tsc -p apps/api/tsconfig.app.json --noEmit`).
+4. Rodar testes do Flutter app mobile (`flutter test` no diretório do app) se houver testes.
+5. Garantir zero quebras e zero regressões.
+
+---
+
+### Task 8: Code Review Final, Merge e Deploy
+
+1. Revisão completa do diff contra master (`git diff master..HEAD`).
+2. Checkout da branch `master`, merge de `fix/integridade-dados`.
+3. `git push origin master` disparando GitHub Actions CI/CD e deploy no Elastic Beanstalk.
+4. Monitorar build e status do ambiente.
+
