@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  IsDateString,
+  IsDefined,
   IsIn,
   IsInt,
   IsOptional,
@@ -31,6 +33,12 @@ export class CriarVisitaDto {
   @IsInt()
   user?: number | null;
 
+  // @ValidateNested sozinho não valida `undefined` — o executor de
+  // class-validator retorna cedo quando o valor está ausente, então um body
+  // sem `pessoa` passava o pipe, chegava em `obterOuCriar(cond, undefined)` e
+  // estourava TypeError (500 vazio) em `dto.nome.trim()`. `@IsDefined()`
+  // fecha exatamente esse buraco.
+  @IsDefined()
   @ValidateNested()
   @Type(() => CriarPessoaDto)
   pessoa!: CriarPessoaDto;
@@ -44,9 +52,11 @@ export class CriarVisitaDto {
   is_prestador?: number;
 
   @IsOptional()
+  @IsDateString()
   data_hora_inicio?: Date | string | null;
 
   @IsOptional()
+  @IsDateString()
   data_hora_termino?: Date | string | null;
 
   @IsOptional()
