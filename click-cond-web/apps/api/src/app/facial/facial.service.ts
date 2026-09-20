@@ -2198,6 +2198,24 @@ export class FacialService {
     );
   }
 
+  /**
+   * TODO (não corrigido nesta rodada — documentado para quem terminar a
+   * migração):
+   *
+   * 1. Nenhum tick re-sincroniza Pessoas: `tickDiasSemanaSync`,
+   *    `tickExpiracaoAutomatica`, `tickPreEnrolamento` e `tickFantasmas` só
+   *    varrem `Visitantes`/`Moradores`/`Prestadores_servico`. O teto de
+   *    validade de fim-de-dia que `dias_semana` impõe (ver `fimDoDiaBRT`
+   *    abaixo) nunca é reestendido no dia seguinte — a pessoa fica trancada
+   *    fora depois da meia-noite mesmo num dia autorizado.
+   *
+   * 2. Quando uma Pessoa tem várias Visitas ativas sobrepostas,
+   *    `resolverVisitaAtivaPessoa` usa `.find(...)` sobre `pessoa.visitas`
+   *    (populado por `include: { visitas: true }` sem `orderBy`) — a ordem
+   *    de retorno do banco decide qual visita "vence", então a janela mais
+   *    estreita pode ganhar e travar a pessoa fora mais cedo do que
+   *    qualquer uma das visitas isoladamente permitiria.
+   */
   async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[] } = {}) {
     const devices = await this.prisma.facial_Devices.findMany({
       where: {
@@ -2243,6 +2261,16 @@ export class FacialService {
       (inicioMs === null || agora >= inicioMs - GRACE) &&
       (terminoMs === null || agora <= terminoMs + GRACE);
 
+    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
+    const diasPermitidos: string[] = visitaAtiva?.dias_semana
+      ? String(visitaAtiva.dias_semana).split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean)
+      : [];
+    const diaAutorizado = diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
+
     const validFrom = visitaAtiva?.data_hora_inicio
       ? this.formatDahuaTime(new Date(visitaAtiva.data_hora_inicio))
       : undefined;
@@ -2252,30 +2280,68 @@ export class FacialService {
         : visitaAtiva?.data_hora_termino
           ? this.formatDahuaTime(new Date(visitaAtiva.data_hora_termino))
           : undefined;
-    const diasPermitidos: string[] = visitaAtiva?.dias_semana
-      ? String(visitaAtiva.dias_semana).split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean)
-      : [];
     if (!dentroDoCondominio && diasPermitidos.length > 0) {
       const fimHoje = this.fimDoDiaBRT();
       validTo = !validTo || validTo > fimHoje ? fimHoje : validTo;
     }
 
-    const temVagaAtiva =
-      !!visitaAtiva &&
-      this.prisma.vagas &&
-      (await this.prisma.vagas.count({
-        where: { id_visita: visitaAtiva.id, ativo: 1 },
-      })) > 0;
+    // A categoria (pra userTimes) vem da AUTORIZAÇÃO ativa (Visitas.is_prestador),
+    // não da identidade (Pessoas.tipo_pessoa): tipo_pessoa é só o cadastro
+    // "de costume" da pessoa, e uma mesma pessoa pode ter uma visita comum
+    // mesmo tendo sido registrada uma vez como prestador. Sem visita ativa
+    // (não deveria acontecer — syncPessoa só chega aqui com `autorizado`
+    // true — mas por segurança), cai no cadastro da pessoa.
+    const ehPrestador = visitaAtiva
+      ? visitaAtiva.is_prestador === 1
+      : pessoa.tipo_pessoa === 'prestador';
+
+    // Vaga ativa (Vagas.id_visita) — best-effort: a coluna `id_visita` é
+    // parte da migração Pessoas/Visitas e pode não existir ainda no banco.
+    // Uma falha aqui (ex.: "Unknown column") NÃO pode derrubar o sync
+    // inteiro — degrada pra "sem vaga ativa" e segue.
+    let temVagaAtiva = false;
+    if (visitaAtiva) {
+      try {
+        const count = await this.prisma.vagas.count({
+          where: { id_visita: visitaAtiva.id, ativo: 1 },
+        });
+        temVagaAtiva = count > 0;
+      } catch (err: any) {
+        this.logger.warn(
+          `pushPessoaToDevices pessoa ${pessoa.id}: falha ao consultar Vagas.id_visita (coluna pode não existir ainda) — tratando como sem vaga ativa: ${err?.message ?? err}`,
+        );
+        temVagaAtiva = false;
+      }
+    }
+
+    // Autorização "geral" (fora do condomínio, dentro da janela) — mesmo
+    // critério de `syncVisitante`.
+    const liberadoGeral = !!visitaAtiva && visitaAtiva.liberado === 1 && dentroJanela && diaAutorizado;
 
     let faceId: string | null = pessoa.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
     for (const device of devices) {
       try {
-        // Mesma regra do syncVisitante: prestador e pessoa com vaga ativa têm
+        // Mesmo filtro de `syncVisitante` (facial.service.ts:1895-1910): sem
+        // ele, uma pessoa expirada mas ainda DENTRO do condomínio ficava
+        // enrolada (sem validTo — ver acima) em TODO terminal, inclusive
+        // entrada/auto — abrindo a porta de entrada pra quem já devia ter
+        // perdido acesso. "Sem expiração" só é seguro no leitor de SAÍDA,
+        // pra deixar quem está dentro sair.
+        const podeEstarNoDispositivo =
+          liberadoGeral || (dentroDoCondominio && device.sentido === 'saida');
+
+        if (!podeEstarNoDispositivo) {
+          await this.client.removePerson(this.toConfig(device), faceId ?? externalId);
+          continue;
+        }
+
+        // Mesma regra do syncVisitante: prestador (pela VISITA, não pela
+        // identidade — ver `ehPrestador` acima) e pessoa com vaga ativa têm
         // usos ilimitados (-1); os demais têm o contador do aparelho (UseTime).
         let userTimes = -1;
-        if (pessoa.tipo_pessoa !== 'prestador' && !temVagaAtiva) {
+        if (!ehPrestador && !temVagaAtiva) {
           if (dentroDoCondominio) userTimes = 1;
           else userTimes = device.sentido === 'auto' ? 2 : 1;
         }

@@ -129,6 +129,7 @@ describe('FacialService: Sincronização por Pessoa', () => {
     });
 
     it('enrola (enrollPerson) quando a pessoa ainda não tem face_id', async () => {
+      const agora = Date.now();
       const pessoa = {
         id: 30,
         id_condominio: 1,
@@ -136,6 +137,22 @@ describe('FacialService: Sincronização por Pessoa', () => {
         foto_pessoa: 'http://foto.jpg',
         face_id: null,
         tipo_pessoa: 'visitante',
+        // Visita ativa dentro da janela: em produção pushPessoaToDevices só
+        // é chamado depois que syncPessoa já confirmou `autorizado`, então
+        // sempre há uma visita assim por trás — sem ela (ver teste "sem
+        // visita ativa" abaixo) a pessoa é removida, não enrolada.
+        visitas: [
+          {
+            id: 60,
+            liberado: 1,
+            bloqueado: 0,
+            data_hora_inicio: new Date(agora - 10_000),
+            data_hora_termino: new Date(agora + 100_000),
+            data_entrada: null,
+            data_saida: null,
+            dias_semana: null,
+          },
+        ],
       };
 
       const res = await service.pushPessoaToDevices(pessoa);
@@ -160,6 +177,7 @@ describe('FacialService: Sincronização por Pessoa', () => {
     });
 
     it('atualiza (updatePerson) quando a pessoa já tem face_id', async () => {
+      const agora = Date.now();
       const pessoa = {
         id: 31,
         id_condominio: 1,
@@ -167,6 +185,19 @@ describe('FacialService: Sincronização por Pessoa', () => {
         foto_pessoa: 'http://foto.jpg',
         face_id: 'face_existente',
         tipo_pessoa: 'prestador',
+        visitas: [
+          {
+            id: 61,
+            liberado: 1,
+            bloqueado: 0,
+            is_prestador: 1,
+            data_hora_inicio: new Date(agora - 10_000),
+            data_hora_termino: new Date(agora + 100_000),
+            data_entrada: null,
+            data_saida: null,
+            dias_semana: null,
+          },
+        ],
       };
 
       await service.pushPessoaToDevices(pessoa);
@@ -221,25 +252,35 @@ describe('FacialService: Sincronização por Pessoa', () => {
       );
     });
 
-    it('sem visita ativa, não envia validFrom/validTo (permanece null/undefined)', async () => {
+    /**
+     * Sem visita ativa nenhuma, a pessoa não devia estar sendo sincronizada
+     * (em produção syncPessoa só chega aqui com `autorizado` true). Por
+     * segurança o filtro de dispositivo (Regressão 1) trata esse caso como
+     * "não pode estar em nenhum terminal": remove em vez de enrolar sem
+     * nenhum limite de tempo.
+     */
+    it('sem visita ativa, remove a pessoa do terminal em vez de enrolar sem janela', async () => {
       const pessoa = {
         id: 41,
         id_condominio: 1,
         nome: 'Sem Visita',
         foto_pessoa: 'http://foto.jpg',
-        face_id: null,
+        face_id: 'face_pre_existente',
         tipo_pessoa: 'visitante',
         visitas: [],
       };
 
       await service.pushPessoaToDevices(pessoa);
 
-      const [, payload] = mockDeviceClient.enrollPerson.mock.calls[0];
-      expect(payload.validFrom).toBeUndefined();
-      expect(payload.validTo).toBeUndefined();
+      expect(mockDeviceClient.removePerson).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 900 }),
+        'face_pre_existente',
+      );
+      expect(mockDeviceClient.enrollPerson).not.toHaveBeenCalled();
+      expect(mockDeviceClient.updatePerson).not.toHaveBeenCalled();
     });
 
-    it('prestador tem usos ilimitados (userTimes = -1) mesmo com visita ativa', async () => {
+    it('prestador tem usos ilimitados (userTimes = -1) quando a VISITA ativa é de prestador', async () => {
       const agora = Date.now();
       const pessoa = {
         id: 42,
@@ -253,6 +294,7 @@ describe('FacialService: Sincronização por Pessoa', () => {
             id: 78,
             liberado: 1,
             bloqueado: 0,
+            is_prestador: 1,
             data_hora_inicio: new Date(agora - 10_000),
             data_hora_termino: new Date(agora + 100_000),
             data_entrada: null,
@@ -267,6 +309,102 @@ describe('FacialService: Sincronização por Pessoa', () => {
       expect(mockDeviceClient.enrollPerson).toHaveBeenCalledWith(
         expect.objectContaining({ id: 900 }),
         expect.objectContaining({ userTimes: -1 }),
+      );
+    });
+
+    /**
+     * Regressão 2: userTimes tinha que ler `Visitas.is_prestador` (a
+     * AUTORIZAÇÃO ativa), não `Pessoas.tipo_pessoa` (a IDENTIDADE). Do jeito
+     * que estava, qualquer pessoa cadastrada uma vez como 'prestador' ganhava
+     * usos ilimitados em TODA visita futura, mesmo criada com is_prestador=0.
+     */
+    it('regressão 2: pessoa com tipo_pessoa=prestador mas visita ativa is_prestador=0 NÃO tem usos ilimitados', async () => {
+      const agora = Date.now();
+      const pessoa = {
+        id: 43,
+        id_condominio: 1,
+        nome: 'Ex-Prestador Visitando',
+        foto_pessoa: 'http://foto.jpg',
+        face_id: null,
+        tipo_pessoa: 'prestador', // identidade antiga — não deve mandar
+        visitas: [
+          {
+            id: 79,
+            liberado: 1,
+            bloqueado: 0,
+            is_prestador: 0, // esta visita NÃO é de prestador
+            data_hora_inicio: new Date(agora - 10_000),
+            data_hora_termino: new Date(agora + 100_000),
+            data_entrada: null,
+            data_saida: null,
+            dias_semana: null,
+          },
+        ],
+      };
+
+      await service.pushPessoaToDevices(pessoa);
+
+      expect(mockDeviceClient.enrollPerson).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 900 }),
+        expect.anything(),
+      );
+      const [, payload] = mockDeviceClient.enrollPerson.mock.calls[0];
+      expect(payload.userTimes).not.toBe(-1);
+    });
+
+    /**
+     * Regressão 1: o branch "dentroDoCondominio && !dentroJanela → sem
+     * validTo" só é seguro no leitor de SAÍDA (mesmo filtro de
+     * `syncVisitante`, facial.service.ts:1895-1910). Sem portar esse filtro,
+     * uma pessoa expirada mas ainda dentro do condomínio ficava enrolada
+     * SEM NENHUM LIMITE DE TEMPO em TODO terminal, inclusive o de ENTRADA.
+     */
+    it('regressão 1: pessoa expirada dentro do condomínio não recebe enrollment sem limite no terminal de ENTRADA', async () => {
+      const agora = Date.now();
+      const entradaDevice = { ...device, id: 901, sentido: 'entrada' };
+      const saidaDevice = { ...device, id: 902, sentido: 'saida' };
+      mockPrisma.facial_Devices.findMany.mockResolvedValue([entradaDevice, saidaDevice]);
+
+      const pessoa = {
+        id: 44,
+        id_condominio: 1,
+        nome: 'Expirado Dentro',
+        foto_pessoa: 'http://foto.jpg',
+        face_id: null,
+        tipo_pessoa: 'visitante',
+        visitas: [
+          {
+            id: 80,
+            liberado: 1,
+            bloqueado: 0,
+            // Janela já expirada há muito (fora da GRACE de 15min)...
+            data_hora_inicio: new Date(agora - 3 * 60 * 60 * 1000),
+            data_hora_termino: new Date(agora - 60 * 60 * 1000),
+            // ...mas a pessoa ainda está DENTRO do condomínio (sem saída registrada).
+            data_entrada: new Date(agora - 2 * 60 * 60 * 1000),
+            data_saida: null,
+            dias_semana: null,
+          },
+        ],
+      };
+
+      await service.pushPessoaToDevices(pessoa);
+
+      // Terminal de ENTRADA: recusado — removido, nunca enrolado sem prazo.
+      expect(mockDeviceClient.removePerson).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 901 }),
+        expect.any(String),
+      );
+      expect(mockDeviceClient.enrollPerson).not.toHaveBeenCalledWith(
+        expect.objectContaining({ id: 901 }),
+        expect.anything(),
+      );
+
+      // Terminal de SAÍDA: continua liberado (pessoa tem que poder sair),
+      // sem validTo — é o único lugar onde isso é seguro.
+      expect(mockDeviceClient.enrollPerson).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 902 }),
+        expect.objectContaining({ validTo: undefined }),
       );
     });
   });
