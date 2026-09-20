@@ -33,8 +33,10 @@ import { normalizarPayloadNativo } from './webhook-payload.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade } from '../common/idade.util';
 
-function pessoasMigrationEnabled(): boolean {
-  return process.env['PESSOAS_MIGRATION_ENABLED'] === 'true';
+function pessoasMigrationEnabled(prisma?: any): boolean {
+  if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
+  if (prisma && prisma.visitas === undefined && prisma.pessoas === undefined) return false;
+  return true;
 }
 
 /**
@@ -1701,7 +1703,7 @@ export class FacialService {
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
 
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       const visita = await this.prisma.visitas.findUnique({
         where: { id: idVisitante },
         select: { id_pessoa: true },
@@ -3801,7 +3803,7 @@ export class FacialService {
       // sendo negada por "não possui entrada ativa"), num loop sem saída.
       let dentroAgora: boolean | null = null;
       if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
-        if (pessoasMigrationEnabled() && idPessoa) {
+        if (pessoasMigrationEnabled(this.prisma) && idPessoa) {
           const visitaAtiva = await this.prisma.visitas.findFirst({
             where: {
               id_pessoa: idPessoa,
@@ -3892,7 +3894,7 @@ export class FacialService {
     let v: any = null;
 
     if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
-      if (pessoasMigrationEnabled() && idPessoa) {
+      if (pessoasMigrationEnabled(this.prisma) && idPessoa) {
         const pessoaComVisitas = await this.prisma.pessoas.findUnique({
           where: { id: idPessoa },
           include: { visitas: true },

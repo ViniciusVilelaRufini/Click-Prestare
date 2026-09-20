@@ -36,8 +36,10 @@ import { VisitasService } from '../visitas/visitas.service';
  * a flag em runtime sem precisar recarregar o módulo, e em produção o valor
  * de `process.env` não muda depois do boot mesmo assim.
  */
-function pessoasMigrationEnabled(): boolean {
-  return process.env['PESSOAS_MIGRATION_ENABLED'] === 'true';
+function pessoasMigrationEnabled(prisma?: any): boolean {
+  if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
+  if (prisma && prisma.visitas === undefined && prisma.pessoas === undefined) return false;
+  return true;
 }
 
 export interface CreateVisitanteDto {
@@ -484,7 +486,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return mocks;
     }
 
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.findAllViaPessoasVisitas(idCondominio, search);
     }
 
@@ -524,7 +526,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.findOneViaPessoasVisitas(id, payload);
     }
 
@@ -618,7 +620,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return created / 1e10;
     };
 
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       const docClean = (search ?? '').replace(/\D/g, '').trim();
       const pessoasCadastradas = await this.prisma.pessoas.findMany({
         where: {
@@ -1265,7 +1267,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // id de `Visitas`/`Pessoas` que por acaso é o mesmo número (as duas
     // tabelas nascem do 1 e crescem em paralelo) e apagaria a pessoa errada,
     // soltando a vaga e desinscrevendo o rosto de quem nunca pediu remoção.
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.removerPessoaViaPessoasVisitas(idCondominio, idPessoaRef);
     }
 
@@ -1337,7 +1339,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   ) {
     // Mesmo motivo do `removerPessoa`: com a flag ligada, nunca resolve
     // `idPessoaRef` contra `Visitantes`.
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.atualizarPessoaViaPessoasVisitas(idCondominio, idPessoaRef, dto);
     }
 
@@ -1450,7 +1452,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // ela ligada, create() para de escrever em Visitantes e passa a rotear a
     // identidade por PessoasService.obterOuCriar / a autorização por
     // VisitasService.criarVisita — nunca as duas fontes ao mesmo tempo.
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.createViaPessoasVisitas(dto, operador);
     }
 
@@ -3174,7 +3176,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     // Task 4: com a flag ligada, `dto.id` é um id de `Visitas` (é o que
     // `create()` devolve nesse modo) — nunca resolve contra `Visitantes`.
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.updateViaPessoasVisitas(dto, payload);
     }
 
@@ -3270,7 +3272,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // As duas tabelas crescem em paralelo a partir do 1, então um `id` que
     // "existe" em Visitantes por coincidência apagaria o cadastro, a vaga e
     // o rosto de uma pessoa completamente diferente.
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.removeViaPessoasVisitas(id, payload);
     }
 
@@ -3326,7 +3328,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async validarCodigo(idCondominio: number, codigo: string) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.validarCodigoViaPessoasVisitas(idCondominio, codigo);
     }
 
@@ -3420,7 +3422,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Banco indisponível');
     }
 
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.detalhesViaPessoasVisitas(id, payload);
     }
 
@@ -3753,7 +3755,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async checkIn(id: number, payload?: JwtPayload, idApartamento?: number) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.checkInViaPessoasVisitas(id, payload, idApartamento);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
@@ -3803,7 +3805,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async liberarAcesso(id: number, payload?: JwtPayload, idApartamento?: number) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.liberarAcessoViaPessoasVisitas(id, payload, idApartamento);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
@@ -3853,7 +3855,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async checkOut(id: number, payload?: JwtPayload) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.checkOutViaPessoasVisitas(id, payload);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
@@ -3951,7 +3953,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * Deixa o visitante PENDENTE (liberado=0, sem PIN/facial) e dispara push.
    */
   async solicitarAutorizacao(id: number, payload?: JwtPayload, idApartamento?: number) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.solicitarAutorizacaoViaPessoasVisitas(id, payload, idApartamento);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
@@ -4008,7 +4010,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /** Morador autoriza: libera o acesso (liberado=1), opcionalmente registra entrada imediata, e enrola no facial. */
   async autorizar(id: number, payload?: JwtPayload, darEntrada?: boolean) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.autorizarViaPessoasVisitas(id, payload, darEntrada);
     }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
@@ -4060,7 +4062,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /** Morador nega: mantém bloqueado (liberado=0) e remove do facial. */
   async negar(id: number, payload?: JwtPayload) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.negarViaPessoasVisitas(id, payload);
     }
     await this.assertPodeAcessarVisitante(id, payload);
@@ -4093,7 +4095,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /** Inbox do morador: solicitações pendentes dos apartamentos vinculados a ele (apenas dos últimos 10 minutos). */
   async listarPendentes(idCondominio: number | undefined, payload?: JwtPayload) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.listarPendentesViaPessoasVisitas(idCondominio, payload);
     }
     const userId = Number(payload?.user?.id ?? payload?.sub);
@@ -4137,7 +4139,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     userId?: number,
     userType?: string,
   ) {
-    if (pessoasMigrationEnabled()) {
+    if (pessoasMigrationEnabled(this.prisma)) {
       return this.findAllMobileViaPessoasVisitas(idCondominio, idApto, search, offset, userId);
     }
     const conditions: any[] = [];

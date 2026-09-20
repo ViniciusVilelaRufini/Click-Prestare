@@ -139,6 +139,7 @@ describe('VisitantesService — superfície de escrita Pessoas/Visitas (Task 4)'
       const visitantesDelegate = jest.fn();
       const prisma: any = {
         isConnected: true,
+        pessoas: { findUnique: jest.fn() },
         visitas: {
           findUnique: jest.fn().mockResolvedValue({
             id: 42,
