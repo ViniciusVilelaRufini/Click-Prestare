@@ -506,6 +506,14 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
         user,
       );
 
+      // `id_visitante` não tem FK (nunca teve) e serve só de marcador
+      // "este convite já virou cadastro" (ver `exigirConviteDoMorador`
+      // acima). Com PESSOAS_MIGRATION_ENABLED='true', `visitante.id` é um id
+      // de `Visitas`, não de `Visitantes` — o nome da coluna ficou
+      // desatualizado, mas nada aqui faz JOIN contra `Visitantes` por ele
+      // (só compara com null), então armazenar o id de `Visitas` é coerente
+      // com o resto da Task 4: continua identificando "o registro que este
+      // convite gerou", só que no espaço de id novo.
       await this.prisma.convites_Visita.update({
         where: { id: convite.id },
         data: { id_visitante: visitante?.id ?? null },

@@ -68,6 +68,9 @@ describe('VisitantesService.create — caminho novo (Pessoas/Visitas)', () => {
         }),
         // Checagem de unicidade do PIN (gerarPinUnicoVisita) — nunca colide nestes testes.
         findFirst: jest.fn().mockResolvedValue(null),
+        // Task 4: `desativarOutrosCodigosVisita`, chamado após cada
+        // `criarVisita` — não precisa mudar nada nestes testes, só existir.
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       apartamentos: {
         findUnique: jest.fn().mockResolvedValue({ id: 101, id_condominio: 1 }),

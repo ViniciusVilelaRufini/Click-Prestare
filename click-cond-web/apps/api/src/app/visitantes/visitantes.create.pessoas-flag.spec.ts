@@ -30,6 +30,7 @@ describe('VisitantesService.create — flag PESSOAS_MIGRATION_ENABLED', () => {
       create: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     users: {
       findMany: jest.fn().mockResolvedValue([]),

@@ -34,7 +34,20 @@ export class PessoasService {
   private async atualizarSeNecessario(existente: any, dto: CriarPessoaDto) {
     const updateData: any = {};
     if (dto.telefone && !existente.telefone) updateData.telefone = dto.telefone;
-    if (dto.foto_pessoa && !existente.foto_pessoa) updateData.foto_pessoa = dto.foto_pessoa;
+    // Nome: propaga a correção (ex.: "Vinicius dd" -> "Vinicius Vilela").
+    // Diferente de telefone/face_id, nome NÃO é "preenche só se faltar" —
+    // sem isso, reregistrar com o nome corrigido devolvia o nome antigo em
+    // toda parte que lê a Pessoa (lista, auditoria, terminal, a própria
+    // resposta do create), e o app publicado manda nome_anterior/id_anterior
+    // justamente esperando essa correção (visitantes.controller.ts:378-379).
+    const nomeNovo = dto.nome?.trim();
+    if (nomeNovo && nomeNovo !== existente.nome) updateData.nome = nomeNovo;
+    // Foto (pessoa e documento): sempre que o operador manda uma nova, ela
+    // substitui a anterior. "Preenche só se faltar" fazia reregistrar com
+    // foto atualizada subir o arquivo e jogar a URL fora, deixando o rosto
+    // velho no terminal facial. foto_documento nunca era escrito aqui.
+    if (dto.foto_pessoa) updateData.foto_pessoa = dto.foto_pessoa;
+    if (dto.foto_documento) updateData.foto_documento = dto.foto_documento;
     if (dto.face_id && !existente.face_id) updateData.face_id = dto.face_id;
 
     if (Object.keys(updateData).length > 0) {

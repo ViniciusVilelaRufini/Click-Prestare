@@ -731,6 +731,16 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           });
 
           return {
+            // Significado deste campo (Task 4, Critical da revisão): id da
+            // VISITA principal quando a pessoa tem alguma — mantido assim de
+            // propósito porque é o que `create()` já devolve nesse modo
+            // (`mapVisitaParaRespostaLegada`) e o que o app v75 guarda como
+            // "o id do visitante". Só cai para `Pessoas.id` quando a pessoa
+            // não tem nenhuma visita — hoje só alcançável via
+            // `POST /condominios/:id/pessoas` direto. `removerPessoa` e
+            // `atualizarPessoa` resolvem esse mesmo campo tentando `Visitas`
+            // primeiro e caindo para `Pessoas` só se não achar
+            // (`resolverPessoaERef`) — mesma ordem, sem ambiguidade.
             id: principal?.id ?? p.id,
             id_pessoa: p.id,
             nome: p.nome,
@@ -1234,6 +1244,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * para o visitante é limpo, já que o referente deixa de existir.
    */
   async removerPessoa(idCondominio: number, idPessoaRef: number) {
+    // Task 4 (migração Pessoas/Visitas): com a flag ligada, `idPessoaRef`
+    // NUNCA é resolvido contra `Visitantes` — resolver ali colidiria com um
+    // id de `Visitas`/`Pessoas` que por acaso é o mesmo número (as duas
+    // tabelas nascem do 1 e crescem em paralelo) e apagaria a pessoa errada,
+    // soltando a vaga e desinscrevendo o rosto de quem nunca pediu remoção.
+    if (pessoasMigrationEnabled()) {
+      return this.removerPessoaViaPessoasVisitas(idCondominio, idPessoaRef);
+    }
+
     const ref = await this.prisma.visitantes.findUnique({
       where: { id: Number(idPessoaRef) },
     });
@@ -1300,6 +1319,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       tag_rfid?: string | null;
     },
   ) {
+    // Mesmo motivo do `removerPessoa`: com a flag ligada, nunca resolve
+    // `idPessoaRef` contra `Visitantes`.
+    if (pessoasMigrationEnabled()) {
+      return this.atualizarPessoaViaPessoasVisitas(idCondominio, idPessoaRef, dto);
+    }
+
     const ref = await this.prisma.visitantes.findUnique({
       where: { id: Number(idPessoaRef) },
     });
@@ -1702,6 +1727,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       categorias: dto.categorias ?? null,
     } as any);
 
+    // Porta o `desativarOutrosCodigos` do caminho legado: sem isto, registrar
+    // a mesma pessoa de novo deixava o PIN anterior (de uma Visita aberta
+    // mais velha) continuar válido — `buscarPorPin` aceitaria qualquer um dos
+    // dois. Aqui a "mesma pessoa" é `id_pessoa`, direto — não a heurística de
+    // doc/nome que o caminho legado precisa porque Visitantes não tem esse
+    // vínculo estrutural.
+    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id);
+
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const ctxCreate = this.construirContextoAuditoria(visita);
     await this.auditoria.registrar({
@@ -1782,20 +1815,56 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Mesma rotina/mesmo motivo de segurança de `gerarPinUnico` (randomInt
-   * CSPRNG), escopada à tabela `visitas` — `gerarPinUnico` checa unicidade em
-   * `Visitantes`, que este caminho não escreve mais.
+   * CSPRNG). Difere dele em checar as DUAS tabelas: enquanto `Visitantes`
+   * ainda guarda PINs ativos (a migração de escrita não apagou o histórico
+   * antigo), gerar olhando só `visitas` podia sortear um PIN que já está
+   * válido lá — `validarCodigo` (que lê `Visitantes`) resolveria para a
+   * pessoa errada.
    */
   private async gerarPinUnicoVisita(): Promise<string> {
     let pin = '';
     let isUnique = false;
     while (!isUnique) {
       pin = randomInt(100000, 1000000).toString();
-      const check = await this.prisma.visitas.findFirst({
-        where: { codigo_acesso: pin, data_saida: null },
-      });
-      if (!check) isUnique = true;
+      const [emVisitas, emVisitantes] = await Promise.all([
+        this.prisma.visitas.findFirst({ where: { codigo_acesso: pin, data_saida: null } }),
+        this.prisma.visitantes.findFirst({ where: { codigo_acesso: pin, data_saida: null } }),
+      ]);
+      if (!emVisitas && !emVisitantes) isUnique = true;
     }
     return pin;
+  }
+
+  /**
+   * Porta o `desativarOutrosCodigos` do caminho legado para `Visitas`: zera
+   * `liberado`/`codigo_acesso` das OUTRAS visitas em aberto da mesma pessoa.
+   * Sem isso, reregistrar alguém 3x deixava 3 PINs simultaneamente válidos
+   * (autorização é ciclo de vida da Visita, não da identidade — o merge de
+   * `obterOuCriar` não cobre isto).
+   *
+   * Diferente do legado (que casa por doc/nome porque `Visitantes` não tem
+   * vínculo estrutural com a pessoa), aqui a "mesma pessoa" é `id_pessoa`
+   * direto — sem heurística de string.
+   */
+  private async desativarOutrosCodigosVisita(
+    idCondominio: number,
+    idPessoa: number,
+    idVisitaAtual: number,
+  ): Promise<void> {
+    if (!this.prisma.isConnected) return;
+    await this.prisma.visitas.updateMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        id_pessoa: Number(idPessoa),
+        id: { not: Number(idVisitaAtual) },
+        data_entrada: null,
+        data_saida: null,
+      },
+      data: {
+        liberado: 0,
+        codigo_acesso: null,
+      },
+    });
   }
 
   private fireFacialSyncPessoa(idPessoa: number) {
@@ -1832,7 +1901,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               : `Apto ${visita.apartamento.apto}`,
           }
         : null,
-      convidadoPor: null,
+      // Morador que convidou (campo `user` em Visitas = id_user do morador).
+      // `criarVisita` inclui `criadoPor` (visitas.service.ts) exatamente para
+      // isto — antes vinha hardcoded null, diferente do caminho legado.
+      convidadoPor: visita.criadoPor
+        ? { id: visita.criadoPor.id, nome: visita.criadoPor.name }
+        : null,
       janela: {
         inicio: fmtDate(visita.data_hora_inicio),
         termino: fmtDate(visita.data_hora_termino),
@@ -1895,9 +1969,358 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * Mesma checagem de `assertPodeAcessarVisitante`, mas contra `Visitas` —
+   * usada por `update`/`remove` quando a flag está ligada. `id` nesse modo é
+   * SEMPRE um id de `Visitas` (é o que `create()`/`mapVisitaParaRespostaLegada`
+   * devolvem), então resolver aqui — nunca em `Visitantes` — é o que evita a
+   * colisão de espaço de id descrita no Critical da revisão.
+   */
+  private async assertPodeAcessarVisita(idVisita: number, payload?: JwtPayload) {
+    const v = await this.prisma.visitas.findUnique({
+      where: { id: Number(idVisita) },
+      include: {
+        pessoa: { select: { id: true, nome: true, doc_identificacao: true, face_id: true } },
+      },
+    });
+    if (!v) throw new NotFoundException(`Visita ${idVisita} não encontrada`);
+
+    if (!payload) return v;
+
+    const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+    const ehMoradorMobile = !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
+
+    if (ehMoradorMobile) {
+      const userId = Number(payload.user?.id ?? payload.sub);
+      if (!userId) throw new ForbiddenException('Acesso negado: sessão sem usuário válido.');
+      const vinculoApto = await this.prisma.apartamentos_Users.findFirst({
+        where: { id_user: userId, id_apto: v.id_apartamento },
+        select: { id_apto: true },
+      });
+      if (!vinculoApto) {
+        throw new ForbiddenException('Acesso negado: este visitante não pertence a você.');
+      }
+      return v;
+    }
+
+    await this.tenant.assertCondominio(v.id_condominio, payload);
+    return v;
+  }
+
+  /**
+   * Resolve a `Pessoa` a partir do `idRef` recebido por `removerPessoa` /
+   * `atualizarPessoa`.
+   *
+   * Decisão sobre o significado do `id` que `listarPessoas` expõe (Critical
+   * da revisão): quando a pessoa tem visita, esse campo é o id da VISITA
+   * principal — mantido assim de propósito para compatibilidade com o app
+   * v75 (`create()` já devolve id de Visita, e é o que o app guarda). Só cai
+   * para `Pessoas.id` quando a pessoa não tem nenhuma visita — hoje só
+   * alcançável por quem cria via `POST /condominios/:id/pessoas` direto
+   * (`PessoasController.criar`), sem passar por uma Visita.
+   *
+   * Por isso a resolução tenta `Visitas` primeiro (pega `id_pessoa` de lá) e
+   * só cai para tratar `idRef` como `Pessoas.id` se não achar — nessa ordem
+   * não há ambiguidade: a mesma tabela nunca é candidata duas vezes, e
+   * `Visitantes` nunca entra na jogada.
+   */
+  private async resolverPessoaERef(
+    idCondominio: number,
+    idRef: number,
+  ): Promise<{ pessoa: any; refVisita: any | null } | null> {
+    const visita = await this.prisma.visitas.findUnique({ where: { id: Number(idRef) } });
+    if (visita) {
+      if (visita.id_condominio !== Number(idCondominio)) return null;
+      const pessoa = await this.prisma.pessoas.findUnique({ where: { id: visita.id_pessoa } });
+      if (!pessoa) return null;
+      return { pessoa, refVisita: visita };
+    }
+    const pessoa = await this.prisma.pessoas.findUnique({ where: { id: Number(idRef) } });
+    if (!pessoa || pessoa.id_condominio !== Number(idCondominio)) return null;
+    return { pessoa, refVisita: null };
+  }
+
+  /**
+   * Caminho novo de `remove()` (flag ligada): apaga UMA `Visita`. Mesma
+   * trava de vaga do legado (`Vagas.id_visita` sem `onDelete`, RESTRICT no
+   * MySQL) — solta a vaga na mesma transação.
+   *
+   * Não desinscreve o rosto direto: `face_id` é da Pessoa, compartilhado por
+   * todas as visitas dela. Desinscrever incondicionalmente aqui quebraria o
+   * acesso de uma OUTRA visita ainda aberta da mesma pessoa. `syncPessoa`
+   * reavalia as visitas restantes da pessoa e decide manter ou revogar —
+   * exatamente o que é preciso depois de remover uma delas.
+   */
+  private async removeViaPessoasVisitas(id: number, payload?: JwtPayload) {
+    const v = await this.assertPodeAcessarVisita(id, payload);
+
+    try {
+      await this.prisma.$transaction([
+        this.prisma.vagas.updateMany({
+          where: { id_visita: Number(id) },
+          data: { id_visita: null, ativo: 0 },
+        }),
+        this.prisma.visitas.delete({ where: { id: Number(id) } }),
+      ]);
+
+      const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+      await this.auditoria.registrar({
+        id_condominio: v.id_condominio,
+        usuario_nome: 'Sistema / Portaria',
+        acao: 'DELETE',
+        modulo: 'visitantes',
+        entidade_id: Number(id),
+        descricao: `Visita agendada de ${label} "${v.pessoa?.nome ?? ''}" removida com sucesso.`,
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[visitantes.remove] Falha ao excluir ${id}: ${err?.message ?? err}`,
+        err?.stack,
+      );
+      throw new BadRequestException(
+        `Não foi possível remover a visita. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
+
+    this.fireFacialSyncPessoa(v.id_pessoa);
+    return { success: true };
+  }
+
+  /**
+   * Caminho novo de `update()` (flag ligada): campos de IDENTIDADE (nome,
+   * documento, fotos) vão para a `Pessoa`; campos da VISITA (janela,
+   * apartamento, tipo, dias/categorias) vão para a `Visita` apontada por
+   * `dto.id`. Diferente do legado, não precisa da heurística de
+   * doc/nome/foto para achar "outros registros da mesma pessoa" — a Visita
+   * já aponta pra Pessoa certa via `id_pessoa`.
+   */
+  private async updateViaPessoasVisitas(dto: UpdateVisitanteDto, payload?: JwtPayload) {
+    const ref = await this.assertPodeAcessarVisita(dto.id, payload);
+    await this.assertPodeUsarApartamento(dto.id_apartamento, payload);
+
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
+
+    const visitaData: any = {};
+    if (dto.data_hora_inicio !== undefined) visitaData.data_hora_inicio = parseLocalTimeToUTC(dto.data_hora_inicio);
+    if (dto.data_hora_termino !== undefined) visitaData.data_hora_termino = parseLocalTimeToUTCNullable(dto.data_hora_termino);
+    if (dto.is_visitante !== undefined) visitaData.is_visitante = dto.is_visitante;
+    if (dto.is_prestador !== undefined) visitaData.is_prestador = dto.is_prestador;
+    if (dto.id_apartamento !== undefined) visitaData.id_apartamento = dto.id_apartamento;
+    if (dto.dias_semana !== undefined) visitaData.dias_semana = dto.dias_semana;
+    if (dto.categorias !== undefined) visitaData.categorias = dto.categorias;
+
+    const pessoaData: any = {};
+    if (dto.nome !== undefined) pessoaData.nome = dto.nome;
+    if (dto.doc_identificacao !== undefined) {
+      pessoaData.doc_identificacao = PessoasService.normalizarDoc(dto.doc_identificacao);
+    }
+    if (fotoPes !== undefined) pessoaData.foto_pessoa = fotoPes;
+    if (fotoDoc !== undefined) pessoaData.foto_documento = fotoDoc;
+
+    let updatedVisita: any;
+    try {
+      updatedVisita = await this.prisma.visitas.update({
+        where: { id: Number(dto.id) },
+        data: visitaData,
+        include: { pessoa: true, apartamento: true },
+      });
+    } catch {
+      throw new NotFoundException(`Visitante ${dto.id} não encontrado`);
+    }
+
+    if (Object.keys(pessoaData).length > 0) {
+      const pessoaAtualizada = await this.prisma.pessoas.update({
+        where: { id: updatedVisita.id_pessoa },
+        data: pessoaData,
+      });
+      updatedVisita.pessoa = { ...updatedVisita.pessoa, ...pessoaAtualizada };
+    }
+
+    const precisaSyncFacial =
+      fotoPes !== undefined ||
+      dto.data_hora_termino !== undefined ||
+      dto.data_hora_inicio !== undefined ||
+      dto.dias_semana !== undefined;
+    if (precisaSyncFacial) {
+      this.fireFacialSyncPessoa(updatedVisita.id_pessoa);
+    }
+
+    const label = updatedVisita.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    await this.auditoria.registrar({
+      id_condominio: updatedVisita.id_condominio,
+      usuario_nome: 'Sistema / Portaria',
+      acao: 'UPDATE',
+      modulo: 'visitantes',
+      entidade_id: updatedVisita.id,
+      descricao: `Dados da visita de ${label} "${updatedVisita.pessoa?.nome ?? ref.pessoa?.nome ?? ''}" atualizados com sucesso.`,
+    });
+
+    return this.mapVisitaParaRespostaLegada(updatedVisita);
+  }
+
+  /**
+   * Caminho novo de `removerPessoa()` (flag ligada): apaga a `Pessoa`
+   * inteira. `Visitas.pessoa` tem `onDelete: Cascade`, então apagar a
+   * `Pessoa` já apaga todas as visitas dela — sem a heurística de
+   * doc/nome/foto/face_id que `registrosDaPessoa` precisa no legado (aqui o
+   * vínculo é estrutural: `id_pessoa`). As vagas ainda travam a exclusão
+   * (RESTRICT), então soltam primeiro, na mesma transação.
+   */
+  private async removerPessoaViaPessoasVisitas(idCondominio: number, idPessoaRef: number) {
+    const resolvido = await this.resolverPessoaERef(idCondominio, idPessoaRef);
+    if (!resolvido) {
+      throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
+    }
+    const { pessoa } = resolvido;
+
+    const visitas = await this.prisma.visitas.findMany({
+      where: { id_pessoa: pessoa.id },
+      select: { id: true },
+    });
+    const ids = visitas.map((v) => v.id);
+
+    await this.prisma.$transaction([
+      this.prisma.vagas.updateMany({
+        where: { id_visita: { in: ids } },
+        data: { id_visita: null, ativo: 0 },
+      }),
+      this.prisma.pessoas.delete({ where: { id: pessoa.id } }),
+    ]);
+
+    await this.auditoria.registrar({
+      id_condominio: pessoa.id_condominio,
+      usuario_nome: 'Sistema / Portaria',
+      acao: 'DELETE',
+      modulo: 'visitantes',
+      entidade_id: pessoa.id,
+      descricao: `Cadastro da pessoa "${pessoa.nome}" e todas as suas visitas associadas foram excluídos.`,
+    });
+
+    // Best-effort: desinscreve do terminal. A Pessoa já foi apagada, então
+    // `syncPessoa` (que reavaliaria as visitas restantes) não serve mais
+    // aqui — não há mais visitas para reavaliar.
+    if (pessoa.face_id) {
+      this.facial
+        .unsyncPessoa(pessoa.id, pessoa.face_id, pessoa.id_condominio)
+        .catch((err: any) =>
+          this.logger.warn(`Unsync facial pessoa removida (${pessoa.face_id}): ${err?.message ?? err}`),
+        );
+    }
+
+    return { ok: true, removidos: ids.length };
+  }
+
+  /**
+   * Caminho novo de `atualizarPessoa()` (flag ligada): campos de identidade
+   * vão para a `Pessoa` (um único `update`, não mais um `updateMany` sobre
+   * registros achados por heurística); campos por-visita (tipo, dias,
+   * categorias, tag RFID, bloqueio) vão para TODAS as `Visitas` da pessoa
+   * via `updateMany` em `id_pessoa` — mesma abrangência do legado, sem a
+   * heurística de doc/nome/foto.
+   */
+  private async atualizarPessoaViaPessoasVisitas(
+    idCondominio: number,
+    idPessoaRef: number,
+    dto: {
+      nome?: string;
+      doc_identificacao?: string;
+      foto_pessoa?: string;
+      foto_documento?: string;
+      is_visitante?: number;
+      is_prestador?: number;
+      tag_rfid?: string | null;
+      dias_semana?: string;
+      categorias?: string;
+      bloqueado?: number;
+    },
+  ) {
+    const resolvido = await this.resolverPessoaERef(idCondominio, idPessoaRef);
+    if (!resolvido) {
+      throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
+    }
+    const { pessoa, refVisita } = resolvido;
+
+    const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
+    const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
+
+    const pessoaData: any = {};
+    if (dto.nome !== undefined) pessoaData.nome = dto.nome;
+    if (dto.doc_identificacao !== undefined) {
+      pessoaData.doc_identificacao = PessoasService.normalizarDoc(dto.doc_identificacao);
+    }
+    if (fotoPes !== undefined) pessoaData.foto_pessoa = fotoPes;
+    if (fotoDoc !== undefined) pessoaData.foto_documento = fotoDoc;
+    if (dto.bloqueado !== undefined) pessoaData.bloqueado = Number(dto.bloqueado);
+
+    const visitaData: any = {};
+    if (dto.is_visitante !== undefined) visitaData.is_visitante = dto.is_visitante;
+    if (dto.is_prestador !== undefined) visitaData.is_prestador = dto.is_prestador;
+    if (dto.dias_semana !== undefined) visitaData.dias_semana = dto.dias_semana;
+    if (dto.categorias !== undefined) visitaData.categorias = dto.categorias;
+    if (dto.tag_rfid !== undefined) {
+      const t = (dto.tag_rfid ?? '').toString().trim();
+      visitaData.tag_rfid = t.length > 0 ? t : null;
+    }
+    if (dto.bloqueado !== undefined) {
+      const bloqueadoNum = Number(dto.bloqueado);
+      visitaData.bloqueado = bloqueadoNum;
+      if (bloqueadoNum === 1) {
+        visitaData.liberado = 0;
+        visitaData.codigo_acesso = null;
+      } else {
+        // Desbloqueio: mesma regra do legado — restaura `liberado` conforme
+        // o tipo (prestador nasce liberado). Usa o tipo da visita de
+        // referência quando existe (mesmo critério do legado, que usa
+        // `ref.is_prestador` para todos os registros uniformemente).
+        visitaData.liberado = refVisita?.is_prestador === 1 ? 1 : 0;
+      }
+    }
+
+    if (Object.keys(pessoaData).length > 0) {
+      await this.prisma.pessoas.update({ where: { id: pessoa.id }, data: pessoaData });
+    }
+
+    let atualizados = 0;
+    if (Object.keys(visitaData).length > 0) {
+      const result = await this.prisma.visitas.updateMany({
+        where: { id_pessoa: pessoa.id },
+        data: visitaData,
+      });
+      atualizados = result.count;
+    }
+
+    await this.auditoria.registrar({
+      id_condominio: pessoa.id_condominio,
+      usuario_nome: 'Sistema / Portaria',
+      acao: 'UPDATE',
+      modulo: 'visitantes',
+      entidade_id: pessoa.id,
+      descricao: `Cadastro da pessoa "${dto.nome || pessoa.nome}" atualizado com sucesso.`,
+    });
+
+    const campoFacialMudou =
+      fotoPes !== undefined ||
+      dto.is_prestador !== undefined ||
+      dto.dias_semana !== undefined ||
+      dto.categorias !== undefined ||
+      dto.bloqueado !== undefined;
+    if (campoFacialMudou) {
+      this.fireFacialSyncPessoa(pessoa.id);
+    }
+
+    return { ok: true, atualizados };
+  }
+
   async update(dto: UpdateVisitanteDto, payload?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return { success: true, id: dto.id };
+    }
+
+    // Task 4: com a flag ligada, `dto.id` é um id de `Visitas` (é o que
+    // `create()` devolve nesse modo) — nunca resolve contra `Visitantes`.
+    if (pessoasMigrationEnabled()) {
+      return this.updateViaPessoasVisitas(dto, payload);
     }
 
     // Autorização de tenant antes de qualquer escrita.
@@ -1986,6 +2409,16 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    */
   async remove(id: number, payload?: JwtPayload) {
     if (!this.prisma.isConnected) return { success: true };
+
+    // Task 4: com a flag ligada, `id` é um id de `Visitas` (é o que
+    // `create()` devolve nesse modo) — nunca resolve contra `Visitantes`.
+    // As duas tabelas crescem em paralelo a partir do 1, então um `id` que
+    // "existe" em Visitantes por coincidência apagaria o cadastro, a vaga e
+    // o rosto de uma pessoa completamente diferente.
+    if (pessoasMigrationEnabled()) {
+      return this.removeViaPessoasVisitas(id, payload);
+    }
+
     // Morador só apaga visita de apartamento dele; porteiro/síndico, do
     // condomínio deles. Mesma regra de todas as outras ações da visita.
     await this.assertPodeAcessarVisitante(id, payload);

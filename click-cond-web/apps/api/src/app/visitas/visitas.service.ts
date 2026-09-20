@@ -66,6 +66,11 @@ export class VisitasService {
       include: {
         pessoa: true,
         apartamento: true,
+        // Morador que convidou — só usado pela auditoria (Task 4:
+        // construirContextoAuditoria em visitantes.service.ts). Sem isto o
+        // `convidadoPor` do detalhe de auditoria ficava hardcoded null,
+        // mesmo quando `user` estava preenchido.
+        criadoPor: { select: { id: true, name: true } },
       },
     });
   }
