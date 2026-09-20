@@ -27,7 +27,7 @@ import { contarTodasAsTabelas, buildConfig } from './dump-database.mjs';
 const CONFIRMADO = process.argv.includes('--confirmo-apagar-tudo');
 
 /** Tabelas que NÃO são apagadas. */
-const PRESERVAR = new Set(['Users', 'Planos', '_prisma_migrations']);
+const PRESERVAR = new Set(['crm_admins', 'Planos', '_prisma_migrations']);
 
 /**
  * Segunda trava: o nome do banco alvo, passado como argumento posicional
