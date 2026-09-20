@@ -2033,6 +2033,165 @@ export class FacialService {
   }
 
   /**
+   * Remove o rosto da Pessoa física dos terminais.
+   */
+  async unsyncPessoa(
+    idPessoa: number,
+    faceId: string | null,
+    idCondominio: number,
+    opts: { deviceIds?: number[] } = {},
+  ): Promise<boolean> {
+    if (FACIAL_DISABLED || !faceId) return true;
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: {
+        id_condominio: idCondominio,
+        ativo: 1,
+        tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+      },
+    });
+    let allOk = true;
+    for (const device of devices) {
+      try {
+        await this.client.removePerson(this.toConfig(device), faceId);
+      } catch (err: any) {
+        allOk = false;
+        this.logger.warn(
+          `Remoção pessoa ${idPessoa} device ${device.id}: ${err?.message ?? err}`,
+        );
+      }
+    }
+    return allOk;
+  }
+
+  /**
+   * Sincroniza a Pessoa (visitante/prestador unificado) com os terminais faciais.
+   * O rosto só permanece ativo no terminal se houver pelo menos uma visita válida no momento.
+   */
+  async syncPessoa(idPessoa: number, opts: { deviceIds?: number[] } = {}) {
+    if (FACIAL_DISABLED) return { skipped: true, reason: 'integration_disabled' };
+    if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
+
+    const pessoa = await this.prisma.pessoas.findUnique({
+      where: { id: Number(idPessoa) },
+      include: { visitas: true },
+    });
+    if (!pessoa) throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+
+    if (!pessoa.foto_pessoa) {
+      if (pessoa.face_id && pessoa.id_condominio) {
+        await this.unsyncPessoa(idPessoa, pessoa.face_id, pessoa.id_condominio, opts);
+        await this.prisma.pessoas.update({
+          where: { id: idPessoa },
+          data: { face_id: null, face_sync_status: null, face_sync_error: null },
+        });
+        return { ok: true, syncState: 'revoked' };
+      }
+      return { skipped: true, reason: 'no_photo' };
+    }
+
+    const agora = Date.now();
+    const GRACE = 15 * 60 * 1000;
+    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
+    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
+
+    const visitas = pessoa.visitas ?? [];
+    const autorizado =
+      pessoa.bloqueado !== 1 &&
+      visitas.some((v) => {
+        if (v.bloqueado === 1 || v.liberado !== 1) return false;
+        const inicioMs = v.data_hora_inicio ? new Date(v.data_hora_inicio).getTime() : null;
+        const terminoMs = v.data_hora_termino ? new Date(v.data_hora_termino).getTime() : null;
+        const dentroJanela =
+          (inicioMs === null || agora >= inicioMs - GRACE) &&
+          (terminoMs === null || agora <= terminoMs + GRACE);
+        const dentroDoCondominio =
+          !!v.data_entrada &&
+          !v.data_saida &&
+          agora - new Date(v.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS;
+        const diasPermitidos: string[] = v.dias_semana
+          ? v.dias_semana.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean)
+          : [];
+        const diaAutorizado = diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
+        return (dentroJanela && diaAutorizado) || dentroDoCondominio;
+      });
+
+    if (!autorizado) {
+      if (pessoa.face_id && pessoa.id_condominio) {
+        await this.unsyncPessoa(idPessoa, pessoa.face_id, pessoa.id_condominio, opts);
+        await this.prisma.pessoas.update({
+          where: { id: idPessoa },
+          data: { face_sync_status: 'revoked' },
+        });
+        return { ok: true, syncState: 'revoked' };
+      }
+      return { ok: true, syncState: 'inactive' };
+    }
+
+    return this.pushPessoaToDevices(pessoa, opts);
+  }
+
+  async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[] } = {}) {
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: {
+        id_condominio: pessoa.id_condominio,
+        ativo: 1,
+        tipo: 'facial',
+        ...(opts.deviceIds?.length ? { id: { in: opts.deviceIds } } : {}),
+      },
+    });
+    if (devices.length === 0) {
+      return { skipped: true, reason: 'no_facial_devices' };
+    }
+
+    const externalId = `pessoa_${pessoa.id}`;
+    const fotoBase64 = await this.fetchPhotoAsBase64(pessoa.foto_pessoa);
+    if (!fotoBase64) {
+      await this.prisma.pessoas.update({
+        where: { id: pessoa.id },
+        data: { face_sync_status: 'error', face_sync_error: 'Erro ao baixar foto.' },
+      });
+      return { ok: false, reason: 'photo_unreachable' };
+    }
+
+    let faceId = pessoa.face_id ?? null;
+    let allOk = true;
+    let ultimoErro: string | null = null;
+    for (const device of devices) {
+      try {
+        const res = await this.client.createOrUpdatePerson(this.toConfig(device), {
+          external_id: externalId,
+          nome: pessoa.nome,
+          tipo: pessoa.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
+          face_id: faceId ?? undefined,
+          foto_base64: fotoBase64,
+        });
+        if (res.face_id) faceId = res.face_id;
+      } catch (err: any) {
+        allOk = false;
+        ultimoErro = err?.message ?? String(err);
+      }
+    }
+
+    const status = this.classificarSync(allOk, ultimoErro);
+    await this.prisma.pessoas.update({
+      where: { id: pessoa.id },
+      data: {
+        face_id: faceId,
+        face_sync_status: status,
+        face_sync_error: allOk ? null : (ultimoErro ? String(ultimoErro).slice(0, 500) : null),
+        face_enrolled_at: allOk ? new Date() : pessoa.face_enrolled_at,
+      },
+    });
+
+    return { ok: allOk, face_id: faceId, status, error: ultimoErro };
+  }
+
+  /**
    * Sincroniza um prestador de serviço (tabela Prestadores_servico — a tela
    * "Cadastro de Funcionários" da Gestão de Acesso) com os terminais faciais.
    *
