@@ -1025,14 +1025,36 @@
           }
 
           @if (bulkStatus() === 'done') {
-            <div class="p-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-2">
-              <div class="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <div class="p-6 rounded-xl border text-center space-y-3"
+                 [class.bg-emerald-500/10]="(bulkResult().total || 0) > 0"
+                 [class.border-emerald-500/20]="(bulkResult().total || 0) > 0"
+                 [class.bg-amber-500/10]="!(bulkResult().total || 0)"
+                 [class.border-amber-500/20]="!(bulkResult().total || 0)">
+              <div class="w-10 h-10 rounded-full flex items-center justify-center mx-auto"
+                   [class.bg-emerald-500/20]="(bulkResult().total || 0) > 0"
+                   [class.text-emerald-400]="(bulkResult().total || 0) > 0"
+                   [class.bg-amber-500/20]="!(bulkResult().total || 0)"
+                   [class.text-amber-400]="!(bulkResult().total || 0)">
+                @if ((bulkResult().total || 0) > 0) {
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                } @else {
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                }
               </div>
-              <p class="text-sm font-semibold text-white">Importação Concluída com Sucesso!</p>
-              <p class="text-xs text-slate-400">
-                Foram processados e cadastrados <strong>{{ bulkResult().total }}</strong> moradores.
+              <p class="text-sm font-semibold text-white">
+                {{ (bulkResult().total || 0) > 0 ? 'Importação Concluída com Sucesso!' : 'Nenhum morador cadastrado' }}
               </p>
+              <p class="text-xs text-slate-400">
+                Foram processados e cadastrados <strong>{{ bulkResult().total || 0 }}</strong> moradores.
+              </p>
+              @if (bulkResult().erros?.length) {
+                <div class="mt-3 text-left max-h-36 overflow-y-auto bg-black/20 p-2.5 rounded-lg border border-white/5 space-y-1">
+                  <p class="text-[11px] font-medium text-amber-400">Ocorrências durante o processamento:</p>
+                  @for (e of bulkResult().erros; track $index) {
+                    <p class="text-[10px] text-slate-400">• <span class="text-slate-300 font-medium">{{ e.nome }}</span>: {{ e.erro }}</p>
+                  }
+                </div>
+              }
             </div>
           }
 

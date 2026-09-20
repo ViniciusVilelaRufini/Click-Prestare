@@ -736,13 +736,13 @@ export class MoradoresService {
 
     const ehMenor = dto.data_nascimento ? calcularIdade(dto.data_nascimento) < 18 : false;
 
-    // Cláusula 8.3 e Anexo I: Se informou email ou pediu credenciais, valida maioridade
-    if (dto.email || dto.sendCredentials) {
+    // Cláusula 8.3 e Anexo I: Se informou data de nascimento e (email ou credenciais), valida maioridade
+    if (dto.data_nascimento && (dto.email || dto.sendCredentials)) {
       validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
     }
 
-    // Cláusula 8.3: Se enviou foto facial para biometria, valida maioridade
-    if (fotoPessoaUrl) {
+    // Cláusula 8.3: Se enviou foto facial para biometria e informou data de nascimento, valida maioridade
+    if (dto.data_nascimento && fotoPessoaUrl) {
       validarMaioridade(dto.data_nascimento, 'cadastro de biometria facial');
     }
 
@@ -1270,6 +1270,7 @@ export class MoradoresService {
 
   async importBulk(idCondominio: number, linhas: any[]) {
     const criados = [];
+    const erros: { nome: string; erro: string }[] = [];
     for (const item of linhas) {
       if (!item.nome) continue;
       try {
@@ -1310,13 +1311,15 @@ export class MoradoresService {
           tipo: item.tipo?.toString() || 'proprietario',
           id_apartamento: idApto,
           id_condominio: idCondominio,
+          data_nascimento: item.data_nascimento?.toString() || undefined,
           sendCredentials: item.sendCredentials !== false,
         });
         criados.push(m);
       } catch (err: any) {
-        console.log('Erro ao importar linha:', item.nome, err?.message);
+        this.logger.error(`[moradores.importBulk] Erro ao importar morador "${item.nome}": ${err?.message ?? err}`);
+        erros.push({ nome: item.nome, erro: err?.message ?? 'Erro desconhecido' });
       }
     }
-    return { ok: true, total: criados.length, criados };
+    return { ok: true, total: criados.length, criados, erros };
   }
 }

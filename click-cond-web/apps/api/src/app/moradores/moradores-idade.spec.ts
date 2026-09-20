@@ -120,4 +120,46 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
       }),
     });
   });
+
+  it('permite cadastrar morador quando data de nascimento não for informada na planilha/onboarding', async () => {
+    const dto: any = {
+      nome: 'Yasmin Alves Costa',
+      email: 'yasmin.alves@mockemail.com',
+      documento: '12345678900',
+      id_condominio: 1,
+      id_apartamento: 10,
+      sendCredentials: true,
+    };
+
+    const res = await service.create(dto);
+    expect(res).toBeDefined();
+    expect(prismaMock.users.create).toHaveBeenCalled();
+  });
+
+  it('importBulk processa e cadastra moradores mesmo sem data de nascimento na planilha', async () => {
+    const linhas = [
+      {
+        nome: 'Yasmin Alves Costa',
+        email: 'yasmin.alves@mockemail.com',
+        bloco: 'Bloco A',
+        apto: '101',
+        sendCredentials: true,
+      },
+      {
+        nome: 'Xavier Alves Alves',
+        email: 'xavier.alves@mockemail.com',
+        bloco: 'Bloco A',
+        apto: '102',
+        sendCredentials: true,
+      },
+    ];
+
+    prismaMock.apartamentos.findFirst = jest.fn().mockResolvedValue({ id: 101, bloco: 'Bloco A', apto: '101' });
+
+    const result = await service.importBulk(1, linhas);
+    expect(result.ok).toBe(true);
+    expect(result.total).toBe(2);
+    expect(result.criados).toHaveLength(2);
+  });
 });
+

@@ -804,7 +804,7 @@ export class MoradoresPageComponent implements OnInit {
   showBulkModal = false;
   bulkLinhas = signal<any[]>([]);
   bulkStatus = signal<'idle' | 'reading' | 'ready' | 'uploading' | 'done'>('idle');
-  bulkResult = signal<{ total?: number; criados?: any[] }>({});
+  bulkResult = signal<{ total?: number; criados?: any[]; erros?: { nome: string; erro: string }[] }>({});
 
   downloadTemplate() {
     try {
@@ -817,7 +817,8 @@ export class MoradoresPageComponent implements OnInit {
           'Telefone': '11988887777',
           'Quadra/Bloco': 'Quadra A',
           'Lote/Apto': 'Lote 12',
-          'Vínculo': 'proprietario'
+          'Vínculo': 'proprietario',
+          'Data de Nascimento': '15/05/1985',
         }
       ];
       const ws = xlsx.utils.json_to_sheet(data);
@@ -830,7 +831,7 @@ export class MoradoresPageComponent implements OnInit {
       link.download = 'template_importacao_moradores.xlsx';
       link.click();
     } catch {
-      const headers = 'Nome Completo;Documento;E-mail;Telefone;Quadra/Bloco;Lote/Apto;Vínculo\nCarlos Exemplo;12345678900;carlos@email.com;11988887777;Quadra A;Lote 12;proprietario';
+      const headers = 'Nome Completo;Documento;E-mail;Telefone;Quadra/Bloco;Lote/Apto;Vínculo;Data de Nascimento\nCarlos Exemplo;12345678900;carlos@email.com;11988887777;Quadra A;Lote 12;proprietario;15/05/1985';
       const blob = new Blob(['\ufeff' + headers], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
@@ -907,6 +908,7 @@ export class MoradoresPageComponent implements OnInit {
                   quadra: cols[4] || '',
                   lote: cols[5] || '',
                   tipo: cols[6] || 'proprietario',
+                  data_nascimento: cols[7] || '',
                   sendCredentials: true,
                 });
               }
@@ -921,6 +923,14 @@ export class MoradoresPageComponent implements OnInit {
             json.forEach(row => {
               const nome = row['Nome Completo'] || row['Nome'] || row['nome'];
               if (nome) {
+                const dataNasc =
+                  row['Data de Nascimento'] ||
+                  row['Data Nascimento'] ||
+                  row['Nascimento'] ||
+                  row['Dt Nascimento'] ||
+                  row['Data Nasc'] ||
+                  row['data_nascimento'] ||
+                  '';
                 linhas.push({
                   nome,
                   documento: row['Documento'] || row['CPF'] || '',
@@ -929,6 +939,7 @@ export class MoradoresPageComponent implements OnInit {
                   quadra: row['Quadra/Bloco'] || row['Quadra'] || row['Bloco'] || '',
                   lote: row['Lote/Apto'] || row['Lote'] || row['Apto'] || '',
                   tipo: row['Vínculo'] || row['Tipo'] || 'proprietario',
+                  data_nascimento: dataNasc ? String(dataNasc).trim() : '',
                   sendCredentials: true,
                 });
               }
