@@ -22,6 +22,7 @@ describe('FacialService: Sincronização por Pessoa', () => {
     visitas: { findMany: jest.fn() },
     visitantes: { findUnique: jest.fn() },
     facial_Devices: { findMany: jest.fn().mockResolvedValue([]) },
+    vagas: { count: jest.fn().mockResolvedValue(0) },
     isConnected: true,
   };
 
@@ -176,6 +177,96 @@ describe('FacialService: Sincronização por Pessoa', () => {
         expect.objectContaining({ id: 900 }),
         'face_existente',
         expect.objectContaining({ nome: 'Já Enrolada', fotoBase64: 'base64foto' }),
+      );
+    });
+
+    /**
+     * Finding 4: syncVisitante grava validFrom/validTo/userTimes NO
+     * APARELHO — o próprio terminal nega sozinho após o término, mesmo
+     * offline. pushPessoaToDevices não fazia isso: a pessoa ficava enrolada
+     * permanentemente, sem nenhuma janela de expiração no terminal.
+     */
+    it('envia validFrom/validTo derivados da visita ativa da pessoa (janela no aparelho)', async () => {
+      const agora = Date.now();
+      const pessoa = {
+        id: 40,
+        id_condominio: 1,
+        nome: 'Com Janela',
+        foto_pessoa: 'http://foto.jpg',
+        face_id: null,
+        tipo_pessoa: 'visitante',
+        visitas: [
+          {
+            id: 77,
+            liberado: 1,
+            bloqueado: 0,
+            data_hora_inicio: new Date(agora - 10_000),
+            data_hora_termino: new Date(agora + 100_000),
+            data_entrada: null,
+            data_saida: null,
+            dias_semana: null,
+          },
+        ],
+      };
+
+      await service.pushPessoaToDevices(pessoa);
+
+      expect(mockDeviceClient.enrollPerson).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 900 }),
+        expect.objectContaining({
+          validFrom: expect.any(String),
+          validTo: expect.any(String),
+          userTimes: 1,
+        }),
+      );
+    });
+
+    it('sem visita ativa, não envia validFrom/validTo (permanece null/undefined)', async () => {
+      const pessoa = {
+        id: 41,
+        id_condominio: 1,
+        nome: 'Sem Visita',
+        foto_pessoa: 'http://foto.jpg',
+        face_id: null,
+        tipo_pessoa: 'visitante',
+        visitas: [],
+      };
+
+      await service.pushPessoaToDevices(pessoa);
+
+      const [, payload] = mockDeviceClient.enrollPerson.mock.calls[0];
+      expect(payload.validFrom).toBeUndefined();
+      expect(payload.validTo).toBeUndefined();
+    });
+
+    it('prestador tem usos ilimitados (userTimes = -1) mesmo com visita ativa', async () => {
+      const agora = Date.now();
+      const pessoa = {
+        id: 42,
+        id_condominio: 1,
+        nome: 'Prestador Ativo',
+        foto_pessoa: 'http://foto.jpg',
+        face_id: null,
+        tipo_pessoa: 'prestador',
+        visitas: [
+          {
+            id: 78,
+            liberado: 1,
+            bloqueado: 0,
+            data_hora_inicio: new Date(agora - 10_000),
+            data_hora_termino: new Date(agora + 100_000),
+            data_entrada: null,
+            data_saida: null,
+            dias_semana: null,
+          },
+        ],
+      };
+
+      await service.pushPessoaToDevices(pessoa);
+
+      expect(mockDeviceClient.enrollPerson).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 900 }),
+        expect.objectContaining({ userTimes: -1 }),
       );
     });
   });

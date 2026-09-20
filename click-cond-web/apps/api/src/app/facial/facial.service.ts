@@ -2159,6 +2159,45 @@ export class FacialService {
     return this.pushPessoaToDevices(pessoa, opts);
   }
 
+  /**
+   * Acha, dentre as visitas incluídas na Pessoa, a que está autorizando o
+   * acesso agora — mesmo critério de `syncPessoa` (janela + dia da semana,
+   * ou já dentro do condomínio). É dela que a janela de validade gravada NO
+   * APARELHO é derivada; sem uma visita ativa a pessoa fica sem janela
+   * nenhuma (permanente), que é o ponto do Finding 4.
+   */
+  private resolverVisitaAtivaPessoa(pessoa: any): any | null {
+    const agora = Date.now();
+    const GRACE = 15 * 60 * 1000;
+    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
+    const mapDiasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const agoraBRT = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }),
+    );
+    const diaSemanaAtual = mapDiasSemana[agoraBRT.getDay()];
+    const visitas: any[] = pessoa.visitas ?? [];
+
+    return (
+      visitas.find((v) => {
+        if (v.bloqueado === 1 || v.liberado !== 1) return false;
+        const inicioMs = v.data_hora_inicio ? new Date(v.data_hora_inicio).getTime() : null;
+        const terminoMs = v.data_hora_termino ? new Date(v.data_hora_termino).getTime() : null;
+        const dentroJanela =
+          (inicioMs === null || agora >= inicioMs - GRACE) &&
+          (terminoMs === null || agora <= terminoMs + GRACE);
+        const dentroDoCondominio =
+          !!v.data_entrada &&
+          !v.data_saida &&
+          agora - new Date(v.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS;
+        const diasPermitidos: string[] = v.dias_semana
+          ? v.dias_semana.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean)
+          : [];
+        const diaAutorizado = diasPermitidos.length === 0 || diasPermitidos.includes(diaSemanaAtual);
+        return (dentroJanela && diaAutorizado) || dentroDoCondominio;
+      }) ?? null
+    );
+  }
+
   async pushPessoaToDevices(pessoa: any, opts: { deviceIds?: number[] } = {}) {
     const devices = await this.prisma.facial_Devices.findMany({
       where: {
@@ -2182,21 +2221,81 @@ export class FacialService {
       return { ok: false, reason: 'photo_unreachable' };
     }
 
+    // Janela de validade e limite de usos NO APARELHO — mesmo princípio do
+    // syncVisitante (ver linhas ~1845-1923): sem isso a pessoa fica enrolada
+    // permanentemente, sem expiração nenhuma no terminal.
+    const visitaAtiva = this.resolverVisitaAtivaPessoa(pessoa);
+    const agora = Date.now();
+    const VINTE_QUATRO_HORAS_MS = 24 * 60 * 60 * 1000;
+    const dentroDoCondominio = !!(
+      visitaAtiva?.data_entrada &&
+      !visitaAtiva?.data_saida &&
+      agora - new Date(visitaAtiva.data_entrada).getTime() < VINTE_QUATRO_HORAS_MS
+    );
+    const inicioMs = visitaAtiva?.data_hora_inicio
+      ? new Date(visitaAtiva.data_hora_inicio).getTime()
+      : null;
+    const terminoMs = visitaAtiva?.data_hora_termino
+      ? new Date(visitaAtiva.data_hora_termino).getTime()
+      : null;
+    const GRACE = 15 * 60 * 1000;
+    const dentroJanela =
+      (inicioMs === null || agora >= inicioMs - GRACE) &&
+      (terminoMs === null || agora <= terminoMs + GRACE);
+
+    const validFrom = visitaAtiva?.data_hora_inicio
+      ? this.formatDahuaTime(new Date(visitaAtiva.data_hora_inicio))
+      : undefined;
+    let validTo =
+      dentroDoCondominio && !dentroJanela
+        ? undefined
+        : visitaAtiva?.data_hora_termino
+          ? this.formatDahuaTime(new Date(visitaAtiva.data_hora_termino))
+          : undefined;
+    const diasPermitidos: string[] = visitaAtiva?.dias_semana
+      ? String(visitaAtiva.dias_semana).split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean)
+      : [];
+    if (!dentroDoCondominio && diasPermitidos.length > 0) {
+      const fimHoje = this.fimDoDiaBRT();
+      validTo = !validTo || validTo > fimHoje ? fimHoje : validTo;
+    }
+
+    const temVagaAtiva =
+      !!visitaAtiva &&
+      this.prisma.vagas &&
+      (await this.prisma.vagas.count({
+        where: { id_visita: visitaAtiva.id, ativo: 1 },
+      })) > 0;
+
     let faceId: string | null = pessoa.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
     for (const device of devices) {
       try {
+        // Mesma regra do syncVisitante: prestador e pessoa com vaga ativa têm
+        // usos ilimitados (-1); os demais têm o contador do aparelho (UseTime).
+        let userTimes = -1;
+        if (pessoa.tipo_pessoa !== 'prestador' && !temVagaAtiva) {
+          if (dentroDoCondominio) userTimes = 1;
+          else userTimes = device.sentido === 'auto' ? 2 : 1;
+        }
+
         if (faceId) {
           await this.client.updatePerson(this.toConfig(device), faceId, {
             nome: pessoa.nome,
             fotoBase64,
+            validFrom,
+            validTo,
+            userTimes,
           });
         } else {
           const r = await this.client.enrollPerson(this.toConfig(device), {
             externalId,
             nome: pessoa.nome,
             fotoBase64,
+            validFrom,
+            validTo,
+            userTimes,
           });
           faceId = r.faceId;
         }
