@@ -1024,18 +1024,12 @@ export class FacialService {
     // Sempre registra o evento — sucesso vira 'acionado_manual', falha vira
     // 'falha_acionamento' (auditável). O operador NÃO pode pensar que abriu
     // quando não abriu.
-    await this.prisma.acessos_Facial.create({
-      data: {
-        id_condominio: device.id_condominio,
-        id_device: device.id,
-        tipo_dispositivo: device.tipo,
-        face_id: 'trigger_manual',
-        tipo_pessoa: 'operador',
-        id_pessoa: operador?.sub ?? null,
-        nome_pessoa: result.ok ? nomeOperador : `${nomeOperador} (FALHA)`,
-        evento: result.ok ? 'acionado_manual' : 'falha_acionamento',
-        timestamp: new Date(),
-      },
+    await this.registrarEvento(device, {
+      face_id: 'trigger_manual',
+      tipo_pessoa: 'operador',
+      id_pessoa: operador?.sub ?? null,
+      nome_pessoa: result.ok ? nomeOperador : `${nomeOperador} (FALHA)`,
+      evento: result.ok ? 'acionado_manual' : 'falha_acionamento',
     });
 
     // Auditoria estruturada — quem, quando, qual porta, sucesso/falha.
@@ -1156,6 +1150,46 @@ export class FacialService {
     }
     // Já é base64 puro
     return `data:image/jpeg;base64,${foto}`;
+  }
+
+  /**
+   * Único ponto de gravação de evento de acesso.
+   *
+   * Deriva id_condominio, tipo e nome DO APARELHO que está sendo registrado,
+   * em vez de aceitar do chamador. Antes disto, o fluxo de caminho de acesso
+   * gravava id_device da ABERTURA junto de id_condominio do LEITOR — dois
+   * objetos distintos, coerentes só porque pertenciam ao mesmo condomínio.
+   *
+   * nome_dispositivo é snapshot, mesmo papel de nome_pessoa: mantém o log
+   * legível depois que o aparelho for removido.
+   */
+  private async registrarEvento(
+    dispositivo: { id: number; id_condominio: number; tipo: string; nome: string },
+    dados: {
+      face_id: string;
+      tipo_pessoa: string;
+      id_pessoa?: number | null;
+      nome_pessoa: string;
+      evento: string;
+      confianca?: number | null;
+      timestamp?: Date;
+    },
+  ) {
+    return this.prisma.acessos_Facial.create({
+      data: {
+        id_condominio: dispositivo.id_condominio,
+        id_device: dispositivo.id,
+        tipo_dispositivo: dispositivo.tipo,
+        nome_dispositivo: dispositivo.nome,
+        face_id: dados.face_id,
+        tipo_pessoa: dados.tipo_pessoa,
+        id_pessoa: dados.id_pessoa ?? null,
+        nome_pessoa: dados.nome_pessoa,
+        evento: dados.evento,
+        confianca: dados.confianca ?? null,
+        timestamp: dados.timestamp ?? new Date(),
+      },
+    });
   }
 
   // ---------- Sync ----------
@@ -3292,23 +3326,18 @@ export class FacialService {
         }
       }
 
-      await this.prisma.acessos_Facial.create({
-        data: {
-          id_condominio: device.id_condominio,
-          id_device: device.id,
-          tipo_dispositivo: device.tipo,
-          // A placa entra aqui: é o que a portaria precisa ver para decidir
-          // sobre um veículo não cadastrado. Sem isso o registro saía vazio,
-          // porque a placa não chega por external_id.
-          face_id:
-            qrCodeLido ?? tagRfidLida ?? (placaLida || externalId) ?? 'desconhecido',
-          tipo_pessoa: 'desconhecido',
-          id_pessoa: null,
-          nome_pessoa: 'Não identificado ou expirado',
-          evento: 'negado',
-          confianca,
-          timestamp,
-        },
+      // A placa entra aqui: é o que a portaria precisa ver para decidir
+      // sobre um veículo não cadastrado. Sem isso o registro saía vazio,
+      // porque a placa não chega por external_id.
+      await this.registrarEvento(device, {
+        face_id:
+          qrCodeLido ?? tagRfidLida ?? (placaLida || externalId) ?? 'desconhecido',
+        tipo_pessoa: 'desconhecido',
+        id_pessoa: null,
+        nome_pessoa: 'Não identificado ou expirado',
+        evento: 'negado',
+        confianca,
+        timestamp,
       });
       throw new BadRequestException(
         'Acesso negado: Credencial não encontrada ou inválida',
@@ -3413,24 +3442,19 @@ export class FacialService {
     // configurada e o match veio abaixo dela, NEGA (a identificação não é
     // confiável o suficiente). 0 = desligado; confiança ausente não bloqueia.
     if (confiancaInsuficiente(confianca, device.confianca_minima ?? 0)) {
-      await this.prisma.acessos_Facial.create({
-        data: {
-          id_condominio: device.id_condominio,
-          id_device: device.id,
-          tipo_dispositivo: device.tipo,
-          face_id:
-            faceIdSalvo ||
-            qrCodeLido ||
-            tagRfidLida ||
-            externalId ||
-            'desconhecido',
-          tipo_pessoa: tipoPessoa,
-          id_pessoa: idPessoa,
-          nome_pessoa: `${nomePessoa} (Bloqueado por baixa confiança)`,
-          evento: 'negado',
-          confianca,
-          timestamp,
-        },
+      await this.registrarEvento(device, {
+        face_id:
+          faceIdSalvo ||
+          qrCodeLido ||
+          tagRfidLida ||
+          externalId ||
+          'desconhecido',
+        tipo_pessoa: tipoPessoa,
+        id_pessoa: idPessoa,
+        nome_pessoa: `${nomePessoa} (Bloqueado por baixa confiança)`,
+        evento: 'negado',
+        confianca,
+        timestamp,
       });
       throw new BadRequestException(
         `Acesso negado: confiança do reconhecimento (${
@@ -3466,24 +3490,19 @@ export class FacialService {
         const inicioComTolerancia = inicio;
 
         if (now < inicioComTolerancia) {
-          await this.prisma.acessos_Facial.create({
-            data: {
-              id_condominio: device.id_condominio,
-              id_device: device.id,
-              tipo_dispositivo: device.tipo,
-              face_id:
-                faceIdSalvo ||
-                qrCodeLido ||
-                tagRfidLida ||
-                externalId ||
-                'desconhecido',
-              tipo_pessoa: tipoPessoa,
-              id_pessoa: idPessoa,
-              nome_pessoa: `${nomePessoa} (Bloqueado por validade futura)`,
-              evento: 'negado',
-              confianca,
-              timestamp,
-            },
+          await this.registrarEvento(device, {
+            face_id:
+              faceIdSalvo ||
+              qrCodeLido ||
+              tagRfidLida ||
+              externalId ||
+              'desconhecido',
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            nome_pessoa: `${nomePessoa} (Bloqueado por validade futura)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
           });
           throw new BadRequestException(
             'Acesso negado: O período de validade desta autorização ainda não iniciou.',
@@ -3508,24 +3527,19 @@ export class FacialService {
               ),
             );
 
-            await this.prisma.acessos_Facial.create({
-              data: {
-                id_condominio: device.id_condominio,
-                id_device: device.id,
-                tipo_dispositivo: device.tipo,
-                face_id:
-                  faceIdSalvo ||
-                  qrCodeLido ||
-                  tagRfidLida ||
-                  externalId ||
-                  'desconhecido',
-                tipo_pessoa: tipoPessoa,
-                id_pessoa: idPessoa,
-                nome_pessoa: `${nomePessoa} (Bloqueado por validade expirada)`,
-                evento: 'negado',
-                confianca,
-                timestamp,
-              },
+            await this.registrarEvento(device, {
+              face_id:
+                faceIdSalvo ||
+                qrCodeLido ||
+                tagRfidLida ||
+                externalId ||
+                'desconhecido',
+              tipo_pessoa: tipoPessoa,
+              id_pessoa: idPessoa,
+              nome_pessoa: `${nomePessoa} (Bloqueado por validade expirada)`,
+              evento: 'negado',
+              confianca,
+              timestamp,
             });
             throw new BadRequestException(
               'Acesso negado: O período de validade desta autorização já expirou.',
@@ -3548,24 +3562,19 @@ export class FacialService {
             );
             const diaSemanaAtual = mapDias[nowBRT.getDay()];
             if (!diasPermitidos.includes(diaSemanaAtual)) {
-              await this.prisma.acessos_Facial.create({
-                data: {
-                  id_condominio: device.id_condominio,
-                  id_device: device.id,
-                  tipo_dispositivo: device.tipo,
-                  face_id:
-                    faceIdSalvo ||
-                    qrCodeLido ||
-                    tagRfidLida ||
-                    externalId ||
-                    'desconhecido',
-                  tipo_pessoa: tipoPessoa,
-                  id_pessoa: idPessoa,
-                  nome_pessoa: `${nomePessoa} (Bloqueado por dia da semana não autorizado)`,
-                  evento: 'negado',
-                  confianca,
-                  timestamp,
-                },
+              await this.registrarEvento(device, {
+                face_id:
+                  faceIdSalvo ||
+                  qrCodeLido ||
+                  tagRfidLida ||
+                  externalId ||
+                  'desconhecido',
+                tipo_pessoa: tipoPessoa,
+                id_pessoa: idPessoa,
+                nome_pessoa: `${nomePessoa} (Bloqueado por dia da semana não autorizado)`,
+                evento: 'negado',
+                confianca,
+                timestamp,
               });
               throw new BadRequestException(
                 'Acesso negado: Entrada não permitida no dia de hoje.',
@@ -3575,24 +3584,19 @@ export class FacialService {
         }
 
         if (v.liberado !== 1) {
-          await this.prisma.acessos_Facial.create({
-            data: {
-              id_condominio: device.id_condominio,
-              id_device: device.id,
-              tipo_dispositivo: device.tipo,
-              face_id:
-                faceIdSalvo ||
-                qrCodeLido ||
-                tagRfidLida ||
-                externalId ||
-                'desconhecido',
-              tipo_pessoa: tipoPessoa,
-              id_pessoa: idPessoa,
-              nome_pessoa: `${nomePessoa} (Bloqueado por falta de liberação)`,
-              evento: 'negado',
-              confianca,
-              timestamp,
-            },
+          await this.registrarEvento(device, {
+            face_id:
+              faceIdSalvo ||
+              qrCodeLido ||
+              tagRfidLida ||
+              externalId ||
+              'desconhecido',
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            nome_pessoa: `${nomePessoa} (Bloqueado por falta de liberação)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
           });
           throw new BadRequestException(
             'Acesso negado: A entrada deste visitante não foi autorizada pelo morador ou portaria.',
@@ -3600,24 +3604,19 @@ export class FacialService {
         }
       } else if (evento === 'saida') {
         if (!v.data_entrada || v.data_saida) {
-          await this.prisma.acessos_Facial.create({
-            data: {
-              id_condominio: device.id_condominio,
-              id_device: device.id,
-              tipo_dispositivo: device.tipo,
-              face_id:
-                faceIdSalvo ||
-                qrCodeLido ||
-                tagRfidLida ||
-                externalId ||
-                'desconhecido',
-              tipo_pessoa: tipoPessoa,
-              id_pessoa: idPessoa,
-              nome_pessoa: `${nomePessoa} (Bloqueado por não estar no condomínio)`,
-              evento: 'negado',
-              confianca,
-              timestamp,
-            },
+          await this.registrarEvento(device, {
+            face_id:
+              faceIdSalvo ||
+              qrCodeLido ||
+              tagRfidLida ||
+              externalId ||
+              'desconhecido',
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            nome_pessoa: `${nomePessoa} (Bloqueado por não estar no condomínio)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
           });
           throw new BadRequestException(
             'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.',
@@ -3642,24 +3641,19 @@ export class FacialService {
           horaMinutoAtual,
         )
       ) {
-        await this.prisma.acessos_Facial.create({
-          data: {
-            id_condominio: device.id_condominio,
-            id_device: device.id,
-            tipo_dispositivo: device.tipo,
-            face_id:
-              faceIdSalvo ||
-              qrCodeLido ||
-              tagRfidLida ||
-              externalId ||
-              'desconhecido',
-            tipo_pessoa: tipoPessoa,
-            id_pessoa: idPessoa,
-            nome_pessoa: `${nomePessoa} (Bloqueado por Regra de Acesso)`,
-            evento: 'negado',
-            confianca,
-            timestamp,
-          },
+        await this.registrarEvento(device, {
+          face_id:
+            faceIdSalvo ||
+            qrCodeLido ||
+            tagRfidLida ||
+            externalId ||
+            'desconhecido',
+          tipo_pessoa: tipoPessoa,
+          id_pessoa: idPessoa,
+          nome_pessoa: `${nomePessoa} (Bloqueado por Regra de Acesso)`,
+          evento: 'negado',
+          confianca,
+          timestamp,
         });
 
         const sentidoLabel =
@@ -3707,24 +3701,19 @@ export class FacialService {
       });
 
       if (ultimoAcesso && ultimoAcesso.evento === evento) {
-        await this.prisma.acessos_Facial.create({
-          data: {
-            id_condominio: device.id_condominio,
-            id_device: device.id,
-            tipo_dispositivo: device.tipo,
-            face_id:
-              faceIdSalvo ||
-              qrCodeLido ||
-              tagRfidLida ||
-              externalId ||
-              'desconhecido',
-            tipo_pessoa: tipoPessoa,
-            id_pessoa: idPessoa,
-            nome_pessoa: `${nomePessoa} (Bloqueado por Anti-passback)`,
-            evento: 'negado',
-            confianca,
-            timestamp,
-          },
+        await this.registrarEvento(device, {
+          face_id:
+            faceIdSalvo ||
+            qrCodeLido ||
+            tagRfidLida ||
+            externalId ||
+            'desconhecido',
+          tipo_pessoa: tipoPessoa,
+          id_pessoa: idPessoa,
+          nome_pessoa: `${nomePessoa} (Bloqueado por Anti-passback)`,
+          evento: 'negado',
+          confianca,
+          timestamp,
         });
 
         const sentidoLabel = evento === 'entrada' ? 'entrada' : 'saída';
@@ -3781,24 +3770,19 @@ export class FacialService {
       const apb =
         apbBruto === 'deny' && isBacklog ? 'allow_with_warning' : apbBruto;
       if (apb === 'deny') {
-        await this.prisma.acessos_Facial.create({
-          data: {
-            id_condominio: device.id_condominio,
-            id_device: device.id,
-            tipo_dispositivo: device.tipo,
-            face_id:
-              faceIdSalvo ||
-              qrCodeLido ||
-              tagRfidLida ||
-              externalId ||
-              'desconhecido',
-            tipo_pessoa: tipoPessoa,
-            id_pessoa: idPessoa,
-            nome_pessoa: `${nomePessoa} (Bloqueado por Anti-passback)`,
-            evento: 'negado',
-            confianca,
-            timestamp,
-          },
+        await this.registrarEvento(device, {
+          face_id:
+            faceIdSalvo ||
+            qrCodeLido ||
+            tagRfidLida ||
+            externalId ||
+            'desconhecido',
+          tipo_pessoa: tipoPessoa,
+          id_pessoa: idPessoa,
+          nome_pessoa: `${nomePessoa} (Bloqueado por Anti-passback)`,
+          evento: 'negado',
+          confianca,
+          timestamp,
         });
         const sentidoLabel = evento === 'entrada' ? 'entrada' : 'saída';
         throw new BadRequestException(
@@ -3812,19 +3796,14 @@ export class FacialService {
     }
 
     if (tipoPessoa === 'morador' || tipoPessoa === 'funcionario') {
-      await this.prisma.acessos_Facial.create({
-        data: {
-          id_condominio: device.id_condominio,
-          id_device: device.id,
-          tipo_dispositivo: device.tipo,
-          face_id: faceIdSalvo,
-          tipo_pessoa: tipoPessoa,
-          id_pessoa: idPessoa,
-          nome_pessoa: nomePessoa,
-          evento,
-          confianca,
-          timestamp,
-        },
+      await this.registrarEvento(device, {
+        face_id: faceIdSalvo,
+        tipo_pessoa: tipoPessoa,
+        id_pessoa: idPessoa,
+        nome_pessoa: nomePessoa,
+        evento,
+        confianca,
+        timestamp,
       });
     } else {
       const isEntrada = evento === 'entrada';
@@ -3859,19 +3838,14 @@ export class FacialService {
           ) {
             return { ok: true, backlog: true, deduped: true };
           }
-          await this.prisma.acessos_Facial.create({
-            data: {
-              id_condominio: device.id_condominio,
-              id_device: device.id,
-              tipo_dispositivo: device.tipo,
-              face_id: faceIdSalvo,
-              tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
-              id_pessoa: v.id,
-              nome_pessoa: `${nomePessoa} (Bloqueado por liberação revogada/concorrência)`,
-              evento: 'negado',
-              confianca,
-              timestamp,
-            },
+          await this.registrarEvento(device, {
+            face_id: faceIdSalvo,
+            tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+            id_pessoa: v.id,
+            nome_pessoa: `${nomePessoa} (Bloqueado por liberação revogada/concorrência)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
           });
           throw new BadRequestException(
             'Acesso negado: A liberação deste visitante foi revogada ou já consumida.',
@@ -3928,19 +3902,14 @@ export class FacialService {
           ) {
             return { ok: true, backlog: true, deduped: true };
           }
-          await this.prisma.acessos_Facial.create({
-            data: {
-              id_condominio: device.id_condominio,
-              id_device: device.id,
-              tipo_dispositivo: device.tipo,
-              face_id: faceIdSalvo,
-              tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
-              id_pessoa: v.id,
-              nome_pessoa: `${nomePessoa} (Bloqueado por saída duplicada/concorrência)`,
-              evento: 'negado',
-              confianca,
-              timestamp,
-            },
+          await this.registrarEvento(device, {
+            face_id: faceIdSalvo,
+            tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+            id_pessoa: v.id,
+            nome_pessoa: `${nomePessoa} (Bloqueado por saída duplicada/concorrência)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
           });
           throw new BadRequestException(
             'Acesso negado: Este visitante não possui uma entrada ativa no condomínio para poder registrar saída.',
@@ -3958,19 +3927,14 @@ export class FacialService {
         );
       }
 
-      await this.prisma.acessos_Facial.create({
-        data: {
-          id_condominio: device.id_condominio,
-          id_device: device.id,
-          tipo_dispositivo: device.tipo,
-          face_id: faceIdSalvo,
-          tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
-          id_pessoa: v.id,
-          nome_pessoa: nomePessoa,
-          evento,
-          confianca,
-          timestamp,
-        },
+      await this.registrarEvento(device, {
+        face_id: faceIdSalvo,
+        tipo_pessoa: v.is_prestador === 1 ? 'prestador' : 'visitante',
+        id_pessoa: v.id,
+        nome_pessoa: nomePessoa,
+        evento,
+        confianca,
+        timestamp,
       });
 
       // Backlog não notifica em tempo real — o evento é antigo; uma rajada
@@ -4121,20 +4085,14 @@ export class FacialService {
           const result = await this.client.triggerRelay(
             this.toConfig(abertura),
           );
-          await this.prisma.acessos_Facial.create({
-            data: {
-              id_condominio: device.id_condominio,
-              id_device: abertura.id,
-              tipo_dispositivo: abertura.tipo,
-              face_id: faceIdSalvo || 'ponte_auto',
-              tipo_pessoa: tipoPessoa,
-              id_pessoa: idPessoa,
-              nome_pessoa: result.ok
-                ? `${nomePessoa} (acionado por ${device.nome})`
-                : `${nomePessoa} (FALHA ao acionar ${abertura.nome})`,
-              evento: result.ok ? 'acionado_auto' : 'falha_acionamento',
-              timestamp: new Date(),
-            },
+          await this.registrarEvento(abertura, {
+            face_id: faceIdSalvo || 'ponte_auto',
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            nome_pessoa: result.ok
+              ? `${nomePessoa} (acionado por ${device.nome})`
+              : `${nomePessoa} (FALHA ao acionar ${abertura.nome})`,
+            evento: result.ok ? 'acionado_auto' : 'falha_acionamento',
           });
           if (!result.ok) {
             this.logger.warn(
