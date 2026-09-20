@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PessoasService } from '../pessoas/pessoas.service';
 import { CriarVisitaDto } from './dto/criar-visita.dto';
@@ -10,7 +10,36 @@ export class VisitasService {
     private readonly pessoasService: PessoasService,
   ) {}
 
+  /**
+   * Confere que o apartamento pertence ao condomínio da rota antes de
+   * anexar uma visita a ele.
+   *
+   * `id_condominio` do DTO já é o `:idCondominio` da rota (o controller
+   * sempre sobrescreve — ver `CriarVisitaDto`), validado pelo TenantGuard +
+   * `assertOperador`. Mas `id_apartamento` vem cru do body: sem esta
+   * checagem, um operador do condomínio A criava uma visita apontando para
+   * um apartamento do condomínio B — a mesma falha que
+   * `VisitantesService.assertPodeUsarApartamento` já fecha no caminho
+   * legado (`visitantes.service.ts`).
+   */
+  private async assertApartamentoDoCondominio(
+    idApartamento: number,
+    idCondominio: number,
+  ): Promise<void> {
+    const apto = await this.prisma.apartamentos.findUnique({
+      where: { id: Number(idApartamento) },
+      select: { id: true, id_condominio: true },
+    });
+    if (!apto) {
+      throw new BadRequestException('Apartamento não encontrado.');
+    }
+    if (apto.id_condominio !== Number(idCondominio)) {
+      throw new ForbiddenException('Acesso negado: este apartamento pertence a outro condomínio.');
+    }
+  }
+
   async criarVisita(dto: CriarVisitaDto) {
+    await this.assertApartamentoDoCondominio(Number(dto.id_apartamento), Number(dto.id_condominio));
     const pessoa = await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa);
 
     const inicio = dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : null;

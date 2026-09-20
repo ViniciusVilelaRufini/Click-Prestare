@@ -15,6 +15,9 @@ describe('VisitasService', () => {
       findMany: jest.fn(),
       update: jest.fn(),
     },
+    apartamentos: {
+      findUnique: jest.fn().mockResolvedValue({ id: 101, id_condominio: 1 }),
+    },
     vagas: {
       updateMany: jest.fn(),
     },
@@ -62,6 +65,37 @@ describe('VisitasService', () => {
     });
     expect(visita.id).toBe(100);
     expect(visita.id_pessoa).toBe(50);
+    expect(mockPrisma.apartamentos.findUnique).toHaveBeenCalledWith({
+      where: { id: 101 },
+      select: { id: true, id_condominio: true },
+    });
+  });
+
+  it('deve recusar criarVisita quando o apartamento pertence a outro condomínio (IDOR)', async () => {
+    mockPrisma.apartamentos.findUnique.mockResolvedValueOnce({ id: 202, id_condominio: 2 });
+
+    await expect(
+      service.criarVisita({
+        id_condominio: 1,
+        id_apartamento: 202,
+        pessoa: { nome: 'Visitante Teste' },
+      }),
+    ).rejects.toThrow('este apartamento pertence a outro condomínio');
+    expect(mockPessoasService.obterOuCriar).not.toHaveBeenCalled();
+    expect(mockPrisma.visitas.create).not.toHaveBeenCalled();
+  });
+
+  it('deve recusar criarVisita com 400 quando o apartamento não existe', async () => {
+    mockPrisma.apartamentos.findUnique.mockResolvedValueOnce(null);
+
+    await expect(
+      service.criarVisita({
+        id_condominio: 1,
+        id_apartamento: 999,
+        pessoa: { nome: 'Visitante Teste' },
+      }),
+    ).rejects.toThrow('Apartamento não encontrado');
+    expect(mockPrisma.visitas.create).not.toHaveBeenCalled();
   });
 
   it('deve registrar entrada preenchendo data_entrada', async () => {
