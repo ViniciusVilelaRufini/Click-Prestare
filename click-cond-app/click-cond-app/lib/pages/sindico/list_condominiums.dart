@@ -28,6 +28,7 @@ import 'package:click/theme/app_spacing.dart';
 import 'package:click/theme/app_typography.dart';
 import 'package:click/utils/cond_cache.dart';
 import 'package:click/utils/datas.dart';
+import 'package:click/utils/eventos_utils.dart';
 import 'package:click/utils/local_storage.dart';
 import 'package:click/utils/localizable/localizable.dart';
 import 'package:click/widgets/app/app_button.dart';
@@ -1301,7 +1302,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
-              'Meus eventos',
+              tituloSecaoEventos(getUserType()),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
