@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CriarPessoaDto } from './dto/criar-pessoa.dto';
 
@@ -79,7 +79,25 @@ export class PessoasService {
     });
   }
 
-  async obterHistorico(idPessoa: number) {
+  /**
+   * `idPessoa` vem do path (`GET /condominios/:idCondominio/pessoas/:idPessoa/historico`)
+   * sem relação alguma com o `:idCondominio` da mesma rota — sem esta
+   * checagem, um operador do condomínio A lia nome, documento, telefone e
+   * todas as visitas de uma pessoa do condomínio B só trocando o id na URL
+   * (IDOR cross-tenant).
+   */
+  async obterHistorico(idCondominio: number, idPessoa: number) {
+    const pessoa = await this.prisma.pessoas.findUnique({
+      where: { id: Number(idPessoa) },
+      select: { id: true, id_condominio: true },
+    });
+    if (!pessoa) {
+      throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+    }
+    if (pessoa.id_condominio !== Number(idCondominio)) {
+      throw new ForbiddenException('Acesso negado: esta pessoa pertence a outro condomínio.');
+    }
+
     return this.prisma.visitas.findMany({
       where: { id_pessoa: Number(idPessoa) },
       include: {
@@ -89,7 +107,25 @@ export class PessoasService {
     });
   }
 
+  /**
+   * Confere que a Pessoa existe antes de escrever nela.
+   *
+   * Sem isso, um `id` inexistente (digitado errado, já excluído, de outro
+   * ambiente) deixava o P2025 do Prisma escapar cru do `update` e virar 500
+   * — em vez do 404 que o chamador (rota HTTP, sync facial) já sabe tratar.
+   */
+  private async assertPessoaExiste(idPessoa: number): Promise<void> {
+    const existente = await this.prisma.pessoas.findUnique({
+      where: { id: Number(idPessoa) },
+      select: { id: true },
+    });
+    if (!existente) {
+      throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+    }
+  }
+
   async atualizarBiometria(idPessoa: number, faceId: string, status = 'synced', erro: string | null = null) {
+    await this.assertPessoaExiste(idPessoa);
     return this.prisma.pessoas.update({
       where: { id: Number(idPessoa) },
       data: {
@@ -102,6 +138,7 @@ export class PessoasService {
   }
 
   async bloquearPessoa(idPessoa: number, bloquear: boolean) {
+    await this.assertPessoaExiste(idPessoa);
     return this.prisma.pessoas.update({
       where: { id: Number(idPessoa) },
       data: {

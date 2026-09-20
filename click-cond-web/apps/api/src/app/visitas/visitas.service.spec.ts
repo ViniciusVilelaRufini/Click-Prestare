@@ -10,7 +10,7 @@ describe('VisitasService', () => {
   const mockPrisma = {
     visitas: {
       create: jest.fn(),
-      findUnique: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue({ id: 100, id_condominio: 1 }),
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
@@ -70,7 +70,7 @@ describe('VisitasService', () => {
       data_entrada: new Date(),
     });
 
-    const res = await service.registrarEntrada(100);
+    const res = await service.registrarEntrada(100, 1);
     expect(mockPrisma.visitas.update).toHaveBeenCalledWith({
       where: { id: 100 },
       data: { data_entrada: expect.any(Date) },
@@ -84,7 +84,7 @@ describe('VisitasService', () => {
       data_saida: new Date(),
     });
 
-    const res = await service.registrarSaida(100);
+    const res = await service.registrarSaida(100, 1);
     expect(mockPrisma.visitas.update).toHaveBeenCalledWith({
       where: { id: 100 },
       data: { data_saida: expect.any(Date) },
@@ -94,6 +94,31 @@ describe('VisitasService', () => {
       where: { id_visita: 100 },
       data: { ativo: 0 },
     });
+  });
+
+  it('deve recusar registrarEntrada com 404 quando a visita não existe', async () => {
+    mockPrisma.visitas.findUnique.mockResolvedValueOnce(null);
+
+    await expect(service.registrarEntrada(999, 1)).rejects.toThrow('Visita 999 não encontrada');
+    expect(mockPrisma.visitas.update).not.toHaveBeenCalled();
+  });
+
+  it('deve recusar registrarEntrada com 403 quando a visita pertence a outro condomínio (IDOR)', async () => {
+    mockPrisma.visitas.findUnique.mockResolvedValueOnce({ id: 100, id_condominio: 2 });
+
+    await expect(service.registrarEntrada(100, 1)).rejects.toThrow(
+      'esta visita pertence a outro condomínio',
+    );
+    expect(mockPrisma.visitas.update).not.toHaveBeenCalled();
+  });
+
+  it('deve recusar registrarSaida com 403 quando a visita pertence a outro condomínio (IDOR)', async () => {
+    mockPrisma.visitas.findUnique.mockResolvedValueOnce({ id: 100, id_condominio: 2 });
+
+    await expect(service.registrarSaida(100, 1)).rejects.toThrow(
+      'esta visita pertence a outro condomínio',
+    );
+    expect(mockPrisma.visitas.update).not.toHaveBeenCalled();
   });
 
   it('deve listar pessoas com presença no local (entrada registrada e sem saída)', async () => {

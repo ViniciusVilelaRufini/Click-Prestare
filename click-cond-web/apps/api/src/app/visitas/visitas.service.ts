@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PessoasService } from '../pessoas/pessoas.service';
 import { CriarVisitaDto } from './dto/criar-visita.dto';
@@ -11,7 +11,7 @@ export class VisitasService {
   ) {}
 
   async criarVisita(dto: CriarVisitaDto) {
-    const pessoa = await this.pessoasService.obterOuCriar(dto.id_condominio, dto.pessoa);
+    const pessoa = await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa);
 
     const inicio = dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : null;
     const termino = dto.data_hora_termino ? new Date(dto.data_hora_termino) : null;
@@ -41,7 +41,35 @@ export class VisitasService {
     });
   }
 
-  async registrarEntrada(idVisita: number) {
+  /**
+   * Confere que a Visita existe e pertence ao condomínio da rota antes de
+   * escrever nela.
+   *
+   * Duas falhas cobertas de uma vez:
+   *  - Sem checar existência, um `id` inexistente deixava o P2025 do Prisma
+   *    escapar cru do `update` e virar 500 — em vez do 404 que o controller
+   *    já sabe tratar.
+   *  - Sem checar `id_condominio`, `idVisita` é um id global (não escopado
+   *    por condomínio na URL) — um operador do condomínio A conseguia
+   *    registrar entrada/saída na visita do condomínio B só chutando o id
+   *    (IDOR cross-tenant). `idCondominio` vem do `:idCondominio` da rota,
+   *    que o TenantGuard já validou pertencer ao usuário autenticado.
+   */
+  private async assertVisitaDoCondominio(idVisita: number, idCondominio: number): Promise<void> {
+    const existente = await this.prisma.visitas.findUnique({
+      where: { id: Number(idVisita) },
+      select: { id: true, id_condominio: true },
+    });
+    if (!existente) {
+      throw new NotFoundException(`Visita ${idVisita} não encontrada`);
+    }
+    if (existente.id_condominio !== Number(idCondominio)) {
+      throw new ForbiddenException('Acesso negado: esta visita pertence a outro condomínio.');
+    }
+  }
+
+  async registrarEntrada(idVisita: number, idCondominio: number) {
+    await this.assertVisitaDoCondominio(idVisita, idCondominio);
     return this.prisma.visitas.update({
       where: { id: Number(idVisita) },
       data: { data_entrada: new Date() },
@@ -49,7 +77,8 @@ export class VisitasService {
     });
   }
 
-  async registrarSaida(idVisita: number) {
+  async registrarSaida(idVisita: number, idCondominio: number) {
+    await this.assertVisitaDoCondominio(idVisita, idCondominio);
     const visita = await this.prisma.visitas.update({
       where: { id: Number(idVisita) },
       data: { data_saida: new Date() },
