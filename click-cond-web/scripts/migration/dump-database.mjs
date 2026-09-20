@@ -21,6 +21,9 @@ function buildConfig() {
     password: decodeURIComponent(url.password),
     database: url.pathname.replace(/^\//, ''),
     connectTimeout: 20000,
+    supportBigNumbers: true,
+    bigNumberStrings: true,
+    dateStrings: true,
   };
 }
 
@@ -43,13 +46,27 @@ async function main() {
   const conn = await mysql.createConnection(cfg);
   try {
     const contagens = await contarTodasAsTabelas(conn, cfg.database);
-    const total = Object.values(contagens).reduce((a, b) => a + b, 0);
+    const total = Object.values(contagens).reduce((a, b) => a + Number(b), 0);
     console.log(`Tabelas: ${Object.keys(contagens).length} | linhas totais: ${total}`);
 
     const dados = {};
     for (const tabela of Object.keys(contagens)) {
       const [rows] = await conn.query(`SELECT * FROM \`${tabela}\``);
       dados[tabela] = rows;
+    }
+
+    // Trava de completude: garante que cada tabela dumpou exatamente o
+    // número de linhas contado antes. Sem isso, uma tabela vazia por engano
+    // passaria despercebida num arquivo grande e aparentemente saudável.
+    for (const tabela of Object.keys(contagens)) {
+      const esperado = Number(contagens[tabela]);
+      const obtido = dados[tabela].length;
+      if (obtido !== esperado) {
+        console.error(
+          `Dump incompleto na tabela "${tabela}": esperado ${esperado} linha(s), obtido ${obtido}.`,
+        );
+        process.exit(1);
+      }
     }
 
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
