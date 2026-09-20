@@ -568,6 +568,164 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return [];
     }
 
+    const score = (v: any) => {
+      if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
+      if ((v as any).auth_status === 'autorizado') return 900; // Autorizado pelo morador!
+      if ((v as any).auth_status === 'pendente') return 850;   // Aguardando morador!
+      if (v.codigo_acesso && v.liberado === 1) return 800; // PIN ativo e liberado!
+      if (v.codigo_acesso) return 500;                  // PIN ativo / agendado
+      const created = v.created_at ? new Date(v.created_at).getTime() : 0;
+      return created / 1e10;
+    };
+
+    if (this.prisma.pessoas) {
+      const docClean = (search ?? '').replace(/\D/g, '').trim();
+      const pessoasCadastradas = await this.prisma.pessoas.findMany({
+        where: {
+          id_condominio: Number(idCondominio),
+          ...(search
+            ? {
+                OR: [
+                  { nome: { contains: search } },
+                  ...(docClean.length >= 4
+                    ? [{ doc_identificacao: { contains: docClean } }]
+                    : []),
+                ],
+              }
+            : {}),
+        },
+        include: {
+          visitas: {
+            include: {
+              apartamento: { select: { id: true, bloco: true, apto: true } },
+            },
+            orderBy: [{ data_hora_inicio: 'desc' }, { created_at: 'desc' }],
+          },
+        },
+        orderBy: [{ created_at: 'desc' }],
+      });
+
+      if (pessoasCadastradas && pessoasCadastradas.length > 0) {
+        const idsVisitas = pessoasCadastradas.flatMap((p) => p.visitas?.map((v) => v.id) ?? []);
+        const vagasAtivas = idsVisitas.length && this.prisma.vagas
+          ? await this.prisma.vagas.findMany({
+              where: { id_visita: { in: idsVisitas }, ativo: 1 },
+              include: { titular: { select: { nome: true } } },
+            })
+          : [];
+        const vagaPorVisita = new Map<number, string | null>();
+        for (const vg of vagasAtivas) {
+          if (vg.id_visita != null) {
+            vagaPorVisita.set(vg.id_visita, vg.titular?.nome ?? null);
+          }
+        }
+
+        const now = Date.now();
+        const AUTH_EXPIRACAO_MS = 10 * 60 * 1000;
+
+        return pessoasCadastradas.map((p) => {
+          const arr = p.visitas ?? [];
+          arr.sort((a, b) => score(b) - score(a));
+          const principal = arr[0] as any;
+
+          const noLocal = arr.some((r) => r.data_entrada && !r.data_saida);
+          const temPinAtivo = arr.some((r) => r.codigo_acesso && !r.data_saida);
+          const totalVisitas = arr.length;
+
+          const ultEntrada = arr
+            .map((r) => r.data_entrada)
+            .filter((d): d is Date => !!d)
+            .sort((a, b) => b.getTime() - a.getTime())[0];
+
+          const ultSaida = arr
+            .map((r) => r.data_saida)
+            .filter((d): d is Date => !!d)
+            .sort((a, b) => b.getTime() - a.getTime())[0];
+
+          const apto = principal?.apartamento;
+          const aptoStr = apto
+            ? `${apto.apto ?? ''}${apto.bloco ? '/' + apto.bloco : ''}`.replace(/^\/|\/$/g, '')
+            : null;
+
+          const diasSemanaPessoa =
+            arr.map((r) => r.dias_semana).find((d) => d && String(d).trim()) ?? null;
+          const categoriasPessoa =
+            arr.map((r) => r.categorias).find((c) => c && String(c).trim()) ?? null;
+
+          const aptosMap = new Map<number, typeof arr>();
+          for (const r of arr) {
+            if (r.apartamento) {
+              const lista = aptosMap.get(r.apartamento.id) ?? [];
+              lista.push(r);
+              aptosMap.set(r.apartamento.id, lista);
+            }
+          }
+
+          const apartamentosVisitados = Array.from(aptosMap.entries()).map(([aptoId, regs]) => {
+            regs.sort((a, b) => score(b) - score(a));
+            const best = regs[0];
+            const a = best.apartamento!;
+            const label = `${a.apto ?? ''}${a.bloco ? '/' + a.bloco : ''}`.replace(/^\/|\/$/g, '');
+
+            const isPendente = regs.some((r) => {
+              if ((r as any).auth_status !== 'pendente') return false;
+              const solEm = (r as any).auth_solicitado_em
+                ? new Date((r as any).auth_solicitado_em).getTime()
+                : (r.created_at ? new Date(r.created_at).getTime() : 0);
+              return (now - solEm) <= AUTH_EXPIRACAO_MS;
+            });
+
+            const isAutorizado = regs.some((r) => {
+              if ((r as any).auth_status !== 'autorizado') return false;
+              const respEm = (r as any).auth_respondido_em
+                ? new Date((r as any).auth_respondido_em).getTime()
+                : 0;
+              return (now - respEm) <= AUTH_EXPIRACAO_MS;
+            });
+
+            return {
+              id: aptoId,
+              label,
+              bloco: a.bloco,
+              apto: a.apto,
+              status: isPendente ? 'pendente' : (isAutorizado ? 'autorizado' : null),
+              visitaMaisRecente: best.id,
+              totalVisitasApto: regs.length,
+            };
+          });
+
+          return {
+            id: principal?.id ?? p.id,
+            id_pessoa: p.id,
+            nome: p.nome,
+            doc_identificacao: p.doc_identificacao,
+            telefone: p.telefone,
+            foto_pessoa: p.foto_pessoa,
+            foto_documento: p.foto_documento,
+            face_id: p.face_id,
+            face_sync_status: p.face_sync_status,
+            face_enrolled_at: p.face_enrolled_at ? new Date(p.face_enrolled_at).toISOString() : null,
+            codigo_acesso: principal?.codigo_acesso ?? null,
+            liberado: principal?.liberado ?? 1,
+            bloqueado: p.bloqueado === 1 || principal?.bloqueado === 1 ? 1 : 0,
+            data_hora_inicio: principal?.data_hora_inicio ? new Date(principal.data_hora_inicio).toISOString() : null,
+            data_hora_termino: principal?.data_hora_termino ? new Date(principal.data_hora_termino).toISOString() : null,
+            data_entrada: ultEntrada ? new Date(ultEntrada).toISOString() : null,
+            data_saida: ultSaida ? new Date(ultSaida).toISOString() : null,
+            noLocal,
+            temPinAtivo,
+            totalVisitas,
+            apartamento: principal?.apartamento ?? null,
+            apto: aptoStr,
+            apartamentosVisitados,
+            dias_semana: diasSemanaPessoa,
+            categorias: categoriasPessoa,
+            vagaMorador: principal ? (vagaPorVisita.get(principal.id) ?? null) : null,
+          };
+        });
+      }
+    }
+
     const todas = await this.prisma.visitantes.findMany({
       where: {
         id_condominio: Number(idCondominio),
@@ -649,17 +807,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // Score do registro principal (qual representa a pessoa na lista)
-    const score = (v: Reg) => {
-      if (v.data_entrada && !v.data_saida) return 1000; // No condomínio agora
-      if ((v as any).auth_status === 'autorizado') return 900; // Autorizado pelo morador!
-      if ((v as any).auth_status === 'pendente') return 850;   // Aguardando morador!
-      if (v.codigo_acesso && v.liberado === 1) return 800; // PIN ativo e liberado!
-      if (v.codigo_acesso) return 500;                  // PIN ativo / agendado
-      const created = v.created_at ? new Date(v.created_at).getTime() : 0;
-      return created / 1e10;
-    };
-
+    // Ordena registros pelo score
     const pessoas = [];
     for (const arr of gruposList) {
       arr.sort((a, b) => score(b) - score(a));
