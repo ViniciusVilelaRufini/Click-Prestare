@@ -484,6 +484,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return mocks;
     }
 
+    if (pessoasMigrationEnabled()) {
+      return this.findAllViaPessoasVisitas(idCondominio, search);
+    }
+
     return this.prisma.visitantes.findMany({
       where: {
         id_condominio: Number(idCondominio),
@@ -518,6 +522,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         created_at: new Date(),
         apartamento: { bloco: 'A', apto: '101' },
       };
+    }
+
+    if (pessoasMigrationEnabled()) {
+      return this.findOneViaPessoasVisitas(id, payload);
     }
 
     // Autorização de tenant (vaza doc/RG/CPF e fotos se não checar).
@@ -2343,6 +2351,822 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, atualizados };
   }
 
+  private async checkInViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
+    const ref = await this.assertPodeAcessarVisita(id, payload);
+    if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+    const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
+    if (idApartamento && targetAptoId !== ref.id_apartamento) {
+      await this.assertPodeUsarApartamento(targetAptoId, payload);
+    }
+    const v = await this.prisma.visitas.update({
+      where: { id: Number(id) },
+      data: {
+        data_entrada: new Date(),
+        data_saida: null,
+        liberado: 1,
+        ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
+        ...(payload?.sub !== undefined && { user: payload.sub }),
+        ...(ref.auth_status === 'pendente' && {
+          auth_status: 'autorizado',
+          auth_respondido_em: new Date(),
+          auth_respondido_por: payload?.sub ?? null,
+        }),
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+    });
+
+    this.fireFacialSyncPessoa(v.id_pessoa);
+    const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctx = this.construirContextoAuditoria(v);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
+    const usuarioEmail = (payload as any)?.email ?? (payload as any)?.user?.email ?? undefined;
+
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: usuarioNome,
+      ...(usuarioEmail ? { usuario_email: usuarioEmail } : {}),
+      acao: 'CHECK_IN',
+      modulo: 'visitas',
+      entidade_id: v.id,
+      descricao: `Check-in de ${label} "${v.pessoa?.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
+    });
+    this.realtime.emitToCondominio(v.id_condominio, 'visitante.checkin', { id: v.id });
+    return { ok: true };
+  }
+
+  private async liberarAcessoViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
+    const ref = await this.assertPodeAcessarVisita(id, payload);
+    if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+    const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
+    if (idApartamento && targetAptoId !== ref.id_apartamento) {
+      await this.assertPodeUsarApartamento(targetAptoId, payload);
+    }
+    const v = await this.prisma.visitas.update({
+      where: { id: Number(id) },
+      data: {
+        liberado: 1,
+        data_entrada: null,
+        data_saida: null,
+        ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
+        ...(payload?.sub !== undefined && { user: payload.sub }),
+        ...(ref.auth_status === 'pendente' && {
+          auth_status: 'autorizado',
+          auth_respondido_em: new Date(),
+          auth_respondido_por: payload?.sub ?? null,
+        }),
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+    });
+
+    const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctx = this.construirContextoAuditoria(v);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
+    const usuarioEmail = (payload as any)?.email ?? (payload as any)?.user?.email ?? undefined;
+
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: usuarioNome,
+      ...(usuarioEmail ? { usuario_email: usuarioEmail } : {}),
+      acao: 'UPDATE',
+      modulo: 'visitas',
+      entidade_id: v.id,
+      descricao: `Acesso liberado: ${label} "${v.pessoa?.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
+    });
+    await this.desativarOutrosCodigosVisita(v.id_condominio, v.id_pessoa, v.id);
+
+    this.fireFacialSyncPessoa(v.id_pessoa);
+    return { ok: true };
+  }
+
+  private async checkOutViaPessoasVisitas(id: number, payload?: JwtPayload) {
+    const ref = await this.assertPodeAcessarVisita(id, payload);
+    const v = await this.prisma.visitas.update({
+      where: { id: Number(id) },
+      data: {
+        data_saida: new Date(),
+        codigo_acesso: null,
+        liberado: ref.is_prestador === 1 ? 1 : 0,
+        auth_status: null,
+        auth_solicitado_em: null,
+        auth_respondido_em: null,
+        auth_respondido_por: null,
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+    });
+
+    await this.prisma.vagas.updateMany({
+      where: { id_visita: Number(id) },
+      data: {
+        ativo: 0,
+        id_visita: null,
+        placa: null,
+      },
+    });
+
+    this.fireFacialSyncPessoa(v.id_pessoa);
+    const label = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctx = this.construirContextoAuditoria(v);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const usuarioNome = payload?.nome ?? (payload as any)?.user?.nome ?? 'Portaria / Sistema';
+    const usuarioEmail = (payload as any)?.email ?? (payload as any)?.user?.email ?? undefined;
+
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: usuarioNome,
+      ...(usuarioEmail ? { usuario_email: usuarioEmail } : {}),
+      acao: 'CHECK_OUT',
+      modulo: 'visitas',
+      entidade_id: v.id,
+      descricao: `Check-out de ${label} "${v.pessoa?.nome}" do ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
+    });
+    return { ok: true };
+  }
+
+  private async solicitarAutorizacaoViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
+    const ref = await this.assertPodeAcessarVisita(id, payload);
+    if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+    let redirecionarApto: number | undefined;
+    if (idApartamento && Number(idApartamento) !== ref.id_apartamento) {
+      await this.assertPodeUsarApartamento(Number(idApartamento), payload);
+      const apto = await this.prisma.apartamentos.findUnique({ where: { id: Number(idApartamento) } });
+      if (!apto || apto.id_condominio !== ref.id_condominio) {
+        throw new BadRequestException('Apartamento de destino inválido.');
+      }
+      redirecionarApto = Number(idApartamento);
+    }
+    const v = await this.prisma.visitas.update({
+      where: { id: Number(id) },
+      data: {
+        ...(redirecionarApto ? { id_apartamento: redirecionarApto } : {}),
+        auth_status: 'pendente',
+        auth_solicitado_em: new Date(),
+        auth_respondido_em: null,
+        auth_respondido_por: null,
+        liberado: 0,
+        data_entrada: null,
+        data_saida: null,
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+    });
+
+    await this.notificarMoradoresAutorizacao({
+      id: v.id,
+      nome: v.pessoa.nome,
+      id_apartamento: v.id_apartamento,
+      is_prestador: v.is_prestador,
+      foto_pessoa: v.pessoa.foto_pessoa,
+    });
+    const ctx = this.construirContextoAuditoria(v);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: payload?.nome ?? 'Portaria / Sistema',
+      acao: 'UPDATE',
+      modulo: 'visitas',
+      entidade_id: v.id,
+      descricao: `Autorização solicitada ao morador: "${v.pessoa.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
+    });
+    this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizacao_solicitada', { id: v.id });
+    return { ok: true };
+  }
+
+  private async autorizarViaPessoasVisitas(id: number, payload?: JwtPayload, darEntrada?: boolean) {
+    const ref = await this.assertPodeAcessarVisita(id, payload);
+    if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
+      throw new BadRequestException('Este visitante está bloqueado no condomínio.');
+    }
+    if (ref.auth_solicitado_em) {
+      const ms = Date.now() - new Date(ref.auth_solicitado_em).getTime();
+      if (ms > 15 * 60 * 1000) {
+        throw new BadRequestException('Esta solicitação de autorização expirou (limite de 10 minutos).');
+      }
+    }
+    const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
+    const v = await this.prisma.visitas.update({
+      where: { id: Number(id) },
+      data: {
+        auth_status: 'autorizado',
+        liberado: 1,
+        ...(darEntrada ? { data_entrada: new Date(), data_saida: null } : { data_saida: null }),
+        auth_respondido_em: new Date(),
+        auth_respondido_por: respondidoPor,
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+    });
+
+    this.fireFacialSyncPessoa(v.id_pessoa);
+    const ctx = this.construirContextoAuditoria(v);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    const acaoDesc = darEntrada
+      ? `Visitante autorizado com entrada registrada pelo morador: "${v.pessoa.nome}" no ${aptoLabel}`
+      : `Visitante autorizado pelo morador: "${v.pessoa.nome}" no ${aptoLabel}`;
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: payload?.nome ?? 'Morador',
+      acao: darEntrada ? 'CHECK_IN' : 'UPDATE',
+      modulo: 'visitas',
+      entidade_id: v.id,
+      descricao: acaoDesc,
+      detalhes: ctx ?? undefined,
+    });
+    this.realtime.emitToCondominio(v.id_condominio, 'visitante.autorizado', {
+      id: v.id,
+      darEntrada: !!darEntrada,
+    });
+    if (darEntrada) {
+      this.realtime.emitToCondominio(v.id_condominio, 'visitante.checkin', { id: v.id });
+    }
+    return { ok: true };
+  }
+
+  private async negarViaPessoasVisitas(id: number, payload?: JwtPayload) {
+    await this.assertPodeAcessarVisita(id, payload);
+    const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
+    const v = await this.prisma.visitas.update({
+      where: { id: Number(id) },
+      data: {
+        auth_status: 'negado',
+        liberado: 0,
+        auth_respondido_em: new Date(),
+        auth_respondido_por: respondidoPor,
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+    });
+
+    this.fireFacialSyncPessoa(v.id_pessoa);
+    const ctx = this.construirContextoAuditoria(v);
+    const aptoLabel = ctx?.apartamento?.label ?? '—';
+    await this.auditoria.registrar({
+      id_condominio: v.id_condominio,
+      usuario_nome: payload?.nome ?? 'Morador',
+      acao: 'UPDATE',
+      modulo: 'visitas',
+      entidade_id: v.id,
+      descricao: `Visitante negado pelo morador: "${v.pessoa.nome}" no ${aptoLabel}`,
+      detalhes: ctx ?? undefined,
+    });
+    this.realtime.emitToCondominio(v.id_condominio, 'visitante.negado', { id: v.id });
+    return { ok: true };
+  }
+
+  private async validarCodigoViaPessoasVisitas(idCondominio: number, codigo: string) {
+    const v = await this.prisma.visitas.findFirst({
+      where: {
+        id_condominio: Number(idCondominio),
+        codigo_acesso: codigo,
+        data_saida: null,
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+        criadoPor: { select: { name: true } },
+      },
+    });
+
+    if (!v) {
+      throw new NotFoundException('Código inválido ou visita não agendada/já encerrada.');
+    }
+
+    if (v.bloqueado === 1 || (v.pessoa as any)?.bloqueado === 1) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+
+    const now = new Date();
+    const inicio = v.data_hora_inicio ? new Date(v.data_hora_inicio) : now;
+    const termino = v.data_hora_termino ? new Date(v.data_hora_termino) : now;
+
+    const inicioComTolerancia = inicio;
+    const GRACE_PERIOD_MS = 15 * 60 * 1000;
+    const terminoComTolerancia = new Date(termino.getTime() + GRACE_PERIOD_MS);
+
+    let status = 'ATIVO';
+    if (now < inicioComTolerancia) {
+      status = 'FUTURO';
+    } else if (now > terminoComTolerancia) {
+      status = 'EXPIRADO';
+    }
+
+    if (status === 'EXPIRADO') {
+      throw new BadRequestException('Acesso negado: O período de validade deste código já expirou.');
+    }
+    if (status === 'FUTURO') {
+      throw new BadRequestException('Acesso negado: O período de validade deste código ainda não iniciou.');
+    }
+
+    if (v.dias_semana) {
+      const diasPermitidos = v.dias_semana.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean);
+      if (diasPermitidos.length > 0) {
+        const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+        const diaSemanaAtual = mapDias[now.getDay()];
+        if (!diasPermitidos.includes(diaSemanaAtual)) {
+          throw new BadRequestException('Acesso negado: Entrada não permitida no dia de hoje.');
+        }
+      }
+    }
+
+    if (v.liberado !== 1) {
+      throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
+    }
+
+    const formatarData = (d: Date | null) => {
+      if (!d) return '';
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    return {
+      id: v.id,
+      nome: v.pessoa.nome,
+      doc_identificacao: v.pessoa.doc_identificacao,
+      data_inicio: formatarData(v.data_hora_inicio),
+      data_termino: formatarData(v.data_hora_termino),
+      is_visitante: v.is_visitante,
+      is_prestador: v.is_prestador,
+      foto_documento: v.pessoa.foto_documento,
+      foto_pessoa: v.pessoa.foto_pessoa,
+      apto: v.apartamento?.apto ?? null,
+      apto_bloco: v.apartamento?.bloco ?? null,
+      morador_nome: v.criadoPor?.name ?? 'Morador',
+      status_vigencia: status,
+      codigo_acesso: null,
+      temPinAtivo: !!v.codigo_acesso,
+      data_entrada: v.data_entrada,
+    };
+  }
+
+  private async findOneViaPessoasVisitas(id: number, payload?: JwtPayload) {
+    await this.assertPodeAcessarVisita(id, payload);
+    const v = await this.prisma.visitas.findUnique({
+      where: { id: Number(id) },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+    });
+    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+    return {
+      ...this.mapVisitaParaRespostaLegada(v),
+      apartamento: v.apartamento,
+    };
+  }
+
+  private async detalhesViaPessoasVisitas(id: number, payload?: JwtPayload) {
+    await this.assertPodeAcessarVisita(id, payload);
+    const v = await this.prisma.visitas.findUnique({
+      where: { id: Number(id) },
+      include: {
+        pessoa: true,
+        apartamento: {
+          select: {
+            id: true,
+            bloco: true,
+            apto: true,
+            users: {
+              select: { user: { select: { name: true } } },
+              take: 1,
+            },
+          },
+        },
+        criadoPor: { select: { name: true } },
+        condominio: {
+          select: {
+            nome: true,
+            enderecoRel: {
+              select: {
+                cep: true,
+                rua: true,
+                numero: true,
+                cidade: true,
+                uf: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+
+    const outrasVisitas = await this.prisma.visitas.findMany({
+      where: {
+        id_condominio: v.id_condominio,
+        id_pessoa: v.id_pessoa,
+        NOT: { id: v.id },
+      },
+      include: {
+        pessoa: true,
+        apartamento: {
+          select: {
+            id: true,
+            bloco: true,
+            apto: true,
+            users: {
+              select: { user: { select: { name: true } } },
+              take: 1,
+            },
+          },
+        },
+        criadoPor: { select: { name: true } },
+      },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+    });
+
+    const todasVisitas = [v, ...outrasVisitas];
+    const todosVisIds = todasVisitas.map((x) => x.id);
+
+    const acessosFacial =
+      todosVisIds.length > 0
+        ? await this.prisma.acessos_Facial.findMany({
+            where: {
+              tipo_pessoa: 'visitante',
+              OR: [
+                { id_pessoa: { in: todosVisIds } },
+                { id_pessoa: v.id_pessoa },
+              ],
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 100,
+          })
+        : [];
+
+    const devices = await this.prisma.facial_Devices.findMany({
+      where: { id_condominio: v.id_condominio },
+      select: { id: true, nome: true },
+    });
+    const deviceNomePor = new Map(devices.map((d: any) => [d.id, d.nome]));
+
+    const isDup = (idVisitante: number, evento: string, ts: Date) => {
+      const ms = ts.getTime();
+      return acessosFacial.some((a: any) => {
+        if (a.id_pessoa !== idVisitante && a.id_pessoa !== v.id_pessoa) return false;
+        if (a.evento !== evento) return false;
+        return Math.abs(a.timestamp.getTime() - ms) <= 2000;
+      });
+    };
+
+    const timeline: any[] = [];
+    for (const a of acessosFacial) {
+      const visitanteReg = todasVisitas.find((x) => x.id === a.id_pessoa);
+      const apto = visitanteReg?.apartamento;
+      let obs = undefined;
+      const match = a.nome_pessoa?.match(/\(([^)]+)\)/);
+      if (match) {
+        obs = match[1];
+      }
+      timeline.push({
+        evento: a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada',
+        timestamp: a.timestamp.toISOString(),
+        metodo: 'facial',
+        metodoLabel: 'Terminal Facial',
+        confianca: a.confianca ?? undefined,
+        terminalNome: deviceNomePor.get(a.id_device) ?? `Terminal #${a.id_device}`,
+        idApartamento: apto?.id,
+        blocoApto: apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined,
+        idVisitanteRegistro: a.id_pessoa,
+        observacao: obs,
+      });
+    }
+
+    for (const reg of todasVisitas) {
+      const apto = reg.apartamento;
+      const blocoApto = apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined;
+      if (reg.data_entrada && !isDup(reg.id, 'entrada', reg.data_entrada)) {
+        timeline.push({
+          evento: 'entrada',
+          timestamp: reg.data_entrada.toISOString(),
+          metodo: 'pin',
+          metodoLabel: 'PIN / Manual',
+          idApartamento: apto?.id,
+          blocoApto,
+          idVisitanteRegistro: reg.id,
+        });
+      }
+      if (reg.data_saida && !isDup(reg.id, 'saida', reg.data_saida)) {
+        timeline.push({
+          evento: 'saida',
+          timestamp: reg.data_saida.toISOString(),
+          metodo: 'pin',
+          metodoLabel: 'PIN / Manual',
+          idApartamento: apto?.id,
+          blocoApto,
+          idVisitanteRegistro: reg.id,
+        });
+      }
+    }
+
+    timeline.sort((x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime());
+
+    const totalEntradas = timeline.filter((t) => t.evento === 'entrada').length;
+    const totalSaidas = timeline.filter((t) => t.evento === 'saida').length;
+    const totalNegados = timeline.filter((t) => t.evento === 'negado').length;
+    const primeira = timeline.length > 0 ? timeline[timeline.length - 1].timestamp : null;
+    const ultima = timeline.length > 0 ? timeline[0].timestamp : null;
+    const acessosFaciais = timeline.filter((t) => t.metodo === 'facial').length;
+    const acessosPin = timeline.filter((t) => t.metodo === 'pin').length;
+
+    const cron = [...timeline].sort(
+      (x, y) => new Date(x.timestamp).getTime() - new Date(y.timestamp).getTime(),
+    );
+    let permanenciaTotalMs = 0;
+    let permanenciaCount = 0;
+    let entradaAberta: any = null;
+    for (const ev of cron) {
+      if (ev.evento === 'entrada') {
+        entradaAberta = ev;
+      } else if (ev.evento === 'saida' && entradaAberta) {
+        permanenciaTotalMs +=
+          new Date(ev.timestamp).getTime() - new Date(entradaAberta.timestamp).getTime();
+        permanenciaCount++;
+        entradaAberta = null;
+      }
+    }
+    const tempoMedioMs = permanenciaCount > 0 ? permanenciaTotalMs / permanenciaCount : null;
+
+    const apartamentosVisitados = new Map<number, any>();
+    for (const reg of todasVisitas) {
+      if (!reg.apartamento) continue;
+      const a = reg.apartamento;
+      const key = a.id;
+      const blocoApto = `${a.apto ?? ''}${a.bloco ?? ''}`.trim();
+      const dateReg = reg.data_entrada ?? reg.created_at;
+      const autorizador =
+        reg.criadoPor?.name ||
+        (a as any).users?.[0]?.user?.name ||
+        null;
+
+      const existing = apartamentosVisitados.get(key);
+      if (existing) {
+        existing.visitas++;
+        if (dateReg) {
+          if (!existing.ultimaVisita || new Date(dateReg) > new Date(existing.ultimaVisita)) {
+            existing.ultimaVisita = dateReg.toISOString();
+            if (autorizador) existing.autorizadoPor = autorizador;
+          }
+          if (!existing.primeiraVisita || new Date(dateReg) < new Date(existing.primeiraVisita)) {
+            existing.primeiraVisita = dateReg.toISOString();
+          }
+        }
+      } else {
+        apartamentosVisitados.set(key, {
+          id: a.id,
+          blocoApto,
+          apto: a.apto ?? '',
+          bloco: a.bloco ?? null,
+          visitas: 1,
+          autorizadoPor: autorizador,
+          ultimaVisita: dateReg ? dateReg.toISOString() : null,
+          primeiraVisita: dateReg ? dateReg.toISOString() : null,
+        });
+      }
+    }
+
+    const porRecencia = [...todasVisitas].sort(
+      (a, b) => (b.created_at?.getTime() ?? 0) - (a.created_at?.getTime() ?? 0),
+    );
+    const diasSemanaPessoa =
+      porRecencia.map((r) => r.dias_semana).find((d) => d && String(d).trim()) ?? null;
+    const categoriasPessoa =
+      porRecencia.map((r) => r.categorias).find((c) => c && String(c).trim()) ?? null;
+
+    const vagaAtiva = await this.prisma.vagas.findFirst({
+      where: {
+        OR: [
+          { id_visita: { in: todosVisIds } },
+          { id_visitante: { in: todosVisIds } },
+        ],
+        ativo: 1,
+      },
+      include: { titular: { select: { nome: true } } },
+      orderBy: { id: 'desc' },
+    });
+    const vaga = vagaAtiva
+      ? {
+          morador: vagaAtiva.titular?.nome ?? null,
+          placa: vagaAtiva.placa ?? null,
+          inicio: vagaAtiva.inicio?.toISOString() ?? null,
+          fim: vagaAtiva.fim?.toISOString() ?? null,
+        }
+      : null;
+
+    return {
+      visitante: {
+        id: v.id,
+        nome: v.pessoa.nome,
+        doc_identificacao: v.pessoa.doc_identificacao,
+        foto_pessoa: v.pessoa.foto_pessoa,
+        foto_documento: v.pessoa.foto_documento,
+        is_visitante: v.is_visitante,
+        is_prestador: v.is_prestador,
+        id_apartamento: v.id_apartamento,
+        blocoAptoAtual: v.apartamento
+          ? `${v.apartamento.apto ?? ''}${v.apartamento.bloco ?? ''}`.trim()
+          : null,
+        face_id: v.pessoa.face_id,
+        face_sync_status: v.pessoa.face_sync_status,
+        condominio: v.condominio?.nome ?? null,
+        criadoPor: v.criadoPor?.name ?? null,
+        data_hora_inicio: v.data_hora_inicio?.toISOString() ?? null,
+        data_hora_termino: v.data_hora_termino?.toISOString() ?? null,
+        codigo_acesso: null,
+        temPinAtivo: !!v.codigo_acesso,
+        data_entrada: v.data_entrada?.toISOString() ?? null,
+        data_saida: v.data_saida?.toISOString() ?? null,
+        created_at: v.created_at.toISOString(),
+        dias_semana: diasSemanaPessoa,
+        categorias: categoriasPessoa,
+        bloqueado: v.bloqueado ?? (v.pessoa.bloqueado ?? 0),
+        vaga,
+      },
+      stats: {
+        totalEntradas,
+        totalSaidas,
+        totalNegados,
+        primeiraVisita: primeira,
+        ultimaVisita: ultima,
+        acessosFaciais,
+        acessosPin,
+        tempoMedioMs,
+        permanenciaCount,
+        apartamentosVisitados: Array.from(apartamentosVisitados.values()).sort(
+          (a, b) =>
+            b.visitas - a.visitas ||
+            (b.ultimaVisita ? new Date(b.ultimaVisita).getTime() : 0) -
+              (a.ultimaVisita ? new Date(a.ultimaVisita).getTime() : 0),
+        ),
+      },
+      timeline,
+    };
+  }
+
+  private async findAllViaPessoasVisitas(idCondominio: number, search?: string) {
+    const visitas = await this.prisma.visitas.findMany({
+      where: {
+        id_condominio: Number(idCondominio),
+        ...(search
+          ? {
+              pessoa: {
+                OR: [
+                  { nome: { contains: search } },
+                  { doc_identificacao: { contains: search } },
+                ],
+              },
+            }
+          : {}),
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+      orderBy: [{ data_hora_inicio: 'desc' }, { created_at: 'desc' }],
+    });
+    return visitas.map((v: any) => ({
+      ...this.mapVisitaParaRespostaLegada(v),
+      apartamento: v.apartamento,
+    }));
+  }
+
+  private async findAllMobileViaPessoasVisitas(
+    idCondominio?: number,
+    idApto?: number,
+    search?: string,
+    offset = 0,
+    userId?: number,
+  ) {
+    if (!userId) return [];
+
+    const condId = idCondominio ? Number(idCondominio) : undefined;
+    const vinc = await this.prisma.apartamentos_Users.findMany({
+      where: {
+        id_user: Number(userId),
+        ...(condId ? { apartamento: { id_condominio: condId } } : {}),
+      },
+      select: { id_apto: true },
+    });
+    const aptosPermitidos = [...new Set(vinc.map((v: any) => v.id_apto))];
+    if (aptosPermitidos.length === 0) return [];
+
+    const conditions: any[] = [];
+    if (condId) conditions.push({ id_condominio: condId });
+    if (idApto) {
+      if (!aptosPermitidos.includes(Number(idApto))) {
+        throw new ForbiddenException('Acesso negado: este apartamento não pertence a você.');
+      }
+      conditions.push({ id_apartamento: Number(idApto) });
+    } else {
+      conditions.push({ id_apartamento: { in: aptosPermitidos } });
+    }
+
+    if (search) {
+      conditions.push({
+        pessoa: {
+          OR: [
+            { nome: { contains: search } },
+            { doc_identificacao: { contains: search } },
+          ],
+        },
+      });
+    }
+
+    const whereClause = conditions.length > 0 ? { AND: conditions } : {};
+    const list = await this.prisma.visitas.findMany({
+      where: whereClause,
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+        condominio: { select: { nome: true } },
+      },
+      orderBy: [{ data_hora_inicio: 'desc' }, { created_at: 'desc' }],
+      take: 30,
+      skip: offset,
+    });
+
+    const updated: any[] = [];
+    for (const v of list) {
+      if (!v.codigo_acesso && !v.data_saida) {
+        const pin = await this.gerarPinUnicoVisita();
+        await this.prisma.visitas.update({
+          where: { id: v.id },
+          data: { codigo_acesso: pin },
+        });
+        (v as any).codigo_acesso = pin;
+      }
+      updated.push(v);
+    }
+
+    return updated.map((v: any) => ({
+      ...this.mapVisitaParaRespostaLegada(v),
+      apartamento: v.apartamento,
+      condominio_nome: v.condominio?.nome || null,
+    }));
+  }
+
+  private async listarPendentesViaPessoasVisitas(idCondominio: number | undefined, payload?: JwtPayload) {
+    const userId = Number(payload?.user?.id ?? payload?.sub);
+    if (!userId) throw new ForbiddenException('Sessão sem usuário válido.');
+    const vinculos = await this.prisma.apartamentos_Users.findMany({
+      where: {
+        id_user: userId,
+        ...(idCondominio ? { apartamento: { id_condominio: Number(idCondominio) } } : {}),
+      },
+      select: { id_apto: true },
+    });
+    const aptoIds = vinculos.map((x: any) => x.id_apto);
+    if (aptoIds.length === 0) return [];
+    const dezMinAtras = new Date(Date.now() - 10 * 60 * 1000);
+    const pendentes = await this.prisma.visitas.findMany({
+      where: {
+        id_apartamento: { in: aptoIds },
+        auth_status: 'pendente',
+        auth_solicitado_em: { gte: dezMinAtras },
+      },
+      include: {
+        pessoa: true,
+        apartamento: { select: { bloco: true, apto: true } },
+      },
+      orderBy: { auth_solicitado_em: 'desc' },
+    });
+    return pendentes.map((v: any) => ({
+      id: v.id,
+      nome: v.pessoa.nome,
+      doc_identificacao: v.pessoa.doc_identificacao,
+      photo: v.pessoa.foto_pessoa ?? null,
+      apto: v.apartamento?.apto ?? null,
+      apto_bloco: v.apartamento?.bloco ?? null,
+      is_prestador: v.is_prestador,
+      auth_solicitado_em: v.auth_solicitado_em,
+    }));
+  }
+
   async update(dto: UpdateVisitanteDto, payload?: JwtPayload) {
     if (!this.prisma.isConnected) {
       return { success: true, id: dto.id };
@@ -2502,6 +3326,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async validarCodigo(idCondominio: number, codigo: string) {
+    if (pessoasMigrationEnabled()) {
+      return this.validarCodigoViaPessoasVisitas(idCondominio, codigo);
+    }
+
     const v = await this.prisma.visitantes.findFirst({
       where: {
         id_condominio: Number(idCondominio),
@@ -2590,6 +3418,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   async detalhes(id: number, payload?: JwtPayload) {
     if (!this.prisma.isConnected) {
       throw new NotFoundException('Banco indisponível');
+    }
+
+    if (pessoasMigrationEnabled()) {
+      return this.detalhesViaPessoasVisitas(id, payload);
     }
 
     // Autorização de tenant: detalhes expõe histórico completo, doc e fotos.
@@ -2921,6 +3753,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async checkIn(id: number, payload?: JwtPayload, idApartamento?: number) {
+    if (pessoasMigrationEnabled()) {
+      return this.checkInViaPessoasVisitas(id, payload, idApartamento);
+    }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
@@ -2968,6 +3803,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async liberarAcesso(id: number, payload?: JwtPayload, idApartamento?: number) {
+    if (pessoasMigrationEnabled()) {
+      return this.liberarAcessoViaPessoasVisitas(id, payload, idApartamento);
+    }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
@@ -3015,6 +3853,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   async checkOut(id: number, payload?: JwtPayload) {
+    if (pessoasMigrationEnabled()) {
+      return this.checkOutViaPessoasVisitas(id, payload);
+    }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     const v = await this.prisma.visitantes.update({
       where: { id: Number(id) },
@@ -3110,6 +3951,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * Deixa o visitante PENDENTE (liberado=0, sem PIN/facial) e dispara push.
    */
   async solicitarAutorizacao(id: number, payload?: JwtPayload, idApartamento?: number) {
+    if (pessoasMigrationEnabled()) {
+      return this.solicitarAutorizacaoViaPessoasVisitas(id, payload, idApartamento);
+    }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
@@ -3164,6 +4008,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /** Morador autoriza: libera o acesso (liberado=1), opcionalmente registra entrada imediata, e enrola no facial. */
   async autorizar(id: number, payload?: JwtPayload, darEntrada?: boolean) {
+    if (pessoasMigrationEnabled()) {
+      return this.autorizarViaPessoasVisitas(id, payload, darEntrada);
+    }
     const ref = await this.assertPodeAcessarVisitante(id, payload);
     if (ref.bloqueado === 1) {
       throw new BadRequestException('Este visitante está bloqueado no condomínio.');
@@ -3213,6 +4060,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /** Morador nega: mantém bloqueado (liberado=0) e remove do facial. */
   async negar(id: number, payload?: JwtPayload) {
+    if (pessoasMigrationEnabled()) {
+      return this.negarViaPessoasVisitas(id, payload);
+    }
     await this.assertPodeAcessarVisitante(id, payload);
     const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
     const v = await this.prisma.visitantes.update({
@@ -3243,6 +4093,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   /** Inbox do morador: solicitações pendentes dos apartamentos vinculados a ele (apenas dos últimos 10 minutos). */
   async listarPendentes(idCondominio: number | undefined, payload?: JwtPayload) {
+    if (pessoasMigrationEnabled()) {
+      return this.listarPendentesViaPessoasVisitas(idCondominio, payload);
+    }
     const userId = Number(payload?.user?.id ?? payload?.sub);
     if (!userId) throw new ForbiddenException('Sessão sem usuário válido.');
     const vinculos = await this.prisma.apartamentos_Users.findMany({
@@ -3284,6 +4137,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     userId?: number,
     userType?: string,
   ) {
+    if (pessoasMigrationEnabled()) {
+      return this.findAllMobileViaPessoasVisitas(idCondominio, idApto, search, offset, userId);
+    }
     const conditions: any[] = [];
 
     // ===== ISOLAMENTO DE DADOS (APP) =====
