@@ -794,7 +794,7 @@ model Pessoas {
   visitas           Visitas[]
 
   @@index([id_condominio], map: "idx_pes_cond")
-  @@index([id_condominio, doc_identificacao], map: "idx_pes_cond_doc")
+  @@unique([id_condominio, doc_identificacao], map: "uq_pes_cond_doc")
   @@index([id_condominio, nome], map: "idx_pes_cond_nome")
   @@map("pessoas")
 }
@@ -827,7 +827,7 @@ model Visitas {
 
   pessoa             Pessoas      @relation(fields: [id_pessoa], references: [id], onDelete: Cascade, map: "fk_visita_pessoa")
   condominio         Condominios  @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_visita_cond")
-  apartamento        Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Cascade, map: "fk_visita_apto")
+  apartamento        Apartamentos @relation(fields: [id_apartamento], references: [id], onDelete: Restrict, map: "fk_visita_apto")
   criadoPor          Users?       @relation("VisitasUser", fields: [user], references: [id], map: "fk_visita_user")
   vagas              Vagas[]
 
