@@ -16,6 +16,8 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { PessoasService } from '../pessoas/pessoas.service';
+import { VisitasService } from '../visitas/visitas.service';
 
 /**
  * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
@@ -134,6 +136,15 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     private readonly auditoria: AuditoriaService,
     private readonly tenant: TenantAccessService,
     private readonly realtime: RealtimeGateway,
+    // Task 3 (migração Pessoas/Visitas): só usado quando
+    // PESSOAS_MIGRATION_ENABLED='true'. Fica por último de propósito — vários
+    // specs existentes instanciam VisitantesService com a lista antiga de
+    // argumentos (a flag está OFF neles, então chega `undefined` e nunca é
+    // desreferenciado). A identidade (PessoasService.obterOuCriar) é
+    // resolvida DENTRO de VisitasService.criarVisita — não precisa de uma
+    // segunda injeção aqui; só o normalizador estático é usado diretamente
+    // (`PessoasService.normalizarDoc`).
+    private readonly visitasService: VisitasService,
   ) {}
 
   onModuleInit() {
@@ -1394,6 +1405,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       operador,
     );
 
+    // A flag decide LEITURA e ESCRITA juntas (Ruling 9/10 do progress.md): com
+    // ela ligada, create() para de escrever em Visitantes e passa a rotear a
+    // identidade por PessoasService.obterOuCriar / a autorização por
+    // VisitasService.criarVisita — nunca as duas fontes ao mesmo tempo.
+    if (pessoasMigrationEnabled()) {
+      return this.createViaPessoasVisitas(dto, operador);
+    }
+
     const blocked = await this.verificarSeBloqueado(dto.id_condominio, dto.nome, dto.doc_identificacao);
     if (blocked) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
@@ -1633,6 +1652,247 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
 
     return visitante;
+  }
+
+  /**
+   * Caminho novo de `create` (PESSOAS_MIGRATION_ENABLED='true'):
+   * identidade em `Pessoas` (via `VisitasService.criarVisita` →
+   * `PessoasService.obterOuCriar`), autorização em `Visitas`.
+   *
+   * NÃO reaproveita "agendamento ativo" (o bloco `existingActive` do caminho
+   * legado, linhas ~1448-1551): reaproveitar authorization é exatamente o
+   * comportamento antigo que a migração elimina. "Rodrigo em 101" e depois
+   * "Rodrigo em 202" agora é uma Pessoa com duas Visitas — nunca uma Visita
+   * reescrita. Pelo mesmo motivo não replico o `nome_anterior` (corrige nome
+   * de registros antigos por correspondência textual): a fusão de identidade
+   * de `obterOuCriar` (documento, depois face_id) já resolve estruturalmente
+   * o problema que aquele remendo cobria por heurística de string.
+   */
+  private async createViaPessoasVisitas(dto: CreateVisitanteDto, operador?: JwtPayload) {
+    const blocked = await this.verificarSeBloqueadoPessoa(dto.id_condominio, dto.nome, dto.doc_identificacao);
+    if (blocked) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+
+    const fotoDoc = await this.resolveFoto(dto.foto_documento);
+    const fotoPes = await this.resolveFoto(dto.foto_pessoa);
+
+    // Mesma rotina do gerarPinUnico, mas escopada a `visitas` — gerarPinUnico
+    // olha só `Visitantes`, que este caminho para de escrever.
+    const pin = await this.gerarPinUnicoVisita();
+
+    const visita = await this.visitasService.criarVisita({
+      id_condominio: Number(dto.id_condominio),
+      id_apartamento: Number(dto.id_apartamento),
+      user: operador ? operador.sub : null,
+      pessoa: {
+        nome: dto.nome,
+        doc_identificacao: dto.doc_identificacao ?? null,
+        foto_pessoa: fotoPes,
+        foto_documento: fotoDoc,
+        tipo_pessoa: dto.is_prestador === 1 ? 'prestador' : 'visitante',
+      },
+      is_visitante: dto.is_visitante ?? 1,
+      is_prestador: dto.is_prestador ?? 0,
+      data_hora_inicio: parseLocalTimeToUTC(dto.data_hora_inicio),
+      data_hora_termino: parseLocalTimeToUTCNullable(dto.data_hora_termino),
+      codigo_acesso: pin,
+      liberado: 1,
+      dias_semana: dto.dias_semana ?? null,
+      categorias: dto.categorias ?? null,
+    } as any);
+
+    const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctxCreate = this.construirContextoAuditoria(visita);
+    await this.auditoria.registrar({
+      id_condominio: visita.id_condominio,
+      usuario_nome: operador?.nome ?? 'Sistema / Portaria',
+      acao: 'CREATE',
+      modulo: 'visitantes',
+      entidade_id: visita.id,
+      descricao: `Novo agendamento: ${tipoLabel} "${visita.pessoa.nome}" para ${ctxCreate.apartamento?.label ?? '—'}`,
+      detalhes: ctxCreate,
+    });
+
+    // Notificar moradores — idêntico ao caminho legado.
+    try {
+      const moradores = await this.prisma.users.findMany({
+        where: {
+          apartamentosUsers: {
+            some: {
+              id_apto: dto.id_apartamento,
+            },
+          },
+          notif_visitantes: 1,
+        },
+        select: { fcm_token: true, name: true, phone: true },
+      });
+
+      for (const m of moradores) {
+        if (m.fcm_token) {
+          await this.notifications.sendPushNotification(
+            m.fcm_token,
+            dto.is_prestador ? 'Prestador de Serviço' : 'Chegada de Visitante',
+            `${dto.nome} acabou de chegar para o seu apartamento.`,
+            { id: visita.id.toString(), type: 'visitante' },
+          );
+        }
+        if (m.phone) {
+          const tipo = dto.is_prestador ? 'Prestador de Serviço' : 'Visitante';
+          const waMessage = `Olá, ${m.name}! O ${tipo} "${dto.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
+          await this.notifications.sendWhatsApp(m.phone, waMessage);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao notificar moradores sobre visitante:', error);
+    }
+
+    // Sync facial por PESSOA (não mais por visita avulsa) — mesma condição de
+    // `sem_facial` do caminho legado.
+    if (fotoPes && dto.sem_facial !== true) {
+      this.fireFacialSyncPessoa(visita.id_pessoa);
+    }
+
+    return this.mapVisitaParaRespostaLegada(visita);
+  }
+
+  /**
+   * Mesma checagem de `verificarSeBloqueado`, mas em `Pessoas` — o caminho
+   * novo nunca escreve/lê `Visitantes`, então o bloqueio tem que morar onde a
+   * identidade mora agora.
+   */
+  private async verificarSeBloqueadoPessoa(
+    idCondominio: number,
+    nome: string,
+    doc?: string | null,
+  ): Promise<boolean> {
+    const docNorm = PessoasService.normalizarDoc(doc);
+    const whereBlock: any = {
+      id_condominio: Number(idCondominio),
+      bloqueado: 1,
+    };
+    if (docNorm) {
+      whereBlock.OR = [{ doc_identificacao: docNorm }, { nome: { equals: nome?.trim() } }];
+    } else {
+      whereBlock.nome = { equals: nome?.trim() };
+    }
+    const check = await this.prisma.pessoas.findFirst({ where: whereBlock });
+    return !!check;
+  }
+
+  /**
+   * Mesma rotina/mesmo motivo de segurança de `gerarPinUnico` (randomInt
+   * CSPRNG), escopada à tabela `visitas` — `gerarPinUnico` checa unicidade em
+   * `Visitantes`, que este caminho não escreve mais.
+   */
+  private async gerarPinUnicoVisita(): Promise<string> {
+    let pin = '';
+    let isUnique = false;
+    while (!isUnique) {
+      pin = randomInt(100000, 1000000).toString();
+      const check = await this.prisma.visitas.findFirst({
+        where: { codigo_acesso: pin, data_saida: null },
+      });
+      if (!check) isUnique = true;
+    }
+    return pin;
+  }
+
+  private fireFacialSyncPessoa(idPessoa: number) {
+    this.facial
+      .syncPessoa(idPessoa)
+      .catch((err) => this.logger.warn(`Sync facial pessoa ${idPessoa} falhou: ${err?.message ?? err}`));
+  }
+
+  /**
+   * Mesmo formato de `carregarContextoVisitante` (usado no `detalhes` da
+   * auditoria), mas construído a partir do objeto `Visita` já carregado com
+   * `include: { pessoa, apartamento }` — sem precisar de uma segunda query
+   * como o caminho legado faz.
+   */
+  private construirContextoAuditoria(visita: any) {
+    const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const fmtDate = (d: Date | null) =>
+      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+
+    return {
+      visitante: {
+        id: visita.pessoa.id,
+        nome: visita.pessoa.nome,
+        documento: visita.pessoa.doc_identificacao,
+        tipo: tipoLabel,
+      },
+      apartamento: visita.apartamento
+        ? {
+            id: visita.id_apartamento,
+            bloco: visita.apartamento.bloco,
+            numero: visita.apartamento.apto,
+            label: visita.apartamento.bloco
+              ? `Bloco ${visita.apartamento.bloco}, Apto ${visita.apartamento.apto}`
+              : `Apto ${visita.apartamento.apto}`,
+          }
+        : null,
+      convidadoPor: null,
+      janela: {
+        inicio: fmtDate(visita.data_hora_inicio),
+        termino: fmtDate(visita.data_hora_termino),
+      },
+      status: {
+        liberado: visita.liberado === 1,
+        dataEntrada: fmtDate(visita.data_entrada),
+        dataSaida: fmtDate(visita.data_saida),
+        codigoAcesso: visita.codigo_acesso,
+      },
+    };
+  }
+
+  /**
+   * Traduz `Visita` (+ `pessoa`/`apartamento` incluídos) para o mesmo formato
+   * achatado que `prisma.visitantes.create()` sempre devolveu — mesmos nomes
+   * de campo, mesmos tipos. É o contrato que o app v75 publicado consome.
+   *
+   * Única diferença consciente: `id` passa a ser o id da Visita, não de um
+   * Visitantes que deixou de ser escrito. O campo e o tipo são idênticos; só
+   * o espaço de ids referenciado muda — e os métodos que hoje resolvem esse
+   * id contra `Visitantes` (update/remove/liberar/bloquear/entrada/saída)
+   * ainda não foram migrados (tasks seguintes), então isso só importa quando
+   * a flag for ligada de verdade.
+   */
+  private mapVisitaParaRespostaLegada(visita: any) {
+    const p = visita.pessoa;
+    return {
+      id: visita.id,
+      nome: p.nome,
+      doc_identificacao: p.doc_identificacao,
+      data_hora_inicio: visita.data_hora_inicio,
+      data_hora_termino: visita.data_hora_termino,
+      is_visitante: visita.is_visitante,
+      is_prestador: visita.is_prestador,
+      user: visita.user,
+      id_apartamento: visita.id_apartamento,
+      id_condominio: visita.id_condominio,
+      avisar: visita.avisar,
+      created_at: visita.created_at,
+      updated_at: visita.updated_at,
+      foto_documento: p.foto_documento,
+      foto_pessoa: p.foto_pessoa,
+      data_entrada: visita.data_entrada,
+      data_saida: visita.data_saida,
+      liberado: visita.liberado,
+      bloqueado: visita.bloqueado,
+      codigo_acesso: visita.codigo_acesso,
+      face_id: p.face_id,
+      face_enrolled_at: p.face_enrolled_at,
+      face_sync_status: p.face_sync_status,
+      face_sync_error: p.face_sync_error,
+      tag_rfid: visita.tag_rfid,
+      dias_semana: visita.dias_semana,
+      categorias: visita.categorias,
+      auth_status: visita.auth_status,
+      auth_solicitado_em: visita.auth_solicitado_em,
+      auth_respondido_em: visita.auth_respondido_em,
+      auth_respondido_por: visita.auth_respondido_por,
+    };
   }
 
   async update(dto: UpdateVisitanteDto, payload?: JwtPayload) {
