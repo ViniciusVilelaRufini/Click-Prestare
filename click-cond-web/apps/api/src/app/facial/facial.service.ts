@@ -33,6 +33,10 @@ import { normalizarPayloadNativo } from './webhook-payload.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
 import { calcularIdade } from '../common/idade.util';
 
+function pessoasMigrationEnabled(): boolean {
+  return process.env['PESSOAS_MIGRATION_ENABLED'] === 'true';
+}
+
 /**
  * Capacidades por fabricante — um só lugar para responder "esta marca sabe
  * fazer X?", em vez de espalhar `fabricante === 'intelbras'` pelo módulo.
@@ -1697,6 +1701,16 @@ export class FacialService {
       return { skipped: true, reason: 'integration_disabled' };
     if (!this.prisma.isConnected) return { skipped: true, reason: 'no_db' };
 
+    if (pessoasMigrationEnabled()) {
+      const visita = await this.prisma.visitas.findUnique({
+        where: { id: idVisitante },
+        select: { id_pessoa: true },
+      });
+      if (visita) {
+        return this.syncPessoa(visita.id_pessoa, opts);
+      }
+    }
+
     const visitante = await this.prisma.visitantes.findUnique({
       where: { id: idVisitante },
     });
@@ -3098,38 +3112,52 @@ export class FacialService {
           const idsNoAparelho = await this.client.listUserIds(config);
           if (idsNoAparelho.length === 0) continue;
 
-          const [visitantesNoBanco, moradoresNoBanco, prestadoresNoBanco] =
-            await Promise.all([
-              this.prisma.visitantes.findMany({
-                where: {
-                  id_condominio: device.id_condominio,
-                  face_id: { in: idsNoAparelho },
-                },
-                select: { face_id: true },
-              }),
-              this.prisma.moradores.findMany({
-                where: {
-                  id_condominio: device.id_condominio,
-                  face_id: { in: idsNoAparelho },
-                },
-                select: { face_id: true },
-              }),
-              // Sem esta fonte, TODO funcionário legítimo (Prestadores_servico)
-              // seria tratado como fantasma e removido — e um funcionário
-              // excluído nunca seria limpo por aqui.
-              this.prisma.prestadores_servico.findMany({
-                where: {
-                  id_condominio: device.id_condominio,
-                  face_id: { in: idsNoAparelho },
-                },
-                select: { face_id: true },
-              }),
-            ]);
+          const [
+            visitantesNoBanco,
+            moradoresNoBanco,
+            prestadoresNoBanco,
+            pessoasNoBanco,
+          ] = await Promise.all([
+            this.prisma.visitantes.findMany({
+              where: {
+                id_condominio: device.id_condominio,
+                face_id: { in: idsNoAparelho },
+              },
+              select: { face_id: true },
+            }),
+            this.prisma.moradores.findMany({
+              where: {
+                id_condominio: device.id_condominio,
+                face_id: { in: idsNoAparelho },
+              },
+              select: { face_id: true },
+            }),
+            // Sem esta fonte, TODO funcionário legítimo (Prestadores_servico)
+            // seria tratado como fantasma e removido — e um funcionário
+            // excluído nunca seria limpo por aqui.
+            this.prisma.prestadores_servico.findMany({
+              where: {
+                id_condominio: device.id_condominio,
+                face_id: { in: idsNoAparelho },
+              },
+              select: { face_id: true },
+            }),
+            // Sem esta fonte, toda Pessoa da nova modelagem Pessoas/Visitas
+            // seria tratada como fantasma e apagada do terminal ao virar a flag.
+            this.prisma.pessoas.findMany({
+              where: {
+                id_condominio: device.id_condominio,
+                face_id: { in: idsNoAparelho },
+              },
+              select: { face_id: true },
+            }),
+          ]);
 
           const idsNoBanco = new Set([
             ...visitantesNoBanco.map((v) => v.face_id!),
             ...moradoresNoBanco.map((m) => m.face_id!),
             ...prestadoresNoBanco.map((p) => p.face_id!),
+            ...(pessoasNoBanco ?? []).map((pes) => pes.face_id!),
           ]);
 
           const fantasmas = idsNoAparelho.filter((id) => !idsNoBanco.has(id));
@@ -3615,6 +3643,16 @@ export class FacialService {
           nomePessoa = p.nome;
           faceIdSalvo = p.face_id ?? externalId;
         }
+      } else if (parsed.tipo === 'pessoa') {
+        const pes = await this.prisma.pessoas.findUnique({
+          where: { id: parsed.id },
+        });
+        if (pes) {
+          tipoPessoa = pes.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante';
+          idPessoa = pes.id;
+          nomePessoa = pes.nome;
+          faceIdSalvo = pes.face_id ?? externalId;
+        }
       } else {
         // Identificador fora do padrão morador_X/visitante_X (ex.: user_id
         // numérico do Control iD) — resolve pela coluna face_id, que o
@@ -3646,6 +3684,16 @@ export class FacialService {
               idPessoa = p.id;
               nomePessoa = p.nome;
               faceIdSalvo = p.face_id ?? externalId;
+            } else {
+              const pes = await this.prisma.pessoas.findFirst({
+                where: { face_id: externalId, id_condominio: device.id_condominio },
+              });
+              if (pes) {
+                tipoPessoa = pes.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante';
+                idPessoa = pes.id;
+                nomePessoa = pes.nome;
+                faceIdSalvo = pes.face_id ?? externalId;
+              }
             }
           }
         }
@@ -3753,11 +3801,32 @@ export class FacialService {
       // sendo negada por "não possui entrada ativa"), num loop sem saída.
       let dentroAgora: boolean | null = null;
       if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
-        const vAtual = await this.prisma.visitantes.findUnique({
-          where: { id: idPessoa ?? undefined },
-          select: { data_entrada: true, data_saida: true },
-        });
-        if (vAtual) dentroAgora = !!vAtual.data_entrada && !vAtual.data_saida;
+        if (pessoasMigrationEnabled() && idPessoa) {
+          const visitaAtiva = await this.prisma.visitas.findFirst({
+            where: {
+              id_pessoa: idPessoa,
+              id_condominio: device.id_condominio,
+              data_entrada: { not: null },
+              data_saida: null,
+            },
+            select: { id: true },
+          });
+          if (visitaAtiva) {
+            dentroAgora = true;
+          } else {
+            const vAtual = await this.prisma.visitantes.findUnique({
+              where: { id: idPessoa },
+              select: { data_entrada: true, data_saida: true },
+            });
+            if (vAtual) dentroAgora = !!vAtual.data_entrada && !vAtual.data_saida;
+          }
+        } else {
+          const vAtual = await this.prisma.visitantes.findUnique({
+            where: { id: idPessoa ?? undefined },
+            select: { data_entrada: true, data_saida: true },
+          });
+          if (vAtual) dentroAgora = !!vAtual.data_entrada && !vAtual.data_saida;
+        }
       }
 
       let eventoAlternado: string;
@@ -3819,10 +3888,41 @@ export class FacialService {
     }
 
     // Regra: Visitantes e Prestadores só podem acessar se a entrada foi ativamente liberada/registrada via app ou web
+    let visitaAtivaMigrada: any = null;
+    let v: any = null;
+
     if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
-      const v = await this.prisma.visitantes.findUnique({
-        where: { id: idPessoa },
-      });
+      if (pessoasMigrationEnabled() && idPessoa) {
+        const pessoaComVisitas = await this.prisma.pessoas.findUnique({
+          where: { id: idPessoa },
+          include: { visitas: true },
+        });
+        if (pessoaComVisitas) {
+          visitaAtivaMigrada = this.resolverVisitaAtivaPessoa(pessoaComVisitas);
+          if (visitaAtivaMigrada) {
+            v = {
+              id: visitaAtivaMigrada.id,
+              id_condominio: visitaAtivaMigrada.id_condominio,
+              nome: pessoaComVisitas.nome,
+              is_prestador: visitaAtivaMigrada.is_prestador,
+              liberado: visitaAtivaMigrada.liberado,
+              bloqueado: visitaAtivaMigrada.bloqueado || pessoaComVisitas.bloqueado,
+              data_hora_inicio: visitaAtivaMigrada.data_hora_inicio,
+              data_hora_termino: visitaAtivaMigrada.data_hora_termino,
+              dias_semana: visitaAtivaMigrada.dias_semana,
+              data_entrada: visitaAtivaMigrada.data_entrada,
+              data_saida: visitaAtivaMigrada.data_saida,
+              codigo_acesso: visitaAtivaMigrada.codigo_acesso,
+              id_pessoa: pessoaComVisitas.id,
+            };
+          }
+        }
+      }
+      if (!v) {
+        v = await this.prisma.visitantes.findUnique({
+          where: { id: idPessoa },
+        });
+      }
       if (!v) {
         throw new NotFoundException(
           'Cadastro de visitante/prestador não encontrado',
@@ -3868,17 +3968,29 @@ export class FacialService {
           );
           if (now > terminoComTolerancia) {
             // Se expirou temporalmente, revoga a flag liberado no banco para 0
-            await this.prisma.visitantes.update({
-              where: { id: v.id },
-              data: { liberado: 0 },
-            });
-            // Rede de segurança: remove o rosto do aparelho (em background) para
-            // que a PRÓXIMA tentativa seja negada FISICAMENTE, não só na nuvem.
-            void this.syncVisitante(v.id).catch((err) =>
-              this.logger.warn(
-                `Re-sync pós-expiração do visitante ${v.id} falhou: ${err?.message ?? err}`,
-              ),
-            );
+            if (visitaAtivaMigrada) {
+              await this.prisma.visitas.update({
+                where: { id: visitaAtivaMigrada.id },
+                data: { liberado: 0 },
+              });
+              void this.syncPessoa(idPessoa).catch((err) =>
+                this.logger.warn(
+                  `Re-sync pós-expiração da pessoa ${idPessoa} falhou: ${err?.message ?? err}`,
+                ),
+              );
+            } else {
+              await this.prisma.visitantes.update({
+                where: { id: v.id },
+                data: { liberado: 0 },
+              });
+              // Rede de segurança: remove o rosto do aparelho (em background) para
+              // que a PRÓXIMA tentativa seja negada FISICAMENTE, não só na nuvem.
+              void this.syncVisitante(v.id).catch((err) =>
+                this.logger.warn(
+                  `Re-sync pós-expiração do visitante ${v.id} falhou: ${err?.message ?? err}`,
+                ),
+              );
+            }
 
             await this.registrarEvento(device, {
               face_id:
@@ -3902,9 +4014,9 @@ export class FacialService {
 
         // Validação de dias da semana autorizados
         if (v.dias_semana) {
-          const diasPermitidos = v.dias_semana
+          const diasPermitidos: string[] = String(v.dias_semana)
             .split(',')
-            .map((d) => d.trim().toLowerCase())
+            .map((d: string) => d.trim().toLowerCase())
             .filter(Boolean);
           if (diasPermitidos.length > 0) {
             const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
@@ -4160,9 +4272,11 @@ export class FacialService {
       });
     } else {
       const isEntrada = evento === 'entrada';
-      const v = await this.prisma.visitantes.findUnique({
-        where: { id: idPessoa },
-      });
+      if (!v) {
+        v = await this.prisma.visitantes.findUnique({
+          where: { id: idPessoa },
+        });
+      }
       if (!v)
         throw new NotFoundException(
           'Cadastro de visitante/prestador não encontrado',
@@ -4176,10 +4290,18 @@ export class FacialService {
       // evento concorrente chegou primeiro (ou a liberação foi revogada) e
       // este deve ser negado.
       if (isEntrada) {
-        const r = await this.prisma.visitantes.updateMany({
-          where: { id: v.id, liberado: 1 },
-          data: { data_entrada: timestamp, data_saida: null },
-        });
+        let r: { count: number };
+        if (visitaAtivaMigrada) {
+          r = await this.prisma.visitas.updateMany({
+            where: { id: visitaAtivaMigrada.id, liberado: 1 },
+            data: { data_entrada: timestamp, data_saida: null },
+          });
+        } else {
+          r = await this.prisma.visitantes.updateMany({
+            where: { id: v.id, liberado: 1 },
+            data: { data_entrada: timestamp, data_saida: null },
+          });
+        }
         if (r.count === 0) {
           // Eco da própria saída no replay do backlog (mesma passagem física
           // reportada 2x; a alternância a reclassificou como 'entrada' porque
@@ -4211,38 +4333,71 @@ export class FacialService {
         // cadastro com exatamente 1 uso restante (a saída): é isso que garante
         // que a saída libera UMA única vez mesmo com o aparelho offline.
         if (v.is_prestador !== 1) {
-          void this.syncVisitante(v.id).catch((err) =>
-            this.logger.warn(
-              `Re-sync pós-entrada do visitante ${v.id} falhou: ${err?.message ?? err}`,
-            ),
-          );
+          if (visitaAtivaMigrada) {
+            void this.syncPessoa(idPessoa).catch((err) =>
+              this.logger.warn(
+                `Re-sync pós-entrada da pessoa ${idPessoa} falhou: ${err?.message ?? err}`,
+              ),
+            );
+          } else {
+            void this.syncVisitante(v.id).catch((err) =>
+              this.logger.warn(
+                `Re-sync pós-entrada do visitante ${v.id} falhou: ${err?.message ?? err}`,
+              ),
+            );
+          }
         }
       } else if (evento === 'saida') {
         // Visitante com VAGA ativa (o morador reservou vaga p/ o carro) NÃO é
         // deautorizado ao sair — pode reentrar quantas vezes quiser na janela,
         // como prestador. Sem isso, a 1ª saída zera liberado e o remove do
         // aparelho, impedindo a reentrada.
-        const temVagaAtiva =
-          v.is_prestador !== 1 &&
-          (await this.prisma.vagas.count({
-            where: { id_visitante: v.id, ativo: 1 },
-          })) > 0;
+        let temVagaAtiva = false;
+        if (visitaAtivaMigrada) {
+          temVagaAtiva =
+            v.is_prestador !== 1 &&
+            (await this.prisma.vagas.count({
+              where: { id_visita: visitaAtivaMigrada.id, ativo: 1 },
+            })) > 0;
+        } else {
+          temVagaAtiva =
+            v.is_prestador !== 1 &&
+            (await this.prisma.vagas.count({
+              where: { id_visitante: v.id, ativo: 1 },
+            })) > 0;
+        }
         // data_entrada < timestamp: um replay de backlog com timestamp ANTERIOR
         // à entrada registrada é o eco da própria entrada (mesma passagem
         // reportada 2x: ao vivo e pelo log do aparelho) — nunca uma saída real.
         // Sem esta guarda, data_saida ficava antes de data_entrada.
-        const r = await this.prisma.visitantes.updateMany({
-          where: {
-            id: v.id,
-            data_entrada: { not: null, lt: timestamp },
-            data_saida: null,
-          },
-          data: {
-            data_saida: timestamp,
-            ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),
-            liberado: v.is_prestador === 1 || temVagaAtiva ? 1 : 0,
-          },
-        });
+        let r: { count: number };
+        if (visitaAtivaMigrada) {
+          r = await this.prisma.visitas.updateMany({
+            where: {
+              id: visitaAtivaMigrada.id,
+              data_entrada: { not: null, lt: timestamp },
+              data_saida: null,
+            },
+            data: {
+              data_saida: timestamp,
+              ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),
+              liberado: v.is_prestador === 1 || temVagaAtiva ? 1 : 0,
+            },
+          });
+        } else {
+          r = await this.prisma.visitantes.updateMany({
+            where: {
+              id: v.id,
+              data_entrada: { not: null, lt: timestamp },
+              data_saida: null,
+            },
+            data: {
+              data_saida: timestamp,
+              ...(device.tipo === 'qrcode_reader' ? { codigo_acesso: null } : {}),
+              liberado: v.is_prestador === 1 || temVagaAtiva ? 1 : 0,
+            },
+          });
+        }
         if (r.count === 0) {
           // Eco da própria entrada no replay do backlog: timestamp do aparelho
           // <= entrada registrada (o evento ao vivo usa hora de chegada, que é
@@ -4273,11 +4428,19 @@ export class FacialService {
         // (liberado=0). Re-sincroniza em background para REMOVER o rosto do
         // aparelho — senão ele continuaria abrindo no próximo reconhecimento,
         // mesmo a nuvem negando. syncVisitante decide (prestador permanece).
-        void this.syncVisitante(v.id).catch((err) =>
-          this.logger.warn(
-            `Re-sync pós-saída do visitante ${v.id} falhou: ${err?.message ?? err}`,
-          ),
-        );
+        if (visitaAtivaMigrada) {
+          void this.syncPessoa(idPessoa).catch((err) =>
+            this.logger.warn(
+              `Re-sync pós-saída da pessoa ${idPessoa} falhou: ${err?.message ?? err}`,
+            ),
+          );
+        } else {
+          void this.syncVisitante(v.id).catch((err) =>
+            this.logger.warn(
+              `Re-sync pós-saída do visitante ${v.id} falhou: ${err?.message ?? err}`,
+            ),
+          );
+        }
       }
 
       await this.registrarEvento(device, {
@@ -4641,7 +4804,7 @@ export class FacialService {
 
   private parseExternalId(externalId: string): { tipo: string; id: number } {
     const match = externalId.match(
-      /^(morador|visitante|prestador_servico)_(\d+)$/,
+      /^(morador|visitante|prestador_servico|pessoa)_(\d+)$/,
     );
     if (!match) return { tipo: 'desconhecido', id: 0 };
     return { tipo: match[1], id: Number(match[2]) };
