@@ -17,6 +17,26 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 
+/**
+ * Migração Visitantes → Pessoas/Visitas: as tabelas `pessoas`/`visitas` estão
+ * no schema do Prisma (então `this.prisma.pessoas` SEMPRE existe depois de
+ * `prisma generate`, seja qual for o ambiente), mas elas ainda NÃO existem no
+ * banco de produção — só a escrita foi migrada aqui, a leitura não. Checar
+ * `this.prisma.pessoas` como "feature flag" testava a coisa errada: o delegate
+ * existe sempre, então o branch novo era sempre tomado e `listarPessoas`
+ * quebrava com 500 (tabela inexistente) toda vez que rodava contra o banco
+ * real.
+ *
+ * A flag decide a fonte sozinha — nunca a presença de dados. Default OFF.
+ *
+ * Lida em cada chamada (não numa const de módulo) de propósito: testes viram
+ * a flag em runtime sem precisar recarregar o módulo, e em produção o valor
+ * de `process.env` não muda depois do boot mesmo assim.
+ */
+function pessoasMigrationEnabled(): boolean {
+  return process.env['PESSOAS_MIGRATION_ENABLED'] === 'true';
+}
+
 export interface CreateVisitanteDto {
   nome: string;
   doc_identificacao?: string;
@@ -578,7 +598,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       return created / 1e10;
     };
 
-    if (this.prisma.pessoas) {
+    if (pessoasMigrationEnabled()) {
       const docClean = (search ?? '').replace(/\D/g, '').trim();
       const pessoasCadastradas = await this.prisma.pessoas.findMany({
         where: {
@@ -605,7 +625,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         orderBy: [{ created_at: 'desc' }],
       });
 
-      if (pessoasCadastradas && pessoasCadastradas.length > 0) {
+      // A flag sozinha decide a fonte: mesmo que a busca acima volte vazia
+      // (condomínio recém-migrado, ou filtro de busca sem resultado), o
+      // retorno é o resultado do caminho novo — nunca cai para Visitantes
+      // "porque não achou nada". Misturar fonte pela presença de dados é
+      // exatamente o que fazia a lista sumir silenciosamente.
+      {
         const idsVisitas = pessoasCadastradas.flatMap((p) => p.visitas?.map((v) => v.id) ?? []);
         const vagasAtivas = idsVisitas.length && this.prisma.vagas
           ? await this.prisma.vagas.findMany({

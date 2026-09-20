@@ -37,7 +37,13 @@ describe('VisitantesAdapter (Compatibilidade v75)', () => {
     assertEntidade: jest.fn().mockResolvedValue(true),
   };
 
+  const originalFlag = process.env['PESSOAS_MIGRATION_ENABLED'];
+
   beforeEach(() => {
+    // Este describe testa explicitamente o caminho NOVO (Pessoas/Visitas) —
+    // por isso liga a flag aqui. Por padrão ela é OFF (ver
+    // visitantes.service.pessoas-flag.spec.ts para o comportamento default).
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
     service = new VisitantesService(
       mockPrisma,
       noop,
@@ -48,6 +54,11 @@ describe('VisitantesAdapter (Compatibilidade v75)', () => {
       noop,
     );
     jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    if (originalFlag === undefined) delete process.env['PESSOAS_MIGRATION_ENABLED'];
+    else process.env['PESSOAS_MIGRATION_ENABLED'] = originalFlag;
   });
 
   it('listarPessoas deve consultar Pessoas e Visitas estruturadas sem depender do loop de agrupamento frágil', async () => {
