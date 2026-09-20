@@ -44,3 +44,23 @@ String? validarCadastroVisitante({
   if (termino.isBefore(inicio)) return 'visitante_periodo_invalido';
   return null;
 }
+
+/// Define se o usuário tem permissão para editar um cadastro existente de visitante.
+/// Porteiros/funcionários NÃO podem editar cadastros feitos por moradores; apenas
+/// moradores e síndicos têm permissão de edição.
+bool podeEditarVisitante({
+  required String userType,
+  required bool canManage,
+}) {
+  if (userType == 'funcionario') return false;
+  return canManage;
+}
+
+/// Define se o porteiro ou usuário pode registrar entrada/saída do visitante.
+/// O porteiro tem permissão plena para controlar fluxo de entrada e baixa de visitas.
+bool podeRegistrarEntradaSaidaVisitante({
+  required bool canManage,
+}) {
+  return canManage;
+}
+
