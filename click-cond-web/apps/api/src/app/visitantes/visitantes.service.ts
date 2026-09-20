@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
   OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
@@ -731,16 +732,23 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           });
 
           return {
-            // Significado deste campo (Task 4, Critical da revisão): id da
-            // VISITA principal quando a pessoa tem alguma — mantido assim de
-            // propósito porque é o que `create()` já devolve nesse modo
-            // (`mapVisitaParaRespostaLegada`) e o que o app v75 guarda como
-            // "o id do visitante". Só cai para `Pessoas.id` quando a pessoa
-            // não tem nenhuma visita — hoje só alcançável via
-            // `POST /condominios/:id/pessoas` direto. `removerPessoa` e
-            // `atualizarPessoa` resolvem esse mesmo campo tentando `Visitas`
-            // primeiro e caindo para `Pessoas` só se não achar
-            // (`resolverPessoaERef`) — mesma ordem, sem ambiguidade.
+            // Significado deste campo (Task 4, Critical da revisão, 1ª
+            // rodada): id da VISITA principal quando a pessoa tem alguma —
+            // mantido assim de propósito porque é o que `create()` já
+            // devolve nesse modo (`mapVisitaParaRespostaLegada`) e o que o
+            // app v75 guarda como "o id do visitante". Só cai para
+            // `Pessoas.id` quando a pessoa não tem nenhuma visita.
+            //
+            // `id_pessoa` (abaixo) é o id da Pessoa, sempre — SEM fallback
+            // para `Visitas.id`. `removerPessoa`/`atualizarPessoa` usam
+            // SÓ este campo (2ª rodada da revisão: a 1ª tentava resolver o
+            // `id` acima contra `Visitas` e caía para `Pessoas` se não
+            // achasse — o mesmo padrão "tenta uma tabela, cai pra outra"
+            // que o Critical original proibiu, só movido de `Visitantes`
+            // para o par `Visitas`/`Pessoas`. Dois autoincrement
+            // independentes colidem: uma pessoa sem visita — estado normal
+            // depois de `remove()` apagar a última Visita dela — tem `id`
+            // igual ao `Visitas.id` de alguém completamente diferente).
             id: principal?.id ?? p.id,
             id_pessoa: p.id,
             nome: p.nome,
@@ -1927,10 +1935,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    *
    * Única diferença consciente: `id` passa a ser o id da Visita, não de um
    * Visitantes que deixou de ser escrito. O campo e o tipo são idênticos; só
-   * o espaço de ids referenciado muda — e os métodos que hoje resolvem esse
-   * id contra `Visitantes` (update/remove/liberar/bloquear/entrada/saída)
-   * ainda não foram migrados (tasks seguintes), então isso só importa quando
-   * a flag for ligada de verdade.
+   * o espaço de ids referenciado muda. `update`/`remove` já foram migrados
+   * (Task 4) e resolvem esse id contra `Visitas`. `liberarAcesso`/`checkIn`/
+   * `checkOut`/`solicitarAutorizacao`/`autorizar`/`negar` ainda resolvem
+   * contra `Visitantes` — ficam para a próxima task, e são o motivo de a
+   * flag ainda não poder ser ligada em produção.
    */
   private mapVisitaParaRespostaLegada(visita: any) {
     const p = visita.pessoa;
@@ -2008,36 +2017,28 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Resolve a `Pessoa` a partir do `idRef` recebido por `removerPessoa` /
+   * Resolve a `Pessoa` a partir de `Pessoas.id` — usado por `removerPessoa` /
    * `atualizarPessoa`.
    *
-   * Decisão sobre o significado do `id` que `listarPessoas` expõe (Critical
-   * da revisão): quando a pessoa tem visita, esse campo é o id da VISITA
-   * principal — mantido assim de propósito para compatibilidade com o app
-   * v75 (`create()` já devolve id de Visita, e é o que o app guarda). Só cai
-   * para `Pessoas.id` quando a pessoa não tem nenhuma visita — hoje só
-   * alcançável por quem cria via `POST /condominios/:id/pessoas` direto
-   * (`PessoasController.criar`), sem passar por uma Visita.
+   * Segunda rodada da revisão: a versão anterior tentava `Visitas` primeiro e
+   * caía para `Pessoas` se não achasse ("tenta uma tabela, cai pra outra" —
+   * exatamente o padrão que o Critical original proibiu, só que movido de
+   * `Visitantes` para o par `Visitas`/`Pessoas`). `Pessoas.id` e `Visitas.id`
+   * são dois autoincrement independentes que nascem do 1 — para uma pessoa
+   * sem nenhuma visita (estado alcançável pela UI normal: `remove()` apaga a
+   * Visita e deixa a Pessoa viva, que é o comportamento certo), o número
+   * quase certamente também existe como `Visitas.id` de OUTRA pessoa, e o
+   * fallback apagava/editava essa outra pessoa — cascata de visitas, vaga
+   * solta e `unsyncPessoa` chamado com o face_id de quem não pediu nada.
    *
-   * Por isso a resolução tenta `Visitas` primeiro (pega `id_pessoa` de lá) e
-   * só cai para tratar `idRef` como `Pessoas.id` se não achar — nessa ordem
-   * não há ambiguidade: a mesma tabela nunca é candidata duas vezes, e
-   * `Visitantes` nunca entra na jogada.
+   * Fix: um espaço de id só. `listarPessoas` já expõe `id_pessoa` (id da
+   * Pessoa) ao lado de `id` (id da Visita principal) — os dois chamadores
+   * deste método usam `id_pessoa`, sem ambiguidade nenhuma.
    */
-  private async resolverPessoaERef(
-    idCondominio: number,
-    idRef: number,
-  ): Promise<{ pessoa: any; refVisita: any | null } | null> {
-    const visita = await this.prisma.visitas.findUnique({ where: { id: Number(idRef) } });
-    if (visita) {
-      if (visita.id_condominio !== Number(idCondominio)) return null;
-      const pessoa = await this.prisma.pessoas.findUnique({ where: { id: visita.id_pessoa } });
-      if (!pessoa) return null;
-      return { pessoa, refVisita: visita };
-    }
-    const pessoa = await this.prisma.pessoas.findUnique({ where: { id: Number(idRef) } });
+  private async resolverPessoaPorId(idCondominio: number, idPessoa: number): Promise<any | null> {
+    const pessoa = await this.prisma.pessoas.findUnique({ where: { id: Number(idPessoa) } });
     if (!pessoa || pessoa.id_condominio !== Number(idCondominio)) return null;
-    return { pessoa, refVisita: null };
+    return pessoa;
   }
 
   /**
@@ -2130,11 +2131,26 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (Object.keys(pessoaData).length > 0) {
-      const pessoaAtualizada = await this.prisma.pessoas.update({
-        where: { id: updatedVisita.id_pessoa },
-        data: pessoaData,
-      });
-      updatedVisita.pessoa = { ...updatedVisita.pessoa, ...pessoaAtualizada };
+      try {
+        const pessoaAtualizada = await this.prisma.pessoas.update({
+          where: { id: updatedVisita.id_pessoa },
+          data: pessoaData,
+        });
+        updatedVisita.pessoa = { ...updatedVisita.pessoa, ...pessoaAtualizada };
+      } catch (err: any) {
+        // `@@unique([id_condominio, doc_identificacao])` (Task 1) não existia
+        // no caminho legado — editar o documento para um já usado por outra
+        // Pessoa do condomínio agora colide nesse índice e o Prisma devolve
+        // P2002. Sem este catch, isso escapava cru pro controller e virava
+        // 500 sem explicação nenhuma; o operador via só "Internal Server
+        // Error" onde devia ver "documento já cadastrado".
+        if (err?.code === 'P2002') {
+          throw new ConflictException(
+            'Já existe uma pessoa cadastrada com este documento neste condomínio.',
+          );
+        }
+        throw err;
+      }
     }
 
     const precisaSyncFacial =
@@ -2167,12 +2183,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * vínculo é estrutural: `id_pessoa`). As vagas ainda travam a exclusão
    * (RESTRICT), então soltam primeiro, na mesma transação.
    */
-  private async removerPessoaViaPessoasVisitas(idCondominio: number, idPessoaRef: number) {
-    const resolvido = await this.resolverPessoaERef(idCondominio, idPessoaRef);
-    if (!resolvido) {
-      throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
+  private async removerPessoaViaPessoasVisitas(idCondominio: number, idPessoa: number) {
+    const pessoa = await this.resolverPessoaPorId(idCondominio, idPessoa);
+    if (!pessoa) {
+      throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
     }
-    const { pessoa } = resolvido;
 
     const visitas = await this.prisma.visitas.findMany({
       where: { id_pessoa: pessoa.id },
@@ -2221,7 +2236,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    */
   private async atualizarPessoaViaPessoasVisitas(
     idCondominio: number,
-    idPessoaRef: number,
+    idPessoa: number,
     dto: {
       nome?: string;
       doc_identificacao?: string;
@@ -2235,11 +2250,10 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       bloqueado?: number;
     },
   ) {
-    const resolvido = await this.resolverPessoaERef(idCondominio, idPessoaRef);
-    if (!resolvido) {
-      throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
+    const pessoa = await this.resolverPessoaPorId(idCondominio, idPessoa);
+    if (!pessoa) {
+      throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
     }
-    const { pessoa, refVisita } = resolvido;
 
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
     const fotoDoc = dto.foto_documento !== undefined ? await this.resolveFoto(dto.foto_documento) : undefined;
@@ -2262,18 +2276,23 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       const t = (dto.tag_rfid ?? '').toString().trim();
       visitaData.tag_rfid = t.length > 0 ? t : null;
     }
+    // Desbloqueio "por registro" (sem `dto.is_prestador` junto): cada Visita
+    // pode ter seu próprio `is_prestador`, então `liberado` não pode ser um
+    // valor único no `updateMany` — precisa de um `updateMany` por grupo. Com
+    // `dto.is_prestador` presente, todas as Visitas vão receber o MESMO
+    // is_prestador nesta chamada, então `liberado` já é uniforme e cabe no
+    // `updateMany` único de baixo.
+    let desbloqueioPorRegistro = false;
     if (dto.bloqueado !== undefined) {
       const bloqueadoNum = Number(dto.bloqueado);
       visitaData.bloqueado = bloqueadoNum;
       if (bloqueadoNum === 1) {
         visitaData.liberado = 0;
         visitaData.codigo_acesso = null;
+      } else if (dto.is_prestador !== undefined) {
+        visitaData.liberado = dto.is_prestador === 1 ? 1 : 0;
       } else {
-        // Desbloqueio: mesma regra do legado — restaura `liberado` conforme
-        // o tipo (prestador nasce liberado). Usa o tipo da visita de
-        // referência quando existe (mesmo critério do legado, que usa
-        // `ref.is_prestador` para todos os registros uniformemente).
-        visitaData.liberado = refVisita?.is_prestador === 1 ? 1 : 0;
+        desbloqueioPorRegistro = true;
       }
     }
 
@@ -2282,7 +2301,19 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     }
 
     let atualizados = 0;
-    if (Object.keys(visitaData).length > 0) {
+    if (desbloqueioPorRegistro) {
+      const [prestadores, outros] = await Promise.all([
+        this.prisma.visitas.updateMany({
+          where: { id_pessoa: pessoa.id, is_prestador: 1 },
+          data: { ...visitaData, liberado: 1 },
+        }),
+        this.prisma.visitas.updateMany({
+          where: { id_pessoa: pessoa.id, is_prestador: { not: 1 } },
+          data: { ...visitaData, liberado: 0 },
+        }),
+      ]);
+      atualizados = prestadores.count + outros.count;
+    } else if (Object.keys(visitaData).length > 0) {
       const result = await this.prisma.visitas.updateMany({
         where: { id_pessoa: pessoa.id },
         data: visitaData,

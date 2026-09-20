@@ -491,6 +491,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   novo: CreateVisitante = this.estadoInicial();
   showForm = false;
   editingId: number | null = null;
+  // Id da Pessoa a editar (endpoint atualizarPessoa) — separado de
+  // `editingId` (id da Visita principal). Sem essa separação, editar
+  // identidade usava o mesmo id ambíguo que `removerPessoa`.
+  editingIdPessoa: number | null = null;
   readonly saving = signal(false);
 
   // Portaria remota: timer de polling enquanto há pedidos pendentes.
@@ -710,6 +714,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   abrirNovo() {
     this.editingId = null;
+    this.editingIdPessoa = null;
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(null);
     this.novo = this.estadoInicial();
@@ -728,6 +733,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    */
   abrirNovaVisita(p: Pessoa) {
     this.editingId = null;
+    this.editingIdPessoa = null;
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(p);
     this.novo = {
@@ -766,7 +772,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       variant: 'danger',
     }).then((ok) => {
       if (!ok) return;
-      this.service.removerPessoa(p.id).subscribe({
+      // `id_pessoa` (id da Pessoa) quando disponível — `p.id` é o id da
+      // VISITA principal e é ambíguo para um endpoint que remove a pessoa
+      // inteira (colide com o id de Visita de outra pessoa qualquer).
+      this.service.removerPessoa(p.id_pessoa ?? p.id).subscribe({
         next: () => this.carregar(),
         error: (e) => this.error.set(`Falha ao remover: ${e?.error?.message ?? e?.message ?? e}`),
       });
@@ -781,6 +790,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
    */
   abrirEditar(v: Visitante | Pessoa) {
     this.editingId = v.id;
+    // `id_pessoa` quando o backend já serve pelo caminho Pessoas/Visitas;
+    // cai para `v.id` no caminho legado (onde já é o id certo).
+    this.editingIdPessoa = (v as Pessoa).id_pessoa ?? v.id;
     this.editandoIdentidade.set(true);
     this.novo = {
       nome: v.nome,
@@ -814,6 +826,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     this.fecharCamera();
     this.showForm = false;
     this.editingId = null;
+    this.editingIdPessoa = null;
     this.editandoIdentidade.set(false);
     this.novaVisitaPara.set(null);
     this.fotoPessoaBase64.set(null);
@@ -860,7 +873,7 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         return;
       }
       this.saving.set(true);
-      this.service.atualizarPessoa(this.editingId, {
+      this.service.atualizarPessoa(this.editingIdPessoa ?? this.editingId, {
         nome: this.novo.nome,
         doc_identificacao: this.novo.doc_identificacao,
         foto_pessoa: this.novo.foto_pessoa ?? undefined,

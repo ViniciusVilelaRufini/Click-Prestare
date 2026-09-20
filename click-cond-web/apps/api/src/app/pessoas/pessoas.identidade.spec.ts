@@ -57,4 +57,31 @@ describe('PessoasService.obterOuCriar — fusão de identidade', () => {
 
     expect(r.id).toBe(3);
   });
+
+  /**
+   * Segunda rodada da revisão (Important 2): `normalizarDoc` fazia
+   * `replace(/\D/g, '')`, derrubando letras. RG/passaporte têm dígito
+   * verificador alfabético — "AB123456" e "CD123456" normalizavam para o
+   * mesmo "123456", colidiam no índice único e `obterOuCriar` fundia duas
+   * pessoas diferentes numa só (mesmo rosto, mesma autorização de porta).
+   */
+  it('documentos que só diferem por letras continuam sendo pessoas distintas', async () => {
+    const { svc, prisma } = build([]);
+
+    const p1 = await svc.obterOuCriar(1, { nome: 'Fulano', doc_identificacao: 'AB123456' } as any);
+    const p2 = await svc.obterOuCriar(1, { nome: 'Beltrano', doc_identificacao: 'CD123456' } as any);
+
+    expect(p1.id).not.toBe(p2.id);
+    expect(prisma.pessoas.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('mesmo documento com formatação/caixa diferente ainda é a mesma pessoa', async () => {
+    const existente = { id: 20, id_condominio: 1, nome: 'Carlos', doc_identificacao: 'AB123456', face_id: null };
+    const { svc, prisma } = build([existente]);
+
+    const r = await svc.obterOuCriar(1, { nome: 'Carlos', doc_identificacao: 'ab.123.456' } as any);
+
+    expect(r.id).toBe(20);
+    expect(prisma.pessoas.create).not.toHaveBeenCalled();
+  });
 });

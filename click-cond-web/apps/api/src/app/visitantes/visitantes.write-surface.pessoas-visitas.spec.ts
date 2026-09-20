@@ -191,6 +191,63 @@ describe('VisitantesService — superfície de escrita Pessoas/Visitas (Task 4)'
       expect(facial.syncPessoa).toHaveBeenCalledWith(7);
     });
 
+    /**
+     * 2ª rodada da revisão (Critical): `removerPessoa` recebe `id_pessoa`
+     * (Pessoas.id) — um espaço de id só, sem tentar `Visitas` primeiro. Uma
+     * Pessoa sem visita (id=5) e a Visita de OUTRA pessoa (id=5, coincidência
+     * — os dois autoincrement nascem do 1) têm o mesmo número por acaso; o
+     * teste prova que o código nunca sequer consulta `Visitas` para resolver
+     * esse id, então não há como confundir as duas.
+     */
+    it('removerPessoa com um id_pessoa que colide com o Visitas.id de outra pessoa apaga só a pessoa certa', async () => {
+      const pessoasDelete = jest.fn(async ({ where }: any) => ({ id: where.id }));
+      const visitasFindUnique = jest.fn(); // nunca deveria ser chamado
+      const prisma: any = {
+        isConnected: true,
+        pessoas: {
+          findUnique: jest.fn(async ({ where }: any) =>
+            where.id === 5
+              ? { id: 5, id_condominio: 1, nome: 'Pessoa A (sem visita)', face_id: 'face-A' }
+              : null,
+          ),
+          delete: pessoasDelete,
+        },
+        visitas: {
+          // Pessoa B (id_pessoa=99) tem uma Visita cujo id é 5 — o MESMO
+          // número que o Pessoas.id da Pessoa A, por coincidência.
+          findUnique: visitasFindUnique.mockResolvedValue({
+            id: 5,
+            id_condominio: 1,
+            id_pessoa: 99,
+            pessoa: { id: 99, nome: 'Pessoa B (tem a Visita 5)', face_id: 'face-B' },
+          }),
+          findMany: jest.fn().mockResolvedValue([]), // Pessoa A não tem visitas
+        },
+        vagas: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
+      };
+      const auditoria: any = { registrar: jest.fn() };
+      const facial: any = { unsyncPessoa: jest.fn().mockResolvedValue(true) };
+      const tenant: any = {};
+
+      const service = new VisitantesService(prisma, {} as any, {} as any, facial, auditoria, tenant);
+
+      const res = await service.removerPessoa(1, 5);
+
+      expect(res).toEqual({ ok: true, removidos: 0 });
+      // Apagou Pessoa A (Pessoas.id=5) — nunca tentou resolver o id contra
+      // Visitas, que teria achado a Visita de Pessoa B.
+      expect(visitasFindUnique).not.toHaveBeenCalled();
+      expect(pessoasDelete).toHaveBeenCalledWith({ where: { id: 5 } });
+      expect(facial.unsyncPessoa).toHaveBeenCalledWith(5, 'face-A', 1);
+      // Pessoa B nunca é tocada: nem apagada, nem tem o rosto desinscrito.
+      expect(facial.unsyncPessoa).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'face-B',
+        expect.anything(),
+      );
+    });
+
     it('registrar a mesma pessoa de novo revoga o PIN/liberação da Visita anterior em aberto', async () => {
       const { service, visitas } = buildCreateHarness();
       const dto = {

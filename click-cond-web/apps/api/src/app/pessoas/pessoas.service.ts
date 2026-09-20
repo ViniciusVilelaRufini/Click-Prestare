@@ -6,9 +6,23 @@ import { CriarPessoaDto } from './dto/criar-pessoa.dto';
 export class PessoasService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Normaliza para comparação/armazenamento de `doc_identificacao`.
+   *
+   * Só dígitos (`\D`) é destrutivo além de CPF: RG e passaporte têm dígito
+   * verificador alfabético ("AB123456", "45.123.890-X"). Duas pessoas
+   * diferentes com documentos assim — "AB123456" e "CD123456" — normalizavam
+   * para o mesmo "123456", colidiam no `@@unique([id_condominio,
+   * doc_identificacao])` e `obterOuCriar` fundia os dois humanos numa única
+   * `Pessoa` (mesmo rosto, mesma autorização de porta, pra gente diferente).
+   *
+   * Mantém letras e dígitos, derruba só pontuação/espaço, e maiúsculiza —
+   * "ab123456", "AB.123.456" e "AB123456" continuam comparando igual, mas
+   * "AB123456" nunca mais colide com "CD123456".
+   */
   static normalizarDoc(doc?: string | null): string | null {
     if (!doc) return null;
-    const limpo = doc.replace(/\D/g, '').trim();
+    const limpo = doc.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     return limpo.length > 0 ? limpo : null;
   }
 
