@@ -1179,6 +1179,7 @@ model Facial_Devices {
   // (identifica) ou a ABERTURA que ela aciona (portão/catraca).
   etapasComoLeitor   Caminhos_Etapas[] @relation("EtapaLeitor")
   etapasComoAbertura Caminhos_Etapas[] @relation("EtapaAbertura")
+  acessos          Acessos_Facial[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
   @@index([id_area_social], map: "idx_facdev_area")
@@ -1189,6 +1190,7 @@ model Acessos_Facial {
   id_condominio    Int
   id_device        Int
   tipo_dispositivo String      @default("facial") @db.VarChar(30)
+  nome_dispositivo String?     @db.VarChar(100)
   face_id          String      @db.VarChar(100)
   tipo_pessoa      String      @db.VarChar(20)
   id_pessoa        Int?
@@ -1197,10 +1199,12 @@ model Acessos_Facial {
   confianca        Float?
   timestamp        DateTime    @db.DateTime(0)
   created_at       DateTime    @default(now()) @db.DateTime(0)
-  condominio       Condominios @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_acfac_cond")
+  condominio       Condominios    @relation(fields: [id_condominio], references: [id], onDelete: Restrict, map: "fk_acfac_cond")
+  dispositivo      Facial_Devices @relation(fields: [id_device], references: [id], onDelete: Restrict, map: "fk_acfac_device")
 
   @@index([id_condominio, timestamp], map: "idx_acfac_cond_ts")
   @@index([id_pessoa, tipo_pessoa], map: "idx_acfac_pessoa")
+  @@index([id_device], map: "idx_acfac_device")
 }
 
 model Regras_Acesso {
