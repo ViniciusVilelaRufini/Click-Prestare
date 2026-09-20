@@ -382,7 +382,12 @@ export class CrmCondominiosService {
 
   // ════════════════════════ Purga ════════════════════════
 
-  async purgar(id: number, confirmacaoNome: string, operador: string) {
+  async purgar(
+    id: number,
+    confirmacaoNome: string,
+    operador: string,
+    opcoes?: { purgarHistoricoAcessos?: boolean },
+  ) {
     const cond = await this.prisma.condominios.findUnique({ where: { id } });
     if (!cond) throw new NotFoundException('Condomínio não encontrado.');
 
@@ -397,6 +402,23 @@ export class CrmCondominiosService {
       );
     }
 
+    // fk_acfac_cond agora é RESTRICT (antes CASCADE): o Prisma vai recusar o
+    // delete do condomínio se sobrar qualquer linha em Acessos_Facial. Conferir
+    // ANTES de mexer em qualquer coisa — em especial antes de limparTerminais,
+    // que é destrutivo, irreversível e não-transacional. Se abortarmos depois
+    // dele, os rostos já foram apagados dos aparelhos e o condomínio continua
+    // existindo: ninguém entra em lugar nenhum e nada foi resolvido.
+    const totalAcessos = await this.prisma.acessos_Facial.count({
+      where: { id_condominio: id },
+    });
+    const purgarHistorico = opcoes?.purgarHistoricoAcessos === true;
+    if (totalAcessos > 0 && !purgarHistorico) {
+      throw new ConflictException(
+        `Este condomínio tem ${totalAcessos} evento(s) de acesso registrado(s) em Acessos_Facial e não pode ser excluído enquanto esse histórico existir. ` +
+          'Para excluir mesmo assim, repita a operação enviando purgarHistoricoAcessos=true — isso apaga o histórico de acessos junto, de forma irreversível.',
+      );
+    }
+
     const resumo = await this.contar(id);
 
     // 1. Rostos fora dos terminais ANTES de tocar no banco.
@@ -405,8 +427,19 @@ export class CrmCondominiosService {
     // 2. Contas candidatas — decididas antes, apagadas depois da cascata.
     const candidatos = await this.usuariosVinculados(id);
 
-    // 3. A cascata do banco leva as 33 tabelas com id_condominio.
-    await this.prisma.condominios.delete({ where: { id } });
+    // 3. A cascata do banco leva as 33 tabelas com id_condominio — exceto
+    // Acessos_Facial, que agora é RESTRICT. Se o operador pediu explicitamente
+    // para apagar o histórico junto, isso entra na MESMA transação do delete
+    // do condomínio (tudo ou nada); senão o delete simples já teria sido
+    // recusado acima.
+    if (purgarHistorico && totalAcessos > 0) {
+      await this.prisma.$transaction([
+        this.prisma.acessos_Facial.deleteMany({ where: { id_condominio: id } }),
+        this.prisma.condominios.delete({ where: { id } }),
+      ]);
+    } else {
+      await this.prisma.condominios.delete({ where: { id } });
+    }
 
     // 4. Só agora: apaga as contas que ficaram sem QUALQUER vínculo.
     const contasRemovidas = await this.removerContasOrfas(candidatos);
@@ -424,6 +457,8 @@ export class CrmCondominiosService {
         contasPreservadas: candidatos.length - contasRemovidas,
         terminaisLimpos: facial.limpos,
         terminaisComFalha: facial.falhas,
+        historicoAcessosPurgado: purgarHistorico && totalAcessos > 0,
+        eventosAcessoRemovidos: purgarHistorico ? totalAcessos : 0,
       },
     });
 

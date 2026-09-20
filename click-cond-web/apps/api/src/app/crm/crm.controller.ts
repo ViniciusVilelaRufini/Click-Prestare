@@ -100,15 +100,24 @@ export class CrmController {
     return this.condominios.reativar(id, this.operador(user));
   }
 
-  /** Exclusão definitiva. `confirmacao` deve repetir o nome do condomínio. */
+  /**
+   * Exclusão definitiva. `confirmacao` deve repetir o nome do condomínio.
+   *
+   * `purgarHistoricoAcessos: true` é obrigatório se o condomínio tiver
+   * eventos em `Acessos_Facial` — sem isso a exclusão é recusada
+   * (fk_acfac_cond agora é RESTRICT). É um opt-in deliberado: apagar o
+   * histórico de acessos é irreversível e não é o padrão.
+   */
   @UseGuards(CrmAdminGuard)
   @Delete('clientes/:id')
   purgar(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { confirmacao?: string },
+    @Body() body: { confirmacao?: string; purgarHistoricoAcessos?: boolean },
     @ReqUser() user: JwtPayload,
   ) {
-    return this.condominios.purgar(id, body?.confirmacao ?? '', this.operador(user));
+    return this.condominios.purgar(id, body?.confirmacao ?? '', this.operador(user), {
+      purgarHistoricoAcessos: body?.purgarHistoricoAcessos === true,
+    });
   }
 
   /**

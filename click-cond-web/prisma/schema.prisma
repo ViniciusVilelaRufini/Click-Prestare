@@ -1216,61 +1216,61 @@ model FechamentoMensal {
 }
 
 model Facial_Devices {
-  id            Int                   @id @default(autoincrement())
-  id_condominio Int
-  nome          String                @db.VarChar(100)
-  tipo          String                @default("facial") @db.VarChar(30)
+  id                 Int                   @id @default(autoincrement())
+  id_condominio      Int
+  nome               String                @db.VarChar(100)
+  tipo               String                @default("facial") @db.VarChar(30)
   // Como interpretar a direção dos acessos deste terminal:
   //   auto    → usa a direção que o aparelho informar (default; entrada se omitir)
   //   entrada → terminal de ENTRADA: todo acesso conta como entrada
   //   saida   → terminal de SAÍDA: todo acesso dá baixa (registra saída)
-  sentido       String                @default("auto") @db.VarChar(20)
+  sentido            String                @default("auto") @db.VarChar(20)
   // Confiança mínima (%) do reconhecimento facial para aceitar o acesso.
   // 0 = desligado (aceita qualquer confiança). Rede de segurança contra falso
   // positivo do aparelho — abaixo do limiar o acesso é negado.
-  confianca_minima Int                @default(0) @db.TinyInt
-  fabricante    String                @db.VarChar(50)
-  modelo        String?               @db.VarChar(100)
-  ip            String                @db.VarChar(45)
-  porta         Int                   @default(80)
-  api_user      String?               @db.VarChar(100)
-  api_password  String?               @db.VarChar(255)
-  webhook_token String                @db.VarChar(255)
-  ativo         Int                   @default(1) @db.TinyInt
-  ultima_sincr  DateTime?             @db.DateTime(0)
+  confianca_minima   Int                   @default(0) @db.TinyInt
+  fabricante         String                @db.VarChar(50)
+  modelo             String?               @db.VarChar(100)
+  ip                 String                @db.VarChar(45)
+  porta              Int                   @default(80)
+  api_user           String?               @db.VarChar(100)
+  api_password       String?               @db.VarChar(255)
+  webhook_token      String                @db.VarChar(255)
+  ativo              Int                   @default(1) @db.TinyInt
+  ultima_sincr       DateTime?             @db.DateTime(0)
   // Área de lazer que este terminal monitora (opcional). Quando preenchido, os
   // acessos deste device contam para a ocupação daquela área (contador "quantas
   // pessoas estão dentro agora"). null = terminal comum do condomínio.
-  id_area_social Int?                 @db.Int
-  created_at    DateTime              @default(now()) @db.DateTime(0)
-  updated_at    DateTime              @default(now()) @updatedAt @db.DateTime(0)
-  condominio    Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
-  area_social   Areas_Sociais?        @relation(fields: [id_area_social], references: [id], onDelete: SetNull, map: "fk_facdev_area")
-  regras        Regras_Dispositivos[]
+  id_area_social     Int?                  @db.Int
+  created_at         DateTime              @default(now()) @db.DateTime(0)
+  updated_at         DateTime              @default(now()) @updatedAt @db.DateTime(0)
+  condominio         Condominios           @relation(fields: [id_condominio], references: [id], onDelete: Cascade, map: "fk_facdev_cond")
+  area_social        Areas_Sociais?        @relation(fields: [id_area_social], references: [id], onDelete: SetNull, map: "fk_facdev_area")
+  regras             Regras_Dispositivos[]
   // Caminho de leitores: o mesmo aparelho pode ser o LEITOR de uma etapa
   // (identifica) ou a ABERTURA que ela aciona (portão/catraca).
-  etapasComoLeitor   Caminhos_Etapas[] @relation("EtapaLeitor")
-  etapasComoAbertura Caminhos_Etapas[] @relation("EtapaAbertura")
-  acessos          Acessos_Facial[]
+  etapasComoLeitor   Caminhos_Etapas[]     @relation("EtapaLeitor")
+  etapasComoAbertura Caminhos_Etapas[]     @relation("EtapaAbertura")
+  acessos            Acessos_Facial[]
 
   @@index([id_condominio], map: "idx_facdev_cond")
   @@index([id_area_social], map: "idx_facdev_area")
 }
 
 model Acessos_Facial {
-  id               Int         @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   id_condominio    Int
   id_device        Int
-  tipo_dispositivo String      @default("facial") @db.VarChar(30)
-  nome_dispositivo String?     @db.VarChar(100)
-  face_id          String      @db.VarChar(100)
-  tipo_pessoa      String      @db.VarChar(20)
+  tipo_dispositivo String         @default("facial") @db.VarChar(30)
+  nome_dispositivo String?        @db.VarChar(100)
+  face_id          String         @db.VarChar(100)
+  tipo_pessoa      String         @db.VarChar(20)
   id_pessoa        Int?
-  nome_pessoa      String      @db.VarChar(255)
-  evento           String      @db.VarChar(20)
+  nome_pessoa      String         @db.VarChar(255)
+  evento           String         @db.VarChar(20)
   confianca        Float?
-  timestamp        DateTime    @db.DateTime(0)
-  created_at       DateTime    @default(now()) @db.DateTime(0)
+  timestamp        DateTime       @db.DateTime(0)
+  created_at       DateTime       @default(now()) @db.DateTime(0)
   condominio       Condominios    @relation(fields: [id_condominio], references: [id], onDelete: Restrict, map: "fk_acfac_cond")
   dispositivo      Facial_Devices @relation(fields: [id_device], references: [id], onDelete: Restrict, map: "fk_acfac_device")
 

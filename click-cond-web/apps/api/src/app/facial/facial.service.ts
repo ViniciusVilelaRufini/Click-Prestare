@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -957,6 +958,29 @@ export class FacialService {
 
   async removeDevice(id: number, operador?: JwtPayload) {
     const device = await this.getDevice(id);
+
+    // fk_acfac_device (RESTRICT) protege o histórico de acessos: um terminal
+    // que já registrou algum evento não pode ser apagado, senão o Prisma
+    // estoura P2003 com uma mensagem de constraint crua para o operador.
+    const totalAcessos = await this.prisma.acessos_Facial.count({
+      where: { id_device: id },
+    });
+    if (totalAcessos > 0) {
+      await this.auditoria.registrar({
+        id_condominio: device.id_condominio,
+        usuario_nome: operador?.nome ?? 'sistema',
+        acao: 'DEVICE_CHANGE',
+        modulo: 'facial',
+        entidade_id: id,
+        descricao: `Tentativa de remover dispositivo "${device.nome}" recusada: ${totalAcessos} acesso(s) registrado(s)`,
+        detalhes: { tipo: device.tipo, ip: device.ip, totalAcessos },
+      });
+      throw new ConflictException(
+        `Este terminal tem ${totalAcessos} acesso(s) registrado(s) e não pode ser excluído, pois o histórico de acessos deve ser preservado. ` +
+          'Para tirá-lo de operação, desative-o (ativo = 0) em vez de excluí-lo — isso remove o terminal do uso sem apagar o log.',
+      );
+    }
+
     await this.prisma.facial_Devices.delete({ where: { id } });
     await this.auditoria.registrar({
       id_condominio: device.id_condominio,

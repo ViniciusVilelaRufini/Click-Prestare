@@ -12,7 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
 
-function buildConfig() {
+export function buildConfig() {
   const url = new URL(process.env.DATABASE_URL);
   return {
     host: url.hostname,
