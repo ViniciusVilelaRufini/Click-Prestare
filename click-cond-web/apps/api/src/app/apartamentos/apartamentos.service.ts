@@ -224,15 +224,17 @@ export class ApartamentosService {
   }
 
   /**
-   * Remove a unidade. TODAS as chaves estrangeiras que apontam para
-   * Apartamentos são `onDelete: Cascade` — vínculos de morador, visitantes,
-   * vagas, agendamentos de área e mudanças somem junto, em silêncio.
+   * Remove a unidade. Vínculos de morador, vagas, agendamentos de área e
+   * mudanças são `onDelete: Cascade` e somem junto, em silêncio. Visitas
+   * (caminho migrado) é a exceção: é `RESTRICT` — histórico de acesso físico
+   * não pode sumir em cascata — então a remoção é recusada explicitamente
+   * quando há visitas, em vez de deixar o delete estourar.
    *
-   * Como não dá para desfazer, a exclusão passa a contar o que vai levar
-   * embora e devolver isso na resposta, além de registrar na auditoria. Sem
-   * esse rastro, "sumiram as visitas do 101" era impossível de explicar
-   * depois — o módulo inteiro não tinha auditoria nenhuma, sendo o único com
-   * uma operação em cascata desse tamanho.
+   * Como não dá para desfazer o que cascateia, a exclusão passa a contar o
+   * que vai levar embora e devolver isso na resposta, além de registrar na
+   * auditoria. Sem esse rastro, "sumiram as vagas do 101" era impossível de
+   * explicar depois — o módulo inteiro não tinha auditoria nenhuma, sendo o
+   * único com uma operação em cascata desse tamanho.
    */
   async remove(id: number, user?: JwtPayload) {
     if (!this.viaOperadora(user)) assertStaff(user, 'remover apartamento');
