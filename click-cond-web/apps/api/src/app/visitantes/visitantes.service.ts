@@ -1142,12 +1142,24 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     },
     payload?: JwtPayload,
   ) {
-    // Valida tenant da pessoa de referência: sem isso, dá pra criar visita
-    // copiando o id_condominio de um registro de outro condomínio.
-    const ref = await this.assertPodeAcessarVisitante(idPessoaRef, payload);
     if (!dto.id_apartamento) {
       throw new BadRequestException('Informe o apartamento da nova visita');
     }
+
+    // Critical 2 (Lote B): com a flag ligada, `idPessoaRef` é um id de
+    // `Pessoas` (é o que `listarPessoas` expõe em `id_pessoa` — ver
+    // `resolverPessoaPorId`), NUNCA resolvido contra `Visitantes`. Resolver
+    // ali colidiria com um id de `Visitas`/`Visitantes` que por acaso é o
+    // mesmo número e copiaria identidade (nome, documento, foto, face_id) de
+    // uma pessoa completamente diferente para a visita nova — autorizando a
+    // porta para o rosto errado.
+    if (pessoasMigrationEnabled(this.prisma)) {
+      return this.novaVisitaParaPessoaViaPessoasVisitas(idPessoaRef, dto, payload);
+    }
+
+    // Valida tenant da pessoa de referência: sem isso, dá pra criar visita
+    // copiando o id_condominio de um registro de outro condomínio.
+    const ref = await this.assertPodeAcessarVisitante(idPessoaRef, payload);
     return this.create({
       nome: ref.nome,
       doc_identificacao: ref.doc_identificacao ?? undefined,
@@ -1162,6 +1174,97 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       dias_semana: ref.dias_semana ?? undefined,
       categorias: ref.categorias ?? undefined,
     }, payload);
+  }
+
+  /**
+   * Caminho novo de `novaVisitaParaPessoa` (flag ligada): resolve
+   * `idPessoaRef` SÓ contra `Pessoas` (`resolverPessoaPorId` — mesmo helper
+   * de `removerPessoa`/`atualizarPessoa`) e cria a visita via
+   * `VisitasService.criarVisita`, nunca tocando `Visitantes`.
+   *
+   * `pessoa.id_pessoa` no DTO de `criarVisita` reaproveita a Pessoa existente
+   * (`PessoasService.obterOuCriar` casa por esse id primeiro) — não cria uma
+   * Pessoa nova nem duplica identidade/face_id.
+   */
+  private async novaVisitaParaPessoaViaPessoasVisitas(
+    idPessoaRef: number,
+    dto: {
+      id_apartamento: number;
+      data_hora_inicio?: string;
+      data_hora_termino?: string;
+    },
+    payload?: JwtPayload,
+  ) {
+    const pessoa = await this.assertPodeAcessarPessoa(idPessoaRef, payload);
+
+    // dias_semana/categorias não existem em `Pessoas` (são atributo de cada
+    // `Visita`) — herda do registro mais recente que tiver, mesma regra de
+    // `listarPessoas`.
+    const ultimaVisita = await this.prisma.visitas.findFirst({
+      where: { id_pessoa: pessoa.id },
+      orderBy: { created_at: 'desc' },
+      select: { dias_semana: true, categorias: true },
+    });
+
+    const pin = await this.gerarPinUnicoVisita();
+
+    const visita = await this.visitasService.criarVisita({
+      id_condominio: pessoa.id_condominio,
+      id_apartamento: Number(dto.id_apartamento),
+      user: payload ? Number(payload.user?.id ?? payload.sub) : null,
+      pessoa: {
+        id_pessoa: pessoa.id,
+        nome: pessoa.nome,
+        doc_identificacao: pessoa.doc_identificacao ?? null,
+        foto_pessoa: pessoa.foto_pessoa ?? null,
+        foto_documento: pessoa.foto_documento ?? null,
+        tipo_pessoa: pessoa.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
+      },
+      is_visitante: pessoa.tipo_pessoa === 'prestador' ? 0 : 1,
+      is_prestador: pessoa.tipo_pessoa === 'prestador' ? 1 : 0,
+      data_hora_inicio: parseLocalTimeToUTC(dto.data_hora_inicio),
+      data_hora_termino: parseLocalTimeToUTCNullable(dto.data_hora_termino),
+      codigo_acesso: pin,
+      liberado: 1,
+      dias_semana: ultimaVisita?.dias_semana ?? null,
+      categorias: ultimaVisita?.categorias ?? null,
+    } as any);
+
+    await this.desativarOutrosCodigosVisita(visita.id_condominio, visita.id_pessoa, visita.id);
+
+    const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
+    const ctx = this.construirContextoAuditoria(visita);
+    await this.auditoria.registrar({
+      id_condominio: visita.id_condominio,
+      usuario_nome: payload?.nome ?? 'Sistema / Portaria',
+      acao: 'CREATE',
+      modulo: 'visitantes',
+      entidade_id: visita.id,
+      descricao: `Novo agendamento: ${tipoLabel} "${visita.pessoa.nome}" para ${ctx.apartamento?.label ?? '—'}`,
+      detalhes: ctx,
+    });
+
+    if (pessoa.foto_pessoa) {
+      this.fireFacialSyncPessoa(visita.id_pessoa);
+    }
+
+    return this.mapVisitaParaRespostaLegada(visita);
+  }
+
+  /**
+   * Mesma checagem de `assertPodeAcessarVisitante`/`assertPodeAcessarVisita`,
+   * mas contra `Pessoas` — usada por `novaVisitaParaPessoa` quando a flag
+   * está ligada. `idPessoa` nesse modo é SEMPRE um id de `Pessoas` (o que
+   * `listarPessoas` expõe em `id_pessoa`).
+   */
+  private async assertPodeAcessarPessoa(idPessoa: number, payload?: JwtPayload) {
+    const p = await this.prisma.pessoas.findUnique({ where: { id: Number(idPessoa) } });
+    if (!p) throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+
+    if (!payload) return p;
+
+    await this.tenant.assertCondominio(p.id_condominio, payload);
+    return p;
   }
 
   /**

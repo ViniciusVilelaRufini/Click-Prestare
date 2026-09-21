@@ -772,10 +772,11 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       variant: 'danger',
     }).then((ok) => {
       if (!ok) return;
-      // `id_pessoa` (id da Pessoa) quando disponível — `p.id` é o id da
-      // VISITA principal e é ambíguo para um endpoint que remove a pessoa
-      // inteira (colide com o id de Visita de outra pessoa qualquer).
-      this.service.removerPessoa(p.id_pessoa ?? p.id).subscribe({
+      // `id_pessoa` (id da Pessoa) — nunca `p.id` (id da VISITA principal):
+      // os dois espaços de id nascem do 1 e crescem em paralelo, então um
+      // fallback `?? p.id` colidia com a Visita de outra pessoa qualquer e
+      // removia/desinscrevia quem nunca pediu (mesmo defeito do Critical 2).
+      this.service.removerPessoa(p.id_pessoa!).subscribe({
         next: () => this.carregar(),
         error: (e) => this.error.set(`Falha ao remover: ${e?.error?.message ?? e?.message ?? e}`),
       });
@@ -847,7 +848,9 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         return;
       }
       this.saving.set(true);
-      this.service.novaVisitaPessoa(novaPara.id, {
+      // `id_pessoa`, não `novaPara.id` (id da Visita principal): o endpoint
+      // resolve contra `Pessoas` — Critical 2 (Lote B).
+      this.service.novaVisitaPessoa(novaPara.id_pessoa!, {
         id_apartamento: this.novo.id_apartamento,
         data_hora_inicio: this.novo.data_hora_inicio,
         data_hora_termino: this.novo.data_hora_termino,
@@ -873,7 +876,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         return;
       }
       this.saving.set(true);
-      this.service.atualizarPessoa(this.editingIdPessoa ?? this.editingId, {
+      // `editingIdPessoa` já é resolvido com o fallback certo em
+      // `abrirEditar` (linha ~795) — um segundo `?? this.editingId` aqui só
+      // reintroduziria a chance de acertar o espaço de id errado.
+      this.service.atualizarPessoa(this.editingIdPessoa!, {
         nome: this.novo.nome,
         doc_identificacao: this.novo.doc_identificacao,
         foto_pessoa: this.novo.foto_pessoa ?? undefined,
