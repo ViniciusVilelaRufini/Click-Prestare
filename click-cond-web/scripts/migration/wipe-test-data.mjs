@@ -1,5 +1,5 @@
 /**
- * Apaga os dados de teste, preservando estrutura, Users e Planos.
+ * Apaga os dados de teste, preservando estrutura, Users, crm_admins e Planos.
  *
  * Modo padrão é DRY-RUN: lista o que seria apagado e não escreve nada.
  * Só apaga de verdade com --confirmo-apagar-tudo E o nome do banco alvo
@@ -12,7 +12,11 @@
  * todo dado em produção é dado de teste". Essa premissa expira quando dados
  * reais entrarem no banco — a partir daí, rodar isto é destruir produção.
  *
- * Preserva Users porque apagar contas removeria o login do próprio operador.
+ * Preserva crm_admins porque é por onde o operador do wipe está logado (CRM).
+ * Preserva Users porque a tabela guarda o login de TODO mundo que acessa o
+ * sistema — síndico, morador e funcionário, não só o operador do CRM. Já
+ * aconteceu de Users ser apagada por engano aqui (430 linhas -> 1); não
+ * remover esta tabela da lista sem entender esse histórico.
  * Preserva Planos porque é tabela de catálogo, não dado de cliente.
  *
  * Uso:
@@ -27,7 +31,18 @@ import { contarTodasAsTabelas, buildConfig } from './dump-database.mjs';
 const CONFIRMADO = process.argv.includes('--confirmo-apagar-tudo');
 
 /** Tabelas que NÃO são apagadas. */
-const PRESERVAR = new Set(['crm_admins', 'Planos', '_prisma_migrations']);
+const PRESERVAR = new Set(['Users', 'crm_admins', 'Planos', '_prisma_migrations']);
+
+/**
+ * Tabelas cujo AUTO_INCREMENT não pode ser resetado para 1. `pessoas` começa
+ * em 2000000 e `visitas` em 1000000 de propósito: vários pontos do código
+ * resolvem um id contra mais de uma tabela, e as faixas de id disjuntas são
+ * hoje a única coisa que impede essas buscas de colidir silenciosamente com
+ * o registro de outra pessoa. Resetar o contador rearma essa colisão. Se
+ * "limpar" isso um dia, restaure o offset original em vez de zerar.
+ */
+const OFFSET_AUTO_INCREMENT = { pessoas: 2000000, visitas: 1000000 };
+const NAO_RESETAR_AUTO_INCREMENT = new Set(Object.keys(OFFSET_AUTO_INCREMENT));
 
 /**
  * Segunda trava: o nome do banco alvo, passado como argumento posicional
@@ -78,7 +93,13 @@ async function main() {
     try {
       for (const [t] of alvo) {
         await conn.query(`DELETE FROM \`${t}\``);
-        await conn.query(`ALTER TABLE \`${t}\` AUTO_INCREMENT = 1`);
+        if (NAO_RESETAR_AUTO_INCREMENT.has(t)) {
+          // Restaura o offset original em vez de resetar para 1 — ver
+          // comentário de OFFSET_AUTO_INCREMENT acima.
+          await conn.query(`ALTER TABLE \`${t}\` AUTO_INCREMENT = ${OFFSET_AUTO_INCREMENT[t]}`);
+        } else {
+          await conn.query(`ALTER TABLE \`${t}\` AUTO_INCREMENT = 1`);
+        }
         console.log(`  apagada: ${t}`);
       }
     } finally {
@@ -93,7 +114,9 @@ async function main() {
       console.error('\nAINDA HÁ LINHAS:', restantes.map(([t, n]) => `${t}=${n}`).join(', '));
       throw new Error(`Linhas remanescentes após wipe: ${restantes.map(([t, n]) => `${t}=${n}`).join(', ')}`);
     }
-    console.log(`\nOK. Users preservados: ${depois['Users'] ?? 0}`);
+    console.log(
+      `\nOK. Users preservados: ${depois['Users'] ?? 0}. crm_admins preservados: ${depois['crm_admins'] ?? 0}.`,
+    );
   } finally {
     await conn.end();
   }
