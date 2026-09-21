@@ -121,7 +121,7 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
     });
   });
 
-  it('permite cadastrar morador quando data de nascimento não for informada na planilha/onboarding', async () => {
+  it('recusa cadastro sem data de nascimento quando envia e-mail/credenciais (evita brecha de menor sem checagem)', async () => {
     const dto: any = {
       nome: 'Yasmin Alves Costa',
       email: 'yasmin.alves@mockemail.com',
@@ -131,26 +131,49 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
       sendCredentials: true,
     };
 
+    await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+    expect(prismaMock.users.create).not.toHaveBeenCalled();
+  });
+
+  it('recusa cadastro sem data de nascimento quando envia foto facial (evita brecha de menor sem checagem)', async () => {
+    const dto: any = {
+      nome: 'Rafael Sem Data',
+      foto_pessoa: 'data:image/jpeg;base64,foto',
+      id_condominio: 1,
+      id_apartamento: 10,
+    };
+
+    await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+    expect(prismaMock.users.create).not.toHaveBeenCalled();
+  });
+
+  it('permite cadastrar morador sem data de nascimento quando NÃO há foto facial nem envio de credenciais (importação em lote)', async () => {
+    const dto: any = {
+      nome: 'Yasmin Alves Costa',
+      documento: '12345678900',
+      id_condominio: 1,
+      id_apartamento: 10,
+      sendCredentials: false,
+    };
+
     const res = await service.create(dto);
     expect(res).toBeDefined();
     expect(prismaMock.users.create).toHaveBeenCalled();
   });
 
-  it('importBulk processa e cadastra moradores mesmo sem data de nascimento na planilha', async () => {
+  it('importBulk cadastra moradores sem data de nascimento quando a planilha não envia credenciais nem foto', async () => {
     const linhas = [
       {
         nome: 'Yasmin Alves Costa',
-        email: 'yasmin.alves@mockemail.com',
         bloco: 'Bloco A',
         apto: '101',
-        sendCredentials: true,
+        sendCredentials: false,
       },
       {
         nome: 'Xavier Alves Alves',
-        email: 'xavier.alves@mockemail.com',
         bloco: 'Bloco A',
         apto: '102',
-        sendCredentials: true,
+        sendCredentials: false,
       },
     ];
 
@@ -160,6 +183,28 @@ describe('MoradoresService - Validação de Menor de 18 Anos', () => {
     expect(result.ok).toBe(true);
     expect(result.total).toBe(2);
     expect(result.criados).toHaveLength(2);
+    expect(result.erros).toHaveLength(0);
+  });
+
+  it('importBulk reporta erro por linha (sem travar o lote) quando a planilha manda credenciais sem data de nascimento', async () => {
+    const linhas = [
+      {
+        nome: 'Yasmin Alves Costa',
+        email: 'yasmin.alves@mockemail.com',
+        bloco: 'Bloco A',
+        apto: '101',
+        sendCredentials: true,
+      },
+    ];
+
+    prismaMock.apartamentos.findFirst = jest.fn().mockResolvedValue({ id: 101, bloco: 'Bloco A', apto: '101' });
+
+    const result = await service.importBulk(1, linhas);
+    expect(result.ok).toBe(true);
+    expect(result.total).toBe(0);
+    expect(result.criados).toHaveLength(0);
+    expect(result.erros).toHaveLength(1);
+    expect(result.erros[0].nome).toBe('Yasmin Alves Costa');
   });
 });
 

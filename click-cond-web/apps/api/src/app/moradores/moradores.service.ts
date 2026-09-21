@@ -736,13 +736,16 @@ export class MoradoresService {
 
     const ehMenor = dto.data_nascimento ? calcularIdade(dto.data_nascimento) < 18 : false;
 
-    // Cláusula 8.3 e Anexo I: Se informou data de nascimento e (email ou credenciais), valida maioridade
-    if (dto.data_nascimento && (dto.email || dto.sendCredentials)) {
+    // Cláusula 8.3 e Anexo I: menor não pode ter biometria facial nem conta
+    // de aplicativo. A importação em lote sem data de nascimento só é
+    // permitida quando o cadastro NÃO carrega foto facial nem cria
+    // credenciais de acesso — nesses casos a data é obrigatória e
+    // validarMaioridade() lança se estiver ausente (não apenas se for menor).
+    if (dto.email || dto.sendCredentials) {
       validarMaioridade(dto.data_nascimento, 'criação de conta de usuário no aplicativo');
     }
 
-    // Cláusula 8.3: Se enviou foto facial para biometria e informou data de nascimento, valida maioridade
-    if (dto.data_nascimento && fotoPessoaUrl) {
+    if (fotoPessoaUrl) {
       validarMaioridade(dto.data_nascimento, 'cadastro de biometria facial');
     }
 
