@@ -2771,13 +2771,20 @@ export class FacialService {
     // Não await: roda em background. O event loop continua após o return.
     void (async () => {
       let ok = 0;
+      // Important 4 (Lote B): com a flag ligada, `syncVisitante` resolve o
+      // `Visitantes.id` contra `Visitas` (que não é migrado por este tick —
+      // fora de escopo aqui) e devolve `{ skipped: true }` em vez de
+      // sincronizar. Antes isso era contado como `ok++` igual um sucesso
+      // real — o log dizia "N ok" quando na prática N não foram tocados.
+      // `skipped` agora conta à parte, e o log/retorno distingue os dois.
+      let skipped = 0;
       let falhou = 0;
       try {
         const deviceIds = opts.deviceIds;
         for (const m of moradores) {
           try {
-            await this.syncMorador(m.id, { deviceIds });
-            ok++;
+            const r: any = await this.syncMorador(m.id, { deviceIds });
+            if (r?.skipped) skipped++; else ok++;
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync morador ${m.id}: ${e?.message ?? e}`);
@@ -2785,8 +2792,8 @@ export class FacialService {
         }
         for (const v of visitantes) {
           try {
-            await this.syncVisitante(v.id, { deviceIds });
-            ok++;
+            const r: any = await this.syncVisitante(v.id, { deviceIds });
+            if (r?.skipped) skipped++; else ok++;
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync visitante ${v.id}: ${e?.message ?? e}`);
@@ -2794,15 +2801,15 @@ export class FacialService {
         }
         for (const p of prestadores) {
           try {
-            await this.syncPrestadorServico(p.id, { deviceIds });
-            ok++;
+            const r: any = await this.syncPrestadorServico(p.id, { deviceIds });
+            if (r?.skipped) skipped++; else ok++;
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync prestador ${p.id}: ${e?.message ?? e}`);
           }
         }
         this.logger.log(
-          `Bulk sync condomínio ${idCondominio}: ${ok} ok, ${falhou} falha(s) de ${total}`,
+          `Bulk sync condomínio ${idCondominio}: ${ok} sincronizado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${total}`,
         );
       } finally {
         this.bulkSyncEmAndamento.delete(idCondominio);
@@ -2988,10 +2995,34 @@ export class FacialService {
         },
         select: { id: true },
       });
+      // Important 4 (Lote B): `syncVisitante`, com a flag ligada, resolve
+      // contra `Visitas` (não `Visitantes`) e devolve `{ skipped: true }` em
+      // vez de sincronizar — este tick não foi migrado (fora de escopo
+      // aqui). Sem contar `skipped` à parte, um log de sucesso mentiria
+      // sobre quantos rostos de fato foram re-sincronizados na virada do dia.
+      let visOk = 0;
+      let visSkipped = 0;
+      let visFalhou = 0;
+      const syncsVisitantes: Promise<void>[] = [];
       for (const v of comDias) {
-        this.syncVisitante(v.id).catch((e: any) =>
-          this.logger.warn(`tickDiasSemana visitante ${v.id}: ${e?.message ?? e}`),
+        syncsVisitantes.push(
+          this.syncVisitante(v.id)
+            .then((r: any) => {
+              if (r?.skipped) visSkipped++;
+              else visOk++;
+            })
+            .catch((e: any) => {
+              visFalhou++;
+              this.logger.warn(`tickDiasSemana visitante ${v.id}: ${e?.message ?? e}`);
+            }),
         );
+      }
+      if (comDias.length > 0) {
+        void Promise.allSettled(syncsVisitantes).then(() => {
+          this.logger.log(
+            `tickDiasSemanaSync visitantes: ${visOk} sincronizado(s), ${visSkipped} ignorado(s) (skip), ${visFalhou} falha(s) de ${comDias.length}`,
+          );
+        });
       }
 
       // Prestadores de serviço (Gestão de Acesso) também têm restrição por dia.
@@ -3031,6 +3062,15 @@ export class FacialService {
         },
         select: { id: true, liberado: true },
       });
+      // Important 4 (Lote B): mesma ressalva de `tickDiasSemanaSync` — com a
+      // flag ligada `syncVisitante` devolve `{ skipped: true }` em vez de
+      // sincronizar (este tick não foi migrado, fora de escopo aqui). Conta
+      // skip à parte pra não afirmar "processados" como se tivessem sido
+      // de fato re-sincronizados no aparelho.
+      let ok = 0;
+      let skipped = 0;
+      let falhou = 0;
+      const syncsExpirados: Promise<void>[] = [];
       for (const v of expirados) {
         if (v.liberado === 1) {
           await this.prisma.visitantes.update({
@@ -3038,12 +3078,24 @@ export class FacialService {
             data: { liberado: 0 }
           });
         }
-        this.syncVisitante(v.id).catch((e: any) =>
-          this.logger.warn(`tickExpiracao visitante ${v.id}: ${e?.message ?? e}`),
+        syncsExpirados.push(
+          this.syncVisitante(v.id)
+            .then((r: any) => {
+              if (r?.skipped) skipped++;
+              else ok++;
+            })
+            .catch((e: any) => {
+              falhou++;
+              this.logger.warn(`tickExpiracao visitante ${v.id}: ${e?.message ?? e}`);
+            }),
         );
       }
       if (expirados.length > 0) {
-        this.logger.log(`tickExpiracaoAutomatica: ${expirados.length} expirado(s) processados`);
+        void Promise.allSettled(syncsExpirados).then(() => {
+          this.logger.log(
+            `tickExpiracaoAutomatica: ${expirados.length} expirado(s) — ${ok} sincronizado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s)`,
+          );
+        });
       }
     } catch (e: any) {
       this.logger.warn(`tickExpiracaoAutomatica erro: ${e?.message ?? e}`);
@@ -3072,13 +3124,34 @@ export class FacialService {
         },
         select: { id: true },
       });
+      // Important 4 (Lote B): mesma ressalva das duas ticks acima —
+      // `syncVisitante` com a flag ligada devolve `{ skipped: true }` em vez
+      // de pré-enrolar de fato (tick não migrado, fora de escopo aqui). O
+      // log antigo ("N pré-enrolados") afirmava sucesso mesmo quando nada
+      // foi enviado ao aparelho.
+      let ok = 0;
+      let skipped = 0;
+      let falhou = 0;
+      const syncsPrestes: Promise<void>[] = [];
       for (const v of prestes) {
-        this.syncVisitante(v.id).catch((e: any) =>
-          this.logger.warn(`tickPreEnrolamento visitante ${v.id}: ${e?.message ?? e}`),
+        syncsPrestes.push(
+          this.syncVisitante(v.id)
+            .then((r: any) => {
+              if (r?.skipped) skipped++;
+              else ok++;
+            })
+            .catch((e: any) => {
+              falhou++;
+              this.logger.warn(`tickPreEnrolamento visitante ${v.id}: ${e?.message ?? e}`);
+            }),
         );
       }
       if (prestes.length > 0) {
-        this.logger.log(`tickPreEnrolamento: ${prestes.length} visitante(s) pré-enrolados`);
+        void Promise.allSettled(syncsPrestes).then(() => {
+          this.logger.log(
+            `tickPreEnrolamento: ${ok} pré-enrolado(s), ${skipped} ignorado(s) (skip), ${falhou} falha(s) de ${prestes.length}`,
+          );
+        });
       }
     } catch (e: any) {
       this.logger.warn(`tickPreEnrolamento erro: ${e?.message ?? e}`);
