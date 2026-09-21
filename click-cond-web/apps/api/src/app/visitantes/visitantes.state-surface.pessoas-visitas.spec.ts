@@ -3,6 +3,14 @@ import { PessoasService } from '../pessoas/pessoas.service';
 import { VisitasService } from '../visitas/visitas.service';
 
 function buildStateHarness() {
+  // A janela de validade é calculada em relação a "agora" — não a uma data
+  // fixa — para que o teste continue exercendo o comportamento real (PIN
+  // dentro do período) em vez de apodrecer no dia seguinte ao em que foi
+  // escrito.
+  const agora = Date.now();
+  const inicioVigencia = new Date(agora - 4 * 60 * 60 * 1000); // 4h atrás
+  const terminoVigencia = new Date(agora + 4 * 60 * 60 * 1000); // 4h à frente
+
   const pessoas: any[] = [
     {
       id: 10,
@@ -29,16 +37,16 @@ function buildStateHarness() {
       liberado: 1,
       bloqueado: 0,
       codigo_acesso: '123456',
-      data_hora_inicio: new Date('2026-09-20T08:00:00Z'),
-      data_hora_termino: new Date('2026-09-20T22:00:00Z'),
+      data_hora_inicio: inicioVigencia,
+      data_hora_termino: terminoVigencia,
       data_entrada: null,
       data_saida: null,
       auth_status: null,
       auth_solicitado_em: null,
       auth_respondido_em: null,
       auth_respondido_por: null,
-      created_at: new Date('2026-09-20T08:00:00Z'),
-      updated_at: new Date('2026-09-20T08:00:00Z'),
+      created_at: inicioVigencia,
+      updated_at: inicioVigencia,
     },
   ];
 
