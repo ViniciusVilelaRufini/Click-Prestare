@@ -147,16 +147,20 @@ apiGetAll(String route) async {
     'offset': '0',
     'id_apto': Singleton.instance.getIdApartamento(),
   });
+  logDebug('[apiGetAll] $route | id_condominio=${Singleton.instance.id_condominio} | id_apto=${Singleton.instance.getIdApartamento()}');
   try {
     final response = await ApiClient.get(url)
         .timeout(_kTimeout);
+    logDebug('[apiGetAll] $route -> status ${response.statusCode}');
     if (response.statusCode == 200) {
       final parsed = jsonDecode(response.body);
-      return (parsed == null || parsed == "") ? [] : parsed;
+      final resultado = (parsed == null || parsed == "") ? [] : parsed;
+      logDebug('[apiGetAll] $route -> ${resultado is List ? resultado.length : "não-lista: ${resultado.runtimeType}"} item(ns)');
+      return resultado;
     }
     return [];
   } catch (e) {
-    logDebug('[apiGetAll] Erro: $e');
+    logDebug('[apiGetAll] $route -> ERRO: $e');
     return [];
   }
 }
