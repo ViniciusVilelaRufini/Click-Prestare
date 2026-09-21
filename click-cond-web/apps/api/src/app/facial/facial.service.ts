@@ -4000,7 +4000,17 @@ export class FacialService {
         evento,
       );
       if (revisado?.visita) {
+        // A reresolução pode escolher uma Visita de OUTRA pessoa: a mesma
+        // tag/PIN pode estar gravada em Visitas de pessoas diferentes (tag
+        // nunca é limpa na saída) e findVisitaByCredencial não escopa por
+        // pessoa. Sem atualizar idPessoa/nomePessoa/tipoPessoa junto, a
+        // baixa (updateMany) e o syncPessoa acertam a Visita nova mas a
+        // auditoria e a categoria (is_prestador) ficam presas na pessoa/
+        // visita antiga — mesma classe do bug original, deslocada.
         visitaResolvidaPorCredencial = revisado.visita;
+        idPessoa = revisado.idPessoa;
+        nomePessoa = revisado.nome;
+        tipoPessoa = revisado.isPrestador ? 'prestador' : 'visitante';
       }
     }
 
