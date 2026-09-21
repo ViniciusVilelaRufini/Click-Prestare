@@ -1711,6 +1711,13 @@ export class FacialService {
       if (visita) {
         return this.syncPessoa(visita.id_pessoa, opts);
       }
+      // Critical 3 (Lote B): com a flag ligada, `idVisitante` é sempre um id
+      // de `Visitas` — nunca resolvido contra `Visitantes`. Cair para lá
+      // colidiria com o `Visitantes.id` de outra pessoa (os dois
+      // autoincrement nascem do 1) e sincronizaria/desinscreveria o rosto de
+      // quem nunca foi chamado. Sem Visita para este id, não há o que
+      // sincronizar.
+      return { skipped: true, reason: 'visita_nao_encontrada' };
     }
 
     const visitante = await this.prisma.visitantes.findUnique({
@@ -3818,13 +3825,14 @@ export class FacialService {
           });
           if (visitaAtiva) {
             dentroAgora = true;
-          } else {
-            const vAtual = await this.prisma.visitantes.findUnique({
-              where: { id: idPessoa },
-              select: { data_entrada: true, data_saida: true },
-            });
-            if (vAtual) dentroAgora = !!vAtual.data_entrada && !vAtual.data_saida;
           }
+          // Critical 3 (Lote B): sem Visita ativa, NÃO cai para `Visitantes`
+          // — `idPessoa` aqui é um id de `Pessoas`, e resolvê-lo contra
+          // `Visitantes` colidiria com o registro de outra pessoa. Fica
+          // `dentroAgora = null` (mesmo estado do "não achei nada"): a
+          // alternância cai para o histórico de `Acessos_Facial` logo
+          // abaixo, e a checagem de autorização ativa (mais adiante, no
+          // bloco que decide `v`) é quem de fato nega o acesso.
         } else {
           const vAtual = await this.prisma.visitantes.findUnique({
             where: { id: idPessoa ?? undefined },
@@ -3897,7 +3905,8 @@ export class FacialService {
     let v: any = null;
 
     if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
-      if (pessoasMigrationEnabled(this.prisma) && idPessoa) {
+      const migrado = pessoasMigrationEnabled(this.prisma) && !!idPessoa;
+      if (migrado) {
         const pessoaComVisitas = await this.prisma.pessoas.findUnique({
           where: { id: idPessoa },
           include: { visitas: true },
@@ -3922,8 +3931,35 @@ export class FacialService {
             };
           }
         }
-      }
-      if (!v) {
+        // Critical 3 (Lote B): com a flag ligada, `idPessoa` é um id de
+        // `Pessoas` — sem visita ativa (ou sem a própria Pessoa), o código
+        // NUNCA cai para `prisma.visitantes.findUnique({ where: { id:
+        // idPessoa } })`. Esse fallback resolveria um id de `Pessoas` contra
+        // `Visitantes` (os dois autoincrement nascem do 1 e crescem em
+        // paralelo) e podia decidir `liberado`/janela/`dias_semana` — abrir
+        // ou não a porta — com base no cadastro de uma pessoa completamente
+        // diferente. Sem autorização ativa aqui = nega, no mesmo formato das
+        // outras negações deste webhook (registra o evento antes de lançar).
+        if (!v) {
+          await this.registrarEvento(device, {
+            face_id:
+              faceIdSalvo ||
+              qrCodeLido ||
+              tagRfidLida ||
+              externalId ||
+              'desconhecido',
+            tipo_pessoa: tipoPessoa,
+            id_pessoa: idPessoa,
+            nome_pessoa: `${nomePessoa} (Sem visita/autorização ativa)`,
+            evento: 'negado',
+            confianca,
+            timestamp,
+          });
+          throw new BadRequestException(
+            'Acesso negado: nenhuma visita/autorização ativa encontrada para esta pessoa.',
+          );
+        }
+      } else {
         v = await this.prisma.visitantes.findUnique({
           where: { id: idPessoa },
         });
