@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
+import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 
 /**
  * Versão canônica (portaria-web) do módulo de Vagas — mesma regra de negócio
@@ -96,9 +97,54 @@ export class VagasService {
     };
   }
 
-  /** Beneficiários possíveis: visitantes do apto + moradores tipo Inquilino. */
+  /**
+   * Beneficiários possíveis: visitantes do apto + moradores tipo Inquilino.
+   *
+   * Read-only nesta rodada de migração: `liberar()` (abaixo) continua
+   * resolvendo `id_visitante` contra `Visitantes` incondicionalmente — fica
+   * para uma rodada futura decidir o novo contrato de escrita. Só a leitura
+   * migra aqui.
+   */
   async beneficiarios(idCondominio: number, idApartamento: number) {
     const apto = await this.resolveApartamento(idCondominio, idApartamento);
+
+    if (pessoasMigrationEnabled(this.prisma)) {
+      const [visitasRaw, moradores] = await Promise.all([
+        this.prisma.visitas.findMany({
+          where: { id_apartamento: apto.id, is_visitante: 1 },
+          select: {
+            pessoa: { select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true } },
+          },
+          orderBy: { created_at: 'desc' },
+        }),
+        this.moradoresDoApto(apto),
+      ]);
+
+      // `Pessoas` já é deduplicada por identidade (@@unique([id_condominio,
+      // doc_identificacao])) — diferente do legado, não precisa da heurística
+      // de doc/nome/foto: uma pessoa só aparece uma vez, então dedup por
+      // `pessoa.id` basta.
+      const pessoasUnicas = new Map<number, { id: number; nome: string; doc_identificacao: string | null; foto_pessoa: string | null }>();
+      for (const v of visitasRaw) {
+        const p = v.pessoa;
+        if (p && !pessoasUnicas.has(p.id)) pessoasUnicas.set(p.id, p);
+      }
+      const visitantesUnicos = Array.from(pessoasUnicas.values()).sort((a, b) =>
+        (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'),
+      );
+
+      const inquilinos = moradores.filter((m) => (m.tipo ?? '').toLowerCase().includes('inquilino'));
+      return {
+        visitantes: visitantesUnicos.map((v) => ({
+          id: v.id,
+          nome: v.nome,
+          doc_identificacao: v.doc_identificacao,
+          tem_foto: !!(v.foto_pessoa && v.foto_pessoa.trim() !== ''),
+        })),
+        inquilinos: inquilinos.map((i) => ({ id: i.id, nome: i.nome })),
+      };
+    }
+
     const [visitantesRaw, moradores] = await Promise.all([
       this.prisma.visitantes.findMany({
         where: { id_apartamento: apto.id, is_visitante: 1 },

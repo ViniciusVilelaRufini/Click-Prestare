@@ -16,6 +16,7 @@ import { assertStaff, assertSindico, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
 import { calcularIdade, validarMaioridade } from '../common/idade.util';
 import { MfaService } from './mfa/mfa.service';
+import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 
 @Injectable()
 export class MobileAuthService {
@@ -951,22 +952,40 @@ export class MobileAuthService {
               status: { notIn: ['Retirada', 'retirada', 'Retirado', 'retirado', 'Cancelado', 'recusado'] },
             },
           }),
-          this.prisma.visitantes.count({
-            where: {
-              id_condominio: condId,
-              OR: [
-                { data_entrada: { gte: hojeIni, lte: hojeFim } },
-                { data_hora_inicio: { gte: hojeIni, lte: hojeFim } },
-              ],
-            },
-          }),
-          this.prisma.visitantes.count({
-            where: {
-              id_condominio: condId,
-              data_entrada: { not: null },
-              data_saida: null,
-            },
-          }),
+          pessoasMigrationEnabled(this.prisma)
+            ? this.prisma.visitas.count({
+                where: {
+                  id_condominio: condId,
+                  OR: [
+                    { data_entrada: { gte: hojeIni, lte: hojeFim } },
+                    { data_hora_inicio: { gte: hojeIni, lte: hojeFim } },
+                  ],
+                },
+              })
+            : this.prisma.visitantes.count({
+                where: {
+                  id_condominio: condId,
+                  OR: [
+                    { data_entrada: { gte: hojeIni, lte: hojeFim } },
+                    { data_hora_inicio: { gte: hojeIni, lte: hojeFim } },
+                  ],
+                },
+              }),
+          pessoasMigrationEnabled(this.prisma)
+            ? this.prisma.visitas.count({
+                where: {
+                  id_condominio: condId,
+                  data_entrada: { not: null },
+                  data_saida: null,
+                },
+              })
+            : this.prisma.visitantes.count({
+                where: {
+                  id_condominio: condId,
+                  data_entrada: { not: null },
+                  data_saida: null,
+                },
+              }),
           this.prisma.ocorrencias.count({
             where: {
               id_condominio: condId,
@@ -1006,23 +1025,24 @@ export class MobileAuthService {
 
       // Conta visitantes E prestadores: o card "Visitas Hoje" abre a lista
       // conjunta do app, então o número precisa bater com o que ela mostra.
-      const visitsCount = await this.prisma.visitantes.count({
-        where: {
-          id_apartamento: { in: aptoIds },
-          OR: [
-            {
-              data_entrada: { not: null },
-              data_saida: null,
-            },
-            {
-              data_entrada: { gte: hojeIni, lte: hojeFim },
-            },
-            {
-              data_hora_inicio: { gte: hojeIni, lte: hojeFim },
-            },
-          ],
-        },
-      });
+      const visitsCountWhere = {
+        id_apartamento: { in: aptoIds },
+        OR: [
+          {
+            data_entrada: { not: null },
+            data_saida: null,
+          },
+          {
+            data_entrada: { gte: hojeIni, lte: hojeFim },
+          },
+          {
+            data_hora_inicio: { gte: hojeIni, lte: hojeFim },
+          },
+        ],
+      };
+      const visitsCount = pessoasMigrationEnabled(this.prisma)
+        ? await this.prisma.visitas.count({ where: visitsCountWhere })
+        : await this.prisma.visitantes.count({ where: visitsCountWhere });
 
       const moras = await this.prisma.moradores.findMany({
         where: { id_user: idUser },
@@ -1090,7 +1110,8 @@ export class MobileAuthService {
     }
 
     if (idCondominioFuncionario) {
-      const [facialEvents, visitors] = await Promise.all([
+      const flagFuncionario = pessoasMigrationEnabled(this.prisma);
+      const [facialEvents, visitorsRaw] = await Promise.all([
         this.prisma.acessos_Facial.findMany({
           where: {
             id_condominio: idCondominioFuncionario,
@@ -1100,25 +1121,69 @@ export class MobileAuthService {
           orderBy: { timestamp: 'desc' },
           take: 50,
         }),
-        this.prisma.visitantes.findMany({
-          where: {
-            id_condominio: idCondominioFuncionario,
-            OR: [
-              { data_entrada: { gte: cutoff } },
-              { data_saida: { gte: cutoff } },
-            ],
-          },
-          select: {
-            id: true,
-            nome: true,
-            id_condominio: true,
-            is_prestador: true,
-            data_entrada: true,
-            data_saida: true,
-          },
-          take: 50,
-        }),
+        flagFuncionario
+          ? this.prisma.visitas.findMany({
+              where: {
+                id_condominio: idCondominioFuncionario,
+                OR: [
+                  { data_entrada: { gte: cutoff } },
+                  { data_saida: { gte: cutoff } },
+                ],
+              },
+              select: {
+                id: true,
+                id_pessoa: true,
+                id_condominio: true,
+                is_prestador: true,
+                data_entrada: true,
+                data_saida: true,
+                pessoa: { select: { nome: true } },
+              },
+              take: 50,
+            })
+          : this.prisma.visitantes.findMany({
+              where: {
+                id_condominio: idCondominioFuncionario,
+                OR: [
+                  { data_entrada: { gte: cutoff } },
+                  { data_saida: { gte: cutoff } },
+                ],
+              },
+              select: {
+                id: true,
+                nome: true,
+                id_condominio: true,
+                is_prestador: true,
+                data_entrada: true,
+                data_saida: true,
+              },
+              take: 50,
+            }),
       ]);
+
+      // Normaliza para uma forma comum: no caminho migrado, `nome` vem da
+      // Pessoa relacionada e `id_pessoa` (id de Pessoa) fica disponível à
+      // parte do `id` (id de Visita) — usado abaixo só para o dedup, ver
+      // comentário em `jaVeioDoFacial`.
+      const visitors = flagFuncionario
+        ? (visitorsRaw as any[]).map((v) => ({
+            id: v.id,
+            id_pessoa_alt: v.id_pessoa as number | undefined,
+            nome: v.pessoa?.nome ?? '',
+            id_condominio: v.id_condominio,
+            is_prestador: v.is_prestador,
+            data_entrada: v.data_entrada,
+            data_saida: v.data_saida,
+          }))
+        : (visitorsRaw as any[]).map((v) => ({
+            id: v.id,
+            id_pessoa_alt: undefined as number | undefined,
+            nome: v.nome,
+            id_condominio: v.id_condominio,
+            is_prestador: v.is_prestador,
+            data_entrada: v.data_entrada,
+            data_saida: v.data_saida,
+          }));
 
       const DEDUP_MS = 15_000;
       const facialBuckets = new Set<string>();
@@ -1128,8 +1193,25 @@ export class MobileAuthService {
         facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
         facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
       }
-      const jaVeioDoFacial = (idVis: number, evento: 'entrada' | 'saida', ts: Date) =>
-        facialBuckets.has(`${idVis}:${evento}:${Math.floor(ts.getTime() / DEDUP_MS)}`);
+      // `Acessos_Facial.id_pessoa` não tem um único espaço de id consistente
+      // no caminho migrado — alguns tipos de evento gravam o id de `Visita`,
+      // outros o de `Pessoa` (ver facial.service.ts, não alterado aqui;
+      // limitação conhecida, correção definitiva exige mudança de schema,
+      // rastreada separadamente). Por isso o dedup checa os dois ids quando
+      // disponíveis (`idPessoaAlt`), em vez de assumir um espaço só — sem
+      // isso, um acesso já contabilizado pelo facial podia reaparecer
+      // duplicado como evento "manual" no feed.
+      const jaVeioDoFacial = (
+        idVis: number,
+        evento: 'entrada' | 'saida',
+        ts: Date,
+        idPessoaAlt?: number,
+      ) => {
+        const bucket = Math.floor(ts.getTime() / DEDUP_MS);
+        if (facialBuckets.has(`${idVis}:${evento}:${bucket}`)) return true;
+        if (idPessoaAlt != null && facialBuckets.has(`${idPessoaAlt}:${evento}:${bucket}`)) return true;
+        return false;
+      };
 
       const manualEv = [];
       for (const v of visitors) {
@@ -1138,7 +1220,7 @@ export class MobileAuthService {
           ['saida', v.data_saida],
         ];
         for (const [evento, ts] of marcos) {
-          if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts)) continue;
+          if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts, v.id_pessoa_alt)) continue;
           manualEv.push({
             id: -(v.id * 2 + (evento === 'saida' ? 1 : 0)),
             id_pessoa: v.id,
@@ -1192,23 +1274,78 @@ export class MobileAuthService {
     const moradorIds = moras.map((m) => m.id);
     const aptoIds = aptoUsers.map((a) => a.id_apto);
 
-    const visitors = await this.prisma.visitantes.findMany({
-      where: {
-        OR: [
-          { user: idUser },
-          ...(aptoIds.length ? [{ id_apartamento: { in: aptoIds } }] : []),
-        ],
-      },
-      select: {
-        id: true,
-        nome: true,
-        id_condominio: true,
-        is_prestador: true,
-        data_entrada: true,
-        data_saida: true,
-      },
-    });
+    const flagMorador = pessoasMigrationEnabled(this.prisma);
+    const visitorsRaw = flagMorador
+      ? await this.prisma.visitas.findMany({
+          where: {
+            OR: [
+              { user: idUser },
+              ...(aptoIds.length ? [{ id_apartamento: { in: aptoIds } }] : []),
+            ],
+          },
+          select: {
+            id: true,
+            id_pessoa: true,
+            id_condominio: true,
+            is_prestador: true,
+            data_entrada: true,
+            data_saida: true,
+            pessoa: { select: { nome: true } },
+          },
+        })
+      : await this.prisma.visitantes.findMany({
+          where: {
+            OR: [
+              { user: idUser },
+              ...(aptoIds.length ? [{ id_apartamento: { in: aptoIds } }] : []),
+            ],
+          },
+          select: {
+            id: true,
+            nome: true,
+            id_condominio: true,
+            is_prestador: true,
+            data_entrada: true,
+            data_saida: true,
+          },
+        });
+
+    // Mesma normalização do ramo funcionário acima: `id_pessoa_alt` só existe
+    // no caminho migrado (id de Pessoa, à parte do `id` de Visita).
+    const visitors = flagMorador
+      ? (visitorsRaw as any[]).map((v) => ({
+          id: v.id,
+          id_pessoa_alt: v.id_pessoa as number | undefined,
+          nome: v.pessoa?.nome ?? '',
+          id_condominio: v.id_condominio,
+          is_prestador: v.is_prestador,
+          data_entrada: v.data_entrada,
+          data_saida: v.data_saida,
+        }))
+      : (visitorsRaw as any[]).map((v) => ({
+          id: v.id,
+          id_pessoa_alt: undefined as number | undefined,
+          nome: v.nome,
+          id_condominio: v.id_condominio,
+          is_prestador: v.is_prestador,
+          data_entrada: v.data_entrada,
+          data_saida: v.data_saida,
+        }));
     const visitorIds = visitors.map((v) => v.id);
+    // No caminho migrado, o filtro de `Acessos_Facial.id_pessoa` abaixo
+    // precisa cobrir os dois espaços de id possíveis para estes visitantes —
+    // `Visitas.id` (visitorIds) e `Pessoas.id` (visitorPessoaIds) — porque
+    // `id_pessoa` não tem um espaço único consistente no caminho migrado
+    // (ver comentário completo abaixo, e o mesmo limite documentado no ramo
+    // funcionário). Produção mantém as duas faixas de autoincrement
+    // disjuntas hoje como rede de segurança operacional, mas isso não é uma
+    // garantia — só o motivo de essa degradação ser segura no estado atual.
+    const visitorPessoaIds = flagMorador
+      ? [...new Set((visitors.map((v) => v.id_pessoa_alt).filter((id): id is number => id != null)))]
+      : [];
+    const visEvIdFilter = flagMorador
+      ? [...new Set([...visitorIds, ...visitorPessoaIds])]
+      : visitorIds;
 
     const [morEv, visEv] = await Promise.all([
       moradorIds.length
@@ -1223,11 +1360,11 @@ export class MobileAuthService {
             take: 40,
           })
         : Promise.resolve([]),
-      visitorIds.length
+      visEvIdFilter.length
         ? this.prisma.acessos_Facial.findMany({
             where: {
               tipo_pessoa: { in: ['visitante', 'prestador'] },
-              id_pessoa: { in: visitorIds },
+              id_pessoa: { in: visEvIdFilter },
               evento: { in: ['entrada', 'saida'] },
               timestamp: { gte: cutoff },
             },
@@ -1249,8 +1386,23 @@ export class MobileAuthService {
       facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b - 1}`);
       facialBuckets.add(`${a.id_pessoa}:${a.evento}:${b + 1}`);
     }
-    const jaVeioDoFacial = (idVis: number, evento: 'entrada' | 'saida', ts: Date) =>
-      facialBuckets.has(`${idVis}:${evento}:${Math.floor(ts.getTime() / DEDUP_MS)}`);
+    // `Acessos_Facial.id_pessoa` não tem um único espaço de id consistente no
+    // caminho migrado — alguns tipos de evento gravam o id de `Visita`,
+    // outros o de `Pessoa` (ver facial.service.ts, não alterado aqui;
+    // limitação conhecida, correção definitiva exige mudança de schema,
+    // rastreada separadamente). Por isso o dedup checa os dois ids quando
+    // disponíveis (`idPessoaAlt`).
+    const jaVeioDoFacial = (
+      idVis: number,
+      evento: 'entrada' | 'saida',
+      ts: Date,
+      idPessoaAlt?: number,
+    ) => {
+      const bucket = Math.floor(ts.getTime() / DEDUP_MS);
+      if (facialBuckets.has(`${idVis}:${evento}:${bucket}`)) return true;
+      if (idPessoaAlt != null && facialBuckets.has(`${idPessoaAlt}:${evento}:${bucket}`)) return true;
+      return false;
+    };
 
     const manualEv = [];
     for (const v of visitors) {
@@ -1259,7 +1411,7 @@ export class MobileAuthService {
         ['saida', v.data_saida],
       ];
       for (const [evento, ts] of marcos) {
-        if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts)) continue;
+        if (!ts || ts < cutoff || jaVeioDoFacial(v.id, evento, ts, v.id_pessoa_alt)) continue;
         manualEv.push({
           // Id sintético (negativo) — não colide com o id real do acesso facial,
           // que o app usa só para destacar o item vindo do push.
@@ -1364,23 +1516,51 @@ export class MobileAuthService {
       ...new Set(vinculosApto.map((v) => v.id_apto).filter((id): id is number => id != null)),
     ];
     if (aptoIds.length) {
-      const pendentes = await this.prisma.visitantes.findMany({
-        where: {
-          id_apartamento: { in: aptoIds },
-          auth_status: 'pendente',
-        },
-        take: 10,
-      });
-      for (const p of pendentes) {
-        itens.push({
-          id: `solicitacao-${p.id}`,
-          tipo: 'solicitacao',
-          titulo: 'Solicitação de Entrada na Portaria',
-          descricao: `${p.nome} aguarda sua autorização na portaria para entrar.`,
-          // `data_visita` não existe em Visitantes; a janela da visita começa
-          // em data_hora_inicio.
-          timestamp: p.auth_solicitado_em || p.data_hora_inicio || new Date(),
+      // O id embutido em `solicitacao-${id}` é só decorativo hoje — o app
+      // (notificacoes_page.dart) extrai o número mas, para o tipo
+      // 'solicitacao'/'autorizacao_visitante', só usa para abrir
+      // PendentesVisitantePage() sem repassar o id adiante; a tela então
+      // busca sua própria lista via GET /visitantes/pendentes (já migrado,
+      // devolve id de Visita). Mesmo assim, este id segue o mesmo espaço
+      // usado por `autorizar`/`negar` (id de Visita) para não criar um
+      // contrato divergente caso algum consumidor futuro passe a usá-lo.
+      if (pessoasMigrationEnabled(this.prisma)) {
+        const pendentes = await this.prisma.visitas.findMany({
+          where: {
+            id_apartamento: { in: aptoIds },
+            auth_status: 'pendente',
+          },
+          include: { pessoa: { select: { nome: true } } },
+          take: 10,
         });
+        for (const v of pendentes) {
+          itens.push({
+            id: `solicitacao-${v.id}`,
+            tipo: 'solicitacao',
+            titulo: 'Solicitação de Entrada na Portaria',
+            descricao: `${v.pessoa.nome} aguarda sua autorização na portaria para entrar.`,
+            timestamp: v.auth_solicitado_em || v.data_hora_inicio || new Date(),
+          });
+        }
+      } else {
+        const pendentes = await this.prisma.visitantes.findMany({
+          where: {
+            id_apartamento: { in: aptoIds },
+            auth_status: 'pendente',
+          },
+          take: 10,
+        });
+        for (const p of pendentes) {
+          itens.push({
+            id: `solicitacao-${p.id}`,
+            tipo: 'solicitacao',
+            titulo: 'Solicitação de Entrada na Portaria',
+            descricao: `${p.nome} aguarda sua autorização na portaria para entrar.`,
+            // `data_visita` não existe em Visitantes; a janela da visita começa
+            // em data_hora_inicio.
+            timestamp: p.auth_solicitado_em || p.data_hora_inicio || new Date(),
+          });
+        }
       }
     }
 
@@ -4009,11 +4189,53 @@ export class MobileAuthService {
     };
   }
 
-  /** Beneficiários possíveis: visitantes do apto + inquilinos do apto. */
+  /**
+   * Beneficiários possíveis: visitantes do apto + inquilinos do apto.
+   *
+   * Read-only nesta rodada de migração: `liberarVaga` (abaixo) continua
+   * resolvendo `id_visitante` contra `Visitantes` incondicionalmente — fica
+   * para uma rodada futura decidir o novo contrato de escrita. Só a leitura
+   * migra aqui.
+   */
   async listBeneficiariosVaga(idUser: number, idCondominio?: number) {
     if (!this.prisma.isConnected) return { visitantes: [], inquilinos: [] };
     const ctx = await this.resolveMoradorApto(idUser, idCondominio);
     if (!ctx) return { visitantes: [], inquilinos: [] };
+
+    if (pessoasMigrationEnabled(this.prisma)) {
+      const visitasRaw = await this.prisma.visitas.findMany({
+        where: { id_apartamento: ctx.apto.id, is_visitante: 1 },
+        select: {
+          pessoa: { select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true } },
+        },
+        orderBy: { created_at: 'desc' },
+      });
+
+      // `Pessoas` já é deduplicada por identidade
+      // (@@unique([id_condominio, doc_identificacao])) — diferente do
+      // legado, não precisa da heurística de doc/nome/foto: uma pessoa só
+      // aparece uma vez, então dedup por `pessoa.id` basta.
+      const pessoasUnicas = new Map<number, { id: number; nome: string; doc_identificacao: string | null; foto_pessoa: string | null }>();
+      for (const v of visitasRaw) {
+        const p = v.pessoa;
+        if (p && !pessoasUnicas.has(p.id)) pessoasUnicas.set(p.id, p);
+      }
+      const visitantesUnicos = Array.from(pessoasUnicas.values()).sort((a, b) =>
+        (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'),
+      );
+
+      const inquilinos = await this.getMoradoresApto(ctx.apto.id, 'Inquilino');
+      return {
+        visitantes: visitantesUnicos.map((v) => ({
+          id: v.id,
+          nome: v.nome,
+          doc_identificacao: v.doc_identificacao,
+          tem_foto: !!(v.foto_pessoa && v.foto_pessoa.trim() !== ''),
+        })),
+        inquilinos: (inquilinos ?? []).map((i: any) => ({ id: i.id, nome: i.nome })),
+      };
+    }
+
     const visitantesRaw = await this.prisma.visitantes.findMany({
       where: { id_apartamento: ctx.apto.id, is_visitante: 1 },
       select: { id: true, nome: true, doc_identificacao: true, foto_pessoa: true, created_at: true },
