@@ -4,6 +4,7 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 
 export interface CreateApartamentoDto {
   bloco?: string;
@@ -248,7 +249,9 @@ export class ApartamentosService {
 
     const [moradores, visitantes, vagas, agendamentos, mudancas] = await Promise.all([
       this.prisma.apartamentos_Users.count({ where: { id_apto: Number(id) } }),
-      this.prisma.visitantes.count({ where: { id_apartamento: Number(id) } }),
+      pessoasMigrationEnabled(this.prisma)
+        ? this.prisma.visitas.count({ where: { id_apartamento: Number(id) } })
+        : this.prisma.visitantes.count({ where: { id_apartamento: Number(id) } }),
       this.prisma.vagas.count({ where: { id_apartamento: Number(id) } }),
       this.prisma.areas_Sociais_Agendamentos.count({ where: { id_apartamento: Number(id) } }),
       this.prisma.mudancas.count({ where: { id_apartamento: Number(id) } }),

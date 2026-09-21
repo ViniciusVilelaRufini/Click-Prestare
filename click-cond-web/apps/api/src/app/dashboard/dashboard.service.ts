@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 
 export interface DashboardSummary {
   visitantesAtivos: number;
@@ -119,14 +120,23 @@ export class DashboardService {
       ultAuditLogs,
     ] = await Promise.all([
       // Visitantes ainda no condomínio: entrada registrada mas sem saída registrada, e is_visitante = 1 (ou is_prestador = 0)
-      this.prisma.visitantes.count({
-        where: {
-          id_condominio: idCondominio,
-          is_visitante: 1,
-          NOT: { data_entrada: null },
-          data_saida: null,
-        },
-      }),
+      pessoasMigrationEnabled(this.prisma)
+        ? this.prisma.visitas.count({
+            where: {
+              id_condominio: idCondominio,
+              is_visitante: 1,
+              NOT: { data_entrada: null },
+              data_saida: null,
+            },
+          })
+        : this.prisma.visitantes.count({
+            where: {
+              id_condominio: idCondominio,
+              is_visitante: 1,
+              NOT: { data_entrada: null },
+              data_saida: null,
+            },
+          }),
       // Prestadores de serviço cadastrados
       this.prisma.prestadores_servico.count({
         where: {
@@ -145,31 +155,59 @@ export class DashboardService {
       this.prisma.apartamentos.count({ where: { id_condominio: idCondominio } }),
       this.prisma.moradores.count({ where: { id_condominio: idCondominio } }),
       // Entradas recentes
-      this.prisma.visitantes.findMany({
-        where: {
-          id_condominio: idCondominio,
-          NOT: { data_entrada: null },
-        },
-        orderBy: { data_entrada: 'desc' },
-        take: 15,
-        include: {
-          apartamento: { select: { bloco: true, apto: true } },
-          criadoPor: { select: { name: true } },
-        },
-      }),
+      pessoasMigrationEnabled(this.prisma)
+        ? this.prisma.visitas.findMany({
+            where: {
+              id_condominio: idCondominio,
+              NOT: { data_entrada: null },
+            },
+            orderBy: { data_entrada: 'desc' },
+            take: 15,
+            include: {
+              pessoa: true,
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+          })
+        : this.prisma.visitantes.findMany({
+            where: {
+              id_condominio: idCondominio,
+              NOT: { data_entrada: null },
+            },
+            orderBy: { data_entrada: 'desc' },
+            take: 15,
+            include: {
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+          }),
       // Saídas recentes
-      this.prisma.visitantes.findMany({
-        where: {
-          id_condominio: idCondominio,
-          NOT: { data_saida: null },
-        },
-        orderBy: { data_saida: 'desc' },
-        take: 15,
-        include: {
-          apartamento: { select: { bloco: true, apto: true } },
-          criadoPor: { select: { name: true } },
-        },
-      }),
+      pessoasMigrationEnabled(this.prisma)
+        ? this.prisma.visitas.findMany({
+            where: {
+              id_condominio: idCondominio,
+              NOT: { data_saida: null },
+            },
+            orderBy: { data_saida: 'desc' },
+            take: 15,
+            include: {
+              pessoa: true,
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+          })
+        : this.prisma.visitantes.findMany({
+            where: {
+              id_condominio: idCondominio,
+              NOT: { data_saida: null },
+            },
+            orderBy: { data_saida: 'desc' },
+            take: 15,
+            include: {
+              apartamento: { select: { bloco: true, apto: true } },
+              criadoPor: { select: { name: true } },
+            },
+          }),
       this.prisma.encomendas.findMany({
         where: { id_condominio: idCondominio },
         orderBy: { recebido_em: 'desc' },
@@ -202,7 +240,25 @@ export class DashboardService {
       }),
     ]);
 
-
+    // No caminho migrado, `ultEntradasVisitantes`/`ultSaidasVisitantes` vêm
+    // de `Visitas` com a `Pessoa` incluída — achata de volta pro mesmo
+    // formato que o resto deste método já espera (nome, doc_identificacao,
+    // foto_pessoa, foto_documento na raiz do objeto, como em `Visitantes`),
+    // pra não duplicar toda a lógica de montagem de eventos abaixo por causa
+    // da fonte. `id` continua sendo o id da própria linha (Visita no
+    // caminho migrado, Visitantes no legado) — nunca o `pessoa.id`.
+    const flatVisitaRow = (v: any) =>
+      v.pessoa
+        ? {
+            ...v,
+            nome: v.pessoa.nome,
+            doc_identificacao: v.pessoa.doc_identificacao,
+            foto_pessoa: v.pessoa.foto_pessoa,
+            foto_documento: v.pessoa.foto_documento,
+          }
+        : v;
+    const entradasVisitantesFlat = ultEntradasVisitantes.map(flatVisitaRow);
+    const saidasVisitantesFlat = ultSaidasVisitantes.map(flatVisitaRow);
 
     const ultimosEventos: DashboardSummary['ultimosEventos'] = [];
 
@@ -322,7 +378,7 @@ export class DashboardService {
     };
 
     // Mapear Entradas
-    for (const v of ultEntradasVisitantes) {
+    for (const v of entradasVisitantesFlat) {
       if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada)) continue;
       const aptoStr = v.apartamento
         ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
@@ -353,7 +409,7 @@ export class DashboardService {
     }
 
     // Mapear Saídas
-    for (const v of ultSaidasVisitantes) {
+    for (const v of saidasVisitantesFlat) {
       if (!v.data_saida) continue;
       if (isDuplicadoFacial(v.id, 'saida', v.data_saida)) continue;
       const aptoStr = v.apartamento
