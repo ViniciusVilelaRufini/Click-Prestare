@@ -153,8 +153,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
     try {
       // Sem janela de validade, o PIN/QR da portaria nunca expira: isExpired
       // na lista depende de data_termino, e nulo ali vira crachá permanente.
-      final inicio = convertStringToDateTime(txtDataInicio.text);
-      final termino = convertStringToDateTime(txtDataTermino.text);
+      final inicio = convertStringToDateTimeFormat(txtDataInicio.text.trim());
+      final termino = convertStringToDateTimeFormat(txtDataTermino.text.trim());
       final erro = validarCadastroVisitante(
         nome: txtNome.text,
         inicio: inicio,
@@ -168,8 +168,8 @@ class _NewVisitantePageState extends State<NewVisitante> {
         nome_anterior: widget.reUseData?['nome']?.toString(),
         nome: txtNome.text,
         doc_identificacao: txtDocumento.text,
-        data_inicio: inicio,
-        data_termino: termino,
+        data_inicio: inicio?.toString(),
+        data_termino: termino?.toString(),
         avisar: true,
         observacoes: txtObs.text,
         id_apartamento: idMyApartment ?? getIdApto(),

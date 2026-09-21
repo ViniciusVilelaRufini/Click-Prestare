@@ -205,15 +205,19 @@ validateGenericDate(String date) {
   }
 }
 
-convertStringToDateTime(String date) {
+String convertStringToDateTime(String date) {
   try {
     return DateFormat("dd/MM/yyyy HH:mm").parseStrict(date).toString();
   } catch (e) {
-    throw getText('invalid_data');
+    try {
+      return DateTime.parse(date).toString();
+    } catch (_) {
+      throw getText('invalid_data');
+    }
   }
 }
 
-convertStringToDateFormat(String date) {
+DateTime? convertStringToDateFormat(String date) {
   try {
     return DateFormat("dd/MM/yyyy").parseStrict(date);
   } catch (e) {
@@ -221,7 +225,7 @@ convertStringToDateFormat(String date) {
   }
 }
 
-convertDateToString(String date) {
+String convertDateToString(String date) {
   try {
     return DateFormat("dd/MM/yyyy").format(DateTime.parse(date));
   } catch (e) {
@@ -229,15 +233,19 @@ convertDateToString(String date) {
   }
 }
 
-convertStringToDateTimeFormat(String date) {
+DateTime? convertStringToDateTimeFormat(String date) {
   try {
     return DateFormat("dd/MM/yyyy HH:mm").parseStrict(date);
   } catch (e) {
-    return null;
+    try {
+      return DateTime.parse(date);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
-convertStringToDate(String date) {
+String convertStringToDate(String date) {
   try {
     return DateFormat("dd/MM/yyyy").parseStrict(date).toString();
   } catch (e) {
@@ -245,7 +253,7 @@ convertStringToDate(String date) {
   }
 }
 
-convertStringToTime(String date) {
+String convertStringToTime(String date) {
   try {
     return DateFormat("HH:mm").parseStrict(date).toString();
   } catch (e) {
