@@ -3564,14 +3564,16 @@ export class FacialService {
         nomePessoa = morador.nome;
         faceIdSalvo = qrCodeLido;
       } else {
-        const visitante = await this.findVisitanteByCredencial(
+        // Critical 1 (Lote B): dispatch pela flag — com ela ligada, o PIN
+        // (codigo_acesso) mora em `Visitas`, não mais em `Visitantes`.
+        const resolvido = await this.resolverVisitantePorCredencial(
           { codigo_acesso: qrCodeLido, id_condominio: device.id_condominio },
           evento,
         );
-        if (visitante) {
-          tipoPessoa = visitante.is_prestador === 1 ? 'prestador' : 'visitante';
-          idPessoa = visitante.id;
-          nomePessoa = visitante.nome;
+        if (resolvido) {
+          tipoPessoa = resolvido.isPrestador ? 'prestador' : 'visitante';
+          idPessoa = resolvido.idPessoa;
+          nomePessoa = resolvido.nome;
           faceIdSalvo = qrCodeLido;
         }
       }
@@ -3588,14 +3590,15 @@ export class FacialService {
         nomePessoa = morador.nome;
         faceIdSalvo = tagRfidLida;
       } else {
-        const visitante = await this.findVisitanteByCredencial(
+        // Critical 1 (Lote B): mesmo dispatch, para a tag RFID.
+        const resolvido = await this.resolverVisitantePorCredencial(
           { tag_rfid: tagRfidLida, id_condominio: device.id_condominio },
           evento,
         );
-        if (visitante) {
-          tipoPessoa = visitante.is_prestador === 1 ? 'prestador' : 'visitante';
-          idPessoa = visitante.id;
-          nomePessoa = visitante.nome;
+        if (resolvido) {
+          tipoPessoa = resolvido.isPrestador ? 'prestador' : 'visitante';
+          idPessoa = resolvido.idPessoa;
+          nomePessoa = resolvido.nome;
           faceIdSalvo = tagRfidLida;
         }
       }
@@ -4843,6 +4846,77 @@ export class FacialService {
     }
     // Fallback: registro mais recente.
     return candidatos.sort((a, b) => b.id - a.id)[0];
+  }
+
+  /**
+   * Equivalente a `findVisitanteByCredencial`, mas em `Visitas` — usado
+   * quando a flag está ligada. `codigo_acesso`/`tag_rfid` moraram para
+   * `Visitas` na migração; com a flag ligada esses campos NUNCA mais são
+   * escritos em `Visitantes`, então continuar consultando só `Visitantes`
+   * (Critical 1, Lote B) faz todo PIN/tag legítimo emitido depois da
+   * migração voltar "credencial não encontrada" — negado — no leitor de
+   * QR/tag.
+   *
+   * Mesma disputa de desempate de `findVisitanteByCredencial`: quando a
+   * mesma credencial aparece em várias Visitas da mesma pessoa (várias
+   * visitas), prioriza quem está DENTRO na saída, e quem está liberado e
+   * ainda não usado na entrada.
+   */
+  private async findVisitaByCredencial(
+    where: { id_condominio: number; codigo_acesso?: string; tag_rfid?: string },
+    evento: string,
+  ) {
+    const candidatos = await this.prisma.visitas.findMany({
+      where,
+      include: { pessoa: true },
+    });
+    if (candidatos.length <= 1) return candidatos[0] ?? null;
+
+    if (evento === 'saida') {
+      const dentro = candidatos
+        .filter((v: any) => v.data_entrada && !v.data_saida)
+        .sort((a: any, b: any) => b.data_entrada!.getTime() - a.data_entrada!.getTime());
+      if (dentro.length) return dentro[0];
+    } else {
+      const prontos = candidatos
+        .filter((v: any) => v.liberado === 1 && !v.data_entrada && !v.data_saida)
+        .sort((a: any, b: any) => b.id - a.id);
+      if (prontos.length) return prontos[0];
+    }
+    return candidatos.sort((a: any, b: any) => b.id - a.id)[0];
+  }
+
+  /**
+   * Ponto único de dispatch da credencial (QR/tag) para visitante/prestador
+   * — Critical 1 (Lote B). Os dois chamadores (leitor de QR e de tag, em
+   * `runWebhook`) usam este helper em vez de decidir a tabela cada um por
+   * conta própria, então não há como um dos dois esquecer o branch da flag.
+   *
+   * Devolve o id de PESSOA (não de Visita) com a flag ligada — é o espaço de
+   * id que o restante de `runWebhook` espera dali pra frente (a checagem de
+   * `liberado`/janela/`dias_semana` mais adiante resolve `idPessoa` contra
+   * `Pessoas`).
+   */
+  private async resolverVisitantePorCredencial(
+    where: { id_condominio: number; codigo_acesso?: string; tag_rfid?: string },
+    evento: string,
+  ): Promise<{ idPessoa: number; nome: string; isPrestador: boolean } | null> {
+    if (pessoasMigrationEnabled(this.prisma)) {
+      const visita: any = await this.findVisitaByCredencial(where, evento);
+      if (!visita) return null;
+      return {
+        idPessoa: visita.id_pessoa,
+        nome: visita.pessoa?.nome ?? 'Desconhecido',
+        isPrestador: visita.is_prestador === 1,
+      };
+    }
+    const visitante = await this.findVisitanteByCredencial(where, evento);
+    if (!visitante) return null;
+    return {
+      idPessoa: visitante.id,
+      nome: visitante.nome,
+      isPrestador: visitante.is_prestador === 1,
+    };
   }
 
   /**
