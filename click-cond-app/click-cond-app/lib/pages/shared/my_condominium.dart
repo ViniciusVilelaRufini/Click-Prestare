@@ -1436,16 +1436,9 @@ class _MyCondominiumState extends State<MyCondominium> {
                           child: Builder(
                             builder: (_) {
                               final photoUrl = (_cond != null && (_cond!['photo'] ?? '').toString().isNotEmpty)
-                                  ? _cond!['photo']
-                                  : Singleton.instance.condominio_photo;
-                              if (photoUrl.isNotEmpty) {
-                                return Image.network(
-                                  photoUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _condFallback(),
-                                );
-                              }
-                              return _condFallback();
+                                  ? _cond!['photo'].toString().trim()
+                                  : Singleton.instance.condominio_photo.trim();
+                              return _buildCondoPhoto(photoUrl);
                             },
                           ),
                         ),
@@ -1649,6 +1642,30 @@ class _MyCondominiumState extends State<MyCondominium> {
         ),
       ),
     );
+  }
+
+  Widget _buildCondoPhoto(String photoUrl) {
+    if (photoUrl.isEmpty) return _condFallback();
+    if (photoUrl.startsWith('http://') || photoUrl.startsWith('https://')) {
+      return Image.network(
+        photoUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _condFallback(),
+      );
+    }
+    try {
+      final clean = photoUrl.contains('base64,')
+          ? photoUrl.split('base64,')[1]
+          : photoUrl;
+      final bytes = base64Decode(clean.trim());
+      return Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _condFallback(),
+      );
+    } catch (_) {
+      return _condFallback();
+    }
   }
 
   Widget _condFallback() => Container(

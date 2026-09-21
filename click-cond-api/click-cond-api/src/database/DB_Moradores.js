@@ -4,7 +4,9 @@ const crypto = require('crypto');
 
 module.exports = {
   login: async function (login, password) {
-    const query = `select u.id, s.nome, u.photo, u.password                           
+    const query = `select u.id, s.nome,
+                    COALESCE(NULLIF(s.foto_pessoa, ''), NULLIF(u.photo, ''), NULLIF(u.profile_image, '')) as photo,
+                    s.foto_pessoa, u.password                           
                     from Moradores s 
                     inner join Users u on u.id = s.id_user
                     where u.login=?`;
@@ -36,7 +38,9 @@ module.exports = {
   },
 
   internalLogin: async function (login) {
-    const query = `select u.id, s.nome, u.photo                           
+    const query = `select u.id, s.nome,
+                    COALESCE(NULLIF(s.foto_pessoa, ''), NULLIF(u.photo, ''), NULLIF(u.profile_image, '')) as photo,
+                    s.foto_pessoa                           
                     from Moradores s 
                     inner join Users u on u.id = s.id_user
                     where u.login=?`;
@@ -148,7 +152,9 @@ module.exports = {
   },
 
   getAll: async function (id_cond, offset) {
-    const query = `select u.id, u.photo, m.nome, m.tipo, m.bloco, m.apartamento
+    const query = `select u.id,
+                    COALESCE(NULLIF(m.foto_pessoa, ''), NULLIF(u.photo, ''), NULLIF(u.profile_image, '')) as photo,
+                    m.foto_pessoa, m.nome, m.tipo, m.bloco, m.apartamento
                     from Moradores m
                       inner join Users u on m.id_user = u.id
                       where m.id_condominio=${id_cond}
@@ -195,7 +201,9 @@ module.exports = {
   },
     
   get: async function (id, idCondominio) {
-    let query = `select u.id, u.photo, m.nome, m.documento, m.email, m.telefone, m.extra1, m.extra2, m.extra3, m.extra4,
+    let query = `select u.id,
+                    COALESCE(NULLIF(m.foto_pessoa, ''), NULLIF(u.photo, ''), NULLIF(u.profile_image, '')) as photo,
+                    m.foto_pessoa, m.nome, m.documento, m.email, m.telefone, m.extra1, m.extra2, m.extra3, m.extra4,
                     DATE_FORMAT(data_nascimento, '%d/%m/%Y') as data_nascimento
                     from Moradores m
                       inner join Users u on m.id_user = u.id
@@ -211,7 +219,9 @@ module.exports = {
     }
 
     // 2. Busca de algum condomínio ao qual o usuário está de fato vinculado através de um apartamento ativo
-    const queryActiveCondo = `select u.id, u.photo, m.nome, m.documento, m.email, m.telefone, m.extra1, m.extra2, m.extra3, m.extra4,
+    const queryActiveCondo = `select u.id,
+                    COALESCE(NULLIF(m.foto_pessoa, ''), NULLIF(u.photo, ''), NULLIF(u.profile_image, '')) as photo,
+                    m.foto_pessoa, m.nome, m.documento, m.email, m.telefone, m.extra1, m.extra2, m.extra3, m.extra4,
                     DATE_FORMAT(data_nascimento, '%d/%m/%Y') as data_nascimento
                     from Moradores m
                       inner join Users u on m.id_user = u.id
@@ -231,8 +241,10 @@ module.exports = {
   },
 
   updateProfilePhoto: async function (url, id){
-    const query = `update Users set photo='${url}' where id='${id}' `;
+    const query = `update Users set photo='${url}', profile_image='${url}' where id='${id}' `;
     await db.query(query);
+    const queryMorador = `update Moradores set foto_pessoa='${url}' where id_user='${id}' `;
+    await db.query(queryMorador);
   },
 
   updateUserLogin: async function (email, id){

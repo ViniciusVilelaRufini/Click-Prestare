@@ -41,6 +41,7 @@ export class VagasService {
       id_morador_titular: v.id_morador_titular,
       id_veiculo: v.id_veiculo,
       id_visitante: v.id_visitante,
+      id_visita: v.id_visita ?? null,
       id_morador_beneficiario: v.id_morador_beneficiario,
       placa: v.placa ?? v.veiculo?.placa ?? null,
       inicio: v.inicio,
@@ -48,7 +49,7 @@ export class VagasService {
       titular_nome: v.titular?.nome ?? null,
       ocupante_nome:
         v.tipo_ocupacao === 'visitante'
-          ? v.visitante?.nome ?? null
+          ? (v.visita?.pessoa?.nome ?? v.visitante?.nome ?? null)
           : v.tipo_ocupacao === 'inquilino'
             ? v.beneficiario?.nome ?? null
             : v.titular?.nome ?? null,
@@ -63,7 +64,13 @@ export class VagasService {
     const [vagas, veiculosProprios] = await Promise.all([
       this.prisma.vagas.findMany({
         where: { id_apartamento: apto.id, ativo: 1 },
-        include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
+        include: {
+          veiculo: true,
+          visitante: true,
+          visita: { include: { pessoa: true } },
+          beneficiario: true,
+          titular: true,
+        },
         orderBy: { created_at: 'desc' },
       }),
       moradorIds.length
@@ -80,6 +87,7 @@ export class VagasService {
       id_morador_titular: v.id_morador,
       id_veiculo: v.id,
       id_visitante: null,
+      id_visita: null,
       id_morador_beneficiario: null,
       placa: v.placa ?? null,
       inicio: null,
@@ -218,30 +226,84 @@ export class VagasService {
     const placa = body?.placa ? body.placa.toString().toUpperCase().trim() : null;
 
     let idVisitante: number | null = null;
+    let idVisita: number | null = null;
     let idBeneficiario: number | null = null;
 
     if (tipo === 'visitante') {
-      idVisitante = Number(body?.id_visitante) || null;
-      if (!idVisitante) throw new BadRequestException('Selecione um visitante cadastrado.');
-      const vis = await this.prisma.visitantes.findFirst({
-        where: { id: idVisitante, id_apartamento: apto.id },
-      });
-      if (!vis) throw new BadRequestException('Visitante não encontrado neste apartamento.');
-      let pin = vis.codigo_acesso;
-      if (!pin) {
-        pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const idAlvo = Number(body?.id_visita ?? body?.id_pessoa ?? body?.id_visitante) || null;
+      if (!idAlvo) throw new BadRequestException('Selecione um visitante cadastrado.');
+
+      let visitaEncontrada: any = null;
+      let visitanteLegado: any = null;
+
+      if (pessoasMigrationEnabled(this.prisma)) {
+        visitaEncontrada = await this.prisma.visitas.findFirst({
+          where: {
+            id_apartamento: apto.id,
+            OR: [{ id: idAlvo }, { id_pessoa: idAlvo }],
+          },
+          orderBy: { created_at: 'desc' },
+        });
+        if (!visitaEncontrada) {
+          visitanteLegado = await this.prisma.visitantes.findFirst({
+            where: { id: idAlvo, id_apartamento: apto.id },
+          });
+        }
+      } else {
+        visitanteLegado = await this.prisma.visitantes.findFirst({
+          where: { id: idAlvo, id_apartamento: apto.id },
+        });
+        if (!visitanteLegado) {
+          visitaEncontrada = await this.prisma.visitas.findFirst({
+            where: {
+              id_apartamento: apto.id,
+              OR: [{ id: idAlvo }, { id_pessoa: idAlvo }],
+            },
+            orderBy: { created_at: 'desc' },
+          });
+        }
       }
-      await this.prisma.visitantes.update({
-        where: { id: idVisitante },
-        data: {
-          liberado: 1,
-          data_entrada: null,
-          data_saida: null,
-          codigo_acesso: pin,
-          ...(inicio ? { data_hora_inicio: inicio } : {}),
-          ...(fim ? { data_hora_termino: fim } : {}),
-        },
-      });
+
+      if (!visitaEncontrada && !visitanteLegado) {
+        throw new BadRequestException('Visitante não encontrado neste apartamento.');
+      }
+
+      if (visitaEncontrada) {
+        idVisita = visitaEncontrada.id;
+        let pin = visitaEncontrada.codigo_acesso;
+        if (!pin) {
+          pin = Math.floor(100000 + Math.random() * 900000).toString();
+        }
+        await this.prisma.visitas.update({
+          where: { id: visitaEncontrada.id },
+          data: {
+            liberado: 1,
+            bloqueado: 0,
+            data_entrada: null,
+            data_saida: null,
+            codigo_acesso: pin,
+            ...(inicio ? { data_hora_inicio: inicio } : {}),
+            ...(fim ? { data_hora_termino: fim } : {}),
+          },
+        });
+      } else if (visitanteLegado) {
+        idVisitante = visitanteLegado.id;
+        let pin = visitanteLegado.codigo_acesso;
+        if (!pin) {
+          pin = Math.floor(100000 + Math.random() * 900000).toString();
+        }
+        await this.prisma.visitantes.update({
+          where: { id: visitanteLegado.id },
+          data: {
+            liberado: 1,
+            data_entrada: null,
+            data_saida: null,
+            codigo_acesso: pin,
+            ...(inicio ? { data_hora_inicio: inicio } : {}),
+            ...(fim ? { data_hora_termino: fim } : {}),
+          },
+        });
+      }
     } else {
       idBeneficiario = Number(body?.id_morador_beneficiario) || null;
       if (!idBeneficiario || !moradorIds.includes(idBeneficiario)) {
@@ -256,22 +318,28 @@ export class VagasService {
         id_morador_titular: idTitular,
         tipo_ocupacao: tipo,
         id_visitante: idVisitante,
+        id_visita: idVisita,
         id_morador_beneficiario: idBeneficiario,
         id_veiculo: Number(body?.id_veiculo) || null,
         placa,
         inicio,
         fim,
       },
-      include: { veiculo: true, visitante: true, beneficiario: true, titular: true },
+      include: {
+        veiculo: true,
+        visitante: true,
+        visita: { include: { pessoa: true } },
+        beneficiario: true,
+        titular: true,
+      },
     });
 
-    // Fire-and-forget, mesmo padrão do fluxo mobile: falha de device não
-    // derruba a reserva, os ticks de retry do facial cobrem o resto.
-    if (idVisitante) {
+    const idParaSync = idVisita ?? idVisitante;
+    if (idParaSync) {
       this.facial
-        .syncVisitante(idVisitante)
+        .syncVisitante(idParaSync)
         .catch((err) =>
-          console.error('[vagas] falha ao sincronizar facial do visitante', idVisitante, err?.message),
+          console.error('[vagas] falha ao sincronizar facial do visitante', idParaSync, err?.message),
         );
     }
 
@@ -284,14 +352,15 @@ export class VagasService {
     const vaga = await this.prisma.vagas.findFirst({
       where: { id: Number(id), id_apartamento: apto.id, ativo: 1 },
     });
-    if (!vaga) throw new NotFoundException('Vaga não encontrada.');
+    if (!vaga) throw new BadRequestException('Vaga não encontrada.');
     await this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } });
 
-    if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visitante) {
+    const idParaSync = vaga.id_visita ?? vaga.id_visitante;
+    if (vaga.tipo_ocupacao === 'visitante' && idParaSync) {
       this.facial
-        .syncVisitante(vaga.id_visitante)
+        .syncVisitante(idParaSync)
         .catch((err) =>
-          console.error('[vagas] falha ao reconciliar facial do visitante', vaga.id_visitante, err?.message),
+          console.error('[vagas] falha ao reconciliar facial do visitante', idParaSync, err?.message),
         );
     }
 

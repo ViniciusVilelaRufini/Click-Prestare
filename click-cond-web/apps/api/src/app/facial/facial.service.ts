@@ -3528,10 +3528,22 @@ export class FacialService {
           { OR: [{ fim: null }, { fim: { gte: quando } }] },
         ],
       },
-      include: { visitante: true, beneficiario: true, titular: true },
+      include: {
+        visitante: true,
+        visita: { include: { pessoa: true } },
+        beneficiario: true,
+        titular: true,
+      },
     });
     if (!vaga) return null;
 
+    if (vaga.visita?.pessoa) {
+      return {
+        tipoPessoa: vaga.visita.is_prestador === 1 ? 'prestador' : 'visitante',
+        idPessoa: vaga.visita.pessoa.id,
+        nomePessoa: vaga.visita.pessoa.nome,
+      };
+    }
     if (vaga.visitante) {
       return {
         tipoPessoa: vaga.visitante.is_prestador === 1 ? 'prestador' : 'visitante',

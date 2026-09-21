@@ -72,7 +72,13 @@ module.exports = {
   },
 
   login: async function (login, password) {
-    const query = `select u.id, s.name, u.photo, u.password
+    const query = `select u.id, s.name,
+                    COALESCE(
+                      NULLIF(u.photo, ''),
+                      NULLIF(u.profile_image, ''),
+                      (select m.foto_pessoa from Moradores m where m.id_user = u.id and m.foto_pessoa is not null and m.foto_pessoa != '' order by m.id desc limit 1)
+                    ) as photo,
+                    u.password
                     from Sindicos s
                     inner join Users u on u.id = s.id_user
                     where u.login=?`;
@@ -173,7 +179,12 @@ module.exports = {
   },
   
   getData: async function (id) {
-    const query = `select s.name, s.email, DATE_FORMAT(s.date_birth, '%d/%m/%Y') as date_birth, s.phone, s.doc_identification, u.photo 
+    const query = `select s.name, s.email, DATE_FORMAT(s.date_birth, '%d/%m/%Y') as date_birth, s.phone, s.doc_identification,
+                    COALESCE(
+                      NULLIF(u.photo, ''),
+                      NULLIF(u.profile_image, ''),
+                      (select m.foto_pessoa from Moradores m where m.id_user = u.id and m.foto_pessoa is not null and m.foto_pessoa != '' order by m.id desc limit 1)
+                    ) as photo
                     from Sindicos s
                     inner join Users u on s.id_user = u.id
                     where s.id_user=${id}`;    

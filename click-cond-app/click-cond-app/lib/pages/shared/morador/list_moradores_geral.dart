@@ -9,6 +9,7 @@ import 'package:click/widgets/app/app_scaffold.dart';
 import 'package:click/widgets/app/app_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:click/widgets/app/swipeable_action_card.dart';
 import 'list_moradores.dart';
 import 'new_morador.dart';
 
@@ -341,8 +342,27 @@ class _MoradorGeralCard extends StatelessWidget {
     final tipoColor = _getTipoColor(tipo);
     final photoUrl = (item['foto_pessoa'] ?? item['photo'])?.toString() ?? '';
 
-    return GestureDetector(
+    return SwipeableActionCard(
+      borderRadius: 16,
+      actionWidth: 72,
       onTap: onTap,
+      actions: [
+        SwipeAction(
+          icon: PhosphorIcons.pencilSimple,
+          label: 'Editar',
+          backgroundColor: AppColors.surfaceElevated(context),
+          foregroundColor: AppColors.textPrimary(context),
+          onTap: onTap,
+        ),
+        if (onSendCredentials != null)
+          SwipeAction(
+            icon: PhosphorIcons.paperPlaneTilt,
+            label: 'Enviar',
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            onTap: onSendCredentials!,
+          ),
+      ],
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
@@ -389,45 +409,17 @@ class _MoradorGeralCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: tipoColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: tipoColor.withValues(alpha: 0.2)),
-                  ),
-                  child: Text(
-                    tipo,
-                    style: AppTypography.tiny(context).copyWith(color: tipoColor, fontWeight: FontWeight.bold, fontSize: 9),
-                  ),
-                ),
-                if (onSendCredentials != null) ...[
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: onSendCredentials,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface(context),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(PhosphorIcons.envelopeSimple, size: 10, color: AppColors.primary),
-                          const SizedBox(width: 4),
-                          Text('Acesso', style: AppTypography.tiny(context).copyWith(color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: tipoColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: tipoColor.withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                tipo,
+                style: AppTypography.tiny(context).copyWith(color: tipoColor, fontWeight: FontWeight.bold, fontSize: 9),
+              ),
             ),
           ],
         ),

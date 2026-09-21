@@ -73,8 +73,9 @@ class _EditMoradorPageState extends State<EditMorador> {
       txtExtra2.text = obj["extra2"] ?? '';
       txtExtra3.text = obj["extra3"] ?? '';
       txtExtra4.text = obj["extra4"] ?? '';
-      imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
-      if (imageFile != null && imageFile.toString().startsWith('http')) {
+      final photoVal = (obj['foto_pessoa'] ?? obj['photo'] ?? obj['profile_image'])?.toString().trim();
+      imageFile = photoVal != null && photoVal.isNotEmpty && photoVal != 'null' && photoVal != 'undefined' ? photoVal : null;
+      if (imageFile != null) {
         setUserPhoto(imageFile.toString());
       }
       if (mounted) setState(() {});

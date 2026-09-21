@@ -64,11 +64,12 @@ class _EditSindicoPageState extends State<EditSindico> {
       txtTelefone.text = obj["phone"] ?? "";
       txtDocumento.text = obj["doc_identification"] ?? "";
       
-      final photoUrl = obj['photo'] != null && obj['photo'].toString().isNotEmpty 
-          ? obj['photo'] 
+      final photoVal = (obj['foto_pessoa'] ?? obj['photo'] ?? obj['profile_image'])?.toString().trim();
+      final photoUrl = (photoVal != null && photoVal.isNotEmpty && photoVal != 'null' && photoVal != 'undefined')
+          ? photoVal 
           : (getUserPhoto().isNotEmpty ? getUserPhoto() : null);
       imageFile = photoUrl;
-      if (photoUrl != null && photoUrl.toString().startsWith('http')) {
+      if (photoUrl != null && photoUrl.isNotEmpty && photoUrl != 'null' && photoUrl != 'undefined') {
         setUserPhoto(photoUrl.toString());
       }
       

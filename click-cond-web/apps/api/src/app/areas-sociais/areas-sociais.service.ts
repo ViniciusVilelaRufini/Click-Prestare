@@ -153,15 +153,13 @@ export class AreasSociaisService {
 
     if (this.storage.isDataUrl(valor)) {
       const uploaded = await this.storage.uploadDataUrl(valor, 'areas-sociais');
-      if (uploaded && !this.storage.isDataUrl(uploaded) && uploaded.length <= 500) {
+      if (uploaded && !this.storage.isDataUrl(uploaded)) {
         return uploaded;
       }
       this.logger.warn('Upload da imagem da área falhou ou storage desativado; usando imagem padrão.');
       return DEFAULT_AREA_IMAGE;
     }
 
-    // URL comum digitada manualmente — respeita o limite da coluna.
-    if (valor.length > 500) return DEFAULT_AREA_IMAGE;
     return valor;
   }
 

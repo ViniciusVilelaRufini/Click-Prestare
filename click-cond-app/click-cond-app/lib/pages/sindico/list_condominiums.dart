@@ -1,5 +1,7 @@
 import 'package:click/utils/log.dart';
 import 'package:click/widgets/app/grid_background.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:click/controllers/controller_condominio.dart';
 import 'package:click/controllers/controller_funcionario.dart';
@@ -112,7 +114,11 @@ class _ListCondomiumsState extends State<ListCondomiums> {
       if (results[0] is List) {
         if (results.length > 2 && results[2] is Map) {
           final userDetails = results[2] as Map<String, dynamic>;
-          final fetchedPhoto = userDetails['photo']?.toString().trim();
+          final fetchedPhoto = (userDetails['foto_pessoa'] ??
+                  userDetails['photo'] ??
+                  userDetails['profile_image'])
+              ?.toString()
+              .trim();
           if (fetchedPhoto != null &&
               fetchedPhoto.isNotEmpty &&
               fetchedPhoto != 'null' &&
@@ -692,6 +698,66 @@ class _ListCondomiumsState extends State<ListCondomiums> {
     return '$diaSemana, ${now.day} de $mes';
   }
 
+  Widget _buildAvatarImage(double avatarRadius) {
+    final photo = getUserPhoto().trim();
+    if (photo.isEmpty || photo == 'null' || photo == 'undefined') {
+      return Icon(
+        PhosphorIcons.user,
+        color: Colors.white,
+        size: avatarRadius,
+      );
+    }
+
+    if (photo.startsWith('data:image') ||
+        (!photo.startsWith('http://') &&
+            !photo.startsWith('https://') &&
+            photo.length > 100)) {
+      try {
+        String base64Str = photo;
+        if (photo.contains('base64,')) {
+          base64Str = photo.substring(photo.indexOf('base64,') + 7);
+        }
+        final Uint8List bytes =
+            base64Decode(base64Str.replaceAll(RegExp(r'\s+'), ''));
+        return Image.memory(
+          bytes,
+          width: avatarRadius * 2,
+          height: avatarRadius * 2,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (context, error, stackTrace) => Icon(
+            PhosphorIcons.user,
+            color: Colors.white,
+            size: avatarRadius,
+          ),
+        );
+      } catch (e) {
+        logDebug("[ListCondomiums] Base64 decode error: $e");
+        return Icon(
+          PhosphorIcons.user,
+          color: Colors.white,
+          size: avatarRadius,
+        );
+      }
+    }
+
+    return Image.network(
+      photo,
+      width: avatarRadius * 2,
+      height: avatarRadius * 2,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      errorBuilder: (context, error, stackTrace) {
+        logDebug("[ListCondomiums] Error loading photo: $error");
+        return Icon(
+          PhosphorIcons.user,
+          color: Colors.white,
+          size: avatarRadius,
+        );
+      },
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sw = MediaQuery.of(context).size.width;
@@ -739,26 +805,7 @@ class _ListCondomiumsState extends State<ListCondomiums> {
                       width: avatarRadius * 2,
                       height: avatarRadius * 2,
                       color: Colors.white.withValues(alpha: 0.2),
-                      child: getUserPhoto().isNotEmpty
-                          ? Image.network(
-                              getUserPhoto().trim(),
-                              fit: BoxFit.cover,
-                              gaplessPlayback: true,
-                              errorBuilder: (context, error, stackTrace) {
-                                logDebug(
-                                    "[ListCondomiums] Error loading photo: $error");
-                                return Icon(
-                                  PhosphorIcons.user,
-                                  color: Colors.white,
-                                  size: avatarRadius,
-                                );
-                              },
-                            )
-                          : Icon(
-                              PhosphorIcons.user,
-                              color: Colors.white,
-                              size: avatarRadius,
-                            ),
+                      child: _buildAvatarImage(avatarRadius),
                     ),
                   ),
                 ),

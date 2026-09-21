@@ -141,8 +141,6 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
   }
 
   Widget _buildHeroHeader() {
-    final hasImg = (obj['imagem'] ?? '').toString().isNotEmpty;
-    
     return Container(
       width: double.infinity,
       height: 220,
@@ -160,34 +158,7 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (hasImg)
-            Image.network(
-              obj['imagem'],
-              fit: BoxFit.cover,
-            )
-          else
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.primaryGradientStart,
-                    AppColors.primaryGradientEnd,
-                  ],
-                ),
-              ),
-              child: Center(
-                child: Opacity(
-                  opacity: 0.15,
-                  child: Icon(
-                    PhosphorIcons.buildings,
-                    size: 100,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
+          _buildAreaHeaderImage(obj['imagem']?.toString() ?? ''),
           // Gradient Overlay
           Container(
             decoration: BoxDecoration(
@@ -244,6 +215,56 @@ class _AreaSocialDetailPageState extends State<AreaSocialDetail> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAreaHeaderImage(String imagemUrl) {
+    final clean = imagemUrl.trim();
+    if (clean.isEmpty) return _buildPlaceholderHeader();
+
+    if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      return Image.network(
+        clean,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildPlaceholderHeader(),
+      );
+    }
+
+    try {
+      final base64Part = clean.contains('base64,') ? clean.split('base64,')[1] : clean;
+      final bytes = base64Decode(base64Part.trim());
+      return Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildPlaceholderHeader(),
+      );
+    } catch (_) {
+      return _buildPlaceholderHeader();
+    }
+  }
+
+  Widget _buildPlaceholderHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryGradientStart,
+            AppColors.primaryGradientEnd,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Opacity(
+          opacity: 0.15,
+          child: Icon(
+            PhosphorIcons.buildings,
+            size: 100,
+            color: Colors.white,
+          ),
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:click/controllers/controller_generic.dart';
@@ -186,6 +187,25 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
           child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
         ),
       );
+    }
+
+    if (imageFile is String && (imageFile as String).startsWith('data:image')) {
+      try {
+        final clean = (imageFile as String).split('base64,')[1];
+        final bytes = base64Decode(clean.trim());
+        return Image.memory(
+          bytes,
+          width: double.infinity,
+          height: 180,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: double.infinity,
+            height: 180,
+            color: Colors.grey.shade200,
+            child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+          ),
+        );
+      } catch (_) {}
     }
 
     final String path = imageFile is String ? imageFile : (imageFile.path ?? '');
