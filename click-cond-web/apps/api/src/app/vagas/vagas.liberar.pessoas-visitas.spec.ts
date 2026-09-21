@@ -44,6 +44,7 @@ describe('VagasService.liberar e revogar — migração Pessoas + Visitas', () =
       },
       moradores: { findFirst: jest.fn(async () => null), findMany: jest.fn(async () => MORADORES) },
       apartamentos: { findFirst: jest.fn(async () => APTO) },
+      $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
 
     const svc = new VagasService(prisma, facial as any);
@@ -204,5 +205,67 @@ describe('VagasService.liberar e revogar — migração Pessoas + Visitas', () =
       data: { ativo: 0 },
     });
     expect(facial.syncVisitante).toHaveBeenCalledWith(1000088);
+  });
+
+  it('revogar zera liberado e codigo_acesso da Visita — sem isto o rosto/PIN continuava valendo após "revogar"', async () => {
+    const { svc, prisma } = build();
+
+    prisma.vagas.findFirst.mockResolvedValueOnce({
+      id: 100,
+      id_apartamento: APTO.id,
+      tipo_ocupacao: 'visitante',
+      id_visita: 1000099,
+      id_visitante: null,
+    });
+
+    await svc.revogar(1, APTO.id, 100);
+
+    expect(prisma.visitas.update).toHaveBeenCalledWith({
+      where: { id: 1000099 },
+      data: { liberado: 0, codigo_acesso: null },
+    });
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('revogar zera liberado e codigo_acesso do Visitante legado quando não há id_visita', async () => {
+    const { svc, prisma } = build();
+
+    prisma.vagas.findFirst.mockResolvedValueOnce({
+      id: 101,
+      id_apartamento: APTO.id,
+      tipo_ocupacao: 'visitante',
+      id_visita: null,
+      id_visitante: 777,
+    });
+
+    await svc.revogar(1, APTO.id, 101);
+
+    expect(prisma.visitantes.update).toHaveBeenCalledWith({
+      where: { id: 777 },
+      data: { liberado: 0, codigo_acesso: null },
+    });
+  });
+
+  it('rejeita liberar com BadRequestException quando a Visita encontrada está bloqueada pela portaria', async () => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    const { svc, prisma } = build();
+
+    prisma.visitas.findFirst.mockResolvedValueOnce({
+      id: 1000111,
+      id_pessoa: 2000033,
+      id_apartamento: APTO.id,
+      codigo_acesso: '445566',
+      bloqueado: 1,
+    });
+
+    await expect(
+      svc.liberar(1, APTO.id, {
+        id_morador_titular: 5,
+        tipo: 'visitante',
+        id_visitante: 2000033,
+      }),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.visitas.update).not.toHaveBeenCalled();
   });
 });

@@ -269,6 +269,11 @@ export class VagasService {
       }
 
       if (visitaEncontrada) {
+        if (visitaEncontrada.bloqueado === 1) {
+          throw new BadRequestException(
+            'Este visitante está bloqueado pela portaria. Fale com a portaria antes de liberar a vaga.',
+          );
+        }
         idVisita = visitaEncontrada.id;
         let pin = visitaEncontrada.codigo_acesso;
         if (!pin) {
@@ -353,7 +358,27 @@ export class VagasService {
       where: { id: Number(id), id_apartamento: apto.id, ativo: 1 },
     });
     if (!vaga) throw new BadRequestException('Vaga não encontrada.');
-    await this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } });
+
+    // Revoga a vaga E o crachá/PIN por trás dela na mesma transação: sem isto
+    // o rosto/PIN da Visita continuava liberando a portaria mesmo com a vaga
+    // marcada como revogada — o botão "revogar" mentia para o morador.
+    const updates: any[] = [this.prisma.vagas.update({ where: { id: vaga.id }, data: { ativo: 0 } })];
+    if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visita) {
+      updates.push(
+        this.prisma.visitas.update({
+          where: { id: vaga.id_visita },
+          data: { liberado: 0, codigo_acesso: null },
+        }),
+      );
+    } else if (vaga.tipo_ocupacao === 'visitante' && vaga.id_visitante) {
+      updates.push(
+        this.prisma.visitantes.update({
+          where: { id: vaga.id_visitante },
+          data: { liberado: 0, codigo_acesso: null },
+        }),
+      );
+    }
+    await this.prisma.$transaction(updates);
 
     const idParaSync = vaga.id_visita ?? vaga.id_visitante;
     if (vaga.tipo_ocupacao === 'visitante' && idParaSync) {

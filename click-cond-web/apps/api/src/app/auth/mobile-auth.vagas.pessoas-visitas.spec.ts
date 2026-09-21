@@ -43,6 +43,7 @@ describe('MobileAuthService.liberarVaga e revogarVaga — migração Pessoas + V
         findMany: jest.fn(async () => []),
       },
       moradores: { findFirst: jest.fn(async () => null), findMany: jest.fn(async () => []) },
+      $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
     };
 
     const svc = new MobileAuthService(prisma, {} as any, {} as any, {} as any, facial as any);
@@ -123,6 +124,64 @@ describe('MobileAuthService.liberarVaga e revogarVaga — migração Pessoas + V
       data: { ativo: 0 },
     });
     expect(facial.syncVisitante).toHaveBeenCalledWith(1000055);
+  });
+
+  it('revogarVaga zera liberado e codigo_acesso da Visita — sem isto o rosto/PIN continuava valendo após "revogar"', async () => {
+    const { svc, prisma } = build();
+
+    prisma.vagas.findFirst.mockResolvedValueOnce({
+      id: 78,
+      id_apartamento: APTO.id,
+      tipo_ocupacao: 'visitante',
+      id_visita: 1000066,
+      id_visitante: null,
+    });
+
+    await svc.revogarVaga(1, 1, 78);
+
+    expect(prisma.visitas.update).toHaveBeenCalledWith({
+      where: { id: 1000066 },
+      data: { liberado: 0, codigo_acesso: null },
+    });
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('revogarVaga zera liberado e codigo_acesso do Visitante legado quando não há id_visita', async () => {
+    const { svc, prisma } = build();
+
+    prisma.vagas.findFirst.mockResolvedValueOnce({
+      id: 79,
+      id_apartamento: APTO.id,
+      tipo_ocupacao: 'visitante',
+      id_visita: null,
+      id_visitante: 555,
+    });
+
+    await svc.revogarVaga(1, 1, 79);
+
+    expect(prisma.visitantes.update).toHaveBeenCalledWith({
+      where: { id: 555 },
+      data: { liberado: 0, codigo_acesso: null },
+    });
+  });
+
+  it('rejeita liberarVaga com BadRequestException quando a Visita encontrada está bloqueada pela portaria', async () => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    const { svc, prisma } = build();
+
+    prisma.visitas.findFirst.mockResolvedValueOnce({
+      id: 1000044,
+      id_pessoa: 2000099,
+      id_apartamento: APTO.id,
+      codigo_acesso: '112233',
+      bloqueado: 1,
+    });
+
+    await expect(
+      svc.liberarVaga(1, 1, { tipo: 'visitante', id_visitante: 2000099 }),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.visitas.update).not.toHaveBeenCalled();
   });
 
   it('rejeita com BadRequestException quando visitante não é encontrado', async () => {
