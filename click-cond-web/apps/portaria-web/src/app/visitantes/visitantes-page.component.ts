@@ -856,9 +856,15 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         return;
       }
       this.saving.set(true);
-      // `id_pessoa`, não `novaPara.id` (id da Visita principal): o endpoint
-      // resolve contra `Pessoas` — Critical 2 (Lote B).
-      this.service.novaVisitaPessoa(novaPara.id_pessoa!, {
+      // `id_pessoa` (id da Pessoa) quando disponível, com fallback para
+      // `novaPara.id` (id da VISITA principal, certo no caminho legado) —
+      // mesmo dual-mode de `removerPessoa`/`atualizarPessoa` acima:
+      // `id_pessoa` só vem preenchido quando `listarPessoas` já serve pelo
+      // caminho Pessoas/Visitas (PESSOAS_MIGRATION_ENABLED=true), o que
+      // ainda não está confirmado no ambiente de produção. Sem o fallback,
+      // com a flag desligada `id_pessoa` vem `undefined` e a chamada quebra
+      // (rota vira `/pessoa/undefined/nova-visita`). Não remover.
+      this.service.novaVisitaPessoa(novaPara.id_pessoa ?? novaPara.id, {
         id_apartamento: this.novo.id_apartamento,
         data_hora_inicio: this.novo.data_hora_inicio,
         data_hora_termino: this.novo.data_hora_termino,
