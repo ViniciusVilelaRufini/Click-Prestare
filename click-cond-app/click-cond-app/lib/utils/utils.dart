@@ -408,8 +408,21 @@ getPhoto(BuildContext context) async {
 
 pickImage(ImageSource type) async {
   try {
-    final image = await ImagePicker.platform
-        .pickImage(source: type, imageQuality: 50);
+    // `imageQuality` sozinho reduz só a COMPRESSÃO, não o tamanho em pixels:
+    // uma foto de 12MP continuava com 12MP. Medido em produção: a foto do
+    // condomínio subiu com 2,9 MB (PNG, sem perda) para ser exibida num
+    // preview de 180px de altura — daí a demora para aparecer.
+    //
+    // maxWidth/maxHeight forçam o redimensionamento ANTES do upload (e, de
+    // quebra, o reencode em JPEG em vez de PNG). 1600px continua de sobra
+    // para documento legível e para o enrolamento facial, que trabalha com
+    // resoluções bem menores.
+    final image = await ImagePicker.platform.pickImage(
+      source: type,
+      imageQuality: 50,
+      maxWidth: 1600,
+      maxHeight: 1600,
+    );
     return image;
   } catch (e) {
     return null;
@@ -438,6 +451,29 @@ openFile(String path) async {
   }
 }
 
+/// Identifica o formato real pelos primeiros bytes (magic number), caindo
+/// para [fallback] quando não reconhece. JPEG: FF D8 FF · PNG: 89 50 4E 47 ·
+/// WEBP: "RIFF"…"WEBP" · PDF: "%PDF".
+String detectarMime(List<int> bytes, String fallback) {
+  if (bytes.length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+    return 'image/jpeg';
+  }
+  if (bytes.length >= 4 &&
+      bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+    return 'image/png';
+  }
+  if (bytes.length >= 12 &&
+      bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+      bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50) {
+    return 'image/webp';
+  }
+  if (bytes.length >= 4 &&
+      bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46) {
+    return 'application/pdf';
+  }
+  return fallback;
+}
+
 convertToBase64(dynamic file, String type) {
   if (file != null) {
     if (kIsWeb) {
@@ -458,7 +494,12 @@ convertToBase64(dynamic file, String type) {
     }
     if (path != null) {
       final imageBytes = File(path).readAsBytesSync();
-      return 'data:$type;base64,${base64Encode(imageBytes)}';
+      // O tipo vinha fixo do call site (quase sempre 'image/png'), mesmo
+      // quando os bytes eram JPEG — e o servidor deriva o Content-Type e a
+      // extensão do arquivo no S3 a partir daí. Depois do redimensionamento
+      // em `pickImage`, o picker reencoda em JPEG, então o rótulo fixo
+      // passaria a mentir sempre. Detecta pelo conteúdo real.
+      return 'data:${detectarMime(imageBytes, type)};base64,${base64Encode(imageBytes)}';
     }
   }
   return null;
