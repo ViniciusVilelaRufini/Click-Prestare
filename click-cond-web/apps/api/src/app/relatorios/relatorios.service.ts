@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as xlsx from 'xlsx';
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
+import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
 
 const pdfmake = require('pdfmake');
 
@@ -630,68 +631,6 @@ export class RelatoriosService {
     return str;
   }
 
-  /**
-   * Resolve nome/foto/documento/apartamento de visitantes/prestadores a
-   * partir de `Acessos_Facial.id_pessoa`, usado para enriquecer a listagem
-   * de eventos.
-   *
-   * `Acessos_Facial.id_pessoa` NÃO tem um único espaço de id consistente no
-   * caminho migrado: alguns tipos de evento gravam o id de `Visita`, outros
-   * o de `Pessoa` (ver facial.service.ts, não alterado nesta rodada — é uma
-   * limitação conhecida; a correção definitiva exige mudança de schema e
-   * está rastreada separadamente, não sendo improvisada aqui). Por isso essa
-   * resolução consulta as duas tabelas para o mesmo conjunto de ids e faz o
-   * merge por quem realmente encontrou a linha — cada id, na prática, só
-   * deve bater numa das duas (produção mantém `pessoas` e `visitas` em
-   * faixas de autoincrement disjuntas hoje como rede de segurança
-   * operacional, mas isso não é uma garantia, só o motivo de essa
-   * degradação ser segura no estado atual). Se um id não bater em nenhuma
-   * das duas, o evento aparece sem nome/foto — degradação aceitável para um
-   * recurso de exibição.
-   */
-  private async resolverInfoVisitantesPorIdAcessoFacial(
-    ids: number[],
-  ): Promise<Map<number, { id: number; foto_pessoa: string | null; doc_identificacao: string | null; apartamento: { bloco: string | null; apto: string | null } | null }>> {
-    const map = new Map<number, { id: number; foto_pessoa: string | null; doc_identificacao: string | null; apartamento: { bloco: string | null; apto: string | null } | null }>();
-    if (ids.length === 0) return map;
-
-    const [pessoasFound, visitasFound] = await Promise.all([
-      this.prisma.pessoas.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, foto_pessoa: true, doc_identificacao: true },
-      }),
-      this.prisma.visitas.findMany({
-        where: { id: { in: ids } },
-        select: {
-          id: true,
-          apartamento: { select: { bloco: true, apto: true } },
-          pessoa: { select: { foto_pessoa: true, doc_identificacao: true } },
-        },
-      }),
-    ]);
-
-    for (const p of pessoasFound) {
-      map.set(p.id, {
-        id: p.id,
-        foto_pessoa: p.foto_pessoa,
-        doc_identificacao: p.doc_identificacao,
-        apartamento: null,
-      });
-    }
-    // Visita "vence" se o id bater nas duas (não deveria acontecer em
-    // produção hoje, ver comentário acima) — ela carrega apartamento, mais
-    // informação útil pra exibição.
-    for (const v of visitasFound) {
-      map.set(v.id, {
-        id: v.id,
-        foto_pessoa: v.pessoa?.foto_pessoa ?? null,
-        doc_identificacao: v.pessoa?.doc_identificacao ?? null,
-        apartamento: v.apartamento,
-      });
-    }
-    return map;
-  }
-
   async getEventos(
     idCondominio: number,
     dataInicio?: string,
@@ -886,16 +825,29 @@ export class RelatoriosService {
       facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket + 1}`);
     }
 
-    const isDuplicadoFacial = (idVisitante: number, evento: 'entrada' | 'saida', ts: Date | null) => {
+    // `Acessos_Facial.id_pessoa` não tem espaço único no caminho migrado
+    // (ver `resolverInfoVisitantesPorIdAcessoFacial` acima) — um evento
+    // gravado com o id de Pessoa não batia contra `v.id` (id de Visita) e a
+    // mesma entrada física aparecia duplicada na lista. `idPessoaAlt` checa
+    // o segundo espaço quando disponível (`v.pessoa.id`, vindo do include
+    // no caminho migrado).
+    const isDuplicadoFacial = (
+      idVisitante: number,
+      evento: 'entrada' | 'saida',
+      ts: Date | null,
+      idPessoaAlt?: number,
+    ) => {
       if (!ts) return false;
       const bucket = Math.floor(ts.getTime() / DEDUP_WINDOW_MS);
-      return facialKeys.has(`${idVisitante}:${evento}:${bucket}`);
+      if (facialKeys.has(`${idVisitante}:${evento}:${bucket}`)) return true;
+      if (idPessoaAlt != null && facialKeys.has(`${idPessoaAlt}:${evento}:${bucket}`)) return true;
+      return false;
     };
 
     // 1. Map Visitantes Entradas
     for (const v of entradasVisitantes) {
       if (!v.data_entrada) continue;
-      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada)) continue;
+      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada, v.pessoa?.id)) continue;
       const aptoStr = v.apartamento ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '';
       ultimosEventos.push({
         id: `visitante-ent-${v.id}`,
@@ -924,7 +876,7 @@ export class RelatoriosService {
     // 2. Map Visitantes Saídas
     for (const v of saidasVisitantes) {
       if (!v.data_saida) continue;
-      if (isDuplicadoFacial(v.id, 'saida', v.data_saida)) continue;
+      if (isDuplicadoFacial(v.id, 'saida', v.data_saida, v.pessoa?.id)) continue;
       const aptoStr = v.apartamento ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}` : '';
       ultimosEventos.push({
         id: `visitante-sai-${v.id}`,
@@ -1045,7 +997,7 @@ export class RelatoriosService {
             })
           : Promise.resolve([]),
         pessoasMigrationEnabled(this.prisma)
-          ? this.resolverInfoVisitantesPorIdAcessoFacial(idsVisitante)
+          ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante)
           : idsVisitante.length > 0
             ? this.prisma.visitantes.findMany({
                 where: { id: { in: idsVisitante } },

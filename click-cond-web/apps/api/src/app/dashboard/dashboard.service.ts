@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
+import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
 
 export interface DashboardSummary {
   visitantesAtivos: number;
@@ -276,17 +277,37 @@ export class DashboardService {
       facialKeys.add(`${a.id_pessoa}:${a.evento}:${bucket + 1}`);
     }
 
-    const isDuplicadoFacial = (idVisitante: number, evento: 'entrada' | 'saida', ts: Date | null) => {
+    // `Acessos_Facial.id_pessoa` não tem espaço único no caminho migrado
+    // (ver `resolverInfoVisitantesPorIdAcessoFacial`) — um evento gravado
+    // com o id de Pessoa não batia contra `v.id` (id de Visita, que é o que
+    // `entradasVisitantesFlat`/`saidasVisitantesFlat` carregam) e a mesma
+    // entrada física aparecia duplicada em `ultimosEventos`, com o card
+    // "Acesso Facial" mais informativo faltando e a versão "PIN / Manual"
+    // sobrando no lugar. `idPessoaAlt` (= `v.pessoa.id`, disponível via
+    // include no caminho migrado) cobre o segundo espaço.
+    const isDuplicadoFacial = (
+      idVisitante: number,
+      evento: 'entrada' | 'saida',
+      ts: Date | null,
+      idPessoaAlt?: number,
+    ) => {
       if (!ts) return false;
       const bucket = Math.floor(ts.getTime() / DEDUP_WINDOW_MS);
-      return facialKeys.has(`${idVisitante}:${evento}:${bucket}`);
+      if (facialKeys.has(`${idVisitante}:${evento}:${bucket}`)) return true;
+      if (idPessoaAlt != null && facialKeys.has(`${idPessoaAlt}:${evento}:${bucket}`)) return true;
+      return false;
     };
 
     // Busca TODOS os acessos faciais dos visitantes que vão aparecer no
     // dashboard, para montar o histórico completo no modal de detalhes.
+    // Mesma união de espaços de id do filtro acima: sem incluir
+    // `pessoa.id`, um evento gravado nesse espaço nem seria trazido pela
+    // query, e nenhuma checagem no consumidor resolveria isso depois.
     const visitanteIds = [
-      ...ultEntradasVisitantes.map((v) => v.id),
-      ...ultSaidasVisitantes.map((v) => v.id),
+      ...ultEntradasVisitantes.map((v: any) => v.id),
+      ...ultSaidasVisitantes.map((v: any) => v.id),
+      ...ultEntradasVisitantes.map((v: any) => v.pessoa?.id).filter((id: any): id is number => id != null),
+      ...ultSaidasVisitantes.map((v: any) => v.pessoa?.id).filter((id: any): id is number => id != null),
     ];
     const uniqueVisitanteIds = Array.from(new Set(visitanteIds));
 
@@ -308,7 +329,8 @@ export class DashboardService {
 
     const deviceById = new Map(devicesInfo.map((d) => [d.id, d.nome]));
 
-    // Agrupa acessos faciais por visitante
+    // Agrupa acessos faciais por visitante (chave = o id que o próprio
+    // evento carrega, seja qual for o espaço).
     type AcessoFacialRow = typeof todosAcessosFaciaisDosVisitantes[number];
     const facialPorVisitante = new Map<number, AcessoFacialRow[]>();
     for (const a of todosAcessosFaciaisDosVisitantes) {
@@ -318,11 +340,35 @@ export class DashboardService {
       facialPorVisitante.set(a.id_pessoa, list);
     }
 
+    // Busca os acessos faciais de um visitante considerando os dois
+    // espaços de id possíveis (Visita.id e, no caminho migrado, Pessoa.id),
+    // deduplicando por `a.id` (registro do Acessos_Facial) caso os dois
+    // agrupamentos acidentalmente apontem pro mesmo evento.
+    const getFaciaisDoVisitante = (idVisita: number, idPessoaAlt?: number): AcessoFacialRow[] => {
+      const porVisita = facialPorVisitante.get(idVisita) ?? [];
+      if (idPessoaAlt == null || idPessoaAlt === idVisita) return porVisita;
+      const porPessoa = facialPorVisitante.get(idPessoaAlt) ?? [];
+      if (porPessoa.length === 0) return porVisita;
+      const vistos = new Set<number>();
+      const combinados: AcessoFacialRow[] = [];
+      for (const a of [...porVisita, ...porPessoa]) {
+        if (vistos.has(a.id)) continue;
+        vistos.add(a.id);
+        combinados.push(a);
+      }
+      return combinados;
+    };
+
     // Decide se uma entrada/saída foi pelo terminal facial e devolve o registro
-    const acessoFacialDe = (idVisitante: number, evento: 'entrada' | 'saida', ts: Date | null) => {
+    const acessoFacialDe = (
+      idVisitante: number,
+      evento: 'entrada' | 'saida',
+      ts: Date | null,
+      idPessoaAlt?: number,
+    ) => {
       if (!ts) return undefined;
-      const acessos = facialPorVisitante.get(idVisitante);
-      if (!acessos) return undefined;
+      const acessos = getFaciaisDoVisitante(idVisitante, idPessoaAlt);
+      if (acessos.length === 0) return undefined;
       const tsMs = ts.getTime();
       return acessos.find(
         (a) => a.evento === evento && Math.abs(a.timestamp.getTime() - tsMs) <= DEDUP_WINDOW_MS,
@@ -334,11 +380,13 @@ export class DashboardService {
       id: number;
       data_entrada: Date | null;
       data_saida: Date | null;
+      pessoa?: { id: number };
     }) => {
+      const idPessoaAlt = v.pessoa?.id;
       const historico: NonNullable<DashboardSummary['ultimosEventos'][number]['detalhes']['historicoAcessos']> = [];
 
       // Entradas/Saídas por acesso facial (vem da tabela Acessos_Facial)
-      const acessosFaciaisDoV = facialPorVisitante.get(v.id) ?? [];
+      const acessosFaciaisDoV = getFaciaisDoVisitante(v.id, idPessoaAlt);
       const faciaisVistos = new Set<number>();
       for (const a of acessosFaciaisDoV) {
         const evento = a.evento === 'saida' ? 'saida' : a.evento === 'negado' ? 'negado' : 'entrada';
@@ -355,7 +403,7 @@ export class DashboardService {
 
       // Se a data_entrada/data_saida do visitante NÃO coincide com nenhum
       // acesso facial, foi por PIN ou manual
-      if (v.data_entrada && !acessoFacialDe(v.id, 'entrada', v.data_entrada)) {
+      if (v.data_entrada && !acessoFacialDe(v.id, 'entrada', v.data_entrada, idPessoaAlt)) {
         historico.push({
           evento: 'entrada',
           timestamp: v.data_entrada.toISOString(),
@@ -363,7 +411,7 @@ export class DashboardService {
           metodoLabel: 'PIN / Manual',
         });
       }
-      if (v.data_saida && !acessoFacialDe(v.id, 'saida', v.data_saida)) {
+      if (v.data_saida && !acessoFacialDe(v.id, 'saida', v.data_saida, idPessoaAlt)) {
         historico.push({
           evento: 'saida',
           timestamp: v.data_saida.toISOString(),
@@ -379,7 +427,7 @@ export class DashboardService {
 
     // Mapear Entradas
     for (const v of entradasVisitantesFlat) {
-      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada)) continue;
+      if (isDuplicadoFacial(v.id, 'entrada', v.data_entrada, (v as any).pessoa?.id)) continue;
       const aptoStr = v.apartamento
         ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
         : '';
@@ -411,7 +459,7 @@ export class DashboardService {
     // Mapear Saídas
     for (const v of saidasVisitantesFlat) {
       if (!v.data_saida) continue;
-      if (isDuplicadoFacial(v.id, 'saida', v.data_saida)) continue;
+      if (isDuplicadoFacial(v.id, 'saida', v.data_saida, (v as any).pessoa?.id)) continue;
       const aptoStr = v.apartamento
         ? `Apto ${v.apartamento.apto}${v.apartamento.bloco ?? ''}`
         : '';
@@ -512,7 +560,7 @@ export class DashboardService {
         .map((a) => a.id_pessoa)
         .filter((id): id is number => id !== null);
 
-      const [moradoresInfo, visitantesInfo, funcionariosInfo] = await Promise.all([
+      const [moradoresInfo, visitanteById, funcionariosInfo] = await Promise.all([
         idsMorador.length > 0
           ? this.prisma.moradores.findMany({
               where: { id: { in: idsMorador } },
@@ -525,17 +573,29 @@ export class DashboardService {
               },
             })
           : Promise.resolve([]),
-        idsVisitante.length > 0
-          ? this.prisma.visitantes.findMany({
-              where: { id: { in: idsVisitante } },
-              select: {
-                id: true,
-                foto_pessoa: true,
-                doc_identificacao: true,
-                apartamento: { select: { bloco: true, apto: true } },
-              },
-            })
-          : Promise.resolve([]),
+        // Mesma ambiguidade de `Acessos_Facial.id_pessoa` documentada em
+        // `resolverInfoVisitantesPorIdAcessoFacial`: uma consulta única
+        // contra `visitantes` (ou só `pessoas`, ou só `visitas`) acerta por
+        // sorte em produção hoje porque as duas tabelas mantêm faixas de
+        // autoincrement disjuntas — mas isso é só um efeito colateral do
+        // script de limpeza, não uma garantia de schema. Qualquer banco
+        // criado do zero (dev/staging) não tem essa separação, e um id
+        // que colidir entre as duas tabelas anexaria foto/nome/apto de
+        // OUTRA pessoa ao evento. A função resolve consultando as duas e
+        // mesclando por quem encontrou a linha.
+        pessoasMigrationEnabled(this.prisma)
+          ? resolverInfoVisitantesPorIdAcessoFacial(this.prisma, idsVisitante)
+          : idsVisitante.length > 0
+            ? this.prisma.visitantes.findMany({
+                where: { id: { in: idsVisitante } },
+                select: {
+                  id: true,
+                  foto_pessoa: true,
+                  doc_identificacao: true,
+                  apartamento: { select: { bloco: true, apto: true } },
+                },
+              }).then((rows) => new Map(rows.map((v) => [v.id, v])))
+            : Promise.resolve(new Map()),
         idsFuncionario.length > 0
           ? this.prisma.prestadores_servico.findMany({
               where: { id: { in: idsFuncionario } },
@@ -549,7 +609,6 @@ export class DashboardService {
       ]);
 
       const moradorById = new Map(moradoresInfo.map((m) => [m.id, m]));
-      const visitanteById = new Map(visitantesInfo.map((v) => [v.id, v]));
       const funcionarioById = new Map(funcionariosInfo.map((f) => [f.id, f]));
 
       for (const a of ultAcessosFacial) {

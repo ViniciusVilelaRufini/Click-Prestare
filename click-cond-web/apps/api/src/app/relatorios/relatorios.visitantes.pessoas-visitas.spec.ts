@@ -37,7 +37,7 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
       created_at: new Date('2026-09-01T09:00:00Z'),
       apartamento: { apto: '101', bloco: 'A' },
       criadoPor: { name: 'Morador Teste' },
-      pessoa: { nome: 'Maria Migrada', doc_identificacao: '98765432100', foto_pessoa: null, foto_documento: null },
+      pessoa: { id: 700, nome: 'Maria Migrada', doc_identificacao: '98765432100', foto_pessoa: null, foto_documento: null },
     };
 
     const prisma: any = {
@@ -149,6 +149,32 @@ describe('RelatoriosService — leituras de visitantes (Pessoas/Visitas)', () =>
       expect(viaVisita).toBeDefined();
       expect(viaVisita!.detalhes.documento).toBe('doc-visita');
       expect(viaVisita!.detalhes.blocoApto).toContain('202');
+    });
+
+    it('flag ON: dedup encontra o evento facial gravado com id de Pessoa e não duplica a entrada no feed (nem no total)', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      const { svc, prisma } = build();
+
+      // Evento facial gravado com id_pessoa = Pessoa.id (700) da mesma
+      // pessoa de `visitaMigrada` (Visita.id = 300), no MESMO instante da
+      // `data_entrada` — sem o merge dos dois espaços de id no dedup, essa
+      // entrada apareceria duas vezes (uma "Acesso Facial", outra "PIN/Manual"
+      // vinda de `visitas`), inflando `total`.
+      prisma.acessos_Facial.findMany = jest.fn(async () => [
+        {
+          id: 5, id_condominio: 1, timestamp: new Date('2026-09-01T10:00:00Z'),
+          nome_pessoa: 'Maria Migrada', tipo_pessoa: 'visitante', tipo_dispositivo: 'facial',
+          evento: 'entrada', confianca: 0.9, id_device: 1, id_pessoa: 700,
+        },
+      ]);
+
+      const r = await svc.getEventos(1);
+      const doMaria = r.items.filter((i: any) => i.detalhes?.nome === 'Maria Migrada');
+      expect(doMaria).toHaveLength(1);
+      expect(doMaria[0].tipo).toBe('Acesso Facial');
+      // `total` é a contagem pré-paginação — se a entrada tivesse duplicado,
+      // o relatório de auditoria contaria um evento a mais do que aconteceu.
+      expect(r.total).toBe(r.items.length);
     });
   });
 });
