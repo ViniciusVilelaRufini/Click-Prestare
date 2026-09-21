@@ -772,11 +772,19 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
       variant: 'danger',
     }).then((ok) => {
       if (!ok) return;
-      // `id_pessoa` (id da Pessoa) — nunca `p.id` (id da VISITA principal):
-      // os dois espaços de id nascem do 1 e crescem em paralelo, então um
-      // fallback `?? p.id` colidia com a Visita de outra pessoa qualquer e
-      // removia/desinscrevia quem nunca pediu (mesmo defeito do Critical 2).
-      this.service.removerPessoa(p.id_pessoa!).subscribe({
+      // `id_pessoa` (id da Pessoa) quando disponível — `p.id` é o id da
+      // VISITA principal e é ambíguo para um endpoint que remove a pessoa
+      // inteira (colide com o id de Visita de outra pessoa qualquer).
+      //
+      // Dual-mode de propósito: `id_pessoa` só vem preenchido quando o
+      // backend já serve `listarPessoas` pelo caminho Pessoas/Visitas
+      // (PESSOAS_MIGRATION_ENABLED=true). Não confirmamos ainda se essa flag
+      // está de fato ligada no ambiente de produção (Elastic Beanstalk) — o
+      // default é OFF e o bundle de deploy não carrega a variável. Enquanto
+      // isso não for confirmado, `p.id` continua sendo o id certo no caminho
+      // legado, e o fallback `?? p.id` é o que faz esta chamada funcionar
+      // nos dois modos. Não remover até o caminho legado sair de cena.
+      this.service.removerPessoa(p.id_pessoa ?? p.id).subscribe({
         next: () => this.carregar(),
         error: (e) => this.error.set(`Falha ao remover: ${e?.error?.message ?? e?.message ?? e}`),
       });
@@ -876,10 +884,16 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
         return;
       }
       this.saving.set(true);
-      // `editingIdPessoa` já é resolvido com o fallback certo em
-      // `abrirEditar` (linha ~795) — um segundo `?? this.editingId` aqui só
-      // reintroduziria a chance de acertar o espaço de id errado.
-      this.service.atualizarPessoa(this.editingIdPessoa!, {
+      // `editingIdPessoa` (id da Pessoa) quando disponível, com fallback
+      // para `this.editingId` (id da VISITA principal, certo no caminho
+      // legado) — mesmo dual-mode de `removerPessoa` acima: `editingIdPessoa`
+      // só vem preenchido quando `listarPessoas` já serve pelo caminho
+      // Pessoas/Visitas (PESSOAS_MIGRATION_ENABLED=true), o que ainda não
+      // está confirmado no ambiente de produção. `abrirEditar` (linha ~795)
+      // atribui `editingIdPessoa` com o mesmo fallback, então este `??` aqui
+      // é redundante NO CAMINHO NOVO — mas é o que mantém o caminho legado
+      // funcionando enquanto ele existir. Não remover.
+      this.service.atualizarPessoa(this.editingIdPessoa ?? this.editingId, {
         nome: this.novo.nome,
         doc_identificacao: this.novo.doc_identificacao,
         foto_pessoa: this.novo.foto_pessoa ?? undefined,
