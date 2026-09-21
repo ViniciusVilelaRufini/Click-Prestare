@@ -180,6 +180,19 @@ class _NewAreaSocialPageState extends State<NewAreaSocial> {
         width: double.infinity,
         height: 180,
         fit: BoxFit.cover,
+        // Sem loadingBuilder, o Image.network ocupa os 180px em BRANCO
+        // enquanto baixa — e a tela de edição parece ter perdido a área de
+        // foto. Quem abre para editar acha que o campo sumiu, quando ele só
+        // está vazio esperando o download.
+        loadingBuilder: (_, child, progress) {
+          if (progress == null) return child;
+          return Container(
+            width: double.infinity,
+            height: 180,
+            color: AppColors.primary.withValues(alpha: 0.08),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        },
         errorBuilder: (_, __, ___) => Container(
           width: double.infinity,
           height: 180,

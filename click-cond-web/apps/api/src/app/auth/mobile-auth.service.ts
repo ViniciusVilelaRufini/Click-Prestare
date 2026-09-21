@@ -2160,7 +2160,27 @@ export class MobileAuthService {
 
     let photoUrl = data.photo;
     if (photoUrl && this.storage.isDataUrl(photoUrl)) {
-      photoUrl = await this.storage.uploadDataUrl(photoUrl, `condominios/${id}`, 'profile');
+      const enviada = await this.storage.uploadDataUrl(photoUrl, `condominios/${id}`, 'profile');
+
+      // `uploadDataUrl` NUNCA lança: se o S3 falhar (ou o storage estiver
+      // desativado por env incompleta) ela devolve o próprio data URL. Gravar
+      // esse retorno direto em `Condominios.photo` — que é `text`, teto de
+      // 65535 — fazia o MySQL truncar o base64 no meio, em silêncio. O
+      // resultado é o pior dos mundos: o app recebe "sucesso", a coluna fica
+      // com uma imagem impossível de decodificar, e cada resposta que carrega
+      // o condomínio passa a arrastar 64KB de lixo (daí a lentidão geral).
+      //
+      // Mesma guarda que `AreasSociaisService.resolveImagem` já fazia. Aqui a
+      // foto antiga é preservada e o erro sobe, em vez de corromper a coluna.
+      if (!enviada || this.storage.isDataUrl(enviada)) {
+        this.logger.error(
+          `Upload da foto do condomínio ${id} falhou (storage desativado ou erro no S3). Foto anterior preservada.`,
+        );
+        throw new ServiceUnavailableException(
+          'Não foi possível enviar a imagem agora. Os outros dados foram mantidos — tente a imagem novamente em instantes.',
+        );
+      }
+      photoUrl = enviada;
     }
 
     const updateData: any = {};
