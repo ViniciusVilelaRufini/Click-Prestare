@@ -1197,6 +1197,32 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   ) {
     const pessoa = await this.assertPodeAcessarPessoa(idPessoaRef, payload);
 
+    // Important 3 (Lote B): `create()` só faz esta checagem no seu próprio
+    // corpo, ANTES de rotear para `createViaPessoasVisitas` — como este
+    // caminho não passa por `create()`, um funcionário sem a permissão
+    // 'cadastrar_visitante' conseguia criar uma visita nova (e um PIN novo)
+    // por aqui, sem checagem nenhuma no servidor.
+    await this.tenant.assertPermissaoFuncionario(
+      pessoa.id_condominio,
+      'cadastrar_visitante',
+      payload,
+    );
+
+    // Important 3 (Lote B): mesma checagem de `createViaPessoasVisitas` —
+    // sem ela, uma pessoa bloqueada ganhava uma Visita nova com
+    // `liberado: 1` e um PIN novo por este caminho. O webhook facial só
+    // confere `liberado`, nunca `bloqueado` (ver Important 4 do mesmo
+    // review), então isso entregava uma credencial funcional pra alguém
+    // bloqueado no condomínio.
+    const blocked = await this.verificarSeBloqueadoPessoa(
+      pessoa.id_condominio,
+      pessoa.nome,
+      pessoa.doc_identificacao,
+    );
+    if (blocked) {
+      throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+    }
+
     // dias_semana/categorias não existem em `Pessoas` (são atributo de cada
     // `Visita`) — herda do registro mais recente que tiver, mesma regra de
     // `listarPessoas`.
@@ -1243,6 +1269,36 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       descricao: `Novo agendamento: ${tipoLabel} "${visita.pessoa.nome}" para ${ctx.apartamento?.label ?? '—'}`,
       detalhes: ctx,
     });
+
+    // Important 3 (Lote B): `createViaPessoasVisitas` notifica os moradores
+    // do apartamento na criação; este caminho não notificava ninguém.
+    try {
+      const moradores = await this.prisma.users.findMany({
+        where: {
+          apartamentosUsers: { some: { id_apto: Number(dto.id_apartamento) } },
+          notif_visitantes: 1,
+        },
+        select: { fcm_token: true, name: true, phone: true },
+      });
+
+      for (const m of moradores) {
+        if (m.fcm_token) {
+          await this.notifications.sendPushNotification(
+            m.fcm_token,
+            visita.is_prestador === 1 ? 'Prestador de Serviço' : 'Chegada de Visitante',
+            `${pessoa.nome} acabou de chegar para o seu apartamento.`,
+            { id: visita.id.toString(), type: 'visitante' },
+          );
+        }
+        if (m.phone) {
+          const tipo = visita.is_prestador === 1 ? 'Prestador de Serviço' : 'Visitante';
+          const waMessage = `Olá, ${m.name}! O ${tipo} "${pessoa.nome}" acabou de chegar/foi liberado para o seu apartamento.`;
+          await this.notifications.sendWhatsApp(m.phone, waMessage);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao notificar moradores sobre visitante:', error);
+    }
 
     if (pessoa.foto_pessoa) {
       this.fireFacialSyncPessoa(visita.id_pessoa);

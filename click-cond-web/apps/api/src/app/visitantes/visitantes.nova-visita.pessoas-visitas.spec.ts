@@ -47,6 +47,22 @@ function buildHarness() {
             pessoas.find((p) => p.id === Number(where.id) && p.id_condominio === where.id_condominio) ?? null
           );
         }
+        // Shape usado por `verificarSeBloqueadoPessoa`: { id_condominio, bloqueado: 1, OR: [...] | nome }.
+        if (where.bloqueado === 1) {
+          return (
+            pessoas.find((p) => {
+              if (p.id_condominio !== where.id_condominio || p.bloqueado !== 1) return false;
+              if (where.OR) {
+                return where.OR.some((cond: any) =>
+                  cond.doc_identificacao !== undefined
+                    ? p.doc_identificacao === cond.doc_identificacao
+                    : p.nome === cond.nome?.equals,
+                );
+              }
+              return p.nome === where.nome?.equals;
+            }) ?? null
+          );
+        }
         if (where.doc_identificacao) {
           return pessoas.find((p) => p.id_condominio === where.id_condominio && p.doc_identificacao === where.doc_identificacao) ?? null;
         }
@@ -110,6 +126,7 @@ function buildHarness() {
   };
   const tenant: any = {
     assertCondominio: jest.fn().mockResolvedValue(true),
+    assertPermissaoFuncionario: jest.fn().mockResolvedValue(true),
   };
   const realtime: any = {};
 
@@ -124,7 +141,7 @@ function buildHarness() {
     visitasService,
   );
 
-  return { service, prisma, pessoas, visitas, facial, visitantesDelegate };
+  return { service, prisma, pessoas, visitas, facial, visitantesDelegate, tenant };
 }
 
 describe('VisitantesService.novaVisitaParaPessoa — Pessoas/Visitas (Lote B, Critical 2)', () => {
@@ -204,6 +221,54 @@ describe('VisitantesService.novaVisitaParaPessoa — Pessoas/Visitas (Lote B, Cr
         service.novaVisitaParaPessoa(999, { id_apartamento: 101 }, payload),
       ).rejects.toThrow('Pessoa 999 não encontrada');
       expect(visitantesDelegate).not.toHaveBeenCalled();
+    });
+
+    // Important 3 (Lote B): `novaVisitaParaPessoaViaPessoasVisitas` não fazia
+    // nenhuma das duas checagens abaixo — um funcionário sem a permissão
+    // podia criar visita/PIN por este caminho, e uma pessoa bloqueada ganhava
+    // uma Visita nova liberada com PIN novo.
+    it('funcionário sem a permissão cadastrar_visitante é barrado antes de criar a Visita', async () => {
+      const { service, pessoas, visitas, tenant } = buildHarness();
+      pessoas.push({
+        id: 5,
+        id_condominio: 1,
+        nome: 'Pessoa A',
+        doc_identificacao: '11122233344',
+        foto_pessoa: null,
+        foto_documento: null,
+        tipo_pessoa: 'visitante',
+        face_id: null,
+      });
+      tenant.assertPermissaoFuncionario.mockRejectedValueOnce(
+        new Error('Sem permissão para cadastrar visitante'),
+      );
+
+      const payload = { sub: 1, nome: 'Porteiro', id_condominio: 1 } as any;
+      await expect(
+        service.novaVisitaParaPessoa(5, { id_apartamento: 101 }, payload),
+      ).rejects.toThrow('Sem permissão para cadastrar visitante');
+      expect(visitas.length).toBe(0);
+    });
+
+    it('pessoa bloqueada é barrada antes de criar a Visita (não ganha PIN novo)', async () => {
+      const { service, pessoas, visitas } = buildHarness();
+      pessoas.push({
+        id: 5,
+        id_condominio: 1,
+        nome: 'Pessoa Bloqueada',
+        doc_identificacao: '99988877766',
+        foto_pessoa: null,
+        foto_documento: null,
+        tipo_pessoa: 'visitante',
+        face_id: null,
+        bloqueado: 1,
+      });
+
+      const payload = { sub: 1, nome: 'Porteiro', id_condominio: 1 } as any;
+      await expect(
+        service.novaVisitaParaPessoa(5, { id_apartamento: 101 }, payload),
+      ).rejects.toThrow('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
+      expect(visitas.length).toBe(0);
     });
   });
 
