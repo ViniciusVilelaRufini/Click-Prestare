@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { ApartamentosService } from './apartamentos.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 
@@ -6,6 +7,11 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
  * mensagem de auditoria (`arrastados.visitantes`). Task "Lote C": essa
  * contagem precisa ler de `Visitas` quando a flag da migração
  * Pessoas/Visitas está ligada, sem nunca misturar fontes.
+ *
+ * Com a flag ligada, `Visitas → Apartamentos` é RESTRICT (não CASCADE como
+ * `Visitantes → Apartamentos` era) — histórico de acesso físico não pode
+ * sumir em cascata. Por isso remove() recusa explicitamente quando há
+ * visitas, em vez de deixar o .delete() estourar P2003 cru.
  */
 describe('ApartamentosService — contagem de visitantes em remove() (Pessoas/Visitas)', () => {
   const sindico: JwtPayload = { sub: 1, nome: 'Síndico', typeAccess: 'Sindico', id_condominio: 1 };
@@ -49,12 +55,23 @@ describe('ApartamentosService — contagem de visitantes em remove() (Pessoas/Vi
     expect(prisma.visitas.count).not.toHaveBeenCalled();
   });
 
-  it('flag ON: conta contra Visitas e nunca toca Visitantes', async () => {
+  it('flag ON com visitas > 0: recusa e não chama delete', async () => {
     process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
-    const { svc, prisma } = build();
-    const r: any = await svc.remove(5, sindico);
-    expect(r.arrastados.visitantes).toBe(3);
+    const { svc, prisma } = build(); // mock padrão: visitas.count = 3
+    await expect(svc.remove(5, sindico)).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.visitas.count).toHaveBeenCalled();
     expect(prisma.visitantes.count).not.toHaveBeenCalled();
+    expect(prisma.apartamentos.delete).not.toHaveBeenCalled();
+  });
+
+  it('flag ON sem visitas: remove normalmente, contra Visitas', async () => {
+    process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    const { svc, prisma } = build();
+    prisma.visitas.count = jest.fn(async () => 0);
+    const r: any = await svc.remove(5, sindico);
+    expect(r.arrastados.visitantes).toBe(0);
+    expect(prisma.visitas.count).toHaveBeenCalled();
+    expect(prisma.visitantes.count).not.toHaveBeenCalled();
+    expect(prisma.apartamentos.delete).toHaveBeenCalled();
   });
 });

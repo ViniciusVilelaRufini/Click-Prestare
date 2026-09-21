@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -247,9 +247,10 @@ export class ApartamentosService {
       await this.tenant.assertPermissaoFuncionario(atual.id_condominio, 'apartamentos', user);
     }
 
+    const migrado = pessoasMigrationEnabled(this.prisma);
     const [moradores, visitantes, vagas, agendamentos, mudancas] = await Promise.all([
       this.prisma.apartamentos_Users.count({ where: { id_apto: Number(id) } }),
-      pessoasMigrationEnabled(this.prisma)
+      migrado
         ? this.prisma.visitas.count({ where: { id_apartamento: Number(id) } })
         : this.prisma.visitantes.count({ where: { id_apartamento: Number(id) } }),
       this.prisma.vagas.count({ where: { id_apartamento: Number(id) } }),
@@ -257,6 +258,18 @@ export class ApartamentosService {
       this.prisma.mudancas.count({ where: { id_apartamento: Number(id) } }),
     ]);
     const arrastados = { moradores, visitantes, vagas, agendamentos, mudancas };
+
+    // Visitas → Apartamentos é RESTRICT (histórico de acesso físico não pode
+    // sumir em cascata, mesma política de Acessos_Facial). Diferente de
+    // Visitantes → Apartamentos, que era CASCADE. Sem esta recusa explícita,
+    // o .delete() abaixo estoura P2003 e o operador recebe um erro técnico
+    // sem explicação nem caminho a seguir.
+    if (migrado && visitantes > 0) {
+      throw new ConflictException(
+        `Este apartamento tem ${visitantes} visita(s) no histórico e não pode ser removido. ` +
+          `O histórico de acesso não pode ser apagado em cascata.`,
+      );
+    }
 
     try {
       await this.prisma.apartamentos.delete({ where: { id: Number(id) } });
