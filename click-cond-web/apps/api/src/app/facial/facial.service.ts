@@ -3498,6 +3498,11 @@ export class FacialService {
     let idPessoa: number | null = null;
     let nomePessoa = 'Desconhecido';
     let faceIdSalvo = '';
+    // Critical 1 (Lote B): quando a credencial (QR/tag) resolve para uma
+    // Visita específica (flag ligada), guarda o objeto aqui para usar
+    // diretamente como `v` mais adiante — sem reeleger via
+    // `resolverVisitaAtivaPessoa`. Ver `resolverVisitantePorCredencial`.
+    let visitaResolvidaPorCredencial: any = null;
     const confianca = payload.confidence ?? null;
     const timestamp = payload.timestamp
       ? new Date(payload.timestamp)
@@ -3582,6 +3587,7 @@ export class FacialService {
           idPessoa = resolvido.idPessoa;
           nomePessoa = resolvido.nome;
           faceIdSalvo = qrCodeLido;
+          visitaResolvidaPorCredencial = resolvido.visita;
         }
       }
     } else if (tagRfidLida) {
@@ -3607,6 +3613,7 @@ export class FacialService {
           idPessoa = resolvido.idPessoa;
           nomePessoa = resolvido.nome;
           faceIdSalvo = tagRfidLida;
+          visitaResolvidaPorCredencial = resolvido.visita;
         }
       }
     } else if (placaLida) {
@@ -3907,28 +3914,48 @@ export class FacialService {
     if (tipoPessoa === 'visitante' || tipoPessoa === 'prestador') {
       const migrado = pessoasMigrationEnabled(this.prisma) && !!idPessoa;
       if (migrado) {
-        const pessoaComVisitas = await this.prisma.pessoas.findUnique({
-          where: { id: idPessoa },
-          include: { visitas: true },
-        });
-        if (pessoaComVisitas) {
-          visitaAtivaMigrada = this.resolverVisitaAtivaPessoa(pessoaComVisitas);
-          if (visitaAtivaMigrada) {
-            v = {
-              id: visitaAtivaMigrada.id,
-              id_condominio: visitaAtivaMigrada.id_condominio,
-              nome: pessoaComVisitas.nome,
-              is_prestador: visitaAtivaMigrada.is_prestador,
-              liberado: visitaAtivaMigrada.liberado,
-              bloqueado: visitaAtivaMigrada.bloqueado || pessoaComVisitas.bloqueado,
-              data_hora_inicio: visitaAtivaMigrada.data_hora_inicio,
-              data_hora_termino: visitaAtivaMigrada.data_hora_termino,
-              dias_semana: visitaAtivaMigrada.dias_semana,
-              data_entrada: visitaAtivaMigrada.data_entrada,
-              data_saida: visitaAtivaMigrada.data_saida,
-              codigo_acesso: visitaAtivaMigrada.codigo_acesso,
-              id_pessoa: pessoaComVisitas.id,
-            };
+        if (visitaResolvidaPorCredencial) {
+          // Critical 1 (Lote B): a credencial (QR/tag) já escolheu a Visita
+          // certa em `findVisitaByCredencial` — reconsultar `Pessoas` aqui e
+          // reeleger via `resolverVisitaAtivaPessoa` (critério diferente,
+          // `.find()` sem `orderBy`) podia devolver uma Visita DIFERENTE da
+          // pessoa (ex.: uma revogada versus a ativa, ou uma antiga não usada
+          // versus a que está com a pessoa DENTRO agora). Usa o objeto já
+          // resolvido diretamente como `v`, sem reeleger.
+          visitaAtivaMigrada = visitaResolvidaPorCredencial;
+          v = {
+            ...visitaResolvidaPorCredencial,
+            nome: visitaResolvidaPorCredencial.pessoa?.nome ?? nomePessoa,
+            bloqueado:
+              visitaResolvidaPorCredencial.bloqueado === 1 ||
+              visitaResolvidaPorCredencial.pessoa?.bloqueado === 1
+                ? 1
+                : 0,
+          };
+        } else {
+          const pessoaComVisitas = await this.prisma.pessoas.findUnique({
+            where: { id: idPessoa },
+            include: { visitas: true },
+          });
+          if (pessoaComVisitas) {
+            visitaAtivaMigrada = this.resolverVisitaAtivaPessoa(pessoaComVisitas);
+            if (visitaAtivaMigrada) {
+              v = {
+                id: visitaAtivaMigrada.id,
+                id_condominio: visitaAtivaMigrada.id_condominio,
+                nome: pessoaComVisitas.nome,
+                is_prestador: visitaAtivaMigrada.is_prestador,
+                liberado: visitaAtivaMigrada.liberado,
+                bloqueado: visitaAtivaMigrada.bloqueado || pessoaComVisitas.bloqueado,
+                data_hora_inicio: visitaAtivaMigrada.data_hora_inicio,
+                data_hora_termino: visitaAtivaMigrada.data_hora_termino,
+                dias_semana: visitaAtivaMigrada.dias_semana,
+                data_entrada: visitaAtivaMigrada.data_entrada,
+                data_saida: visitaAtivaMigrada.data_saida,
+                codigo_acesso: visitaAtivaMigrada.codigo_acesso,
+                id_pessoa: pessoaComVisitas.id,
+              };
+            }
           }
         }
         // Critical 3 (Lote B): com a flag ligada, `idPessoa` é um id de
@@ -4932,11 +4959,20 @@ export class FacialService {
    * id que o restante de `runWebhook` espera dali pra frente (a checagem de
    * `liberado`/janela/`dias_semana` mais adiante resolve `idPessoa` contra
    * `Pessoas`).
+   *
+   * Também devolve a própria `Visita` escolhida (`visita`, com `pessoa`
+   * incluída) quando migrado. Critical 1 (Lote B): `findVisitaByCredencial`
+   * já fez o desempate certo entre as várias Visitas que podem compartilhar a
+   * mesma credencial (mesmo `tag_rfid` gravado em todas pelo `atualizarPessoa`).
+   * Reconsultar `Pessoas` mais adiante e reeleger via `resolverVisitaAtivaPessoa`
+   * (outro critério, sem `orderBy`) podia devolver uma Visita DIFERENTE da que
+   * a credencial de fato identificou — quem chama este método deve usar
+   * `visita` diretamente como `v`, sem reeleger.
    */
   private async resolverVisitantePorCredencial(
     where: { id_condominio: number; codigo_acesso?: string; tag_rfid?: string },
     evento: string,
-  ): Promise<{ idPessoa: number; nome: string; isPrestador: boolean } | null> {
+  ): Promise<{ idPessoa: number; nome: string; isPrestador: boolean; visita: any | null } | null> {
     if (pessoasMigrationEnabled(this.prisma)) {
       const visita: any = await this.findVisitaByCredencial(where, evento);
       if (!visita) return null;
@@ -4944,6 +4980,7 @@ export class FacialService {
         idPessoa: visita.id_pessoa,
         nome: visita.pessoa?.nome ?? 'Desconhecido',
         isPrestador: visita.is_prestador === 1,
+        visita,
       };
     }
     const visitante = await this.findVisitanteByCredencial(where, evento);
@@ -4952,6 +4989,7 @@ export class FacialService {
       idPessoa: visitante.id,
       nome: visitante.nome,
       isPrestador: visitante.is_prestador === 1,
+      visita: null,
     };
   }
 

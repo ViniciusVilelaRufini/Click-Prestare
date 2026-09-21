@@ -198,6 +198,147 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
       );
       expect(visitantesDelegate).not.toHaveBeenCalled();
     });
+
+    it('duas Visitas com a MESMA credencial (uma revogada, uma ativa): resolve para a ativa e NÃO reeleje via Pessoas', async () => {
+      const agora = Date.now();
+      const pessoaId = 99;
+      const visitaRevogada = {
+        id: 701,
+        id_pessoa: pessoaId,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 0, // expirada/revogada — mas tag_rfid continua igual (atualizarPessoa grava em todas)
+        bloqueado: 0,
+        tag_rfid: 'TAG-MULTI',
+        codigo_acesso: null,
+        data_hora_inicio: new Date(agora - 7_200_000),
+        data_hora_termino: new Date(agora - 3_600_000),
+        data_entrada: null,
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: pessoaId, nome: 'Fulano Multi', bloqueado: 0 },
+      };
+      const visitaAtiva = {
+        id: 702,
+        id_pessoa: pessoaId,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 1,
+        bloqueado: 0,
+        tag_rfid: 'TAG-MULTI',
+        codigo_acesso: null,
+        data_hora_inicio: new Date(agora - 60_000),
+        data_hora_termino: new Date(agora + 3_600_000),
+        data_entrada: null,
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: pessoaId, nome: 'Fulano Multi', bloqueado: 0 },
+      };
+      const pessoa = {
+        id: pessoaId,
+        nome: 'Fulano Multi',
+        bloqueado: 0,
+        tipo_pessoa: 'visitante',
+        visitas: [visitaRevogada, visitaAtiva],
+      };
+      const { prisma } = buildPrisma({
+        visitasCandidatos: [visitaRevogada, visitaAtiva],
+        pessoa,
+      });
+      prisma.facial_Devices.findFirst.mockResolvedValue(DEVICE_TAG);
+      const { svc } = buildService(prisma);
+
+      await svc.processWebhook('tok-tag', {
+        event: 'entrada',
+        external_id: 'TAG-MULTI',
+        timestamp: new Date().toISOString(),
+      });
+
+      // A visita ATIVA (702) é a que abre a porta — não a revogada (701).
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: 702 }) }),
+      );
+      // `pessoas.findUnique` só é chamado aqui pelo re-sync em background
+      // pós-entrada (`syncPessoa`) — nunca ANTES do updateMany, que é onde a
+      // reeleição bugada consultava Pessoas para decidir qual Visita abre a
+      // porta. Confirma que a decisão em si não reconsultou Pessoas.
+      const ordemUpdateMany = prisma.visitas.updateMany.mock.invocationCallOrder[0];
+      const ordensFindUnique = prisma.pessoas.findUnique.mock.invocationCallOrder;
+      expect(ordensFindUnique.every((o: number) => o > ordemUpdateMany)).toBe(true);
+    });
+
+    it('saída: pessoa está DENTRO por uma Visita, mas tem outra mais antiga não usada — saída resolve para quem está dentro', async () => {
+      const agora = Date.now();
+      const pessoaId = 55;
+      const visitaAntigaNaoUsada = {
+        id: 801,
+        id_pessoa: pessoaId,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 1,
+        bloqueado: 0,
+        tag_rfid: 'TAG-EXIT',
+        codigo_acesso: null,
+        data_hora_inicio: new Date(agora - 3 * 3_600_000),
+        data_hora_termino: new Date(agora + 3_600_000), // janela ainda válida — .find() sem orderBy a elegeria primeiro
+        data_entrada: null,
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: pessoaId, nome: 'Fulano Dentro', bloqueado: 0 },
+      };
+      const visitaDentro = {
+        id: 802,
+        id_pessoa: pessoaId,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 1,
+        bloqueado: 0,
+        tag_rfid: 'TAG-EXIT',
+        codigo_acesso: null,
+        data_hora_inicio: new Date(agora - 3_600_000),
+        data_hora_termino: new Date(agora + 3_600_000),
+        data_entrada: new Date(agora - 1_800_000), // entrou há 30min, ainda não saiu
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: pessoaId, nome: 'Fulano Dentro', bloqueado: 0 },
+      };
+      const pessoa = {
+        id: pessoaId,
+        nome: 'Fulano Dentro',
+        bloqueado: 0,
+        tipo_pessoa: 'visitante',
+        // A antiga não-usada vem PRIMEIRO — é o cenário que a reeleição
+        // (`.find()` sem `orderBy`) escolheria errado no código antigo.
+        visitas: [visitaAntigaNaoUsada, visitaDentro],
+      };
+      const { prisma } = buildPrisma({
+        visitasCandidatos: [visitaAntigaNaoUsada, visitaDentro],
+        pessoa,
+      });
+      prisma.facial_Devices.findFirst.mockResolvedValue({ ...DEVICE_TAG, sentido: 'saida' });
+      const { svc } = buildService(prisma);
+
+      await svc.processWebhook('tok-tag', {
+        event: 'saida',
+        external_id: 'TAG-EXIT',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Não foi negado: a saída encontrou a Visita que está DENTRO (802), não a antiga (801).
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: 802 }) }),
+      );
+      // Mesma checagem de ordem do teste acima: `pessoas.findUnique` só
+      // aparece (se aparecer) pelo re-sync em background pós-saída, depois
+      // da decisão de qual Visita sai.
+      const ordemUpdateMany = prisma.visitas.updateMany.mock.invocationCallOrder[0];
+      const ordensFindUnique = prisma.pessoas.findUnique.mock.invocationCallOrder;
+      expect(ordensFindUnique.every((o: number) => o > ordemUpdateMany)).toBe(true);
+    });
   });
 
   describe('flag OFF (default) — continua resolvendo contra Visitantes', () => {
