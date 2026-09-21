@@ -403,4 +403,144 @@ describe('FacialService — webhook, credencial (PIN/tag) em Visitas (Lote B, Cr
       expect(visitasDelegate).not.toHaveBeenCalled();
     });
   });
+
+  /**
+   * Critical follow-up (Lote B, pós-Critical 1): num terminal `sentido:
+   * 'auto'` (default do schema — caso real dos faciais Intelbras/Dahua), a
+   * credencial era resolvida/desempatada com o palpite INICIAL de `evento`
+   * (sempre 'entrada' quando o payload não traz direção) — mas o bloco
+   * `isAmbiguousAuto`, que roda DEPOIS, podia reclassificar para 'saida' com
+   * base no estado real da pessoa. `visitaResolvidaPorCredencial` ficava
+   * então desempatada para o sentido ERRADO: uma pessoa DENTRO era negada por
+   * "não possui uma entrada ativa" na Visita ainda não usada, em vez de dar
+   * baixa na Visita em que ela de fato está.
+   */
+  describe('sentido "auto": evento reclassificado após a credencial já ter sido resolvida', () => {
+    beforeEach(() => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    });
+
+    const DEVICE_TAG_AUTO = { ...DEVICE_TAG, sentido: 'auto' };
+
+    it('pessoa DENTRO apresenta a tag: reresolve e dá saída na Visita correta (não nega por falta de entrada)', async () => {
+      const agora = Date.now();
+      const idPessoa = 66;
+      const visitaNaoUsada = {
+        id: 901,
+        id_pessoa: idPessoa,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 1,
+        bloqueado: 0,
+        tag_rfid: 'TAG-AUTO',
+        codigo_acesso: null,
+        data_hora_inicio: new Date(agora - 3_600_000),
+        data_hora_termino: new Date(agora + 3_600_000),
+        data_entrada: null,
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: idPessoa, nome: 'Fulano Auto', bloqueado: 0 },
+      };
+      const visitaDentro = {
+        id: 902,
+        id_pessoa: idPessoa,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 1,
+        bloqueado: 0,
+        tag_rfid: 'TAG-AUTO',
+        codigo_acesso: null,
+        data_hora_inicio: new Date(agora - 3_600_000),
+        data_hora_termino: new Date(agora + 3_600_000),
+        data_entrada: new Date(agora - 1_800_000), // entrou há 30min, ainda não saiu
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: idPessoa, nome: 'Fulano Auto', bloqueado: 0 },
+      };
+      const { prisma } = buildPrisma({
+        visitasCandidatos: [visitaNaoUsada, visitaDentro],
+      });
+      prisma.facial_Devices.findFirst.mockResolvedValue(DEVICE_TAG_AUTO);
+      // Checagem "dentroAgora" do isAmbiguousAuto: a pessoa está de fato dentro.
+      prisma.visitas.findFirst.mockResolvedValue(visitaDentro);
+      const { svc } = buildService(prisma);
+
+      // Sem `direction` e sem palavra de entrada/saída no `event` — mesmo
+      // formato ambíguo usado no teste de Critical 3 — para exercitar o
+      // palpite inicial 'entrada' seguido do flip para 'saida'.
+      await svc.processWebhook('tok-tag', {
+        event: 'access',
+        external_id: 'TAG-AUTO',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Prova da reresolução: `findVisitaByCredencial` (via
+      // `prisma.visitas.findMany`) foi chamado 2x — uma vez com o palpite
+      // inicial ('entrada'), outra com o evento final ('saida').
+      expect(prisma.visitas.findMany).toHaveBeenCalledTimes(2);
+
+      // A saída baixa a Visita em que a pessoa está DENTRO (902) — não a
+      // ainda não usada (901), que não tem `data_entrada` e teria sido
+      // negada por "não possui uma entrada ativa".
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 902,
+            data_entrada: expect.anything(),
+            data_saida: null,
+          }),
+          data: expect.objectContaining({ data_saida: expect.any(Date) }),
+        }),
+      );
+    });
+
+    it('pessoa FORA apresenta a tag: evento permanece "entrada", sem reresolução (comportamento preexistente intacto)', async () => {
+      const agora = Date.now();
+      const idPessoa = 67;
+      const visitaNaoUsada = {
+        id: 903,
+        id_pessoa: idPessoa,
+        id_condominio: 1,
+        id_apartamento: 101,
+        is_prestador: 0,
+        liberado: 1,
+        bloqueado: 0,
+        tag_rfid: 'TAG-AUTO-2',
+        codigo_acesso: null,
+        data_hora_inicio: new Date(agora - 60_000),
+        data_hora_termino: new Date(agora + 3_600_000),
+        data_entrada: null,
+        data_saida: null,
+        dias_semana: null,
+        pessoa: { id: idPessoa, nome: 'Fulano Fora', bloqueado: 0 },
+      };
+      const { prisma } = buildPrisma({
+        visitasCandidatos: [visitaNaoUsada],
+      });
+      prisma.facial_Devices.findFirst.mockResolvedValue(DEVICE_TAG_AUTO);
+      // Ninguém dentro (findFirst da checagem "dentroAgora" não acha nada) e
+      // sem histórico em Acessos_Facial (mock default já retorna null) — a
+      // alternância cai para 'entrada', igual ao palpite inicial.
+      prisma.visitas.findFirst.mockResolvedValue(null);
+      const { svc } = buildService(prisma);
+
+      await svc.processWebhook('tok-tag', {
+        event: 'access',
+        external_id: 'TAG-AUTO-2',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Sem flip de evento, não há reresolução: findMany chamado 1x só.
+      expect(prisma.visitas.findMany).toHaveBeenCalledTimes(1);
+
+      expect(prisma.visitas.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 903, liberado: 1 }),
+          data: expect.objectContaining({ data_entrada: expect.any(Date) }),
+        }),
+      );
+    });
+  });
 });

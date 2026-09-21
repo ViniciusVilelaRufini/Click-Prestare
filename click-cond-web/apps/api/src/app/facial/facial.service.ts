@@ -3576,6 +3576,16 @@ export class FacialService {
     // diretamente como `v` mais adiante — sem reeleger via
     // `resolverVisitaAtivaPessoa`. Ver `resolverVisitantePorCredencial`.
     let visitaResolvidaPorCredencial: any = null;
+    // Critical follow-up (Lote B): guarda o `where` e o `evento` usados na
+    // resolução acima — necessários para reresolver mais abaixo, se o
+    // `isAmbiguousAuto` flipar `evento` DEPOIS que a credencial já escolheu a
+    // Visita pelo palpite inicial. Ver bloco após o `isAmbiguousAuto`.
+    let credencialWhereParaVisita: {
+      id_condominio: number;
+      codigo_acesso?: string;
+      tag_rfid?: string;
+    } | null = null;
+    let eventoParaResolucaoCredencial: string | null = null;
     const confianca = payload.confidence ?? null;
     const timestamp = payload.timestamp
       ? new Date(payload.timestamp)
@@ -3651,8 +3661,12 @@ export class FacialService {
       } else {
         // Critical 1 (Lote B): dispatch pela flag — com ela ligada, o PIN
         // (codigo_acesso) mora em `Visitas`, não mais em `Visitantes`.
+        const whereCredencialQr = {
+          codigo_acesso: qrCodeLido,
+          id_condominio: device.id_condominio,
+        };
         const resolvido = await this.resolverVisitantePorCredencial(
-          { codigo_acesso: qrCodeLido, id_condominio: device.id_condominio },
+          whereCredencialQr,
           evento,
         );
         if (resolvido) {
@@ -3661,6 +3675,10 @@ export class FacialService {
           nomePessoa = resolvido.nome;
           faceIdSalvo = qrCodeLido;
           visitaResolvidaPorCredencial = resolvido.visita;
+          if (resolvido.visita) {
+            credencialWhereParaVisita = whereCredencialQr;
+            eventoParaResolucaoCredencial = evento;
+          }
         }
       }
     } else if (tagRfidLida) {
@@ -3677,8 +3695,12 @@ export class FacialService {
         faceIdSalvo = tagRfidLida;
       } else {
         // Critical 1 (Lote B): mesmo dispatch, para a tag RFID.
+        const whereCredencialTag = {
+          tag_rfid: tagRfidLida,
+          id_condominio: device.id_condominio,
+        };
         const resolvido = await this.resolverVisitantePorCredencial(
-          { tag_rfid: tagRfidLida, id_condominio: device.id_condominio },
+          whereCredencialTag,
           evento,
         );
         if (resolvido) {
@@ -3687,6 +3709,10 @@ export class FacialService {
           nomePessoa = resolvido.nome;
           faceIdSalvo = tagRfidLida;
           visitaResolvidaPorCredencial = resolvido.visita;
+          if (resolvido.visita) {
+            credencialWhereParaVisita = whereCredencialTag;
+            eventoParaResolucaoCredencial = evento;
+          }
         }
       }
     } else if (placaLida) {
@@ -3950,6 +3976,31 @@ export class FacialService {
         evento = 'entrada';
       } else {
         evento = eventoAlternado;
+      }
+    }
+
+    // Critical follow-up (Lote B): o bloco `isAmbiguousAuto` ACIMA pode ter
+    // acabado de flipar `evento` (ex.: 'entrada' → 'saida') DEPOIS que a
+    // credencial (QR/tag) já havia desempatado `visitaResolvidaPorCredencial`
+    // usando o palpite inicial de `evento`, ainda não finalizado. Se ficasse
+    // assim, `v` mais abaixo seria a Visita escolhida para o sentido ERRADO —
+    // ex.: pessoa DENTRO apresenta a credencial num terminal 'auto', o
+    // palpite inicial é 'entrada', a credencial desempata para a Visita ainda
+    // sem uso (não a que está com a pessoa dentro), e só depois o terminal é
+    // corretamente reclassificado para 'saida' — negando por "sem entrada
+    // ativa" numa Visita que nunca teve entrada. Reresolve com o evento FINAL.
+    if (
+      pessoasMigrationEnabled(this.prisma) &&
+      visitaResolvidaPorCredencial &&
+      credencialWhereParaVisita &&
+      evento !== eventoParaResolucaoCredencial
+    ) {
+      const revisado = await this.resolverVisitantePorCredencial(
+        credencialWhereParaVisita,
+        evento,
+      );
+      if (revisado?.visita) {
+        visitaResolvidaPorCredencial = revisado.visita;
       }
     }
 
