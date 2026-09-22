@@ -7,7 +7,9 @@ Novos uploads retornam e persistem somente a chave opaca do objeto (por exemplo,
 bucket, nem ACL pública. Clientes não devem usar uma chave nova diretamente em
 `src` ou como link de download.
 
-Uma leitura de chave privada passa pela rota autenticada `GET /storage/read`
+As chaves privadas não possuem rota genérica de leitura. A leitura só deve ser
+implementada junto ao recurso que persiste a chave e valida explicitamente o
+vínculo da entidade com o condomínio; a rota genérica permanece bloqueada.
 com `key` e `id_condominio`. Antes de consultar o bucket, ela:
 
 1. valida que `key` é uma chave opaca segura (não uma URL);
