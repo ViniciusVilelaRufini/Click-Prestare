@@ -4163,6 +4163,22 @@ export class MobileAuthService {
     return { moradorId: m.id, idCondominio: m.id_condominio, apto };
   }
 
+  /**
+   * Moradores do apto pelo par (bloco, apto) — mesmo critério de
+   * `VagasService.moradoresDoApto` (vagas/vagas.service.ts). Antes desta
+   * correção, `liberarVaga`/`listVagasByUser` contavam só os veículos do
+   * morador LOGADO — apto com 2 vagas e dois moradores com 1 carro cada: a
+   * portaria recusava a 3ª vaga, mas o app (logado como qualquer um dos
+   * dois) aceitava, porque só via o próprio carro. Divergência real entre os
+   * dois consoles, sempre na direção de liberar vaga a mais.
+   */
+  private async moradoresDoApto(apto: { id_condominio: number; bloco: string | null; apto: string | null }) {
+    return this.prisma.moradores.findMany({
+      where: { id_condominio: apto.id_condominio, bloco: apto.bloco, apartamento: apto.apto },
+      select: { id: true },
+    });
+  }
+
   private mapVaga(v: any) {
     return {
       id: v.id,
@@ -4187,6 +4203,8 @@ export class MobileAuthService {
     if (!this.prisma.isConnected) return { qtd_vagas: 0, ocupadas: 0, vagas: [] };
     const ctx = await this.resolveMoradorApto(idUser, idCondominio);
     if (!ctx) return { qtd_vagas: 0, ocupadas: 0, vagas: [] };
+    const moradores = await this.moradoresDoApto(ctx.apto);
+    const moradorIds = moradores.map((m) => m.id);
     const [vagas, veiculos] = await Promise.all([
       this.prisma.vagas.findMany({
         where: { id_apartamento: ctx.apto.id, ativo: 1 },
@@ -4199,12 +4217,15 @@ export class MobileAuthService {
         },
         orderBy: { created_at: 'desc' },
       }),
-      // Veículos próprios do morador ocupam automaticamente uma vaga "proprio"
-      // (sintetizada em leitura, sem materializar linha em Vagas).
-      this.prisma.veiculos.findMany({
-        where: { id_morador: ctx.moradorId, ativo: 1 },
-        orderBy: { created_at: 'desc' },
-      }),
+      // Veículos próprios de QUALQUER morador do apto (não só o logado)
+      // ocupam automaticamente uma vaga "proprio" (sintetizada em leitura,
+      // sem materializar linha em Vagas) — mesmo critério de VagasService.
+      moradorIds.length
+        ? this.prisma.veiculos.findMany({
+            where: { id_morador: { in: moradorIds }, ativo: 1 },
+            orderBy: { created_at: 'desc' },
+          })
+        : Promise.resolve([]),
     ]);
     const proprios = veiculos.map((v) => ({
       id: null,
@@ -4318,9 +4339,15 @@ export class MobileAuthService {
     }
 
     // Checa vaga livre: (ativas liberadas + veículos próprios) < qtd_vagas.
+    // Veículos de TODOS os moradores do apto contam, não só o logado — mesma
+    // regra de VagasService.liberar (portaria-web).
+    const moradoresDoAptoLiberar = await this.moradoresDoApto(ctx.apto);
+    const moradorIdsLiberar = moradoresDoAptoLiberar.map((m) => m.id);
     const [ativas, veiculosProprios] = await Promise.all([
       this.prisma.vagas.count({ where: { id_apartamento: ctx.apto.id, ativo: 1 } }),
-      this.prisma.veiculos.count({ where: { id_morador: ctx.moradorId, ativo: 1 } }),
+      moradorIdsLiberar.length
+        ? this.prisma.veiculos.count({ where: { id_morador: { in: moradorIdsLiberar }, ativo: 1 } })
+        : Promise.resolve(0),
     ]);
     if (ativas + veiculosProprios >= (ctx.apto.qtd_vagas ?? 0)) {
       throw new BadRequestException('Não há vagas livres neste apartamento.');
