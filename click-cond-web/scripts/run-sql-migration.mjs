@@ -54,7 +54,24 @@ try {
   }
 
   console.log(`Applying ${file} (${checksum})`);
-  await connection.query(sql);
+  const statements = sql
+    .split(/;\s*(?:\r?\n|$)/)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  for (const statement of statements) {
+    try {
+      await connection.query(statement);
+    } catch (error) {
+      const idempotentCodes = new Set([
+        'ER_DUP_FIELDNAME',
+        'ER_DUP_KEYNAME',
+        'ER_CANT_DROP_FIELD_OR_KEY',
+        'ER_FK_DUP_NAME',
+      ]);
+      if (!idempotentCodes.has(error.code)) throw error;
+      console.log(`Already present, continuing: ${error.code}`);
+    }
+  }
   await connection.query(
     'INSERT INTO _schema_migrations (filename, checksum) VALUES (?, ?)',
     [file, checksum],
