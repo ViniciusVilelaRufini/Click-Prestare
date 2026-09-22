@@ -21,6 +21,9 @@
  *   DEVICE_TOKENS  Tokens dos devices (o webhook_token de cada um), separados
  *                  por vírgula. Copie do portal: botão "Copiar URL Webhook" —
  *                  o token é o trecho final da URL.
+ *   DEVICE_CREDENTIALS_JSON  Credenciais LAN locais, por id do device, por
+ *                  exemplo {"12":{"user":"admin","pass":"..."}}. Nunca
+ *                  são obtidas da API nem enviadas pela rede.
  *   POLL_INTERVAL_MS  (opcional) intervalo de polling. Default vem da nuvem.
  *   LAN_TIMEOUT_MS    (opcional) timeout das chamadas ao aparelho. Default 8000.
  *
@@ -64,6 +67,19 @@ let DEVICE_TOKENS = (process.env.DEVICE_TOKENS || '')
   .split(',')
   .map((t) => t.trim())
   .filter(Boolean);
+let DEVICE_CREDENTIALS = {};
+try {
+  DEVICE_CREDENTIALS = JSON.parse(process.env.DEVICE_CREDENTIALS_JSON || '{}');
+} catch {
+  console.error('[agente] DEVICE_CREDENTIALS_JSON inválido; usando credenciais padrão somente onde permitido');
+}
+function credentialsFor(device) {
+  const local = DEVICE_CREDENTIALS[String(device.id)] || {};
+  return {
+    user: local.user || device.api_user || 'admin',
+    pass: local.pass || 'admin',
+  };
+}
 const DEFAULT_POLL_MS = Number(process.env.POLL_INTERVAL_MS || 2000);
 const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
 // Intervalo do heartbeat de status do aparelho (online/offline no portal).
@@ -642,8 +658,7 @@ async function streamLiveView(device, res) {
 /** GET snapshot reutilizando o nonce do Digest (evita o 401 a cada quadro). */
 function snapshotComDigest(device, st) {
   const reqPath = '/cgi-bin/snapshot.cgi?channel=1';
-  const user = device.api_user || 'admin';
-  const pass = device.api_password || 'admin';
+  const { user, pass } = credentialsFor(device);
   const fetchOne = (authHeader) =>
     new Promise((resolve, reject) => {
       const req = http.request(
@@ -1112,8 +1127,7 @@ async function controlIdUpdate(device, cmd) {
 async function controlIdLogin(device) {
   const res = await lanRequest(device, 'POST', '/login.fcgi', {
     json: {
-      login: device.api_user || 'admin',
-      password: device.api_password || 'admin',
+      ...credentialsFor(device),
     },
   });
   const session = res.data && res.data.session;
@@ -1147,8 +1161,7 @@ function parseJson(res) {
 
 async function dahuaLogin(device) {
   const base = `http://${device.ip}:${device.porta}`;
-  const user = device.api_user || 'admin';
-  const pass = device.api_password || 'admin';
+  const { user, pass } = credentialsFor(device);
   const s1 = await request(`${base}/RPC2_Login`, {
     method: 'POST',
     timeout: LAN_TIMEOUT_MS,
@@ -1393,8 +1406,7 @@ function startDahuaEventListener(token, device) {
  *  onConnect é chamado uma única vez no primeiro byte recebido. */
 function dahuaAttachOnce(token, device, onConnect) {
   return new Promise((resolve, reject) => {
-    const user = device.api_user || 'admin';
-    const pass = device.api_password || 'admin';
+    const { user, pass } = credentialsFor(device);
     const path = '/cgi-bin/eventManager.cgi?action=attach&codes=[All]';
 
     // 1) Desafio Digest (o attach exige autenticação por header).
@@ -1693,8 +1705,7 @@ function startHikvisionEventListener(token, device) {
 /** Abre UMA conexão alertStream (Digest) e processa enquanto o aparelho mantém. */
 function hikvisionAlertOnce(token, device) {
   return new Promise((resolve, reject) => {
-    const user = device.api_user || 'admin';
-    const pass = device.api_password || 'admin';
+    const { user, pass } = credentialsFor(device);
     const path = '/ISAPI/Event/notification/alertStream';
     const challenge = http.request(
       { host: device.ip, port: device.porta, path, method: 'GET' },
@@ -1989,9 +2000,10 @@ function lanRequest(device, method, pathname, opts = {}) {
   const url = `${scheme}://${device.ip}:${device.porta}${pathname}`;
   // control_id usa sessão (na query), não auth por header. Para os demais,
   // request() tenta Basic e cai para Digest se o aparelho exigir (Hikvision).
+  const localCredentials = credentialsFor(device);
   const auth =
-    device.api_user && device.api_password && device.fabricante !== 'control_id'
-      ? { user: device.api_user, pass: device.api_password }
+    localCredentials.user && localCredentials.pass && device.fabricante !== 'control_id'
+      ? localCredentials
       : undefined;
   return request(url, { method, timeout: LAN_TIMEOUT_MS, auth, ...opts });
 }

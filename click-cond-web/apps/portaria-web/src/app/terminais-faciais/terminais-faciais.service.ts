@@ -242,11 +242,11 @@ export class TerminaisFaciaisApi {
 
   /** Chave do agente do condomínio + URL de download do executável. */
   agentInfo(): Observable<{
-    agent_token: string;
+    configured: boolean;
     download_url: string | null;
   }> {
     const params = new HttpParams().set('id_condominio', this.idCondominio);
-    return this.http.get<{ agent_token: string; download_url: string | null }>(
+    return this.http.get<{ configured: boolean; download_url: string | null }>(
       `${this.base}/agent/info`,
       { params },
     );

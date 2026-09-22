@@ -97,7 +97,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   }
 
   // Agente: chave do condomínio + download do executável/config
-  readonly agentToken = signal<string | null>(null);
+  readonly agentConfigured = signal(false);
   readonly agentDownloadUrl = signal<string | null>(null);
   readonly baixando = signal<string | null>(null);
 
@@ -285,7 +285,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   loadAgentInfo() {
     this.api.agentInfo().subscribe({
       next: (i) => {
-        this.agentToken.set(i.agent_token);
+        this.agentConfigured.set(i.configured);
         this.agentDownloadUrl.set(i.download_url);
       },
       error: () => {},
@@ -312,14 +312,6 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
         setTimeout(() => this.errorMessage.set(null), 4000);
       },
     });
-  }
-
-  copiarChave() {
-    const t = this.agentToken();
-    if (!t) return;
-    navigator.clipboard?.writeText(t);
-    this.successMessage.set('Chave do agente copiada.');
-    setTimeout(() => this.successMessage.set(null), 3000);
   }
 
   /**
