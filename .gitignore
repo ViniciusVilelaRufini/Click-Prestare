@@ -53,3 +53,6 @@ click-cond-app/click-cond-app/.flutter-plugins-dependencies
 *.apk
 *.aab
 brand_kit_click_prestare.pdf
+
+# Worktrees locais de agentes
+.worktrees/
