@@ -24,6 +24,7 @@ import { AppModule } from './app/app.module';
 import { AllExceptionsFilter } from './app/common/filters/all-exceptions.filter';
 import { json, text, urlencoded } from 'express';
 import { requestContext, extractClientIp } from './app/common/context/request-context';
+import { JSON_BODY_LIMIT } from './app/common/storage/upload-limits';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
@@ -39,8 +40,8 @@ async function bootstrap() {
     });
   });
 
-  app.use(json({ limit: '12mb' }));
-  app.use(urlencoded({ limit: '12mb', extended: true }));
+  app.use(json({ limit: JSON_BODY_LIMIT }));
+  app.use(urlencoded({ limit: JSON_BODY_LIMIT, extended: true }));
   // Câmeras Hikvision postam notificação de evento em XML (não em JSON). Sem
   // este parser o corpo chegava VAZIO no webhook e a leitura de placa era
   // descartada em silêncio. O XML é convertido em webhook-payload.util.

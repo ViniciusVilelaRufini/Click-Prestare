@@ -6,6 +6,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
 
 import { BadRequestException } from '@nestjs/common';
 import { S3Client } from '@aws-sdk/client-s3';
+import { JSON_BODY_LIMIT_BYTES, MAX_PDF_BYTES } from './upload-limits';
 import { StorageService } from './storage.service';
 
 describe('StorageService', () => {
@@ -65,7 +66,7 @@ describe('StorageService', () => {
   });
 
   it('uploads a valid jpeg without a public ACL', async () => {
-    await service.uploadDataUrl('data:image/jpeg;base64,/9j/AA==', 'moradores');
+    const result = await service.uploadDataUrl('data:image/jpeg;base64,/9j/AA==', 'moradores');
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -74,6 +75,28 @@ describe('StorageService', () => {
         ContentType: 'image/jpeg',
       }),
     );
+    expect(result).toMatch(/^moradores\//);
+    expect(result).not.toContain('https://storage.example.test');
+  });
+
+  it.each([
+    ['image/jpeg', Buffer.from('<html>not an image</html>')],
+    ['image/png', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')],
+    ['image/webp', Buffer.from('%PDF-1.7')],
+    ['application/pdf', Buffer.from('<script>alert(1)</script>')],
+  ])('rejects bytes that do not match declared MIME %s', async (mime, content) => {
+    await expect(
+      service.uploadDataUrl(`data:${mime};base64,${content.toString('base64')}`, 'moradores'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sets a JSON limit that can carry the maximum supported PDF data URL', () => {
+    const pdf = Buffer.alloc(MAX_PDF_BYTES);
+    Buffer.from('%PDF-').copy(pdf);
+    const body = JSON.stringify({ doc: `data:application/pdf;base64,${pdf.toString('base64')}` });
+
+    expect(Buffer.byteLength(body)).toBeLessThanOrEqual(JSON_BODY_LIMIT_BYTES);
   });
 
   it('recognizes configured legacy public URLs without trusting other origins', () => {

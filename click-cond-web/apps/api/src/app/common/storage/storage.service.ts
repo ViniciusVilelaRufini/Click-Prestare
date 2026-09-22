@@ -1,12 +1,13 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
+import { MAX_IMAGE_BYTES, MAX_PDF_BYTES } from './upload-limits';
 
 const UPLOAD_TYPES = {
-  'image/jpeg': { extension: 'jpg', maxBytes: 5 * 1024 * 1024 },
-  'image/png': { extension: 'png', maxBytes: 5 * 1024 * 1024 },
-  'image/webp': { extension: 'webp', maxBytes: 5 * 1024 * 1024 },
-  'application/pdf': { extension: 'pdf', maxBytes: 10 * 1024 * 1024 },
+  'image/jpeg': { extension: 'jpg', maxBytes: MAX_IMAGE_BYTES },
+  'image/png': { extension: 'png', maxBytes: MAX_IMAGE_BYTES },
+  'image/webp': { extension: 'webp', maxBytes: MAX_IMAGE_BYTES },
+  'application/pdf': { extension: 'pdf', maxBytes: MAX_PDF_BYTES },
 } as const;
 
 type UploadMime = keyof typeof UPLOAD_TYPES;
@@ -14,6 +15,7 @@ type UploadMime = keyof typeof UPLOAD_TYPES;
 interface ParsedUploadDataUrl {
   contentType: UploadMime;
   buffer: Buffer;
+  extension: string;
 }
 
 /**
@@ -24,7 +26,7 @@ interface ParsedUploadDataUrl {
  *  - R2_SECRET_ACCESS_KEY
  *  - R2_ENDPOINT          (https://<accountId>.r2.cloudflarestorage.com)
  *  - R2_BUCKET            (nome do bucket)
- *  - R2_PUBLIC_URL        (https://pub-xxxxx.r2.dev — usada para gerar a URL final)
+ *  - R2_PUBLIC_URL        (URL legada, usada somente para reconhecer objetos antigos)
  *
  * Se as variáveis não estiverem setadas, o upload é desativado e o método
  * retorna a string original (compatibilidade com ambiente de dev).
@@ -57,7 +59,7 @@ export class StorageService {
       (this.bucket ? `https://${this.bucket}.s3.amazonaws.com` : '');
     this.publicUrl = baseS3Url.replace(/\/+$/, '');
 
-    if (!accessKeyId || !secretAccessKey || !this.bucket || !this.publicUrl) {
+    if (!accessKeyId || !secretAccessKey || !this.bucket) {
       this.client = null;
       this.enabled = false;
       this.logger.warn('StorageService desativado (S3/R2 envs incompletas). Uploads serão ignorados.');
@@ -110,22 +112,22 @@ export class StorageService {
   /**
    * Faz upload de um data URL base64 para o bucket R2.
    * - prefix: pasta lógica no bucket (ex.: "documentos", "comprovantes", "visitantes")
-   * - hint: extensão preferida (ex.: "pdf"). Se vier vazia, infere do mime type.
+   * - hint: mantido por compatibilidade; a extensão deriva do MIME validado.
    *
-   * Retorna a URL pública do arquivo, ou null se o storage estiver desativado / falhar.
+   * Retorna a chave privada do arquivo, ou null se o storage estiver desativado / falhar.
    */
   async uploadDataUrl(
     dataUrl: string,
     prefix: string,
-    hint?: string,
+    _hint?: string,
   ): Promise<string | null> {
-    const { contentType, buffer } = this.parseUploadDataUrl(dataUrl);
+    const { contentType, buffer, extension } = this.parseUploadDataUrl(dataUrl);
 
     // Se o S3 não está configurado, retorna o base64 original como fallback
     if (!this.enabled || !this.client) return dataUrl;
 
     try {
-      const ext = (hint ?? this.extFromMime(contentType)).replace(/^\.+/, '');
+      const ext = extension;
       const safePrefix = prefix.replace(/[^a-z0-9_\-\/]/gi, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '').slice(0, 60) || 'arquivo';
       const key = `${safePrefix}/${Date.now()}-${randomUUID()}.${ext}`;
 
@@ -137,7 +139,7 @@ export class StorageService {
         ACL: undefined,
       }));
 
-      return `${this.publicUrl}/${key}`;
+      return key;
     } catch (err: any) {
       this.logger.error(`Falha ao subir para R2: ${err?.message ?? err}. Usando base64 fallback.`);
       return dataUrl;
@@ -174,7 +176,25 @@ export class StorageService {
       throw new BadRequestException(`File exceeds the ${policy.maxBytes}-byte limit for ${contentType}.`);
     }
 
-    return { contentType, buffer };
+    if (!this.hasExpectedSignature(contentType, buffer)) {
+      throw new BadRequestException('File content does not match its declared type.');
+    }
+
+    return { contentType, buffer, extension: policy.extension };
+  }
+
+  private hasExpectedSignature(contentType: UploadMime, buffer: Buffer): boolean {
+    if (contentType === 'image/jpeg') {
+      return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    }
+    if (contentType === 'image/png') {
+      return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    }
+    if (contentType === 'image/webp') {
+      return buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+        buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+    }
+    return buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-';
   }
 
   private isStrictBase64(value: string): boolean {
@@ -238,16 +258,4 @@ export class StorageService {
     }
   }
 
-  private extFromMime(mime: string): string {
-    const m = mime.toLowerCase();
-    if (m.includes('pdf')) return 'pdf';
-    if (m.includes('png')) return 'png';
-    if (m.includes('jpeg') || m.includes('jpg')) return 'jpg';
-    if (m.includes('webp')) return 'webp';
-    if (m.includes('gif')) return 'gif';
-    if (m.includes('svg')) return 'svg';
-    if (m.includes('sheet') || m.includes('excel')) return 'xlsx';
-    if (m.includes('csv')) return 'csv';
-    return 'bin';
-  }
 }

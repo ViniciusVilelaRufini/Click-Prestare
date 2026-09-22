@@ -1,63 +1,88 @@
 const AWS = require('aws-sdk');
 
-/**
- * Upload image to AWS S3
- * @param {String} base64 Full base64 string
- * @param {String} folder Name of the folder at AWS Bucket
- * @param {String} name Name of file
- * @param {String} id ID to differentiate files 
- * @return {Promise} Return the public URL and name from the file
- */
-module.exports = (base64, folder, name, id) => {
-  if (!base64.includes('base64')) return { url: base64 };
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
+const UPLOAD_TYPES = {
+  'image/jpeg': { extension: 'jpg', maxBytes: MAX_IMAGE_BYTES },
+  'image/png': { extension: 'png', maxBytes: MAX_IMAGE_BYTES },
+  'image/webp': { extension: 'webp', maxBytes: MAX_IMAGE_BYTES },
+  'application/pdf': { extension: 'pdf', maxBytes: MAX_PDF_BYTES },
+};
+
+function invalid(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+function isStrictBase64(value) {
+  if (!value || value.length % 4 !== 0) return false;
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+  const contentLength = value.length - padding;
+  if ((padding === 1 && contentLength % 4 !== 3) || (padding === 2 && contentLength % 4 !== 2)) return false;
+
+  for (let index = 0; index < contentLength; index += 1) {
+    const code = value.charCodeAt(index);
+    if (!((code >= 65 && code <= 90) || (code >= 97 && code <= 122) ||
+      (code >= 48 && code <= 57) || code === 43 || code === 47)) return false;
+  }
+  return true;
+}
+
+function hasExpectedSignature(contentType, buffer) {
+  if (contentType === 'image/jpeg') return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (contentType === 'image/png') return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (contentType === 'image/webp') return buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+  return buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+}
+
+function parseDataUrl(dataUrl) {
+  const separator = typeof dataUrl === 'string' ? dataUrl.indexOf(',') : -1;
+  const header = separator >= 0 ? dataUrl.slice(0, separator) : '';
+  const match = /^data:([^;,]+);base64$/i.exec(header);
+  if (!match) throw invalid('INVALID_DATA_URL');
+
+  const contentType = match[1].toLowerCase();
+  const policy = UPLOAD_TYPES[contentType];
+  if (!policy) throw invalid('TYPE_NOT_ALLOWED');
+
+  const raw = dataUrl.slice(separator + 1);
+  const padding = raw.endsWith('==') ? 2 : raw.endsWith('=') ? 1 : 0;
+  const decodedLength = (raw.length / 4) * 3 - padding;
+  if (decodedLength > policy.maxBytes) throw invalid('FILE_TOO_LARGE');
+  if (!isStrictBase64(raw)) throw invalid('INVALID_BASE64');
+
+  const buffer = Buffer.from(raw, 'base64');
+  if (!buffer.length || buffer.length > policy.maxBytes) throw invalid('FILE_TOO_LARGE');
+  if (!hasExpectedSignature(contentType, buffer)) throw invalid('INVALID_FILE_SIGNATURE');
+
+  return { buffer, contentType, extension: policy.extension };
+}
+
+function safeSegment(value, fallback) {
+  return String(value || fallback).replace(/[^a-z0-9_\-/]/gi, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '').slice(0, 100) || fallback;
+}
+
+/** Uploads a validated data URL and returns an opaque object key, never a public URL. */
+module.exports = (dataUrl, folder, name) => {
   const {
-    AWS_S3_BUCKET_NAME: bktName,
-    AWS_S3_BASE_URL: baseS3Url,
-    AWS_ACCESS_KEY: awsKey,
-    AWS_SECRET_KEY: awsSecret,
-    AWS_S3_BUCKET_REGION: bktRegion, 
+    AWS_S3_BUCKET_NAME: bucket,
+    AWS_ACCESS_KEY: accessKeyId,
+    AWS_SECRET_KEY: secretAccessKey,
+    AWS_S3_BUCKET_REGION: region,
   } = process.env;
 
-  if (
-    !bktName &&
-    !baseS3Url &&
-    !awsKey &&
-    !awsSecret &&
-    !bktRegion
-  ) return false;
+  if (!bucket || !accessKeyId || !secretAccessKey || !region) return false;
+  const { buffer, contentType, extension } = parseDataUrl(dataUrl);
 
-  AWS.config.update({
-    region: bktRegion,
-    credentials: {
-      accessKeyId: awsKey,
-      secretAccessKey: awsSecret,
-    }
-  })
-
-  const fileType = base64.split(';')[0].split('/')[1];
-  const applicationType = base64.split(';')[0].split(':')[1];
-  const base64Clean = base64.replace(/^data:[a-zA-Z0-9.\-\/+]+;base64,/, '').replace(/\s+/g, '');
-  const base64Data = Buffer.from(base64Clean, 'base64');
-
-  console.log(base64Data);
-  // console.log(fileType);
-
-  const S3 = new AWS.S3();
+  AWS.config.update({ region, credentials: { accessKeyId, secretAccessKey } });
+  const key = `dev/${safeSegment(folder, 'uploads')}/${safeSegment(name, 'arquivo')}-${Date.now()}.${extension}`;
+  const s3 = new AWS.S3();
 
   return new Promise((resolve, reject) => {
-    S3.upload({
-      Bucket: bktName,
-      Body: base64Data,
-      Key: `dev/${folder}/${name}-${Date.now()}.${fileType}`,
-      ContentEncoding: 'base64',
-      ContentType: applicationType,
-      ACL: 'public-read',
-    }, (err, data) => {
-      console.log(1)
-      console.log(data);
-      console.log(err)
-      if (err)  reject(err);
-      else      resolve({ url: data.Location, name: data.key });
+    s3.upload({ Bucket: bucket, Body: buffer, Key: key, ContentType: contentType }, (err) => {
+      if (err) reject(err);
+      else resolve({ key, name: key, url: key });
     });
-  })
-}
+  });
+};
