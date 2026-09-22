@@ -106,7 +106,9 @@ export class EncomendasService implements OnModuleInit {
     };
   }
 
-  async findAll(idCondominio: number, status?: string) {
+  async findAll(idCondominio: number, status?: string, operador?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, operador);
+
     if (!this.prisma.isConnected) {
       const mocks = [
         {

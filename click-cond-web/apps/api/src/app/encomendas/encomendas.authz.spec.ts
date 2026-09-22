@@ -21,6 +21,7 @@ describe('Encomendas authorization', () => {
       isConnected: true,
       encomendas: {
         findFirst: jest.fn(async () => null),
+        findMany: jest.fn(async () => []),
         create: jest.fn(async () => ({ id: 1, ...dto })),
         findUnique: jest.fn(async () => null),
       },
@@ -59,11 +60,31 @@ describe('Encomendas authorization', () => {
     expect(notifications.sendWhatsApp).not.toHaveBeenCalled();
   });
 
+  it('rejects listing an encomenda tenant not linked to the JWT before querying Prisma', async () => {
+    const { service, prisma, tenant } = buildService();
+
+    await expect(service.findAll(2, undefined, moradorTenant1))
+      .rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(tenant.assertCondominio).toHaveBeenCalledWith(2, moradorTenant1);
+    expect(prisma.encomendas.findMany).not.toHaveBeenCalled();
+  });
+
   it('requires an operator for the console list endpoint', () => {
     const service: any = { findAll: jest.fn() };
     const controller = new EncomendasController(service);
 
     expect(() => controller.list(1, undefined as any, undefined)).toThrow(ForbiddenException);
     expect(service.findAll).not.toHaveBeenCalled();
+  });
+
+  it('forwards a valid operator and status to the console list service', () => {
+    const service: any = { findAll: jest.fn() };
+    const controller = new EncomendasController(service);
+    const operador: JwtPayload = { sub: 1, nome: 'Porteiro', id_condominio: 1 };
+
+    controller.list(1, operador, 'Aguardando');
+
+    expect(service.findAll).toHaveBeenCalledWith(1, 'Aguardando', operador);
   });
 });

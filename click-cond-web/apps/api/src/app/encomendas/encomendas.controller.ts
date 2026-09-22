@@ -18,7 +18,7 @@ export class EncomendasController {
     @Query('status') status?: string,
   ) {
     assertOperador(user, 'listar encomendas do condomínio');
-    return this.service.findAll(idCondominio, status);
+    return this.service.findAll(idCondominio, status, user);
   }
 
   @Get(':id')
