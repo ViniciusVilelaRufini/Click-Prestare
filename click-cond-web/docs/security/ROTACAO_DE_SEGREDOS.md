@@ -4,6 +4,16 @@ Use este runbook quando houver suspeita de exposição, desligamento de equipe o
 no ciclo operacional definido pela organização. Nunca registre valores de
 segredos em tickets, commits, logs, capturas de tela ou este documento.
 
+## Incidente: credencial exposta
+
+Uma credencial exposta deve ser tratada como comprometida, mesmo que não haja
+evidência de uso indevido. Abra o incidente e faça a rotação imediatamente:
+gere um segredo novo no cofre, atualize seus consumidores, valide a transição
+e revogue o valor exposto. Não mantenha a credencial exposta como rollback;
+para banco, a contingência deve ser outro segredo novo, criado no cofre e com
+os mesmos privilégios mínimos. Consulte `AWS_RDS_HARDENING.md` para a ordem
+operacional de RDS, TLS, VPC e Security Groups.
+
 ## Preparação
 
 1. Abra uma janela de mudança e registre os responsáveis, o ambiente e o
@@ -26,8 +36,9 @@ segredos em tickets, commits, logs, capturas de tela ou este documento.
    anterior.
 3. **Banco de dados:** crie uma senha nova para o usuário de aplicação com os
    mesmos privilégios mínimos, atualize a URL de conexão no cofre, faça o
-   rollout da API e valide saúde e operações de leitura. Mantenha a senha
-   anterior apenas pelo período de rollback aprovado e então revogue-a.
+   rollout da API e valide saúde e operações de leitura. Se a senha anterior
+   foi exposta, revogue-a imediatamente após a validação; ela nunca permanece
+   disponível para rollback.
 4. **Dispositivos e agentes:** gire os tokens de agente por condomínio e os
    tokens de webhook por dispositivo. Distribua os novos tokens somente pelo
    canal operacional aprovado ou cofre local do agente; o portal e downloads
