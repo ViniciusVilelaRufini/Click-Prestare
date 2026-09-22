@@ -67,6 +67,24 @@ test('legacy saveToAWS rejects SVG bytes disguised as JPEG before S3 upload', as
   }));
 });
 
+test('legacy saveToAWS only preserves an existing reference when explicitly marked by an edit flow', async () => {
+  await withUploadEnvironment(async () => withAwsMock(async () => {
+    const modulePath = require.resolve('../src/utils/saveToAWS');
+    delete require.cache[modulePath];
+    const saveToAWS = require(modulePath);
+    const existingUrl = 'https://legacy.example.test/condominios/1/financeiro/receipt.jpg';
+
+    assert.deepEqual(
+      saveToAWS(existingUrl, 'condominios/1/financeiro', 'receipt', { existing: true }),
+      { key: existingUrl, name: existingUrl, url: existingUrl },
+    );
+    assert.throws(
+      () => saveToAWS(existingUrl, 'condominios/1/financeiro', 'receipt'),
+      /NEW_UPLOAD_MUST_BE_DATA_URL/,
+    );
+  }));
+});
+
 test('legacy storage disables direct signed uploads because they bypass server validation', async () => {
   await withUploadEnvironment(async () => withAwsMock(async ({ signed }) => {
     const modulePath = require.resolve('../src/libs/fileStorage');

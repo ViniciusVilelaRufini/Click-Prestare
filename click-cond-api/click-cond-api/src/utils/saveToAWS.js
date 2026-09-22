@@ -63,8 +63,32 @@ function safeSegment(value, fallback) {
   return String(value || fallback).replace(/[^a-z0-9_\-/]/gi, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '').slice(0, 100) || fallback;
 }
 
+function isExistingStorageReference(value) {
+  if (typeof value !== 'string' || !value || value.startsWith('data:') || /\s/.test(value)) return false;
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      return Boolean(new URL(value).hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  // Chaves opacas legadas (por exemplo, dev/condominios/1/foto.jpg).
+  return /^[a-z0-9][a-z0-9._\-/]*$/i.test(value) &&
+    value.includes('/') && !value.split('/').includes('..');
+}
+
 /** Uploads a validated data URL and returns an opaque object key, never a public URL. */
-module.exports = (dataUrl, folder, name) => {
+module.exports = (dataUrl, folder, name, options = {}) => {
+  // Somente fluxos de edi\u00e7\u00e3o podem reenviar uma refer\u00eancia que j\u00e1 estava
+  // persistida. Novos uploads continuam obrigatoriamente sendo data URLs.
+  if (options.existing === true && isExistingStorageReference(dataUrl)) {
+    return { key: dataUrl, name: dataUrl, url: dataUrl };
+  }
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+    throw invalid('NEW_UPLOAD_MUST_BE_DATA_URL');
+  }
+
   const {
     AWS_S3_BUCKET_NAME: bucket,
     AWS_ACCESS_KEY: accessKeyId,

@@ -216,7 +216,21 @@ module.exports = {
         req.body.financeiro.valor = req.body.financeiro.valor * -1;
       }
       if(req.body.financeiro.photo != null){
-        const urlPhotoProfile = await saveToAWS(req.body.financeiro.photo, `condominios/${req.body.id_condominio}/financeiro`, 'lancamento');
+        const isDataUrl = typeof req.body.financeiro.photo === 'string' && req.body.financeiro.photo.startsWith('data:');
+        let options = {};
+        if (!isDataUrl) {
+          const current = await db.get(req.body.id_condominio, req.body.financeiro.id);
+          if (!current || current.photo !== req.body.financeiro.photo) {
+            throw new Error('NEW_UPLOAD_MUST_BE_DATA_URL');
+          }
+          options = { existing: true };
+        }
+        const urlPhotoProfile = await saveToAWS(
+          req.body.financeiro.photo,
+          `condominios/${req.body.id_condominio}/financeiro`,
+          'lancamento',
+          options,
+        );
         await db.updatePhoto(urlPhotoProfile.url, req.body.financeiro.id);
       }
       await db.update(req.body.id_condominio, req.body.financeiro, req.session.user.name);

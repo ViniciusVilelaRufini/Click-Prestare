@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import { MAX_IMAGE_BYTES, MAX_PDF_BYTES } from './upload-limits';
 
@@ -144,6 +144,30 @@ export class StorageService {
       this.logger.error(`Falha ao subir para R2: ${err?.message ?? err}. Usando base64 fallback.`);
       return dataUrl;
     }
+  }
+
+  /**
+   * Busca um objeto privado por sua chave opaca. A autoriza\u00e7\u00e3o de tenant fica
+   * na rota chamadora, antes desta opera\u00e7\u00e3o de storage ser alcan\u00e7ada.
+   */
+  async getPrivateObject(key: string) {
+    if (!this.isPrivateObjectKey(key)) {
+      throw new BadRequestException('Invalid private object key.');
+    }
+    if (!this.enabled || !this.client) {
+      throw new ServiceUnavailableException('Private storage is not configured.');
+    }
+
+    return this.client.send(new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    }));
+  }
+
+  private isPrivateObjectKey(key: unknown): key is string {
+    return typeof key === 'string' &&
+      /^[a-z0-9][a-z0-9._\-/]*$/i.test(key) &&
+      !key.split('/').includes('..');
   }
 
   private parseUploadDataUrl(dataUrl: string): ParsedUploadDataUrl {
