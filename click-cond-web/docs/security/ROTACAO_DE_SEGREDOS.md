@@ -29,9 +29,11 @@ segredos em tickets, commits, logs, capturas de tela ou este documento.
    rollout da API e valide saúde e operações de leitura. Mantenha a senha
    anterior apenas pelo período de rollback aprovado e então revogue-a.
 4. **Dispositivos e agentes:** gire os tokens de agente por condomínio e os
-   tokens de webhook por dispositivo. Distribua os novos tokens pelo canal de
-   configuração autenticado, confirme o heartbeat e só então invalide os
-   anteriores. Reconfigure agentes locais que ainda dependam de token antigo.
+   tokens de webhook por dispositivo. Distribua os novos tokens somente pelo
+   canal operacional aprovado ou cofre local do agente; o portal e downloads
+   de configuração não os retornam por HTTP. Confirme o heartbeat e só então
+   invalide os anteriores. Reconfigure agentes locais que dependam do token
+   antigo.
 5. **Variáveis de deploy:** faça uma revisão final das variáveis de ambiente,
    removendo entradas obsoletas e confirmando que cada segredo vem do cofre.
    Reinicie ou faça rollout das réplicas afetadas para que nenhuma mantenha o

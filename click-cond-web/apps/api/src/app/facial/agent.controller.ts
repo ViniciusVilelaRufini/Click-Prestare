@@ -56,7 +56,6 @@ export class AgentController {
         ip: device.ip,
         porta: device.porta,
         api_user: device.api_user,
-        api_password: device.api_password,
       },
       commands,
       poll_interval_ms: this.bridge.pollIntervalMs,
@@ -104,7 +103,6 @@ export class AgentController {
           ip: d.ip,
           porta: d.porta,
           api_user: d.api_user,
-          api_password: d.api_password,
         },
         commands,
       };

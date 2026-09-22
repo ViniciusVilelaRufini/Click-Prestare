@@ -20,10 +20,11 @@ describe('MailService SMTP configuration', () => {
     originalEnvironment.clear();
   });
 
-  it('does not supply SMTP credentials when they are absent from the environment', () => {
+  it('does not supply SMTP credentials or fail initialization when they are absent from the environment', async () => {
     const service = new MailService();
 
     expect((service as any).smtpUser).toBeUndefined();
     expect((service as any).smtpPass).toBeUndefined();
+    await expect(service.onModuleInit()).resolves.toBeUndefined();
   });
 });

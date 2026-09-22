@@ -121,8 +121,8 @@ export class FacialController {
   /**
    * Gira o webhook_token do dispositivo (invalida o anterior na hora).
    * Usar quando o token vazou (screenshot, log, ex-funcionário). Atenção:
-   * o Agente Local configurado com o token antigo para de autenticar —
-   * atualize o token no agente após a rotação.
+   * o Agente Local configurado com o token antigo para de autenticar.
+   * A nova credencial deve ser provisionada fora desta API.
    */
   @Post('devices/:id/rotate-token')
   async rotateToken(
@@ -266,7 +266,7 @@ export class FacialController {
     return this.service.listSyncPessoas(idCondominio);
   }
 
-  // ----- Agente: chave e download de configuração personalizada -----
+  // ----- Agente: metadados e modelo de configuração sem segredos -----
 
   @Get('agent/info')
   agentInfo(

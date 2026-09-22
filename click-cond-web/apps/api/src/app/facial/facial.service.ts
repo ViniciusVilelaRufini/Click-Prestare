@@ -641,29 +641,19 @@ export class FacialService {
     throw new UnauthorizedException('Token do agente inválido');
   }
 
-  /** Garante (e devolve) o agent_token estável do condomínio, gerando se faltar. */
-  async getOrCreateAgentToken(idCondominio: number): Promise<string> {
+
+  /** Metadados de provisionamento sem expor token do agente. */
+  async getAgentInfo(idCondominio: number) {
     const cond = await this.prisma.condominios.findUnique({
       where: { id: idCondominio },
       select: { agent_token: true },
     });
     if (!cond)
       throw new NotFoundException(`Condomínio ${idCondominio} não encontrado`);
-    if (cond.agent_token) return cond.agent_token;
-    const token = crypto.randomBytes(32).toString('hex');
-    await this.prisma.condominios.update({
-      where: { id: idCondominio },
-      data: { agent_token: token },
-    });
-    return token;
-  }
-
-  /** Token (para o portal exibir) + URL de download do executável. */
-  async getAgentInfo(idCondominio: number) {
-    const token = await this.getOrCreateAgentToken(idCondominio);
     return {
-      agent_token: token,
       download_url: AGENT_DOWNLOAD_URL,
+      configured: !!cond.agent_token,
+      provisioning_required: true,
     };
   }
 
@@ -681,7 +671,6 @@ export class FacialService {
       where: { id: idCondominio },
       select: { nome: true },
     });
-    const token = await this.getOrCreateAgentToken(idCondominio);
     const apiBase = apiUrl.replace(/\/+$/, '');
     const slug =
       (cond?.nome ?? 'condominio')
@@ -721,7 +710,7 @@ export class FacialService {
         'REM 2) Escreve a configuracao do condominio',
         '(',
         `echo API_URL=${apiBase}`,
-        `echo AGENT_TOKEN=${token}`,
+        'echo REM Configure o token do agente localmente pelo canal operacional aprovado.',
         ') > "%ENVFILE%"',
         '',
         'REM 3) Inicia com o Windows',
@@ -740,7 +729,7 @@ export class FacialService {
 
     return {
       filename: '.env',
-      content: `# Agente Local — ${cond?.nome ?? ''}\r\nAPI_URL=${apiBase}\r\nAGENT_TOKEN=${token}\r\n`,
+      content: `API_URL=${apiBase}\r\n# Configure the agent token locally through the approved operational channel.\r\n`,
       contentType: 'text/plain; charset=utf-8',
     };
   }
@@ -789,10 +778,9 @@ export class FacialService {
    */
   async rotateWebhookToken(id: number, operador?: JwtPayload) {
     const device = await this.getDevice(id);
-    const token = crypto.randomBytes(32).toString('hex');
     await this.prisma.facial_Devices.update({
       where: { id },
-      data: { webhook_token: token },
+      data: { webhook_token: crypto.randomBytes(32).toString('hex') },
     });
     await this.auditoria.registrar({
       id_condominio: device.id_condominio,
@@ -803,7 +791,7 @@ export class FacialService {
       descricao: `Rotacionou o token de webhook do dispositivo "${device.nome}" (token anterior invalidado)`,
       detalhes: { tipo: device.tipo, fabricante: device.fabricante },
     });
-    return { ok: true, webhook_token: token };
+    return { ok: true, reconfiguration_required: true };
   }
 
   async updateDevice(id: number, dto: UpdateDeviceDto, operador?: JwtPayload) {
