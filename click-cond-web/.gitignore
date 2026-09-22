@@ -49,6 +49,9 @@ Thumbs.db
 .nx/self-healing
 test-output
 
+# Artefatos locais do fluxo Superpowers/SDD
+.superpowers/
+
 .angular
 
 /generated/prisma
