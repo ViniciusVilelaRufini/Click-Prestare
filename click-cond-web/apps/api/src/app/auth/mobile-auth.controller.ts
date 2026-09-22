@@ -371,12 +371,17 @@ export class ApartamentosMobileController {
     return this.service.getMoradoresApto(Number(idApto), tipo, payload);
   }
 
+  // Sem @HttpCode(200), o @Post() do Nest responde 201 — e o app só trata
+  // 200 como sucesso (apiSaveApto), então o apartamento salvava de verdade e
+  // o app mostrava "Houve um erro, tente novamente!" mesmo assim.
   @Post('insert')
+  @HttpCode(200)
   insertApto(@Body() body: any, @ReqUser() payload: JwtPayload) {
     return this.service.saveApto(body, false, payload);
   }
 
   @Post('update')
+  @HttpCode(200)
   updateApto(@Body() body: any, @ReqUser() payload: JwtPayload) {
     return this.service.saveApto(body, true, payload);
   }

@@ -359,17 +359,19 @@ export class MobileAuthService {
 
     const docId = body.doc_identification?.trim() || null;
     const phone = body.phone?.trim() || null;
+    const nomeAtualizado = body.nome || user.name || '';
 
     // Fora da transação: o upload é rede, e segurá-lo dentro prenderia a
     // transação do banco pelo tempo da subida da imagem.
     const fotoUrl = await this.normalizarFoto(body.photo, 'sindicos');
+    const fotoAtualizada = fotoUrl !== undefined ? fotoUrl : (user.photo ?? '');
 
     await this.prisma.$transaction(async (tx) => {
       // 1. Atualizar tabela users
       await tx.users.update({
         where: { id: idUser },
         data: {
-          name: body.nome || user.name,
+          name: nomeAtualizado,
           email: emailNormalized || user.email,
           login: emailNormalized || user.login,
           phone: phone,
@@ -382,7 +384,7 @@ export class MobileAuthService {
       await tx.sindicos.update({
         where: { id: s.id },
         data: {
-          name: body.nome || s.name,
+          name: nomeAtualizado,
           email: emailNormalized || s.email,
           phone: phone,
           doc_identification: docId,
@@ -391,7 +393,14 @@ export class MobileAuthService {
       });
     });
 
-    return { success: true };
+    // Mesmo formato de `loginSindico` (token + user): o app chama
+    // storageLogin() na resposta deste endpoint para atualizar nome/foto em
+    // cache, e storageLogin() lê parsed.user.id/.name — devolver só
+    // {success:true} (formato antigo) fazia o app quebrar com
+    // "NoSuchMethodError: [] called on null" ao tentar ler parsed.user.
+    const userObj = { id: idUser, name: nomeAtualizado, photo: fotoAtualizada };
+    const payload = { sub: idUser, nome: nomeAtualizado, typeAccess: 'Sindico', user: userObj };
+    return { token: this.jwt.sign(payload, { expiresIn: '365d' }), user: userObj };
   }
 
 
