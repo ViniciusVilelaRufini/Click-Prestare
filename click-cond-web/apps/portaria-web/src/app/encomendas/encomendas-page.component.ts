@@ -455,16 +455,7 @@ export class EncomendasPageComponent implements OnInit {
       </style></head><body>
     `;
 
-    list.forEach(e => {
-      htmlContent += `
-        <div class="label">
-          <div class="id">Encomenda #${e.id}</div>
-          <div class="apto">${e.destinatario_bloco ? e.destinatario_bloco + ' / ' : ''}${e.destinatario_apto}</div>
-          <div class="desc">${e.descricao}</div>
-          <div class="meta">Recebido de: ${e.recebido_de ?? '—'}<br>Em: ${new Date(e.recebido_em).toLocaleString('pt-BR')}</div>
-        </div>
-      `;
-    });
+    htmlContent += list.map(e => this.buildPrintLabel(e)).join('');
 
     htmlContent += `
       <script>window.onload=()=>window.print()</script>
@@ -478,8 +469,9 @@ export class EncomendasPageComponent implements OnInit {
   imprimir(e: Encomenda) {
     const w = window.open('', '_blank', 'width=400,height=300');
     if (!w) return;
+    const label = this.buildPrintLabel(e);
     w.document.write(`
-      <html><head><title>Etiqueta #${e.id}</title>
+      <html><head><title>Etiqueta #${this.escapeHtml(e.id)}</title>
       <style>
         body{font-family:Arial,sans-serif;padding:20px;margin:0}
         .label{border:2px solid #000;padding:16px;border-radius:8px}
@@ -488,16 +480,36 @@ export class EncomendasPageComponent implements OnInit {
         .desc{font-size:14px;margin:8px 0;border-top:1px dashed #999;padding-top:8px}
         .meta{font-size:11px;color:#666;margin-top:12px}
       </style></head><body>
-      <div class="label">
-        <div class="id">Encomenda #${e.id}</div>
-        <div class="apto">${e.destinatario_bloco ? e.destinatario_bloco + ' / ' : ''}${e.destinatario_apto}</div>
-        <div class="desc">${e.descricao}</div>
-        <div class="meta">Recebido de: ${e.recebido_de ?? '—'}<br>Em: ${new Date(e.recebido_em).toLocaleString('pt-BR')}</div>
-      </div>
+      ${label}
       <script>window.onload=()=>window.print()</script>
       </body></html>
     `);
     w.document.close();
+  }
+
+  buildPrintLabel(e: Encomenda): string {
+    const bloco = e.destinatario_bloco ? `${this.escapeHtml(e.destinatario_bloco)} / ` : '';
+    const recebidoDe = e.recebido_de ?? '—';
+    const recebidoEm = new Date(e.recebido_em).toLocaleString('pt-BR');
+
+    return `
+      <div class="label">
+        <div class="id">Encomenda #${this.escapeHtml(e.id)}</div>
+        <div class="apto">${bloco}${this.escapeHtml(e.destinatario_apto)}</div>
+        <div class="desc">${this.escapeHtml(e.descricao)}</div>
+        <div class="meta">Recebido de: ${this.escapeHtml(recebidoDe)}<br>Em: ${this.escapeHtml(recebidoEm)}</div>
+      </div>
+    `;
+  }
+
+  private escapeHtml(value: unknown): string {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    })[char]!);
   }
 
   async remover(e: Encomenda) {

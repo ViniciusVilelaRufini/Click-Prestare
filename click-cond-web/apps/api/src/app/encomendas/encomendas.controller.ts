@@ -4,6 +4,7 @@ import {
 import { CreateEncomendaDto, EncomendasService } from './encomendas.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { assertOperador } from '../auth/tenant.util';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
 @Controller('condominios/:idCondominio/encomendas')
@@ -13,8 +14,10 @@ export class EncomendasController {
   @Get()
   list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
+    @ReqUser() user: JwtPayload,
     @Query('status') status?: string,
   ) {
+    assertOperador(user, 'listar encomendas do condomínio');
     return this.service.findAll(idCondominio, status);
   }
 

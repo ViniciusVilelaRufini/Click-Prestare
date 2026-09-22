@@ -200,6 +200,8 @@ export class EncomendasService implements OnModuleInit {
   }
 
   async create(dto: CreateEncomendaDto, operador?: JwtPayload) {
+    await this.tenant.assertCondominio(dto.id_condominio, operador);
+
     if (!this.prisma.isConnected) {
       return {
         id: Date.now(),
