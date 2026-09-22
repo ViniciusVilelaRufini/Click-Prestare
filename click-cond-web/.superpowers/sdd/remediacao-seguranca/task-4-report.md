@@ -19,3 +19,9 @@
 ## Escopo
 
 Nenhuma configuração ou recurso AWS foi alterado.
+
+## Complemento de revisão
+
+- Corrigido o reconhecimento de IPv4-mapped e IPv4-compatible IPv6 quando os últimos 32 bits são representados por hextets hexadecimais, como `::ffff:7f00:1` e `::7f00:1`.
+- RED observado: ambas as representações chegavam ao Axios antes do bloqueio.
+- PASS: regressão focada passou com 11 testes; `nx typecheck @org/api` permaneceu verde.

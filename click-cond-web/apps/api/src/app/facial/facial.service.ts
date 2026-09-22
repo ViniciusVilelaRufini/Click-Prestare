@@ -5319,8 +5319,36 @@ export class FacialService {
     }
     if (/^fe[89ab][0-9a-f]:/.test(lower)) return true;
 
-    const mappedIpv4 = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
-    return Boolean(mappedIpv4 && this.isBlockedIpv4Address(mappedIpv4[1]));
+    const embeddedIpv4 = this.embeddedIpv4Address(lower);
+    return Boolean(embeddedIpv4 && this.isBlockedIpv4Address(embeddedIpv4));
+  }
+
+  /**
+   * IPv4-mapped and IPv4-compatible IPv6 addresses can express their last
+   * 32 bits either as dotted decimal or as two hexadecimal hextets. Normalize
+   * both forms so they are subject to the same private/reserved IPv4 policy.
+   */
+  private embeddedIpv4Address(ip: string): string | null {
+    const dotted = /(?:^|:)(\d+\.\d+\.\d+\.\d+)$/.exec(ip);
+    if (dotted) return dotted[1];
+
+    const [head, tail] = ip.split('::');
+    const headParts = head ? head.split(':') : [];
+    const tailParts = tail ? tail.split(':') : [];
+    const zeroes = 8 - headParts.length - tailParts.length;
+    const parts = ip.includes('::')
+      ? [...headParts, ...Array(zeroes).fill('0'), ...tailParts]
+      : headParts;
+    if (parts.length !== 8) return null;
+
+    const values = parts.map((part) => Number.parseInt(part, 16));
+    const isCompatible = values.slice(0, 6).every((value) => value === 0);
+    const isMapped =
+      values.slice(0, 5).every((value) => value === 0) && values[5] === 0xffff;
+    if (!isCompatible && !isMapped) return null;
+
+    const [high, low] = values.slice(6);
+    return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
   }
 
   private isBlockedIpv4Address(ip: string): boolean {

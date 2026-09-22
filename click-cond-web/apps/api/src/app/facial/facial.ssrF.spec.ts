@@ -107,4 +107,15 @@ describe('FacialService image URL SSRF protection', () => {
 
     expect(axiosGet).not.toHaveBeenCalled();
   });
+
+  it.each(['::ffff:7f00:1', '::7f00:1'])
+  ('rejects IPv4 loopback encoded in an IPv6 DNS result: %s', async (address) => {
+    dnsLookup.mockResolvedValue([{ address, family: 6 }]);
+
+    await expect(
+      (service as any).fetchPhotoAsBase64('https://images.example.test/uploads/photo.jpg'),
+    ).resolves.toBeNull();
+
+    expect(axiosGet).not.toHaveBeenCalled();
+  });
 });
