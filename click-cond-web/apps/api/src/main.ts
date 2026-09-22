@@ -39,8 +39,8 @@ async function bootstrap() {
     });
   });
 
-  app.use(json({ limit: '50mb' }));
-  app.use(urlencoded({ limit: '50mb', extended: true }));
+  app.use(json({ limit: '12mb' }));
+  app.use(urlencoded({ limit: '12mb', extended: true }));
   // Câmeras Hikvision postam notificação de evento em XML (não em JSON). Sem
   // este parser o corpo chegava VAZIO no webhook e a leitura de placa era
   // descartada em silêncio. O XML é convertido em webhook-payload.util.

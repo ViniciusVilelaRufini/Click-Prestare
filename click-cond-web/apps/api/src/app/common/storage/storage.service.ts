@@ -1,6 +1,20 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
+
+const UPLOAD_TYPES = {
+  'image/jpeg': { extension: 'jpg', maxBytes: 5 * 1024 * 1024 },
+  'image/png': { extension: 'png', maxBytes: 5 * 1024 * 1024 },
+  'image/webp': { extension: 'webp', maxBytes: 5 * 1024 * 1024 },
+  'application/pdf': { extension: 'pdf', maxBytes: 10 * 1024 * 1024 },
+} as const;
+
+type UploadMime = keyof typeof UPLOAD_TYPES;
+
+interface ParsedUploadDataUrl {
+  contentType: UploadMime;
+  buffer: Buffer;
+}
 
 /**
  * Storage service usando Cloudflare R2 (compatível com S3 API).
@@ -75,6 +89,24 @@ export class StorageService {
     return typeof value === 'string' && value.startsWith('data:') && value.includes('base64,');
   }
 
+  /** Keeps legacy public-URL reads scoped to the configured storage origin. */
+  isTrustedPublicUrl(value: unknown): boolean {
+    if (typeof value !== 'string' || !this.publicUrl) return false;
+
+    try {
+      const configured = new URL(this.publicUrl);
+      const candidate = new URL(value);
+      const basePath = configured.pathname.replace(/\/+$/, '');
+      const expectedPrefix = `${basePath}/`;
+
+      return candidate.protocol === configured.protocol &&
+        candidate.host === configured.host &&
+        (candidate.pathname === basePath || candidate.pathname.startsWith(expectedPrefix));
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Faz upload de um data URL base64 para o bucket R2.
    * - prefix: pasta lógica no bucket (ex.: "documentos", "comprovantes", "visitantes")
@@ -87,18 +119,12 @@ export class StorageService {
     prefix: string,
     hint?: string,
   ): Promise<string | null> {
+    const { contentType, buffer } = this.parseUploadDataUrl(dataUrl);
+
     // Se o S3 não está configurado, retorna o base64 original como fallback
     if (!this.enabled || !this.client) return dataUrl;
 
     try {
-      const base64Index = dataUrl.indexOf(';base64,');
-      if (base64Index === -1 || !dataUrl.startsWith('data:')) {
-        this.logger.warn('uploadDataUrl: data URL inválida.');
-        return null;
-      }
-      const contentType = dataUrl.slice(5, base64Index) || 'application/octet-stream';
-      const rawBase64 = dataUrl.slice(base64Index + 8).replace(/\s+/g, '');
-      const buffer = Buffer.from(rawBase64, 'base64');
       const ext = (hint ?? this.extFromMime(contentType)).replace(/^\.+/, '');
       const safePrefix = prefix.replace(/[^a-z0-9_\-\/]/gi, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '').slice(0, 60) || 'arquivo';
       const key = `${safePrefix}/${Date.now()}-${randomUUID()}.${ext}`;
@@ -108,7 +134,7 @@ export class StorageService {
         Key: key,
         Body: buffer,
         ContentType: contentType,
-        ACL: 'public-read',
+        ACL: undefined,
       }));
 
       return `${this.publicUrl}/${key}`;
@@ -116,6 +142,66 @@ export class StorageService {
       this.logger.error(`Falha ao subir para R2: ${err?.message ?? err}. Usando base64 fallback.`);
       return dataUrl;
     }
+  }
+
+  private parseUploadDataUrl(dataUrl: string): ParsedUploadDataUrl {
+    const separator = dataUrl.indexOf(',');
+    const header = separator >= 0 ? dataUrl.slice(0, separator) : '';
+    const match = /^data:([^;,]+);base64$/i.exec(header);
+    if (!match || separator < 0) {
+      throw new BadRequestException('Upload must be a valid base64 data URL.');
+    }
+
+    const contentType = match[1].toLowerCase() as UploadMime;
+    const policy = UPLOAD_TYPES[contentType];
+    if (!policy) {
+      throw new BadRequestException('File type is not allowed for upload.');
+    }
+
+    const rawBase64 = dataUrl.slice(separator + 1);
+    const paddingBytes = rawBase64.endsWith('==') ? 2 : rawBase64.endsWith('=') ? 1 : 0;
+    const decodedLength = (rawBase64.length / 4) * 3 - paddingBytes;
+    if (decodedLength > policy.maxBytes) {
+      throw new BadRequestException(`File exceeds the ${policy.maxBytes}-byte limit for ${contentType}.`);
+    }
+
+    if (!this.isStrictBase64(rawBase64)) {
+      throw new BadRequestException('Invalid base64 content.');
+    }
+
+    const buffer = Buffer.from(rawBase64, 'base64');
+    if (!buffer.length || buffer.length > policy.maxBytes) {
+      throw new BadRequestException(`File exceeds the ${policy.maxBytes}-byte limit for ${contentType}.`);
+    }
+
+    return { contentType, buffer };
+  }
+
+  private isStrictBase64(value: string): boolean {
+    if (!value || value.length % 4 !== 0) return false;
+
+    const paddingBytes = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+    const contentLength = value.length - paddingBytes;
+    if ((paddingBytes === 1 && contentLength % 4 !== 3) ||
+      (paddingBytes === 2 && contentLength % 4 !== 2)) {
+      return false;
+    }
+
+    for (let index = 0; index < contentLength; index += 1) {
+      const code = value.charCodeAt(index);
+      const isBase64Character =
+        (code >= 65 && code <= 90) ||
+        (code >= 97 && code <= 122) ||
+        (code >= 48 && code <= 57) ||
+        code === 43 || code === 47;
+      if (!isBase64Character) return false;
+    }
+
+    for (let index = contentLength; index < value.length; index += 1) {
+      if (value[index] !== '=') return false;
+    }
+
+    return true;
   }
 
   /**
