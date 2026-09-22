@@ -78,6 +78,47 @@ de forma pontual ou interrompa o rollout. Depois que uma credencial exposta foi
 revogada, não a restaure: use apenas um segredo novo de contingência, criado no
 cofre e limitado ao mesmo least privilege.
 
+### Auditoria de administrador e acesso break-glass
+
+1. Antes de revogar qualquer conta, audite especificamente `admin@%` e outras
+   contas com host curinga. Em uma sessão administrativa controlada, os comandos
+   abaixo verificam a conta e seus grants sem revelar senha ou string de conexão:
+
+   ```sql
+   SELECT user, host FROM mysql.user WHERE user = 'admin' AND host = '%';
+   SHOW GRANTS FOR 'admin'@'%';
+   ```
+
+2. Confirme que `admin@%` não é a conta master gerenciada pelo RDS e que todos
+   os acessos administrativos legítimos foram migrados para uma identidade
+   nominal e aprovada. Somente então revogue o host curinga e seu `GRANT OPTION`:
+
+   ```sql
+   REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'admin'@'%';
+   DROP USER 'admin'@'%';
+   ```
+
+   Não execute esses comandos contra a conta master gerenciada pelo RDS. Para
+   ela, rotacione o segredo no cofre e restrinja seu uso ao procedimento de
+   emergência abaixo.
+
+3. Mantenha uma conta administrativa break-glass distinta do usuário runtime.
+   A break-glass fica em um segredo separado, com aprovação de duas pessoas,
+   acesso temporário por caminho auditável e revisão posterior. Ela nunca entra
+   em `DATABASE_URL`, em variáveis da API, workers, jobs ou ferramentas de
+   desenvolvimento. O usuário runtime continua limitado aos grants de aplicação
+   da seção anterior e não recebe `GRANT OPTION`.
+
+**Critério de aceitação:** a auditoria não retorna `admin@%` ativo, nenhuma
+identidade usada pelo runtime tem `GRANT OPTION`, e os logs mostram que somente
+o usuário de aplicação abre conexões de runtime. Registre somente o resultado
+aprovado e os IDs de mudança; não copie o resultado integral de `SHOW GRANTS`.
+
+**Rollback:** não recrie `admin@%`. Caso um acesso administrativo aprovado pare
+de funcionar, habilite temporariamente uma nova conta break-glass nominal, com
+host privado específico, prazo de expiração e auditoria; remova-a ao encerrar o
+incidente.
+
 ## 4. TLS e parâmetros do RDS
 
 1. Distribua a CA atual do RDS pelo mecanismo seguro de deploy e configure o

@@ -36,4 +36,17 @@ describe('AWS/RDS hardening runbook', () => {
     expect(content).toMatch(/imediat/i);
     expect(content).toMatch(/revog/i);
   });
+
+  it('audits wildcard administrators and keeps break-glass access separate from runtime', () => {
+    const content = readFileSync(hardeningRunbook, 'utf8');
+
+    expect(content).toContain('admin@%');
+    expect(content).toContain('SHOW GRANTS');
+    expect(content).toContain('GRANT OPTION');
+    expect(content).toContain('REVOKE ALL PRIVILEGES, GRANT OPTION');
+    expect(content).toContain('DROP USER');
+    expect(content).toContain('break-glass');
+    expect(content).toMatch(/usuário (?:de )?runtime/i);
+    expect(content).toMatch(/critério de aceitação/i);
+  });
 });
