@@ -51,7 +51,7 @@ npm run build:exe        # gera click-agent.exe (Windows) / click-agent (Linux/m
 `click-agent.exe` por uma **janela de terminal** uma vez e ele pergunta e salva
 o `.env` sozinho. Ele pede:
 - **URL da API** (ex.: `https://api.clickprestarecondominios.com.br`).
-- **Um token** — no portal, **Terminais de Dispositivos** → **"Copiar URL Webhook"**
+- **Um token** — entregue pelo procedimento operacional seguro de provisionamento
   em **qualquer** dispositivo e cole (pode colar a URL inteira). Esse único token
   gerencia **todos** os dispositivos do condomínio (modo condomínio).
 

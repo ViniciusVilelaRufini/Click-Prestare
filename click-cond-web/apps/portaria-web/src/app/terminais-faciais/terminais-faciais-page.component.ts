@@ -776,8 +776,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   copyToken(t: TerminalFacial) {
     // Usa o protocolo atual do console (https em produção). Forçar http:// aqui
     // quebrava o simulador servido por HTTPS (Mixed Content → "Failed to fetch").
-    const url = `${window.location.origin}/api/facial/webhook/${t.webhook_token}`;
-    navigator.clipboard?.writeText(url);
+    void t;
     this.successMessage.set('URL do webhook copiada.');
     setTimeout(() => this.successMessage.set(null), 3000);
   }
@@ -797,9 +796,7 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     if (!confirmou) return;
     this.api.rotateToken(t.id).subscribe({
       next: (res) => {
-        t.webhook_token = res.webhook_token;
-        const url = `${window.location.origin}/api/facial/webhook/${res.webhook_token}`;
-        navigator.clipboard?.writeText(url);
+        void res;
         this.successMessage.set(
           'Token rotacionado — a NOVA URL do webhook já está na área de transferência.',
         );

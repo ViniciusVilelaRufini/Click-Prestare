@@ -19,7 +19,6 @@ export interface TerminalFacial {
   porta: number;
   api_user: string | null;
   api_password: string | null;
-  webhook_token: string;
   ativo: number;
   ultima_sincr: string | null;
   /** Área de lazer monitorada por este terminal (opcional); conta a ocupação. */
@@ -161,8 +160,8 @@ export class TerminaisFaciaisApi {
   }
 
   /** Gera um webhook_token novo (o anterior é invalidado na hora). */
-  rotateToken(id: number): Observable<{ ok: boolean; webhook_token: string }> {
-    return this.http.post<{ ok: boolean; webhook_token: string }>(
+  rotateToken(id: number): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(
       `${this.base}/devices/${id}/rotate-token`,
       {},
     );

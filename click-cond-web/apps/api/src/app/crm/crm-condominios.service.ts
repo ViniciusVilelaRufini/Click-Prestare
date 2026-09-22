@@ -321,7 +321,7 @@ export class CrmCondominiosService {
       // deixa de encontrar o condomínio e o agente perde a sincronização.
       this.prisma.condominios.update({
         where: { id },
-        data: { ativo: 0, agent_token: null },
+        data: { ativo: 0 },
       }),
       this.prisma.facial_Devices.updateMany({
         where: { id_condominio: id },
