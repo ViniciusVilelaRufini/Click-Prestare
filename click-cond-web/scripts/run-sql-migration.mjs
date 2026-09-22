@@ -20,6 +20,9 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required');
 const sqlPath = path.resolve('prisma', 'sql', file);
 const sql = await readFile(sqlPath, 'utf8');
 const checksum = createHash('sha256').update(sql).digest('hex');
+const caBundle = process.env.RDS_CA_BUNDLE
+  ? await readFile(path.resolve(process.env.RDS_CA_BUNDLE))
+  : undefined;
 const url = new URL(databaseUrl);
 const connection = await mysql.createConnection({
   host: url.hostname,
@@ -27,7 +30,7 @@ const connection = await mysql.createConnection({
   user: decodeURIComponent(url.username),
   password: decodeURIComponent(url.password),
   database: url.pathname.replace(/^\//, ''),
-  ssl: { rejectUnauthorized: true },
+  ssl: { rejectUnauthorized: true, ...(caBundle ? { ca: caBundle } : {}) },
   multipleStatements: true,
 });
 
