@@ -63,6 +63,7 @@ try {
       await connection.query(statement);
     } catch (error) {
       const idempotentCodes = new Set([
+        'ER_TABLE_EXISTS_ERROR',
         'ER_DUP_FIELDNAME',
         'ER_DUP_KEYNAME',
         'ER_CANT_DROP_FIELD_OR_KEY',
