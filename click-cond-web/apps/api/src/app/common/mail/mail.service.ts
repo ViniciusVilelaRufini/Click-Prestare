@@ -8,7 +8,6 @@ dns.setDefaultResultOrder('ipv4first');
 const dnsLookup = promisify(dns.lookup);
 
 const OFFICIAL_EMAIL = 'suporte@clickprestarecondominios.com.br';
-const OFFICIAL_PASS = 'njyqoenhmsyzblwa';
 const OFFICIAL_NAME = 'Prestare Condomínios';
 
 @Injectable()
@@ -28,14 +27,14 @@ export class MailService implements OnModuleInit {
     let smtpUser = clean(process.env.SMTP_USER);
     let smtpPass = clean(process.env.SMTP_PASS)?.replace(/\s+/g, '');
 
-    // Se o ambiente ainda contiver o e-mail pessoal antigo remanescente (ex: console do Elastic Beanstalk),
-    // ou se não houver usuário/senha configurados, força o uso exclusivo da conta oficial Google Workspace da Prestare.
+    // Credenciais residuais ou incompletas não podem ganhar fallback no código.
+    // O deploy deve fornecer um par SMTP válido ou configurar outro provedor.
     if (!smtpUser || smtpUser.toLowerCase().includes('viniciusrufini') || !smtpPass || smtpPass.toLowerCase().includes('vjty')) {
       this.logger.warn(
-        `Substituindo credenciais SMTP residuais/ausentes (${smtpUser}) pelo remetente corporativo oficial: ${OFFICIAL_EMAIL}`,
+        'Ignorando credenciais SMTP residuais ou incompletas; configure SMTP_USER e SMTP_PASS no ambiente.',
       );
-      smtpUser = OFFICIAL_EMAIL;
-      smtpPass = OFFICIAL_PASS;
+      smtpUser = undefined;
+      smtpPass = undefined;
     }
 
     this.smtpUser = smtpUser;

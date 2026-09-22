@@ -314,6 +314,13 @@ export class FacialService {
 
   // ---------- Devices CRUD ----------
 
+  private toPublicDevice<T extends Record<string, any>>(
+    device: T,
+  ): Omit<T, 'api_password' | 'webhook_token'> {
+    const { api_password: _apiPassword, webhook_token: _webhookToken, ...publicDevice } = device;
+    return publicDevice;
+  }
+
   async listDevices(idCondominio: number) {
     if (!this.prisma.isConnected) return [];
     const devices = await this.prisma.facial_Devices.findMany({
@@ -323,9 +330,8 @@ export class FacialService {
     // agent_online: indica se há um Agente Local fazendo polling deste device
     // agora. É o sinal de "está pronto para receber comandos da nuvem".
     const flagPorArea = await this.flagsControleAcessoPorArea(devices);
-    return devices.map((d) => ({
+    return devices.map((d) => this.toPublicDevice({
       ...d,
-      api_password: decryptSecret(d.api_password),
       agent_online: this.agent.isOnline(d.id),
       // null = desconhecido (sem reporte recente do agente); true/false = status
       // real do aparelho na LAN, atualizado pelo heartbeat do agente.
@@ -573,16 +579,20 @@ export class FacialService {
     return { ok: true };
   }
 
-  async getDevice(id: number) {
+  private async getDeviceForOperation(id: number) {
     const d = await this.prisma.facial_Devices.findUnique({ where: { id } });
     if (!d) throw new NotFoundException(`Terminal facial ${id} não encontrado`);
+    return { ...d, api_password: decryptSecret(d.api_password) };
+  }
+
+  async getDevice(id: number) {
+    const d = await this.getDeviceForOperation(id);
     const flagPorArea = await this.flagsControleAcessoPorArea([d]);
-    return {
+    return this.toPublicDevice({
       ...d,
-      api_password: decryptSecret(d.api_password),
       controle_acesso_facial:
         d.id_area_social != null ? flagPorArea.get(d.id_area_social) ?? 0 : 0,
-    };
+    });
   }
 
   /**
@@ -767,7 +777,7 @@ export class FacialService {
         ip: created.ip,
       },
     });
-    return { ...created, api_password: decryptSecret(created.api_password) };
+    return this.toPublicDevice(created);
   }
 
   /**
@@ -862,7 +872,7 @@ export class FacialService {
       );
     }
 
-    return { ...atual, api_password: decryptSecret(atual.api_password) };
+    return this.toPublicDevice(atual);
   }
 
   /**
@@ -1001,7 +1011,7 @@ export class FacialService {
   }
 
   async testDevice(id: number) {
-    const device = await this.getDevice(id);
+    const device = await this.getDeviceForOperation(id);
     const online = await this.client.ping(this.toConfig(device));
     await this.handleDeviceStatusTransition(device, online, true);
     return { online };
@@ -1012,7 +1022,7 @@ export class FacialService {
    * Devolve um data URL JPEG pronto para virar foto_pessoa.
    */
   async captureSnapshot(id: number) {
-    const device = await this.getDevice(id);
+    const device = await this.getDeviceForOperation(id);
     const imageBase64 = await this.client.captureSnapshot(this.toConfig(device));
     return { foto: `data:image/jpeg;base64,${imageBase64}` };
   }
@@ -1041,7 +1051,7 @@ export class FacialService {
   }
 
   async triggerDevice(id: number, operador?: JwtPayload) {
-    const device = await this.getDevice(id);
+    const device = await this.getDeviceForOperation(id);
     if (device.tipo !== 'botoeira' && device.tipo !== 'catraca') {
       throw new BadRequestException(
         'Apenas dispositivos do tipo Botoeira ou Catraca podem ser acionados remotamente.',
@@ -1102,7 +1112,7 @@ export class FacialService {
    * data URL (base64) para evitar problemas de CORS no canvas do face-api.
    */
   async listPersonsForDevice(idDevice: number) {
-    const device = await this.getDevice(idDevice);
+    const device = await this.getDeviceForOperation(idDevice);
     const idCondominio = device.id_condominio;
 
     const [moradores, visitantes] = await Promise.all([
@@ -1146,7 +1156,6 @@ export class FacialService {
       device: {
         id: device.id,
         nome: device.nome,
-        webhook_token: device.webhook_token,
       },
       persons,
       total: persons.length,
