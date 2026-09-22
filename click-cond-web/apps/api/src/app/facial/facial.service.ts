@@ -8,6 +8,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { lookup as dnsLookup } from 'dns/promises';
+import { Agent as HttpsAgent } from 'https';
+import { isIP } from 'net';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -135,6 +138,9 @@ const FACIAL_DISABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'false';
 const AGENT_DOWNLOAD_URL =
   process.env.AGENT_DOWNLOAD_URL ||
   'https://github.com/Viniciusvile/Click-Prestare/releases/download/agent-v1.0.0/click-agent.exe';
+
+const MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_REMOTE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 @Injectable()
 export class FacialService {
@@ -1160,17 +1166,11 @@ export class FacialService {
     if (foto.startsWith('data:')) return foto;
     if (foto.startsWith('http://') || foto.startsWith('https://')) {
       try {
-        const axios = (await import('axios')).default;
-        const res = await axios.get(foto, {
-          responseType: 'arraybuffer',
-          timeout: 15000,
-        });
-        const mime = res.headers['content-type'] || 'image/jpeg';
-        const b64 = Buffer.from(res.data).toString('base64');
-        return `data:${mime};base64,${b64}`;
+        const { buffer, contentType } = await this.downloadTrustedImage(foto);
+        return `data:${contentType};base64,${buffer.toString('base64')}`;
       } catch (err: any) {
         this.logger.warn(
-          `Falha ao baixar foto ${foto}: ${err?.message ?? err}`,
+          `Falha ao baixar foto para data URL: ${err?.message ?? err}`,
         );
         return null;
       }
@@ -5192,19 +5192,155 @@ export class FacialService {
     }
     if (foto.startsWith('http://') || foto.startsWith('https://')) {
       try {
-        const axios = (await import('axios')).default;
-        const res = await axios.get(foto, {
-          responseType: 'arraybuffer',
-          timeout: 15000,
-        });
-        return Buffer.from(res.data).toString('base64');
+        const { buffer } = await this.downloadTrustedImage(foto);
+        return buffer.toString('base64');
       } catch (err) {
-        this.logger.warn(`Falha baixando foto ${foto}: ${err}`);
+        this.logger.warn(`Falha baixando foto: ${err}`);
         return null;
       }
     }
     // Já é base64 puro
     return foto;
+  }
+
+  private async downloadTrustedImage(url: string): Promise<{ buffer: Buffer; contentType: string }> {
+    await this.assertTrustedImageUrl(url);
+    const axios = (await import('axios')).default;
+    const res = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
+      maxRedirects: 0,
+      maxContentLength: MAX_REMOTE_IMAGE_BYTES,
+      maxBodyLength: MAX_REMOTE_IMAGE_BYTES,
+      httpsAgent: this.createTrustedHttpsAgent(),
+    });
+    const contentType = this.assertAllowedImageContentType(res.headers?.['content-type']);
+    const buffer = Buffer.from(res.data);
+    if (!buffer.length || buffer.length > MAX_REMOTE_IMAGE_BYTES) {
+      throw new Error('Remote image exceeds the allowed size.');
+    }
+    return { buffer, contentType };
+  }
+
+  private async assertTrustedImageUrl(value: string): Promise<void> {
+    let candidate: URL;
+    try {
+      candidate = new URL(value);
+    } catch {
+      throw new Error('Invalid image URL.');
+    }
+
+    const hostname = this.normalizedHostname(candidate.hostname);
+    if (
+      candidate.protocol !== 'https:' ||
+      candidate.username ||
+      candidate.password ||
+      !hostname ||
+      !this.trustedImageHosts().has(hostname) ||
+      this.isBlockedIpAddress(hostname)
+    ) {
+      throw new Error('Image URL is not from a trusted public HTTPS origin.');
+    }
+
+    await this.resolvePublicHostname(hostname);
+  }
+
+  private trustedImageHosts(): Set<string> {
+    const configuredUrls = [process.env.R2_PUBLIC_URL, process.env.AWS_S3_BASE_URL];
+    const hosts = new Set<string>();
+    for (const value of configuredUrls) {
+      if (!value) continue;
+      try {
+        const configured = new URL(value);
+        if (configured.protocol === 'https:' && !configured.username && !configured.password) {
+          hosts.add(this.normalizedHostname(configured.hostname));
+        }
+      } catch {
+        // A malformed configuration must not widen the remote-fetch allowlist.
+      }
+    }
+    return hosts;
+  }
+
+  private createTrustedHttpsAgent(): HttpsAgent {
+    return new HttpsAgent({
+      lookup: (hostname, _options, callback) => {
+        void this.resolvePublicHostname(this.normalizedHostname(hostname))
+          .then(({ address, family }) => callback(null, address, family))
+          .catch((error: Error) => callback(error, '', 0));
+      },
+    });
+  }
+
+  private async resolvePublicHostname(hostname: string): Promise<{ address: string; family: 4 | 6 }> {
+    if (this.isBlockedIpAddress(hostname)) {
+      throw new Error('Private and reserved IP addresses are not allowed.');
+    }
+    const addresses = await dnsLookup(hostname, { all: true, verbatim: true });
+    if (!addresses.length || addresses.some(({ address }) => this.isBlockedIpAddress(address))) {
+      throw new Error('Image hostname resolves to a private or reserved IP address.');
+    }
+    const first = addresses[0];
+    return { address: first.address, family: first.family as 4 | 6 };
+  }
+
+  private assertAllowedImageContentType(value: unknown): string {
+    const raw = Array.isArray(value) ? value[0] : value;
+    const contentType = String(raw ?? '').split(';', 1)[0].trim().toLowerCase();
+    if (!ALLOWED_REMOTE_IMAGE_TYPES.has(contentType)) {
+      throw new Error('Remote response is not a supported image type.');
+    }
+    return contentType;
+  }
+
+  private normalizedHostname(value: string): string {
+    return value.replace(/^\[|\]$/g, '').toLowerCase();
+  }
+
+  private isBlockedIpAddress(value: string): boolean {
+    const ip = this.normalizedHostname(value);
+    const family = isIP(ip);
+    if (!family) return false;
+    if (family === 4) return this.isBlockedIpv4Address(ip);
+
+    const lower = ip.toLowerCase();
+    if (
+      lower === '::' ||
+      lower === '::1' ||
+      lower.startsWith('fc') ||
+      lower.startsWith('fd') ||
+      lower.startsWith('100::') ||
+      lower.startsWith('2001:db8:') ||
+      lower.startsWith('2001:2:') ||
+      lower.startsWith('2002:') ||
+      lower.startsWith('ff')
+    ) {
+      return true;
+    }
+    if (/^fe[89ab][0-9a-f]:/.test(lower)) return true;
+
+    const mappedIpv4 = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
+    return Boolean(mappedIpv4 && this.isBlockedIpv4Address(mappedIpv4[1]));
+  }
+
+  private isBlockedIpv4Address(ip: string): boolean {
+    const [first, second, third] = ip.split('.').map(Number);
+    return first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 100 && second >= 64 && second <= 127) ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 0 && third === 0) ||
+      (first === 192 && second === 31 && third === 196) ||
+      (first === 192 && second === 52 && third === 193) ||
+      (first === 192 && second === 88 && third === 99) ||
+      (first === 192 && second === 168) ||
+      (first === 192 && second === 175 && third === 48) ||
+      (first === 198 && (second === 18 || second === 19)) ||
+      (first === 198 && second === 51 && third === 100) ||
+      (first === 203 && second === 0 && third === 113) ||
+      first >= 224;
   }
 
   private async markMoradorSyncStatus(id: number, status: string, errorMsg?: string | null) {
