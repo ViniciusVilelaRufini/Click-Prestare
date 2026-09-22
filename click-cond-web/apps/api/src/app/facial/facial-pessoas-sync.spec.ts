@@ -23,6 +23,9 @@ describe('FacialService: Sincronização por Pessoa', () => {
     visitantes: { findUnique: jest.fn() },
     facial_Devices: { findMany: jest.fn().mockResolvedValue([]) },
     vagas: { count: jest.fn().mockResolvedValue(0) },
+    // categoriasPermitidasNoDispositivo (whitelist de categoria por terminal):
+    // sem regra ativa = terminal liberado pra qualquer categoria.
+    regras_Acesso: { findMany: jest.fn().mockResolvedValue([]) },
     isConnected: true,
   };
 
@@ -47,20 +50,31 @@ describe('FacialService: Sincronização por Pessoa', () => {
   const mockConsentimentos: any = {
     autorizouBiometria: jest.fn().mockResolvedValue(true),
   };
+  const mockConsentimentosTerceiros: any = {
+    autorizouBiometria: jest.fn().mockResolvedValue(true),
+  };
   const mockNotifications: any = {};
   const mockTenant: any = {
     assertCondominio: jest.fn().mockResolvedValue(true),
   };
 
   beforeEach(() => {
+    // Ordem real do construtor (facial.service.ts): prisma, client,
+    // notifications, enrollSessions, auditoria, accessState, agent, tenant,
+    // consentimentos, consentimentosTerceiros. Estava fora de ordem aqui —
+    // inofensivo enquanto nada usava os slots errados, até syncPessoa passar
+    // a checar consentimento (C4) e pegar `undefined` em consentimentosTerceiros.
     service = new FacialService(
       mockPrisma,
       mockDeviceClient,
-      mockAgentBridge,
-      mockAccessState,
-      mockConsentimentos,
       mockNotifications,
+      {} as any, // enrollSessions
+      {} as any, // auditoria
+      mockAccessState,
+      mockAgentBridge,
       mockTenant,
+      mockConsentimentos,
+      mockConsentimentosTerceiros,
     );
     jest.clearAllMocks();
   });

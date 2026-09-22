@@ -82,6 +82,12 @@ describe('FacialService — webhook, negação sem visita ativa (Lote B, Critica
           if (!opts.pessoa || where.id !== opts.pessoa.id) return null;
           return include?.visitas ? opts.pessoa : { ...opts.pessoa, visitas: undefined };
         }),
+        // Usado pela resolução do external_id `pessoa_X` no webhook (C5:
+        // findFirst com id_condominio, em vez de findUnique só por id).
+        findFirst: jest.fn(async ({ where, include }: any) => {
+          if (!opts.pessoa || where.id !== opts.pessoa.id) return null;
+          return include?.visitas ? opts.pessoa : { ...opts.pessoa, visitas: undefined };
+        }),
       },
       regras_Acesso: { findMany: jest.fn(async () => []) },
       caminhos_Etapas: { findFirst: jest.fn(async () => null) },

@@ -1287,7 +1287,18 @@ export class FacialService {
         `Morador ${idMorador} menor de 18 anos ou sem data de nascimento comprovada: enrolamento facial não realizado.`,
       );
       if (morador.face_id && morador.id_condominio) {
-        await this.unsyncMorador(idMorador, morador.face_id, morador.id_condominio);
+        const removedOk = await this.unsyncMorador(idMorador, morador.face_id, morador.id_condominio);
+        if (!removedOk) {
+          // Mesmo contrato de syncVisitante/syncPessoa: remoção que não
+          // chegou no aparelho não pode ser tratada como concluída — o
+          // rosto continuaria abrindo a porta com o banco achando que já
+          // tinha revogado.
+          await this.prisma.moradores.update({
+            where: { id: idMorador },
+            data: { face_sync_status: 'pending' },
+          });
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.moradores.update({
           where: { id: idMorador },
           data: { face_id: null, face_sync_status: 'revoked', face_sync_error: 'menor_de_idade' },
@@ -1309,7 +1320,14 @@ export class FacialService {
         `Morador ${idMorador} sem consentimento de biometria: enrolamento facial não realizado.`,
       );
       if (morador.face_id && morador.id_condominio) {
-        await this.unsyncMorador(idMorador, morador.face_id, morador.id_condominio);
+        const removedOk = await this.unsyncMorador(idMorador, morador.face_id, morador.id_condominio);
+        if (!removedOk) {
+          await this.prisma.moradores.update({
+            where: { id: idMorador },
+            data: { face_sync_status: 'pending' },
+          });
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.moradores.update({
           where: { id: idMorador },
           data: { face_id: null, face_sync_status: 'revoked' },
@@ -1322,11 +1340,18 @@ export class FacialService {
       // REMOVE de todos os terminais — senão o morador continuaria abrindo com
       // um rosto órfão. E zera o face_id para não ser tratado como cadastrado.
       if (morador.face_id && morador.id_condominio) {
-        await this.unsyncMorador(
+        const removedOk = await this.unsyncMorador(
           idMorador,
           morador.face_id,
           morador.id_condominio,
         );
+        if (!removedOk) {
+          await this.prisma.moradores.update({
+            where: { id: idMorador },
+            data: { face_sync_status: 'pending' },
+          });
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.moradores.update({
           where: { id: idMorador },
           data: { face_id: null, face_sync_status: null, face_sync_error: null, face_enrolled_at: null },
@@ -2127,7 +2152,18 @@ export class FacialService {
 
     if (!pessoa.foto_pessoa) {
       if (pessoa.face_id && pessoa.id_condominio) {
-        await this.unsyncPessoa(idPessoa, pessoa.face_id, pessoa.id_condominio, opts);
+        const removedOk = await this.unsyncPessoa(idPessoa, pessoa.face_id, pessoa.id_condominio, opts);
+        if (!removedOk) {
+          // Mesma regra de syncVisitante: se a remoção não chegou no
+          // aparelho, mantém face_id + 'pending' pro reconnect tentar de
+          // novo — senão o rosto fica ativo no terminal pra sempre e a nuvem
+          // acha que já revogou.
+          await this.prisma.pessoas.update({
+            where: { id: idPessoa },
+            data: { face_sync_status: 'pending' },
+          });
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.pessoas.update({
           where: { id: idPessoa },
           data: { face_id: null, face_sync_status: null, face_sync_error: null },
@@ -2135,6 +2171,41 @@ export class FacialService {
         return { ok: true, syncState: 'revoked' };
       }
       return { skipped: true, reason: 'no_photo' };
+    }
+
+    // Biometria é dado sensível (Art. 11 da LGPD) e o titular aqui não tem
+    // conta no sistema: quem cadastrou é que declara ter colhido a
+    // autorização, igual ao caminho legado de Visitantes (syncVisitante,
+    // linhas ~1762-1774) — sem essa checagem, o rosto ia pro terminal mesmo
+    // sem a declaração, e a caixa de consentimento da tela virava decorativa.
+    // Busca por documento primeiro (mesma pessoa que já declarou antes,
+    // inclusive pelo caminho legado, não precisa declarar de novo).
+    if (
+      !(await this.consentimentosTerceiros.autorizouBiometria({
+        idCondominio: pessoa.id_condominio,
+        tipoPessoa: pessoa.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante',
+        idPessoa: pessoa.id,
+        doc: pessoa.doc_identificacao,
+      }))
+    ) {
+      this.logger.log(
+        `Pessoa ${idPessoa} sem declaração de consentimento biométrico: enrolamento facial não realizado.`,
+      );
+      if (pessoa.face_id && pessoa.id_condominio) {
+        const removedOk = await this.unsyncPessoa(idPessoa, pessoa.face_id, pessoa.id_condominio, opts);
+        if (!removedOk) {
+          await this.prisma.pessoas.update({
+            where: { id: idPessoa },
+            data: { face_sync_status: 'pending' },
+          });
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
+        await this.prisma.pessoas.update({
+          where: { id: idPessoa },
+          data: { face_id: null, face_sync_status: null, face_sync_error: null },
+        });
+      }
+      return { skipped: true, reason: 'sem_consentimento_biometria' };
     }
 
     const agora = Date.now();
@@ -2169,7 +2240,17 @@ export class FacialService {
 
     if (!autorizado) {
       if (pessoa.face_id && pessoa.id_condominio) {
-        await this.unsyncPessoa(idPessoa, pessoa.face_id, pessoa.id_condominio, opts);
+        const removedOk = await this.unsyncPessoa(idPessoa, pessoa.face_id, pessoa.id_condominio, opts);
+        if (!removedOk) {
+          // Idem: revogação (bloqueio/expiração) que não chegou no aparelho
+          // não pode ser tratada como concluída — o rosto continuaria
+          // abrindo fisicamente enquanto a nuvem acha que já revogou.
+          await this.prisma.pessoas.update({
+            where: { id: idPessoa },
+            data: { face_sync_status: 'pending' },
+          });
+          return { ok: false, removed: false, reason: 'remocao_pendente' };
+        }
         await this.prisma.pessoas.update({
           where: { id: idPessoa },
           data: { face_sync_status: 'revoked' },
@@ -2340,12 +2421,24 @@ export class FacialService {
     // Autorização "geral" (fora do condomínio, dentro da janela) — mesmo
     // critério de `syncVisitante`.
     const liberadoGeral = !!visitaAtiva && visitaAtiva.liberado === 1 && dentroJanela && diaAutorizado;
+    const categoria: CategoriaPessoa = ehPrestador ? 'prestador' : 'visitante';
 
     let faceId: string | null = pessoa.face_id ?? null;
     let allOk = true;
     let ultimoErro: string | null = null;
     for (const device of devices) {
       try {
+        // Mesma whitelist de categoria de `syncVisitante`/`syncMorador`
+        // (facial.service.ts:1909-1916): sem ela, todo visitante/prestador
+        // era enrolado mesmo em terminais cuja regra ativa só permite
+        // morador/funcionário — e um leitor único abre 24h ao reconhecer o
+        // rosto, sem consultar a nuvem no momento da passagem.
+        const permitidas = await this.categoriasPermitidasNoDispositivo(device);
+        if (!this.categoriaAutorizada(permitidas, categoria)) {
+          await this.client.removePerson(this.toConfig(device), faceId ?? externalId);
+          continue;
+        }
+
         // Mesmo filtro de `syncVisitante` (facial.service.ts:1895-1910): sem
         // ele, uma pessoa expirada mas ainda DENTRO do condomínio ficava
         // enrolada (sem validTo — ver acima) em TODO terminal, inclusive
@@ -2729,7 +2822,28 @@ export class FacialService {
     const temFotoOuFace = {
       OR: [{ foto_pessoa: { not: null } }, { face_id: { not: null } }],
     };
-    const [moradores, visitantes, prestadores] = await Promise.all([
+    // Mesmo filtro de "pendente" dos visitantes, adaptado: dias_semana vive
+    // em Visitas (não em Pessoas — uma Pessoa tem N Visitas), daí o relation
+    // filter. Sem esta consulta, uma Pessoa que ficou 'pending' (remoção que
+    // não chegou no aparelho, ver unsyncPessoa) nunca era retentada por
+    // nenhum tick — só moradores/visitantes/prestadores eram varridos aqui.
+    const pendenteWherePessoa = opts.onlyPending
+      ? {
+          OR: [
+            { face_sync_status: { not: 'synced' } },
+            { face_sync_status: null },
+            { face_id: null },
+            { visitas: { some: { dias_semana: { not: null } } } },
+          ],
+        }
+      : {};
+    const pessoaTipoWhere =
+      !cats || (cats.has('visitante') && cats.has('prestador'))
+        ? {}
+        : cats.has('prestador')
+          ? { tipo_pessoa: 'prestador' }
+          : { tipo_pessoa: { not: 'prestador' } };
+    const [moradores, visitantes, prestadores, pessoas] = await Promise.all([
       queryMorador
         ? this.prisma.moradores.findMany({
             where: {
@@ -2762,9 +2876,18 @@ export class FacialService {
             select: { id: true },
           })
         : Promise.resolve([] as { id: number }[]),
+      queryVisitante && pessoasMigrationEnabled(this.prisma)
+        ? this.prisma.pessoas.findMany({
+            where: {
+              id_condominio: idCondominio,
+              AND: [temFotoOuFace, pendenteWherePessoa, pessoaTipoWhere],
+            },
+            select: { id: true },
+          })
+        : Promise.resolve([] as { id: number }[]),
     ]);
 
-    const total = moradores.length + visitantes.length + prestadores.length;
+    const total = moradores.length + visitantes.length + prestadores.length + pessoas.length;
     if (total === 0) return { total: 0, started: false };
 
     this.bulkSyncEmAndamento.add(idCondominio);
@@ -2806,6 +2929,15 @@ export class FacialService {
           } catch (e: any) {
             falhou++;
             this.logger.warn(`Bulk sync prestador ${p.id}: ${e?.message ?? e}`);
+          }
+        }
+        for (const pes of pessoas) {
+          try {
+            const r: any = await this.syncPessoa(pes.id, { deviceIds });
+            if (r?.skipped) skipped++; else ok++;
+          } catch (e: any) {
+            falhou++;
+            this.logger.warn(`Bulk sync pessoa ${pes.id}: ${e?.message ?? e}`);
           }
         }
         this.logger.log(
@@ -3741,9 +3873,14 @@ export class FacialService {
       }
     } else if (externalId) {
       const parsed = this.parseExternalId(externalId);
+      // findFirst + id_condominio do dispositivo em vez de findUnique só por id:
+      // sem o escopo de tenant, um device do condomínio A relatando
+      // "morador_42" (ou visitante_/prestador_servico_/pessoa_) identificava o
+      // registro #42 de QUALQUER condomínio, e a decisão de porta seguia com
+      // os dados (e a autorização) de uma pessoa de outro condomínio.
       if (parsed.tipo === 'morador') {
-        const m = await this.prisma.moradores.findUnique({
-          where: { id: parsed.id },
+        const m = await this.prisma.moradores.findFirst({
+          where: { id: parsed.id, id_condominio: device.id_condominio },
         });
         if (m) {
           tipoPessoa =
@@ -3753,8 +3890,8 @@ export class FacialService {
           faceIdSalvo = m.face_id ?? externalId;
         }
       } else if (parsed.tipo === 'visitante') {
-        const v = await this.prisma.visitantes.findUnique({
-          where: { id: parsed.id },
+        const v = await this.prisma.visitantes.findFirst({
+          where: { id: parsed.id, id_condominio: device.id_condominio },
         });
         if (v) {
           tipoPessoa = v.is_prestador === 1 ? 'prestador' : 'visitante';
@@ -3763,8 +3900,8 @@ export class FacialService {
           faceIdSalvo = v.face_id ?? externalId;
         }
       } else if (parsed.tipo === 'prestador_servico') {
-        const p = await this.prisma.prestadores_servico.findUnique({
-          where: { id: parsed.id },
+        const p = await this.prisma.prestadores_servico.findFirst({
+          where: { id: parsed.id, id_condominio: device.id_condominio },
         });
         if (p) {
           // Prestadores da Gestão de Acesso contam como 'funcionario' na whitelist.
@@ -3773,9 +3910,14 @@ export class FacialService {
           nomePessoa = p.nome;
           faceIdSalvo = p.face_id ?? externalId;
         }
-      } else if (parsed.tipo === 'pessoa') {
-        const pes = await this.prisma.pessoas.findUnique({
-          where: { id: parsed.id },
+      } else if (parsed.tipo === 'pessoa' && pessoasMigrationEnabled(this.prisma)) {
+        // Gateado pela flag de propósito: com ela desligada, o resto do
+        // webhook assume que `idPessoa` de visitante/prestador é um id de
+        // `Visitantes` (ver o fallback `visitantes.findUnique({id:idPessoa})`
+        // mais abaixo) — resolver aqui contra `Pessoas` vazaria um id daquele
+        // espaço pra um código que vai reconsultar a tabela errada.
+        const pes = await this.prisma.pessoas.findFirst({
+          where: { id: parsed.id, id_condominio: device.id_condominio },
         });
         if (pes) {
           tipoPessoa = pes.tipo_pessoa === 'prestador' ? 'prestador' : 'visitante';
@@ -3814,7 +3956,9 @@ export class FacialService {
               idPessoa = p.id;
               nomePessoa = p.nome;
               faceIdSalvo = p.face_id ?? externalId;
-            } else {
+            } else if (pessoasMigrationEnabled(this.prisma)) {
+              // Mesmo motivo do ramo `pessoa_` acima: com a flag desligada,
+              // não resolve contra `Pessoas`.
               const pes = await this.prisma.pessoas.findFirst({
                 where: { face_id: externalId, id_condominio: device.id_condominio },
               });
