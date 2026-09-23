@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, Logger, Inject, forwardRef } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import type { FacialService } from '../facial/facial.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
 /**
  * Versão do texto de privacidade vigente.
@@ -43,7 +44,10 @@ export class ConsentimentosService {
   }
 
   private idDoUsuario(user: JwtPayload): number {
-    const id = Number(user?.user?.id ?? user?.sub);
+    // Users.id real: no token da portaria-web o `sub` é o id do operador em
+    // Funcionarios_Portaria, e as rotas "do próprio usuário" revogavam a
+    // biometria (e tiravam o rosto do terminal) do morador de mesmo número.
+    const id = idUsuarioDoToken(user);
     if (!id) throw new ForbiddenException('Sessão sem usuário.');
     return id;
   }

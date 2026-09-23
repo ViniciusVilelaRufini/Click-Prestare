@@ -33,6 +33,8 @@ describe('AreasSociaisService — autorização (agendarPeloSindico + IDOR)', ()
       //                 mobile (que não carrega id_condominio no token);
       //  - `id_apto`  → insertAgendamento procurando o dono da reserva feita
       //                 pelo operador em nome do apartamento.
+      // Reserva pela portaria confere o apto contra o condomínio da área.
+      apartamentos: { findUnique: jest.fn(async () => ({ id_condominio: 2 })) },
       apartamentos_Users: {
         findFirst: jest.fn(async ({ where }: any) => {
           if (where?.id_user !== undefined) {

@@ -55,6 +55,8 @@ describe('AreasSociaisService — limite mensal por apartamento', () => {
       areas_Sociais_Manutencoes: {
         findMany: jest.fn(async () => []),
       },
+      // Reserva pela portaria confere o apto contra o condomínio da área.
+      apartamentos: { findUnique: jest.fn(async () => ({ id_condominio: 2 })) },
       apartamentos_Users: {
         findMany: jest.fn(async () => [{ id_apto: 100 }]),
         findFirst: jest.fn(async () => ({ id_user: 6 })),

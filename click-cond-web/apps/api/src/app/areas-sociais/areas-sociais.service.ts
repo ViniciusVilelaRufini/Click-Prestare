@@ -12,6 +12,7 @@ import { FacialService } from '../facial/facial.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertOperador } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
 const DEFAULT_AREA_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600';
 
@@ -649,8 +650,19 @@ export class AreasSociaisService {
     let donoReservaId = Number(userId);
 
     if (peloSindico) {
-      // Resolve o morador vinculado ao apartamento; se não houver, mantém o
-      // próprio operador como dono para que a reserva ainda seja registrada.
+      // O apartamento vem do corpo: precisa ser do condomínio da área, senão
+      // a reserva (e o push) iam para um morador de outro prédio.
+      const aptoAlvo = await this.prisma.apartamentos.findUnique({
+        where: { id: Number(agendamento.id_apartamento) },
+        select: { id_condominio: true },
+      });
+      if (!aptoAlvo || aptoAlvo.id_condominio !== areaAlvo.id_condominio) {
+        throw new BadRequestException('Apartamento inválido para esta área.');
+      }
+      // Resolve o morador vinculado ao apartamento; se não houver, o próprio
+      // operador é o dono — pelo Users.id real. No token da portaria-web o
+      // `sub` é Funcionarios_Portaria.id e a reserva ia para o morador de
+      // mesmo número.
       const vinculo = await this.prisma.apartamentos_Users.findFirst({
         where: { id_apto: Number(agendamento.id_apartamento) },
         select: { id_user: true },
@@ -658,6 +670,14 @@ export class AreasSociaisService {
       });
       if (vinculo?.id_user) {
         donoReservaId = vinculo.id_user;
+      } else {
+        const idOperador = idUsuarioDoToken(user);
+        if (!idOperador) {
+          throw new BadRequestException(
+            'Este apartamento não tem morador vinculado. Vincule um morador antes de reservar em nome dele.',
+          );
+        }
+        donoReservaId = idOperador;
       }
     } else if (typeAccess === 'Morador') {
       // Validação de isolamento para moradores
