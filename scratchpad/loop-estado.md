@@ -35,3 +35,13 @@
 - GREEN: `encomendas.receber-duplicidade.spec.ts` passou e prova que a segunda confirmacao nao busca moradores nem dispara push.
 - Verificacao: teste direcionado API 1/1; typecheck e build API passaram (aviso conhecido de sourcemap Prisma ausente); suite portaria-web 59/59 e build passaram; suite Flutter 182/182 e APK debug passaram. A suite Jest integral da API excedeu 120 s sem resultado consolidado.
 - Aguardando aprovacao: nenhuma acao de banco ou publicacao. O commit desta rodada sera apenas local em `master`.
+## Rodada 4 - 23/09/2026
+
+- Fluxo auditado: retirada de encomenda pelo porteiro no app Flutter (`POST /encomendas/retirar`).
+- Reproducao RED: uma encomenda ja retirada retornava `NotFoundException` quando a chamada duplicada era simulada; o fluxo usava `update({ where: { id } })` sem exigir o estado `Aguardando`.
+- Causa raiz: duas requisicoes concorrentes podiam sobrescrever os dados da retirada (inclusive foto/assinatura) e gerar mais de um registro de auditoria.
+- Correcao GREEN: a transicao agora e atomica com `updateMany({ id, status: 'Aguardando' })`; somente a primeira chamada atualiza, recupera a encomenda e audita. As demais retornam `ConflictException` e preservam a evidencia original.
+- Isolamento: `assertEncomendaDoTenant` continua sendo executado antes da transicao; o apartamento e os dados da encomenda nao sao alterados pela retirada. O app classifica `Funcionario` como equipe e usa este endpoint; moradores usam o fluxo separado.
+- Teste: `encomendas.retirar-duplicidade.spec.ts` criado em RED e aprovado em GREEN (1/1).
+- Verificacao: teste direcionado e typecheck da API aprovados; build da API aprovado; testes/build do portaria-web aprovados (59/59); testes Flutter e APK debug aprovados (182/182). A suite completa da API foi tentada, mas excedeu 64 s e foi interrompida sem resultado final.
+- Aguardando aprovacao: nenhuma publicacao nem escrita em banco de producao foi realizada nesta rodada.

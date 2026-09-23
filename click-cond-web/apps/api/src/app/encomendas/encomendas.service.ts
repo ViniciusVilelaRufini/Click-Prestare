@@ -364,8 +364,8 @@ export class EncomendasService implements OnModuleInit {
     }
 
     try {
-      const atualizada = await this.prisma.encomendas.update({
-        where: { id: Number(id) },
+      const transicao = await this.prisma.encomendas.updateMany({
+        where: { id: Number(id), status: 'Aguardando' },
         data: {
           retirado_em: new Date(),
           retirado_por: retiradoPor,
@@ -376,6 +376,14 @@ export class EncomendasService implements OnModuleInit {
           entregue_por_user: operador?.sub ?? null,
         },
       });
+
+      if (transicao.count === 0) {
+        throw new ConflictException('Esta encomenda ja foi retirada ou nao esta aguardando entrega.');
+      }
+      const atualizada = await this.prisma.encomendas.findUnique({
+        where: { id: Number(id) },
+      });
+      if (!atualizada) throw new NotFoundException(`Encomenda ${id} nao encontrada`);
 
       const ctx = await this.carregarContextoEncomenda(atualizada.id);
       await this.auditoria.registrar({
@@ -389,7 +397,8 @@ export class EncomendasService implements OnModuleInit {
       });
 
       return atualizada;
-    } catch {
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
       throw new NotFoundException(`Encomenda ${id} não encontrada`);
     }
   }
