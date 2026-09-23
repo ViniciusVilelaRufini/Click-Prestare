@@ -131,4 +131,30 @@ describe('listarPessoas (Pessoas/Visitas) — estado da autorização no nível 
       expect(p.ultSaida).toBe(saidaAntiga.toISOString());
     });
   });
+
+  describe('autorização do morador vencida (check-in seria recusado)', () => {
+    it('visita não usada com autorização de 30 min atrás sai como autorizacao_expirada', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      const [p]: any[] = await servico({
+        auth_status: 'autorizado',
+        liberado: 1,
+        auth_solicitado_em: new Date(Date.now() - 31 * 60 * 1000),
+        auth_respondido_em: new Date(Date.now() - 30 * 60 * 1000),
+      }).listarPessoas(1);
+      expect(p.apartamentosVisitados[0].autorizacao_expirada).toBe(true);
+      expect(p.autorizacao_expirada).toBe(true);
+    });
+
+    it('autorização recente não está expirada', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      const [p]: any[] = await servico({
+        auth_status: 'autorizado',
+        liberado: 1,
+        auth_respondido_em: new Date(Date.now() - 60 * 1000),
+      }).listarPessoas(1);
+      expect(p.apartamentosVisitados[0].autorizacao_expirada).toBe(false);
+      expect(p.autorizacao_expirada).toBe(false);
+    });
+  });
 });
+
