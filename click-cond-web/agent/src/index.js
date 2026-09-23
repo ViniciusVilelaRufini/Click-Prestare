@@ -29,11 +29,19 @@
  */
 
 const http = require('http');
-const https = require('https');
-const crypto = require('crypto');
-const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
+const { AGENT_VERSION } = require('./versao');
+const { md5, buildDigestHeader, parseChallengeInto, computeDigest } = require('./lib/digest');
+const { formatDahuaTime, parseDahuaINI, dahuaEpochToISO, hikIsoComOffset } = require('./lib/dahua-formato');
+const { buildMultipart } = require('./lib/multipart');
+const {
+  request,
+  lanRequest: lanRequestComTimeout,
+  okFrom,
+  parseJson,
+  sleep,
+} = require('./lib/http');
 
 /**
  * Fabricantes que NÃO falam HTTP para comandos. Usam protocolo binário em
@@ -46,11 +54,6 @@ const SEM_COMANDO_HTTP = {
   topdata: 'protocolo TCP na porta 3570 (SDK Inner)',
   henry: 'protocolo proprietário (SDK Henry)',
 };
-
-// Versão do agente — sobe no boot para você conferir qual código está
-// realmente rodando (útil ao trocar o .exe: se ainda mostra a versão antiga,
-// o processo velho não foi substituído).
-const AGENT_VERSION = '2026.09.23';
 
 // ---------- Config ----------
 
@@ -66,6 +69,12 @@ let DEVICE_TOKENS = (process.env.DEVICE_TOKENS || '')
   .filter(Boolean);
 const DEFAULT_POLL_MS = Number(process.env.POLL_INTERVAL_MS || 2000);
 const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
+// lib/http.js não conhece LAN_TIMEOUT_MS (é config de módulo, carregada do
+// .env aqui). Este wrapper fecha sobre o valor configurado e mantém todas as
+// chamadas a lanRequest(...) espalhadas pelo arquivo inalteradas.
+function lanRequest(device, method, pathname, opts) {
+  return lanRequestComTimeout(device, method, pathname, opts, LAN_TIMEOUT_MS);
+}
 // Intervalo do heartbeat de status do aparelho (online/offline no portal).
 const DEVICE_STATUS_INTERVAL_MS = Number(
   process.env.DEVICE_STATUS_INTERVAL_MS || 5000,
@@ -691,29 +700,6 @@ function snapshotComDigest(device, st) {
   })();
 }
 
-function parseChallengeInto(wa, st) {
-  const g = (k) => {
-    const m = wa.match(new RegExp(`${k}="?([^",]+)"?`, 'i'));
-    return m ? m[1] : '';
-  };
-  st.realm = g('realm');
-  st.nonce = g('nonce');
-  st.qop = g('qop') ? g('qop').split(',')[0].trim() : '';
-}
-
-function computeDigest(user, pass, method, uri, st) {
-  const ha1 = md5(`${user}:${st.realm}:${pass}`);
-  const ha2 = md5(`${method}:${uri}`);
-  const nc = String(st.nc).padStart(8, '0');
-  const cnonce = crypto.randomBytes(8).toString('hex');
-  const response = st.qop
-    ? md5(`${ha1}:${st.nonce}:${nc}:${cnonce}:${st.qop}:${ha2}`)
-    : md5(`${ha1}:${st.nonce}:${ha2}`);
-  let h = `Digest username="${user}", realm="${st.realm}", nonce="${st.nonce}", uri="${uri}", response="${response}", algorithm=MD5`;
-  if (st.qop) h += `, qop=${st.qop}, nc=${nc}, cnonce="${cnonce}"`;
-  return h;
-}
-
 async function doPing(device) {
   if (device.fabricante === 'control_id') {
     await controlIdLogin(device); // login OK prova conectividade
@@ -1133,17 +1119,6 @@ async function controlIdLogin(device) {
 // CGIs AccessUser.cgi / AccessFace.cgi com Digest auth. O faceId que guardamos
 // é o próprio UserID (string definida por nós, ex.: "morador_42") — o push de
 // evento do aparelho devolve esse UserID, então não dependemos de id interno.
-
-// O RPC2 da Dahua responde JSON SEM header Content-Type, então o request()
-// genérico não desserializa — parseamos o corpo cru aqui.
-function parseJson(res) {
-  if (res && res.data && typeof res.data === 'object') return res.data;
-  try {
-    return JSON.parse((res && res.raw) || '');
-  } catch {
-    return {};
-  }
-}
 
 async function dahuaLogin(device) {
   const base = `http://${device.ip}:${device.porta}`;
@@ -1898,43 +1873,6 @@ async function controlIdFetchNewLogs(device) {
     .sort((a, b) => a.id - b.id);
 }
 
-function okFrom(res) {
-  return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
-}
-
-/**
- * Monta um corpo multipart/form-data. parts = [{ name, json } | { name, jpeg, filename }].
- * Devolve { body: Buffer, contentType }. Usado no cadastro de rosto do Hikvision.
- */
-function buildMultipart(parts) {
-  const boundary = '----clickbnd' + crypto.randomBytes(8).toString('hex');
-  const chunks = [];
-  for (const p of parts) {
-    chunks.push(Buffer.from(`--${boundary}\r\n`));
-    if (p.json !== undefined) {
-      chunks.push(
-        Buffer.from(
-          `Content-Disposition: form-data; name="${p.name}"\r\nContent-Type: application/json\r\n\r\n`,
-        ),
-      );
-      chunks.push(Buffer.from(JSON.stringify(p.json)));
-    } else {
-      chunks.push(
-        Buffer.from(
-          `Content-Disposition: form-data; name="${p.name}"; filename="${p.filename || 'face.jpg'}"\r\nContent-Type: image/jpeg\r\n\r\n`,
-        ),
-      );
-      chunks.push(p.jpeg);
-    }
-    chunks.push(Buffer.from('\r\n'));
-  }
-  chunks.push(Buffer.from(`--${boundary}--\r\n`));
-  return {
-    body: Buffer.concat(chunks),
-    contentType: `multipart/form-data; boundary=${boundary}`,
-  };
-}
-
 // ---------- HTTP helpers ----------
 
 // Defasagem entre o relógio DESTA máquina e o da nuvem, em ms (positivo = a
@@ -1983,153 +1921,7 @@ async function cloudRequest(method, pathname, jsonBody) {
   return res;
 }
 
-function lanRequest(device, method, pathname, opts = {}) {
-  const isHttps = device.porta === 443;
-  const scheme = isHttps ? 'https' : 'http';
-  const url = `${scheme}://${device.ip}:${device.porta}${pathname}`;
-  // control_id usa sessão (na query), não auth por header. Para os demais,
-  // request() tenta Basic e cai para Digest se o aparelho exigir (Hikvision).
-  const auth =
-    device.api_user && device.api_password && device.fabricante !== 'control_id'
-      ? { user: device.api_user, pass: device.api_password }
-      : undefined;
-  return request(url, { method, timeout: LAN_TIMEOUT_MS, auth, ...opts });
-}
-
-/**
- * Cliente HTTP minimalista sobre módulos nativos. Suporta json/xml/binary,
- * TLS self-signed (aparelhos de LAN) e timeout.
- */
-function request(urlStr, opts = {}) {
-  return new Promise((resolve, reject) => {
-    let u;
-    try {
-      u = new URL(urlStr);
-    } catch (e) {
-      return reject(new Error(`URL inválida: ${urlStr}`));
-    }
-    const lib = u.protocol === 'https:' ? https : http;
-    const headers = { Accept: 'application/json', ...(opts.headers || {}) };
-    if (opts.auth && !headers.Authorization) {
-      const tok = Buffer.from(`${opts.auth.user}:${opts.auth.pass}`).toString(
-        'base64',
-      );
-      headers.Authorization = `Basic ${tok}`;
-    }
-
-    let payload;
-    if (opts.json !== undefined) {
-      payload = Buffer.from(JSON.stringify(opts.json));
-      if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    } else if (opts.xml !== undefined) {
-      payload = Buffer.from(opts.xml);
-      if (!headers['Content-Type']) headers['Content-Type'] = 'application/xml';
-    } else if (opts.binary !== undefined) {
-      payload = opts.binary;
-      if (!headers['Content-Type']) headers['Content-Type'] = 'application/octet-stream';
-    }
-    if (payload) headers['Content-Length'] = payload.length;
-
-    const reqOpts = {
-      method: opts.method || 'GET',
-      hostname: u.hostname,
-      port: u.port || (u.protocol === 'https:' ? 443 : 80),
-      path: u.pathname + u.search,
-      headers,
-      // Aparelhos de LAN usam certificado self-signed; a rede local é confiável.
-      rejectUnauthorized: false,
-    };
-
-    const req = lib.request(reqOpts, (res) => {
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        // Desafio Digest (ex.: Hikvision): recalcula e repete uma vez.
-        const wa = res.headers['www-authenticate'] || '';
-        if (
-          res.statusCode === 401 &&
-          opts.auth &&
-          !opts._retry &&
-          /digest/i.test(wa)
-        ) {
-          try {
-            const dh = buildDigestHeader(
-              opts.auth.user,
-              opts.auth.pass,
-              reqOpts.method,
-              reqOpts.path,
-              wa,
-            );
-            return resolve(
-              request(urlStr, {
-                ...opts,
-                _retry: true,
-                auth: undefined,
-                headers: { ...(opts.headers || {}), Authorization: dh },
-              }),
-            );
-          } catch (e) {
-            /* cai para a resposta 401 normal */
-          }
-        }
-        const buffer = Buffer.concat(chunks);
-        const raw = buffer.toString('utf8');
-        let data = raw;
-        const ct = res.headers['content-type'] || '';
-        if (ct.includes('application/json') && raw) {
-          try {
-            data = JSON.parse(raw);
-          } catch {
-            /* mantém raw */
-          }
-        }
-        // buffer = bytes crus (necessário p/ binário, ex.: snapshot JPEG).
-        resolve({ status: res.statusCode, data, raw, buffer, headers: res.headers });
-      });
-    });
-
-    req.on('error', reject);
-    req.setTimeout(opts.timeout || 10000, () => {
-      req.destroy(new Error('timeout'));
-    });
-    if (payload) req.write(payload);
-    req.end();
-  });
-}
-
 // ---------- Utils ----------
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function md5(s) {
-  return crypto.createHash('md5').update(s).digest('hex');
-}
-
-/** Monta o header Authorization: Digest a partir do desafio WWW-Authenticate. */
-function buildDigestHeader(user, pass, method, uri, challenge) {
-  const get = (k) => {
-    const m = challenge.match(new RegExp(`${k}="?([^",]+)"?`, 'i'));
-    return m ? m[1] : '';
-  };
-  const realm = get('realm');
-  const nonce = get('nonce');
-  const opaque = get('opaque');
-  const algorithm = get('algorithm') || 'MD5';
-  const qop = get('qop') ? get('qop').split(',')[0].trim() : '';
-  const ha1 = md5(`${user}:${realm}:${pass}`);
-  const ha2 = md5(`${method}:${uri}`);
-  const nc = '00000001';
-  const cnonce = crypto.randomBytes(8).toString('hex');
-  const response = qop
-    ? md5(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`)
-    : md5(`${ha1}:${nonce}:${ha2}`);
-  let h = `Digest username="${user}", realm="${realm}", nonce="${nonce}", uri="${uri}", response="${response}", algorithm=${algorithm}`;
-  if (qop) h += `, qop=${qop}, nc=${nc}, cnonce="${cnonce}"`;
-  if (opaque) h += `, opaque="${opaque}"`;
-  return h;
-}
 
 /**
  * Diretório onde procurar o .env. Quando empacotado como executável (Node SEA),
@@ -2168,34 +1960,6 @@ function loadDotEnv() {
   }
 }
 
-function formatDahuaTime(date) {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())} ${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`;
-}
-
-function parseDahuaINI(text) {
-  const lines = text.split(/\r?\n/);
-  const records = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const parts = trimmed.split('=');
-    if (parts.length < 2) continue;
-    const key = parts[0].trim();
-    const value = parts.slice(1).join('=').trim();
-    const match = key.match(/^records\[(\d+)\]\.(.+)$/);
-    if (match) {
-      const idx = parseInt(match[1], 10);
-      const field = match[2];
-      if (!records[idx]) {
-        records[idx] = {};
-      }
-      records[idx][field] = value;
-    }
-  }
-  return records.filter(Boolean);
-}
-
 /**
  * Lê o log de acesso interno do terminal Dahua/Intelbras via recordFinder.cgi
  * e devolve os registros já parseados. Descoberto empiricamente no SS 3530 MF:
@@ -2227,31 +1991,9 @@ async function dahuaFindAccessRecords(device, count) {
   return { maxRecNo, records };
 }
 
-/** CreateTime do aparelho (epoch unix, string) → ISO. Se o relógio estiver
- *  zerado (aparelho sem NTP volta a 2000 ao perder energia), usa agora. */
 // Janela que o replay da Hikvision varre ao reconectar. 24h cobre uma queda
 // longa de internet sem trazer o histórico inteiro do aparelho.
 const HIK_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-/**
- * ISO 8601 com offset explícito ("2026-08-17T11:30:00-03:00"), formato que o
- * ISAPI exige em startTime/endTime — firmwares recusam o sufixo "Z".
- */
-function hikIsoComOffset(date) {
-  const off = -date.getTimezoneOffset();
-  const sinal = off >= 0 ? '+' : '-';
-  const pad = (n) => String(Math.floor(Math.abs(n))).padStart(2, '0');
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return (
-    local.toISOString().slice(0, 19) + sinal + pad(off / 60) + ':' + pad(off % 60)
-  );
-}
-
-function dahuaEpochToISO(createTime) {
-  const sec = parseInt(createTime, 10);
-  if (!sec || sec < 1577836800 /* 2020-01-01 */) return new Date().toISOString();
-  return new Date(sec * 1000).toISOString();
-}
 
 async function syncDeviceOfflineLogs(token, device) {
   // Dahua / Intelbras — recupera acessos que ocorreram enquanto o agente
