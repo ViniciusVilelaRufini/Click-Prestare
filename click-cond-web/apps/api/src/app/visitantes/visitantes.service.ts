@@ -3475,6 +3475,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     search?: string,
     offset = 0,
     userId?: number,
+    userType?: string,
   ) {
     if (!userId) return [];
 
@@ -3526,7 +3527,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     return list.map((v: any) => ({
       ...this.mapVisitaParaRespostaLegada(v),
-      codigo_acesso: null,
+      // O PIN é uma credencial física: somente o morador autenticado e
+      // vinculado ao apartamento exato da visita pode recebê-lo no app.
+      codigo_acesso: userType === 'Morador' && aptosPermitidos.includes(Number(v.id_apartamento)) && !v.data_saida
+        ? v.codigo_acesso ?? null
+        : null,
+      temPinAtivo: Boolean(v.codigo_acesso && !v.data_saida),
       apartamento: v.apartamento,
       condominio_nome: v.condominio?.nome || null,
     }));
@@ -4535,7 +4541,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     userType?: string,
   ) {
     if (pessoasMigrationEnabled(this.prisma)) {
-      return this.findAllMobileViaPessoasVisitas(idCondominio, idApto, search, offset, userId);
+      return this.findAllMobileViaPessoasVisitas(idCondominio, idApto, search, offset, userId, userType);
     }
     const conditions: any[] = [];
 
@@ -4602,7 +4608,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // fluxo de cadastro/liberacao, nunca como efeito colateral de um GET.
     return list.map((v: any) => ({
       ...v,
-      codigo_acesso: null,
+      // O PIN não é um dado de listagem geral: só segue para o morador que
+      // possui vínculo com o apartamento desta visita ainda ativa.
+      codigo_acesso: userType === 'Morador' && aptosPermitidos.includes(Number(v.id_apartamento)) && !v.data_saida
+        ? v.codigo_acesso ?? null
+        : null,
+      temPinAtivo: Boolean(v.codigo_acesso && !v.data_saida),
       condominio_nome: v.condominio?.nome || null,
     }));
   }
