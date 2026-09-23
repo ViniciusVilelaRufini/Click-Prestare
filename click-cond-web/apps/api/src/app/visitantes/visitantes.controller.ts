@@ -11,6 +11,7 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 import { assertOperador } from '../auth/tenant.util';
 import { formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
 /**
  * Superfície do CONSOLE (portaria-web). Enxerga o condomínio inteiro: todas
@@ -325,7 +326,9 @@ export class VisitantesGlobalController {
       : undefined;
     const idApto = idAptoStr ? Number(idAptoStr) : undefined;
     const offset = offsetStr ? Number(offsetStr) : 0;
-    const userId = payload?.user?.id ?? payload?.sub;
+    // Users.id de verdade: no token da portaria-web `sub` é o id do operador
+    // em Funcionarios_Portaria e listava as visitas de outro usuário.
+    const userId = idUsuarioDoToken(payload);
     const userType = payload?.typeAccess ?? payload?.user?.typeAccess;
 
     const list = await this.service.findAllMobile(
