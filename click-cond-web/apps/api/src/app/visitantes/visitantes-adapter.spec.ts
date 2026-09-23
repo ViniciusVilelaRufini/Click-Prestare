@@ -96,7 +96,10 @@ describe('VisitantesAdapter (Compatibilidade v75)', () => {
       nome: 'Carlos Visitante',
       doc_identificacao: '12345678900',
       foto_pessoa: 'http://foto.jpg',
-      codigo_acesso: '4321',
+      // Sanitizado (LGPD Art. 46): a listagem nunca expõe o PIN em si, só se
+      // existe um ativo — mesma regra do caminho legado (Visitantes).
+      codigo_acesso: null,
+      temPinAtivo: true,
       liberado: 1,
       totalVisitas: 1,
     });

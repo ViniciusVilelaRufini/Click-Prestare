@@ -42,6 +42,23 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
   return true;
 }
 
+const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
+
+export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
+  if (registro?.auth_status !== 'autorizado') return false;
+  if (registro.data_entrada && !registro.data_saida) return true;
+  if (registro.data_saida) {
+    const saida = new Date(registro.data_saida).getTime();
+    const respondida = registro.auth_respondido_em ? new Date(registro.auth_respondido_em).getTime() : 0;
+    const solicitada = registro.auth_solicitado_em ? new Date(registro.auth_solicitado_em).getTime() : 0;
+    if (saida >= Math.max(respondida, solicitada)) return false;
+  }
+  const respondida = registro.auth_respondido_em
+    ? new Date(registro.auth_respondido_em).getTime()
+    : (registro.auth_solicitado_em ? new Date(registro.auth_solicitado_em).getTime() : 0);
+  return (agora - respondida) <= AUTORIZACAO_EXPIRACAO_MS;
+}
+
 export interface CreateVisitanteDto {
   nome: string;
   doc_identificacao?: string;
@@ -188,41 +205,110 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         take: 200,
       });
 
-      if (paraExpurgo.length === 0) return 0;
+      // Sem `return 0` antecipado aqui de propósito: um condomínio sem NENHUM
+      // Visitantes legado a expurgar (esperado, com a migração avançando)
+      // não pode pular o expurgo de Pessoas logo abaixo — foi exatamente
+      // esse early-return que, aplicado ingenuamente ao ramo novo, teria
+      // recriado o no-op que este fix existe pra eliminar.
+      let totalVisitantes = 0;
+      if (paraExpurgo.length > 0) {
+        // Expurga arquivos físicos no Cloudflare R2 / S3
+        await Promise.all(
+          paraExpurgo.flatMap((v) => [
+            this.storage.deleteUrl(v.foto_pessoa),
+            this.storage.deleteUrl(v.foto_documento),
+          ]),
+        );
 
-      // Expurga arquivos físicos no Cloudflare R2 / S3
-      await Promise.all(
-        paraExpurgo.flatMap((v) => [
-          this.storage.deleteUrl(v.foto_pessoa),
-          this.storage.deleteUrl(v.foto_documento),
-        ]),
-      );
-
-      const ids = paraExpurgo.map((v) => v.id);
-      const resultado = await this.prisma.visitantes.updateMany({
-        where: { id: { in: ids } },
-        data: {
-          foto_pessoa: null,
-          foto_documento: null,
-        },
-      });
-
-      if (resultado.count > 0) {
-        this.logger.log(`[LGPD Retenção] Expurgadas fotos e arquivos de ${resultado.count} visitas encerradas há mais de ${diasRetencao} dias.`);
-        await this.auditoria.registrar({
-          id_condominio: 0,
-          usuario_nome: 'Sistema (Rotina LGPD)',
-          acao: 'DELETE',
-          modulo: 'visitantes',
-          descricao: `Expurgo automático de fotografias e biometria de ${resultado.count} visitas encerradas há mais de ${diasRetencao} dias.`,
-          detalhes: { totalExpurgados: resultado.count, prazoDias: diasRetencao },
+        const ids = paraExpurgo.map((v) => v.id);
+        const resultado = await this.prisma.visitantes.updateMany({
+          where: { id: { in: ids } },
+          data: {
+            foto_pessoa: null,
+            foto_documento: null,
+          },
         });
+
+        if (resultado.count > 0) {
+          this.logger.log(`[LGPD Retenção] Expurgadas fotos e arquivos de ${resultado.count} visitas encerradas há mais de ${diasRetencao} dias.`);
+          await this.auditoria.registrar({
+            id_condominio: 0,
+            usuario_nome: 'Sistema (Rotina LGPD)',
+            acao: 'DELETE',
+            modulo: 'visitantes',
+            descricao: `Expurgo automático de fotografias e biometria de ${resultado.count} visitas encerradas há mais de ${diasRetencao} dias.`,
+            detalhes: { totalExpurgados: resultado.count, prazoDias: diasRetencao },
+          });
+        }
+        totalVisitantes = resultado.count;
       }
-      return resultado.count;
+
+      // Mesma rotina, agora para Pessoas/Visitas (migração): a foto é da
+      // PESSOA (uma identidade, N visitas), não da visita — então o critério
+      // não é "esta visita encerrou há mais de 90 dias", é "TODAS as visitas
+      // desta pessoa encerraram há mais de 90 dias" (ou ela nunca teve
+      // nenhuma visita aberta/agendada). Sem isto, com a flag ligada, toda
+      // foto de rosto/documento nasce em Pessoas e o expurgo LGPD vira no-op
+      // permanente — o log acima segue dizendo "0 expurgados" para sempre.
+      const totalPessoas = await this.tickRetencaoDadosPessoas(diasRetencao, limiteRetencao);
+
+      return totalVisitantes + totalPessoas;
     } catch (e: any) {
       this.logger.warn(`[LGPD Retenção] Erro na rotina de expurgo: ${e?.message ?? e}`);
       return 0;
     }
+  }
+
+  private async tickRetencaoDadosPessoas(diasRetencao: number, limiteRetencao: Date): Promise<number> {
+    const paraExpurgo = await this.prisma.pessoas.findMany({
+      where: {
+        OR: [{ foto_pessoa: { not: null } }, { foto_documento: { not: null } }],
+        visitas: { some: {} },
+        NOT: {
+          visitas: {
+            some: {
+              OR: [{ data_saida: null }, { data_saida: { gt: limiteRetencao } }],
+            },
+          },
+        },
+      },
+      select: { id: true, foto_pessoa: true, foto_documento: true },
+      take: 200,
+    });
+
+    if (paraExpurgo.length === 0) return 0;
+
+    let totalExpurgado = 0;
+    for (const pessoa of paraExpurgo) {
+      const resultado = await this.prisma.pessoas.updateMany({
+        where: {
+          id: pessoa.id,
+          foto_pessoa: pessoa.foto_pessoa,
+          foto_documento: pessoa.foto_documento,
+        },
+        data: { foto_pessoa: null, foto_documento: null },
+      });
+      if (resultado.count > 0) {
+        totalExpurgado += resultado.count;
+        await Promise.all([
+          this.storage.deleteUrl(pessoa.foto_pessoa),
+          this.storage.deleteUrl(pessoa.foto_documento),
+        ]);
+      }
+    }
+
+    if (totalExpurgado > 0) {
+      this.logger.log(`[LGPD Retenção] Expurgadas fotos e arquivos de ${totalExpurgado} pessoas sem visita aberta há mais de ${diasRetencao} dias.`);
+      await this.auditoria.registrar({
+        id_condominio: 0,
+        usuario_nome: 'Sistema (Rotina LGPD)',
+        acao: 'DELETE',
+        modulo: 'pessoas',
+        descricao: `Expurgo automático de fotografias e biometria de ${totalExpurgado} pessoas sem visita aberta há mais de ${diasRetencao} dias.`,
+        detalhes: { totalExpurgados: totalExpurgado, prazoDias: diasRetencao },
+      });
+    }
+    return totalExpurgado;
   }
 
   private fireFacialSync(idVisitante: number) {
@@ -708,6 +794,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             }
           }
 
+          // Mesmo contrato do caminho legado (Visitantes, ~linha 1047-1059):
+          // o portaria-web resolve o alvo das ações de check-in/liberação por
+          // `visitanteId`/`liberado`/`auth_status` (não pelos nomes que este
+          // bloco emitia antes — `status`/`visitaMaisRecente`). Sem os campos
+          // certos, o front caía em `aptos[0]` e `apto?.visitanteId ?? p.id`
+          // — e `p.id` aqui pode ser um id de `Pessoas`, que os endpoints de
+          // ação resolvem contra `Visitas`: dois autoincrement independentes,
+          // então a ação podia acertar a visita de OUTRA pessoa.
           const apartamentosVisitados = Array.from(aptosMap.entries()).map(([aptoId, regs]) => {
             regs.sort((a, b) => score(b) - score(a));
             const best = regs[0];
@@ -722,21 +816,57 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
               return (now - solEm) <= AUTH_EXPIRACAO_MS;
             });
 
-            const isAutorizado = regs.some((r) => {
-              if ((r as any).auth_status !== 'autorizado') return false;
-              const respEm = (r as any).auth_respondido_em
-                ? new Date((r as any).auth_respondido_em).getTime()
-                : 0;
-              return (now - respEm) <= AUTH_EXPIRACAO_MS;
+            const isAutorizado = regs.some((r) => isAutorizacaoAtual(r, now));
+
+            const isLiberado = regs.some((r) => {
+              if (vagaPorVisita.has(r.id)) return true;
+              if ((r as any).is_prestador === 1) return r.liberado === 1;
+              if (r.data_saida) {
+                const saida = new Date(r.data_saida).getTime();
+                const resp = (r as any).auth_respondido_em ? new Date((r as any).auth_respondido_em).getTime() : 0;
+                const sol = (r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0;
+                if (saida >= Math.max(resp, sol)) return false;
+              }
+              if (r.liberado === 1 && r.data_entrada && !r.data_saida) return true;
+              if (r.liberado === 1) {
+                const respEm = (r as any).auth_respondido_em
+                  ? new Date((r as any).auth_respondido_em).getTime()
+                  : ((r as any).auth_solicitado_em ? new Date((r as any).auth_solicitado_em).getTime() : 0);
+                const refTime = respEm || (r.created_at ? new Date(r.created_at).getTime() : 0);
+                return (now - refTime) <= AUTH_EXPIRACAO_MS;
+              }
+              return false;
             });
+
+            const authStatus = isAutorizado ? 'autorizado' : isPendente ? 'pendente' : null;
+            const noLocalApto = regs.some((r) => r.data_entrada && !r.data_saida);
+            const regAtivoApto =
+              regs.find((r) => isAutorizacaoAtual(r, now)) ||
+              regs.find((r) => (r as any).auth_status === 'pendente') ||
+              best;
 
             return {
               id: aptoId,
               label,
+              // Sempre o id da VISITA (nunca de Pessoas) — é o que os
+              // endpoints de check-in/liberação resolvem.
+              visitanteId: regAtivoApto.id,
+              liberado: isLiberado,
+              auth_status: authStatus,
+              auth_solicitado_em: (regAtivoApto as any).auth_solicitado_em
+                ? new Date((regAtivoApto as any).auth_solicitado_em).toISOString()
+                : null,
+              auth_respondido_em: (regAtivoApto as any).auth_respondido_em
+                ? new Date((regAtivoApto as any).auth_respondido_em).toISOString()
+                : null,
+              temPinAtivo: regs.some((r) => Boolean(r.codigo_acesso && !r.data_saida)),
+              noLocal: noLocalApto,
+              data_entrada: best.data_entrada?.toISOString() ?? null,
+              data_saida: best.data_saida?.toISOString() ?? null,
+              // Extras do caminho migrado (não fazem parte do contrato legado,
+              // mas não atrapalham quem só lê os campos acima).
               bloco: a.bloco,
               apto: a.apto,
-              status: isPendente ? 'pendente' : (isAutorizado ? 'autorizado' : null),
-              visitaMaisRecente: best.id,
               totalVisitasApto: regs.length,
             };
           });
@@ -769,7 +899,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             face_id: p.face_id,
             face_sync_status: p.face_sync_status,
             face_enrolled_at: p.face_enrolled_at ? new Date(p.face_enrolled_at).toISOString() : null,
-            codigo_acesso: principal?.codigo_acesso ?? null,
+            codigo_acesso: null, // Sanitizado conforme LGPD (Art. 46): credencial física nunca deve ser exposta na listagem
             liberado: principal?.liberado ?? 1,
             bloqueado: p.bloqueado === 1 || principal?.bloqueado === 1 ? 1 : 0,
             data_hora_inicio: principal?.data_hora_inicio ? new Date(principal.data_hora_inicio).toISOString() : null,
@@ -2517,6 +2647,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Acesso negado: Este visitante/prestador está bloqueado no condomínio.');
     }
+    if (ref.auth_status === 'autorizado' && !isAutorizacaoAtual(ref)) {
+      throw new BadRequestException('A autorização desta visita está expirada.');
+    }
     const targetAptoId = idApartamento ? Number(idApartamento) : ref.id_apartamento;
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
@@ -2963,22 +3096,23 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
 
     const todasVisitas = [v, ...outrasVisitas];
-    const todosVisIds = todasVisitas.map((x) => x.id);
 
-    const acessosFacial =
-      todosVisIds.length > 0
-        ? await this.prisma.acessos_Facial.findMany({
-            where: {
-              tipo_pessoa: 'visitante',
-              OR: [
-                { id_pessoa: { in: todosVisIds } },
-                { id_pessoa: v.id_pessoa },
-              ],
-            },
-            orderBy: { timestamp: 'desc' },
-            take: 100,
-          })
-        : [];
+    // O webhook facial grava Acessos_Facial.id_pessoa com um id de Pessoas
+    // (prefixo `pessoa_X`) — NUNCA com um id de Visitas. O OR anterior
+    // ({id_pessoa: {in: todosVisIds}}, ids de Visitas) só podia casar por
+    // coincidência numérica com o id_pessoa de OUTRA pessoa (os dois
+    // autoincrement nascem do 1 e crescem em paralelo): a timeline de uma
+    // pessoa podia exibir horário/terminal/confiança de passagens de
+    // terceiros. Filtrar só por `v.id_pessoa` (o único valor que o webhook
+    // de fato grava para esta pessoa) fecha o vazamento.
+    const acessosFacial = await this.prisma.acessos_Facial.findMany({
+      where: {
+        tipo_pessoa: 'visitante',
+        id_pessoa: v.id_pessoa,
+      },
+      orderBy: { timestamp: 'desc' },
+      take: 100,
+    });
 
     const devices = await this.prisma.facial_Devices.findMany({
       where: { id_condominio: v.id_condominio },
@@ -2986,18 +3120,33 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     });
     const deviceNomePor = new Map(devices.map((d: any) => [d.id, d.nome]));
 
-    const isDup = (idVisitante: number, evento: string, ts: Date) => {
+    const isDup = (evento: string, ts: Date) => {
       const ms = ts.getTime();
       return acessosFacial.some((a: any) => {
-        if (a.id_pessoa !== idVisitante && a.id_pessoa !== v.id_pessoa) return false;
         if (a.evento !== evento) return false;
         return Math.abs(a.timestamp.getTime() - ms) <= 2000;
       });
     };
 
+    // Um evento de Acessos_Facial não guarda de qual Visita específica ele
+    // veio (só de qual Pessoa) — quando a pessoa tem visitas em mais de um
+    // apartamento, atribui o evento à visita cuja janela contém o horário do
+    // evento; sem nenhuma correspondência, cai na visita atual (`v`).
+    const visitaNoHorario = (ts: Date) => {
+      const ms = ts.getTime();
+      return (
+        todasVisitas.find((x) => {
+          const inicio = (x.data_entrada ?? x.data_hora_inicio)?.getTime();
+          const fim = (x.data_saida ?? x.data_hora_termino)?.getTime();
+          if (inicio === undefined) return false;
+          return ms >= inicio && (fim === undefined || ms <= fim);
+        }) ?? v
+      );
+    };
+
     const timeline: any[] = [];
     for (const a of acessosFacial) {
-      const visitanteReg = todasVisitas.find((x) => x.id === a.id_pessoa);
+      const visitanteReg = visitaNoHorario(a.timestamp);
       const apto = visitanteReg?.apartamento;
       let obs = undefined;
       const match = a.nome_pessoa?.match(/\(([^)]+)\)/);
@@ -3021,7 +3170,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     for (const reg of todasVisitas) {
       const apto = reg.apartamento;
       const blocoApto = apto ? `${apto.apto ?? ''}${apto.bloco ?? ''}`.trim() : undefined;
-      if (reg.data_entrada && !isDup(reg.id, 'entrada', reg.data_entrada)) {
+      if (reg.data_entrada && !isDup('entrada', reg.data_entrada)) {
         timeline.push({
           evento: 'entrada',
           timestamp: reg.data_entrada.toISOString(),
@@ -3032,7 +3181,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           idVisitanteRegistro: reg.id,
         });
       }
-      if (reg.data_saida && !isDup(reg.id, 'saida', reg.data_saida)) {
+      if (reg.data_saida && !isDup('saida', reg.data_saida)) {
         timeline.push({
           evento: 'saida',
           timestamp: reg.data_saida.toISOString(),
@@ -3119,12 +3268,13 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const categoriasPessoa =
       porRecencia.map((r) => r.categorias).find((c) => c && String(c).trim()) ?? null;
 
+    // Só id_visita (nunca id_visitante): todasVisitas aqui são Visitas
+    // (Visitas.id), e Vagas.id_visitante espera um id de Visitantes — mesmo
+    // defeito do C3 na timeline, um id de Visitas em id_visitante só podia
+    // casar por coincidência com a vaga de OUTRA pessoa.
     const vagaAtiva = await this.prisma.vagas.findFirst({
       where: {
-        OR: [
-          { id_visita: { in: todosVisIds } },
-          { id_visitante: { in: todosVisIds } },
-        ],
+        id_visita: { in: todasVisitas.map((x) => x.id) },
         ativo: 1,
       },
       include: { titular: { select: { nome: true } } },
@@ -3271,21 +3421,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       skip: offset,
     });
 
-    const updated: any[] = [];
-    for (const v of list) {
-      if (!v.codigo_acesso && !v.data_saida) {
-        const pin = await this.gerarPinUnicoVisita();
-        await this.prisma.visitas.update({
-          where: { id: v.id },
-          data: { codigo_acesso: pin },
-        });
-        (v as any).codigo_acesso = pin;
-      }
-      updated.push(v);
-    }
-
-    return updated.map((v: any) => ({
+    return list.map((v: any) => ({
       ...this.mapVisitaParaRespostaLegada(v),
+      codigo_acesso: null,
       apartamento: v.apartamento,
       condominio_nome: v.condominio?.nome || null,
     }));
@@ -4362,21 +4500,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // No caso comum (visitante já criado com PIN) este laço não faz nenhuma query.
     // Quando precisa, faz só o UPDATE (sem re-buscar o include) e atualiza o objeto
     // em memória — antes era um update + re-fetch por visitante.
-    const updated: any[] = [];
-    for (const v of list) {
-      if (!v.codigo_acesso && !v.data_saida) {
-        const pin = await this.gerarPinUnico();
-        await this.prisma.visitantes.update({
-          where: { id: v.id },
-          data: { codigo_acesso: pin },
-        });
-        (v as any).codigo_acesso = pin;
-      }
-      updated.push(v);
-    }
-
-    return updated.map((v: any) => ({
+    // Listagem e somente leitura: PINs devem ser criados explicitamente no
+    // fluxo de cadastro/liberacao, nunca como efeito colateral de um GET.
+    return list.map((v: any) => ({
       ...v,
+      codigo_acesso: null,
       condominio_nome: v.condominio?.nome || null,
     }));
   }

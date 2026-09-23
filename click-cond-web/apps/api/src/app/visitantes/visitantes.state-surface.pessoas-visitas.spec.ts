@@ -1,4 +1,4 @@
-import { VisitantesService } from './visitantes.service';
+import { isAutorizacaoAtual, VisitantesService } from './visitantes.service';
 import { PessoasService } from '../pessoas/pessoas.service';
 import { VisitasService } from '../visitas/visitas.service';
 
@@ -190,6 +190,12 @@ function buildStateHarness() {
 }
 
 describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Task 5)', () => {
+  it('considera autorização antiga expirada e autorização recente válida', () => {
+    const agora = Date.now();
+    expect(isAutorizacaoAtual({ auth_status: 'autorizado', auth_respondido_em: new Date(agora - 11 * 60 * 1000) }, agora)).toBe(false);
+    expect(isAutorizacaoAtual({ auth_status: 'autorizado', auth_respondido_em: new Date(agora - 2 * 60 * 1000) }, agora)).toBe(true);
+  });
+
   const originalFlag = process.env['PESSOAS_MIGRATION_ENABLED'];
 
   afterEach(() => {
@@ -433,8 +439,41 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
           id: 50,
           nome: 'Mariana Lima',
           condominio_nome: 'Condomínio Solar',
+          codigo_acesso: null,
         }),
       );
+    });
+
+    it('findAllMobile() migrado não cria PIN durante uma leitura', async () => {
+      const { service, prisma } = buildStateHarness();
+      prisma.visitas.findMany.mockResolvedValue([{
+        id: 51, id_pessoa: 10, id_condominio: 1, id_apartamento: 101,
+        codigo_acesso: null, data_saida: null,
+        data_hora_inicio: new Date(), data_hora_termino: new Date(Date.now() + 3600000),
+        pessoa: { id: 10, nome: 'Mariana Lima', tipo_pessoa: 'visitante' },
+        apartamento: { bloco: 'A', apto: '101' }, condominio: { nome: 'Condomínio Solar' },
+      }]);
+
+      const res = await service.findAllMobile(1, undefined, undefined, 0, 1);
+
+      expect(res).toHaveLength(1);
+      expect(res[0].codigo_acesso).toBeNull();
+      expect(prisma.visitas.update).not.toHaveBeenCalled();
+    });
+
+    it('checkIn() rejeita autorização migrada expirada', async () => {
+      const { service, prisma } = buildStateHarness();
+      prisma.visitas.findUnique.mockResolvedValue({
+        id: 50, id_condominio: 1, id_apartamento: 101, id_pessoa: 10,
+        auth_status: 'autorizado',
+        auth_respondido_em: new Date(Date.now() - 11 * 60 * 1000),
+        data_entrada: null, data_saida: null, bloqueado: 0,
+        pessoa: { id: 10, nome: 'Mariana Lima', bloqueado: 0 },
+      });
+
+      await expect(service.checkIn(50, { sub: 1, id_condominio: 1 } as any))
+        .rejects.toThrow(/expirada/i);
+      expect(prisma.visitas.update).not.toHaveBeenCalled();
     });
   });
 
@@ -470,6 +509,22 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
         }),
       );
       expect(prisma.visitas.update).not.toHaveBeenCalled();
+    });
+
+    it('findAllMobile() legado não cria PIN durante uma leitura', async () => {
+      const { service, prisma } = buildStateHarness();
+      prisma.visitantes.findMany.mockResolvedValue([{
+        id: 88, id_condominio: 1, id_apartamento: 101, nome: 'QA legado',
+        codigo_acesso: null, data_saida: null,
+        apartamento: { bloco: 'A', apto: '101' }, condominio: { nome: 'Condomínio Solar' },
+      }]);
+
+      const res = await service.findAllMobile(1, undefined, undefined, 0, 1);
+
+      expect(res).toHaveLength(1);
+      expect(res[0].codigo_acesso).toBeNull();
+      expect(prisma.visitantes.update).not.toHaveBeenCalled();
+      expect(prisma.visitantes.findFirst).not.toHaveBeenCalled();
     });
   });
 });
