@@ -5,6 +5,7 @@ import { ReqUser } from './req-user.decorator';
 import type { JwtPayload } from './jwt-payload.interface';
 import { OcorrenciasService } from '../ocorrencias/ocorrencias.service';
 import { EncomendasService } from '../encomendas/encomendas.service';
+import { assertOperador } from './tenant.util';
 
 // ==========================================
 // SÍNDICO
@@ -561,6 +562,10 @@ export class EncomendasMobileController {
     @ReqUser() payload: JwtPayload,
     @Body() body: any,
   ) {
+    // Registrar/editar/excluir encomenda é da portaria (síndico/funcionário
+    // no app). Só com a checagem de condomínio do service, um morador
+    // chamando a API mexia na encomenda de qualquer apartamento.
+    assertOperador(payload, 'registrar encomenda');
     const enc = body.encomenda || body;
     const idCondominio = Number(body.id_condominio || enc.id_condominio);
     return this.encomendasService.create({
@@ -580,6 +585,7 @@ export class EncomendasMobileController {
     @ReqUser() payload: JwtPayload,
     @Body() body: any,
   ) {
+    assertOperador(payload, 'editar encomenda');
     const enc = body.encomenda || body;
     const id = Number(enc.id ?? body.id);
     return this.encomendasService.update(id, {
@@ -598,6 +604,7 @@ export class EncomendasMobileController {
     @ReqUser() payload: JwtPayload,
     @Body() body: { id: number | string },
   ) {
+    assertOperador(payload, 'excluir encomenda');
     await this.encomendasService.remove(Number(body.id), payload);
     return { ok: true };
   }
