@@ -51,6 +51,9 @@ function assertTokenInterno(token: string | undefined): void {
   }
 }
 
+/** Domínio HTTPS da API (CloudFront), o mesmo que o app usa. */
+const API_URL_PUBLICA_PADRAO = 'https://api.clickprestarecondominios.com.br';
+
 @Controller('facial')
 export class FacialController {
   constructor(private readonly service: FacialService) {}
@@ -294,14 +297,10 @@ export class FacialController {
       user,
       `config do agente do condomínio ${idCondominio}`,
     );
-    const proto = (
-      (req.headers['x-forwarded-proto'] as string) ||
-      req.protocol ||
-      'https'
-    ).split(',')[0];
-    const host =
-      (req.headers['x-forwarded-host'] as string) || req.headers['host'] || '';
-    const apiUrl = process.env.PUBLIC_API_URL || `${proto}://${host}`;
+    // Endereço fixo, nunca derivado dos cabeçalhos: pela portaria-web
+    // (Amplify) eles chegam como http + www, e o agente instalado com
+    // http://www... recebe 301 e não fala com a nuvem.
+    const apiUrl = process.env.PUBLIC_API_URL || API_URL_PUBLICA_PADRAO;
     const fmt = format === 'bat' ? 'bat' : 'env';
     const file = await this.service.getAgentConfigFile(
       idCondominio,
