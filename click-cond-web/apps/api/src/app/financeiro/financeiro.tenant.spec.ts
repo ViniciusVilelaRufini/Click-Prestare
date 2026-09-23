@@ -49,11 +49,10 @@ describe('FinanceiroService — isolamento de tenant (IDOR)', () => {
     const noop: any = { registrar: jest.fn() };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
     const fechamento: any = { assertPodeAlterar: jest.fn(async () => undefined) };
-    const openPix: any = { generateCharge: jest.fn() };
     // TenantAccessService real ligado ao mesmo mock de prisma: testa a
     // autorização ponta-a-ponta via o helper mobile-aware central.
     const tenant = new TenantAccessService(prisma);
-    const svc = new FinanceiroService(prisma, storage, noop, noop, noop, fechamento, openPix, tenant);
+    const svc = new FinanceiroService(prisma, storage, noop, noop, noop, fechamento, tenant);
     return { svc, prisma };
   }
 

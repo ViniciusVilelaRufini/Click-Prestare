@@ -25,7 +25,7 @@ describe('FinanceiroService — identificação da unidade no dashboard', () => 
 
     const svc: any = new FinanceiroService(
       prisma, {} as any, {} as any, {} as any,
-      {} as any, {} as any, {} as any, tenant as any,
+      {} as any, {} as any, tenant as any,
     );
 
     return { svc };

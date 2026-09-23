@@ -61,12 +61,11 @@ describe('FinanceiroService — baixa com justificativa (auto-aprovação)', () 
     const noop: any = { registrar: jest.fn() };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
     const fechamento: any = { assertPodeAlterar: jest.fn(async () => undefined) };
-    const openPix: any = { generateCharge: jest.fn() };
     const tenant: any = {
       assertCondominio: jest.fn(async () => undefined),
       assertEntidade: jest.fn(async () => undefined),
     };
-    const svc = new FinanceiroService(prisma, storage, noop, noop, noop, fechamento, openPix, tenant);
+    const svc = new FinanceiroService(prisma, storage, noop, noop, noop, fechamento, tenant);
     return { svc, prisma };
   }
 

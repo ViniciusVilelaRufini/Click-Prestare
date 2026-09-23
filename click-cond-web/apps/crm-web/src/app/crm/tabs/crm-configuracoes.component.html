@@ -93,9 +93,6 @@
 
         <ul class="space-y-2">
           @for (g of [
-            { label: 'OpenPix — geração de Pix', env: 'OPENPIX_APP_ID', ok: store.gatewaysStatus()?.openpix },
-            { label: 'OpenPix — webhook de confirmação', env: 'OPENPIX_WEBHOOK_TOKEN', ok: store.gatewaysStatus()?.openpixWebhook },
-            { label: 'Asaas — webhook de confirmação', env: 'ASAAS_WEBHOOK_TOKEN', ok: store.gatewaysStatus()?.asaasWebhook },
             { label: 'Z-API — WhatsApp', env: 'Z_API_INSTANCE_ID / Z_API_TOKEN', ok: store.gatewaysStatus()?.zapi }
           ]; track g.env) {
             <li class="flex items-center justify-between gap-3 rounded-xl bg-surface-sunken px-4 py-3">

@@ -1,3 +1,4 @@
+import { hojeBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
 import { Injectable, NotFoundException, OnModuleInit, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -8,7 +9,6 @@ import { TenantAccessService } from '../auth/tenant-access.service';
 import { isOperador, assertFinanceiroSomenteLeitura } from '../auth/tenant.util';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FechamentoService } from './fechamento.service';
-import { OpenPixService } from './openpix.service';
 import { SuperlogicaService } from '../superlogica/superlogica.service';
 
 @Injectable()
@@ -22,7 +22,6 @@ export class FinanceiroService implements OnModuleInit {
     private readonly notifications: NotificationsService,
     private readonly auditoria: AuditoriaService,
     private readonly fechamento: FechamentoService,
-    private readonly openPix: OpenPixService,
     private readonly tenant: TenantAccessService,
   ) {}
 
@@ -63,7 +62,9 @@ export class FinanceiroService implements OnModuleInit {
     // Hora local do servidor. Railway por padrão está em UTC — operador deve
     // configurar TZ=America/Sao_Paulo ou ajustar BILLING_REMINDER_HOUR pra
     // compensar (ex: 12 = 9h em SP quando server está em UTC).
-    const horaAtual = new Date().getHours();
+    // Hora de Brasília: o servidor roda em UTC e comparava a hora dele, o que
+    // disparava a cobrança às 06:00 de Brasília com o padrão de 9h.
+    const horaAtual = horaBrasilia();
     if (horaAtual !== triggerHour) {
       return;
     }
@@ -495,21 +496,6 @@ export class FinanceiroService implements OnModuleInit {
         },
       });
 
-      // Automatically generate OpenPix charge for unpaid Receitas
-      if (criado.tipo === 'C' && criado.pago === 0 && !criado.pix_copia_cola) {
-        const pixData = await this.openPix.generateCharge(
-          `financeiro_${criado.id}`,
-          Math.abs(criado.valor ? Number(criado.valor) : 0),
-          criado.nome ?? 'Cobrança',
-          criado.data_vencimento,
-        );
-        if (pixData?.brCode) {
-          criado = await this.prisma.financeiro.update({
-            where: { id: criado.id },
-            data: { pix_copia_cola: pixData.brCode },
-          });
-        }
-      }
     } catch (err: any) {
       // Loga com stack pra diagnostico (Railway logs)
       this.logger.error(
@@ -684,34 +670,17 @@ export class FinanceiroService implements OnModuleInit {
       );
     }
 
-    // Pix dinâmico é gerado com o valor da época. Se o síndico corrige o valor
-    // de uma cobrança em aberto, o código antigo continua cobrando o valor
-    // velho — o morador paga, o webhook vê "pagamento parcial" e a fatura fica
-    // em aberto mesmo tendo sido paga. Regenera a cobrança com o valor novo.
+    // Um código Pix gravado com o valor antigo continuaria cobrando o valor
+    // velho depois de uma correção. Sem gateway para regerar, o código é
+    // apagado — o morador paga pela chave Pix do condomínio.
     const valorMudou =
       antes?.valor != null && Math.abs(Math.abs(Number(antes.valor)) - Math.abs(valor)) > 0.001;
     const pixVeioDoCliente = financeiro.pix_copia_cola !== undefined;
     if (valorMudou && isPago === 0 && !pixVeioDoCliente && antes?.pix_copia_cola) {
-      try {
-        const pixData = await this.openPix.generateCharge(
-          `financeiro_${financeiro.id}_v${Date.now()}`,
-          Math.abs(valor),
-          financeiro.nome ?? antes.nome ?? 'Cobrança',
-          dVenc ?? antes.data_vencimento,
-        );
-        await this.prisma.financeiro.update({
-          where: { id: Number(financeiro.id) },
-          // Sem Pix novo, melhor ficar sem código do que manter um que cobra
-          // valor errado — o morador ainda paga pela chave Pix do condomínio.
-          data: { pix_copia_cola: pixData?.brCode ?? null },
-        });
-      } catch (err: any) {
-        this.logger.error(`[financeiro.update] Falha ao regerar Pix de ${financeiro.id}: ${err?.message ?? err}`);
-        await this.prisma.financeiro.update({
-          where: { id: Number(financeiro.id) },
-          data: { pix_copia_cola: null },
-        });
-      }
+      await this.prisma.financeiro.update({
+        where: { id: Number(financeiro.id) },
+        data: { pix_copia_cola: null },
+      });
     }
 
     // Diff dos campos sensíveis. Valor e pago são os mais críticos: mudar
@@ -961,7 +930,10 @@ export class FinanceiroService implements OnModuleInit {
       id_condominio: Number(idCondominio),
       OR: [
         { data: { gte: dataIni, lte: dataFim } },
-        { data_vencimento: { gte: dataIni, lte: dataFim } },
+        // Competência: mês do pagamento; sem pagamento, do vencimento. Com
+        // `data OU vencimento` a conta paga em um mês e vencida no seguinte
+        // entrava nos dois e era somada duas vezes (mesma regra de getAllMeses).
+        { data: null, data_vencimento: { gte: dataIni, lte: dataFim } },
       ],
       // Conta pessoal do morador (água, luz, internet — criada por ele mesmo
       // via insertMoradorConta, sempre tipo 'D' + id_usuario preenchido) não é
@@ -1273,8 +1245,7 @@ export class FinanceiroService implements OnModuleInit {
     });
 
     const blocosMap: Record<string, any[]> = {};
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
 
     for (const a of aptos) {
       const minhasPendentes = faturasPendentes.filter((f) =>
@@ -1371,8 +1342,7 @@ export class FinanceiroService implements OnModuleInit {
       aptosDoCondominio.some((a) => this.nomeFaturaDeApto(c.nome, a.apto, a.bloco)),
     );
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
 
     let totalArrecadado = 0;
     let totalPendente = 0;
@@ -1567,8 +1537,7 @@ export class FinanceiroService implements OnModuleInit {
 
       const val = f.valor ? Number(f.valor) : 0;
 
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
+      const hoje = hojeBrasilia();
       const dataVenc = f.data_vencimento ? new Date(f.data_vencimento) : null;
       if (dataVenc) {
         dataVenc.setHours(0, 0, 0, 0);
@@ -1760,7 +1729,10 @@ export class FinanceiroService implements OnModuleInit {
         pago: 1,
         OR: [
           { data: { gte: dataIni, lte: dataFim } },
-          { data_vencimento: { gte: dataIni, lte: dataFim } },
+          // Competência: mês do pagamento; sem pagamento, do vencimento. Com
+          // `data OU vencimento` a conta paga em um mês e vencida no seguinte
+          // entrava nos dois e era somada duas vezes (mesma regra de getAllMeses).
+          { data: null, data_vencimento: { gte: dataIni, lte: dataFim } },
         ],
         // Mesmo recorte do getAll: sem isso, as contas pessoais dos moradores
         // entravam no gráfico do síndico e criavam categorias de despesa
@@ -2265,170 +2237,6 @@ export class FinanceiroService implements OnModuleInit {
     return result;
   }
 
-  async handleAsaasWebhook(body: any) {
-    if (!this.prisma.isConnected) return { success: true };
-    this.logger.log(`Webhook recebido: ${body?.event} ref=${body?.payment?.externalReference}`);
-
-    if (body.event !== 'PAYMENT_RECEIVED' && body.event !== 'PAYMENT_CONFIRMED') {
-      return { success: true, skipped: true };
-    }
-
-    const financeiroId = Number(body?.payment?.externalReference);
-    if (!financeiroId) {
-      this.logger.warn(`Webhook Asaas sem externalReference válido — ignorado`);
-      return { success: true, skipped: true };
-    }
-
-    const lanc = await this.prisma.financeiro.findUnique({
-      where: { id: financeiroId },
-      select: { id: true, valor: true, pago: true, id_condominio: true, nome: true },
-    });
-    if (!lanc) {
-      this.logger.warn(`Webhook Asaas: lançamento ${financeiroId} não encontrado`);
-      return { success: true, skipped: true };
-    }
-
-    // Idempotência: se já está pago, não reprocessa (evita push duplicado
-    // se o Asaas reenviar o webhook).
-    if (lanc.pago === 1) {
-      this.logger.log(`Webhook Asaas: lançamento ${financeiroId} já pago — ignorado`);
-      return { success: true, alreadyPaid: true };
-    }
-
-    // Valida valor recebido contra valor cadastrado. Pagamento parcial NÃO
-    // deve marcar como pago. Asaas envia `payment.value` (valor original) e
-    // `payment.netValue` (líquido após taxa). Comparamos o valor bruto.
-    const valorRecebido = Number(body?.payment?.value ?? 0);
-    const valorEsperado = Math.abs(Number(lanc.valor ?? 0));
-    if (valorRecebido > 0 && valorEsperado > 0 && valorRecebido < valorEsperado - 0.01) {
-      this.logger.warn(
-        `Webhook Asaas: pagamento parcial detectado para lançamento ${financeiroId} ` +
-        `(recebido R$ ${valorRecebido.toFixed(2)}, esperado R$ ${valorEsperado.toFixed(2)}) — NÃO marcado como pago`,
-      );
-      return { success: true, partialPayment: true };
-    }
-
-    try {
-      await this.prisma.financeiro.update({
-        where: { id: financeiroId },
-        data: {
-          status: '1',
-          pago: 1,
-          data: new Date(),
-        },
-      });
-    } catch (err: any) {
-      this.logger.error(
-        `[asaasWebhook] Falha ao confirmar pagamento ${financeiroId}: ${err?.message ?? err}`,
-        err?.stack,
-      );
-      return { success: false, error: 'db_update_failed' };
-    }
-    this.logger.log(`Pagamento confirmado via Webhook para Lançamento ID: ${financeiroId} (R$ ${valorRecebido.toFixed(2)})`);
-
-    // Auditoria: webhook é mutação financeira automatizada, precisa de rastro.
-    await this.auditoria.registrar({
-      id_condominio: lanc.id_condominio,
-      usuario_nome: 'Webhook Asaas',
-      acao: 'STATUS',
-      modulo: 'financeiro',
-      entidade_id: lanc.id,
-      descricao: `Pagamento confirmado via Asaas: ${lanc.nome}`,
-      detalhes: {
-        event: body.event,
-        valorRecebido,
-        valorEsperado,
-        asaasPaymentId: body?.payment?.id,
-        netValue: body?.payment?.netValue,
-      },
-    });
-
-    return { success: true };
-  }
-
-  async handleOpenPixWebhook(body: any) {
-    if (!this.prisma.isConnected) return { success: true };
-    this.logger.log(`Webhook OpenPix recebido: ${body?.event} correlationID=${body?.charge?.correlationID}`);
-
-    if (body?.event !== 'OPENPIX:CHARGE_COMPLETED') {
-      return { success: true, skipped: true };
-    }
-
-    const correlationID = body?.charge?.correlationID;
-    if (!correlationID || !correlationID.startsWith('financeiro_')) {
-      this.logger.warn(`Webhook OpenPix sem correlationID válido — ignorado`);
-      return { success: true, skipped: true };
-    }
-
-    // Aceita `financeiro_<id>` e `financeiro_<id>_v<timestamp>` — a segunda
-    // forma é usada quando o valor da cobrança é corrigido e o Pix precisa ser
-    // reemitido (a OpenPix recusa reaproveitar um correlationID).
-    const financeiroId = Number(/^financeiro_(\d+)/.exec(correlationID)?.[1] ?? 0);
-    if (!financeiroId) {
-      this.logger.warn(`Webhook OpenPix: ID inválido extraído de ${correlationID}`);
-      return { success: true, skipped: true };
-    }
-
-    const lanc = await this.prisma.financeiro.findUnique({
-      where: { id: financeiroId },
-      select: { id: true, valor: true, pago: true, id_condominio: true, nome: true },
-    });
-    if (!lanc) {
-      this.logger.warn(`Webhook OpenPix: lançamento ${financeiroId} não encontrado`);
-      return { success: true, skipped: true };
-    }
-
-    if (lanc.pago === 1) {
-      this.logger.log(`Webhook OpenPix: lançamento ${financeiroId} já pago — ignorado`);
-      return { success: true, alreadyPaid: true };
-    }
-
-    const valorRecebido = Number(body?.charge?.value ?? 0) / 100;
-    const valorEsperado = Math.abs(Number(lanc.valor ?? 0));
-    if (valorRecebido > 0 && valorEsperado > 0 && valorRecebido < valorEsperado - 0.01) {
-      this.logger.warn(
-        `Webhook OpenPix: pagamento parcial detectado para lançamento ${financeiroId} ` +
-        `(recebido R$ ${valorRecebido.toFixed(2)}, esperado R$ ${valorEsperado.toFixed(2)}) — NÃO marcado como pago`,
-      );
-      return { success: true, partialPayment: true };
-    }
-
-    try {
-      await this.prisma.financeiro.update({
-        where: { id: financeiroId },
-        data: {
-          status: '1',
-          pago: 1,
-          data: new Date(),
-        },
-      });
-    } catch (err: any) {
-      this.logger.error(
-        `[openpixWebhook] Falha ao confirmar pagamento ${financeiroId}: ${err?.message ?? err}`,
-        err?.stack,
-      );
-      return { success: false, error: 'db_update_failed' };
-    }
-    this.logger.log(`Pagamento confirmado via Webhook OpenPix para Lançamento ID: ${financeiroId} (R$ ${valorRecebido.toFixed(2)})`);
-
-    await this.auditoria.registrar({
-      id_condominio: lanc.id_condominio,
-      usuario_nome: 'Webhook OpenPix',
-      acao: 'STATUS',
-      modulo: 'financeiro',
-      entidade_id: lanc.id,
-      descricao: `Pagamento confirmado via OpenPix: ${lanc.nome}`,
-      detalhes: {
-        event: body.event,
-        valorRecebido,
-        valorEsperado,
-        correlationID,
-      },
-    });
-
-    return { success: true };
-  }
-
   async createRateio(idCondominio: number, rateioData: { nome: string; valorTotal: number; data_vencimento: string; categoria: string }, operatorName: string, user?: JwtPayload) {
     await this.tenant.assertCondominio(idCondominio, user);
     if (!this.prisma.isConnected) return { success: false, message: 'Sem conexão com banco' };
@@ -2490,20 +2298,6 @@ export class FinanceiroService implements OnModuleInit {
         }),
       ),
     );
-
-    // Generate OpenPix charges for rateio items in background
-    createdCharges.forEach((charge, i) => {
-      this.openPix.generateCharge(`financeiro_${charge.id}`, valorDoApto(i), charge.nome ?? 'Rateio', dVenc)
-        .then(async (pixData) => {
-          if (pixData?.brCode) {
-            await this.prisma.financeiro.update({
-              where: { id: charge.id },
-              data: { pix_copia_cola: pixData.brCode },
-            });
-          }
-        })
-        .catch((e) => this.logger.error(`Failed to generate OpenPix for rateio charge ${charge.id}: ${e}`));
-    });
 
     const valorPorApto = valorDoApto(aptos.length - 1); // sem o centavo de sobra
     const unidadesIgnoradas = todosAptos.length - aptos.length;
@@ -2612,7 +2406,7 @@ export class FinanceiroService implements OnModuleInit {
       );
     }
 
-    const resultados = await this.prisma.$transaction([
+    await this.prisma.$transaction([
       ...debitos.map((deb) =>
         this.prisma.financeiro.update({
           where: { id: deb.id },
@@ -2624,31 +2418,6 @@ export class FinanceiroService implements OnModuleInit {
       ),
       ...parcelasOperations,
     ]);
-
-    // Pix das parcelas, em background — rateio e recorrência já geravam, o
-    // acordo não: o morador que renegociava ficava com parcelas sem nenhuma
-    // forma de pagar pelo app, justamente quem mais precisa quitar.
-    const parcelasCriadas = resultados.slice(debitos.length);
-    parcelasCriadas.forEach((parcela: any, idx) => {
-      this.openPix
-        .generateCharge(
-          `financeiro_${parcela.id}`,
-          valorDaParcela(idx + 1),
-          parcela.nome ?? 'Parcela de acordo',
-          parcela.data_vencimento,
-        )
-        .then(async (pixData) => {
-          if (pixData?.brCode) {
-            await this.prisma.financeiro.update({
-              where: { id: parcela.id },
-              data: { pix_copia_cola: pixData.brCode },
-            });
-          }
-        })
-        .catch((e) =>
-          this.logger.error(`Failed to generate OpenPix for acordo parcela ${parcela.id}: ${e}`),
-        );
-    });
 
     const valorParcela = valorDaParcela(parcelas); // sem o centavo de sobra
     const formatReal = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -2682,8 +2451,7 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return;
     this.logger.log('Iniciando Job de Lembretes de Cobrança...');
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
     const hojeStr = hoje.toISOString().slice(0, 10);
 
     // Janela de busca otimizada: só faturas com vencimento entre -2 e +6 dias.
@@ -3229,7 +2997,10 @@ export class FinanceiroService implements OnModuleInit {
         id_condominio: Number(idCondominio),
         OR: [
           { data: { gte: dataIni, lte: dataFim } },
-          { data_vencimento: { gte: dataIni, lte: dataFim } },
+          // Competência: mês do pagamento; sem pagamento, do vencimento. Com
+          // `data OU vencimento` a conta paga em um mês e vencida no seguinte
+          // entrava nos dois e era somada duas vezes (mesma regra de getAllMeses).
+          { data: null, data_vencimento: { gte: dataIni, lte: dataFim } },
         ],
         // Conta pessoal do morador (água, luz, internet que ele mesmo lançou:
         // tipo 'D' + id_usuario) não é dinheiro do condomínio e não pode sair
@@ -3760,24 +3531,6 @@ export class FinanceiroService implements OnModuleInit {
         },
       });
 
-      // Tenta gerar o Pix dinâmico via OpenPix
-      try {
-        const pixData = await this.openPix.generateCharge(
-          `financeiro_${criado.id}`,
-          Math.abs(Number(criado.valor)),
-          criado.nome ?? 'Cobrança',
-          criado.data_vencimento,
-        );
-        if (pixData?.brCode) {
-          criado = await this.prisma.financeiro.update({
-            where: { id: criado.id },
-            data: { pix_copia_cola: pixData.brCode },
-          });
-        }
-      } catch (pixErr) {
-        this.logger.error(`[gerarFaturasRecorrentesParaMes] Erro OpenPix para fatura ${criado.id}: ${pixErr}`);
-      }
-
       // Notifica moradores do apartamento (relacional e legado)
       const moradores = await this.prisma.users.findMany({
         where: {
@@ -3833,8 +3586,7 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return;
     this.logger.log('Iniciando Job de Régua de Cobrança Automática via WhatsApp...');
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
     const hojeStr = hoje.toISOString().slice(0, 10);
 
     // Busca todos os condomínios com cobrança automatizada via WhatsApp ativa

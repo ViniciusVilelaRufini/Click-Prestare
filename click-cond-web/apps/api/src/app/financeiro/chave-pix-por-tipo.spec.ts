@@ -60,7 +60,7 @@ describe('FinanceiroService — chave Pix só em cobrança do condomínio', () =
     const fechamento: any = { assertPodeAlterar: jest.fn(async () => undefined) };
     const tenant = new TenantAccessService(prisma);
     const svc = new FinanceiroService(
-      prisma, storage, noop, noop, noop, fechamento, { generateCharge: jest.fn() } as any, tenant,
+      prisma, storage, noop, noop, noop, fechamento, tenant,
     );
     return svc;
   }

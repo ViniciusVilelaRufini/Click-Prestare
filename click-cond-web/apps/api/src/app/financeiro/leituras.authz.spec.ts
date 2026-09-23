@@ -101,7 +101,7 @@ describe('FinanceiroService.getAll — a query não amplia o que o papel permite
     const tenant: any = { assertCondominio: jest.fn(async () => undefined) };
     const svc = new FinanceiroService(
       prisma, storage, noop, noop, noop,
-      { assertPodeAlterar: jest.fn() } as any, { generateCharge: jest.fn() } as any, tenant,
+      { assertPodeAlterar: jest.fn() } as any, tenant,
     );
     return { svc };
   }

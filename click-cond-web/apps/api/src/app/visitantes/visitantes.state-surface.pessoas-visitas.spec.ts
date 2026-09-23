@@ -210,7 +210,8 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
 
     it('checkIn() atualiza visitas, dispara syncPessoa e emite evento realtime', async () => {
       const { service, prisma, facial, auditoria, realtime } = buildStateHarness();
-      const payload: any = { id_condominio: 1, sub: 99, nome: 'Portaria' };
+      // typeAccess: `visitas.user` só recebe o sub de token de USUÁRIO (FK Users).
+      const payload: any = { id_condominio: 1, sub: 99, nome: 'Portaria', typeAccess: 'Sindico' };
 
       const res = await service.checkIn(50, payload);
 
@@ -277,7 +278,8 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
     });
 
     it('checkOut() encerra visita, desocupa vaga por id_visita e chama syncPessoa', async () => {
-      const { service, prisma, facial, auditoria } = buildStateHarness();
+      const { service, prisma, facial, auditoria, visitas } = buildStateHarness();
+      visitas[0].data_entrada = new Date(); // só dá baixa em quem está dentro
       const payload: any = { id_condominio: 1, sub: 99, nome: 'Portaria' };
 
       const res = await service.checkOut(50, payload);

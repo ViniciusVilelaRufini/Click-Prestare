@@ -313,8 +313,8 @@ export class CrmApi {
     return this.http.post<any>(`${this.base}/config`, entries);
   }
 
-  gatewaysStatus(): Observable<{ openpix: boolean; openpixWebhook: boolean; asaasWebhook: boolean; zapi: boolean }> {
-    return this.http.get<{ openpix: boolean; openpixWebhook: boolean; asaasWebhook: boolean; zapi: boolean }>(`${this.base}/config/gateways-status`);
+  gatewaysStatus(): Observable<{ zapi: boolean }> {
+    return this.http.get<{ zapi: boolean }>(`${this.base}/config/gateways-status`);
   }
 
   disparos(): Observable<CrmDisparo[]> {

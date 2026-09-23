@@ -293,9 +293,6 @@ export class CrmFaturasService implements OnModuleInit {
    */
   gatewaysStatus() {
     return {
-      openpix: !!process.env.OPENPIX_APP_ID,
-      openpixWebhook: !!process.env.OPENPIX_WEBHOOK_TOKEN,
-      asaasWebhook: !!process.env.ASAAS_WEBHOOK_TOKEN,
       zapi: !!(process.env.Z_API_INSTANCE_ID && process.env.Z_API_TOKEN),
     };
   }

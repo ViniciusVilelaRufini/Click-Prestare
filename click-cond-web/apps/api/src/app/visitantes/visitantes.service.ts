@@ -1,3 +1,4 @@
+import { diaSemanaBrasilia, formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
 import {
   Injectable,
   Logger,
@@ -43,6 +44,20 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 }
 
 const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
+
+/**
+ * Users.id de quem está logado, para gravar em `visitas.user` / `Visitantes.user`
+ * (FK para Users). Só existe em token de USUÁRIO (typeAccess Sindico/Morador/
+ * Funcionario). O porteiro da portaria-web tem `sub = Funcionarios_Portaria.id`
+ * — gravá-lo ali atribuía a visita a outra pessoa ou estourava a FK (500).
+ */
+export function idUsuarioDoToken(payload?: JwtPayload | null): number | null {
+  if (!payload || (payload as any).role === 'crm_admin') return null;
+  const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
+  if (!['sindico', 'morador', 'funcionario'].includes(tipo)) return null;
+  const id = Number(payload.user?.id ?? payload.sub);
+  return id || null;
+}
 
 export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
   if (registro?.auth_status !== 'autorizado') return false;
@@ -1403,7 +1418,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const visita = await this.visitasService.criarVisita({
       id_condominio: pessoa.id_condominio,
       id_apartamento: Number(dto.id_apartamento),
-      user: payload ? Number(payload.user?.id ?? payload.sub) : null,
+      user: idUsuarioDoToken(payload),
       pessoa: {
         id_pessoa: pessoa.id,
         nome: pessoa.nome,
@@ -1878,7 +1893,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
           liberado: 1,
           dias_semana: dto.dias_semana !== undefined ? dto.dias_semana : existingActive.dias_semana,
           categorias: dto.categorias !== undefined ? dto.categorias : existingActive.categorias,
-          ...(operador?.sub !== undefined && { user: operador.sub }),
+          ...(idUsuarioDoToken(operador) != null && { user: idUsuarioDoToken(operador) }),
         },
       });
 
@@ -1960,7 +1975,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         liberado: 1,
         dias_semana: dto.dias_semana ?? null,
         categorias: dto.categorias ?? null,
-        user: operador ? operador.sub : null,
+        user: idUsuarioDoToken(operador),
       },
     });
 
@@ -2052,7 +2067,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     const visita = await this.visitasService.criarVisita({
       id_condominio: Number(dto.id_condominio),
       id_apartamento: Number(dto.id_apartamento),
-      user: operador ? operador.sub : null,
+      user: idUsuarioDoToken(operador),
       pessoa: {
         nome: dto.nome,
         doc_identificacao: dto.doc_identificacao ?? null,
@@ -2690,14 +2705,17 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
     }
+    // Pessoa dentro: recusa (duplo clique não reescreve a entrada). Visita
+    // encerrada: nova visita, preservando a passagem anterior no histórico.
+    const idVisita = await this.visitaParaNovaPassagem(ref);
     const v = await this.prisma.visitas.update({
-      where: { id: Number(id) },
+      where: { id: idVisita },
       data: {
         data_entrada: new Date(),
         data_saida: null,
         liberado: 1,
         ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
-        ...(payload?.sub !== undefined && { user: payload.sub }),
+        ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
         ...(ref.auth_status === 'pendente' && {
           auth_status: 'autorizado',
           auth_respondido_em: new Date(),
@@ -2746,7 +2764,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   private async visitaParaNovaPassagem(ref: any): Promise<number> {
     if (ref.data_entrada && !ref.data_saida) {
       throw new BadRequestException(
-        'Este visitante já está no condomínio. Dê baixa antes de liberar ou solicitar uma nova entrada.',
+        'Este visitante já está no condomínio. Dê baixa antes de registrar uma nova passagem.',
       );
     }
     if (!ref.data_entrada && !ref.data_saida) return Number(ref.id);
@@ -2795,7 +2813,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         data_entrada: null,
         data_saida: null,
         ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
-        ...(payload?.sub !== undefined && { user: payload.sub }),
+        ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
         ...(ref.auth_status === 'pendente' && {
           auth_status: 'autorizado',
           auth_respondido_em: new Date(),
@@ -2832,6 +2850,11 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   private async checkOutViaPessoasVisitas(id: number, payload?: JwtPayload) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
+    // Só dá baixa em quem está dentro: sem entrada, ou com saída já
+    // registrada, a baixa fechava a visita errada ou reescrevia a saída.
+    if (!ref.data_entrada || ref.data_saida) {
+      throw new BadRequestException('Este visitante não está no condomínio.');
+    }
     const v = await this.prisma.visitas.update({
       where: { id: Number(id) },
       data: {
@@ -3065,8 +3088,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (v.dias_semana) {
       const diasPermitidos = v.dias_semana.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean);
       if (diasPermitidos.length > 0) {
-        const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-        const diaSemanaAtual = mapDias[now.getDay()];
+        const diaSemanaAtual = diaSemanaBrasilia(now);
         if (!diasPermitidos.includes(diaSemanaAtual)) {
           throw new BadRequestException('Acesso negado: Entrada não permitida no dia de hoje.');
         }
@@ -3077,11 +3099,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
-    const formatarData = (d: Date | null) => {
-      if (!d) return '';
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
+    const formatarData = (d: Date | null) => formatarDataHoraBrasilia(d);
 
     return {
       id: v.id,
@@ -3761,8 +3779,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (v.dias_semana) {
       const diasPermitidos = v.dias_semana.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
       if (diasPermitidos.length > 0) {
-        const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-        const diaSemanaAtual = mapDias[now.getDay()];
+        const diaSemanaAtual = diaSemanaBrasilia(now);
         if (!diasPermitidos.includes(diaSemanaAtual)) {
           throw new BadRequestException('Acesso negado: Entrada não permitida no dia de hoje.');
         }
@@ -3773,11 +3790,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
-    const formatarData = (d: Date | null) => {
-      if (!d) return '';
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
+    const formatarData = (d: Date | null) => formatarDataHoraBrasilia(d);
 
     return {
       id: v.id,
@@ -4155,7 +4168,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         data_saida: null,
         liberado: 1,
         ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
-        ...(payload?.sub !== undefined && { user: payload.sub }),
+        ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
         // Override do porteiro: se havia pedido pendente, marca como resolvido.
         ...(ref.auth_status === 'pendente' && {
           auth_status: 'autorizado',
@@ -4205,7 +4218,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         data_entrada: null,
         data_saida: null,
         ...(idApartamento ? { id_apartamento: targetAptoId } : {}),
-        ...(payload?.sub !== undefined && { user: payload.sub }),
+        ...(idUsuarioDoToken(payload) != null && { user: idUsuarioDoToken(payload) }),
         // Override do porteiro: se havia pedido pendente, marca como resolvido.
         ...(ref.auth_status === 'pendente' && {
           auth_status: 'autorizado',

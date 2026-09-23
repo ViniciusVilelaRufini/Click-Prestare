@@ -1,10 +1,9 @@
-import { Body, Controller, ForbiddenException, Get, Headers, HttpCode, Post, Query, Res, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { FinanceiroService } from './financeiro.service';
 import { FechamentoService } from './fechamento.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
-import { Public } from '../auth/public.decorator';
 import { assertStaff, assertSindico, assertFinanceiroSomenteLeitura } from '../auth/tenant.util';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 
@@ -19,8 +18,8 @@ import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
  * explicativo é melhor que um 404 disfarçado de erro de conexão.
  *
  * Continuam escrevendo, e de propósito: as contas pessoais do morador
- * (`morador/*`), os webhooks de pagamento, o job de recorrência e o sync da
- * Superlógica.
+ * (`morador/*`), o job de recorrência e o sync da Superlógica. (Os gateways
+ * Asaas e OpenPix foram removidos — não há mais webhook de pagamento.)
  */
 @Controller('financeiro')
 export class FinanceiroController {
@@ -266,66 +265,8 @@ export class FinanceiroController {
   updateStatus() {
     // Some com a "segregação soft" (motivo + forma de pagamento quando o
     // operador dá baixa no que ele mesmo lançou): não há mais baixa manual.
-    // Quem marca como pago agora é o webhook de pagamento ou o sync do ERP.
+    // Quem marca como pago agora é o sync do ERP (Superlógica).
     assertFinanceiroSomenteLeitura('dar baixa em um lançamento');
-  }
-
-  @Public()
-  @SkipAudit()
-  @Post('webhook/asaas')
-  @HttpCode(200)
-  handleAsaasWebhook(
-    @Body() body: any,
-    @Headers('asaas-access-token') asaasToken?: string,
-  ) {
-    // Validação de token: Asaas envia o token configurado no painel via
-    // header `asaas-access-token`. Sem essa checagem, qualquer pessoa na
-    // internet manda POST com event=PAYMENT_RECEIVED e marca dívidas como
-    // pagas no nosso banco — fraude trivial.
-    //
-    // Configurar via env ASAAS_WEBHOOK_TOKEN no Railway, e usar o mesmo
-    // valor no painel do Asaas (Configurações → Webhooks).
-    const expected = process.env.ASAAS_WEBHOOK_TOKEN;
-    if (!expected) {
-      // Sem token configurado, recusa por padrão. Operador deve definir
-      // ASAAS_WEBHOOK_TOKEN antes de habilitar a integração em produção.
-      throw new UnauthorizedException('Webhook Asaas não configurado (ASAAS_WEBHOOK_TOKEN ausente)');
-    }
-    if (!asaasToken || asaasToken !== expected) {
-      throw new UnauthorizedException('Token de webhook Asaas inválido');
-    }
-    return this.service.handleAsaasWebhook(body);
-  }
-
-  @Public()
-  @SkipAudit()
-  @Post('webhook/openpix')
-  @HttpCode(200)
-  handleOpenPixWebhook(
-    @Body() body: any,
-    @Headers('x-webhook-token') webhookToken?: string,
-    @Query('token') tokenQuery?: string,
-  ) {
-    // Validação de token: sem essa checagem, qualquer pessoa na internet
-    // manda POST com event=OPENPIX:CHARGE_COMPLETED e correlationID
-    // financeiro_<id> e marca dívidas como pagas — fraude trivial.
-    //
-    // Configurar via env OPENPIX_WEBHOOK_TOKEN no Railway e usar o mesmo
-    // valor na URL do webhook cadastrada na OpenPix, no parâmetro de query
-    // ?token=... que a OpenPix repassa, ou via header conforme o painel.
-    const expected = process.env.OPENPIX_WEBHOOK_TOKEN;
-    if (!expected) {
-      // Sem token configurado, recusa por padrão. Operador deve definir
-      // OPENPIX_WEBHOOK_TOKEN antes de habilitar a integração em produção.
-      throw new UnauthorizedException('Webhook OpenPix não configurado (OPENPIX_WEBHOOK_TOKEN ausente)');
-    }
-    // Aceita o token via header OU via query (?token=) — o painel da
-    // OpenPix/Woovi às vezes só permite configurar a URL do webhook.
-    const received = webhookToken || tokenQuery;
-    if (!received || received !== expected) {
-      throw new UnauthorizedException('Token de webhook OpenPix inválido');
-    }
-    return this.service.handleOpenPixWebhook(body);
   }
 
   @SkipAudit()
