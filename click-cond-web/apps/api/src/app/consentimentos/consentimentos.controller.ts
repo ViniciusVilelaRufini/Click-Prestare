@@ -1,10 +1,15 @@
-import { Body, Controller, Get, HttpCode, NotFoundException, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, NotFoundException, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { UsuarioAppGuard } from '../auth/usuario-app.guard';
 import { ConsentimentosService } from './consentimentos.service';
 import { ConsentimentosTerceirosService, TipoPessoaTerceiro } from './consentimentos-terceiros.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 
+// Rotas do app: o `sub` só é Users.id em token de usuário do app. O do
+// porteiro (Funcionarios_Portaria.id) e o do CRM agiam como o usuário de
+// mesmo número. Rotas @Public continuam abertas.
+@UseGuards(UsuarioAppGuard)
 @Controller('consentimentos')
 export class ConsentimentosController {
   constructor(private readonly service: ConsentimentosService) {}

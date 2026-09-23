@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from '@nestjs/common';
+import { UsuarioAppGuard } from '../auth/usuario-app.guard';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { AgendaService } from './agenda.service';
@@ -7,6 +8,10 @@ import { AgendaService } from './agenda.service';
  * Manutenções programadas — consumido pela tela ListAgenda do app.
  * Mesmos caminhos das rotas Express /agenda/* que o app já chama.
  */
+// Rotas do app: o `sub` só é Users.id em token de usuário do app. O do
+// porteiro (Funcionarios_Portaria.id) e o do CRM agiam como o usuário de
+// mesmo número. Rotas @Public continuam abertas.
+@UseGuards(UsuarioAppGuard)
 @Controller('agenda')
 export class AgendaController {
   constructor(private readonly service: AgendaService) {}

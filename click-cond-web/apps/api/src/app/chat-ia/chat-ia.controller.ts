@@ -7,9 +7,11 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ReqUser } from '../auth/req-user.decorator';
+import { UsuarioAppGuard } from '../auth/usuario-app.guard';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { ChatIaService } from './chat-ia.service';
 
@@ -19,13 +21,16 @@ import { ChatIaService } from './chat-ia.service';
  * O escopo dos dados sai do JWT, não do corpo: o cliente só escolhe o
  * condomínio (validado contra o vínculo real) e a pergunta.
  */
+// Só o app usa, e o histórico é indexado por Users.id: token de porteiro
+// (sub = Funcionarios_Portaria.id) leria a conversa de outra pessoa.
+@UseGuards(UsuarioAppGuard)
 @Controller('chat-ia')
 export class ChatIaController {
   constructor(private readonly service: ChatIaService) {}
 
   // Cada pergunta gera 2 chamadas pagas ao Gemini (embedding + geração).
   // 12/min por IP segura conversa normal e limita abuso/custo.
-  @Throttle({ default: { limit: 12, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 12, ttl: 60_000 } })
   @Post('perguntar')
   @HttpCode(200)
   perguntar(
@@ -57,7 +62,7 @@ export class ChatIaController {
    * O dono sai do JWT: o cliente escolhe QUAL conversa, nunca de quem. Um
    * conversa_id de outra pessoa não é encontrado dentro deste escopo.
    */
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 30, ttl: 60_000 } })
   @Get('conversas')
   listarConversas(
     @Query('id_condominio') idCondominio: string,
@@ -66,7 +71,7 @@ export class ChatIaController {
     return this.service.listarConversas(Number(idCondominio), payload);
   }
 
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 30, ttl: 60_000 } })
   @Get('conversas/:id')
   obterConversa(
     @Param('id') id: string,
@@ -76,7 +81,7 @@ export class ChatIaController {
     return this.service.obterConversa(Number(idCondominio), id, payload);
   }
 
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 20, ttl: 60_000 } })
   @Delete('conversas/:id')
   apagarConversa(
     @Param('id') id: string,
@@ -92,7 +97,7 @@ export class ChatIaController {
    * A proposta carrega dono e condomínio; o service compara com o JWT antes
    * de executar. O corpo só diz QUAL proposta — nunca o que fazer.
    */
-  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 20, ttl: 60_000 } })
   @Post('confirmar')
   @HttpCode(200)
   confirmar(
@@ -107,7 +112,7 @@ export class ChatIaController {
   }
 
   // Reprocessa atas/documentos para a busca semântica. Só síndico.
-  @Throttle({ default: { limit: 2, ttl: 60_000 } })
+  @Throttle({ medium: { limit: 2, ttl: 60_000 } })
   @Post('reindex')
   @HttpCode(200)
   reindex(

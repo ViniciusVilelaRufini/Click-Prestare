@@ -1,10 +1,14 @@
 import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from '@nestjs/common';
+import { UsuarioAppGuard } from '../auth/usuario-app.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { MudancasService } from './mudancas.service';
 
-@UseGuards(JwtAuthGuard)
+// Rotas do app: o `sub` só é Users.id em token de usuário do app. O do
+// porteiro (Funcionarios_Portaria.id) e o do CRM agiam como o usuário de
+// mesmo número. Rotas @Public continuam abertas.
+@UseGuards(JwtAuthGuard, UsuarioAppGuard)
 @Controller('mudancas')
 export class MudancasController {
   constructor(private readonly service: MudancasService) {}

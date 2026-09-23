@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { UsuarioAppGuard } from '../auth/usuario-app.guard';
 import { ConvitesService, type ConfirmarExtras } from './convites.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
@@ -24,6 +25,10 @@ function exigirId(valor: string): number {
   return id;
 }
 
+// Rotas do app: o `sub` só é Users.id em token de usuário do app. O do
+// porteiro (Funcionarios_Portaria.id) e o do CRM agiam como o usuário de
+// mesmo número. Rotas @Public continuam abertas.
+@UseGuards(UsuarioAppGuard)
 @Controller('convites')
 export class ConvitesController {
   constructor(private readonly service: ConvitesService) {}
