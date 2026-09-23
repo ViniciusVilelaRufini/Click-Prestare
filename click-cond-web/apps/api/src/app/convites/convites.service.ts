@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
   type OnModuleDestroy,
@@ -27,6 +26,8 @@ export const HORAS_DE_VALIDADE = 24;
  * recurso não virar canal de spam, não para limitar o morador de verdade.
  */
 export const MAX_CONVITES_ATIVOS = 5;
+
+const CONVITE_BASE_URL_PADRAO = 'https://www.clickprestarecondominios.com.br';
 
 /**
  * Campos que o MORADOR completa ao confirmar — o visitante não tem como
@@ -229,10 +230,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    // Falha ANTES de criar a linha. Sem a base, o convite nasceria consumindo
-    // uma das vagas ativas e o morador mandaria pelo WhatsApp um link
-    // relativo que não abre — erro descoberto pelo visitante, não por quem
-    // configurou.
+    // Resolve a base antes de persistir para validar o override configurado.
     this.exigirBaseUrl();
 
     const token = randomBytes(32).toString('base64url');
@@ -263,18 +261,11 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
    * ambiente.
    */
   private exigirBaseUrl(): string {
-    const base = (process.env.CONVITE_BASE_URL ?? '').replace(/\/+$/, '');
-    if (!base) {
-      this.logger.error('CONVITE_BASE_URL não configurada — convite não pode ser gerado.');
-      throw new InternalServerErrorException(
-        'Convite por link indisponível: o servidor não está configurado. Avise o suporte.',
-      );
-    }
-    return base;
+    return (process.env.CONVITE_BASE_URL ?? CONVITE_BASE_URL_PADRAO).replace(/\/+$/, '');
   }
 
   private montarUrl(token: string): string {
-    return `${this.exigirBaseUrl()}/convite/${token}`;
+    return `${this.exigirBaseUrl()}/?convite=${encodeURIComponent(token)}`;
   }
 
   // ===================== Visitante preenche (público) =====================

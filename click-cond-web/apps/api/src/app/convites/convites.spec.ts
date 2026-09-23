@@ -509,13 +509,27 @@ describe('ConvitesService', () => {
   });
 
   describe('configuração', () => {
-    it('não gera convite sem CONVITE_BASE_URL', async () => {
+    it('sem CONVITE_BASE_URL gera a URL pública canônica por query', async () => {
       delete process.env.CONVITE_BASE_URL;
       const { svc, prisma } = build();
 
-      await expect(svc.gerar(MORADOR, false)).rejects.toThrow();
-      // E falha ANTES de gravar, para não consumir uma das 5 vagas ativas.
-      expect(prisma.convites_Visita.create).not.toHaveBeenCalled();
+      const convite = await svc.gerar(MORADOR, false);
+
+      expect(convite.url).toBe(
+        `https://www.clickprestarecondominios.com.br/?convite=${encodeURIComponent(convite.token)}`,
+      );
+      expect(prisma.convites_Visita.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('honra CONVITE_BASE_URL e remove barras finais', async () => {
+      process.env.CONVITE_BASE_URL = 'https://convites.exemplo.test///';
+      const { svc } = build();
+
+      const convite = await svc.gerar(MORADOR, false);
+
+      expect(convite.url).toBe(
+        `https://convites.exemplo.test/?convite=${encodeURIComponent(convite.token)}`,
+      );
     });
   });
 });

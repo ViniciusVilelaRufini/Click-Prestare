@@ -191,7 +191,10 @@ export class ConvitePageComponent implements OnInit {
   private token = '';
 
   ngOnInit() {
-    this.token = this.route.snapshot.paramMap.get('token') ?? '';
+    this.token =
+      this.route.snapshot.paramMap.get('token') ??
+      this.route.snapshot.queryParamMap.get('convite') ??
+      '';
 
     // Link sem token (cortado ao copiar do WhatsApp, por exemplo) é um
     // convite inválido como qualquer outro. Mostra a mesma tela em vez de
