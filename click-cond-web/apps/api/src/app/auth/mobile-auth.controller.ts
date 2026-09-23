@@ -1,4 +1,6 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { UsuarioAppGuard, papelUsuarioApp } from './usuario-app.guard';
 import { MobileAuthService } from './mobile-auth.service';
 import { Public } from './public.decorator';
 import { ReqUser } from './req-user.decorator';
@@ -11,11 +13,14 @@ import { idUsuarioDoToken } from './usuario-do-token.util';
 // ==========================================
 // SÍNDICO
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('sindico')
 export class SindicoMobileController {
   constructor(private readonly service: MobileAuthService) {}
 
   @Public()
+  // Credencial pública: sem limite próprio ficava no global (600/min/IP).
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
   login(
@@ -28,6 +33,8 @@ export class SindicoMobileController {
   }
 
   @Public()
+  // Credencial pública: sem limite próprio ficava no global (600/min/IP).
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('signup')
   @HttpCode(200)
   signup(@Body() body: any) {
@@ -35,6 +42,8 @@ export class SindicoMobileController {
   }
 
   @Public()
+  // Credencial pública: sem limite próprio ficava no global (600/min/IP).
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('recovery-password')
   @HttpCode(200)
   recoveryPassword(@Body() body: { email: string }) {
@@ -68,7 +77,7 @@ export class SindicoMobileController {
   ) {
     const idUser = payload.user?.id ?? payload.sub;
     const pwd = body.password ?? body.senha ?? '';
-    return this.service.updatePassword(Number(idUser), pwd, 'Sindico', body.senha_atual);
+    return this.service.updatePassword(Number(idUser), pwd, papelUsuarioApp(payload), body.senha_atual);
   }
 
   // Vincula o próprio síndico logado como morador de um apartamento (auto-vínculo).
@@ -88,11 +97,14 @@ export class SindicoMobileController {
 // ==========================================
 // MORADORES
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('moradores')
 export class MoradoresMobileController {
   constructor(private readonly service: MobileAuthService) {}
 
   @Public()
+  // Credencial pública: sem limite próprio ficava no global (600/min/IP).
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
   login(@Body() body: { login: string; password?: string; senha?: string }) {
@@ -101,6 +113,8 @@ export class MoradoresMobileController {
   }
 
   @Public()
+  // Credencial pública: sem limite próprio ficava no global (600/min/IP).
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('recovery-password')
   @HttpCode(200)
   recoveryPassword(@Body() body: { email: string }) {
@@ -166,18 +180,21 @@ export class MoradoresMobileController {
   ) {
     const idUser = payload.user?.id ?? payload.sub;
     const pwd = body.password ?? body.senha ?? '';
-    return this.service.updatePassword(Number(idUser), pwd, 'Morador', body.senha_atual);
+    return this.service.updatePassword(Number(idUser), pwd, papelUsuarioApp(payload), body.senha_atual);
   }
 }
 
 // ==========================================
 // FUNCIONÁRIOS
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('funcionarios')
 export class FuncionariosMobileController {
   constructor(private readonly service: MobileAuthService) {}
 
   @Public()
+  // Credencial pública: sem limite próprio ficava no global (600/min/IP).
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
   login(@Body() body: { login: string; password?: string; senha?: string }) {
@@ -186,6 +203,8 @@ export class FuncionariosMobileController {
   }
 
   @Public()
+  // Credencial pública: sem limite próprio ficava no global (600/min/IP).
+  @Throttle({ medium: { limit: 10, ttl: 60_000 } })
   @Post('recovery-password')
   @HttpCode(200)
   recoveryPassword(@Body() body: { email: string }) {
@@ -241,13 +260,14 @@ export class FuncionariosMobileController {
   ) {
     const idUser = payload.user?.id ?? payload.sub;
     const pwd = body.password ?? body.senha ?? '';
-    return this.service.updatePassword(Number(idUser), pwd, 'Funcionario', body.senha_atual);
+    return this.service.updatePassword(Number(idUser), pwd, papelUsuarioApp(payload), body.senha_atual);
   }
 }
 
 // ==========================================
 // DASHBOARD
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('dashboard')
 export class DashboardMobileController {
   constructor(private readonly service: MobileAuthService) {}
@@ -279,6 +299,7 @@ export class DashboardMobileController {
 // ==========================================
 // NOTIFICAÇÕES (central do app — feed agregado)
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('notificacoes')
 export class NotificacoesMobileController {
   constructor(private readonly service: MobileAuthService) {}
@@ -293,6 +314,7 @@ export class NotificacoesMobileController {
 // ==========================================
 // CONDOMÍNIO GERAL
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('condominio')
 export class CondominioMobileController {
   constructor(private readonly service: MobileAuthService) {}
@@ -359,6 +381,7 @@ export class CondominioMobileController {
 // ==========================================
 // APARTAMENTOS MOBILE
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('apartamentos')
 export class ApartamentosMobileController {
   constructor(private readonly service: MobileAuthService) {}
@@ -397,6 +420,7 @@ export class ApartamentosMobileController {
 // ==========================================
 // OCORRÊNCIAS MOBILE
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('ocorrencias')
 export class OcorrenciasMobileController {
   constructor(
@@ -514,6 +538,7 @@ export class OcorrenciasMobileController {
 // ==========================================
 // ENCOMENDAS MOBILE
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('encomendas')
 export class EncomendasMobileController {
   constructor(
@@ -638,6 +663,7 @@ export class EncomendasMobileController {
 // ==========================================
 // VEÍCULOS (app do morador) — paridade com as rotas Express /veiculos/*
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('veiculos')
 export class VeiculosMobileController {
   constructor(private readonly service: MobileAuthService) {}
@@ -679,6 +705,7 @@ export class VeiculosMobileController {
 // ==========================================
 // VAGAS (app do morador) — liberar vaga p/ visitante/inquilino
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('vagas')
 export class VagasMobileController {
   constructor(private readonly service: MobileAuthService) {}
@@ -717,6 +744,7 @@ export class VagasMobileController {
 // ==========================================
 // USUÁRIO / CONTA
 // ==========================================
+@UseGuards(UsuarioAppGuard)
 @Controller('users')
 export class UsersMobileController {
   constructor(private readonly service: MobileAuthService) {}
