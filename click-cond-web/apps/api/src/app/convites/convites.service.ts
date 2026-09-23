@@ -261,7 +261,8 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
    * ambiente.
    */
   private exigirBaseUrl(): string {
-    return (process.env.CONVITE_BASE_URL ?? CONVITE_BASE_URL_PADRAO).replace(/\/+$/, '');
+    const baseConfigurada = (process.env.CONVITE_BASE_URL ?? '').trim().replace(/\/+$/, '');
+    return baseConfigurada || CONVITE_BASE_URL_PADRAO;
   }
 
   private montarUrl(token: string): string {

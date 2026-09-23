@@ -3,9 +3,11 @@ import { provideHttpClient } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { ConvitePageComponent } from './convite-page.component';
 import { API_BASE } from '../shared/api.config';
 import { ThemeService } from '../shared/theme.service';
+import { appRoutes } from '../app.routes';
 
 describe('ConvitePageComponent — token público', () => {
   function build(params: Record<string, string>, query: Record<string, string>) {
@@ -51,5 +53,24 @@ describe('ConvitePageComponent — token público', () => {
 
     const request = http.expectOne(`${API_BASE}/convites/publico/token-rota`);
     request.flush({ condominio: 'Edifício Demo', unidade: '101', is_prestador: false });
+  });
+
+  it('abre a página pública ao navegar para a raiz com ?convite=', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter(appRoutes),
+        { provide: ThemeService, useValue: { isLight: signal(false) } },
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    const http = TestBed.inject(HttpTestingController);
+
+    const component = await harness.navigateByUrl('/?convite=token-raiz', ConvitePageComponent);
+
+    const request = http.expectOne(`${API_BASE}/convites/publico/token-raiz`);
+    request.flush({ condominio: 'Edifício Demo', unidade: '101', is_prestador: false });
+    expect(component).toBeInstanceOf(ConvitePageComponent);
   });
 });
