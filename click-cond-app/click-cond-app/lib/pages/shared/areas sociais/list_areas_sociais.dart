@@ -38,14 +38,14 @@ class _ListAreasSociaisPageState extends State<ListAreasSociais> {
         apiGetAll("areas-sociais"),
         apiGetAll("areas-sociais/meus-agendamentos"),
       ];
-      if (getUserType() == 'sindico') {
+      if (_isSindico) {
         futures.add(apiGetAll("areas-sociais/agendamentos"));
       }
 
       final results = await Future.wait(futures);
       list = results[0];
       listMeusAgendamentos = results[1];
-      if (getUserType() == 'sindico') {
+      if (_isSindico) {
         listAgendamentos = results[2];
       }
     } catch (_) {}
