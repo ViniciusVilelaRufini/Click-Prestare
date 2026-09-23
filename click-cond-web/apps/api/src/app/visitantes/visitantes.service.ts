@@ -2405,6 +2405,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   private async removeViaPessoasVisitas(id: number, payload?: JwtPayload) {
     const v = await this.assertPodeAcessarVisita(id, payload);
 
+    // A visita que já passou pela portaria é o registro de entrada/saída do
+    // condomínio. O morador só cancela o que ainda não aconteceu — apagar pelo
+    // app sumia com a passagem do histórico e tirava do "no local" quem ainda
+    // está dentro. Portaria/síndico continuam podendo remover.
+    const tipo = (payload?.typeAccess ?? payload?.user?.typeAccess ?? '').toString().toLowerCase();
+    const ehMoradorMobile = !!payload && !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
+    if (ehMoradorMobile && v.data_entrada) {
+      throw new BadRequestException(
+        'Esta visita já foi registrada pela portaria e não pode ser excluída pelo app.',
+      );
+    }
+
     try {
       await this.prisma.$transaction([
         this.prisma.vagas.updateMany({

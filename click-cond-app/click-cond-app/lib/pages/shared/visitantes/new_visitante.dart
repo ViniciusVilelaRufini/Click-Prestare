@@ -60,6 +60,9 @@ class _NewVisitantePageState extends State<NewVisitante> {
   var imageChanged = false;
   var _isLoading = false;
   var _isSaving = false;
+  // Visita que já passou pela portaria é histórico do condomínio: a API
+  // recusa a exclusão pelo app, então o botão nem aparece.
+  var _jaRegistrada = false;
   var list = [];
   var listBlocos = [];
 
@@ -116,6 +119,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
       txtObs.text = obj["observacoes"] ?? "";
       currentTipo = obj["is_visitante"] == 1 ? 'visitante' : 'prestador';
       diasSemana = _parseDias(obj["dias_semana"]);
+      _jaRegistrada = obj['data_entrada'] != null;
       imageFile = obj['photo'] != null && obj['photo'].toString().isNotEmpty ? obj['photo'] : null;
     } catch (e) {
       if (mounted) displayMessage(context, getText('alert_error'), getText('alert_generic_error'));
@@ -599,7 +603,7 @@ class _NewVisitantePageState extends State<NewVisitante> {
                     loading: _isSaving,
                     icon: PhosphorIcons.floppyDisk,
                   ),
-                  if (widget.isEdit) ...[
+                  if (widget.isEdit && !_jaRegistrada) ...[
                     const SizedBox(height: AppSpacing.md),
                     AppButton(
                       label: getText('btn_delete'),
