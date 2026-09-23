@@ -14,8 +14,9 @@ export class EncomendasController {
   list(
     @Param('idCondominio', ParseIntPipe) idCondominio: number,
     @Query('status') status?: string,
+    @ReqUser() user?: JwtPayload,
   ) {
-    return this.service.findAll(idCondominio, status);
+    return this.service.findAll(idCondominio, status, user);
   }
 
   @Get(':id')
