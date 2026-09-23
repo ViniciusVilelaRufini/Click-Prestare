@@ -4,6 +4,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { FacialService } from '../facial/facial.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
+import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
+import { parseLocalTimeToUTC } from '../visitantes/visitantes.service';
 
 /**
  * Versão canônica (portaria-web) do módulo de Vagas — mesma regra de negócio
@@ -221,8 +223,10 @@ export class VagasService {
       throw new BadRequestException('Não há vagas livres neste apartamento.');
     }
 
-    const inicio = body?.inicio ? new Date(body.inicio) : null;
-    const fim = body?.fim ? new Date(body.fim) : null;
+    // O app manda data local sem fuso ("2026-09-23T10:00:00.000"); o servidor
+    // roda em UTC e `new Date()` lia isso como UTC — janela 3h adiantada.
+    const inicio = body?.inicio ? parseLocalTimeToUTC(body.inicio) : null;
+    const fim = body?.fim ? parseLocalTimeToUTC(body.fim) : null;
     const placa = body?.placa ? body.placa.toString().toUpperCase().trim() : null;
 
     let idVisitante: number | null = null;
@@ -274,18 +278,17 @@ export class VagasService {
             'Este visitante está bloqueado pela portaria. Fale com a portaria antes de liberar a vaga.',
           );
         }
-        idVisita = visitaEncontrada.id;
-        let pin = visitaEncontrada.codigo_acesso;
-        if (!pin) {
-          pin = Math.floor(100000 + Math.random() * 900000).toString();
-        }
+        // Visita encerrada vira uma nova e pessoa dentro é recusada: zerar
+        // entrada/saída aqui apagava a passagem do histórico da portaria.
+        idVisita = await visitaParaNovaPassagem(this.prisma, visitaEncontrada);
+        const pin =
+          (idVisita === visitaEncontrada.id && visitaEncontrada.codigo_acesso) ||
+          (await gerarPinUnicoVisita(this.prisma));
         await this.prisma.visitas.update({
-          where: { id: visitaEncontrada.id },
+          where: { id: idVisita },
           data: {
             liberado: 1,
             bloqueado: 0,
-            data_entrada: null,
-            data_saida: null,
             codigo_acesso: pin,
             ...(inicio ? { data_hora_inicio: inicio } : {}),
             ...(fim ? { data_hora_termino: fim } : {}),

@@ -17,6 +17,7 @@ import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PessoasService } from '../pessoas/pessoas.service';
@@ -2170,17 +2171,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    * pessoa errada.
    */
   private async gerarPinUnicoVisita(): Promise<string> {
-    let pin = '';
-    let isUnique = false;
-    while (!isUnique) {
-      pin = randomInt(100000, 1000000).toString();
-      const [emVisitas, emVisitantes] = await Promise.all([
-        this.prisma.visitas.findFirst({ where: { codigo_acesso: pin, data_saida: null } }),
-        this.prisma.visitantes.findFirst({ where: { codigo_acesso: pin, data_saida: null } }),
-      ]);
-      if (!emVisitas && !emVisitantes) isUnique = true;
-    }
-    return pin;
+    return gerarPinUnicoVisita(this.prisma);
   }
 
   /**
@@ -2764,38 +2755,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    *  - visita ainda não usada → a própria.
    */
   private async visitaParaNovaPassagem(ref: any): Promise<number> {
-    if (ref.data_entrada && !ref.data_saida) {
-      throw new BadRequestException(
-        'Este visitante já está no condomínio. Dê baixa antes de registrar uma nova passagem.',
-      );
-    }
-    if (!ref.data_entrada && !ref.data_saida) return Number(ref.id);
-
-    const nova = await this.prisma.visitas.create({
-      data: {
-        id_pessoa: ref.id_pessoa,
-        id_condominio: ref.id_condominio,
-        id_apartamento: ref.id_apartamento,
-        user: ref.user ?? null,
-        is_visitante: ref.is_visitante,
-        is_prestador: ref.is_prestador,
-        data_hora_inicio: ref.data_hora_inicio,
-        data_hora_termino: ref.data_hora_termino,
-        data_entrada: null,
-        data_saida: null,
-        codigo_acesso: null,
-        liberado: 0,
-        bloqueado: ref.bloqueado ?? 0,
-        avisar: ref.avisar ?? 1,
-        tag_rfid: ref.tag_rfid ?? null,
-        dias_semana: ref.dias_semana ?? null,
-        categorias: ref.categorias ?? null,
-      },
-    });
-    if (ref.tag_rfid) {
-      await this.prisma.visitas.update({ where: { id: Number(ref.id) }, data: { tag_rfid: null } });
-    }
-    return nova.id;
+    return visitaParaNovaPassagem(this.prisma, ref);
   }
 
   private async liberarAcessoViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
