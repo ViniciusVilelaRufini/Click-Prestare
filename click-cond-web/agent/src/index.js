@@ -106,6 +106,12 @@ const driverListenersAtivos = new Set();
 // deviceId → maior RecNo/serialNo/ID de log de acesso já processado no
 // dispositivo (Map + funções de leitura/gravação em core/estado.js).
 loadBaselines();
+// Devices com recuperação de log offline em curso — evita corrida entre a
+// recuperação (syncDeviceOfflineLogs) e o avanço de baseline do heartbeat
+// (advanceBaselineWhileOnline), e entre dois gatilhos de recuperação
+// concorrentes (heartbeat vs. `aoConectar` do stream). Genérico por device
+// id: não pertence a driver nenhum, para tarefas 5/6 usarem sem mudança.
+const offlineSyncBusy = new Set();
 
 // Devices do último poll (p/ o servidor de live view achar IP/credencial).
 let lastDevices = [];
@@ -216,7 +222,23 @@ async function runCondoLoop(token) {
         if (driverDoDevice && driverDoDevice.escutar && !driverListenersAtivos.has(device.id)) {
           driverListenersAtivos.add(device.id);
           console.log(`[agente] ${device.nome}: assinando eventos de acesso (${driverDoDevice.id})`);
-          driverDoDevice.escutar(device, (data) => forwardAccessEvent(token, device, data));
+          driverDoDevice.escutar(device, (data) => forwardAccessEvent(token, device, data), {
+            // Sinal imediato de que o aparelho voltou (sem esperar o próximo
+            // heartbeat, que pode demorar até DEVICE_STATUS_INTERVAL_MS). Só
+            // age se o heartbeat ainda não tiver percebido a volta — evita
+            // disparar a recuperação duas vezes e logar "ONLINE" repetido.
+            aoConectar: () => {
+              if (lastDeviceOnline.get(device.id) === false) {
+                lastDeviceOnline.set(device.id, true);
+                console.log(
+                  `[agente] ${device.nome}: aparelho ONLINE (stream reconectou) — recuperando acessos offline`,
+                );
+                syncDeviceOfflineLogs(token, device).catch((e) =>
+                  console.error(`[agente] ${device.nome}: erro ao sincronizar acessos offline:`, e.message || e),
+                );
+              }
+            },
+          });
         }
         if (device.fabricante === 'hikvision') {
           startHikvisionEventListener(token, device);
@@ -270,8 +292,11 @@ async function runCondoLoop(token) {
           } else if (online) {
             // Online estável: só mantém a marca d'água atual (a stream já cobre
             // os eventos); assim o próximo reconnect só reprocessa a janela real.
+            // Fora da janela de recovery em curso (evita corrida com ela).
             const driverDoDevice = resolverDriver(device);
-            driverDoDevice?.advanceBaselineWhileOnline?.(device)?.catch(() => {});
+            if (!offlineSyncBusy.has(device.id)) {
+              driverDoDevice?.advanceBaselineWhileOnline?.(device)?.catch(() => {});
+            }
             driverDoDevice?.acertarRelogio?.(device)?.catch(() => {});
           }
         }
@@ -1020,7 +1045,7 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
     // Só avança se a nuvem ACEITOU. Avançar após uma recusa apagava o evento
     // duas vezes: ele não entrou na nuvem e a marca d'água passava por cima
     // dele, então o replay do próximo reconnect também não o veria.
-    if (!opts.backlog && ok) {
+    if (!opts.backlog && ok && !offlineSyncBusy.has(device.id)) {
       resolverDriver(device)?.advanceBaselineWhileOnline?.(device, true)?.catch(() => {});
     }
     return ok;
@@ -1304,23 +1329,23 @@ async function syncDeviceOfflineLogs(token, device) {
   // marca d'água (represar no primeiro envio que falhar) é este orquestrador.
   const driver = resolverDriver(device);
   if (driver && driver.buscarDesde) {
-    if (dahuaFacial.offlineSyncBusy.has(device.id)) return;
-    dahuaFacial.offlineSyncBusy.add(device.id);
+    if (offlineSyncBusy.has(device.id)) return;
+    offlineSyncBusy.add(device.id);
     try {
       const baseline = deviceBaselines.get(device.id);
-      const { eventos, novaMarca } = await driver.buscarDesde(device, baseline);
+      const { eventos, novaMarca, logVazio } = await driver.buscarDesde(device, baseline);
 
-      if (baseline === undefined) {
-        // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
-        if (novaMarca !== undefined) {
-          setBaseline(device.id, novaMarca);
-          console.log(`[agente] ${device.nome}: baseline de acessos inicializada em RecNo ${novaMarca}.`);
-        } else {
-          console.log(`[agente] ${device.nome}: log de acesso vazio.`);
-        }
+      if (logVazio) {
+        console.log(`[agente] ${device.nome}: log de acesso vazio.`);
         return;
       }
-      if (novaMarca === undefined || novaMarca <= baseline) {
+      if (baseline === undefined) {
+        // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
+        setBaseline(device.id, novaMarca);
+        console.log(`[agente] ${device.nome}: baseline de acessos inicializada em RecNo ${novaMarca}.`);
+        return;
+      }
+      if (novaMarca <= baseline) {
         console.log(
           `[agente] ${device.nome}: recovery sem novidade (maior RecNo ${novaMarca} <= baseline ${baseline}).`,
         );
@@ -1367,9 +1392,9 @@ async function syncDeviceOfflineLogs(token, device) {
         console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (RecNo ${baseline}→${novaMarca}).`);
       }
     } catch (err) {
-      console.error(`[agente] ${device.nome}: falha ao ler log de acesso do Intelbras:`, err.message || err);
+      console.error(`[agente] ${device.nome}: falha ao ler log de acesso offline:`, err.message || err);
     } finally {
-      dahuaFacial.offlineSyncBusy.delete(device.id);
+      offlineSyncBusy.delete(device.id);
     }
   }
 

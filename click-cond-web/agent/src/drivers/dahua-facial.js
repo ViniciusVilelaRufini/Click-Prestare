@@ -13,13 +13,28 @@
  * de id interno.
  *
  * Expõe o contrato de driver da spec (todos opcionais exceto `id`):
- *   id, testar(device), executar(device, cmd), escutar(device, aoEvento),
- *   buscarDesde(device, marca), acertarRelogio(device).
+ *   id, testar(device), executar(device, cmd),
+ *   escutar(device, aoEvento, opcoes?), buscarDesde(device, marca),
+ *   acertarRelogio(device).
+ *
+ * `escutar`'s `opcoes.aoConectar` (extensão do contrato, opcional): chamada a
+ * cada conexão bem-sucedida do stream de eventos (primeiro byte recebido),
+ * inclusive a primeira. Serve para quem orquestra (hoje index.js, na
+ * Supervisor da tarefa 6) disparar uma ação assim que o stream (re)conecta —
+ * ex.: recuperar o log offline sem esperar o próximo heartbeat. O driver só
+ * avisa; a decisão de agir (e evitar disparo duplicado com o heartbeat) é de
+ * quem orquestra.
  *
  * Mais duas funções extras (fora do contrato) usadas pelo preview ao vivo em
  * index.js: `setDeviceLightingMode` e `snapshotComDigest` — o servidor HTTP
  * do preview é orquestração genérica (fica em index.js), mas o protocolo por
  * trás (CGIs de iluminação, snapshot com Digest reusando o nonce) é só Dahua.
+ *
+ * O Set "recovery de log offline em curso" (evitar corrida entre o replay e
+ * o avanço de baseline do heartbeat) NÃO mora aqui: é orquestração genérica
+ * por device id, então vive em index.js (compartilhado entre drivers
+ * futuros) e é passado para `advanceBaselineWhileOnline` só como um guard no
+ * CALL SITE — este módulo não guarda esse estado.
  */
 
 const http = require('http');
@@ -430,14 +445,19 @@ function snapshotComDigest(device, st) {
  * Abre o stream e mantém reconectando enquanto ninguém chamar `parar()`. O
  * aparelho fecha a conexão periodicamente — é esperado, não é erro; por isso
  * o loop reabre sempre (com uma pausa curta) até ser parado.
+ *
+ * `opcoes.aoConectar` (ver comentário do contrato no topo do arquivo): chamada
+ * no primeiro byte recebido de CADA conexão bem-sucedida (inclusive a
+ * primeira). Quem orquestra decide se/quando agir sobre isso.
  */
-function escutar(device, aoEvento) {
+function escutar(device, aoEvento, opcoes = {}) {
+  const aoConectar = opcoes.aoConectar;
   let parado = false;
   let streamCaida = false;
   (async () => {
     while (!parado) {
       try {
-        await dahuaAttachOnce(device, aoEvento);
+        await dahuaAttachOnce(device, aoEvento, aoConectar);
       } catch (err) {
         if (!streamCaida) {
           console.error(
@@ -456,8 +476,9 @@ function escutar(device, aoEvento) {
   };
 }
 
-/** Abre UMA conexão de streaming (resolve quando o aparelho a encerra). */
-function dahuaAttachOnce(device, aoEvento) {
+/** Abre UMA conexão de streaming (resolve quando o aparelho a encerra).
+ *  `aoConectar`, se passado, é chamado uma única vez no primeiro byte. */
+function dahuaAttachOnce(device, aoEvento, aoConectar) {
   return new Promise((resolve, reject) => {
     const user = device.api_user || 'admin';
     const pass = device.api_password || 'admin';
@@ -490,8 +511,13 @@ function dahuaAttachOnce(device, aoEvento) {
               return reject(new Error(`attach HTTP ${sres.statusCode}`));
             }
             let buf = '';
+            let aoConectarDisparado = false;
             sres.setEncoding('utf8');
             sres.on('data', (chunk) => {
+              if (!aoConectarDisparado && aoConectar) {
+                aoConectarDisparado = true;
+                aoConectar();
+              }
               buf += chunk;
               buf = consumeDahuaEvents(buf, aoEvento);
               // Trava de segurança contra evento gigante/parcial sem fim.
@@ -602,11 +628,15 @@ async function dahuaFindAccessRecords(device, count) {
  * `marca === undefined` (device nunca visto): devolve `eventos: []` — a
  * primeira leitura só ESTABELECE a marca d'água, sem reprocessar o
  * histórico inteiro do aparelho como se fossem acessos novos.
+ *
+ * `logVazio: true` distingue "aparelho sem NENHUM registro no log interno"
+ * (nada a propor, `novaMarca` não avança) de "há registros, mas nenhum novo
+ * além de `marca`" — index.js usa os dois para logar mensagens distintas.
  */
 async function buscarDesde(device, marca) {
   const { records, maxRecNo } = await dahuaFindAccessRecords(device, ACCESS_LOG_CAP);
   if (records.length === 0) {
-    return { eventos: [], novaMarca: marca }; // log vazio: nada a propor
+    return { eventos: [], novaMarca: marca, logVazio: true };
   }
   if (marca === undefined || maxRecNo <= marca) {
     return { eventos: [], novaMarca: maxRecNo };
@@ -618,8 +648,20 @@ async function buscarDesde(device, marca) {
   // passagens de sucesso (ErrorCode 0/ausente) com UserID viram evento.
   const negadoNoAparelho = (r) =>
     r.ErrorCode != null && String(r.ErrorCode).trim() !== '0';
-  const eventos = records
-    .filter((r) => parseInt(r.RecNo, 10) > marca)
+  const janela = records.filter((r) => parseInt(r.RecNo, 10) > marca);
+  // Diagnóstico: loga cru o que foi pulado, em vez de sumir calado.
+  for (const r of janela) {
+    if (!r.UserID || r.UserID.trim() === '') {
+      console.log(
+        `[agente] ${device.nome}: registro offline IGNORADO (sem UserID): ${JSON.stringify(r).slice(0, 300)}`,
+      );
+    } else if (negadoNoAparelho(r)) {
+      console.log(
+        `[agente] ${device.nome}: registro offline IGNORADO (negado no aparelho, ErrorCode ${r.ErrorCode}): ${JSON.stringify(r).slice(0, 300)}`,
+      );
+    }
+  }
+  const eventos = janela
     .filter((r) => r.UserID && r.UserID.trim() !== '' && !negadoNoAparelho(r))
     .sort((a, b) => parseInt(a.RecNo, 10) - parseInt(b.RecNo, 10))
     .map((r) => ({
@@ -639,12 +681,14 @@ async function buscarDesde(device, marca) {
 // para que o PRÓXIMO reconnect só reprocesse a janela realmente offline, e não
 // os eventos que a stream já pegou. Só avança; nunca reencaminha. Throttle de
 // 10 min (a leitura do log é um lote; não faz sentido a cada heartbeat).
-const offlineSyncBusy = new Set(); // deviceIds com recovery em curso (index.js só chama fora dessa janela)
+//
+// O guard "recovery de log offline em curso" NÃO mora aqui (ver comentário no
+// topo do arquivo) — quem chama (index.js) só invoca esta função fora dessa
+// janela, usando o Set genérico que ele próprio mantém.
 const lastBaselineAdvance = new Map();
 const BASELINE_ADVANCE_INTERVAL_MS = 10 * 60 * 1000; // 10 min
 
 async function advanceBaselineWhileOnline(device, force = false) {
-  if (offlineSyncBusy.has(device.id)) return;
   const agora = Date.now();
   // Throttle: 10 min no caso ocioso; 10s logo após um evento ao vivo (force).
   // Mesmo no force coalescemos rajadas de reconhecimentos (o fetch é do log
@@ -725,5 +769,4 @@ module.exports = {
   setDeviceLightingMode,
   snapshotComDigest,
   advanceBaselineWhileOnline,
-  offlineSyncBusy,
 };
