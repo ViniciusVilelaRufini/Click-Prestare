@@ -912,6 +912,20 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             apartamento: principal?.apartamento ?? null,
             apto: aptoStr,
             apartamentosVisitados,
+            // Portaria remota: mesmo contrato do caminho legado — o modal
+            // "Autorização de Acesso" lê o estado no nível da PESSOA. Sem estes
+            // campos ele mostrava "Sem autorização ativa" com pedido pendente
+            // ou já autorizado pelo morador.
+            ...(() => {
+              const ativo =
+                apartamentosVisitados.find((a) => a.auth_status === 'autorizado') ||
+                apartamentosVisitados.find((a) => a.auth_status === 'pendente');
+              return {
+                auth_status: ativo?.auth_status ?? null,
+                auth_solicitado_em: ativo?.auth_solicitado_em ?? null,
+                auth_respondido_em: ativo?.auth_respondido_em ?? null,
+              };
+            })(),
             dias_semana: diasSemanaPessoa,
             categorias: categoriasPessoa,
             vagaMorador: principal ? (vagaPorVisita.get(principal.id) ?? null) : null,
