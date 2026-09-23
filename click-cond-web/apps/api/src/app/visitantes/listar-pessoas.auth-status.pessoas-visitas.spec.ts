@@ -15,7 +15,7 @@ describe('listarPessoas (Pessoas/Visitas) — estado da autorização no nível 
     else process.env['PESSOAS_MIGRATION_ENABLED'] = original;
   });
 
-  function servico(visita: Record<string, unknown>) {
+  function servico(visita: Record<string, unknown>, anteriores: Record<string, unknown>[] = []) {
     const agora = Date.now();
     const pessoa = {
       id: 2000001,
@@ -50,6 +50,23 @@ describe('listarPessoas (Pessoas/Visitas) — estado da autorização no nível 
           apartamento: { id: 101, bloco: 'A', apto: '101' },
           ...visita,
         },
+        ...anteriores.map((a, i) => ({
+          id: 1000000 - i - 1,
+          id_pessoa: 2000001,
+          id_condominio: 1,
+          is_visitante: 1,
+          is_prestador: 0,
+          liberado: 0,
+          bloqueado: 0,
+          codigo_acesso: null,
+          data_hora_inicio: null,
+          data_hora_termino: null,
+          dias_semana: null,
+          categorias: null,
+          created_at: new Date(agora - 5 * 60 * 60 * 1000),
+          apartamento: { id: 101, bloco: 'A', apto: '101' },
+          ...a,
+        })),
       ],
     };
     const prisma: any = {
@@ -89,5 +106,29 @@ describe('listarPessoas (Pessoas/Visitas) — estado da autorização no nível 
     process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
     const [p]: any[] = await servico({}).listarPessoas(1);
     expect(p.auth_status).toBeNull();
+  });
+
+  describe('datas da visita atual (não misturar visitas diferentes)', () => {
+    const saidaAntiga = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const entradaAntiga = new Date(Date.now() - 3 * 60 * 60 * 1000 - 5000);
+    const anterior = { data_entrada: entradaAntiga, data_saida: saidaAntiga };
+
+    it('dentro agora por uma visita nova: data_entrada da atual e SEM data_saida (a saída é da visita antiga)', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      const entradaAgora = new Date(Date.now() - 60 * 1000);
+      const [p]: any[] = await servico({ liberado: 1, data_entrada: entradaAgora }, [anterior]).listarPessoas(1);
+      expect(p.data_entrada).toBe(entradaAgora.toISOString());
+      expect(p.data_saida).toBeNull();
+      expect(p.ultEntrada).toBe(entradaAgora.toISOString());
+      expect(p.ultSaida).toBe(saidaAntiga.toISOString());
+    });
+
+    it('liberado de novo depois de uma visita antiga: visita atual sem entrada nem saída', async () => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+      const [p]: any[] = await servico({ liberado: 1 }, [anterior]).listarPessoas(1);
+      expect(p.data_entrada).toBeNull();
+      expect(p.data_saida).toBeNull();
+      expect(p.ultSaida).toBe(saidaAntiga.toISOString());
+    });
   });
 });
