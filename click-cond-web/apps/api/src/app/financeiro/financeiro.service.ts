@@ -1,3 +1,4 @@
+import { hojeBrasilia, horaBrasilia } from '../common/hora-brasilia.util';
 import { Injectable, NotFoundException, OnModuleInit, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../common/storage/storage.service';
@@ -63,7 +64,9 @@ export class FinanceiroService implements OnModuleInit {
     // Hora local do servidor. Railway por padrão está em UTC — operador deve
     // configurar TZ=America/Sao_Paulo ou ajustar BILLING_REMINDER_HOUR pra
     // compensar (ex: 12 = 9h em SP quando server está em UTC).
-    const horaAtual = new Date().getHours();
+    // Hora de Brasília: o servidor roda em UTC e comparava a hora dele, o que
+    // disparava a cobrança às 06:00 de Brasília com o padrão de 9h.
+    const horaAtual = horaBrasilia();
     if (horaAtual !== triggerHour) {
       return;
     }
@@ -1276,8 +1279,7 @@ export class FinanceiroService implements OnModuleInit {
     });
 
     const blocosMap: Record<string, any[]> = {};
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
 
     for (const a of aptos) {
       const minhasPendentes = faturasPendentes.filter((f) =>
@@ -1374,8 +1376,7 @@ export class FinanceiroService implements OnModuleInit {
       aptosDoCondominio.some((a) => this.nomeFaturaDeApto(c.nome, a.apto, a.bloco)),
     );
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
 
     let totalArrecadado = 0;
     let totalPendente = 0;
@@ -1570,8 +1571,7 @@ export class FinanceiroService implements OnModuleInit {
 
       const val = f.valor ? Number(f.valor) : 0;
 
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
+      const hoje = hojeBrasilia();
       const dataVenc = f.data_vencimento ? new Date(f.data_vencimento) : null;
       if (dataVenc) {
         dataVenc.setHours(0, 0, 0, 0);
@@ -2688,8 +2688,7 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return;
     this.logger.log('Iniciando Job de Lembretes de Cobrança...');
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
     const hojeStr = hoje.toISOString().slice(0, 10);
 
     // Janela de busca otimizada: só faturas com vencimento entre -2 e +6 dias.
@@ -3842,8 +3841,7 @@ export class FinanceiroService implements OnModuleInit {
     if (!this.prisma.isConnected) return;
     this.logger.log('Iniciando Job de Régua de Cobrança Automática via WhatsApp...');
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeBrasilia();
     const hojeStr = hoje.toISOString().slice(0, 10);
 
     // Busca todos os condomínios com cobrança automatizada via WhatsApp ativa

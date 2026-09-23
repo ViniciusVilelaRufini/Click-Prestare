@@ -35,3 +35,18 @@ export function formatarDataHoraBrasilia(d: Date | null | undefined): string {
   const p = partes(new Date(d));
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 }
+
+/** Hora (0–23) no horário de Brasília. */
+export function horaBrasilia(d: Date = new Date()): number {
+  return Number(partes(d).hour);
+}
+
+/**
+ * Data de hoje em Brasília, à meia-noite UTC — o mesmo formato em que o Prisma
+ * devolve colunas @db.Date (data_vencimento). Comparar com ela não marca como
+ * vencida, à noite, a conta que vence no próprio dia.
+ */
+export function hojeBrasilia(d: Date = new Date()): Date {
+  const p = partes(d);
+  return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)));
+}
