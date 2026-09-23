@@ -16,6 +16,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PessoasService } from '../pessoas/pessoas.service';
@@ -45,19 +46,8 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 
 const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
 
-/**
- * Users.id de quem está logado, para gravar em `visitas.user` / `Visitantes.user`
- * (FK para Users). Só existe em token de USUÁRIO (typeAccess Sindico/Morador/
- * Funcionario). O porteiro da portaria-web tem `sub = Funcionarios_Portaria.id`
- * — gravá-lo ali atribuía a visita a outra pessoa ou estourava a FK (500).
- */
-export function idUsuarioDoToken(payload?: JwtPayload | null): number | null {
-  if (!payload || (payload as any).role === 'crm_admin') return null;
-  const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
-  if (!['sindico', 'morador', 'funcionario'].includes(tipo)) return null;
-  const id = Number(payload.user?.id ?? payload.sub);
-  return id || null;
-}
+// Movido para auth/ (financeiro também precisa); reexportado para os imports existentes.
+export { idUsuarioDoToken };
 
 export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
   if (registro?.auth_status !== 'autorizado') return false;

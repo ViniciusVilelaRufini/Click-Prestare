@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { FinanceiroService } from './financeiro.service';
 import { FechamentoService } from './fechamento.service';
 import { ReqUser } from '../auth/req-user.decorator';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertStaff, assertSindico, assertFinanceiroSomenteLeitura } from '../auth/tenant.util';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
@@ -21,6 +22,19 @@ import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
  * (`morador/*`), o job de recorrência e o sync da Superlógica. (Os gateways
  * Asaas e OpenPix foram removidos — não há mais webhook de pagamento.)
  */
+/**
+ * Users.id da sessão para as rotas de "minhas contas". O token da portaria-web
+ * traz `sub = Funcionarios_Portaria.id`: usado como Users.id, o porteiro lia e
+ * gravava contas pessoais do morador que tem o mesmo número.
+ */
+function usuarioDaSessao(payload: JwtPayload): number {
+  const id = idUsuarioDoToken(payload);
+  if (!id) {
+    throw new ForbiddenException('Acesso negado: contas pessoais exigem login de morador ou síndico.');
+  }
+  return id;
+}
+
 @Controller('financeiro')
 export class FinanceiroController {
   constructor(
@@ -199,7 +213,7 @@ export class FinanceiroController {
   getByUser(@Query('id_user') idUser: string, @Query('id_condominio') idCondominio: string, @ReqUser() payload: JwtPayload) {
     const typeAccess = payload?.typeAccess ?? payload?.user?.typeAccess;
     const isSindico = typeAccess === 'Sindico' || typeAccess === 'Admin' || typeAccess === 'Administradora';
-    const currentUserId = payload?.user?.id ?? payload?.sub;
+    const currentUserId = usuarioDaSessao(payload);
     // Somente Síndico/Admin pode consultar o extrato financeiro de outro usuário.
     // Para qualquer outro papel (Morador, Porteiro, Funcionário), força o id_user
     // da própria sessão para impedir espionagem de contas pessoais e boletos.
@@ -213,7 +227,7 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
     @Body() body: { id_condominio: string | number; data: any }
   ) {
-    const userId = payload?.user?.id ?? payload?.sub;
+    const userId = usuarioDaSessao(payload);
     return this.service.insertMoradorConta(Number(userId), Number(body.id_condominio), body.data, payload);
   }
 
@@ -223,7 +237,7 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
     @Body() body: { id_condominio: string | number; data: any }
   ) {
-    const userId = payload?.user?.id ?? payload?.sub;
+    const userId = usuarioDaSessao(payload);
     return this.service.updateMoradorConta(Number(userId), Number(body.id_condominio), body.data);
   }
 
@@ -233,7 +247,7 @@ export class FinanceiroController {
     @ReqUser() payload: JwtPayload,
     @Body() body: { id: string | number }
   ) {
-    const userId = payload?.user?.id ?? payload?.sub;
+    const userId = usuarioDaSessao(payload);
     return this.service.removeMoradorConta(Number(userId), Number(body.id));
   }
 
@@ -243,7 +257,7 @@ export class FinanceiroController {
     @Body() body: { id: string | number; linha_digitavel?: string; pix_copia_cola?: string; codigo_barras?: string },
     @ReqUser() payload: JwtPayload,
   ) {
-    const userId = payload?.user?.id ?? payload?.sub;
+    const userId = usuarioDaSessao(payload);
     return this.service.anexarCodigoMorador(Number(userId), Number(body.id), {
       linha_digitavel: body.linha_digitavel || body.codigo_barras,
       pix_copia_cola: body.pix_copia_cola,
