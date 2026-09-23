@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal, Input } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -102,11 +102,98 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly baixando = signal<string | null>(null);
 
   get isAgentOnline(): boolean {
-    return this.terminais().some((t) => t.agent_online);
+    return this.agenteConectado();
   }
 
   // Painel de saúde: terminais offline, status do agente, varredura de rostos órfãos.
   readonly health = signal<FacialHealth | null>(null);
+
+  /**
+   * Uma fonte só para "agente conectado": a saúde do facial (com último
+   * contato); enquanto ela não carrega, o status reportado nos terminais.
+   * Antes o cabeçalho e o painel liam fontes diferentes e podiam discordar.
+   */
+  readonly agenteConectado = computed(
+    () => this.health()?.agente.online ?? this.terminais().some((t) => t.agent_online),
+  );
+
+  /** Reabre a instalação quando o agente já está conectado ("Reinstalar ou configurar"). */
+  readonly mostrarInstalacao = signal(false);
+  /** Instalação é contextual: aberta enquanto o agente não conecta. */
+  readonly instalacaoAberta = computed(() => !this.agenteConectado() || this.mostrarInstalacao());
+  readonly mostrarInstalacaoManual = signal(false);
+  readonly mostrarOpcoesSync = signal(false);
+
+  /** Filtro da lista de pessoas, escolhido pelo contador clicado. null = todos. */
+  readonly filtroPessoas = signal<SyncPessoa['status'] | null>(null);
+  readonly pessoasFiltradas = computed(() => {
+    const f = this.filtroPessoas();
+    return f ? this.pessoas().filter((p) => p.status === f) : this.pessoas();
+  });
+
+  /** Abre a lista de pessoas já filtrada pelo contador clicado. */
+  abrirPessoas(status: SyncPessoa['status'] | null) {
+    this.filtroPessoas.set(status);
+    this.mostrarPessoas.set(true);
+    this.loadPessoas();
+  }
+
+  readonly chipAtivo =
+    'px-3 py-1.5 rounded-xl text-xs font-semibold border bg-accent/10 border-accent/40 text-accent';
+  readonly chipInativo =
+    'px-3 py-1.5 rounded-xl text-xs font-medium border bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 transition';
+
+  /** Contadores clicáveis da sincronização, na ordem da tela. */
+  contadoresSync(s: FacialSyncStatus): {
+    status: SyncPessoa['status'];
+    label: string;
+    valor: number;
+    cor: string;
+    alerta: boolean;
+  }[] {
+    return [
+      { status: 'synced', label: 'Enviados', valor: s.synced, cor: 'text-emerald-600 dark:text-emerald-400', alerta: false },
+      { status: 'pending', label: 'Pendentes', valor: s.pending, cor: 'text-amber-600 dark:text-amber-400', alerta: false },
+      {
+        status: 'error',
+        label: 'Erros',
+        valor: s.error,
+        cor: s.error > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400',
+        alerta: s.error > 0,
+      },
+      { status: 'no_photo', label: 'Sem foto', valor: s.semFoto, cor: 'text-slate-500 dark:text-slate-400', alerta: false },
+    ];
+  }
+
+  classeContador(status: SyncPessoa['status'], alerta: boolean): string {
+    const base = 'text-left rounded-2xl p-3 border transition active:scale-[0.98] ';
+    if (this.mostrarPessoas() && this.filtroPessoas() === status) {
+      return base + 'border-accent bg-accent/5 ring-2 ring-accent/20';
+    }
+    if (alerta) return base + 'border-rose-500/30 bg-rose-500/5 hover:border-rose-500/50';
+    return base + 'border-slate-200/70 dark:border-white/10 bg-slate-50/60 dark:bg-white/5 hover:border-accent/40';
+  }
+
+  tituloListaPessoas(): string {
+    return (
+      { error: 'Com erro', pending: 'Pendentes', synced: 'Enviados', no_photo: 'Sem foto' } as Record<string, string>
+    )[this.filtroPessoas() ?? ''] ?? 'Todas as pessoas';
+  }
+
+  nomesTerminais(lista: { nome: string }[]): string {
+    return lista.map((t) => t.nome).join(', ');
+  }
+
+  /** Resumo dos filtros de sincronização ("todos" quando nada marcado). */
+  resumoAlvoSync(): string {
+    const cats = this.categoriasDisponiveis
+      .filter((c) => this.categoriasSync().has(c.id))
+      .map((c) => c.label.toLowerCase());
+    const terms = this.terminais().filter((t) => this.terminaisSync().has(t.id)).map((t) => t.nome);
+    const quem = cats.length ? cats.join(', ') : 'todas as pessoas';
+    const onde = terms.length ? terms.join(', ') : 'todos os terminais';
+    return `${quem} · ${onde}`;
+  }
 
   loadHealth() {
     this.api.health().subscribe({
@@ -522,7 +609,10 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   togglePessoas() {
     const novo = !this.mostrarPessoas();
     this.mostrarPessoas.set(novo);
-    if (novo) this.loadPessoas();
+    if (novo) {
+      this.filtroPessoas.set(null);
+      this.loadPessoas();
+    }
   }
 
   loadPessoas() {
