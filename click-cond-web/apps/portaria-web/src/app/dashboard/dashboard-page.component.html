@@ -1457,116 +1457,95 @@
 
   <!-- Modal de Dar Baixa Rápida -->
   @if (showBaixaModal()) {
-    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-transparent p-4" (click)="fecharModalBaixa()">
-      <div class="w-full max-w-lg bg-white dark:bg-graphite-200 border border-slate-200/60 dark:border-white/5 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col relative" (click)="$event.stopPropagation()">
+    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/30 dark:bg-black/50 backdrop-blur-[2px] p-4" (click)="fecharModalBaixa()">
+      <div class="w-full max-w-lg bg-white dark:bg-graphite-200 border border-slate-200/70 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[85vh]" (click)="$event.stopPropagation()">
 
-        <!-- Header do Modal -->
-        <div class="px-6 py-4 border-b border-slate-200/60 dark:border-white/5 flex items-center justify-between bg-slate-50/[0.3] dark:bg-white/[0.01]">
-          <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-            </svg>
-            <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Registrar Baixa (Saída)</h3>
+        <header class="px-6 py-4 border-b border-slate-200/70 dark:border-white/10 flex items-start justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-slate-800 dark:text-white">Registrar saída</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                @if (carregandoBaixa()) {
+                  Carregando quem está no condomínio…
+                } @else {
+                  Selecione quem está saindo · {{ pessoasNoLocal().length }} {{ pessoasNoLocal().length === 1 ? 'pessoa' : 'pessoas' }} no condomínio
+                }
+              </p>
+            </div>
           </div>
-          <button (click)="fecharModalBaixa()" aria-label="Fechar modal de baixa" class="text-slate-400 hover:text-slate-650 dark:hover:text-white transition">
+          <button (click)="fecharModalBaixa()" aria-label="Fechar" class="text-slate-400 hover:text-slate-700 dark:hover:text-white transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
-        </div>
+        </header>
 
-        <div class="p-6 space-y-4">
-
-          <!-- Campo de Busca -->
-          <div class="relative">
-            <input
-              type="text"
-              placeholder="Buscar por nome ou documento..."
-              [ngModel]="buscaPessoaBaixa()"
-              (ngModelChange)="buscaPessoaBaixa.set($event)"
-              class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-white/10 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-rose-500 transition" />
-            <svg class="w-5 h-5 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-          </div>
-
-          <!-- Mensagens de Erro / Sucesso -->
-          @if (erroBaixa()) {
-            <div class="p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/40 dark:border-rose-500/20 text-rose-600 dark:text-rose-450 text-xs font-semibold rounded-xl flex items-start gap-2">
-              <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              <span>{{ erroBaixa() }}</span>
+        <div class="p-6 space-y-4 overflow-y-auto">
+          @if (pessoasNoLocal().length > 0) {
+            <div class="relative">
+              <input type="text" placeholder="Buscar por nome ou documento"
+                [ngModel]="buscaPessoaBaixa()" (ngModelChange)="buscaPessoaBaixa.set($event)"
+                class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-white/10 text-slate-800 dark:text-white placeholder:text-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-accent/25 focus:border-accent transition" />
+              <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
+          }
+
+          @if (erroBaixa()) {
+            <div class="p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 text-rose-700 dark:text-rose-300 text-sm rounded-xl">{{ erroBaixa() }}</div>
           }
           @if (sucessoBaixa()) {
-            <div class="p-3.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/40 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-450 text-xs font-semibold rounded-xl flex items-start gap-2">
-              <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-              <span>{{ sucessoBaixa() }}</span>
-            </div>
+            <div class="p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/60 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-sm rounded-xl">{{ sucessoBaixa() }}</div>
           }
 
-          <!-- Lista de Pessoas no Local -->
-          <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
-            @if (carregandoBaixa()) {
-              <div class="flex flex-col items-center justify-center py-8 gap-2 text-slate-400">
-                <div class="w-6 h-6 border-2 border-slate-300 border-t-accent rounded-full animate-spin"></div>
-                <span class="text-xs font-semibold uppercase tracking-wider">Carregando...</span>
+          @if (carregandoBaixa()) {
+            <div class="flex items-center justify-center py-10">
+              <div class="w-6 h-6 border-2 border-slate-300 border-t-accent rounded-full animate-spin"></div>
+            </div>
+          } @else if (filtradasBaixa().length === 0) {
+            <div class="flex flex-col items-center text-center py-10 gap-2">
+              <div class="w-11 h-11 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               </div>
-            } @else if (filtradasBaixa().length === 0) {
-              <div class="text-center py-8 text-slate-400 dark:text-slate-500 text-sm">
-                Ninguém no condomínio encontrado com este filtro.
-              </div>
-            } @else {
+              <p class="text-sm font-medium text-slate-600 dark:text-slate-300">{{ mensagemVaziaBaixa() }}</p>
+              @if (pessoasNoLocal().length === 0) {
+                <p class="text-xs text-slate-400">Quem entrar pela portaria ou pelo facial aparece aqui.</p>
+              }
+            </div>
+          } @else {
+            <ul class="space-y-2">
               @for (p of filtradasBaixa(); track p.id) {
-                <div class="flex items-center justify-between p-3 rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-50/[0.2] dark:bg-white/[0.01] hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                <li class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200/70 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 transition">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
                       @if (p.foto_pessoa) {
                         <img [src]="p.foto_pessoa" [alt]="'Foto de ' + p.nome" class="w-full h-full object-cover" />
                       } @else {
                         <span class="text-xs font-bold text-slate-500 dark:text-slate-400">{{ iniciais(p.nome) }}</span>
                       }
                     </div>
-                    <div>
-                      <h4 class="font-bold text-slate-800 dark:text-white text-sm leading-tight">{{ p.nome }}</h4>
-                      <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        @if (p.doc_identificacao) {
-                          <span class="text-[10px] font-mono text-slate-500 dark:text-slate-400">Doc: {{ p.doc_identificacao }}</span>
-                          <span class="text-slate-300 dark:text-white/10">·</span>
-                        }
-                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wider uppercase"
-                              [class.text-accent]="p.is_visitante === 1"
-                              [class.bg-accent/10]="p.is_visitante === 1"
-                              [class.border-accent/15]="p.is_visitante === 1"
-                              [class.text-amber-500]="p.is_prestador === 1"
-                              [class.bg-amber-500/10]="p.is_prestador === 1"
-                              [class.border-amber-500/15]="p.is_prestador === 1">
-                          {{ p.is_prestador === 1 ? 'Prestador' : 'Visitante' }}
-                        </span>
-                        @if (p.apartamentoAtual) {
-                          <span class="text-slate-300 dark:text-white/10">·</span>
-                          <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Apto {{ p.apartamentoAtual }}</span>
-                        }
-                      </div>
+                    <div class="min-w-0">
+                      <p class="text-sm font-semibold text-slate-800 dark:text-white truncate">{{ p.nome }}</p>
+                      <p class="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        {{ p.is_prestador === 1 ? 'Prestador' : 'Visitante' }}
+                        @if (p.apartamentoAtual) { · Apto {{ p.apartamentoAtual }} }
+                        @if (p.doc_identificacao) { · <span class="font-mono">{{ p.doc_identificacao | maskDoc }}</span> }
+                      </p>
                     </div>
                   </div>
-
-                  <button (click)="confirmarBaixa(p)"
-                          [disabled]="registrandoSaida()"
-                          class="px-3 py-1.5 text-xs font-semibold text-rose-500 hover:text-white bg-rose-500/10 hover:bg-rose-500 border border-rose-500/25 hover:border-rose-500 rounded-lg transition-all active:scale-95 disabled:opacity-50 shrink-0">
-                    Dar Baixa
+                  <button (click)="confirmarBaixa(p)" [disabled]="registrandoSaida()"
+                    class="px-3.5 py-2 text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition active:scale-95 disabled:opacity-50 shrink-0">
+                    Dar baixa
                   </button>
-                </div>
+                </li>
               }
-            }
-          </div>
+            </ul>
+          }
         </div>
 
-        <!-- Footer -->
-        <div class="px-6 py-4 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-end bg-slate-50/[0.3] dark:bg-white/[0.01]">
-          <button (click)="fecharModalBaixa()"
-                  class="px-4 py-2 text-xs font-bold text-slate-650 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition-colors">
-            Fechar
-          </button>
-        </div>
-
+        <footer class="px-6 py-3.5 border-t border-slate-200/70 dark:border-white/10 flex justify-end">
+          <button (click)="fecharModalBaixa()" class="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl transition">Fechar</button>
+        </footer>
       </div>
     </div>
   }

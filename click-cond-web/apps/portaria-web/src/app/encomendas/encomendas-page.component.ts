@@ -517,6 +517,26 @@ export class EncomendasPageComponent implements OnInit {
     return Math.floor((ref - recebido) / 86400000);
   }
 
+  /** "hoje" / "há 1 dia" / "há N dias" — tempo que a encomenda ficou (ou está) na portaria. */
+  textoArmazenada(e: Encomenda): string {
+    const d = this.diasArmazenada(e);
+    return d <= 0 ? 'hoje' : d === 1 ? 'há 1 dia' : `há ${d} dias`;
+  }
+
+  /** Urgência de quem ainda aguarda retirada: ≥3 dias atenção, ≥7 crítico. */
+  nivelArmazenada(e: Encomenda): 'ok' | 'atencao' | 'critico' {
+    if (e.status !== 'Aguardando') return 'ok';
+    const d = this.diasArmazenada(e);
+    return d >= 7 ? 'critico' : d >= 3 ? 'atencao' : 'ok';
+  }
+
+  /** "Apto 101 · Bloco A" (o bloco pode vir "A" ou "Bloco A"). */
+  rotuloDestino(e: Pick<Encomenda, 'destinatario_bloco' | 'destinatario_apto'>): string {
+    const bloco = (e.destinatario_bloco ?? '').toString().trim();
+    const blocoTxt = bloco ? (/^bloco\s/i.test(bloco) ? bloco : `Bloco ${bloco}`) : '';
+    return blocoTxt ? `Apto ${e.destinatario_apto} · ${blocoTxt}` : `Apto ${e.destinatario_apto}`;
+  }
+
   getBrandBadgeClass(recebidoDe: string | undefined): { bg: string, text: string, border: string } {
     const val = (recebidoDe || '').toLowerCase();
     if (val.includes('ifood') || val.includes('food') || val.includes('delivery')) {

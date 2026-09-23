@@ -1,3 +1,4 @@
+import { MaskDocPipe } from '../shared/mask-doc.pipe';
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -12,7 +13,7 @@ import { NetworkStatusService } from '../core/network-status.service';
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule],
+  imports: [CommonModule, RouterLink, FormsModule, MaskDocPipe],
   templateUrl: './dashboard-page.component.html',
   host: {
     '(window:keydown.escape)': 'onEscapePressed()'
@@ -85,6 +86,14 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       p.nome.toLowerCase().includes(busca) || 
       (p.doc_identificacao && p.doc_identificacao.toLowerCase().includes(busca))
     );
+  });
+
+  /** Estado vazio da baixa: distingue "ninguém dentro" de "a busca não achou". */
+  readonly mensagemVaziaBaixa = computed(() => {
+    const busca = this.buscaPessoaBaixa().trim();
+    return this.pessoasNoLocal().length === 0 || !busca
+      ? 'Ninguém está no condomínio agora.'
+      : `Nenhum resultado para "${busca}".`;
   });
 
   readonly copiaSucessoTexto = signal<string | null>(null);
