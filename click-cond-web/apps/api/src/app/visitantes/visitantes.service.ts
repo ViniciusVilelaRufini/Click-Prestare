@@ -1,3 +1,4 @@
+import { diaSemanaBrasilia, formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
 import {
   Injectable,
   Logger,
@@ -3087,8 +3088,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (v.dias_semana) {
       const diasPermitidos = v.dias_semana.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean);
       if (diasPermitidos.length > 0) {
-        const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-        const diaSemanaAtual = mapDias[now.getDay()];
+        const diaSemanaAtual = diaSemanaBrasilia(now);
         if (!diasPermitidos.includes(diaSemanaAtual)) {
           throw new BadRequestException('Acesso negado: Entrada não permitida no dia de hoje.');
         }
@@ -3099,11 +3099,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
-    const formatarData = (d: Date | null) => {
-      if (!d) return '';
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
+    const formatarData = (d: Date | null) => formatarDataHoraBrasilia(d);
 
     return {
       id: v.id,
@@ -3783,8 +3779,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (v.dias_semana) {
       const diasPermitidos = v.dias_semana.split(',').map(d => d.trim().toLowerCase()).filter(Boolean);
       if (diasPermitidos.length > 0) {
-        const mapDias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-        const diaSemanaAtual = mapDias[now.getDay()];
+        const diaSemanaAtual = diaSemanaBrasilia(now);
         if (!diasPermitidos.includes(diaSemanaAtual)) {
           throw new BadRequestException('Acesso negado: Entrada não permitida no dia de hoje.');
         }
@@ -3795,11 +3790,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Acesso negado: A entrada deste visitante/prestador não foi autorizada pelo morador ou portaria.');
     }
 
-    const formatarData = (d: Date | null) => {
-      if (!d) return '';
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
+    const formatarData = (d: Date | null) => formatarDataHoraBrasilia(d);
 
     return {
       id: v.id,
