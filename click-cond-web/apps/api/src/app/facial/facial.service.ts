@@ -3496,6 +3496,7 @@ export class FacialService {
           tipo: true,
           foto_pessoa: true,
           face_sync_status: true,
+          face_sync_error: true,
         },
       }),
       this.prisma.visitantes.findMany({
@@ -3506,6 +3507,7 @@ export class FacialService {
           is_prestador: true,
           foto_pessoa: true,
           face_sync_status: true,
+          face_sync_error: true,
         },
       }),
     ]);
@@ -3520,6 +3522,7 @@ export class FacialService {
         tem_foto: !!m.foto_pessoa,
         status: this.statusPessoa(m.face_sync_status, !!m.foto_pessoa),
         motivo: this.motivoSync(m.face_sync_status, !!m.foto_pessoa),
+        motivo_detalhado: m.face_sync_error,
       })),
       ...visitantes.map((v) => ({
         tipo: 'visitante' as const,
@@ -3529,6 +3532,7 @@ export class FacialService {
         tem_foto: !!v.foto_pessoa,
         status: this.statusPessoa(v.face_sync_status, !!v.foto_pessoa),
         motivo: this.motivoSync(v.face_sync_status, !!v.foto_pessoa),
+        motivo_detalhado: v.face_sync_error,
       })),
     ];
 

@@ -45,6 +45,8 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
   readonly pessoas = signal<SyncPessoa[]>([]);
   readonly mostrarPessoas = signal(false);
   readonly retryingPessoa = signal<string | null>(null);
+  /** Pessoa cujo detalhe do envio estÃ¡ aberto na lista. */
+  readonly pessoaDetalhada = signal<string | null>(null);
 
   // Estimativa de tempo restante (ETA)
   private syncStartTime: number | null = null;
@@ -136,6 +138,33 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     this.filtroPessoas.set(status);
     this.mostrarPessoas.set(true);
     this.loadPessoas();
+  }
+
+  /** Abre o primeiro cadastro com falha e mostra o retorno completo do terminal. */
+  verMotivoErro() {
+    this.filtroPessoas.set('error');
+    this.mostrarPessoas.set(true);
+    this.api.syncPessoas().subscribe({
+      next: (lista) => {
+        this.pessoas.set(lista);
+        const primeiroErro = lista.find((p) => p.status === 'error');
+        this.pessoaDetalhada.set(primeiroErro ? this.chavePessoa(primeiroErro) : null);
+      },
+      error: () => {
+        this.pessoas.set([]);
+        this.pessoaDetalhada.set(null);
+      },
+    });
+  }
+
+  chavePessoa(pessoa: SyncPessoa): string {
+    return `${pessoa.tipo}_${pessoa.id}`;
+  }
+
+  /** Abre/fecha o detalhe do retorno do terminal sem perder o filtro atual. */
+  toggleDetalhePessoa(pessoa: SyncPessoa) {
+    const chave = this.chavePessoa(pessoa);
+    this.pessoaDetalhada.update((atual) => (atual === chave ? null : chave));
   }
 
   readonly chipAtivo =
@@ -624,8 +653,9 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
 
   /** Re-tenta o envio de UMA pessoa (ex.: depois de trocar a foto). */
   retryPessoa(p: SyncPessoa) {
-    const key = `${p.tipo}_${p.id}`;
+    const key = this.chavePessoa(p);
     this.retryingPessoa.set(key);
+    this.errorMessage.set(null);
     const obs =
       p.tipo === 'morador'
         ? this.api.syncMorador(p.id)
@@ -633,12 +663,15 @@ export class TerminaisFaciaisPageComponent implements OnInit, OnDestroy {
     obs.subscribe({
       next: () => {
         this.retryingPessoa.set(null);
+        this.pessoaDetalhada.set(null);
         this.loadPessoas();
-        this.api.syncStatus().subscribe((s) => this.syncStatus.set(s));
+        this.loadSyncStatus();
       },
-      error: () => {
+      error: (err) => {
         this.retryingPessoa.set(null);
         this.loadPessoas();
+        this.errorMessage.set(err?.error?.message ?? 'NÃ£o foi possÃ­vel reenviar este rosto.');
+        setTimeout(() => this.errorMessage.set(null), 5000);
       },
     });
   }

@@ -102,6 +102,8 @@ export interface SyncPessoa {
   tem_foto: boolean;
   status: 'synced' | 'error' | 'pending' | 'no_photo';
   motivo: string;
+  /** Detalhe registrado pelo terminal/agente quando o envio falhou. */
+  motivo_detalhado: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
