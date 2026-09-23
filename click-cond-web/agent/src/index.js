@@ -32,9 +32,6 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { AGENT_VERSION } = require('./versao');
-const { buildDigestHeader } = require('./lib/digest');
-const { hikIsoComOffset } = require('./lib/dahua-formato');
-const { buildMultipart } = require('./lib/multipart');
 const {
   lanRequest: lanRequestComTimeout,
   okFrom,
@@ -54,6 +51,8 @@ const {
 } = require('./core/nuvem');
 const { resolverDriver } = require('./drivers/registro');
 const dahuaFacial = require('./drivers/dahua-facial');
+const hikvisionFacial = require('./drivers/hikvision-facial');
+const controlidFacial = require('./drivers/controlid-facial');
 
 /**
  * Fabricantes que NÃO falam HTTP para comandos. Usam protocolo binário em
@@ -89,10 +88,12 @@ const LAN_TIMEOUT_MS = Number(process.env.LAN_TIMEOUT_MS || 8000);
 function lanRequest(device, method, pathname, opts) {
   return lanRequestComTimeout(device, method, pathname, opts, LAN_TIMEOUT_MS);
 }
-// O driver Dahua/Intelbras também fala LAN e não lê `process.env` (fica
-// testável isolado) — recebe o mesmo timeout por configurar(), assim como
+// Os drivers também falam LAN e não leem `process.env` (ficam testáveis
+// isolados) — recebem o mesmo timeout por configurar(), assim como
 // core/nuvem.js recebe apiUrl.
 dahuaFacial.configurar({ lanTimeoutMs: LAN_TIMEOUT_MS });
+hikvisionFacial.configurar({ lanTimeoutMs: LAN_TIMEOUT_MS });
+controlidFacial.configurar({ lanTimeoutMs: LAN_TIMEOUT_MS });
 // Intervalo do heartbeat de status do aparelho (online/offline no portal).
 const DEVICE_STATUS_INTERVAL_MS = Number(
   process.env.DEVICE_STATUS_INTERVAL_MS || 5000,
@@ -240,12 +241,6 @@ async function runCondoLoop(token) {
             },
           });
         }
-        if (device.fabricante === 'hikvision') {
-          startHikvisionEventListener(token, device);
-        }
-        if (device.fabricante === 'control_id') {
-          startControlIdEventListener(token, device);
-        }
         for (const cmd of entry.commands || []) {
           const result = await executeOnDevice(device, cmd);
           await cloudRequest('POST', `/api/facial/agent/condo/${token}/result`, {
@@ -380,8 +375,9 @@ async function executeOnDevice(device, cmd) {
       error: `${device.fabricante} usa ${SEM_COMANDO_HTTP[device.fabricante]} — não aceita comando via HTTP. Use uma botoeira/relé HTTP genérico ou um bridge SDK.`,
     };
   }
-  // Dahua/Intelbras já fala pelo contrato de driver (src/drivers). Hikvision
-  // e Control iD ainda ficam no switch abaixo — migram na tarefa 5.
+  // Dahua/Intelbras, Hikvision e Control iD já falam pelo contrato de driver
+  // (src/drivers) — o switch abaixo só sobra pra fabricante sem driver
+  // conhecido (fallback REST genérico).
   const driver = resolverDriver(device);
   if (driver) {
     try {
@@ -423,31 +419,10 @@ async function executeOnDevice(device, cmd) {
   }
 }
 
-/** Captura um quadro (JPEG) da câmera do facial e devolve em base64. */
+/** Captura um quadro (JPEG) da câmera do facial e devolve em base64. Dahua,
+ *  Hikvision e Control iD já saem por `executeOnDevice` (via driver) antes de
+ *  chegar aqui; esta função só sobra pra fabricante sem driver conhecido. */
 async function doSnapshot(device) {
-  // Hikvision: ISAPI entrega o quadro direto, sem controle de iluminação
-  // (o terminal já expõe o canal 101 como stream principal).
-  if (device.fabricante === 'hikvision') {
-    const res = await lanRequest(
-      device,
-      'GET',
-      '/ISAPI/Streaming/channels/101/picture',
-    );
-    if (
-      !(res.status >= 200 && res.status < 300) ||
-      !res.buffer ||
-      res.buffer.length < 100
-    ) {
-      return {
-        ok: false,
-        statusCode: res.status,
-        error: 'o aparelho não retornou imagem',
-      };
-    }
-    return { ok: true, imageBase64: res.buffer.toString('base64') };
-  }
-  // Dahua/Intelbras usa o driver (src/drivers/dahua-facial.js) via
-  // executeOnDevice; chegar aqui com esse fabricante não deveria acontecer.
   return {
     ok: false,
     error: `Captura por câmera não suportada para ${device.fabricante}.`,
@@ -569,66 +544,28 @@ async function streamLiveView(device, res) {
 }
 
 async function doPing(device) {
-  if (device.fabricante === 'control_id') {
-    await controlIdLogin(device); // login OK prova conectividade
-    return { ok: true };
-  }
   const driver = resolverDriver(device);
   if (driver) {
     // Dahua/Intelbras: ver `testar` no driver (não usa login RPC2 — estouraria
     // o limite de sessões do aparelho com o heartbeat repetindo a cada 20s).
     return driver.testar(device);
   }
-  if (device.fabricante === 'hikvision') {
-    // ISAPI: deviceInfo prova rede + credencial (Digest tratado em request()).
-    const res = await lanRequest(device, 'GET', '/ISAPI/System/deviceInfo');
-    return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
-  }
   const res = await lanRequest(device, 'GET', '/status');
   return { ok: res.status >= 200 && res.status < 300, statusCode: res.status };
 }
 
 async function doOpenDoor(device) {
-  // VALIDADO: Control iD usa /execute_actions.fcgi com action "door".
-  if (device.fabricante === 'control_id') {
-    const session = await controlIdLogin(device);
-    const res = await lanRequest(
-      device,
-      'POST',
-      `/execute_actions.fcgi?session=${session}`,
-      {
-        json: { actions: [{ action: 'door', parameters: 'door=1' }] },
-      },
-    );
-    return okFrom(res);
-  }
-  // Dahua/Intelbras: abre pelo driver (executeOnDevice já delegou antes de
-  // chegar aqui; este ponto só existe para fabricantes sem driver ainda).
-  const map = {
-    // VALIDADO (ISAPI). Requer Digest auth — tratado automaticamente em request().
-    hikvision: {
-      method: 'PUT',
-      path: '/ISAPI/AccessControl/RemoteControl/door/1',
-      xml: '<RemoteControlDoor><cmd>open</cmd></RemoteControlDoor>',
-    },
-    genérico: { method: 'POST', path: '/open_door' },
-  };
-  const ep = map[device.fabricante] || map['genérico'];
-  const opts = ep.xml ? { xml: ep.xml } : { json: {} };
-  const res = await lanRequest(device, ep.method, ep.path, opts);
+  // Dahua/Intelbras, Hikvision e Control iD abrem pelo driver
+  // (executeOnDevice já delegou antes de chegar aqui; este ponto só existe
+  // para fabricante sem driver conhecido — fallback REST genérico).
+  const res = await lanRequest(device, 'POST', '/open_door', { json: {} });
   return okFrom(res);
 }
 
 async function doEnroll(device, cmd) {
-  if (device.fabricante === 'control_id') {
-    return cmd.type === 'update'
-      ? controlIdUpdate(device, cmd)
-      : controlIdCreate(device, cmd);
-  }
-  if (device.fabricante === 'hikvision') {
-    return hikvisionEnroll(device, cmd);
-  }
-  // Genérico: POST /persons (cadastro) ou PUT /persons/:id (update)
+  // Dahua/Intelbras, Hikvision e Control iD cadastram pelo driver
+  // (executeOnDevice já delegou antes de chegar aqui). Fallback REST
+  // genérico: POST /persons (cadastro) ou PUT /persons/:id (update)
   if (cmd.type === 'update' && cmd.faceId) {
     const body = {};
     if (cmd.nome !== undefined) body.name = cmd.nome;
@@ -658,304 +595,40 @@ async function doEnroll(device, cmd) {
   };
 }
 
+/** Fallback REST genérico (fabricante sem driver conhecido). Dahua/Intelbras,
+ *  Hikvision e Control iD removem pelo driver (executeOnDevice já delegou
+ *  antes de chegar aqui). */
 async function doRemove(device, cmd) {
-  if (device.fabricante === 'control_id') {
-    const session = await controlIdLogin(device);
-    const res = await lanRequest(
-      device,
-      'POST',
-      `/destroy_objects.fcgi?session=${session}`,
-      {
-        json: { object: 'users', where: { users: { id: Number(cmd.faceId) } } },
-      },
-    );
-    return okFrom(res);
-  }
-  if (device.fabricante === 'hikvision') {
-    const employeeNo = String(cmd.faceId);
-    // Remove o rosto da FDLib.
-    await lanRequest(
-      device,
-      'PUT',
-      '/ISAPI/Intelligent/FDLib/FDSetUp?format=json&FDID=1&faceLibType=blackFD',
-      { json: { FPID: [{ value: employeeNo }] } },
-    ).catch(() => undefined);
-    // Remove o usuário.
-    const res = await lanRequest(
-      device,
-      'PUT',
-      '/ISAPI/AccessControl/UserInfo/Delete?format=json',
-      { json: { UserInfoDelCond: { EmployeeNoList: [{ employeeNo }] } } },
-    );
-    return okFrom(res);
-  }
   const res = await lanRequest(device, 'DELETE', `/persons/${cmd.faceId}`);
   if (res.status === 404) return { ok: true }; // já não existia
   return okFrom(res);
 }
 
-/**
- * Identificador que NÓS gravamos no aparelho ("morador_42", "visitante_9",
- * "prestador_servico_3").
- *
- * A varredura de fantasmas apaga tudo que está no aparelho e não está no nosso
- * banco. Num terminal Hikvision ou Control iD, "tudo" inclui o usuário admin
- * que o instalador criou no próprio aparelho — apagá-lo trancaria o instalador
- * para fora. Restringir a listagem ao nosso padrão mantém a varredura fazendo
- * o trabalho dela (o fantasma que buscamos SEMPRE tem esse formato, porque fomos
- * nós que o cadastramos) sem tocar em quem não é nosso.
- *
- * Não vale para Intelbras: lá o UserID é livre e o comportamento atual (varrer
- * tudo) já roda em produção — mudá-lo deixaria lixo antigo sem limpeza.
- */
-const NOSSO_EXTERNAL_ID = /^(morador|visitante|prestador_servico)_\d+$/;
-
+/** Fallback REST genérico (fabricante sem driver conhecido). Dahua/Intelbras,
+ *  Hikvision e Control iD listam usuários pelo driver (executeOnDevice já
+ *  delegou antes de chegar aqui). */
 async function doListUsers(device) {
-  // Hikvision: ISAPI pagina por searchResultPosition; o employeeNo é o nosso
-  // external_id (= face_id gravado no enrollment).
-  if (device.fabricante === 'hikvision') {
-    const ids = [];
-    const PAGE = 50;
-    let pos = 0;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const resp = await lanRequest(
-        device,
-        'POST',
-        '/ISAPI/AccessControl/UserInfo/Search?format=json',
-        {
-          json: {
-            UserInfoSearchCond: {
-              searchID: 'click-list-users',
-              searchResultPosition: pos,
-              maxResults: PAGE,
-            },
-          },
-        },
-      );
-      if (!(resp.status >= 200 && resp.status < 300)) {
-        return { ok: false, error: `Falha ao listar usuários (HTTP ${resp.status})` };
-      }
-      const search = (resp.data && resp.data.UserInfoSearch) || {};
-      const list = search.UserInfo || [];
-      for (const u of list) {
-        if (u.employeeNo && NOSSO_EXTERNAL_ID.test(String(u.employeeNo))) {
-          ids.push(String(u.employeeNo));
-        }
-      }
-      // Pagina sobre TODOS os usuários (inclusive os que filtramos), senão a
-      // varredura pararia cedo e deixaria fantasmas nas páginas seguintes.
-      pos += list.length;
-      // "MORE" indica que ainda há páginas; qualquer outro status encerra.
-      if (list.length === 0 || search.responseStatusStrg !== 'MORE') break;
-    }
-    return { ok: true, userIds: ids };
-  }
-
-  // Control iD: o face_id gravado é o id INTERNO do usuário (ver controlIdCreate).
-  if (device.fabricante === 'control_id') {
-    const session = await controlIdLogin(device);
-    const resp = await lanRequest(
-      device,
-      'POST',
-      `/load_objects.fcgi?session=${session}`,
-      { json: { object: 'users' } },
-    );
-    if (!(resp.status >= 200 && resp.status < 300)) {
-      return { ok: false, error: `Falha ao listar usuários (HTTP ${resp.status})` };
-    }
-    // O face_id do Control iD é o id INTERNO, indistinguível de um usuário
-    // criado no próprio aparelho — quem identifica os nossos é o campo
-    // `registration`, onde gravamos o external_id no enrollment.
-    const users = (resp.data && resp.data.users) || [];
-    return {
-      ok: true,
-      userIds: users
-        .filter((u) => u.id != null && NOSSO_EXTERNAL_ID.test(String(u.registration ?? '')))
-        .map((u) => String(u.id)),
-    };
-  }
-
-  // Dahua/Intelbras já saiu por `executeOnDevice` antes de chegar aqui.
   return { ok: false, error: `list_users não suportado para ${device.fabricante}` };
 }
 
+/** Fallback REST genérico (fabricante sem driver conhecido). Dahua/Intelbras,
+ *  Hikvision e Control iD removem em lote pelo driver (executeOnDevice já
+ *  delegou antes de chegar aqui). */
 async function doRemoveUsers(device, cmd) {
-  // Hikvision e Control iD não têm remoção em lote equivalente ao RPC2: cai
-  // para remoção individual, reusando o caminho já validado do doRemove. Uma
-  // falha isolada não aborta o lote — a varredura de fantasmas roda de hora em
-  // hora e tenta de novo o que sobrou.
-  if (device.fabricante === 'hikvision' || device.fabricante === 'control_id') {
-    const alvos = cmd.faceIds || [];
-    if (alvos.length === 0) return { ok: true };
-    const falhas = [];
-    for (const faceId of alvos) {
-      try {
-        const r = await doRemove(device, { faceId });
-        if (!r.ok && r.statusCode !== 404) falhas.push(faceId);
-      } catch {
-        falhas.push(faceId);
-      }
-    }
-    if (falhas.length > 0) {
-      return {
-        ok: false,
-        error: `falha ao remover ${falhas.length}/${alvos.length} usuário(s): ${falhas.slice(0, 10).join(', ')}`,
-      };
-    }
-    return { ok: true };
-  }
-
-  // Dahua/Intelbras já saiu por `executeOnDevice` antes de chegar aqui.
   return { ok: false, error: `remove_users não suportado para ${device.fabricante}` };
 }
 
-/**
- * Control iD — cadastro de pessoa nova. Devolve o user_id INTERNO do aparelho
- * como faceId: é por ele que o webhook resolve a pessoa (o push só manda
- * user_id). VALIDADO contra a doc oficial da API Linha de Acesso.
- */
-async function controlIdCreate(device, cmd) {
-  const session = await controlIdLogin(device);
-  const registration = String(cmd.externalId || cmd.faceId);
-  const created = await lanRequest(
-    device,
-    'POST',
-    `/create_objects.fcgi?session=${session}`,
-    {
-      json: {
-        object: 'users',
-        values: [{ name: cmd.nome || registration, registration }],
-      },
-    },
-  );
-  const userId = created.data && created.data.ids && created.data.ids[0];
-  if (userId == null)
-    return { ok: false, error: 'Control iD: create_objects não retornou id' };
-  if (cmd.fotoBase64) {
-    await lanRequest(
-      device,
-      'POST',
-      `/user_set_image.fcgi?session=${session}&user_id=${userId}&match=1&timestamp=${Math.floor(Date.now() / 1000)}`,
-      { binary: Buffer.from(cmd.fotoBase64, 'base64') },
-    );
-  }
-  return { ok: true, faceId: String(userId) };
-}
+// Login e enroll Dahua/Intelbras (RPC2, AccessUser/AccessFace) moveram para
+// src/drivers/dahua-facial.js. Hikvision (ISAPI) moveu para
+// src/drivers/hikvision-facial.js. Control iD (.fcgi com sessão) moveu para
+// src/drivers/controlid-facial.js.
 
-/** Control iD — atualiza nome/foto pelo user_id interno (= faceId salvo). */
-async function controlIdUpdate(device, cmd) {
-  const session = await controlIdLogin(device);
-  const userId = Number(cmd.faceId);
-  if (cmd.nome) {
-    await lanRequest(
-      device,
-      'POST',
-      `/modify_objects.fcgi?session=${session}`,
-      {
-        json: {
-          object: 'users',
-          values: { name: cmd.nome },
-          where: { users: { id: userId } },
-        },
-      },
-    );
-  }
-  if (cmd.fotoBase64) {
-    await lanRequest(
-      device,
-      'POST',
-      `/user_set_image.fcgi?session=${session}&user_id=${userId}&match=1&timestamp=${Math.floor(Date.now() / 1000)}`,
-      { binary: Buffer.from(cmd.fotoBase64, 'base64') },
-    );
-  }
-  return { ok: true, faceId: String(userId) };
-}
-
-async function controlIdLogin(device) {
-  const res = await lanRequest(device, 'POST', '/login.fcgi', {
-    json: {
-      login: device.api_user || 'admin',
-      password: device.api_password || 'admin',
-    },
-  });
-  const session = res.data && res.data.session;
-  if (!session) {
-    const e = new Error('Control iD: login não retornou session');
-    e.statusCode = res.status;
-    throw e;
-  }
-  return String(session);
-}
-
-// Login e enroll Dahua/Intelbras (RPC2, AccessUser/AccessFace) moveram para src/drivers/dahua-facial.js.
-
-// ---------- Hikvision ISAPI: enroll/remove ----------
-
-/** Hikvision ISAPI: cria/atualiza o usuário e sobe o rosto. employeeNo = externalId. */
-async function hikvisionEnroll(device, cmd) {
-  const employeeNo = String(cmd.externalId || cmd.faceId);
-  const nome = cmd.nome || employeeNo;
-  // Hikvision quer ISO 8601 local; default permanente. Converte "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DDTHH:MM:SS".
-  const toIso = (s, fb) => (s ? s.replace(' ', 'T') : fb);
-  const beginTime = toIso(cmd.validFrom, '2000-01-01T00:00:00');
-  const endTime = toIso(cmd.validTo, '2037-12-31T23:59:59');
-
-  const userBody = {
-    UserInfo: [
-      {
-        employeeNo,
-        name: nome,
-        userType: 'normal',
-        Valid: { enable: true, beginTime, endTime, timeType: 'local' },
-        doorRight: '1',
-        RightPlan: [{ doorNo: 1, planTemplateNo: '1' }],
-      },
-    ],
-  };
-  // Cria; se já existir, o aparelho devolve erro → cai para Modify.
-  let u = await lanRequest(
-    device,
-    'POST',
-    '/ISAPI/AccessControl/UserInfo/Record?format=json',
-    { json: userBody },
-  );
-  if (!(u.status >= 200 && u.status < 300) || /error|fail/i.test(String(u.raw || ''))) {
-    u = await lanRequest(
-      device,
-      'PUT',
-      '/ISAPI/AccessControl/UserInfo/Modify?format=json',
-      { json: userBody },
-    );
-  }
-  if (!(u.status >= 200 && u.status < 300)) {
-    return { ok: false, statusCode: u.status, error: `usuário: ${String(u.raw || '').slice(0, 120)}` };
-  }
-
-  if (cmd.fotoBase64) {
-    const jpeg = Buffer.from(cmd.fotoBase64, 'base64');
-    const mp = buildMultipart([
-      { name: 'FaceDataRecord', json: { faceLibType: 'blackFD', FDID: '1', FPID: employeeNo } },
-      { name: 'img', jpeg, filename: 'face.jpg' },
-    ]);
-    const f = await lanRequest(
-      device,
-      'POST',
-      '/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json',
-      { binary: mp.body, headers: { 'Content-Type': mp.contentType } },
-    );
-    if (!(f.status >= 200 && f.status < 300) || /error|fail/i.test(String(f.raw || ''))) {
-      return { ok: false, statusCode: f.status, error: `rosto recusado: ${String(f.raw || '').slice(0, 120)}`, faceId: employeeNo };
-    }
-  }
-  return { ok: true, faceId: employeeNo };
-}
-
-// ---------- Dahua: stream de eventos de acesso -> nuvem ----------
+// ---------- Dahua/Hikvision/Control iD: eventos de acesso -> nuvem ----------
 //
-// O protocolo (attach multipart, parse de _DoorFace_) mora no driver
-// (dahuaFacial.escutar) -- ver o dispatch em runCondoLoop, que chama
-// escutar(device, (data) => forwardAccessEvent(token, device, data)).
+// O protocolo de cada marca (attach multipart Dahua, alertStream Hikvision,
+// polling de access_logs Control iD) mora no respectivo driver (`escutar`)
+// -- ver o dispatch genérico em runCondoLoop, que chama
+// driver.escutar(device, (data) => forwardAccessEvent(token, device, data), opcoes).
 
 // Debounce na ORIGEM: o aparelho dispara vários _DoorFace_ por aproximação
 // (múltiplos frames). Sem isso, vários POSTs concorrentes chegariam à nuvem e
@@ -1059,236 +732,11 @@ async function forwardAccessEvent(token, device, data, opts = {}) {
   }
 }
 
-// ---------- Hikvision: stream de eventos de acesso → nuvem ----------
-
-const hikListeners = new Set();
-
-function startHikvisionEventListener(token, device) {
-  if (hikListeners.has(device.id)) return;
-  hikListeners.add(device.id);
-  console.log(`[agente] ${device.nome}: assinando eventos de acesso (Hikvision)`);
-  (async () => {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      try {
-        await hikvisionAlertOnce(token, device);
-      } catch (err) {
-        console.error(
-          `[agente] ${device.nome}: stream Hikvision caiu (${err.message || err}); reabrindo em 5s`,
-        );
-      }
-      await sleep(5000);
-    }
-  })();
-}
-
-/** Abre UMA conexão alertStream (Digest) e processa enquanto o aparelho mantém. */
-function hikvisionAlertOnce(token, device) {
-  return new Promise((resolve, reject) => {
-    const user = device.api_user || 'admin';
-    const pass = device.api_password || 'admin';
-    const path = '/ISAPI/Event/notification/alertStream';
-    const challenge = http.request(
-      { host: device.ip, port: device.porta, path, method: 'GET' },
-      (cres) => {
-        cres.resume();
-        if (cres.statusCode !== 401) return reject(new Error(`desafio inesperado: HTTP ${cres.statusCode}`));
-        const wa = cres.headers['www-authenticate'] || '';
-        if (!/digest/i.test(wa)) return reject(new Error('aparelho não pediu Digest'));
-        const auth = buildDigestHeader(user, pass, 'GET', path, wa);
-        const stream = http.request(
-          { host: device.ip, port: device.porta, path, method: 'GET', headers: { Authorization: auth } },
-          (sres) => {
-            if (sres.statusCode !== 200) { sres.resume(); return reject(new Error(`alertStream HTTP ${sres.statusCode}`)); }
-            let buf = '';
-            sres.setEncoding('utf8');
-            sres.on('data', (chunk) => {
-              buf += chunk;
-              buf = consumeHikvisionEvents(buf, (data) => forwardAccessEvent(token, device, data));
-              if (buf.length > 1_000_000) buf = buf.slice(-100_000);
-            });
-            sres.on('end', resolve);
-            sres.on('error', reject);
-          },
-        );
-        stream.on('error', reject);
-        stream.setTimeout(0);
-        stream.end();
-      },
-    );
-    challenge.on('error', reject);
-    challenge.setTimeout(LAN_TIMEOUT_MS, () => challenge.destroy(new Error('timeout no desafio')));
-    challenge.end();
-  });
-}
-
-/**
- * Extrai eventos AccessControllerEvent completos do buffer e os normaliza para o
- * formato que forwardAccessEvent espera ({ UserID, Similarity }). Hikvision usa
- * employeeNoString (= nosso external_id) e currentVerifyMode/faceRect.
- *
- * Emite assim que o evento está COMPLETO, sem esperar o boundary que fecha a
- * parte — esse boundary só chega junto com o evento SEGUINTE, então quem
- * esperasse por ele só encaminharia o acesso quando a próxima pessoa passasse
- * (e ainda o carimbaria com a hora errada). Mesmo cuidado em consumeDahuaEvents.
- */
-function consumeHikvisionEvents(buf, onData) {
-  let restante = buf;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const fim = fimDoEventoHikvision(restante);
-    if (fim < 0) break;
-    const bloco = restante.slice(0, fim);
-    restante = restante.slice(fim);
-    const dados = parseEventoHikvision(bloco);
-    // Tratamos "tem employeeNo" como reconhecido. Sem employeeNo = ignora.
-    if (dados) onData(dados);
-  }
-  return restante;
-}
-
-/**
- * Índice onde termina o PRIMEIRO evento completo do buffer, ou -1 se ainda não
- * chegou inteiro. Aceita as duas formas do corpo: XML (fecha em
- * `</EventNotificationAlert>`) e JSON (fecha ao balancear as chaves).
- */
-function fimDoEventoHikvision(buf) {
-  const TAG_FIM = '</EventNotificationAlert>';
-  const iXml = buf.indexOf(TAG_FIM);
-  const iJson = buf.indexOf('{');
-  if (iXml >= 0 && (iJson < 0 || iXml < iJson)) return iXml + TAG_FIM.length;
-  if (iJson < 0) return -1;
-  return fimDoObjetoJson(buf, iJson);
-}
-
-/** Fim do objeto JSON iniciado em `inicio` (respeita chaves dentro de string). */
-function fimDoObjetoJson(buf, inicio) {
-  let profundidade = 0;
-  let emString = false;
-  let escapado = false;
-  for (let i = inicio; i < buf.length; i++) {
-    const c = buf[i];
-    if (emString) {
-      if (escapado) escapado = false;
-      else if (c === '\\') escapado = true;
-      else if (c === '"') emString = false;
-      continue;
-    }
-    if (c === '"') emString = true;
-    else if (c === '{') profundidade++;
-    else if (c === '}' && --profundidade === 0) return i + 1;
-  }
-  return -1;
-}
-
-/** Bloco cru da stream → { UserID, Similarity }, ou null se não der acesso. */
-function parseEventoHikvision(bloco) {
-  if (!bloco.includes('AccessControllerEvent')) return null;
-  const iJson = bloco.indexOf('{');
-  if (iJson >= 0) {
-    try {
-      const ev = JSON.parse(bloco.slice(iJson)).AccessControllerEvent || {};
-      const emp = ev.employeeNoString ?? ev.employeeNo;
-      if (!emp) return null;
-      return { UserID: String(emp), Similarity: ev.similarity ?? 90 };
-    } catch {
-      return null; // parcial/inválido
-    }
-  }
-  const tag = (nome) => {
-    const m = bloco.match(new RegExp(`<${nome}>([^<]*)</${nome}>`, 'i'));
-    return m ? m[1].trim() : '';
-  };
-  const emp = tag('employeeNoString') || tag('employeeNo');
-  if (!emp) return null;
-  const similaridade = Number(tag('similarity'));
-  return {
-    UserID: emp,
-    Similarity: Number.isFinite(similaridade) && similaridade > 0 ? similaridade : 90,
-  };
-}
-
-// ---------- Control iD: polling de eventos de acesso → nuvem ----------
-//
-// Diferente de Dahua/Hikvision, o Control iD não expõe stream de eventos: o
-// caminho nativo é o aparelho fazer PUSH para a nuvem (Monitor/object_changes).
-// Esse push exige que o terminal alcance a internet e esteja configurado — o
-// que nem sempre acontece na instalação. Este poller é a rede de segurança:
-// lê access_logs novos direto na LAN, com a MESMA marca d'água usada pelo
-// replay offline (deviceBaselines), então nenhum acesso é enviado duas vezes.
-// Se o push nativo já tiver entregue o evento, a dedup da nuvem o descarta.
-
-const controlIdListeners = new Set();
-const CONTROLID_POLL_MS = 3000;
-
-function startControlIdEventListener(token, device) {
-  if (controlIdListeners.has(device.id)) return;
-  controlIdListeners.add(device.id);
-  console.log(`[agente] ${device.nome}: monitorando acessos (Control iD, polling)`);
-  (async () => {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      try {
-        const logs = await controlIdFetchNewLogs(device);
-        for (const log of logs) {
-          const ok = await forwardAccessEvent(token, device, {
-            UserID: String(log.user_id),
-            Similarity: 100,
-            timestamp: new Date(log.time * 1000).toISOString(),
-          });
-          // Só avança a marca d'água no que a nuvem confirmou — mesmo critério
-          // do replay offline; senão um acesso recusado sumiria para sempre.
-          if (ok) setBaseline(device.id, log.id);
-          else break;
-        }
-      } catch (err) {
-        console.error(
-          `[agente] ${device.nome}: falha ao ler acessos (Control iD): ${err.message || err}`,
-        );
-      }
-      await sleep(CONTROLID_POLL_MS);
-    }
-  })();
-}
-
-/**
- * Lê os access_logs mais recentes do Control iD e devolve, em ordem crescente,
- * só os que passaram da marca d'água. Na primeira leitura apenas estabelece a
- * baseline (não reprocessa o histórico do aparelho).
- *
- * Ordena DESC no aparelho: `asc` traz os 50 registros MAIS ANTIGOS, que num
- * terminal em uso já estão muito abaixo da baseline — nunca chegaria evento.
- */
-async function controlIdFetchNewLogs(device) {
-  const session = await controlIdLogin(device);
-  const res = await lanRequest(
-    device,
-    'POST',
-    `/load_objects.fcgi?session=${session}`,
-    { json: { object: 'access_logs', order: ['id', 'desc'], limit: 50 } },
-  );
-  const logs = (res.data && res.data.access_logs) || [];
-  const baseline = deviceBaselines.get(device.id);
-  if (!Array.isArray(logs) || logs.length === 0) {
-    // Aparelho ainda sem nenhum acesso (recém-instalado ou pós-reset): fixa a
-    // marca d'água em 0 AGORA. Sem isso, a baseline continuava indefinida e o
-    // PRIMEIRO acesso da vida do aparelho era consumido só para inicializá-la
-    // — a passagem nunca chegava à nuvem.
-    if (baseline === undefined) setBaseline(device.id, 0);
-    return [];
-  }
-  if (baseline === undefined) {
-    const maxId = Math.max(...logs.map((l) => l.id).filter(Boolean));
-    setBaseline(device.id, maxId);
-    console.log(
-      `[agente] ${device.nome}: baseline de acessos inicializada em ID ${maxId} (Control iD).`,
-    );
-    return [];
-  }
-  return logs
-    .filter((l) => l.id > baseline && l.user_id)
-    .sort((a, b) => a.id - b.id);
-}
+// O poller de eventos ao vivo do Control iD (sem stream nativo utilizável:
+// o push exige internet configurada no terminal, nem sempre presente na
+// instalação) e a assinatura do alertStream da Hikvision moveram para os
+// respectivos drivers (`escutar` em hikvision-facial.js/controlid-facial.js)
+// — ver o dispatch genérico em runCondoLoop.
 
 // ---------- HTTP helpers ----------
 // Skew do relógio da nuvem (`registrarSkewDaNuvem`/`agoraDaNuvem`) e
@@ -1316,182 +764,89 @@ function loadDotEnv() {
   }
 }
 
-// Janela que o replay da Hikvision varre ao reconectar. 24h cobre uma queda
-// longa de internet sem trazer o histórico inteiro do aparelho.
-const HIK_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
-
+/**
+ * Recupera acessos que ocorreram enquanto o agente estava sem alcançar o
+ * aparelho (ex.: internet/energia do facial caiu, ou o agente ficou
+ * parado). A stream/poller ao vivo não os viu; eles ficaram só no log
+ * interno do terminal.
+ *
+ * Genérico por driver (Dahua/Intelbras, Hikvision, Control iD todos
+ * implementam `buscarDesde` — o laço usa só o registro, ver `registro.js`).
+ * O protocolo de cada marca (recordFinder.cgi/INI na Dahua, AcsEvent com
+ * janela de tempo na Hikvision, access_logs por id no Control iD) mora no
+ * driver — `buscarDesde` só lê e devolve; quem manda para a nuvem e decide
+ * até onde persistir a marca d'água (represar no primeiro envio que falhar)
+ * é este orquestrador.
+ */
 async function syncDeviceOfflineLogs(token, device) {
-  // Dahua / Intelbras — recupera acessos que ocorreram enquanto o agente
-  // estava sem alcançar o aparelho (ex.: internet/energia do facial caiu). A
-  // stream ao vivo não os viu; eles ficaram só no log interno do terminal.
-  // O protocolo (recordFinder.cgi, parse INI) mora no driver — `buscarDesde`
-  // só lê e devolve; quem manda para a nuvem e decide até onde persistir a
-  // marca d'água (represar no primeiro envio que falhar) é este orquestrador.
   const driver = resolverDriver(device);
-  if (driver && driver.buscarDesde) {
-    if (offlineSyncBusy.has(device.id)) return;
-    offlineSyncBusy.add(device.id);
-    try {
-      const baseline = deviceBaselines.get(device.id);
-      const { eventos, novaMarca, logVazio } = await driver.buscarDesde(device, baseline);
+  if (!driver || !driver.buscarDesde) return;
+  if (offlineSyncBusy.has(device.id)) return;
+  offlineSyncBusy.add(device.id);
+  try {
+    const baseline = deviceBaselines.get(device.id);
+    const { eventos, novaMarca, logVazio } = await driver.buscarDesde(device, baseline);
 
-      if (logVazio) {
-        console.log(`[agente] ${device.nome}: log de acesso vazio.`);
-        return;
-      }
-      if (baseline === undefined) {
-        // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
-        setBaseline(device.id, novaMarca);
-        console.log(`[agente] ${device.nome}: baseline de acessos inicializada em RecNo ${novaMarca}.`);
-        return;
-      }
-      if (novaMarca <= baseline) {
-        console.log(
-          `[agente] ${device.nome}: recovery sem novidade (maior RecNo ${novaMarca} <= baseline ${baseline}).`,
-        );
-        return;
-      }
-
-      let enviados = 0;
-      let falhas = 0;
-      // Até onde é seguro avançar a marca d'água: o maior RecNo confirmado
-      // pela nuvem antes do primeiro envio que falhar (esses não voltam
-      // mesmo, não adianta represá-los).
-      let ultimoConfirmado = baseline;
-      for (const ev of eventos) {
-        console.log(
-          `[agente] ${device.nome}: replay RecNo ${ev._marca} UserID ${ev.UserID} timestamp ${ev.timestamp}`,
-        );
-        const ok = await forwardAccessEvent(token, device, ev, { backlog: true });
-        if (ok) {
-          enviados++;
-          if (falhas === 0) ultimoConfirmado = ev._marca;
-        } else {
-          falhas++;
-        }
-      }
-
-      // A marca d'água só avança até o último acesso que a nuvem CONFIRMOU.
-      // Antes ela ia direto para `novaMarca` mesmo com envios falhando — o
-      // reconnect seguinte via "sem novidade" e as passagens recusadas sumiam
-      // do histórico para sempre. Represar o watermark faz o próximo ciclo
-      // tentar de novo; o `backlog: true` e a deduplicação na nuvem cuidam de
-      // reenvio repetido.
-      if (falhas > 0) {
-        setBaseline(device.id, ultimoConfirmado);
-        console.error(
-          `[agente] ${device.nome}: recuperados ${enviados} acesso(s), ${falhas} FALHARAM. ` +
-          `Baseline represada em RecNo ${ultimoConfirmado} (não avançou até ${novaMarca}) — ` +
-          `nova tentativa no próximo ciclo.`,
-        );
-      } else {
-        // Sem falhas: avança até a maior marca lida (`buscarDesde` já excluiu
-        // do array `eventos` o que foi filtrado por UserID vazio/negado, mas
-        // `novaMarca` cobre esses registros também — nunca virariam evento).
-        setBaseline(device.id, novaMarca);
-        console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (RecNo ${baseline}→${novaMarca}).`);
-      }
-    } catch (err) {
-      console.error(`[agente] ${device.nome}: falha ao ler log de acesso offline:`, err.message || err);
-    } finally {
-      offlineSyncBusy.delete(device.id);
+    if (logVazio) {
+      console.log(`[agente] ${device.nome}: log de acesso vazio.`);
+      return;
     }
-  }
-
-  // Hikvision
-  if (device.fabricante === 'hikvision') {
-    try {
-      console.log(`[agente] ${device.nome}: iniciando sincronização de acessos offline (Hikvision)...`);
-      // Janela de tempo em vez de posição: sem startTime/endTime, o ISAPI
-      // devolve os 50 eventos MAIS ANTIGOS do aparelho — num terminal em uso
-      // eles ficam muito abaixo da marca d'água e nada seria recuperado.
-      const agora = agoraDaNuvem();
-      const desde = new Date(agora.getTime() - HIK_REPLAY_WINDOW_MS);
-      const res = await lanRequest(
-        device,
-        'POST',
-        '/ISAPI/AccessControl/AcsEvent?format=json',
-        {
-          json: {
-            AcsEventCond: {
-              searchID: "agent-offline-sync",
-              searchResultPosition: 0,
-              maxResults: 50,
-              major: 0,
-              minor: 0,
-              startTime: hikIsoComOffset(desde),
-              endTime: hikIsoComOffset(agora),
-            }
-          }
-        }
+    if (baseline === undefined) {
+      // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
+      setBaseline(device.id, novaMarca);
+      console.log(`[agente] ${device.nome}: baseline de acessos inicializada em ${novaMarca}.`);
+      return;
+    }
+    if (novaMarca <= baseline) {
+      console.log(
+        `[agente] ${device.nome}: recovery sem novidade (marca atual ${novaMarca} <= baseline ${baseline}).`,
       );
-      const infoList = res.data && res.data.AcsEvent && res.data.AcsEvent.InfoList;
-      if (!Array.isArray(infoList) || infoList.length === 0) {
-        return;
-      }
-
-      infoList.sort((a, b) => (a.serialNo || 0) - (b.serialNo || 0));
-
-      const baseline = deviceBaselines.get(device.id);
-      if (baseline === undefined) {
-        const maxSerial = Math.max(...infoList.map(l => l.serialNo).filter(Boolean));
-        setBaseline(device.id, maxSerial);
-        console.log(`[agente] ${device.nome}: baseline de acessos offline inicializada em Serial ${maxSerial}`);
-        return;
-      }
-
-      let processedCount = 0;
-      for (const log of infoList) {
-        const serial = log.serialNo || 0;
-        if (serial <= baseline) continue;
-        if (log.employeeNoString) {
-          const ok = await forwardAccessEvent(token, device, {
-            UserID: log.employeeNoString,
-            Similarity: 100,
-            timestamp: log.time,
-          }, { backlog: true });
-          // Represa na primeira falha (mesmo critério do Intelbras/Control iD):
-          // avançar após recusa apagaria a passagem do histórico para sempre.
-          if (!ok) break;
-        }
-        setBaseline(device.id, serial);
-        processedCount++;
-      }
-      console.log(`[agente] ${device.nome}: processou ${processedCount} novos acessos offline (Hikvision).`);
-    } catch (err) {
-      console.error(`[agente] ${device.nome}: falha ao ler logs do dispositivo Hikvision:`, err.message || err);
+      return;
     }
-  }
 
-  // Control iD — mesma leitura do poller ao vivo (marca d'água compartilhada),
-  // só que marcada como backlog: são passagens que já aconteceram, então a
-  // nuvem registra na auditoria sem acionar abertura automática.
-  if (device.fabricante === 'control_id') {
-    try {
-      console.log(`[agente] ${device.nome}: iniciando sincronização de acessos offline (Control iD)...`);
-      const novos = await controlIdFetchNewLogs(device);
-      let processedCount = 0;
-      for (const log of novos) {
-        const ok = await forwardAccessEvent(
-          token,
-          device,
-          {
-            UserID: String(log.user_id),
-            Similarity: 100,
-            timestamp: new Date(log.time * 1000).toISOString(),
-          },
-          { backlog: true },
-        );
-        // Represa a marca d'água na primeira falha: o próximo ciclo tenta de
-        // novo, em vez de pular a passagem para sempre.
-        if (!ok) break;
-        setBaseline(device.id, log.id);
-        processedCount++;
+    let enviados = 0;
+    let falhas = 0;
+    // Até onde é seguro avançar a marca d'água: a última marca confirmada
+    // pela nuvem antes do primeiro envio que falhar (esses não voltam mesmo,
+    // não adianta represá-los).
+    let ultimoConfirmado = baseline;
+    for (const ev of eventos) {
+      console.log(
+        `[agente] ${device.nome}: replay marca ${ev._marca} UserID ${ev.UserID} timestamp ${ev.timestamp}`,
+      );
+      const ok = await forwardAccessEvent(token, device, ev, { backlog: true });
+      if (ok) {
+        enviados++;
+        if (falhas === 0) ultimoConfirmado = ev._marca;
+      } else {
+        falhas++;
       }
-      console.log(`[agente] ${device.nome}: processou ${processedCount} novos acessos offline (Control iD).`);
-    } catch (err) {
-      console.error(`[agente] ${device.nome}: falha ao ler logs do dispositivo Control iD:`, err.message || err);
     }
+
+    // A marca d'água só avança até o último acesso que a nuvem CONFIRMOU.
+    // Antes ela ia direto para `novaMarca` mesmo com envios falhando — o
+    // próximo ciclo via "sem novidade" e as passagens recusadas sumiam do
+    // histórico para sempre. Represar o watermark faz o próximo ciclo tentar
+    // de novo; o `backlog: true` e a deduplicação na nuvem cuidam de reenvio
+    // repetido.
+    if (falhas > 0) {
+      setBaseline(device.id, ultimoConfirmado);
+      console.error(
+        `[agente] ${device.nome}: recuperados ${enviados} acesso(s), ${falhas} FALHARAM. ` +
+        `Baseline represada em ${ultimoConfirmado} (não avançou até ${novaMarca}) — ` +
+        `nova tentativa no próximo ciclo.`,
+      );
+    } else {
+      // Sem falhas: avança até a maior marca lida (`buscarDesde` já excluiu
+      // do array `eventos` o que foi filtrado por UserID vazio/negado, mas
+      // `novaMarca` cobre esses registros também — nunca virariam evento).
+      setBaseline(device.id, novaMarca);
+      console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (${baseline}→${novaMarca}).`);
+    }
+  } catch (err) {
+    console.error(`[agente] ${device.nome}: falha ao ler log de acesso offline:`, err.message || err);
+  } finally {
+    offlineSyncBusy.delete(device.id);
   }
 }
 

@@ -124,7 +124,7 @@ let streamRes = null;
 const hik = servidorHik(PORTA_HIK, (res) => {
   streamRes = res;
 });
-const cid = servidorControlId(PORTA_CID);
+let cid = servidorControlId(PORTA_CID);
 let streamDahua = null;
 let dahua = servidorDahua(PORTA_DAHUA, (res) => {
   streamDahua = res;
@@ -138,6 +138,13 @@ async function piscarAparelhoDahua(msFora) {
   dahua = servidorDahua(PORTA_DAHUA, (res) => {
     streamDahua = res;
   });
+}
+
+/** Mesma simulação para o Control iD (sem stream — só fecha/reabre o servidor). */
+async function piscarAparelhoControlId(msFora) {
+  await cid.fecharAgora();
+  await new Promise((r) => setTimeout(r, msFora));
+  cid = servidorControlId(PORTA_CID);
 }
 
 /** Empurra um reconhecimento pela stream de eventos do Intelbras/Dahua. */
@@ -416,6 +423,50 @@ async function main() {
     const rCidRem = await esperarResultado(cCidRem);
     checar('cid: remove_users OK', rCidRem?.ok === true, JSON.stringify(rCidRem));
     checar('cid: usuário removido', !estado.cid.usuarios.has(idInterno));
+
+    // ===== Control iD: replay offline (log criado com o aparelho fora do ar) =====
+    // O poller ao vivo (`escutar`) e o replay offline (`buscarDesde`) leem o
+    // MESMO recurso (access_logs) — pra provar que o replay pega o log criado
+    // durante a queda (sem o poller "roubar" o evento por sorte de timing),
+    // primeiro sincronizamos com a fase do poller: ele sempre dorme
+    // CONTROLID_POLL_MS (3s) após cada tentativa, então esperamos o ciclo
+    // atual completar e SÓ ENTÃO derrubamos o aparelho — a próxima tentativa
+    // dele cai no meio da queda (falha) e a seguinte só vem ~2.6s depois do
+    // aparelho voltar, dando folga de sobra pro heartbeat (a cada ~1s)
+    // detectar ONLINE e disparar a recuperação primeiro.
+    const antesPollCid = estado.cid.requisicoes.filter((r) => r === 'POST /load_objects.fcgi').length;
+    while (
+      estado.cid.requisicoes.filter((r) => r === 'POST /load_objects.fcgi').length === antesPollCid
+    ) {
+      await sleep(50);
+    }
+    // Log criado ENQUANTO o aparelho está fora do ar (o agente não alcança o
+    // Control iD): só pode ter chegado à nuvem pelo replay offline.
+    estado.cid.accessLogs.push({
+      id: 9002,
+      time: Math.floor(Date.now() / 1000),
+      user_id: 88888,
+      event: 7,
+    });
+    await piscarAparelhoControlId(3400); // > CONTROLID_POLL_MS (ver comentário acima)
+    await sleep(2000);
+
+    const evReplayCid = eventos.find((e) => e.external_id === '88888');
+    checar(
+      'cid: replay offline recuperado',
+      !!evReplayCid,
+      JSON.stringify(eventos.filter((e) => e.external_id === '88888')),
+    );
+    checar(
+      'cid: replay offline vem marcado como backlog (não reabre a porta)',
+      evReplayCid?.backlog === true,
+      JSON.stringify(evReplayCid),
+    );
+    checar(
+      'cid: replay offline não duplica o que já foi enviado',
+      eventos.filter((e) => e.external_id === '88888').length === 1,
+      String(eventos.filter((e) => e.external_id === '88888').length),
+    );
 
     // ===== Intelbras / Dahua: NÃO-REGRESSÃO da marca que já funciona =====
     const cDh = enfileirar(30, {

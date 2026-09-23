@@ -16,6 +16,8 @@
  */
 
 const dahuaFacial = require('./dahua-facial');
+const hikvisionFacial = require('./hikvision-facial');
+const controlidFacial = require('./controlid-facial');
 
 // fabricante (bruto) → família de driver.
 const FAMILIA_POR_FABRICANTE = {
@@ -23,9 +25,14 @@ const FAMILIA_POR_FABRICANTE = {
   dahua: 'dahua',
 };
 
-// "tipo/família" → módulo do driver.
+// "tipo/família" → módulo do driver. Hikvision e Control iD não têm entrada
+// em FAMILIA_POR_FABRICANTE: o fabricante já é gravado com o nome literal
+// ("hikvision"/"control_id"), então a família cai no fallback (`|| device.fabricante`
+// em resolverDriver) e bate direto com a chave abaixo.
 const DRIVERS_POR_CHAVE = {
   'facial/dahua': dahuaFacial,
+  'facial/hikvision': hikvisionFacial,
+  'facial/control_id': controlidFacial,
 };
 
 function resolverDriver(device) {
