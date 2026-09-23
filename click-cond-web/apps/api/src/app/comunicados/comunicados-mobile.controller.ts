@@ -2,16 +2,12 @@ import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { ComunicadosService } from './comunicados.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
 
+// Horário de Brasília: o servidor roda em UTC e o app mostra a string como está.
 function formatCreatedAt(date: Date | string | null | undefined): string {
   if (!date) return '';
-  const d = new Date(date);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
+  return formatarDataHoraBrasilia(new Date(date));
 }
 
 @Controller('comunicados')

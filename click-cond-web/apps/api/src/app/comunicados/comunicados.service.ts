@@ -32,7 +32,7 @@ export class ComunicadosService {
     if (!c) return null;
 
     const fmtDate = (d: Date | null) =>
-      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }) : null;
 
     return {
       comunicado: {

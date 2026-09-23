@@ -499,7 +499,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     const tipoLabel = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const fmtDate = (d: Date | null) =>
-      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }) : null;
 
     return {
       visitante: {
@@ -2240,7 +2240,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   private construirContextoAuditoria(visita: any) {
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const fmtDate = (d: Date | null) =>
-      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }) : null;
 
     return {
       visitante: {
