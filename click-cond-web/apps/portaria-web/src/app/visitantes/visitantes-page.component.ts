@@ -1169,8 +1169,10 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'saiu' {
     // 1. Entrou e ainda está dentro (saida não registrada)
     if (v.data_entrada && !v.data_saida) return 'presente';
-    // 2. Saída real registrada
-    if (v.data_saida || (v as Pessoa).ultSaida) return 'saiu';
+    // 2. Saída registrada NA VISITA ATUAL. `ultSaida` é de qualquer visita
+    // antiga: usá-la prendia em "Saiu" quem foi liberado de novo, e sumiam
+    // os botões "Dar Baixa" e "Liberar entrada".
+    if (v.data_saida) return 'saiu';
     // 3. Pré-autorizado manualmente/app (liberado === 1 e não expirado)
     if ((v as any).liberado === 1 && !this.autorizacaoExpirada(v)) return 'liberado';
     

@@ -904,8 +904,14 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             bloqueado: p.bloqueado === 1 || principal?.bloqueado === 1 ? 1 : 0,
             data_hora_inicio: principal?.data_hora_inicio ? new Date(principal.data_hora_inicio).toISOString() : null,
             data_hora_termino: principal?.data_hora_termino ? new Date(principal.data_hora_termino).toISOString() : null,
-            data_entrada: ultEntrada ? new Date(ultEntrada).toISOString() : null,
-            data_saida: ultSaida ? new Date(ultSaida).toISOString() : null,
+            // Mesmo contrato do legado: entrada/saída da visita ATUAL
+            // (principal). Antes eram a última entrada e a última saída de
+            // QUALQUER visita — a saída de uma visita antiga somada à entrada
+            // da nova virava "Saiu" e sumia o "Dar baixa"/"Liberar entrada".
+            data_entrada: principal?.data_entrada ? new Date(principal.data_entrada).toISOString() : null,
+            data_saida: principal?.data_saida ? new Date(principal.data_saida).toISOString() : null,
+            ultEntrada: ultEntrada ? new Date(ultEntrada).toISOString() : null,
+            ultSaida: ultSaida ? new Date(ultSaida).toISOString() : null,
             noLocal,
             temPinAtivo,
             totalVisitas,
