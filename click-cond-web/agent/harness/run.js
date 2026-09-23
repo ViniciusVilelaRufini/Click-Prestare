@@ -11,6 +11,7 @@ const http = require('http');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { bundle } = require('../build-bundle.mjs');
 const {
   comFechamentoForcado,
   estado,
@@ -200,11 +201,15 @@ async function esperarResultado(cmdId, timeoutMs = 15000) {
  * O agente grava estado (marca d'água, fila offline) AO LADO do index.js. Por
  * isso rodamos uma CÓPIA numa pasta descartável: um teste nunca pode sobrescrever
  * o estado do agente de verdade que esteja rodando nesta máquina.
+ *
+ * Roda o bundle (src/index.js → dist/click-agent.cjs) primeiro — é o bundle,
+ * não o fonte, que testamos aqui, porque é o bundle que vai para o exe.
  */
 function prepararCopiaDoAgente() {
+  const bundlePath = bundle();
   const destino = path.join(__dirname, '.tmp-agent');
   fs.mkdirSync(destino, { recursive: true });
-  fs.copyFileSync(path.join(__dirname, '..', 'index.js'), path.join(destino, 'index.js'));
+  fs.copyFileSync(bundlePath, path.join(destino, 'index.js'));
   for (const f of ['device-baselines.json', 'events-queue.jsonl']) {
     const alvo = path.join(destino, f);
     if (fs.existsSync(alvo)) fs.unlinkSync(alvo);

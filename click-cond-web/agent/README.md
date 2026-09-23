@@ -65,8 +65,10 @@ Em poucos segundos o portal mostra **"Agente conectado"** no card do device.
 
 ## Opção B — Via Node (Raspberry Pi, Linux, dev)
 
-Requer Node.js 18+ (o agente não tem dependências npm). Copie a pasta `agent/`,
-`cp .env.example .env`, preencha os mesmos campos acima e rode `node index.js`.
+Requer Node.js 18+ (o agente não tem dependências npm em runtime — só para
+gerar o bundle). Copie a pasta `agent/`, rode `npm run build` (gera
+`dist/click-agent.cjs`), `cp .env.example .env`, preencha os mesmos campos
+acima e rode `node dist/click-agent.cjs` (ou `npm start`).
 
 ## Rodar como serviço (iniciar com a máquina)
 
@@ -87,7 +89,7 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=/opt/click-agent
-ExecStart=/usr/bin/node /opt/click-agent/index.js
+ExecStart=/usr/bin/node /opt/click-agent/dist/click-agent.cjs
 Restart=always
 RestartSec=5
 
