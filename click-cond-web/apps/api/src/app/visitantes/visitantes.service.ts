@@ -361,7 +361,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
   private async assertPodeAcessarVisitante(idVisitante: number, payload?: JwtPayload) {
     const v = await this.prisma.visitantes.findUnique({ where: { id: Number(idVisitante) } });
-    if (!v) throw new NotFoundException(`Visitante ${idVisitante} não encontrado`);
+    if (!v) throw new NotFoundException('Visitante não encontrado.');
 
     // Sem payload (chamada interna/sistema): não bloqueia. Endpoints HTTP
     // sempre passam o payload, então isso só vale para uso programático.
@@ -629,7 +629,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       where: { id: Number(id) },
       include: { apartamento: { select: { bloco: true, apto: true } } },
     });
-    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+    if (!v) throw new NotFoundException('Visitante não encontrado.');
     return v;
   }
 
@@ -1487,7 +1487,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    */
   private async assertPodeAcessarPessoa(idPessoa: number, payload?: JwtPayload) {
     const p = await this.prisma.pessoas.findUnique({ where: { id: Number(idPessoa) } });
-    if (!p) throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+    if (!p) throw new NotFoundException('Cadastro do visitante não encontrado.');
 
     if (!payload) return p;
 
@@ -1606,7 +1606,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       where: { id: Number(idPessoaRef) },
     });
     if (!ref || ref.id_condominio !== Number(idCondominio)) {
-      throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
+      throw new NotFoundException('Cadastro do visitante não encontrado.');
     }
 
     const registros = await this.registrosDaPessoa(ref);
@@ -1678,7 +1678,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       where: { id: Number(idPessoaRef) },
     });
     if (!ref || ref.id_condominio !== Number(idCondominio)) {
-      throw new NotFoundException(`Pessoa ${idPessoaRef} não encontrada`);
+      throw new NotFoundException('Cadastro do visitante não encontrado.');
     }
 
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
@@ -2323,7 +2323,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         pessoa: { select: { id: true, nome: true, doc_identificacao: true, face_id: true } },
       },
     });
-    if (!v) throw new NotFoundException(`Visita ${idVisita} não encontrada`);
+    if (!v) throw new NotFoundException('Visita não encontrada.');
 
     if (!payload) return v;
 
@@ -2470,7 +2470,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         include: { pessoa: true, apartamento: true },
       });
     } catch {
-      throw new NotFoundException(`Visitante ${dto.id} não encontrado`);
+      throw new NotFoundException('Visitante não encontrado.');
     }
 
     if (Object.keys(pessoaData).length > 0) {
@@ -2529,7 +2529,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   private async removerPessoaViaPessoasVisitas(idCondominio: number, idPessoa: number) {
     const pessoa = await this.resolverPessoaPorId(idCondominio, idPessoa);
     if (!pessoa) {
-      throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+      throw new NotFoundException('Cadastro do visitante não encontrado.');
     }
 
     const visitas = await this.prisma.visitas.findMany({
@@ -2595,7 +2595,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   ) {
     const pessoa = await this.resolverPessoaPorId(idCondominio, idPessoa);
     if (!pessoa) {
-      throw new NotFoundException(`Pessoa ${idPessoa} não encontrada`);
+      throw new NotFoundException('Cadastro do visitante não encontrado.');
     }
 
     const fotoPes = dto.foto_pessoa !== undefined ? await this.resolveFoto(dto.foto_pessoa) : undefined;
@@ -3107,7 +3107,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         apartamento: { select: { bloco: true, apto: true } },
       },
     });
-    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+    if (!v) throw new NotFoundException('Visitante não encontrado.');
     return {
       ...this.mapVisitaParaRespostaLegada(v),
       apartamento: v.apartamento,
@@ -3148,7 +3148,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         },
       },
     });
-    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+    if (!v) throw new NotFoundException('Visitante não encontrado.');
 
     const outrasVisitas = await this.prisma.visitas.findMany({
       where: {
@@ -3633,7 +3633,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       });
       return updated;
     } catch {
-      throw new NotFoundException(`Visitante ${dto.id} não encontrado`);
+      throw new NotFoundException('Visitante não encontrado.');
     }
   }
 
@@ -3667,7 +3667,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       where: { id: Number(id) },
       select: { face_id: true, id_condominio: true, nome: true, is_prestador: true },
     });
-    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+    if (!v) throw new NotFoundException('Visitante não encontrado.');
 
     try {
       // Mesma trava do removerPessoa: a vaga referencia o visitante e o MySQL
@@ -3838,7 +3838,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
         },
       },
     });
-    if (!v) throw new NotFoundException(`Visitante ${id} não encontrado`);
+    if (!v) throw new NotFoundException('Visitante não encontrado.');
 
     // Outros registros do mesmo visitante (mesmo doc OU mesmo nome no mesmo condomínio)
     const docNorm = v.doc_identificacao?.trim();

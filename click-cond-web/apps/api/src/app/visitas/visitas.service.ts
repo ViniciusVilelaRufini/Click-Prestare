@@ -95,7 +95,7 @@ export class VisitasService {
       select: { id: true, id_condominio: true },
     });
     if (!existente) {
-      throw new NotFoundException(`Visita ${idVisita} não encontrada`);
+      throw new NotFoundException('Visita não encontrada.');
     }
     if (existente.id_condominio !== Number(idCondominio)) {
       throw new ForbiddenException('Acesso negado: esta visita pertence a outro condomínio.');
