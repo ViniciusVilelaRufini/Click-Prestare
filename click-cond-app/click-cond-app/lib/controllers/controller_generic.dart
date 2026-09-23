@@ -135,7 +135,10 @@ apiDeleteObject(String route, int idObj) async {
   try {
     final response = await ApiClient.post(url, body: body)
         .timeout(_kTimeout);
-    return response.statusCode == 200;
+    // O NestJS responde 201 (Created) nas rotas móveis sem @HttpCode(200).
+    // A exclusão já acontecia no servidor, mas exigir exatamente 200 fazia o
+    // app mostrar erro e manter a tela antiga até ser reaberto.
+    return response.statusCode >= 200 && response.statusCode < 300;
   } catch (e) {
     return false;
   }
