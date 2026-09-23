@@ -471,5 +471,28 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
       );
       expect(prisma.visitas.update).not.toHaveBeenCalled();
     });
+
+    it('findAllMobile() nÃ£o cria PIN nem grava no banco durante uma leitura', async () => {
+      const { service, prisma } = buildStateHarness();
+      prisma.visitantes.findMany.mockResolvedValue([
+        {
+          id: 88,
+          id_condominio: 1,
+          id_apartamento: 101,
+          nome: 'Visitante legado de teste',
+          codigo_acesso: null,
+          data_saida: null,
+          apartamento: { bloco: 'A', apto: '101' },
+          condominio: { nome: 'CondomÃ­nio Solar' },
+        },
+      ]);
+
+      const res = await service.findAllMobile(1, undefined, undefined, 0, 1);
+
+      expect(res).toHaveLength(1);
+      expect(res[0].codigo_acesso).toBeNull();
+      expect(prisma.visitantes.update).not.toHaveBeenCalled();
+      expect(prisma.visitantes.findFirst).not.toHaveBeenCalled();
+    });
   });
 });

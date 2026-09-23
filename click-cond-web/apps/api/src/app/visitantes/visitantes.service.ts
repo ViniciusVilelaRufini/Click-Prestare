@@ -4363,20 +4363,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // No caso comum (visitante já criado com PIN) este laço não faz nenhuma query.
     // Quando precisa, faz só o UPDATE (sem re-buscar o include) e atualiza o objeto
     // em memória — antes era um update + re-fetch por visitante.
-    const updated: any[] = [];
-    for (const v of list) {
-      if (!v.codigo_acesso && !v.data_saida) {
-        const pin = await this.gerarPinUnico();
-        await this.prisma.visitantes.update({
-          where: { id: v.id },
-          data: { codigo_acesso: pin },
-        });
-        (v as any).codigo_acesso = pin;
-      }
-      updated.push(v);
-    }
-
-    return updated.map((v: any) => ({
+    // Listagem Ã© somente leitura: PINs devem ser criados explicitamente no
+    // fluxo de cadastro/liberaÃ§Ã£o, nunca como efeito colateral de um GET.
+    return list.map((v: any) => ({
       ...v,
       condominio_nome: v.condominio?.nome || null,
     }));
