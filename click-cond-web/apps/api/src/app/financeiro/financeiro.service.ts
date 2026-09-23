@@ -961,7 +961,10 @@ export class FinanceiroService implements OnModuleInit {
       id_condominio: Number(idCondominio),
       OR: [
         { data: { gte: dataIni, lte: dataFim } },
-        { data_vencimento: { gte: dataIni, lte: dataFim } },
+        // Competência: mês do pagamento; sem pagamento, do vencimento. Com
+        // `data OU vencimento` a conta paga em um mês e vencida no seguinte
+        // entrava nos dois e era somada duas vezes (mesma regra de getAllMeses).
+        { data: null, data_vencimento: { gte: dataIni, lte: dataFim } },
       ],
       // Conta pessoal do morador (água, luz, internet — criada por ele mesmo
       // via insertMoradorConta, sempre tipo 'D' + id_usuario preenchido) não é
@@ -1760,7 +1763,10 @@ export class FinanceiroService implements OnModuleInit {
         pago: 1,
         OR: [
           { data: { gte: dataIni, lte: dataFim } },
-          { data_vencimento: { gte: dataIni, lte: dataFim } },
+          // Competência: mês do pagamento; sem pagamento, do vencimento. Com
+          // `data OU vencimento` a conta paga em um mês e vencida no seguinte
+          // entrava nos dois e era somada duas vezes (mesma regra de getAllMeses).
+          { data: null, data_vencimento: { gte: dataIni, lte: dataFim } },
         ],
         // Mesmo recorte do getAll: sem isso, as contas pessoais dos moradores
         // entravam no gráfico do síndico e criavam categorias de despesa
@@ -3229,7 +3235,10 @@ export class FinanceiroService implements OnModuleInit {
         id_condominio: Number(idCondominio),
         OR: [
           { data: { gte: dataIni, lte: dataFim } },
-          { data_vencimento: { gte: dataIni, lte: dataFim } },
+          // Competência: mês do pagamento; sem pagamento, do vencimento. Com
+          // `data OU vencimento` a conta paga em um mês e vencida no seguinte
+          // entrava nos dois e era somada duas vezes (mesma regra de getAllMeses).
+          { data: null, data_vencimento: { gte: dataIni, lte: dataFim } },
         ],
         // Conta pessoal do morador (água, luz, internet que ele mesmo lançou:
         // tipo 'D' + id_usuario) não é dinheiro do condomínio e não pode sair
