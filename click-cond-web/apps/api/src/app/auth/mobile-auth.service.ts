@@ -14,7 +14,8 @@ import { TenantAccessService } from './tenant-access.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { assertStaff, assertSindico, assertOperador } from './tenant.util';
 import { ApartamentosService } from '../apartamentos/apartamentos.service';
-import { calcularIdade, validarMaioridade } from '../common/idade.util';
+import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
+import { POLITICA_VERSAO } from '../consentimentos/consentimentos.service';
 import { MfaService } from './mfa/mfa.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { gerarPinUnicoVisita, visitaParaNovaPassagem } from '../common/visita-passagem.util';
@@ -2902,6 +2903,17 @@ export class MobileAuthService {
     };
   }
 
+  /**
+   * O facial só enrola quem tem consentimento de biometria registrado. O menor
+   * não consente sozinho: vale o termo aceito pelo responsável no app, que
+   * fica registrado em nome do menor (o texto do termo cita o responsável).
+   */
+  private async registrarTermoResponsavel(db: any, idUserMenor: number) {
+    await db.consentimentos.create({
+      data: { id_user: idUserMenor, tipo: 'biometria', versao: POLITICA_VERSAO, aceito: 1 },
+    });
+  }
+
   async saveMorador(
     body: any,
     isEdit: boolean,
@@ -2948,6 +2960,12 @@ export class MobileAuthService {
         const callerId = user?.user?.id ?? user?.sub;
         if (atual.id_user !== callerId) assertStaff(user, 'editar dados de outro morador');
 
+        // Menor não tem conta no app (Cláusula 8.3). A versão do app nas lojas
+        // manda o "e-mail do responsável" no campo de e-mail do menor — era
+        // isso que derrubava o cadastro. Ignora o e-mail em vez de recusar.
+        const dnEdicao = mor.data_nascimento ?? atual.data_nascimento;
+        if (dnEdicao && calcularIdade(dnEdicao) < 18) delete mor.email;
+
         const emailMudou = mor.email !== undefined && mor.email !== atual.email;
         if (emailMudou && mor.email) {
           const conflito = await this.prisma.users.findFirst({
@@ -2969,10 +2987,10 @@ export class MobileAuthService {
               'Menores de 18 anos não podem possuir conta de usuário no aplicativo conforme a Cláusula 8.3 do contrato.',
             );
           }
+          // Foto/biometria de menor: permitida com o termo do responsável
+          // (LGPD Art. 14), aceito no app e gravado em extra2.
           if (photoUrl !== null) {
-            throw new BadRequestException(
-              'É proibida a coleta ou utilização de biometria facial de menores de 18 anos conforme a Cláusula 8.3 do contrato.',
-            );
+            validarBiometria(dnFinal, temTermoResponsavel(mor.extra2 ?? atual.extra2));
           }
         }
 
@@ -2987,8 +3005,13 @@ export class MobileAuthService {
               ...(mor.data_nascimento && { data_nascimento: this.parseDate(mor.data_nascimento) }),
               ...(tipo && { tipo }),
               ...(photoUrl !== null && { foto_pessoa: photoUrl }),
+              ...(mor.extra1 !== undefined && { extra1: mor.extra1 || null }),
+              ...(mor.extra2 !== undefined && { extra2: mor.extra2 || null }),
             },
           });
+          if (ehMenorUpdate && photoUrl !== null && temTermoResponsavel(mor.extra2) && atual.id_user) {
+            await this.registrarTermoResponsavel(tx, atual.id_user);
+          }
 
            const userPatch: any = {};
           if (mor.nome !== undefined) userPatch.name = mor.nome;
@@ -3012,6 +3035,11 @@ export class MobileAuthService {
           include: { moradores: true },
         });
 
+        // O token novo é da PESSOA editada. Só faz sentido devolvê-lo quando é
+        // ela mesma quem edita o próprio perfil — antes, o síndico que editava
+        // o cadastro de alguém recebia uma sessão de 365 dias dessa pessoa.
+        if (atual.id_user !== callerId) return '';
+
         if (updatedUser && updatedUser.moradores && updatedUser.moradores.length > 0) {
           const moradorObj = updatedUser.moradores[0];
           const userObj = { id: updatedUser.id, nome: moradorObj.nome, photo: updatedUser.photo ?? '' };
@@ -3034,6 +3062,14 @@ export class MobileAuthService {
 
       const idCondominio = Number(body.id_condominio) || apto.id_condominio;
       await this.tenant.assertCondominio(idCondominio, user);
+
+      // Menor não tem conta no app: o e-mail que o app antigo manda é do
+      // responsável. Ignorado ANTES da checagem de duplicidade — senão o
+      // e-mail do pai/mãe já cadastrado acusava "morador duplicado".
+      if (mor.data_nascimento && calcularIdade(mor.data_nascimento) < 18) {
+        mor.email = null;
+        mor.sendCredentials = false;
+      }
 
       // Validar duplicidade de morador no condomínio
       const emailNorm = mor.email ? mor.email.toLowerCase().trim() : null;
@@ -3065,8 +3101,9 @@ export class MobileAuthService {
       if (mor.email || mor.sendCredentials !== false) {
         validarMaioridade(mor.data_nascimento, 'criação de conta de usuário');
       }
+      const termoResponsavel = temTermoResponsavel(mor.extra2);
       if (photoUrl !== null) {
-        validarMaioridade(mor.data_nascimento, 'biometria facial');
+        validarBiometria(mor.data_nascimento, termoResponsavel);
       }
 
       let userId: number;
@@ -3194,8 +3231,16 @@ export class MobileAuthService {
           id_condominio: idCondominio,
           bloco: apto.bloco || null,
           apartamento: apto.apto || null,
+          // A foto ia só para Users.photo — e o menor não tem foto em Users —,
+          // então o cadastro de menor perdia a foto. O terminal facial lê daqui.
+          ...(photoUrl !== null && { foto_pessoa: photoUrl }),
+          ...(mor.extra1 && { extra1: mor.extra1 }),
+          ...(mor.extra2 && { extra2: mor.extra2 }),
         },
       });
+      if (ehMenor && photoUrl !== null && termoResponsavel) {
+        await this.registrarTermoResponsavel(this.prisma, userId);
+      }
 
       // Dispara email de boas-vindas (assíncrono, não bloqueia resposta)
       if (mor.email && mor.sendCredentials !== false) {
