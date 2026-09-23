@@ -4,14 +4,15 @@
  *
  * Sobe: aparelho Hikvision falso (Digest real), Control iD falso (sessão) e uma
  * NUVEM falsa que fala o mesmo protocolo de poll/result/event do backend.
- * Depois roda o AGENTE REAL (cópia byte a byte de agent/index.js) contra tudo e
- * confere o que chegou em cada ponta.
+ * Depois roda o AGENTE REAL (o BUNDLE gerado a partir de agent/src/index.js)
+ * contra tudo e confere o que chegou em cada ponta.
  */
 const http = require('http');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { bundle } = require('../build-bundle.mjs');
+// require(esm) síncrono exige Node >=22.12; o agente suporta Node >=18, por
+// isso usamos import() dinâmico (funciona desde o Node 12) em vez de require().
 const {
   comFechamentoForcado,
   estado,
@@ -205,7 +206,8 @@ async function esperarResultado(cmdId, timeoutMs = 15000) {
  * Roda o bundle (src/index.js → dist/click-agent.cjs) primeiro — é o bundle,
  * não o fonte, que testamos aqui, porque é o bundle que vai para o exe.
  */
-function prepararCopiaDoAgente() {
+async function prepararCopiaDoAgente() {
+  const { bundle } = await import('../build-bundle.mjs');
   const bundlePath = bundle();
   const destino = path.join(__dirname, '.tmp-agent');
   fs.mkdirSync(destino, { recursive: true });
@@ -218,7 +220,7 @@ function prepararCopiaDoAgente() {
 }
 
 async function main() {
-  const agentePath = prepararCopiaDoAgente();
+  const agentePath = await prepararCopiaDoAgente();
 
   const agente = spawn(process.execPath, [agentePath], {
     env: {

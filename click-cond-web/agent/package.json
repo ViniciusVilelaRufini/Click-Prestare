@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node dist/click-agent.cjs",
     "build": "node build-bundle.mjs",
-    "test": "node --test test",
+    "test": "node --test \"test/*.test.js\"",
     "build:exe": "node build-exe.mjs"
   },
   "engines": {

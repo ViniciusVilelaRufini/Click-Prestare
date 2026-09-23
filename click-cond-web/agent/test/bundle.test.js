@@ -11,9 +11,11 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { bundle } = require('../build-bundle.mjs');
+// require(esm) síncrono exige Node >=22.12; o agente suporta Node >=18, por
+// isso usamos import() dinâmico (funciona desde o Node 12) em vez de require().
 
-test('bundle() gera dist/click-agent.cjs e o arquivo é um script válido', () => {
+test('bundle() gera dist/click-agent.cjs e o arquivo é um script válido', async () => {
+  const { bundle } = await import('../build-bundle.mjs');
   const outfile = bundle();
 
   assert.equal(outfile, path.join(__dirname, '..', 'dist', 'click-agent.cjs'));
