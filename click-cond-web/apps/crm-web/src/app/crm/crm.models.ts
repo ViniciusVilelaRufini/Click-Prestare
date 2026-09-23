@@ -101,9 +101,6 @@ export interface ConfigPlano {
 }
 
 export interface GatewaysStatus {
-  openpix: boolean;
-  openpixWebhook: boolean;
-  asaasWebhook: boolean;
   zapi: boolean;
 }
 

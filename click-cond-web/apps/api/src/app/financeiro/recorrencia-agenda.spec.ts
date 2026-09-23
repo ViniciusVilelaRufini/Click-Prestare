@@ -47,10 +47,9 @@ describe('FinanceiroService — calendário do faturamento recorrente', () => {
     const noop: any = { registrar: jest.fn(), sendPushNotification: jest.fn(), sendWhatsApp: jest.fn() };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
     const fechamento: any = { assertPodeAlterar: jest.fn(async () => undefined) };
-    const openPix: any = { generateCharge: jest.fn(async () => null) };
     const tenant = new TenantAccessService(prisma);
     const svc = new FinanceiroService(
-      prisma, storage, noop, noop, noop, fechamento, openPix, tenant,
+      prisma, storage, noop, noop, noop, fechamento, tenant,
     );
     return { svc, prisma, criados };
   }

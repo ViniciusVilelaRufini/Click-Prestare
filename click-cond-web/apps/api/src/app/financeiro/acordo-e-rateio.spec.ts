@@ -35,12 +35,11 @@ describe('FinanceiroService — rateio e acordo', () => {
     const auditoria: any = { registrar: jest.fn() };
     const storage: any = { isDataUrl: () => false, uploadDataUrl: jest.fn() };
     const fechamento: any = { assertPodeAlterar: jest.fn(async () => undefined) };
-    const openPix: any = { generateCharge: jest.fn(async () => null) };
     const tenant = new TenantAccessService(prisma);
     const svc = new FinanceiroService(
-      prisma, storage, auditoria, auditoria, auditoria, fechamento, openPix, tenant,
+      prisma, storage, auditoria, auditoria, auditoria, fechamento, tenant,
     );
-    return { svc, prisma, criados, atualizados, fechamento, openPix };
+    return { svc, prisma, criados, atualizados, fechamento };
   }
 
   describe('createRateio', () => {
@@ -132,17 +131,6 @@ describe('FinanceiroService — rateio e acordo', () => {
       await svc.createAcordoInadimplente(1, { ...base, parcelas: 2, valorTotal: 600 }, 'Síndico', sindico);
       const where = prisma.financeiro.findMany.mock.calls[0][0].where;
       expect(where.status).toEqual({ not: '3' });
-    });
-
-    it('gera Pix para cada parcela criada', async () => {
-      const { svc, openPix } = build({ debitos });
-      await svc.createAcordoInadimplente(1, { ...base, parcelas: 3, valorTotal: 900 }, 'Síndico', sindico);
-      expect(openPix.generateCharge).toHaveBeenCalledTimes(3);
-      // Só as parcelas — nunca as dívidas renegociadas.
-      for (const [correlation, valor] of openPix.generateCharge.mock.calls) {
-        expect(correlation).toMatch(/^financeiro_\d+$/);
-        expect(valor).toBe(300);
-      }
     });
   });
 });

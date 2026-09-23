@@ -99,9 +99,7 @@ export class CrmStore {
 
   // ── Logs técnicos ──
   readonly logsWebhooks = signal<LogWebhook[]>([
-    { data: '2026-06-24T00:12:00Z', origem: 'Asaas', evento: 'payment_received', status: 'sucesso', payload: '{"paymentId":"pay_4839201","value":450.00,"condominioId":1,"method":"Pix"}' },
     { data: '2026-06-23T23:45:00Z', origem: 'Z-API', evento: 'message_sent', status: 'sucesso', payload: '{"messageId":"msg_8820491","to":"5511981129988","status":"delivered"}' },
-    { data: '2026-06-23T18:22:00Z', origem: 'Asaas', evento: 'webhook_validated', status: 'sucesso', payload: '{"verification":"ok","gateway_status":"healthy"}' },
     { data: '2026-06-23T14:30:00Z', origem: 'System', evento: 'config_updated', status: 'info', payload: '{"updatedBy":"admin@clickprestare.com.br","section":"automacoes"}' },
   ]);
   readonly ultimoLogData = signal<string | null>(null);

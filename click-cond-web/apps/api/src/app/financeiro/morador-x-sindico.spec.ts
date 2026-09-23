@@ -36,8 +36,7 @@ describe('FinanceiroService.getByUser — mesmo recorte que a inadimplência', (
     const noop: any = { registrar: jest.fn() };
     const svc = new FinanceiroService(
       prisma, { isDataUrl: () => false } as any, noop, noop, noop,
-      { assertPodeAlterar: jest.fn() } as any, { generateCharge: jest.fn() } as any,
-      { assertCondominio: jest.fn(async () => undefined) } as any,
+      { assertPodeAlterar: jest.fn() } as any, { assertCondominio: jest.fn(async () => undefined) } as any,
     );
     return { svc };
   }

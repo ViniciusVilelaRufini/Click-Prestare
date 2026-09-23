@@ -96,47 +96,18 @@ curl "https://<api>.railway.app/financeiro/inadimplencia/dashboard?id_condominio
 # Ativar recorrência com valor 0 em /financeiro/config-auto deve retornar 400
 ```
 
-## 3. Pagamento online (OpenPix/Woovi)
+## 3. Pagamento online — REMOVIDO
 
-### 3.1 Variáveis de ambiente no Railway (serviço da API)
-
-| Env | Valor | Obrigatória |
-|---|---|---|
-| `OPENPIX_APP_ID` | AppID da conta OpenPix/Woovi (API → AppID) | Sim, para gerar Pix |
-| `OPENPIX_WEBHOOK_TOKEN` | Segredo gerado por você (ex.: `openssl rand -hex 24`) | Sim, para confirmar pagamento |
-| `ASAAS_WEBHOOK_TOKEN` | Token do webhook Asaas | Só se usar Asaas |
-
-Sem `OPENPIX_APP_ID`, as cobranças continuam sendo criadas normalmente, só
-sem Pix copia-e-cola automático. Sem `OPENPIX_WEBHOOK_TOKEN`, o endpoint de
-webhook **recusa tudo** (seguro por padrão).
-
-### 3.2 Cadastrar o webhook no painel OpenPix/Woovi
-
-- URL: `https://<api>.railway.app/financeiro/webhook/openpix?token=<OPENPIX_WEBHOOK_TOKEN>`
-  (o endpoint aceita o token via query `?token=` ou via header `x-webhook-token`)
-- Evento: **OPENPIX:CHARGE_COMPLETED**
-
-### 3.3 Teste ponta a ponta
-
-1. Criar cobrança de morador no app (síndico) → conferir que `pix_copia_cola`
-   veio preenchido (morador vê botão "Pagar Pix" com QR).
-2. Simular confirmação (ou pagar de verdade em sandbox):
-
-```bash
-curl -X POST "https://<api>.railway.app/financeiro/webhook/openpix?token=<TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"event":"OPENPIX:CHARGE_COMPLETED","charge":{"correlationID":"financeiro_<ID_LANCAMENTO>","value":<VALOR_EM_CENTAVOS>}}'
-```
-
-3. A fatura deve virar **paga** no app; pagamento parcial (value menor) **não**
-   marca como pago (proteção já existente).
-4. POST sem token → deve retornar 401.
+As integrações OpenPix/Woovi e Asaas foram removidas do sistema (não
+funcionavam). Não há mais geração de Pix copia-e-cola nem webhook de
+confirmação de pagamento; o morador paga pela chave Pix do condomínio e a baixa
+vem do sync da Superlógica. As variáveis `OPENPIX_APP_ID`,
+`OPENPIX_WEBHOOK_TOKEN` e `ASAAS_WEBHOOK_TOKEN` podem ser apagadas do ambiente.
 
 ## 4. Ordem segura de deploy
 
 1. `ALTER TABLE` (item 1.1) no MySQL de produção.
 2. Deploy da API (Railway).
 3. Endpoint de limpeza (item 2.1) por condomínio afetado.
-4. Configurar envs OpenPix (item 3.1) + webhook no painel (3.2).
-5. Release do app Flutter (após Fases 2–4 do plano) — o backend novo é
+4. Release do app Flutter (após Fases 2–4 do plano) — o backend novo é
    retrocompatível com o app antigo.

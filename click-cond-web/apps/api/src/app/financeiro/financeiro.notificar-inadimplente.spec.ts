@@ -31,10 +31,10 @@ describe('FinanceiroService — notifyInadimplente', () => {
     const tenant = { assertCondominio: jest.fn(async () => undefined) };
 
     // Ordem do construtor: prisma, storage, mail, notifications, auditoria,
-    // fechamento, openPix, tenant.
+    // fechamento, tenant.
     const svc: any = new FinanceiroService(
       prisma, {} as any, mail as any, notifications as any,
-      {} as any, {} as any, {} as any, tenant as any,
+      {} as any, {} as any, tenant as any,
     );
 
     return { svc, findManyUsers, notifications, mail };

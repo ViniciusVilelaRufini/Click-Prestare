@@ -34,8 +34,7 @@ describe('FinanceiroService.getAll — contagem de taxas ocultas', () => {
     const noop: any = { registrar: jest.fn() };
     const svc = new FinanceiroService(
       prisma, { isDataUrl: () => false } as any, noop, noop, noop,
-      { assertPodeAlterar: jest.fn() } as any, { generateCharge: jest.fn() } as any,
-      { assertCondominio: jest.fn(async () => undefined) } as any,
+      { assertPodeAlterar: jest.fn() } as any, { assertCondominio: jest.fn(async () => undefined) } as any,
     );
     return { svc };
   }

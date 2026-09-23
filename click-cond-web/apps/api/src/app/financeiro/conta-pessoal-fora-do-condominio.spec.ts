@@ -74,7 +74,7 @@ describe('FinanceiroService — getAll não mostra conta pessoal do morador', ()
     const fechamento: any = { assertPodeAlterar: jest.fn(async () => undefined) };
     const tenant = new TenantAccessService(prisma);
     const svc = new FinanceiroService(
-      prisma, storage, noop, noop, noop, fechamento, { generateCharge: jest.fn() } as any, tenant,
+      prisma, storage, noop, noop, noop, fechamento, tenant,
     );
     jest.spyOn(svc as any, 'getAllMeses').mockResolvedValue([{ mes: '07', ano: '2026' }]);
     return svc;
