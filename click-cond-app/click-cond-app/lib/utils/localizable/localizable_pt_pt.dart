@@ -255,6 +255,7 @@ class Localizable_PtPt {
     LocalizableModel(key: 'area_social_precisa_pagamento', text: 'Pagamento necessário'), 
     LocalizableModel(key: 'area_social_agendamentos', text: 'Agendas'), 
     LocalizableModel(key: 'area_social_meus_agendamentos', text: 'As minhas agendas'), 
+    LocalizableModel(key: 'nova_reserva', text: 'Nova reserva'),
     LocalizableModel(key: 'area_social_nenhum_agendamento', text: 'Não tem agendas'), 
     LocalizableModel(key: 'area_social_nav_new', text: 'Nova Área Social'), 
     LocalizableModel(key: 'area_social_dados_iniciais', text: 'DADOS INICIAIS'), 

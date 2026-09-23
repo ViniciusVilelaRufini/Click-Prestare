@@ -38,6 +38,11 @@ void main() {
     test('tradução vazia também cai no fallback', () {
       expect(resolverTexto('lb_vazio', idioma, padrao), 'Tem texto');
     });
+
+    test('resolve o rótulo do botão de nova reserva', () {
+      final ptBr = indiceDe(Localizable_PtBr().strings);
+      expect(resolverTexto('nova_reserva', ptBr, ptBr), 'Nova reserva');
+    });
   });
 
   group('indiceDe', () {

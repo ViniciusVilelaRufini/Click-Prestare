@@ -255,6 +255,7 @@ class Localizable_PtBr {
     LocalizableModel(key: 'area_social_precisa_pagamento', text: 'Necessita de Pagamento'), 
     LocalizableModel(key: 'area_social_agendamentos', text: 'Agendamentos'), 
     LocalizableModel(key: 'area_social_meus_agendamentos', text: 'Meus Agendamentos'), 
+    LocalizableModel(key: 'nova_reserva', text: 'Nova reserva'),
     LocalizableModel(key: 'area_social_nenhum_agendamento', text: 'Você não possui agendamentos'), 
     LocalizableModel(key: 'area_social_nav_new', text: 'Nova Área Social'), 
     LocalizableModel(key: 'area_social_dados_iniciais', text: 'DADOS INICIAIS'), 

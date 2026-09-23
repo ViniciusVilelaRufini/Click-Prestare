@@ -255,6 +255,7 @@ class Localizable_EnUs {
           LocalizableModel(key: 'area_social_precisa_pagamento', text: 'Requires Payment'), 
           LocalizableModel(key: 'area_social_agendamentos', text: 'Scheduling'), 
           LocalizableModel(key: 'area_social_meus_agendamentos', text: 'My Scheduling'), 
+          LocalizableModel(key: 'nova_reserva', text: 'New reservation'),
           LocalizableModel(key: 'area_social_nenhum_agendamento', text: 'You have no scheduling'), 
           LocalizableModel(key: 'area_social_nav_new', text: 'New Social Area'), 
           LocalizableModel(key: 'area_social_dados_iniciais', text: 'INITIAL DATA'), 

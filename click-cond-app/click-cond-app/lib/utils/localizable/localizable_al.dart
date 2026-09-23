@@ -255,6 +255,7 @@ class Localizable_Al {
     LocalizableModel(key: 'area_social_precisa_pagamento', text: 'Zahlung erforderlich'), 
     LocalizableModel(key: 'area_social_agendamentos', text: 'Termine'), 
     LocalizableModel(key: 'area_social_meus_agendamentos', text: 'Meine Zeitpläne'), 
+    LocalizableModel(key: 'nova_reserva', text: 'Neue Reservierung'),
     LocalizableModel(key: 'area_social_nenhum_agendamento', text: 'Sie haben keine Termine'), 
     LocalizableModel(key: 'area_social_nav_new', text: 'Neuer sozialer Bereich'), 
     LocalizableModel(key: 'area_social_dados_iniciais', text: 'ERSTE DATEN'), 
