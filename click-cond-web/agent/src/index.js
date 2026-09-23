@@ -783,23 +783,29 @@ async function syncDeviceOfflineLogs(token, device) {
   if (!driver || !driver.buscarDesde) return;
   if (offlineSyncBusy.has(device.id)) return;
   offlineSyncBusy.add(device.id);
+  // Rótulo usado em TODO log desta função: a orquestração é genérica (um só
+  // driver.buscarDesde para as três marcas — ver comentário acima), então o
+  // texto perdeu a menção "(Hikvision)"/"(Control iD)" que os blocos antigos
+  // tinham; incluir o id do driver aqui devolve essa pista sem reintroduzir
+  // um bloco por fabricante.
+  const rotulo = `${device.nome} (${driver.id})`;
   try {
     const baseline = deviceBaselines.get(device.id);
     const { eventos, novaMarca, logVazio } = await driver.buscarDesde(device, baseline);
 
     if (logVazio) {
-      console.log(`[agente] ${device.nome}: log de acesso vazio.`);
+      console.log(`[agente] ${rotulo}: log de acesso vazio.`);
       return;
     }
     if (baseline === undefined) {
       // Primeira vez: estabelece a marca d'água SEM reprocessar o histórico.
       setBaseline(device.id, novaMarca);
-      console.log(`[agente] ${device.nome}: baseline de acessos inicializada em ${novaMarca}.`);
+      console.log(`[agente] ${rotulo}: baseline de acessos inicializada em ${novaMarca}.`);
       return;
     }
     if (novaMarca <= baseline) {
       console.log(
-        `[agente] ${device.nome}: recovery sem novidade (marca atual ${novaMarca} <= baseline ${baseline}).`,
+        `[agente] ${rotulo}: recovery sem novidade (marca atual ${novaMarca} <= baseline ${baseline}).`,
       );
       return;
     }
@@ -812,7 +818,7 @@ async function syncDeviceOfflineLogs(token, device) {
     let ultimoConfirmado = baseline;
     for (const ev of eventos) {
       console.log(
-        `[agente] ${device.nome}: replay marca ${ev._marca} UserID ${ev.UserID} timestamp ${ev.timestamp}`,
+        `[agente] ${rotulo}: replay marca ${ev._marca} UserID ${ev.UserID} timestamp ${ev.timestamp}`,
       );
       const ok = await forwardAccessEvent(token, device, ev, { backlog: true });
       if (ok) {
@@ -832,7 +838,7 @@ async function syncDeviceOfflineLogs(token, device) {
     if (falhas > 0) {
       setBaseline(device.id, ultimoConfirmado);
       console.error(
-        `[agente] ${device.nome}: recuperados ${enviados} acesso(s), ${falhas} FALHARAM. ` +
+        `[agente] ${rotulo}: recuperados ${enviados} acesso(s), ${falhas} FALHARAM. ` +
         `Baseline represada em ${ultimoConfirmado} (não avançou até ${novaMarca}) — ` +
         `nova tentativa no próximo ciclo.`,
       );
@@ -841,10 +847,10 @@ async function syncDeviceOfflineLogs(token, device) {
       // do array `eventos` o que foi filtrado por UserID vazio/negado, mas
       // `novaMarca` cobre esses registros também — nunca virariam evento).
       setBaseline(device.id, novaMarca);
-      console.log(`[agente] ${device.nome}: recuperados ${enviados} acesso(s) offline (${baseline}→${novaMarca}).`);
+      console.log(`[agente] ${rotulo}: recuperados ${enviados} acesso(s) offline (${baseline}→${novaMarca}).`);
     }
   } catch (err) {
-    console.error(`[agente] ${device.nome}: falha ao ler log de acesso offline:`, err.message || err);
+    console.error(`[agente] ${rotulo}: falha ao ler log de acesso offline:`, err.message || err);
   } finally {
     offlineSyncBusy.delete(device.id);
   }

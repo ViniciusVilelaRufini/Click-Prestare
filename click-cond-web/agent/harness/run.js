@@ -449,7 +449,7 @@ async function main() {
       event: 7,
     });
     await piscarAparelhoControlId(3400); // > CONTROLID_POLL_MS (ver comentário acima)
-    await sleep(2000);
+    await sleep(2000); // dá tempo de sobra pro heartbeat detectar ONLINE e recuperar
 
     const evReplayCid = eventos.find((e) => e.external_id === '88888');
     checar(
@@ -462,6 +462,16 @@ async function main() {
       evReplayCid?.backlog === true,
       JSON.stringify(evReplayCid),
     );
+
+    // A checagem de "não duplica" só prova algo de fato se esperarmos o
+    // poller ao vivo TER A CHANCE de tentar de novo — pela sincronização de
+    // fase acima, a próxima tentativa dele cai em ~6s depois do início da
+    // queda (3,4s de queda + ~2,6s). Checar antes disso provaria só que o
+    // replay funcionou, não que o poller não duplicou o mesmo acesso ao
+    // reencontrar o aparelho. Espera mais ~4s (total ~9,4s desde o início da
+    // queda: ~3,4s de margem depois da retentativa do poller) antes de
+    // reler a contagem.
+    await sleep(4000);
     checar(
       'cid: replay offline não duplica o que já foi enviado',
       eventos.filter((e) => e.external_id === '88888').length === 1,

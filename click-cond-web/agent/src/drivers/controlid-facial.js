@@ -33,6 +33,7 @@ const {
   sleep,
 } = require('../lib/http');
 const { deviceBaselines, setBaseline } = require('../core/estado');
+const { NOSSO_EXTERNAL_ID, removerUsuariosPorLoop } = require('./comum/fantasmas');
 
 // lib/http.js não conhece o timeout da LAN — é config injetada por quem monta
 // o agente (index.js lê LAN_TIMEOUT_MS do .env e chama configurar() cedo no
@@ -181,18 +182,6 @@ async function removerUsuario(device, cmd) {
   return okFrom(res);
 }
 
-/**
- * Identificador que NÓS gravamos no aparelho ("morador_42", "visitante_9",
- * "prestador_servico_3").
- *
- * A varredura de fantasmas apaga tudo que está no aparelho e não está no
- * nosso banco. Num terminal Control iD, "tudo" inclui o usuário admin que o
- * instalador criou no próprio aparelho — apagá-lo trancaria o instalador
- * para fora. Restringir a listagem ao nosso padrão mantém a varredura
- * fazendo o trabalho dela sem tocar em quem não é nosso.
- */
-const NOSSO_EXTERNAL_ID = /^(morador|visitante|prestador_servico)_\d+$/;
-
 /** O face_id gravado é o id INTERNO do usuário (ver controlIdCreate); quem
  *  identifica os nossos é o campo `registration`, onde gravamos o
  *  external_id no enrollment. */
@@ -216,28 +205,10 @@ async function listarUsuarios(device) {
   };
 }
 
-/** Sem lote equivalente ao RPC2 da Dahua: cai para remoção individual. Uma
- *  falha isolada não aborta o lote — a varredura de fantasmas roda de hora
- *  em hora e tenta de novo o que sobrou. */
+/** Sem lote equivalente ao RPC2 da Dahua: cai para remoção individual (ver
+ *  `removerUsuariosPorLoop` em comum/fantasmas.js). */
 async function removerUsuarios(device, cmd) {
-  const alvos = cmd.faceIds || [];
-  if (alvos.length === 0) return { ok: true };
-  const falhas = [];
-  for (const faceId of alvos) {
-    try {
-      const r = await removerUsuario(device, { faceId });
-      if (!r.ok && r.statusCode !== 404) falhas.push(faceId);
-    } catch {
-      falhas.push(faceId);
-    }
-  }
-  if (falhas.length > 0) {
-    return {
-      ok: false,
-      error: `falha ao remover ${falhas.length}/${alvos.length} usuário(s): ${falhas.slice(0, 10).join(', ')}`,
-    };
-  }
-  return { ok: true };
+  return removerUsuariosPorLoop(cmd, (faceId) => removerUsuario(device, { faceId }));
 }
 
 // ---------- Log de acessos (access_logs) ----------
