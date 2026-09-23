@@ -135,7 +135,7 @@ const FACIAL_DISABLED = process.env.FACIAL_INTEGRATION_ENABLED === 'false';
 // sobrescrita por AGENT_DOWNLOAD_URL (ex.: ao publicar uma nova versão).
 const AGENT_DOWNLOAD_URL =
   process.env.AGENT_DOWNLOAD_URL ||
-  'https://github.com/Viniciusvile/Click-Prestare/releases/download/agent-v1.0.0/click-agent.exe';
+  'https://github.com/Viniciusvile/Click-Prestare/releases/latest/download/click-agent.exe';
 
 @Injectable()
 export class FacialService {
