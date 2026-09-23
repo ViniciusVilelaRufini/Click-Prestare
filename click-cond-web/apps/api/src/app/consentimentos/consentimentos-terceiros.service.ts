@@ -122,4 +122,47 @@ export class ConsentimentosTerceirosService {
 
     return { ok: true, versao: POLITICA_VERSAO };
   }
+
+  // ===================== Convite por link =====================
+  //
+  // O visitante aceita, na página pública do convite, o uso da foto para o
+  // reconhecimento facial e declara ser maior de idade. Nesse momento ainda
+  // não existe Pessoa: o registro nasce com `id_pessoa = -idConvite` (marca
+  // "pendente deste convite"). A busca de consentimento é por CPF (`ultima`),
+  // então vale assim que a Pessoa for criada. Se a visita não for confirmada
+  // — recusa ou expiração —, o registro é apagado junto com a foto, como a
+  // página promete.
+
+  async registrarConvite(p: { idCondominio: number; idConvite: number; tipoPessoa: TipoPessoaTerceiro; doc: string | null }) {
+    return this.registrar({
+      idCondominio: p.idCondominio,
+      tipoPessoa: p.tipoPessoa,
+      idPessoa: -Number(p.idConvite),
+      doc: p.doc,
+      biometria: true,
+      maiorIdade: true,
+      declaradoPorNome: 'Próprio titular (convite por link)',
+    });
+  }
+
+  async conviteAutorizouBiometria(idConvite: number): Promise<boolean> {
+    const r = await this.prisma.consentimentos_Terceiros.findFirst({
+      where: { id_pessoa: -Number(idConvite), aceito: 1, maior_idade: 1 },
+      select: { id: true },
+    });
+    return !!r;
+  }
+
+  async vincularConvite(idConvite: number, idPessoa: number) {
+    await this.prisma.consentimentos_Terceiros.updateMany({
+      where: { id_pessoa: -Number(idConvite) },
+      data: { id_pessoa: Number(idPessoa) },
+    });
+  }
+
+  async descartarConvite(idConvite: number) {
+    await this.prisma.consentimentos_Terceiros.deleteMany({
+      where: { id_pessoa: -Number(idConvite) },
+    });
+  }
 }

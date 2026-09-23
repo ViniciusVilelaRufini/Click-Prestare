@@ -145,8 +145,9 @@ import { ThemeService } from '../shared/theme.service';
                 class="mt-0.5 rounded border-white/20 bg-transparent text-accent focus:ring-0 w-4 h-4 shrink-0" />
               <span class="text-[11px] leading-relaxed text-slate-400">
                 Autorizo o condomínio a usar meu nome, CPF e foto para autorizar
-                minha entrada. Os dados ficam com o condomínio e são apagados se
-                a visita não for confirmada.
+                minha entrada, <strong class="text-slate-300">inclusive pelo reconhecimento facial da portaria</strong>,
+                e declaro ter 18 anos ou mais. Os dados ficam com o condomínio e
+                são apagados se a visita não for confirmada.
                 <a routerLink="/politica-de-privacidade" target="_blank" class="text-accent font-semibold hover:underline">Política de privacidade</a>.
               </span>
             </label>
@@ -293,6 +294,10 @@ export class ConvitePageComponent implements OnInit {
         cpf: this.cpf,
         foto: this.fotoPreview(),
         aceite: true,
+        // O texto do aceite cita o reconhecimento facial e a maioridade: vale
+        // como consentimento de biometria (LGPD Art. 11) e libera o rosto no
+        // terminal quando o morador confirmar.
+        aceite_biometria: true,
       })
       .subscribe({
         next: () => {

@@ -27,7 +27,7 @@ describe('ConvitesService', () => {
   beforeEach(() => { process.env.CONVITE_BASE_URL = 'https://exemplo.test'; });
   afterEach(() => { delete process.env.CONVITE_BASE_URL; });
 
-  function build(overrides: { convite?: any; ativos?: number; vinculo?: any } = {}) {
+  function build(overrides: { convite?: any; ativos?: number; vinculo?: any; biometria?: boolean } = {}) {
     const convites: any[] = overrides.convite ? [overrides.convite] : [];
 
     const prisma: any = {
@@ -96,8 +96,15 @@ describe('ConvitesService', () => {
     const notifications: any = { sendPushNotification: jest.fn(async () => true) };
     const visitantes: any = { create: jest.fn(async () => ({ id: 500 })) };
 
-    const svc = new ConvitesService(prisma, storage, notifications, visitantes);
-    return { svc, prisma, storage, notifications, visitantes, convites };
+    prisma.visitas = { findUnique: jest.fn(async () => ({ id_pessoa: 2000009 })) };
+    const terceiros: any = {
+      registrarConvite: jest.fn(async () => ({ ok: true })),
+      conviteAutorizouBiometria: jest.fn(async () => overrides.biometria === true),
+      vincularConvite: jest.fn(async () => undefined),
+      descartarConvite: jest.fn(async () => undefined),
+    };
+    const svc = new ConvitesService(prisma, storage, notifications, visitantes, terceiros);
+    return { svc, prisma, storage, notifications, visitantes, convites, terceiros };
   }
 
   const conviteAberto = (extra: any = {}) => ({
@@ -373,7 +380,7 @@ describe('ConvitesService', () => {
     const preenchidoBio = () =>
       conviteAberto({ status: 'preenchido', nome: 'Rodrigo', cpf: '39053344705', foto_url: 'https://cdn/foto.jpg' });
 
-    it('NÃO enrola o rosto do visitante no terminal facial', async () => {
+    it('sem o consentimento de biometria do link, NÃO enrola o rosto', async () => {
       const { svc, visitantes } = build({ convite: preenchidoBio() });
       await svc.confirmar(1, MORADOR);
 
@@ -383,6 +390,40 @@ describe('ConvitesService', () => {
       // destacado. Sem esta flag, `create()` dispara fireFacialSync sempre
       // que há foto.
       expect(visitantes.create.mock.calls[0][0].sem_facial).toBe(true);
+    });
+
+    // Decisão de 23/09: o aceite do link passou a citar o reconhecimento
+    // facial e a maioridade — com ele, o rosto vai para o terminal.
+    it('com o consentimento dado no link, enrola e passa o consentimento para a Pessoa', async () => {
+      const { svc, visitantes, terceiros } = build({ convite: preenchidoBio(), biometria: true });
+      await svc.confirmar(1, MORADOR);
+      expect(visitantes.create.mock.calls[0][0].sem_facial).toBe(false);
+      expect(terceiros.vincularConvite).toHaveBeenCalledWith(1, 2000009);
+    });
+
+    it('o envio com aceite de biometria registra o consentimento do próprio visitante', async () => {
+      const { svc, terceiros } = build({ convite: conviteAberto() });
+      await svc.responder('tok', {
+        nome: 'QA_SECURITY_20260923', cpf: '390.533.447-05', foto: 'data:image/jpeg;base64,AAA',
+        aceite: true, aceite_biometria: true,
+      });
+      expect(terceiros.registrarConvite).toHaveBeenCalledWith({
+        idCondominio: 2, idConvite: 1, tipoPessoa: 'visitante', doc: '39053344705',
+      });
+    });
+
+    it('envio da página antiga (sem aceite de biometria) não registra consentimento', async () => {
+      const { svc, terceiros } = build({ convite: conviteAberto() });
+      await svc.responder('tok', {
+        nome: 'QA_SECURITY_20260923', cpf: '390.533.447-05', foto: 'data:image/jpeg;base64,AAA', aceite: true,
+      });
+      expect(terceiros.registrarConvite).not.toHaveBeenCalled();
+    });
+
+    it('recusar apaga o consentimento junto com a foto', async () => {
+      const { svc, terceiros } = build({ convite: preenchidoBio() });
+      await svc.recusar(1, MORADOR);
+      expect(terceiros.descartarConvite).toHaveBeenCalledWith(1);
     });
   });
 
