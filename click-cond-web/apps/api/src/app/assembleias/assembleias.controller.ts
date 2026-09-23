@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCod
 import { AssembleiasService } from './assembleias.service';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 
 /**
  * O id do usuário vinha com `?? 1` como fallback em cinco rotas. Sem id no
@@ -10,7 +11,9 @@ import type { JwtPayload } from '../auth/jwt-payload.interface';
  * JwtAuthGuard é global), mas é um default que falha ABERTO.
  */
 function exigirUsuario(payload?: JwtPayload): number {
-  const id = Number(payload?.user?.id ?? payload?.sub);
+  // Users.id real: no token da portaria-web o `sub` é o id do operador em
+  // Funcionarios_Portaria — o porteiro votava como o morador de mesmo número.
+  const id = idUsuarioDoToken(payload);
   if (!id) throw new ForbiddenException('Sessão sem usuário válido.');
   return id;
 }

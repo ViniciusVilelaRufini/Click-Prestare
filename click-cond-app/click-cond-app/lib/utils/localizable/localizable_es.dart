@@ -255,6 +255,7 @@ class Localizable_Es {
           LocalizableModel(key: 'area_social_precisa_pagamento', text: 'Requerir pago'), 
           LocalizableModel(key: 'area_social_agendamentos', text: 'Equipo'), 
           LocalizableModel(key: 'area_social_meus_agendamentos', text: 'Mis Horarios'), 
+          LocalizableModel(key: 'nova_reserva', text: 'Nueva reserva'),
           LocalizableModel(key: 'area_social_nenhum_agendamento', text: 'no tienes citas'), 
           LocalizableModel(key: 'area_social_nav_new', text: 'Nueva Área Social'), 
           LocalizableModel(key: 'area_social_dados_iniciais', text: 'DATOS INICIALES'), 
