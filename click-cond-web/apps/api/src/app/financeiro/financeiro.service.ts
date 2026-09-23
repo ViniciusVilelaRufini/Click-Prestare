@@ -11,6 +11,7 @@ import { isOperador, assertFinanceiroSomenteLeitura } from '../auth/tenant.util'
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { FechamentoService } from './fechamento.service';
 import { SuperlogicaService } from '../superlogica/superlogica.service';
+import { csvCelula } from '../common/csv.util';
 
 @Injectable()
 export class FinanceiroService implements OnModuleInit {
@@ -3100,12 +3101,7 @@ export class FinanceiroService implements OnModuleInit {
   }
 
   private csvEscape(value: string): string {
-    if (value == null) return '';
-    const str = String(value);
-    if (/[",\n\r]/.test(str)) {
-      return '"' + str.replace(/"/g, '""') + '"';
-    }
-    return str;
+    return csvCelula(value);
   }
 
   async getConfigAuto(idCondominio: number, user?: JwtPayload) {
