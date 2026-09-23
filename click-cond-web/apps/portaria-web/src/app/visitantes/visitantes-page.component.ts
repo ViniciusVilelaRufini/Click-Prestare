@@ -458,13 +458,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
   // KPIs do topo — agora contam PESSOAS únicas, não registros de visita.
   readonly visitantesAtivos = computed(() =>
-    this.visitantesPessoas().filter((p) => p.noLocal),
+    this.visitantesPessoas().filter((p) => this.categoriaKpi(p) === 'ativos'),
   );
   readonly visitantesLiberados = computed(() =>
-    this.visitantesPessoas().filter((p) => !p.noLocal && (p as any).liberado === 1),
+    this.visitantesPessoas().filter((p) => this.categoriaKpi(p) === 'liberados'),
   );
   readonly visitantesHistorico = computed(() =>
-    this.visitantesPessoas().filter((p) => !p.noLocal && (p as any).liberado !== 1),
+    this.visitantesPessoas().filter((p) => this.categoriaKpi(p) === 'historico'),
   );
   readonly totalPessoas = computed(() => this.visitantesPessoas().length);
   /**
@@ -478,12 +478,8 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
 
     // 1. Filtrar por status
     const f = this.viewFilter();
-    if (f === 'ativos') {
-      list = list.filter((p) => p.noLocal);
-    } else if (f === 'liberados') {
-      list = list.filter((p) => !p.noLocal && (p as any).liberado === 1);
-    } else if (f === 'historico') {
-      list = list.filter((p) => !p.noLocal && (p as any).liberado !== 1);
+    if (f === 'ativos' || f === 'liberados' || f === 'historico') {
+      list = list.filter((p) => this.categoriaKpi(p) === f);
     }
 
     // 2. Busca por nome ou documento
@@ -1214,6 +1210,17 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const h = Math.floor(min / 60);
     const m = min % 60;
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  }
+
+  /**
+   * Card/aba em que a pessoa entra. "Liberados" segue o status da linha:
+   * contar só `liberado === 1` punha ali quem já saiu da visita atual ou
+   * teve a autorização do morador vencida — o card dizia "Liberado" e a
+   * linha, "Saiu"/"Expirado".
+   */
+  categoriaKpi(p: Pessoa): 'ativos' | 'liberados' | 'historico' {
+    if (p.noLocal) return 'ativos';
+    return this.getStatusVisitante(p) === 'liberado' ? 'liberados' : 'historico';
   }
 
   getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'expirado' | 'saiu' {
