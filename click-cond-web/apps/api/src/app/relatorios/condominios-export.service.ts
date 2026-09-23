@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
+import { csvCelula } from '../common/csv.util';
 
 const AdmZip = require('adm-zip');
 
@@ -318,12 +319,7 @@ export class CondominiosExportService {
   }
 
   private csvEscape(value: any): string {
-    if (value == null) return '';
-    const str = String(value);
-    if (/[",\n\r]/.test(str)) {
-      return '"' + str.replace(/"/g, '""') + '"';
-    }
-    return str;
+    return csvCelula(value);
   }
 
   private getTimestamp(): string {

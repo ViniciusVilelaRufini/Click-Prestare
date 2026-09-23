@@ -4,6 +4,7 @@ import * as xlsx from 'xlsx';
 import { TDocumentDefinitions } from 'pdfmake/interfaces';
 import { pessoasMigrationEnabled } from '../common/pessoas-migration.util';
 import { resolverInfoVisitantesPorIdAcessoFacial } from '../common/acesso-facial-visitante-lookup.util';
+import { csvCelula } from '../common/csv.util';
 
 const pdfmake = require('pdfmake');
 
@@ -623,12 +624,7 @@ export class RelatoriosService {
   }
 
   private csvEscape(value: string): string {
-    if (value == null) return '';
-    const str = String(value);
-    if (/[",\n\r]/.test(str)) {
-      return '"' + str.replace(/"/g, '""') + '"';
-    }
-    return str;
+    return csvCelula(value);
   }
 
   async getEventos(
