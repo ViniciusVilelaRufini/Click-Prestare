@@ -9,6 +9,8 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
+import { assertOperador } from '../auth/tenant.util';
 
 @Controller('condominios/:idCondominio/ocorrencias')
 export class OcorrenciasController {
@@ -43,7 +45,9 @@ export class OcorrenciasController {
   }
 
   @Get('funcionarios')
-  funcionarios(@Param('idCondominio', ParseIntPipe) idCondominio: number) {
+  funcionarios(@Param('idCondominio', ParseIntPipe) idCondominio: number, @ReqUser() payload: JwtPayload) {
+    // Lista a equipe para atribuir responsável — ação do síndico/portaria.
+    assertOperador(payload, 'listar os funcionários do condomínio');
     return this.service.listFuncionariosAtribuiveis(idCondominio);
   }
 
@@ -68,7 +72,8 @@ export class OcorrenciasController {
     @ReqUser() payload: JwtPayload,
     @Body() body: Omit<CreateOcorrenciaDto, 'id_condominio'>,
   ) {
-    const idUser = payload?.user?.id ?? payload?.sub ?? null;
+    // Users.id real: `sub` do porteiro é Funcionarios_Portaria.id.
+    const idUser = idUsuarioDoToken(payload);
     return this.service.create({
       ...body,
       id_condominio: idCondominio,
@@ -131,7 +136,6 @@ export class OcorrenciasController {
     @ReqUser() payload: JwtPayload,
     @Body() body: { mensagem: string },
   ) {
-    const idUser = payload?.user?.id ?? payload?.sub ?? null;
-    return this.service.createMessage(id, Number(idUser), body.mensagem, payload);
+    return this.service.createMessage(id, idUsuarioDoToken(payload), body.mensagem, payload);
   }
 }
