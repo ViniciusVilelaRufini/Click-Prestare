@@ -17,6 +17,7 @@ import {
   parseLocalTimeToUTCNullable,
 } from '../visitantes/visitantes.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { ConsentimentosTerceirosService } from '../consentimentos/consentimentos-terceiros.service';
 
 /** Horas de validade do link. Depois disso ele não serve para mais nada. */
 export const HORAS_DE_VALIDADE = 24;
@@ -89,6 +90,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
     private readonly visitantes: VisitantesService,
+    private readonly consentimentosTerceiros: ConsentimentosTerceirosService,
   ) {}
 
   onModuleInit() {
@@ -132,6 +134,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
       if (mortos.length === 0) return 0;
 
       for (const c of mortos) {
+        await this.consentimentosTerceiros.descartarConvite(c.id).catch(() => undefined);
         if (c.foto_url && this.storage.enabled) {
           try {
             await this.storage.deleteUrl(c.foto_url);
@@ -308,7 +311,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
 
   async responder(
     token: string,
-    dados: { nome?: string; cpf?: string; foto?: string; aceite?: boolean },
+    dados: { nome?: string; cpf?: string; foto?: string; aceite?: boolean; aceite_biometria?: boolean },
   ) {
     const convite = await this.exigirConviteAberto(token);
 
@@ -359,6 +362,18 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
     });
     if (atualizados.count === 0) {
       throw new NotFoundException('Este convite não está mais disponível.');
+    }
+
+    // O texto do aceite cita o reconhecimento facial e a maioridade: é o
+    // consentimento específico que a biometria exige (LGPD Art. 11). A página
+    // antiga não mandava este campo — o aceite dela não vale para o facial.
+    if (dados.aceite_biometria === true) {
+      await this.consentimentosTerceiros.registrarConvite({
+        idCondominio: convite.id_condominio,
+        idConvite: convite.id,
+        tipoPessoa: convite.is_prestador === 1 ? 'prestador' : 'visitante',
+        doc: cpf,
+      });
     }
 
     await this.avisarMorador(convite.id_usuario, nome, convite.is_prestador === 1);
@@ -479,6 +494,11 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Este convite já foi respondido.');
     }
 
+    // Rosto no terminal só com o consentimento de biometria dado pelo próprio
+    // visitante no link. Sem ele (página antiga ou convite anterior), segue
+    // só com PIN, como antes.
+    const biometriaAutorizada = await this.consentimentosTerceiros.conviteAutorizouBiometria(convite.id);
+
     let visitante: any;
     try {
       visitante = await this.visitantes.create(
@@ -493,7 +513,7 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
           data_hora_inicio: extras.data_hora_inicio,
           data_hora_termino: extras.data_hora_termino,
           dias_semana: convite.is_prestador === 1 ? extras.dias_semana : undefined,
-          sem_facial: true,
+          sem_facial: !biometriaAutorizada,
         } as any,
         user,
       );
@@ -510,6 +530,16 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
         where: { id: convite.id },
         data: { id_visitante: visitante?.id ?? null },
       });
+
+      // O consentimento nasceu marcado com o convite; passa para a Pessoa.
+      if (biometriaAutorizada && visitante?.id) {
+        const visita = await this.prisma.visitas
+          .findUnique({ where: { id: Number(visitante.id) }, select: { id_pessoa: true } })
+          .catch(() => null);
+        if (visita?.id_pessoa) {
+          await this.consentimentosTerceiros.vincularConvite(convite.id, visita.id_pessoa);
+        }
+      }
     } catch (err) {
       // Se a criação falhar, reverte para 'preenchido' para não orfanar o convite
       await this.prisma.convites_Visita.update({
@@ -549,6 +579,11 @@ export class ConvitesService implements OnModuleInit, OnModuleDestroy {
     if (marcado.count === 0) {
       throw new BadRequestException('Este convite já foi respondido.');
     }
+
+    // Visita não confirmada: o consentimento de biometria sai junto com a foto.
+    await this.consentimentosTerceiros.descartarConvite(convite.id).catch((err: any) =>
+      this.logger.warn(`Falha ao apagar consentimento do convite ${convite.id}: ${err?.message ?? err}`),
+    );
 
     if (fotoParaApagar && this.storage.enabled) {
       try {

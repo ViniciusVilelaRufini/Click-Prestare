@@ -83,7 +83,7 @@ export class ConvitesController {
   @HttpCode(200)
   responder(
     @Param('token') token: string,
-    @Body() body: { nome?: string; cpf?: string; foto?: string; aceite?: boolean },
+    @Body() body: { nome?: string; cpf?: string; foto?: string; aceite?: boolean; aceite_biometria?: boolean },
   ) {
     return this.service.responder(token, body);
   }

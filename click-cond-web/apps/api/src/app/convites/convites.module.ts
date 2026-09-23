@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConvitesController } from './convites.controller';
 import { ConvitesService } from './convites.service';
 import { VisitantesModule } from '../visitantes/visitantes.module';
+import { ConsentimentosModule } from '../consentimentos/consentimentos.module';
 
 /**
  * Depende de `VisitantesModule` porque a confirmação cria o visitante pelo
@@ -9,7 +10,7 @@ import { VisitantesModule } from '../visitantes/visitantes.module';
  * conhecido, evitando rosto duplicado no terminal facial.
  */
 @Module({
-  imports: [VisitantesModule],
+  imports: [VisitantesModule, ConsentimentosModule],
   controllers: [ConvitesController],
   providers: [ConvitesService],
 })
