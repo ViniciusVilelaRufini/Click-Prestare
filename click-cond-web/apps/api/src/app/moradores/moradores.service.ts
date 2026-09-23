@@ -329,10 +329,19 @@ export class MoradoresService {
         if (seen.has(r.id_user)) continue;
         seen.add(r.id_user);
         const condId = r.apartamento?.id_condominio ?? idCondominio;
-        const m = r.user?.moradores?.find((mor) => mor.id_condominio === condId) ?? r.user?.moradores?.[0];
+        // `id` é usado para editar e EXCLUIR o cadastro: tem de ser o
+        // Moradores.id deste condomínio. O fallback para o cadastro de outro
+        // condomínio ou para o Users.id (que coincide com o Moradores.id de
+        // outra pessoa) abria e apagava o morador errado. Vínculo sem cadastro
+        // aqui fica de fora — é resíduo de exclusão antiga.
+        const m = r.user?.moradores?.find((mor) => mor.id_condominio === condId);
+        if (!m) {
+          this.logger.warn(`[moradores.findAll] vínculo sem cadastro: apto ${idApto}, user ${r.id_user} — omitido`);
+          continue;
+        }
         const fotoFinal = m?.foto_pessoa ?? r.user?.photo ?? null;
         out.push({
-          id: m?.id ?? r.id_user,
+          id: m.id,
           nome: m?.nome ?? r.user?.name ?? '',
           documento: m?.documento ?? r.user?.cpf ?? null,
           email: m?.email ?? r.user?.email ?? null,
