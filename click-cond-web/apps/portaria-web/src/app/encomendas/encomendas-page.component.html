@@ -355,7 +355,7 @@
       <!-- DESKTOP: tabela -->
       <div class="hidden lg:block overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="bg-white/[0.02] text-slate-400 uppercase text-[11px] tracking-wider border-b border-white/10">
+          <thead class="bg-white/[0.02] text-slate-400 text-xs border-b border-white/10">
             <tr>
               <th class="px-5 py-3 text-left w-10">
                 @if (filtro() === 'Aguardando' || filtro() === '') {
@@ -366,12 +366,10 @@
                          class="rounded bg-graphite border-white/10 text-emerald-500 focus:ring-0 w-4 h-4 cursor-pointer" />
                 }
               </th>
-              <th class="text-left px-5 py-3 font-medium">#</th>
               <th class="text-left px-5 py-3 font-medium">Volume</th>
               <th class="text-left px-5 py-3 font-medium">Destinatário</th>
               <th class="text-left px-5 py-3 font-medium">Recebido de</th>
-              <th class="text-left px-5 py-3 font-medium">Recebida em</th>
-              <th class="text-left px-5 py-3 font-medium">Armazenada</th>
+              <th class="text-left px-5 py-3 font-medium">Recebida</th>
               <th class="text-left px-5 py-3 font-medium">Notificação</th>
               <th class="text-left px-5 py-3 font-medium">Status</th>
               <th class="text-right px-5 py-3 font-medium">Ações</th>
@@ -400,7 +398,6 @@
                     <span class="text-slate-600 font-mono pl-1">—</span>
                   }
                 </td>
-                <td class="px-5 py-3.5 text-slate-500 font-mono text-xs align-middle">#{{ e.id }}</td>
                 <td class="px-5 py-3.5 align-middle">
                   <div class="flex items-center gap-2.5 flex-wrap">
                     <p class="font-medium text-slate-900 dark:text-white leading-tight">{{ e.descricao }}</p>
@@ -412,19 +409,13 @@
                       </span>
                     }
                   </div>
-                  @if (e.codigo_rastreio) {
-                    <p class="text-[10px] text-slate-500 font-mono mt-0.5 tracking-tight">{{ e.codigo_rastreio }}</p>
-                  }
+                  <p class="text-xs text-slate-500 mt-0.5">
+                    #{{ e.id }}
+                    @if (e.codigo_rastreio) { · <span class="font-mono">{{ e.codigo_rastreio }}</span> }
+                  </p>
                 </td>
                 <td class="px-5 py-3.5 align-middle">
-                  <div class="inline-flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 flex items-center justify-center shrink-0">
-                      <svg class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-                    </div>
-                    <span class="text-slate-700 dark:text-slate-300 font-semibold font-mono text-xs">
-                      {{ e.destinatario_bloco ? e.destinatario_bloco + ' / ' : '' }}{{ e.destinatario_apto }}
-                    </span>
-                  </div>
+                  <span class="text-sm font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">{{ rotuloDestino(e) }}</span>
                 </td>
                  <td class="px-5 py-3.5 align-middle">
                   @if (e.recebido_de) {
@@ -435,68 +426,35 @@
                     <span class="text-slate-500 font-mono">—</span>
                   }
                 </td>
-                <td class="px-5 py-3.5 text-slate-400 text-xs font-mono align-middle whitespace-nowrap">{{ e.recebido_em | date: 'dd/MM HH:mm' }}</td>
-                <td class="px-5 py-3.5 align-middle">
-                  @if (e.status === 'Aguardando') {
-                    <div class="flex items-center gap-1.5">
-                      @if (diasArmazenada(e) >= 7) {
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-red-500/10 border border-red-500/20 text-red-400 animate-pulse" title="Critico: armazenado há mais de 7 dias">
-                          <svg class="w-3 h-3 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                          </svg>
-                          {{ diasArmazenada(e) }}d - Crítico
-                        </span>
-                      } @else if (diasArmazenada(e) >= 3) {
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500/10 border border-amber-400/20 text-amber-400" title="Atenção: armazenado há mais de 3 dias">
-                          <svg class="w-3 h-3 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                          </svg>
-                          {{ diasArmazenada(e) }}d - Atenção
-                        </span>
-                      } @else {
-                        <span class="text-xs text-slate-300 font-mono">
-                          @if (diasArmazenada(e) === 0) { hoje }
-                          @else { {{ diasArmazenada(e) }}d }
-                        </span>
+                <td class="px-5 py-3.5 align-middle whitespace-nowrap">
+                  <p class="text-sm text-slate-700 dark:text-slate-200">{{ e.recebido_em | date: 'dd/MM HH:mm' }}</p>
+                  @switch (nivelArmazenada(e)) {
+                    @case ('critico') {
+                      <p class="text-xs font-semibold text-red-500 dark:text-red-400 mt-0.5" title="Aguardando retirada há 7 dias ou mais">{{ textoArmazenada(e) }} · crítico</p>
+                    }
+                    @case ('atencao') {
+                      <p class="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-0.5" title="Aguardando retirada há 3 dias ou mais">{{ textoArmazenada(e) }} · atenção</p>
+                    }
+                    @default {
+                      @if (e.status === 'Aguardando') {
+                        <p class="text-xs text-slate-500 mt-0.5">{{ textoArmazenada(e) }}</p>
                       }
-                    </div>
-                  } @else {
-                    <span class="text-xs text-slate-500 font-mono">{{ diasArmazenada(e) }}d</span>
+                    }
                   }
                 </td>
-                <td class="px-5 py-3.5 align-middle">
+                <td class="px-5 py-3.5 align-middle whitespace-nowrap">
                   @if (e.status === 'Aguardando') {
                     @if (e.notificado) {
-                      <div class="flex items-center gap-2">
-                        <div class="flex flex-col">
-                          <span class="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
-                            <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Notificado
-                          </span>
-                          <span class="text-[10px] text-slate-500 mt-0.5 font-mono">
-                            {{ e.notificado_em | date: 'dd/MM HH:mm' }}
-                          </span>
-                        </div>
-                        <button (click)="notificar(e); $event.stopPropagation()" 
-                                class="px-1.5 py-0.5 text-[9px] rounded bg-white/5 hover:bg-white/10 text-slate-350 border border-white/10 transition shrink-0"
-                                title="Re-notificar morador">
-                          Re-notificar
-                        </button>
-                      </div>
+                      <p class="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        Notificado
+                      </p>
+                      <p class="text-xs text-slate-500 mt-0.5">{{ e.notificado_em | date: 'dd/MM HH:mm' }}</p>
                     } @else {
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs text-slate-500 font-medium">Pendente</span>
-                        <button (click)="notificar(e); $event.stopPropagation()" 
-                                class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition duration-150 shrink-0"
-                                title="Notificar morador por push">
-                          Notificar
-                        </button>
-                      </div>
+                      <p class="text-sm text-amber-600 dark:text-amber-400 font-medium">Não notificado</p>
                     }
                   } @else {
-                    <span class="text-xs text-slate-500">—</span>
+                    <span class="text-sm text-slate-500">—</span>
                   }
                 </td>
                 <td class="px-5 py-3.5 align-middle">
@@ -546,6 +504,17 @@
                             class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-600 hover:!text-white hover:border-emerald-600 transition dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-600 dark:hover:!text-white shadow-2xs inline-flex items-center gap-1.5">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                       Marcar retirada
+                    </button>
+                  }
+                  @if (e.status === 'Aguardando') {
+                    <button (click)="notificar(e); $event.stopPropagation()"
+                            [title]="e.notificado ? 'Notificar o morador de novo' : 'Notificar o morador'"
+                            [attr.aria-label]="e.notificado ? 'Notificar o morador de novo' : 'Notificar o morador'"
+                            class="p-1.5 rounded-md transition"
+                            [class]="e.notificado
+                              ? 'p-1.5 rounded-md transition text-slate-400 hover:text-accent hover:bg-white/5'
+                              : 'p-1.5 rounded-md transition text-amber-500 hover:text-amber-600 hover:bg-amber-500/10'">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                     </button>
                   }
                   <button (click)="imprimir(e); $event.stopPropagation()" title="Imprimir etiqueta" aria-label="Imprimir etiqueta"

@@ -31,6 +31,27 @@ export class ConfiguracoesPageComponent {
   confirmarSenha = '';
 
   // UI States
+  readonly mostrarSenhas = signal(false);
+
+  /** Papel real da sessão. Antes: `turno ? 'Portaria' : 'Gestor'` — síndico virava "Portaria". */
+  nivelPermissao(turno: string | null | undefined): 'Síndico' | 'Portaria' | 'Gestor' {
+    if (!turno) return 'Gestor';
+    return turno.trim().toLowerCase() === 'síndico' ? 'Síndico' : 'Portaria';
+  }
+
+  /** Checklist ao vivo da nova senha (mesmas regras que alterarSenha() valida). */
+  requisitosSenha(): { tamanho: boolean; confere: boolean } {
+    return {
+      tamanho: this.novaSenha.length >= 6,
+      confere: !!this.novaSenha && this.novaSenha === this.confirmarSenha,
+    };
+  }
+
+  podeSalvarSenha(): boolean {
+    const r = this.requisitosSenha();
+    return !this.loading() && !!this.senhaAtual && r.tamanho && r.confere;
+  }
+
   readonly loading = signal(false);
   readonly successMessage = signal<string | null>(null);
   readonly errorMessage = signal<string | null>(null);
