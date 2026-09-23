@@ -2715,6 +2715,53 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true };
   }
 
+  /**
+   * Visita sobre a qual Solicitar/Liberar vão agir, sem apagar histórico.
+   *
+   * As duas ações zeram data_entrada/data_saida. Numa visita já USADA (entrou
+   * e saiu) isso sumia com a passagem real do registro; numa visita EM CURSO
+   * (pessoa dentro) apagava a entrada de quem ainda está no prédio.
+   *  - pessoa dentro → recusa (dar baixa antes);
+   *  - visita encerrada → cria uma visita nova, igual à antiga, sem entrada,
+   *    saída nem PIN (o mesmo estado que a antiga teria após a baixa); a tag
+   *    RFID migra para a nova, para a credencial resolver a visita ativa;
+   *  - visita ainda não usada → a própria.
+   */
+  private async visitaParaNovaPassagem(ref: any): Promise<number> {
+    if (ref.data_entrada && !ref.data_saida) {
+      throw new BadRequestException(
+        'Este visitante já está no condomínio. Dê baixa antes de liberar ou solicitar uma nova entrada.',
+      );
+    }
+    if (!ref.data_entrada && !ref.data_saida) return Number(ref.id);
+
+    const nova = await this.prisma.visitas.create({
+      data: {
+        id_pessoa: ref.id_pessoa,
+        id_condominio: ref.id_condominio,
+        id_apartamento: ref.id_apartamento,
+        user: ref.user ?? null,
+        is_visitante: ref.is_visitante,
+        is_prestador: ref.is_prestador,
+        data_hora_inicio: ref.data_hora_inicio,
+        data_hora_termino: ref.data_hora_termino,
+        data_entrada: null,
+        data_saida: null,
+        codigo_acesso: null,
+        liberado: 0,
+        bloqueado: ref.bloqueado ?? 0,
+        avisar: ref.avisar ?? 1,
+        tag_rfid: ref.tag_rfid ?? null,
+        dias_semana: ref.dias_semana ?? null,
+        categorias: ref.categorias ?? null,
+      },
+    });
+    if (ref.tag_rfid) {
+      await this.prisma.visitas.update({ where: { id: Number(ref.id) }, data: { tag_rfid: null } });
+    }
+    return nova.id;
+  }
+
   private async liberarAcessoViaPessoasVisitas(id: number, payload?: JwtPayload, idApartamento?: number) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
@@ -2724,8 +2771,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     if (idApartamento && targetAptoId !== ref.id_apartamento) {
       await this.assertPodeUsarApartamento(targetAptoId, payload);
     }
+    const idVisita = await this.visitaParaNovaPassagem(ref);
     const v = await this.prisma.visitas.update({
-      where: { id: Number(id) },
+      where: { id: idVisita },
       data: {
         liberado: 1,
         data_entrada: null,
@@ -2828,8 +2876,9 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       }
       redirecionarApto = Number(idApartamento);
     }
+    const idVisita = await this.visitaParaNovaPassagem(ref);
     const v = await this.prisma.visitas.update({
-      where: { id: Number(id) },
+      where: { id: idVisita },
       data: {
         ...(redirecionarApto ? { id_apartamento: redirecionarApto } : {}),
         auth_status: 'pendente',
