@@ -3296,10 +3296,36 @@ export class MobileAuthService {
     const atual = await this.prisma.moradores.findUnique({ where: { id: Number(id) } });
     if (!atual) throw new NotFoundException('Morador não encontrado.');
     await this.tenant.assertEntidade(atual.id_condominio, user, `morador #${id}`);
+    // Mesma regra do painel web (MoradoresService.remove): apagar só a linha
+    // de Moradores deixava o vínculo Apartamentos_Users — o usuário seguia
+    // com acesso à unidade, e a lista do apto o mostrava com o Users.id no
+    // lugar do id de Morador, abrindo (e excluindo) o cadastro de outra pessoa.
     try {
-      await this.prisma.moradores.delete({ where: { id: Number(id) } });
-    } catch {
-      throw new NotFoundException('Morador não encontrado.');
+      await this.prisma.$transaction(async (tx) => {
+        if (atual.id_user && atual.id_condominio) {
+          const aptos = await tx.apartamentos.findMany({
+            where: { id_condominio: atual.id_condominio },
+            select: { id: true },
+          });
+          const aptoIds = aptos.map((a) => a.id);
+          if (aptoIds.length > 0) {
+            await tx.apartamentos_Users.deleteMany({
+              where: { id_user: atual.id_user, id_apto: { in: aptoIds } },
+            });
+          }
+        }
+        await tx.moradores.delete({ where: { id: Number(id) } });
+      });
+    } catch (err: any) {
+      this.logger.error(`[removeMorador] Falha ao excluir ${id}: ${err?.message ?? err}`);
+      throw new BadRequestException(
+        `Não foi possível remover o morador. (${err?.code ?? err?.name ?? 'erro'})`,
+      );
+    }
+    if (atual.face_id) {
+      this.facial
+        .unsyncMorador(Number(id), atual.face_id, atual.id_condominio)
+        .catch((err: any) => this.logger.warn(`Unsync facial morador ${id} falhou: ${err?.message ?? err}`));
     }
     return true;
   }
@@ -3390,12 +3416,20 @@ export class MobileAuthService {
       if (tipoFiltro && tipoNorm !== tipoFiltro) continue;
       seen.add(r.id_user);
 
+      // O app usa `id` para abrir e para EXCLUIR o cadastro (/moradores/get e
+      // /moradores/remove) — tem de ser um Moradores.id deste condomínio.
+      // Antes: sem cadastro aqui, caía para o de outro condomínio ou para o
+      // Users.id, que coincide com o Moradores.id de outra pessoa.
       const condId = r.apartamento?.id_condominio;
-      const m = (condId && r.user?.moradores)
-        ? (r.user.moradores.find(mor => mor.id_condominio === condId) ?? r.user.moradores[0])
-        : r.user?.moradores?.[0];
+      const m = condId ? r.user?.moradores?.find((mor) => mor.id_condominio === condId) : undefined;
+      if (!m) {
+        this.logger.warn(
+          `[getMoradoresApto] vínculo sem cadastro de morador: apto ${idApto}, user ${r.id_user} — omitido`,
+        );
+        continue;
+      }
       result.push({
-        id: m?.id ?? r.id_user, // Flutter usa esse id para abrir o detalhe
+        id: m.id, // Flutter usa esse id para abrir o detalhe
         id_user: r.id_user,
         nome: m?.nome ?? r.user?.name ?? '',
         documento: m?.documento ?? r.user?.cpf ?? '',
