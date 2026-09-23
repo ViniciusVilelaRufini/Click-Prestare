@@ -1,7 +1,21 @@
-import { Route } from '@angular/router';
+import { inject } from '@angular/core';
+import { CanMatchFn, Route, Router } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 
+const convitePorQueryCanMatch: CanMatchFn = () =>
+  Boolean(inject(Router).getCurrentNavigation()?.extractedUrl.queryParams['convite']);
+
 export const appRoutes: Route[] = [
+  {
+    // O fallback público usa a raiz para evitar deep link no hosting. Sem a
+    // query, este caminho não casa e a rota raiz protegida abaixo continua
+    // sendo responsável pelo console.
+    path: '',
+    pathMatch: 'full',
+    canMatch: [convitePorQueryCanMatch],
+    loadComponent: () =>
+      import('./convite/convite-page.component').then((m) => m.ConvitePageComponent),
+  },
   {
     path: 'login',
     loadComponent: () =>

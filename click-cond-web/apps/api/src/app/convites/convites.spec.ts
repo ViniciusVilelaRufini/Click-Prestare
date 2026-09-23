@@ -521,6 +521,17 @@ describe('ConvitesService', () => {
       expect(prisma.convites_Visita.create).toHaveBeenCalledTimes(1);
     });
 
+    it.each(['', '   \t  '])('usa a base canônica quando CONVITE_BASE_URL é somente espaço', async (base) => {
+      process.env.CONVITE_BASE_URL = base;
+      const { svc } = build();
+
+      const convite = await svc.gerar(MORADOR, false);
+
+      expect(convite.url).toBe(
+        `https://www.clickprestarecondominios.com.br/?convite=${encodeURIComponent(convite.token)}`,
+      );
+    });
+
     it('honra CONVITE_BASE_URL e remove barras finais', async () => {
       process.env.CONVITE_BASE_URL = 'https://convites.exemplo.test///';
       const { svc } = build();
