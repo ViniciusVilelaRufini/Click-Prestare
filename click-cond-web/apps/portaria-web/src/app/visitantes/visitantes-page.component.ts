@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, computed, inject, signal, effect, untracked } from '@angular/core';
+import { Observable, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -90,6 +91,13 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
   readonly entradaModalPessoa = signal<Pessoa | null>(null);
   readonly entradaModalAptoSelecionado = signal<ApartamentoVisitado | null>(null);
   readonly entradaSalvando = signal(false);
+  // Nova janela da visita quando a autorização do morador venceu (formato do
+  // input datetime-local, igual ao do cadastro de "Nova Visita").
+  readonly entradaJanelaInicio = signal('');
+  readonly entradaJanelaFim = signal('');
+  readonly entradaPrecisaNovaJanela = computed(
+    () => !!this.entradaModalAptoSelecionado()?.autorizacao_expirada,
+  );
   readonly pinCode = signal('');
   readonly validationResult = signal<any | null>(null);
   readonly validationError = signal<string | null>(null);
@@ -1096,12 +1104,15 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const aptos = p.apartamentosVisitados ?? [];
     const aptoPadrao =
       aptos.find((a) => a.liberado || a.auth_status === 'autorizado') ??
+      aptos.find((a) => a.autorizacao_expirada) ??
       aptos.find((a) => a.id === p.id_apartamento) ??
       aptos[0] ??
       null;
 
     this.entradaModalPessoa.set(p);
     this.entradaModalAptoSelecionado.set(aptoPadrao);
+    this.entradaJanelaInicio.set(this.localDateTime(0));
+    this.entradaJanelaFim.set(this.localDateTime(4));
   }
 
   fecharEntradaModal() {
@@ -1118,8 +1129,30 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     const idParaCheckIn = apto?.visitanteId ?? p.id;
     const idApartamento = apto?.id ?? p.id_apartamento;
 
+    // Autorização do morador vencida: o check-in nessa visita seria recusado.
+    // A portaria define uma nova janela; cria-se uma visita nova com ela (o
+    // histórico da antiga fica intacto) e a entrada é registrada nessa visita.
+    let entrada$: Observable<unknown>;
+    if (this.entradaPrecisaNovaJanela()) {
+      const inicio = this.entradaJanelaInicio();
+      const fim = this.entradaJanelaFim();
+      if (!inicio || !fim || new Date(fim).getTime() <= new Date(inicio).getTime()) {
+        this.error.set('Informe uma janela válida: o término deve ser depois do início.');
+        return;
+      }
+      entrada$ = this.service
+        .novaVisitaPessoa(this.chavePessoa(p), {
+          id_apartamento: idApartamento,
+          data_hora_inicio: inicio,
+          data_hora_termino: fim,
+        })
+        .pipe(switchMap((nova: any) => this.service.checkIn(nova.id, idApartamento)));
+    } else {
+      entrada$ = this.service.checkIn(idParaCheckIn, idApartamento);
+    }
+
     this.entradaSalvando.set(true);
-    this.service.checkIn(idParaCheckIn, idApartamento).subscribe({
+    entrada$.subscribe({
       next: () => {
         this.entradaSalvando.set(false);
         this.fecharEntradaModal();
@@ -1174,14 +1207,17 @@ export class VisitantesPageComponent implements OnInit, OnDestroy {
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   }
 
-  getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'saiu' {
+  getStatusVisitante(v: Visitante | Pessoa): 'presente' | 'liberado' | 'autorizado' | 'agendado' | 'expirado' | 'saiu' {
     // 1. Entrou e ainda está dentro (saida não registrada)
     if (v.data_entrada && !v.data_saida) return 'presente';
     // 2. Saída registrada NA VISITA ATUAL. `ultSaida` é de qualquer visita
     // antiga: usá-la prendia em "Saiu" quem foi liberado de novo, e sumiam
     // os botões "Dar Baixa" e "Liberar entrada".
     if (v.data_saida) return 'saiu';
-    // 3. Pré-autorizado manualmente/app (liberado === 1 e não expirado)
+    // 3. Autorização do morador vencida numa visita não usada: o check-in
+    // seria recusado — não é "Liberado" (o botão só falhava).
+    if ((v as Pessoa).autorizacao_expirada) return 'expirado';
+    // 4. Pré-autorizado manualmente/app (liberado === 1 e não expirado)
     if ((v as any).liberado === 1 && !this.autorizacaoExpirada(v)) return 'liberado';
     
     const now = Date.now();

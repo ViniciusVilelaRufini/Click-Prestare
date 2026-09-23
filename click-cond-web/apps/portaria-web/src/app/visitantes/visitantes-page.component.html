@@ -969,6 +969,12 @@
                     </span>
                   } @else {
                     @switch (getStatusVisitante(v)) {
+                      @case ('expirado') {
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50" title="A autorização do morador venceu (10 min). Registre a entrada com uma nova janela.">
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          Autorização expirada
+                        </span>
+                      }
                       @case ('liberado') {
                         <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
                           <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
@@ -1069,6 +1075,7 @@
                     </button>
                   } @else if (
                     getStatusVisitante(v) === 'liberado' ||
+                    getStatusVisitante(v) === 'expirado' ||
                     getStatusVisitante(v) === 'autorizado' ||
                     (v.auth_status === 'autorizado' && !autorizacaoExpirada(v))
                   ) {
@@ -1407,6 +1414,12 @@
                     </span>
                   } @else {
                     @switch (getStatusVisitante(v)) {
+                      @case ('expirado') {
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50" title="A autorização do morador venceu (10 min). Registre a entrada com uma nova janela.">
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          Autorização expirada
+                        </span>
+                      }
                       @case ('liberado') {
                         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
                           <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
@@ -1451,6 +1464,7 @@
                       </button>
                     } @else if (
                       getStatusVisitante(v) === 'liberado' ||
+                    getStatusVisitante(v) === 'expirado' ||
                       getStatusVisitante(v) === 'autorizado' ||
                       (v.auth_status === 'autorizado' && !autorizacaoExpirada(v))
                     ) {
@@ -1883,6 +1897,30 @@
           </div>
         </div>
 
+        @if (entradaPrecisaNovaJanela()) {
+          <div class="px-6 pb-5 -mt-1 space-y-3">
+            <div class="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 flex items-start gap-3">
+              <svg class="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div class="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                <p class="font-semibold">A autorização do morador expirou.</p>
+                <p>Defina a nova janela de acesso. Uma nova visita será registrada com ela; o histórico da anterior fica preservado.</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="block space-y-1">
+                <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Liberado a partir de</span>
+                <input type="datetime-local" [ngModel]="entradaJanelaInicio()" (ngModelChange)="entradaJanelaInicio.set($event)"
+                  class="w-full px-3 py-2 rounded-xl text-sm bg-white dark:bg-graphite-100 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/40" />
+              </label>
+              <label class="block space-y-1">
+                <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Válido até</span>
+                <input type="datetime-local" [ngModel]="entradaJanelaFim()" (ngModelChange)="entradaJanelaFim.set($event)"
+                  class="w-full px-3 py-2 rounded-xl text-sm bg-white dark:bg-graphite-100 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent/40" />
+              </label>
+            </div>
+          </div>
+        }
+
         <!-- Footer / Ações -->
         <div class="px-6 py-4 bg-slate-50 dark:bg-white/[0.02] border-t border-slate-200/80 dark:border-white/10 flex items-center justify-end gap-3">
           <button type="button"
@@ -1902,7 +1940,7 @@
               <svg class="w-4 h-4 text-white keep-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
-              <span>Confirmar Entrada</span>
+              <span>{{ entradaPrecisaNovaJanela() ? 'Registrar nova visita e entrada' : 'Confirmar Entrada' }}</span>
             }
           </button>
         </div>

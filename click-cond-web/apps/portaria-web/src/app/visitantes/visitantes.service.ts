@@ -105,6 +105,8 @@ export interface ApartamentoVisitado {
   label: string;
   visitanteId?: number;
   liberado?: boolean;
+  /** Autorização do morador vencida numa visita ainda não usada: o check-in seria recusado. */
+  autorizacao_expirada?: boolean;
   auth_status?: 'pendente' | 'autorizado' | 'negado' | null;
   auth_solicitado_em?: string | null;
   auth_respondido_em?: string | null;
@@ -125,6 +127,8 @@ export interface Pessoa {
   // para esses mesmos endpoints, então o fallback `id_pessoa ?? id` cobre os
   // dois modos.
   id_pessoa?: number;
+  /** Algum apartamento com autorização do morador vencida (ver ApartamentoVisitado). */
+  autorizacao_expirada?: boolean;
   nome: string;
   doc_identificacao: string | null;
   foto_pessoa: string | null;

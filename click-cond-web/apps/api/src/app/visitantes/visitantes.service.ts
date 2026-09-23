@@ -840,6 +840,20 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
             const authStatus = isAutorizado ? 'autorizado' : isPendente ? 'pendente' : null;
             const noLocalApto = regs.some((r) => r.data_entrada && !r.data_saida);
+            // Mesma condição que faz o check-in recusar ("autorização expirada"):
+            // autorização do morador vencida numa visita ainda não usada, sem
+            // outra válida e sem a pessoa dentro. A portaria precisa saber disso
+            // ANTES de clicar — a tela mostrava "Liberado" e o botão só falhava.
+            const autorizacaoExpirada =
+              !isAutorizado &&
+              !noLocalApto &&
+              regs.some(
+                (r) =>
+                  (r as any).auth_status === 'autorizado' &&
+                  !r.data_entrada &&
+                  !r.data_saida &&
+                  !isAutorizacaoAtual(r, now),
+              );
             const regAtivoApto =
               regs.find((r) => isAutorizacaoAtual(r, now)) ||
               regs.find((r) => (r as any).auth_status === 'pendente') ||
@@ -860,6 +874,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                 ? new Date((regAtivoApto as any).auth_respondido_em).toISOString()
                 : null,
               temPinAtivo: regs.some((r) => Boolean(r.codigo_acesso && !r.data_saida)),
+              autorizacao_expirada: autorizacaoExpirada,
               noLocal: noLocalApto,
               data_entrada: best.data_entrada?.toISOString() ?? null,
               data_saida: best.data_saida?.toISOString() ?? null,
@@ -932,6 +947,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
                 auth_respondido_em: ativo?.auth_respondido_em ?? null,
               };
             })(),
+            autorizacao_expirada: apartamentosVisitados.some((a) => a.autorizacao_expirada),
             dias_semana: diasSemanaPessoa,
             categorias: categoriasPessoa,
             vagaMorador: principal ? (vagaPorVisita.get(principal.id) ?? null) : null,
