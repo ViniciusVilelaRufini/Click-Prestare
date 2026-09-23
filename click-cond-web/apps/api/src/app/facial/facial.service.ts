@@ -4234,6 +4234,9 @@ export class FacialService {
               v = {
                 id: visitaAtivaMigrada.id,
                 id_condominio: visitaAtivaMigrada.id_condominio,
+                // Destino do push "entrou/saiu": sem ele o filtro de moradores
+                // virava `id_apto: undefined` e o aviso ia para todo mundo.
+                id_apartamento: visitaAtivaMigrada.id_apartamento,
                 nome: pessoaComVisitas.nome,
                 is_prestador: visitaAtivaMigrada.is_prestador,
                 liberado: visitaAtivaMigrada.liberado,
@@ -4814,7 +4817,10 @@ export class FacialService {
 
       // Backlog não notifica em tempo real — o evento é antigo; uma rajada
       // de "fulano entrou" horas depois só confunde o morador. Fica na auditoria.
-      if ((evento === 'entrada' || evento === 'saida') && !isBacklog) {
+      // Sem apartamento não há a quem avisar. Nunca consultar com
+      // `id_apto: undefined`: o Prisma ignora o filtro e o push iria para
+      // todos os usuários de todos os condomínios.
+      if ((evento === 'entrada' || evento === 'saida') && !isBacklog && v.id_apartamento) {
         try {
           const moradores = await this.prisma.users.findMany({
             where: {
