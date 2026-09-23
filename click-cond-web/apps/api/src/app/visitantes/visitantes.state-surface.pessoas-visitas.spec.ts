@@ -331,7 +331,9 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
       );
       expect(facial.syncPessoa).toHaveBeenCalledWith(10);
 
-      // Negar
+      // Negar — só vale para um pedido ainda pendente (um novo pedido)
+      const atual = await prisma.visitas.findUnique({ where: { id: 50 }, include: { pessoa: true, apartamento: true } });
+      prisma.visitas.findUnique.mockResolvedValueOnce({ ...atual, auth_status: 'pendente', liberado: 0, data_entrada: null });
       await service.negar(50, payload);
       expect(prisma.visitas.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -430,7 +432,7 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
       );
     });
 
-    it('findAllMobile() retorna visitas mapeadas com isolamento de apartamento do usuário', async () => {
+    it('findAllMobile() retorna o PIN da visita ativa para conta vinculada', async () => {
       const { service } = buildStateHarness();
 
       const res = await service.findAllMobile(1, undefined, undefined, 0, 1);
@@ -441,7 +443,7 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
           id: 50,
           nome: 'Mariana Lima',
           condominio_nome: 'Condomínio Solar',
-          codigo_acesso: null,
+          codigo_acesso: '123456',
         }),
       );
     });

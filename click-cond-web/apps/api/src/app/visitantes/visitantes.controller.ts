@@ -10,6 +10,7 @@ import { ReqUser } from '../auth/req-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { SkipAudit } from '../common/interceptors/skip-audit.decorator';
 import { assertOperador } from '../auth/tenant.util';
+import { formatarDataHoraBrasilia } from '../common/hora-brasilia.util';
 
 /**
  * Superfície do CONSOLE (portaria-web). Enxerga o condomínio inteiro: todas
@@ -34,17 +35,9 @@ export class VisitantesController {
   /** Achata a relação `apartamento` em `apto` / `apto_bloco` (compatível com o frontend antigo). */
   private flatten<T extends { apartamento?: { bloco: string | null; apto: string | null } | null }>(v: T) {
     const { apartamento, ...rest } = v;
-    const formatDateTime = (date: any) => {
-      if (!date) return null;
-      const d = new Date(date);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const day = pad(d.getDate());
-      const month = pad(d.getMonth() + 1);
-      const year = d.getFullYear();
-      const hours = pad(d.getHours());
-      const minutes = pad(d.getMinutes());
-      return `${day}/${month}/${year} ${hours}:${minutes}`;
-    };
+    // Horário de Brasília: o servidor roda em UTC, e o app devolve esta
+    // string ao salvar — `parseLocalTimeToUTC` a lê como Brasília.
+    const formatDateTime = (date: any) => (date ? formatarDataHoraBrasilia(date) : null);
     return {
       ...rest,
       apto: apartamento?.apto ?? null,
@@ -197,17 +190,9 @@ export class VisitantesGlobalController {
 
   private flatten<T extends { apartamento?: { bloco: string | null; apto: string | null } | null }>(v: T) {
     const { apartamento, ...rest } = v;
-    const formatDateTime = (date: any) => {
-      if (!date) return null;
-      const d = new Date(date);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const day = pad(d.getDate());
-      const month = pad(d.getMonth() + 1);
-      const year = d.getFullYear();
-      const hours = pad(d.getHours());
-      const minutes = pad(d.getMinutes());
-      return `${day}/${month}/${year} ${hours}:${minutes}`;
-    };
+    // Horário de Brasília: o servidor roda em UTC, e o app devolve esta
+    // string ao salvar — `parseLocalTimeToUTC` a lê como Brasília.
+    const formatDateTime = (date: any) => (date ? formatarDataHoraBrasilia(date) : null);
     return {
       ...rest,
       apto: apartamento?.apto ?? null,

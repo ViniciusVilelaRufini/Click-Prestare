@@ -16,6 +16,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { FacialService } from '../facial/facial.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { idUsuarioDoToken } from '../auth/usuario-do-token.util';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PessoasService } from '../pessoas/pessoas.service';
@@ -45,19 +46,8 @@ function pessoasMigrationEnabled(prisma?: any): boolean {
 
 const AUTORIZACAO_EXPIRACAO_MS = 10 * 60 * 1000;
 
-/**
- * Users.id de quem está logado, para gravar em `visitas.user` / `Visitantes.user`
- * (FK para Users). Só existe em token de USUÁRIO (typeAccess Sindico/Morador/
- * Funcionario). O porteiro da portaria-web tem `sub = Funcionarios_Portaria.id`
- * — gravá-lo ali atribuía a visita a outra pessoa ou estourava a FK (500).
- */
-export function idUsuarioDoToken(payload?: JwtPayload | null): number | null {
-  if (!payload || (payload as any).role === 'crm_admin') return null;
-  const tipo = (payload.typeAccess ?? payload.user?.typeAccess ?? '').toString().toLowerCase();
-  if (!['sindico', 'morador', 'funcionario'].includes(tipo)) return null;
-  const id = Number(payload.user?.id ?? payload.sub);
-  return id || null;
-}
+// Movido para auth/ (financeiro também precisa); reexportado para os imports existentes.
+export { idUsuarioDoToken };
 
 export function isAutorizacaoAtual(registro: any, agora = Date.now()): boolean {
   if (registro?.auth_status !== 'autorizado') return false;
@@ -499,7 +489,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     const tipoLabel = v.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const fmtDate = (d: Date | null) =>
-      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }) : null;
 
     return {
       visitante: {
@@ -2240,7 +2230,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   private construirContextoAuditoria(visita: any) {
     const tipoLabel = visita.is_prestador === 1 ? 'Prestador' : 'Visitante';
     const fmtDate = (d: Date | null) =>
-      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }) : null;
 
     return {
       visitante: {
@@ -2404,6 +2394,18 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
    */
   private async removeViaPessoasVisitas(id: number, payload?: JwtPayload) {
     const v = await this.assertPodeAcessarVisita(id, payload);
+
+    // A visita que já passou pela portaria é o registro de entrada/saída do
+    // condomínio. O morador só cancela o que ainda não aconteceu — apagar pelo
+    // app sumia com a passagem do histórico e tirava do "no local" quem ainda
+    // está dentro. Portaria/síndico continuam podendo remover.
+    const tipo = (payload?.typeAccess ?? payload?.user?.typeAccess ?? '').toString().toLowerCase();
+    const ehMoradorMobile = !!payload && !payload.id_condominio && tipo !== 'sindico' && tipo !== 'funcionario';
+    if (ehMoradorMobile && v.data_entrada) {
+      throw new BadRequestException(
+        'Esta visita já foi registrada pela portaria e não pode ser excluída pelo app.',
+      );
+    }
 
     try {
       await this.prisma.$transaction([
@@ -2956,14 +2958,28 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true };
   }
 
+  /**
+   * A resposta do morador só vale para um pedido ainda pendente. O push fica
+   * no celular: responder depois de outro morador do apto, ou depois que a
+   * portaria já resolveu, virava a decisão — negar tirava o acesso de quem
+   * já estava dentro, autorizar com entrada reescrevia a entrada.
+   */
+  private assertPedidoPendente(ref: { auth_status?: string | null; auth_solicitado_em?: Date | null }) {
+    if (ref.auth_status !== 'pendente') {
+      throw new BadRequestException('Esta solicitação já foi respondida ou resolvida pela portaria.');
+    }
+  }
+
   private async autorizarViaPessoasVisitas(id: number, payload?: JwtPayload, darEntrada?: boolean) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Este visitante está bloqueado no condomínio.');
     }
+    this.assertPedidoPendente(ref);
+    // Mesmo prazo que a portaria usa para mostrar o pedido como expirado.
     if (ref.auth_solicitado_em) {
       const ms = Date.now() - new Date(ref.auth_solicitado_em).getTime();
-      if (ms > 15 * 60 * 1000) {
+      if (ms > AUTORIZACAO_EXPIRACAO_MS) {
         throw new BadRequestException('Esta solicitação de autorização expirou (limite de 10 minutos).');
       }
     }
@@ -3009,7 +3025,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async negarViaPessoasVisitas(id: number, payload?: JwtPayload) {
-    await this.assertPodeAcessarVisita(id, payload);
+    const ref = await this.assertPodeAcessarVisita(id, payload);
+    this.assertPedidoPendente(ref);
     const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
     const v = await this.prisma.visitas.update({
       where: { id: Number(id) },
@@ -3475,6 +3492,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     search?: string,
     offset = 0,
     userId?: number,
+    userType?: string,
   ) {
     if (!userId) return [];
 
@@ -3526,7 +3544,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
 
     return list.map((v: any) => ({
       ...this.mapVisitaParaRespostaLegada(v),
-      codigo_acesso: null,
+      // O PIN é uma credencial física: somente uma conta vinculada ao
+      // apartamento exato da visita ativa pode recebê-lo no app.
+      codigo_acesso: aptosPermitidos.includes(Number(v.id_apartamento)) && !v.data_saida
+        ? v.codigo_acesso ?? null
+        : null,
+      temPinAtivo: Boolean(v.codigo_acesso && !v.data_saida),
       apartamento: v.apartamento,
       condominio_nome: v.condominio?.nome || null,
     }));
@@ -4535,7 +4558,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     userType?: string,
   ) {
     if (pessoasMigrationEnabled(this.prisma)) {
-      return this.findAllMobileViaPessoasVisitas(idCondominio, idApto, search, offset, userId);
+      return this.findAllMobileViaPessoasVisitas(idCondominio, idApto, search, offset, userId, userType);
     }
     const conditions: any[] = [];
 
@@ -4602,7 +4625,12 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     // fluxo de cadastro/liberacao, nunca como efeito colateral de um GET.
     return list.map((v: any) => ({
       ...v,
-      codigo_acesso: null,
+      // O PIN não é um dado de listagem geral: só segue para uma conta que
+      // possui vínculo com o apartamento desta visita ainda ativa.
+      codigo_acesso: aptosPermitidos.includes(Number(v.id_apartamento)) && !v.data_saida
+        ? v.codigo_acesso ?? null
+        : null,
+      temPinAtivo: Boolean(v.codigo_acesso && !v.data_saida),
       condominio_nome: v.condominio?.nome || null,
     }));
   }

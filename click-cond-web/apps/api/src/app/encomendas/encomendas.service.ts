@@ -70,7 +70,7 @@ export class EncomendasService implements OnModuleInit {
     if (!e) return null;
 
     const fmtDate = (d: Date | null) =>
-      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+      d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }) : null;
 
     const aptoLabel = e.destinatario_bloco
       ? `Bloco ${e.destinatario_bloco}, Apto ${e.destinatario_apto}`
@@ -106,7 +106,8 @@ export class EncomendasService implements OnModuleInit {
     };
   }
 
-  async findAll(idCondominio: number, status?: string) {
+  async findAll(idCondominio: number, status?: string, operador?: JwtPayload) {
+    await this.tenant.assertCondominio(idCondominio, operador);
     if (!this.prisma.isConnected) {
       const mocks = [
         {

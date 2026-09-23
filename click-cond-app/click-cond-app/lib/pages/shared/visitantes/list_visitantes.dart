@@ -518,7 +518,7 @@ class ListVisitantesPageState extends State<ListVisitantes> {
                           ],
                         ),
                       ),
-                      if (item['codigo_acesso'] != null) ...[
+                      if (temPinParaExibir(item)) ...[
                         // QR Code
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -1320,10 +1320,9 @@ class _VisitanteCard extends StatelessWidget {
     );
 
     // Código PIN
-    final hasPin = item['codigo_acesso'] != null &&
+    final hasPin = temPinParaExibir(item) &&
         item['data_saida'] == null &&
-        !isExpired &&
-        item['codigo_acesso'].toString().trim().isNotEmpty;
+        !isExpired;
     final pinStr = item['codigo_acesso']?.toString().trim() ?? '';
     final formattedPin = pinStr.length == 6
         ? '${pinStr.substring(0, 3)}-${pinStr.substring(3, 6)}'
@@ -1740,6 +1739,14 @@ String? _getFotoVisitante(dynamic item) {
   if (s.isEmpty || s == 'null') return null;
   return s;
 }
+
+/// Um PIN só é mostrado, copiado ou compartilhado quando a API autorizada
+/// devolveu uma credencial não vazia. Perfis sem autorização recebem `null`.
+bool temPinParaExibir(dynamic item) {
+  final codigo = item['codigo_acesso'];
+  return codigo != null && codigo.toString().trim().isNotEmpty;
+}
+
 
 /// Decide entre exibir a foto (NetworkImage ou MemoryImage de base64)
 /// ou um fallback com a inicial do nome.
