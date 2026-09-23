@@ -42,6 +42,18 @@ const {
   parseJson,
   sleep,
 } = require('./lib/http');
+const {
+  configDir,
+  deviceBaselines,
+  loadBaselines,
+  setBaseline,
+} = require('./core/estado');
+const { enqueueOfflineEvent, flushOfflineEvents } = require('./core/fila-offline');
+const {
+  configurar: configurarNuvem,
+  cloudRequest,
+  agoraDaNuvem,
+} = require('./core/nuvem');
 
 /**
  * Fabricantes que NÃO falam HTTP para comandos. Usam protocolo binário em
@@ -60,6 +72,8 @@ const SEM_COMANDO_HTTP = {
 loadDotEnv();
 
 let API_URL = (process.env.API_URL || '').replace(/\/+$/, '');
+// core/nuvem.js não lê API_URL global — recebe a config explicitamente.
+configurarNuvem({ apiUrl: API_URL });
 // Modo condomínio: UM token gerencia todos os dispositivos do condomínio.
 let AGENT_TOKEN = (process.env.AGENT_TOKEN || '').trim();
 // Modo legado (opcional): um token por dispositivo, separados por vírgula.
@@ -81,27 +95,8 @@ const DEVICE_STATUS_INTERVAL_MS = Number(
 );
 // deviceId → último status online reportado (loga só na mudança).
 const lastDeviceOnline = new Map();
-// deviceId → maior RecNo/serialNo/ID de log de acesso já processado no dispositivo.
-// Persistido em disco: sem isso, reiniciar o agente zerava a marca d'água e o
-// primeiro reconnect reprocessava (ou pulava) o histórico inteiro.
-const deviceBaselines = new Map();
-function baselinesPath() {
-  return path.join(configDir(), 'device-baselines.json');
-}
-function loadBaselines() {
-  try {
-    const obj = JSON.parse(fs.readFileSync(baselinesPath(), 'utf8'));
-    for (const [k, v] of Object.entries(obj)) deviceBaselines.set(Number(k), v);
-  } catch { /* primeiro boot: arquivo ainda não existe */ }
-}
-function setBaseline(deviceId, val) {
-  deviceBaselines.set(deviceId, val);
-  try {
-    fs.writeFileSync(baselinesPath(), JSON.stringify(Object.fromEntries(deviceBaselines)), 'utf8');
-  } catch (e) {
-    console.error(`[agente] falha ao salvar baseline: ${e.message || e}`);
-  }
-}
+// deviceId → maior RecNo/serialNo/ID de log de acesso já processado no
+// dispositivo (Map + funções de leitura/gravação em core/estado.js).
 loadBaselines();
 // Devices com recuperação de log offline em curso (evita corrida entre a
 // recuperação da transição e o avanço de baseline do heartbeat).
@@ -162,7 +157,9 @@ async function dahuaSyncClock(device, force = false) {
       `/cgi-bin/global.cgi?action=setCurrentTime&time=${encodeURIComponent(t)}`,
     );
     if (res.status >= 200 && res.status < 300) {
-      const skew = Math.round(cloudClockSkewMs / 1000);
+      // Deriva o skew via agoraDaNuvem() em vez de ler o estado interno de
+      // core/nuvem.js diretamente (módulo não expõe o valor cru).
+      const skew = Math.round((Date.now() - agoraDaNuvem().getTime()) / 1000);
       console.log(
         `[agente] ${device.nome}: relógio do aparelho acertado (${t})` +
           (Math.abs(skew) >= 5
@@ -238,6 +235,7 @@ async function firstRunSetup() {
 
   API_URL = urlIn.replace(/\/+$/, '');
   AGENT_TOKEN = extractToken(tokenIn);
+  configurarNuvem({ apiUrl: API_URL });
 
   const envPath = path.join(configDir(), '.env');
   fs.writeFileSync(envPath, `API_URL=${API_URL}\nAGENT_TOKEN=${AGENT_TOKEN}\n`, 'utf8');
@@ -1461,97 +1459,7 @@ function consumeDahuaEvents(buf, onData) {
 }
 
 // ---------- Store-and-forward: fila em disco para eventos offline ----------
-//
-// A LAN continua viva quando a internet cai: o aparelho segue reconhecendo e
-// o agente segue recebendo o stream — só o upload para a nuvem falha. Sem a
-// fila, esses acessos sumiam da auditoria. Aqui cada evento que não subiu é
-// gravado em disco (sobrevive a restart do agente) e reenviado com a flag
-// `backlog: true` quando a nuvem volta — a nuvem audita com o timestamp
-// original, mas não reaciona abertura nem manda push atrasado.
-
-const OFFLINE_QUEUE_MAX = 5000; // ~alguns dias de acessos; acima disso descarta os mais antigos
-let flushEmAndamento = false;
-
-function offlineQueuePath() {
-  return path.join(configDir(), 'events-queue.jsonl');
-}
-
-function enqueueOfflineEvent(body, deviceNome) {
-  try {
-    const file = offlineQueuePath();
-    fs.appendFileSync(file, JSON.stringify(body) + '\n', 'utf8');
-    // Poda: mantém só as últimas OFFLINE_QUEUE_MAX linhas.
-    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
-    if (lines.length > OFFLINE_QUEUE_MAX) {
-      fs.writeFileSync(
-        file,
-        lines.slice(lines.length - OFFLINE_QUEUE_MAX).join('\n') + '\n',
-        'utf8',
-      );
-    }
-    console.log(
-      `[agente] ${deviceNome}: evento guardado na fila offline (${lines.length} pendente(s))`,
-    );
-  } catch (err) {
-    console.error(`[agente] falha ao gravar fila offline: ${err.message || err}`);
-  }
-}
-
-/**
- * Reenvia a fila offline (chamado após cada poll bem-sucedido = nuvem
- * alcançável). Para no primeiro erro e preserva o restante para a próxima
- * tentativa. Eventos reenviados vão com `backlog: true`.
- */
-async function flushOfflineEvents(token) {
-  if (flushEmAndamento) return;
-  const file = offlineQueuePath();
-  let lines;
-  try {
-    if (!fs.existsSync(file)) return;
-    lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
-  } catch {
-    return;
-  }
-  if (lines.length === 0) return;
-
-  flushEmAndamento = true;
-  try {
-    console.log(`[agente] reenviando ${lines.length} evento(s) da fila offline...`);
-    let enviados = 0;
-    for (const line of lines) {
-      let body;
-      try {
-        body = JSON.parse(line);
-      } catch {
-        enviados++; // linha corrompida — descarta
-        continue;
-      }
-      try {
-        const res = await cloudRequest(
-          'POST',
-          `/api/facial/agent/condo/${token}/event`,
-          { ...body, backlog: true },
-        );
-        // 2xx = aceito; 4xx = a nuvem rejeitou de vez (ex.: acesso negado por
-        // regra — já auditado lá), não adianta re-tentar. 5xx/rede = para e
-        // tenta de novo no próximo flush.
-        if (res.status >= 500) break;
-        enviados++;
-      } catch {
-        break; // nuvem ainda inalcançável — preserva o restante
-      }
-    }
-    const restantes = lines.slice(enviados);
-    fs.writeFileSync(file, restantes.length ? restantes.join('\n') + '\n' : '', 'utf8');
-    if (enviados > 0) {
-      console.log(
-        `[agente] fila offline: ${enviados} reenviado(s), ${restantes.length} restante(s)`,
-      );
-    }
-  } finally {
-    flushEmAndamento = false;
-  }
-}
+// `enqueueOfflineEvent`/`flushOfflineEvents` moveram para core/fila-offline.js.
 
 /**
  * Repassa um reconhecimento facial para a nuvem (ignora não-reconhecidos).
@@ -1874,72 +1782,11 @@ async function controlIdFetchNewLogs(device) {
 }
 
 // ---------- HTTP helpers ----------
-
-// Defasagem entre o relógio DESTA máquina e o da nuvem, em ms (positivo = a
-// máquina local está adiantada). Toda resposta HTTP traz o header `Date` do
-// servidor, então dá para medir isso de graça, sem NTP.
-//
-// Por que isso existe: o PC da portaria costuma rodar com o relógio livre no
-// CMOS, sem sincronizar com ninguém. Encontrado em produção com 91,5s de
-// adiantamento (`w32tm`: "Fonte: Local CMOS Clock"). O agente gravava essa hora
-// errada no terminal, o terminal carimbava os acessos 91s no futuro, e no
-// histórico a passagem aparecia DEPOIS da queda de rede que veio antes dela.
-let cloudClockSkewMs = 0;
-let cloudClockSkewConhecido = false;
-
-function registrarSkewDaNuvem(res, enviadoEm) {
-  const dateHeader = res?.headers?.date;
-  if (!dateHeader) return;
-  const servidorMs = Date.parse(dateHeader);
-  if (!Number.isFinite(servidorMs)) return;
-  // O header tem resolução de 1s e a resposta leva um RTT para chegar; usar o
-  // meio do intervalo tira o viés da latência. Precisão de ~1s é de sobra:
-  // o que importa é não errar por minutos.
-  const localMs = (enviadoEm + Date.now()) / 2;
-  const novo = localMs - servidorMs;
-  // Suaviza para uma amostra ruim (pico de latência) não sacudir o relógio.
-  cloudClockSkewMs = cloudClockSkewConhecido
-    ? cloudClockSkewMs * 0.7 + novo * 0.3
-    : novo;
-  cloudClockSkewConhecido = true;
-}
-
-/** Hora atual corrigida pela da nuvem — use no lugar de `new Date()` para
- *  qualquer coisa que vire timestamp de evento ou vá para o aparelho. */
-function agoraDaNuvem() {
-  return new Date(Date.now() - cloudClockSkewMs);
-}
-
-async function cloudRequest(method, pathname, jsonBody) {
-  const enviadoEm = Date.now();
-  const res = await request(API_URL + pathname, {
-    method,
-    json: jsonBody,
-    timeout: 15000,
-  });
-  registrarSkewDaNuvem(res, enviadoEm);
-  return res;
-}
+// Skew do relógio da nuvem (`registrarSkewDaNuvem`/`agoraDaNuvem`) e
+// `cloudRequest` moveram para core/nuvem.js. `configDir` moveu para
+// core/estado.js.
 
 // ---------- Utils ----------
-
-/**
- * Diretório onde procurar o .env. Quando empacotado como executável (Node SEA),
- * __dirname aponta para um caminho virtual interno — então usamos a pasta do
- * próprio .exe (process.execPath). Rodando via `node index.js`, usa __dirname.
- */
-function configDir() {
-  try {
-    // eslint-disable-next-line global-require
-    const sea = require('node:sea');
-    if (typeof sea.isSea === 'function' && sea.isSea()) {
-      return path.dirname(process.execPath);
-    }
-  } catch {
-    /* node:sea não existe em Node antigo — segue com __dirname */
-  }
-  return __dirname;
-}
 
 /** .env minimalista: KEY=VALUE por linha, ignora # e linhas vazias. */
 function loadDotEnv() {
