@@ -25,3 +25,13 @@
 - GREEN: o teste passou e comprovou a chamada `areas-sociais/agendamentos/get-all?id_condominio=22`.
 - Verificação executada: suíte Flutter completa passou (179 testes). A execução Nx combinada (suíte da API + builds da API e portaria-web) não entregou resultado consolidado em 3 min, pois há outros processos Jest/Nx ativos no workspace; deve ser repetida em ambiente sem concorrência. Build APK debug também permanece pendente desta rodada.
 - Aguardando aprovação: nenhuma ação de banco ou publicação.
+## Rodada 3 - 23/09/2026
+
+- Fluxo: porteiro confirma no console o recebimento de uma encomenda pre-registrada no app pelo morador (`Esperando -> Aguardando`).
+- Escopo validado: papel, condominio, apartamento, duplicidade e consistencia app -> portaria-web -> API. O app pre-registra somente para o apartamento da sessao; a portaria-web exige operador; a API valida o condominio da encomenda antes de alterar. A transicao preserva o destinatario (apartamento/bloco).
+- Reproducao (RED): confirmar novamente uma encomenda ja fora de `Esperando` nao tinha guarda de estado; o fluxo usava `update` filtrado apenas por ID e podia repetir atualizacao, notificacao e auditoria.
+- Causa raiz: a confirmacao nao era uma transicao atomica de estado; dois cliques concorrentes podiam ambos ser aceitos.
+- Correcao: `receber()` usa `updateMany` com `where { id, status: 'Esperando' }`. Sem linha alterada, retorna `ConflictException` antes de notificar ou auditar; com uma linha alterada, recarrega o registro e segue o fluxo normal.
+- GREEN: `encomendas.receber-duplicidade.spec.ts` passou e prova que a segunda confirmacao nao busca moradores nem dispara push.
+- Verificacao: teste direcionado API 1/1; typecheck e build API passaram (aviso conhecido de sourcemap Prisma ausente); suite portaria-web 59/59 e build passaram; suite Flutter 182/182 e APK debug passaram. A suite Jest integral da API excedeu 120 s sem resultado consolidado.
+- Aguardando aprovacao: nenhuma acao de banco ou publicacao. O commit desta rodada sera apenas local em `master`.
