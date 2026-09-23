@@ -56,6 +56,8 @@ describe('VisitasService', () => {
       id_condominio: 1,
       id_apartamento: 101,
       pessoa: { nome: 'Visitante Teste', doc_identificacao: '11122233344' },
+      data_hora_inicio: '2026-09-19T10:00:00Z',
+      data_hora_termino: '2026-09-19T18:00:00Z',
       codigo_acesso: '1234',
     });
 

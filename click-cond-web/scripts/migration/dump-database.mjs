@@ -1,16 +1,109 @@
 /**
- * Dump completo do banco para arquivo JSON — SOMENTE LEITURA.
+ * Dump completo do banco para arquivo criptografado — SOMENTE LEITURA.
  *
- * Pré-requisito de segurança do wipe (wipe-test-data.mjs). Não recria
- * estrutura: a estrutura vive em prisma/schema.prisma e em prisma/sql/.
- * Este arquivo existe para poder devolver os DADOS se algo der errado.
+ * O conteúdo do banco nunca é gravado em JSON legível. O wipe só aceita um
+ * dump recente, autenticado e destinado ao mesmo banco alvo.
  *
- * Uso: node --env-file=.env scripts/migration/dump-database.mjs
+ * Uso: DATABASE_DUMP_KEY=<64-hex> node --env-file=.env scripts/migration/dump-database.mjs
  */
-import mysql from 'mysql2/promise';
-import fs from 'fs';
-import path from 'path';
-import { pathToFileURL } from 'url';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+export const DUMP_FORMAT = 'click-prestare/database-dump';
+export const DUMP_MAX_AGE_MS = 30 * 60 * 1000;
+
+const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
+
+export function resolveBackupDirectory() {
+  return path.resolve(scriptDirectory, '..', '..', 'backups');
+}
+
+function dumpKey(key = process.env.DATABASE_DUMP_KEY) {
+  if (!/^[0-9a-f]{64}$/i.test(key ?? '')) {
+    throw new Error('DATABASE_DUMP_KEY deve conter exatamente 64 caracteres hexadecimais.');
+  }
+  return Buffer.from(key, 'hex');
+}
+
+function validateDumpPayload(payload) {
+  if (!payload || typeof payload !== 'object' || !payload.contagens || !payload.dados) {
+    throw new Error('Dump inválido: metadados ou dados ausentes.');
+  }
+  const tables = Object.keys(payload.contagens);
+  if (tables.length !== Object.keys(payload.dados).length) {
+    throw new Error('Dump inválido: conjunto de tabelas inconsistente.');
+  }
+  for (const table of tables) {
+    const expected = Number(payload.contagens[table]);
+    if (!Number.isSafeInteger(expected) || expected < 0 || !Array.isArray(payload.dados[table])) {
+      throw new Error(`Dump inválido na tabela "${table}".`);
+    }
+    if (payload.dados[table].length !== expected) {
+      throw new Error(`Dump incompleto na tabela "${table}".`);
+    }
+  }
+}
+
+export function createEncryptedDump(payload, key = process.env.DATABASE_DUMP_KEY) {
+  validateDumpPayload(payload);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', dumpKey(key), iv);
+  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()]);
+  return {
+    format: DUMP_FORMAT,
+    version: 1,
+    algorithm: 'aes-256-gcm',
+    iv: iv.toString('base64'),
+    authTag: cipher.getAuthTag().toString('base64'),
+    ciphertext: ciphertext.toString('base64'),
+  };
+}
+
+function decryptDump(envelope, key) {
+  if (
+    !envelope ||
+    envelope.format !== DUMP_FORMAT ||
+    envelope.version !== 1 ||
+    envelope.algorithm !== 'aes-256-gcm' ||
+    !envelope.iv ||
+    !envelope.authTag ||
+    !envelope.ciphertext
+  ) {
+    throw new Error('Dump não possui um envelope criptografado verificável.');
+  }
+  try {
+    const decipher = createDecipheriv('aes-256-gcm', dumpKey(key), Buffer.from(envelope.iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(envelope.authTag, 'base64'));
+    const plaintext = Buffer.concat([
+      decipher.update(Buffer.from(envelope.ciphertext, 'base64')),
+      decipher.final(),
+    ]);
+    return JSON.parse(plaintext.toString('utf8'));
+  } catch {
+    throw new Error('Dump não pôde ser autenticado com DATABASE_DUMP_KEY.');
+  }
+}
+
+export function verifyDumpForWipe(
+  envelope,
+  key,
+  targetDatabase,
+  now = new Date(),
+  maxAgeMs = DUMP_MAX_AGE_MS,
+) {
+  const payload = decryptDump(envelope, key);
+  validateDumpPayload(payload);
+  const createdAt = new Date(payload.geradoEm);
+  if (Number.isNaN(createdAt.valueOf()) || createdAt > now || now - createdAt > maxAgeMs) {
+    throw new Error('Dump precisa ser recente e ter no máximo 30 minutos.');
+  }
+  if (payload.database !== targetDatabase) {
+    throw new Error('Dump verificado pertence a outro banco alvo.');
+  }
+  return payload.contagens;
+}
 
 export function buildConfig() {
   const url = new URL(process.env.DATABASE_URL);
@@ -42,7 +135,10 @@ export async function contarTodasAsTabelas(conn, database) {
 }
 
 async function main() {
+  // Falha antes de conectar ou ler qualquer linha se o segredo do dump não foi configurado.
+  dumpKey();
   const cfg = buildConfig();
+  const { default: mysql } = await import('mysql2/promise');
   const conn = await mysql.createConnection(cfg);
   try {
     const contagens = await contarTodasAsTabelas(conn, cfg.database);
@@ -54,35 +150,15 @@ async function main() {
       const [rows] = await conn.query(`SELECT * FROM \`${tabela}\``);
       dados[tabela] = rows;
     }
-
-    // Trava de completude: garante que cada tabela dumpou exatamente o
-    // número de linhas contado antes. Sem isso, uma tabela vazia por engano
-    // passaria despercebida num arquivo grande e aparentemente saudável.
-    for (const tabela of Object.keys(contagens)) {
-      const esperado = Number(contagens[tabela]);
-      const obtido = dados[tabela].length;
-      if (obtido !== esperado) {
-        console.error(
-          `Dump incompleto na tabela "${tabela}": esperado ${esperado} linha(s), obtido ${obtido}.`,
-        );
-        process.exit(1);
-      }
-    }
-
+    const envelope = createEncryptedDump(
+      { geradoEm: new Date().toISOString(), database: cfg.database, contagens, dados },
+    );
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const dir = path.resolve(process.cwd(), '..', 'backups');
-    fs.mkdirSync(dir, { recursive: true });
-    const destino = path.join(dir, `dump-${stamp}.json`);
-    fs.writeFileSync(destino, JSON.stringify({ geradoEm: new Date().toISOString(), contagens, dados }, null, 2));
-
-    const bytes = fs.statSync(destino).size;
-    console.log(`Dump salvo: ${destino} (${(bytes / 1024 / 1024).toFixed(2)} MB)`);
-
-    // Trava de sanidade: dump vazio com banco cheio significa falha silenciosa.
-    if (total > 0 && bytes < 1024) {
-      console.error('Dump suspeito: banco tem linhas mas o arquivo saiu vazio.');
-      process.exit(1);
-    }
+    const dir = resolveBackupDirectory();
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const destino = path.join(dir, `dump-${stamp}.json.enc`);
+    fs.writeFileSync(destino, JSON.stringify(envelope), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+    console.log(`Dump criptografado salvo: ${destino}`);
   } finally {
     await conn.end();
   }

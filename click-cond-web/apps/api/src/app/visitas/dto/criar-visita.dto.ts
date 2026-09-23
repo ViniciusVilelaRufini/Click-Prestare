@@ -51,13 +51,13 @@ export class CriarVisitaDto {
   @IsIn([0, 1])
   is_prestador?: number;
 
-  @IsOptional()
+  @IsDefined()
   @IsDateString()
-  data_hora_inicio?: Date | string | null;
+  data_hora_inicio!: Date | string;
 
-  @IsOptional()
+  @IsDefined()
   @IsDateString()
-  data_hora_termino?: Date | string | null;
+  data_hora_termino!: Date | string;
 
   @IsOptional()
   @IsString()

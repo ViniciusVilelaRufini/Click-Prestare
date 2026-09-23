@@ -256,6 +256,8 @@ describe('VisitantesService — superfície de escrita Pessoas/Visitas (Task 4)'
         doc_identificacao: '11122233344',
         id_apartamento: 101,
         id_condominio: 1,
+        data_hora_inicio: '2026-09-19T10:00:00Z',
+        data_hora_termino: '2026-09-19T18:00:00Z',
       };
 
       const r1: any = await service.create({ ...dto } as any);
@@ -279,12 +281,16 @@ describe('VisitantesService — superfície de escrita Pessoas/Visitas (Task 4)'
         doc_identificacao: doc,
         id_apartamento: 101,
         id_condominio: 1,
+        data_hora_inicio: '2026-09-20T10:00:00Z',
+        data_hora_termino: '2026-09-20T18:00:00Z',
       } as any);
       const r2: any = await service.create({
         nome: 'Vinicius Vilela',
         doc_identificacao: doc,
         id_apartamento: 101,
         id_condominio: 1,
+        data_hora_inicio: '2026-09-20T10:00:00Z',
+        data_hora_termino: '2026-09-20T18:00:00Z',
       } as any);
 
       expect(pessoas).toHaveLength(1); // mesma pessoa, mesma Pessoa

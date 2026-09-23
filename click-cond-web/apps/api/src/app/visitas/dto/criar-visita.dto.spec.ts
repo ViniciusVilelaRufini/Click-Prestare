@@ -28,6 +28,8 @@ describe('CriarVisitaDto — validação (ValidationPipe)', () => {
     const erros = await validarBody({
       id_apartamento: 5,
       pessoa: { nome: 'Visitante Teste' },
+      data_hora_inicio: '2026-09-19T10:00:00Z',
+      data_hora_termino: '2026-09-19T18:00:00Z',
     });
     expect(erros).toHaveLength(0);
   });

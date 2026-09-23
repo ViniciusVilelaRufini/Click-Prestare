@@ -769,7 +769,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
             face_id: p.face_id,
             face_sync_status: p.face_sync_status,
             face_enrolled_at: p.face_enrolled_at ? new Date(p.face_enrolled_at).toISOString() : null,
-            codigo_acesso: principal?.codigo_acesso ?? null,
+            // PIN nunca sai pela listagem; o cliente usa somente o indicador.
+            codigo_acesso: null,
             liberado: principal?.liberado ?? 1,
             bloqueado: p.bloqueado === 1 || principal?.bloqueado === 1 ? 1 : 0,
             data_hora_inicio: principal?.data_hora_inicio ? new Date(principal.data_hora_inicio).toISOString() : null,

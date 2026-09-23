@@ -40,10 +40,15 @@ export class VisitasService {
 
   async criarVisita(dto: CriarVisitaDto) {
     await this.assertApartamentoDoCondominio(Number(dto.id_apartamento), Number(dto.id_condominio));
-    const pessoa = await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa);
-
     const inicio = dto.data_hora_inicio ? new Date(dto.data_hora_inicio) : null;
     const termino = dto.data_hora_termino ? new Date(dto.data_hora_termino) : null;
+    if (!inicio || Number.isNaN(inicio.valueOf()) || !termino || Number.isNaN(termino.valueOf())) {
+      throw new BadRequestException('data_hora_inicio e data_hora_termino são obrigatórias para uma visita.');
+    }
+    if (inicio >= termino) {
+      throw new BadRequestException('data_hora_termino deve ser posterior a data_hora_inicio.');
+    }
+    const pessoa = await this.pessoasService.obterOuCriar(Number(dto.id_condominio), dto.pessoa);
 
     return this.prisma.visitas.create({
       data: {

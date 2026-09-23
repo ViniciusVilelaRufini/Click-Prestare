@@ -130,6 +130,8 @@ describe('VisitantesService.create — caminho novo (Pessoas/Visitas)', () => {
       doc_identificacao: '111.222.333-44',
       id_apartamento: 101,
       id_condominio: 1,
+      data_hora_inicio: '2026-09-19T10:00:00Z',
+      data_hora_termino: '2026-09-19T18:00:00Z',
       foto_pessoa: 'http://foto.jpg',
     } as any);
 
@@ -146,6 +148,8 @@ describe('VisitantesService.create — caminho novo (Pessoas/Visitas)', () => {
       doc_identificacao: '11122233344',
       id_apartamento: 101,
       id_condominio: 1,
+      data_hora_inicio: new Date('2026-09-19T10:00:00Z'),
+      data_hora_termino: new Date('2026-09-19T18:00:00Z'),
       is_visitante: 1,
       is_prestador: 0,
       foto_pessoa: 'http://foto.jpg',
@@ -174,6 +178,8 @@ describe('VisitantesService.create — caminho novo (Pessoas/Visitas)', () => {
       doc_identificacao: '11122233344',
       id_apartamento: 101,
       id_condominio: 1,
+      data_hora_inicio: '2026-09-19T10:00:00Z',
+      data_hora_termino: '2026-09-19T18:00:00Z',
     };
 
     const r1: any = await service.create({ ...dto } as any);

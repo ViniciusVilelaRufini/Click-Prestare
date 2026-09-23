@@ -79,7 +79,7 @@ describe('VisitantesAdapter (Compatibilidade v75)', () => {
             id_apartamento: 101,
             data_hora_inicio: new Date('2026-09-19T10:00:00Z'),
             data_hora_termino: new Date('2026-09-19T18:00:00Z'),
-            codigo_acesso: '4321',
+    codigo_acesso: '4321',
             liberado: 1,
             data_entrada: null,
             data_saida: null,
@@ -96,7 +96,7 @@ describe('VisitantesAdapter (Compatibilidade v75)', () => {
       nome: 'Carlos Visitante',
       doc_identificacao: '12345678900',
       foto_pessoa: 'http://foto.jpg',
-      codigo_acesso: '4321',
+      codigo_acesso: null,
       liberado: 1,
       totalVisitas: 1,
     });
