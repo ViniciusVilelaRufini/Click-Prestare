@@ -3272,20 +3272,7 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
       skip: offset,
     });
 
-    const updated: any[] = [];
-    for (const v of list) {
-      if (!v.codigo_acesso && !v.data_saida) {
-        const pin = await this.gerarPinUnicoVisita();
-        await this.prisma.visitas.update({
-          where: { id: v.id },
-          data: { codigo_acesso: pin },
-        });
-        (v as any).codigo_acesso = pin;
-      }
-      updated.push(v);
-    }
-
-    return updated.map((v: any) => ({
+    return list.map((v: any) => ({
       ...this.mapVisitaParaRespostaLegada(v),
       apartamento: v.apartamento,
       condominio_nome: v.condominio?.nome || null,

@@ -438,6 +438,35 @@ describe('VisitantesService — ações de estado e leituras Pessoas/Visitas (Ta
     });
   });
 
+  describe('com PESSOAS_MIGRATION_ENABLED=true', () => {
+    beforeEach(() => {
+      process.env['PESSOAS_MIGRATION_ENABLED'] = 'true';
+    });
+
+    it('findAllMobile() migrado nÃ£o cria PIN durante uma leitura', async () => {
+      const { service, prisma } = buildStateHarness();
+      prisma.visitas.findMany.mockResolvedValue([{
+        id: 51,
+        id_pessoa: 10,
+        id_condominio: 1,
+        id_apartamento: 101,
+        codigo_acesso: null,
+        data_saida: null,
+        data_hora_inicio: new Date(),
+        data_hora_termino: new Date(Date.now() + 3600000),
+        pessoa: { id: 10, nome: 'Mariana Lima', tipo_pessoa: 'visitante' },
+        apartamento: { bloco: 'A', apto: '101' },
+        condominio: { nome: 'CondomÃ­nio Solar' },
+      }]);
+
+      const res = await service.findAllMobile(1, undefined, undefined, 0, 1);
+
+      expect(res).toHaveLength(1);
+      expect(res[0].codigo_acesso).toBeNull();
+      expect(prisma.visitas.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('com PESSOAS_MIGRATION_ENABLED=false (default)', () => {
     beforeEach(() => {
       process.env['PESSOAS_MIGRATION_ENABLED'] = 'false';
