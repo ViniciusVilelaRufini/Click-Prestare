@@ -1,3 +1,4 @@
+import { normalizarFotoParaTerminal } from './foto-terminal.util';
 import {
   BadRequestException,
   ConflictException,
@@ -5331,7 +5332,17 @@ export class FacialService {
     return 'entrada';
   }
 
+  /**
+   * Foto pronta para o terminal: baixa/decodifica e normaliza para o limite
+   * dos faciais (JPEG até 600x1200 e ~95 KB). Foto de câmera (ex.: 900x1600,
+   * 121 KB) era recusada pelo aparelho com "Bad Request" e ficava pendente.
+   */
   private async fetchPhotoAsBase64(foto: string): Promise<string | null> {
+    const bruta = await this.fetchPhotoBrutaAsBase64(foto);
+    return bruta ? normalizarFotoParaTerminal(bruta) : bruta;
+  }
+
+  private async fetchPhotoBrutaAsBase64(foto: string): Promise<string | null> {
     if (!foto) return null;
     if (foto.startsWith('data:')) {
       const idx = foto.indexOf(',');

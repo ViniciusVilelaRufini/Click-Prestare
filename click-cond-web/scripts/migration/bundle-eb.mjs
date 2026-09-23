@@ -85,6 +85,7 @@ async function bundle() {
       "reflect-metadata": "^0.1.13",
       "resend": "^6.12.3",
       "rxjs": "^7.8.0",
+      "sharp": "0.34.5",
       "socket.io": "^4.8.3",
       "socket.io-client": "^4.8.3",
       "tslib": "^2.3.0",
