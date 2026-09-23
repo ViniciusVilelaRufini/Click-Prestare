@@ -4,6 +4,7 @@ import { StorageService } from '../common/storage/storage.service';
 import { TenantAccessService } from '../auth/tenant-access.service';
 import { assertStaff } from '../auth/tenant.util';
 import type { JwtPayload } from '../auth/jwt-payload.interface';
+import { hojeBrasilia } from '../common/hora-brasilia.util';
 
 @Injectable()
 export class AssembleiasService {
@@ -418,6 +419,8 @@ export class AssembleiasService {
         opcao: { id_votacao: Number(idVotacao) },
       },
       select: { id_opcao: true },
+      // Mesmo critério da apuração: vale o voto mais recente.
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
     });
 
     const meuVoto = vu ? [String(vu.id_opcao)] : [];
@@ -445,7 +448,7 @@ export class AssembleiasService {
       include: {
         opcoes: {
           include: {
-            votos: { select: { id: true } },
+            votos: { select: { id: true, id_user: true, created_at: true } },
           },
           orderBy: { id: 'asc' },
         },
@@ -454,6 +457,24 @@ export class AssembleiasService {
     });
 
     return votacoesDb.map(v => {
+      // Um voto por pessoa: sem índice único, dois toques simultâneos gravavam
+      // duas linhas e a apuração contava as duas. Vale o voto mais recente de
+      // cada usuário na votação.
+      const ultimoVoto = new Map<number, { id: number; id_opcao: number; t: number }>();
+      for (const op of v.opcoes) {
+        for (const voto of op.votos) {
+          const t = new Date(voto.created_at).getTime();
+          const atual = ultimoVoto.get(voto.id_user);
+          if (!atual || t > atual.t || (t === atual.t && voto.id > atual.id)) {
+            ultimoVoto.set(voto.id_user, { id: voto.id, id_opcao: op.id, t });
+          }
+        }
+      }
+      const votosPorOpcao = new Map<number, number>();
+      for (const { id_opcao } of ultimoVoto.values()) {
+        votosPorOpcao.set(id_opcao, (votosPorOpcao.get(id_opcao) ?? 0) + 1);
+      }
+
       const dIniStr = v.data_inicio ? v.data_inicio.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
       const dFimStr = v.data_termino ? v.data_termino.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
@@ -461,7 +482,7 @@ export class AssembleiasService {
       const statusInt = this.calcStatusInt(v.data_inicio, v.data_termino);
 
       // Mapear opções para o formato de string do group_concat: "id;nome;votos"
-      const opcoesStrArray = v.opcoes.map(op => `${op.id};${op.nome};${op.votos.length}`);
+      const opcoesStrArray = v.opcoes.map(op => `${op.id};${op.nome};${votosPorOpcao.get(op.id) ?? 0}`);
 
       return {
         id: v.id,
@@ -492,14 +513,16 @@ export class AssembleiasService {
   private calcStatusInt(dIni?: Date | null, dFim?: Date | null): number {
     if (!dIni || !dFim) return 1;
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
-    const inicio = new Date(dIni);
-    inicio.setHours(0, 0, 0, 0);
-
-    const fim = new Date(dFim);
-    fim.setHours(0, 0, 0, 0);
+    // As datas são @db.Date (meia-noite UTC). "Hoje" precisa ser o dia de
+    // Brasília no mesmo formato: com a data UTC do servidor, a votação fechava
+    // às 21h do último dia e abria às 21h da véspera.
+    const hoje = hojeBrasilia();
+    const diaUtc = (d: Date) => {
+      const x = new Date(d);
+      return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()));
+    };
+    const inicio = diaUtc(dIni);
+    const fim = diaUtc(dFim);
 
     if (fim < hoje) return 2; // finalizado
     if (inicio > hoje) return 0; // agendado
