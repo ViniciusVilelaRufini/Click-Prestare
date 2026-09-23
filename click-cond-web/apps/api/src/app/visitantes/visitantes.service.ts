@@ -2968,14 +2968,28 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
     return { ok: true };
   }
 
+  /**
+   * A resposta do morador só vale para um pedido ainda pendente. O push fica
+   * no celular: responder depois de outro morador do apto, ou depois que a
+   * portaria já resolveu, virava a decisão — negar tirava o acesso de quem
+   * já estava dentro, autorizar com entrada reescrevia a entrada.
+   */
+  private assertPedidoPendente(ref: { auth_status?: string | null; auth_solicitado_em?: Date | null }) {
+    if (ref.auth_status !== 'pendente') {
+      throw new BadRequestException('Esta solicitação já foi respondida ou resolvida pela portaria.');
+    }
+  }
+
   private async autorizarViaPessoasVisitas(id: number, payload?: JwtPayload, darEntrada?: boolean) {
     const ref = await this.assertPodeAcessarVisita(id, payload);
     if (ref.bloqueado === 1 || (ref.pessoa as any)?.bloqueado === 1) {
       throw new BadRequestException('Este visitante está bloqueado no condomínio.');
     }
+    this.assertPedidoPendente(ref);
+    // Mesmo prazo que a portaria usa para mostrar o pedido como expirado.
     if (ref.auth_solicitado_em) {
       const ms = Date.now() - new Date(ref.auth_solicitado_em).getTime();
-      if (ms > 15 * 60 * 1000) {
+      if (ms > AUTORIZACAO_EXPIRACAO_MS) {
         throw new BadRequestException('Esta solicitação de autorização expirou (limite de 10 minutos).');
       }
     }
@@ -3021,7 +3035,8 @@ export class VisitantesService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async negarViaPessoasVisitas(id: number, payload?: JwtPayload) {
-    await this.assertPodeAcessarVisita(id, payload);
+    const ref = await this.assertPodeAcessarVisita(id, payload);
+    this.assertPedidoPendente(ref);
     const respondidoPor = Number(payload?.user?.id ?? payload?.sub) || null;
     const v = await this.prisma.visitas.update({
       where: { id: Number(id) },
