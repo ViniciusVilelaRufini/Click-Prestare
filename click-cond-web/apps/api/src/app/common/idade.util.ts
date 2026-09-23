@@ -59,3 +59,38 @@ export function validarMaioridade(
     );
   }
 }
+
+/**
+ * Marca gravada em `Moradores.extra2` quando o responsável aceita, no app, o
+ * termo de consentimento de biometria do menor (LGPD Art. 14).
+ */
+export const MARCA_TERMO_RESPONSAVEL = 'CONSENTIMENTO_BIOMETRIA_ACEITO_EM';
+
+export function temTermoResponsavel(extra2: string | null | undefined): boolean {
+  return !!extra2 && String(extra2).includes(MARCA_TERMO_RESPONSAVEL);
+}
+
+/**
+ * Foto/biometria facial. Decisão do produto (23/09/2026): menor de 18 anos
+ * pode, desde que o responsável tenha aceito o termo de consentimento (LGPD
+ * Art. 14). A data de nascimento continua obrigatória — sem ela não há como
+ * saber se o termo é exigido. Conta/login de menor segue vedada
+ * (validarMaioridade).
+ */
+export function validarBiometria(
+  dataNascimento: Date | string | null | undefined,
+  termoResponsavel: boolean,
+  contexto = 'cadastro de biometria facial',
+): void {
+  const d = parseDataGenerica(dataNascimento);
+  if (!d) {
+    throw new BadRequestException(
+      `A data de nascimento é obrigatória para ${contexto} (LGPD).`,
+    );
+  }
+  if (calcularIdade(d) < 18 && !termoResponsavel) {
+    throw new BadRequestException(
+      'Foto e biometria de menor de 18 anos exigem o termo de consentimento do responsável (LGPD Art. 14).',
+    );
+  }
+}

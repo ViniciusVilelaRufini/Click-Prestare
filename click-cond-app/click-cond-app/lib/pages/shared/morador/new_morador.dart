@@ -234,7 +234,7 @@ class _NewMoradorPageState extends State<NewMorador> {
         id: myId,
         nome: txtNome.text.trim(),
         documento: txtDocumento.text.trim(),
-        email: txtEmail.text.trim(),
+        email: _isMenor ? '' : txtEmail.text.trim(),
         telefone: txtTelefone.text.trim(),
         tipo: widget.tipo,
         data_nascimento: txtDN.text.trim(),
@@ -514,13 +514,17 @@ class _NewMoradorPageState extends State<NewMorador> {
                   ],
                   const SizedBox(height: AppSpacing.xl),
                   _section(getText('signup_infos_contato')),
-                  AppInput(
-                    label: _isMenor ? 'E-mail do responsável (opcional)' : getText('email'),
-                    controller: txtEmail,
-                    prefixIcon: PhosphorIcons.envelope,
-                    keyboard: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
+                  // Menor não tem conta no app: e-mail aqui virava login do menor
+                  // e a API recusava o cadastro. Sem campo de e-mail para menor.
+                  if (!_isMenor) ...[
+                    AppInput(
+                      label: getText('email'),
+                      controller: txtEmail,
+                      prefixIcon: PhosphorIcons.envelope,
+                      keyboard: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   AppInput(
                     label: _isMenor ? 'Telefone do responsável (opcional)' : getText('telefone'),
                     controller: txtTelefone,

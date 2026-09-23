@@ -9,7 +9,7 @@ import { SuperlogicaWriteService } from '../superlogica/superlogica-write.servic
 import type { JwtPayload } from '../auth/jwt-payload.interface';
 import { assertOperador } from '../auth/tenant.util';
 import * as bcrypt from 'bcrypt';
-import { calcularIdade, validarMaioridade } from '../common/idade.util';
+import { calcularIdade, temTermoResponsavel, validarBiometria, validarMaioridade } from '../common/idade.util';
 
 export interface CreateMoradorDto {
   nome: string;
@@ -988,7 +988,8 @@ export class MoradoresService {
       validarMaioridade(dnFinal, 'atualização de e-mail/conta de usuário no aplicativo');
     }
     if (fotoPessoaUrl) {
-      validarMaioridade(dnFinal, 'atualização de biometria facial');
+      // Menor: só com o termo do responsável, aceito no app (extra2).
+      validarBiometria(dnFinal, temTermoResponsavel((atual as any).extra2), 'atualização de biometria facial');
     }
 
     let result;

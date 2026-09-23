@@ -32,7 +32,7 @@ import {
 import { normalizarPlaca, placaValida, variantesPlaca } from './placa.util';
 import { normalizarPayloadNativo } from './webhook-payload.util';
 import { decryptSecret, encryptSecret } from './device-secret.util';
-import { calcularIdade } from '../common/idade.util';
+import { calcularIdade, temTermoResponsavel } from '../common/idade.util';
 
 function pessoasMigrationEnabled(prisma?: any): boolean {
   if (process.env['PESSOAS_MIGRATION_ENABLED'] !== 'true') return false;
@@ -1282,8 +1282,13 @@ export class FacialService {
     if (!morador)
       throw new NotFoundException(`Morador ${idMorador} não encontrado`);
 
-    // Cláusula 8.3 do contrato: É proibida a coleta ou utilização de biometria de menores de 18 anos.
-    if (!morador.data_nascimento || calcularIdade(morador.data_nascimento) < 18) {
+    // Sem data de nascimento não há como saber a idade: não enrola. Menor de
+    // 18 anos só com o termo de consentimento do responsável (LGPD Art. 14),
+    // aceito no app e gravado em extra2 — decisão do produto em 23/09/2026.
+    if (
+      !morador.data_nascimento ||
+      (calcularIdade(morador.data_nascimento) < 18 && !temTermoResponsavel(morador.extra2))
+    ) {
       this.logger.log(
         `Morador ${idMorador} menor de 18 anos ou sem data de nascimento comprovada: enrolamento facial não realizado.`,
       );
